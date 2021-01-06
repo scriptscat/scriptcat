@@ -1,0 +1,14 @@
+{
+    "manifest_version": 2,
+    "name": "ScriptCat",
+    "version": "0.0.1",
+    "description": "",
+    "background": {
+        "scripts": [
+            "src/background.js"
+        ]
+    },
+    "permissions": [
+        
+    ]
+}
