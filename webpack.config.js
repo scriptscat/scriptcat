@@ -1,7 +1,7 @@
 const home = __dirname + '/src';
 module.exports = {
     entry: {
-        background: home + '/background.ts',
+        background: home + '/apps/background.ts',
     },
     output: {
         path: __dirname + '/build/scriptcat/src',
