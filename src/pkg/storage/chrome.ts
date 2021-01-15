@@ -5,7 +5,7 @@ export class ChromeStorage implements Storage {
     private storage: chrome.storage.StorageArea;
     constructor(prefix: string) {
         this.prefix = prefix;
-        this.storage = chrome.storage.local;
+        this.storage = chrome.storage.sync;
     }
 
     public buildKey(key: string): string {
@@ -44,9 +44,10 @@ export class ChromeStorage implements Storage {
     public keys(prefix: string): Promise<Map<string, any>> {
         return new Promise((resolve) => {
             let ret = new Map<string, any>();
+            prefix = this.buildKey(prefix);
             this.storage.get({}, (items) => {
                 items.forEach((value: any, key: string) => {
-                    if (key.indexOf(this.buildKey(prefix)) == 0) {
+                    if (key.indexOf(prefix) == 0) {
                         ret.set(key, value);
                     }
                 });

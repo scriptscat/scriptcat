@@ -9,7 +9,10 @@
   },
   "author": "CodFrm",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "cron": "^1.8.2",
+    "dexie": "^3.0.3"
+  },
   "devDependencies": {
     "@types/chrome": "0.0.127",
     "ts-loader": "^8.0.14",

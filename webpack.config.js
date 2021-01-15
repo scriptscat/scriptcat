@@ -1,3 +1,4 @@
+const path = require('path');
 const home = __dirname + '/src';
 module.exports = {
     entry: {
@@ -8,7 +9,10 @@ module.exports = {
         filename: '[name].js'
     },
     resolve: {
-        extensions: ['.ts', '.js']
+        extensions: ['.ts', '.js'],
+        alias: {
+            "@App": path.resolve(__dirname, 'src/')
+        }
     },
     module: {
         rules: [
