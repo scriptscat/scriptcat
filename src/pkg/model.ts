@@ -28,4 +28,15 @@ export abstract class Model<T> {
         return this.table.where(where).toArray();
     }
 
+    public save(val: T) {
+        let id = <number>(<any>val).id;
+        if (id == 0) {
+            return this.table.add(val);
+        }
+        return this.table.update(id, val);
+    }
+
+    public findById(id: number) {
+        return this.table.get(id);
+    }
 }

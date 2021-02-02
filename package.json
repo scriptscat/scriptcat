@@ -10,6 +10,7 @@
   "author": "CodFrm",
   "license": "MIT",
   "dependencies": {
+    "@types/cron": "^1.7.2",
     "cron": "^1.8.2",
     "dexie": "^3.0.3"
   },
