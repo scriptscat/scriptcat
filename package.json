@@ -12,7 +12,8 @@
   "dependencies": {
     "@types/cron": "^1.7.2",
     "cron": "^1.8.2",
-    "dexie": "^3.0.3"
+    "dexie": "^3.0.3",
+    "vue": "^2.6.12"
   },
   "devDependencies": {
     "@types/chrome": "0.0.127",

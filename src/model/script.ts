@@ -26,7 +26,7 @@ export interface Script {
 }
 
 db.version(1).stores({
-    script: "++id,&name,code,metadata,type,status,error,createtime,updatetime,checktime"
+    scripts: "++id,&name,code,metadata,type,status,error,createtime,updatetime,checktime"
 });
 
 export const SCRIPT_TYPE_NORMAL = 1;
@@ -39,6 +39,12 @@ export const SCRIPT_STATUS_ERROR = 3;
 export class ScriptModel extends Model<Script> {
 
     protected tableName: string = "scripts";
+
+    constructor() {
+        super();
+        this.table = db.table(this.tableName);
+    }
+
     public findByName(name: string) {
         return this.findOne({ name: name });
     }

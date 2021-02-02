@@ -5,12 +5,8 @@ export let db = new Dexie("ScriptCat");
 
 export abstract class Model<T> {
 
-    protected table: Dexie.Table<T, number>;
+    protected table!: Dexie.Table<T, number>;
     protected tableName: string = "";
-
-    constructor() {
-        this.table = db.table(this.tableName);
-    }
 
     public list(query: Dexie.Table<T, number>, page: Page) {
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());

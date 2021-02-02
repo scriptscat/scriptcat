@@ -8,6 +8,10 @@
             "src/background.js"
         ]
     },
+    "options_ui": {
+        "page": "options.html",
+        "chrome_style": true
+    },
     "permissions": [
         "storage"
     ]
