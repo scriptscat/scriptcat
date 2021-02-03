@@ -5,7 +5,7 @@ const home = __dirname + '/src';
 module.exports = {
     entry: {
         background: home + '/apps/background.ts',
-        options: home + '/apps/options.ts',
+        options: home + '/views/options.ts',
     },
     output: {
         path: __dirname + '/build/scriptcat/src',
@@ -14,7 +14,7 @@ module.exports = {
     plugins: [
         new htmlWebpackPlugin({
             filename: __dirname + '/build/scriptcat/options.html',
-            template: home + '/options.html',
+            template: __dirname + '/public/options.html',
             inject: 'head',
             title: 'ScriptCat',
             minify: {

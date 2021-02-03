@@ -1,16 +1,14 @@
 import { ScriptModel, SCRIPT_TYPE_CRONTAB, Script, SCRIPT_STATUS_ENABLE } from "@App/model/script";
-import { ScriptController } from "./script";
+import { IScript } from "./script";
 import { CronJob } from "cron";
 
-export class CrontabController extends ScriptController {
+export class Crontab implements IScript {
 
     protected script = new ScriptModel();
 
     protected cronjobMap = new Map<number, CronJob>();
 
     constructor() {
-        super();
-
         this.script.find().where({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).toArray().then(items => {
             items.forEach((value: Script, index: number) => {
                 let err = this.enableScript(value);

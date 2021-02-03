@@ -8,8 +8,15 @@
             "src/background.js"
         ]
     },
-    "options_page": "options.html",
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
     "permissions": [
-        "storage"
+        "tabs",
+        "storage",
+        "webRequest",
+        "<all_urls>",
+        "webRequestBlocking"
     ]
 }

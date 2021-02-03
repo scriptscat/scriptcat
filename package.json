@@ -11,8 +11,11 @@
     "license": "MIT",
     "dependencies": {
         "@types/cron": "^1.7.2",
+        "@types/uuid": "^8.3.0",
+        "axios": "^0.21.1",
         "cron": "^1.8.2",
         "dexie": "^3.0.3",
+        "uuid": "^8.3.2",
         "vue": "^2.6.12"
     },
     "devDependencies": {

@@ -3,6 +3,8 @@ import { db, Model } from '@App/pkg/model';
 export type SCRIPT_TYPE = 1 | 2;
 export type SCRIPT_STATUS = 1 | 2 | 3;
 
+export type Metadata = { [key: string]: string[] };
+
 export interface Script {
     id: number;
     //script name
@@ -10,7 +12,7 @@ export interface Script {
     //script code
     code: string;
     //script metadata
-    metadata: { [key: string]: string[] };
+    metadata: Metadata;
     //script type. 1:normal 2:crontab
     type: SCRIPT_TYPE;
     //script status. 1:enable 2:disable 3:error
