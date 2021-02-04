@@ -1,3 +1,5 @@
 node_modules
 build/scriptcat/src/*.js
 build/scriptcat/**.html
+build/scriptcat/src/*.txt
+build/scriptcat/src/*.ttf

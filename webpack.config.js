@@ -1,11 +1,13 @@
 const path = require('path');
 const htmlWebpackPlugin = require('html-webpack-plugin');
 const vueLoaderPlugin = require('vue-loader/lib/plugin');
+const MonacoEditorPlugin = require('monaco-editor-webpack-plugin');
 const home = __dirname + '/src';
 module.exports = {
     entry: {
         background: home + '/apps/background.ts',
         options: home + '/views/options.ts',
+        install: home + '/views/install.ts',
     },
     output: {
         path: __dirname + '/build/scriptcat/src',
@@ -16,11 +18,24 @@ module.exports = {
             filename: __dirname + '/build/scriptcat/options.html',
             template: __dirname + '/public/options.html',
             inject: 'head',
-            title: 'ScriptCat',
+            title: 'Home - ScriptCat',
             minify: {
                 removeComments: true
             },
             chunks: ['options']
+        }),
+        new htmlWebpackPlugin({
+            filename: __dirname + '/build/scriptcat/install.html',
+            template: __dirname + '/public/install.html',
+            inject: 'head',
+            title: 'Install - ScriptCat',
+            minify: {
+                removeComments: true
+            },
+            chunks: ['install']
+        }),
+        new MonacoEditorPlugin({
+            languages: ['javascript', 'typescript'],
         }),
         new vueLoaderPlugin()
     ],
@@ -34,7 +49,6 @@ module.exports = {
         rules: [{
             test: /\.vue$/,
             use: 'vue-loader',
-            exclude: /node_modules/,
         }, {
             test: /\.ts$/,
             use: [{
@@ -43,11 +57,12 @@ module.exports = {
                     appendTsSuffixTo: [/\.vue$/],
                 },
             }],
-            exclude: /node_modules/,
         }, {
             test: /\.css$/,
             use: ['style-loader', 'css-loader'],
-            exclude: /node_modules/,
+        }, {
+            test: /\.ttf$/,
+            use: ['file-loader']
         }]
     }
 }

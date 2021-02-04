@@ -41,29 +41,29 @@ export class ScriptController {
         return ret;
     }
 
-    protected validMetadata(metadata: Metadata | null): boolean {
+    protected validMetadata(metadata: Metadata | null): Metadata | null {
         if (metadata == null) {
-            return false;
+            return null;
         }
-        return true;
+
+        return metadata;
     }
 
-    public installScript(url: string): Promise<boolean> {
+    public installScript(url: string): Promise<string> {
         return new Promise(resolve => {
             axios.get(url).then((response) => {
                 if (response.status != 200) {
-                    return resolve(false);
+                    return resolve("");
                 }
                 let metadata = this.parseMetadata(response.data);
-                if (this.validMetadata(metadata)) {
-                    return resolve(false);
+                if (!this.validMetadata(metadata)) {
+                    return resolve("");
                 }
                 let key = uuidv5(url, uuidv5.URL);
                 this.cache.set(key, response.data);
-
-                resolve(true);
+                resolve(key);
             }).catch((e) => {
-                resolve(false);
+                resolve("");
             });
         });
     }

@@ -11,6 +11,8 @@ export interface Script {
     name: string;
     //script code
     code: string;
+    //script origin
+    origin: string
     //script metadata
     metadata: Metadata;
     //script type. 1:normal 2:crontab
@@ -28,7 +30,7 @@ export interface Script {
 }
 
 db.version(1).stores({
-    scripts: "++id,&name,code,metadata,type,status,error,createtime,updatetime,checktime"
+    scripts: "++id,&name,code,origin,metadata,type,status,error,createtime,updatetime,checktime"
 });
 
 export const SCRIPT_TYPE_NORMAL = 1;

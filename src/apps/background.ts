@@ -23,8 +23,12 @@ function listenScriptInstall() {
 }
 
 async function installScript(tabid: number, url: string) {
-    if (await script.installScript(url)) {
+    let uuid = await script.installScript(url);
+    if (uuid != '') {
         chrome.tabs.remove(tabid);
+        chrome.tabs.create({
+            url: 'install.html?id=' + uuid
+        });
     } else {
         chrome.tabs.update(tabid, {
             url: url + "#bypass=true"
