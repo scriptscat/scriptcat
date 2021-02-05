@@ -1,4 +1,4 @@
-import { ScriptController } from "@App/script/script";
+import { ScriptController } from "@App/apps/script/script";
 
 let script = new ScriptController();
 
@@ -23,7 +23,7 @@ function listenScriptInstall() {
 }
 
 async function installScript(tabid: number, url: string) {
-    let uuid = await script.installScript(url);
+    let uuid = await script.prepareScript(url);
     if (uuid != '') {
         chrome.tabs.remove(tabid);
         chrome.tabs.create({

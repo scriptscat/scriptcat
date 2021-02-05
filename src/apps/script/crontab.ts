@@ -26,7 +26,7 @@ export class Crontab implements IScript {
             return "无脚本定时时间";
         }
         this.cronjobMap.set(script.id, new CronJob(crontab[0], () => {
-            //执行脚本
+            //TODO:执行脚本
         }, null, true));
 
         return "";

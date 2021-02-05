@@ -1,6 +1,6 @@
 import { Metadata, Script, ScriptModel } from "@App/model/script";
-import { Crontab } from "@App/script/crontab";
-import { v5 as uuidv5 } from "uuid";
+import { Crontab } from "@App/apps/script/crontab";
+import { NIL, v5 as uuidv5 } from "uuid";
 import axios from "axios";
 
 export interface IScript {
@@ -49,7 +49,7 @@ export class ScriptController {
         return metadata;
     }
 
-    public installScript(url: string): Promise<string> {
+    public prepareScript(url: string): Promise<string> {
         return new Promise(resolve => {
             axios.get(url).then((response) => {
                 if (response.status != 200) {
@@ -66,6 +66,9 @@ export class ScriptController {
                 resolve("");
             });
         });
+    }
+    public installScript(url: string) {
+
     }
 
     public uninstallScript(id: number) {

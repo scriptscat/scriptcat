@@ -25,6 +25,7 @@ export default class App extends Vue {
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
     });
+    
   }
 }
 </script>

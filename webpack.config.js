@@ -2,12 +2,13 @@ const path = require('path');
 const htmlWebpackPlugin = require('html-webpack-plugin');
 const vueLoaderPlugin = require('vue-loader/lib/plugin');
 const MonacoEditorPlugin = require('monaco-editor-webpack-plugin');
+const MonacoLocalesPlugin = require('monaco-editor-locales-plugin');
 const home = __dirname + '/src';
 module.exports = {
     entry: {
-        background: home + '/apps/background.ts',
-        options: home + '/views/options.ts',
-        install: home + '/views/install.ts',
+        background: home + '/background.ts',
+        options: home + '/options.ts',
+        install: home + '/install.ts',
     },
     output: {
         path: __dirname + '/build/scriptcat/src',
@@ -36,6 +37,11 @@ module.exports = {
         }),
         new MonacoEditorPlugin({
             languages: ['javascript', 'typescript'],
+        }),
+        new MonacoLocalesPlugin({
+            languages: ["es", "zh-cn"],
+            defaultLanguage: "zh-cn",
+            logUnmatched: false,
         }),
         new vueLoaderPlugin()
     ],
