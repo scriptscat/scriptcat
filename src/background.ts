@@ -1,6 +1,7 @@
-import { ScriptController } from "@App/apps/script/script";
+import { Scripts } from "@App/apps/script/scripts";
 
-let script = new ScriptController();
+let scripts = new Scripts();
+scripts.listenMsg();
 
 function listenScriptInstall() {
     chrome.webRequest.onBeforeRequest.addListener((req: chrome.webRequest.WebRequestBodyDetails) => {
@@ -23,11 +24,10 @@ function listenScriptInstall() {
 }
 
 async function installScript(tabid: number, url: string) {
-    let uuid = await script.prepareScript(url);
-    if (uuid != '') {
-        chrome.tabs.remove(tabid);
+    let info = await scripts.loadScriptByUrl(url);
+    if (info != undefined) {
         chrome.tabs.create({
-            url: 'install.html?id=' + uuid
+            url: 'install.html?uuid=' + info.uuid
         });
     } else {
         chrome.tabs.update(tabid, {

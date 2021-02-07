@@ -1,4 +1,4 @@
-import Dexie from "dexie";
+import Dexie, { PromiseExtended } from "dexie";
 import { Page } from "./utils";
 
 export let db = new Dexie("ScriptCat");
@@ -21,18 +21,34 @@ export abstract class Model<T> {
     }
 
     public findOne(where: { [key: string]: any }) {
-        return this.table.where(where).toArray();
+        return this.table.where(where).first();
     }
 
-    public save(val: T) {
-        let id = <number>(<any>val).id;
-        if (id == 0) {
-            return this.table.add(val);
-        }
-        return this.table.update(id, val);
+    public async save(val: T): Promise<T | undefined> {
+        return new Promise(async resolve => {
+            let id = <number>(<any>val).id;
+            if (!id) {
+                delete (<any>val).id;
+                let key = await this.table.add(val);
+                if (key) {
+                    (<any>val).id = key;
+                    return resolve(val);
+                }
+                return resolve(undefined);
+            }
+            if (await this.table.update(id, val)) {
+                resolve(val);
+            } else {
+                resolve(undefined);
+            }
+        });
     }
 
     public findById(id: number) {
         return this.table.get(id);
+    }
+
+    public delete(id: number) {
+        return this.table.delete(id);
     }
 }

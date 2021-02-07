@@ -1,6 +1,6 @@
 import { ScriptModel, SCRIPT_TYPE_CRONTAB, Script, SCRIPT_STATUS_ENABLE } from "@App/model/script";
-import { IScript } from "./script";
-import { CronJob } from "cron";
+import { IScript } from "./scripts";
+import { CronTime, CronJob } from "cron";
 
 export class Crontab implements IScript {
 
@@ -46,6 +46,16 @@ export class Crontab implements IScript {
         }
         cronjob.stop();
         this.cronjobMap.delete(script.id);
+    }
+
+    public validCrontab(crontab: string): boolean {
+        try {
+            let t = new CronTime(crontab);
+            t.sendAt();
+        } catch (e) {
+            return false;
+        }
+        return true;
     }
 }
 
