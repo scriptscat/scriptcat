@@ -13,7 +13,11 @@
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
 import { Scripts } from "@App/apps/script/scripts";
-import { Script, SCRIPT_STATUS_ENABLE } from "@App/model/script";
+import {
+  Script,
+  SCRIPT_STATUS_ENABLE,
+  SCRIPT_STATUS_DISABLE
+} from "@App/model/script";
 
 @Component({})
 export default class App extends Vue {
@@ -27,7 +31,11 @@ export default class App extends Vue {
   }
 
   enable(index: number) {
-    this.scripts[index].status = SCRIPT_STATUS_ENABLE;
+    if (this.scripts[index].status == SCRIPT_STATUS_ENABLE) {
+      this.scripts[index].status = SCRIPT_STATUS_DISABLE;
+    } else {
+      this.scripts[index].status = SCRIPT_STATUS_ENABLE;
+    }
     this.scriptUtil.updateScript(this.scripts[index]);
   }
 }

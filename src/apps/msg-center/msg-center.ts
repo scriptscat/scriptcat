@@ -1,5 +1,5 @@
 
-export type ListenCallback = (msg: any, port: chrome.runtime.Port) => any;
+export type ListenCallback = (msg: any, port: chrome.runtime.Port) => any | Promise<any>;
 
 let topicMap = new Map<string, any>();
 
@@ -11,7 +11,13 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
     port.onMessage.addListener((msg, port) => {
         let ret = val(msg, port);
         if (ret) {
-            port.postMessage(ret);
+            if (ret instanceof Promise) {
+                ret.then(result => {
+                    port.postMessage(result);
+                });
+            } else {
+                port.postMessage(ret);
+            }
         }
     });
 });
@@ -43,7 +49,13 @@ export class onRecv {
         this.port.onMessage.addListener((msg, port) => {
             let ret = this.callback(msg, port);
             if (ret) {
-                port.postMessage(ret);
+                if (ret instanceof Promise) {
+                    ret.then(result => {
+                        port.postMessage(result);
+                    });
+                } else {
+                    port.postMessage(ret);
+                }
             }
         });
     }

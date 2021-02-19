@@ -21,14 +21,16 @@ export class Scripts {
     }
 
     public listenScriptUpdate() {
-        MsgCenter.listener(ScriptUpdate, async (msg) => {
-            let script = <Script>msg;
-            if (script.status == SCRIPT_STATUS_ENABLE) {
-                await this.enableScript(script);
-            } else if (script.status == SCRIPT_STATUS_DISABLE) {
-                this.disableScript(script);
-            }
-            return script;
+        MsgCenter.listener(ScriptUpdate, async (msg): Promise<any> => {
+            return new Promise(async resolve => {
+                let script = <Script>msg;
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.enableScript(script);
+                } else if (script.status == SCRIPT_STATUS_DISABLE) {
+                    this.disableScript(script);
+                }
+                return resolve(script);
+            });
         });
     }
 
@@ -131,12 +133,13 @@ export class Scripts {
             if (!ok) {
                 return resolve(false);
             }
-            MsgCenter.connect(ScriptUpdate, script).addListener(async msg => {
+            MsgCenter.connect(ScriptUpdate, script).addListener(msg => {
                 let s = <Script>msg;
-                script.status = s.status;
+                console.log(s);
+                script.status = s.status
                 script.error = s.error;
+                resolve(true);
             });
-            return resolve(true);
         });
     }
 
