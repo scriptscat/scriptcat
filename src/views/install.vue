@@ -35,7 +35,7 @@ export default class App extends Vue {
     if (!parsed["uuid"]) {
       return;
     }
-    MsgCenter.connect(ScriptCache, parsed["uuid"]).addListener(async (msg) => {
+    MsgCenter.connect(ScriptCache, parsed["uuid"]).addListener(async msg => {
       let info = <ScriptUrlInfo>msg;
       let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
         info.code,
@@ -59,11 +59,11 @@ export default class App extends Vue {
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
           readOnly: true,
-          diffWordWrap: "off",
+          diffWordWrap: "off"
         });
         this.diff.setModel({
           original: editor.createModel(this.script.code, "javascript"),
-          modified: editor.createModel(oldscript.code, "javascript"),
+          modified: editor.createModel(oldscript.code, "javascript")
         });
         this.isupdate = true;
       } else {
@@ -74,7 +74,7 @@ export default class App extends Vue {
           automaticLayout: true,
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
-          readOnly: true,
+          readOnly: true
         });
         this.editor.setValue(this.script.code);
       }

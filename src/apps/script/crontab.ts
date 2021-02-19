@@ -1,6 +1,6 @@
 import { ScriptModel, SCRIPT_TYPE_CRONTAB, Script, SCRIPT_STATUS_ENABLE } from "@App/model/script";
-import { IScript } from "./scripts";
 import { CronTime, CronJob } from "cron";
+import { IScript } from "./interface";
 
 export class Crontab implements IScript {
 
@@ -8,44 +8,35 @@ export class Crontab implements IScript {
 
     protected cronjobMap = new Map<number, CronJob>();
 
-    constructor() {
-        this.script.find().where({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).toArray().then(items => {
-            items.forEach((value: Script, index: number) => {
-                let err = this.enableScript(value);
-                if (err != "") {
-                    value.error = err;
-                    this.script.save(value);
-                }
-            });
+    public enableScript(script: Script): Promise<string> {
+        return new Promise(resolve => {
+            let crontab = script.metadata["crontab"];
+            if (crontab == undefined) {
+                return resolve("无脚本定时时间");
+            }
+            let cron = new CronJob(crontab[0], () => {
+                //TODO:执行脚本
+                console.log('定时');
+            }, null, true);
+            this.cronjobMap.set(script.id, cron);
+
+            return resolve("");
         });
     }
 
-    public enableScript(script: Script): string {
-        let crontab = script.metadata["crontab"];
-        if (crontab.length == 0) {
-            return "无脚本定时时间";
-        }
-        this.cronjobMap.set(script.id, new CronJob(crontab[0], () => {
-            //TODO:执行脚本
-        }, null, true));
-
-        return "";
-    }
-
-    public async disableScript(id: number): Promise<void> {
-        let script = await this.script.findById(id);
-        if (script == null) {
-            return;
-        }
-        if (script.type != SCRIPT_TYPE_CRONTAB) {
-            return;
-        }
-        let cronjob = this.cronjobMap.get(script.id);
-        if (cronjob == null) {
-            return;
-        }
-        cronjob.stop();
-        this.cronjobMap.delete(script.id);
+    public disableScript(script: Script): Promise<void> {
+        return new Promise(async resolve => {
+            if (script.type != SCRIPT_TYPE_CRONTAB) {
+                return resolve();
+            }
+            let cronjob = this.cronjobMap.get(script.id);
+            if (cronjob == null) {
+                return resolve();
+            }
+            cronjob.stop();
+            this.cronjobMap.delete(script.id);
+            return resolve();
+        });
     }
 
     public validCrontab(crontab: string): boolean {

@@ -1,7 +1,9 @@
 import { Scripts } from "@App/apps/script/scripts";
+import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 
 let scripts = new Scripts();
 scripts.listenMsg();
+scripts.listenScriptUpdate();
 
 function listenScriptInstall() {
     chrome.webRequest.onBeforeRequest.addListener((req: chrome.webRequest.WebRequestBodyDetails) => {
@@ -37,3 +39,10 @@ async function installScript(tabid: number, url: string) {
 }
 
 listenScriptInstall();
+
+//启动定时脚本
+scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then(items => {
+    items.forEach((value: Script, index: number) => {
+        scripts.enableScript(value);
+    });
+});

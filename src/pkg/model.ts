@@ -5,10 +5,10 @@ export let db = new Dexie("ScriptCat");
 
 export abstract class Model<T> {
 
-    protected table!: Dexie.Table<T, number>;
-    protected tableName: string = "";
+    public table!: Dexie.Table<T, number>;
+    public tableName: string = "";
 
-    public list(query: Dexie.Table<T, number>, page: Page) {
+    public list(query: Dexie.Collection | Dexie.Table, page: Page) {
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());
         if (page.sort() == "desc") {
             collect = collect.reverse();

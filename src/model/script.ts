@@ -49,7 +49,7 @@ db.version(1).stores({
 
 export class ScriptModel extends Model<Script> {
 
-    protected tableName: string = "scripts";
+    public tableName: string = "scripts";
 
     constructor() {
         super();

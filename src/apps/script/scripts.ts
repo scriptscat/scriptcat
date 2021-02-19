@@ -1,16 +1,11 @@
-import { Metadata, Script, ScriptModel, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
+import { Metadata, Script, ScriptModel, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { Crontab } from "@App/apps/script/crontab";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache } from "@App/apps/msg-center/event";
+import { ScriptCache, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
-
-export interface IScript {
-    enableScript(script: Script): void;
-
-    disableScript(id: number): Promise<void>;
-}
+import { Page } from "@App/pkg/utils";
 
 export class Scripts {
 
@@ -22,6 +17,18 @@ export class Scripts {
     public listenMsg() {
         MsgCenter.listener(ScriptCache, (msg) => {
             return this.cache.get(msg);
+        });
+    }
+
+    public listenScriptUpdate() {
+        MsgCenter.listener(ScriptUpdate, async (msg) => {
+            let script = <Script>msg;
+            if (script.status == SCRIPT_STATUS_ENABLE) {
+                await this.enableScript(script);
+            } else if (script.status == SCRIPT_STATUS_DISABLE) {
+                this.disableScript(script);
+            }
+            return script;
         });
     }
 
@@ -86,7 +93,7 @@ export class Scripts {
                 return resolve([undefined, undefined]);
             }
             let type = SCRIPT_TYPE_NORMAL;
-            if (metadata["corntab"] != undefined && this.crontab.validCrontab(metadata["crontab"][0])) {
+            if (metadata["crontab"] != undefined && this.crontab.validCrontab(metadata["crontab"][0])) {
                 type = SCRIPT_TYPE_CRONTAB;
             }
             let script: Script = {
@@ -100,34 +107,67 @@ export class Scripts {
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
             };
-            if (!script) {
-                return resolve([undefined, undefined]);
-            }
             let old = await this.script.findByName(script.name);
+            if (old) {
+                script.id = old.id;
+                script.createtime = old.createtime;
+                script.status = old.status;
+            }
             return resolve([script, old]);
         });
     }
 
     public async installScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            let ok = await this.script.save(script);
-            if (!ok) {
-                return resolve(false);
-            }
-            //TODO:安装成功开启脚本
-            return resolve(true);
+            script.createtime = new Date().getTime();
+            return resolve(await this.updateScript(script));
         });
     }
 
     public updateScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            let old = this.script.findById(script.id);
+            script.updatetime = new Date().getTime();
             let ok = await this.script.save(script);
             if (!ok) {
                 return resolve(false);
             }
-            //TODO:更新成功按照脚本原状态开启或者关闭
+            MsgCenter.connect(ScriptUpdate, script).addListener(async msg => {
+                let s = <Script>msg;
+                script.status = s.status;
+                script.error = s.error;
+            });
             return resolve(true);
+        });
+    }
+
+    public enableScript(script: Script): Promise<boolean> {
+        return new Promise(async resolve => {
+            script.status = SCRIPT_STATUS_ENABLE;
+            if (script.type == SCRIPT_TYPE_CRONTAB) {
+                let ret = await this.crontab.enableScript(script);
+                if (ret) {
+                    script.error = ret;
+                    script.status == SCRIPT_STATUS_ERROR;
+                }
+            }
+            script.updatetime = new Date().getTime();
+            let ok = await this.script.save(script);
+            if (!ok) {
+                return resolve(false);
+            }
+            return resolve(true);
+        });
+    }
+
+    public disableScript(script: Script): Promise<void> {
+        return new Promise(async resolve => {
+            script.status = SCRIPT_STATUS_DISABLE;
+            if (script.type == SCRIPT_TYPE_CRONTAB) {
+                await this.crontab.disableScript(script);
+            }
+            script.updatetime = new Date().getTime();
+            await this.script.save(script);
+            resolve();
         });
     }
 
@@ -142,4 +182,21 @@ export class Scripts {
         });
     }
 
+    public scriptList(equalityCriterias: { [key: string]: any } | undefined): Promise<Array<Script>> {
+        return new Promise(async resolve => {
+            let page = new Page(1, 20);
+            if (equalityCriterias == undefined) {
+                equalityCriterias = {};
+                resolve(await this.script.list(this.script.table, page));
+            } else {
+                resolve(await this.script.list(this.script.table.where(equalityCriterias), page));
+            }
+        });
+    }
+
+    public getScript(id: number): Promise<Script | undefined> {
+        return new Promise(async resolve => {
+            resolve(await this.script.findById(id));
+        });
+    }
 }
