@@ -5,3 +5,7 @@ export interface IScript {
 
     disableScript(script: Script): Promise<void>;
 }
+
+export interface ICrontab extends IScript {
+    validCrontab(crontab: string): boolean;
+}

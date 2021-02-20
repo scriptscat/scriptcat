@@ -7,6 +7,7 @@ const home = __dirname + '/src';
 module.exports = {
     entry: {
         background: home + '/background.ts',
+        sandbox: home + '/sandbox.ts',
         options: home + '/options.ts',
         install: home + '/install.ts',
     },
@@ -15,6 +16,26 @@ module.exports = {
         filename: '[name].js'
     },
     plugins: [
+        new htmlWebpackPlugin({
+            filename: __dirname + '/build/scriptcat/background.html',
+            template: __dirname + '/public/background.html',
+            inject: 'head',
+            title: 'Background - ScriptCat',
+            minify: {
+                removeComments: true
+            },
+            chunks: ['background']
+        }),
+        new htmlWebpackPlugin({
+            filename: __dirname + '/build/scriptcat/sandbox.html',
+            template: __dirname + '/public/sandbox.html',
+            inject: 'head',
+            title: 'Sandbox - ScriptCat',
+            minify: {
+                removeComments: true
+            },
+            chunks: ['sandbox']
+        }),
         new htmlWebpackPlugin({
             filename: __dirname + '/build/scriptcat/options.html',
             template: __dirname + '/public/options.html',

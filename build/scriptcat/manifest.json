@@ -4,9 +4,7 @@
     "version": "0.0.1",
     "description": "",
     "background": {
-        "scripts": [
-            "src/background.js"
-        ]
+        "page": "background.html"
     },
     "options_ui": {
         "page": "options.html",
@@ -18,5 +16,13 @@
         "webRequest",
         "<all_urls>",
         "webRequestBlocking"
+    ],
+    "sandbox": {
+        "pages": [
+            "sandbox.html"
+        ]
+    },
+    "web_accessible_resources": [
+        "sandbox.html"
     ]
 }

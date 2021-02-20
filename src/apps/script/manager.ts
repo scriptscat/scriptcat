@@ -1,18 +1,24 @@
 import { Metadata, Script, ScriptModel, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
-import { Crontab } from "@App/apps/script/crontab";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCache, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
+import { ICrontab } from "@App/apps/script/interface";
 
-export class Scripts {
+export class ScriptManager {
 
     protected script = new ScriptModel();
-    protected crontab = new Crontab();
+    protected crontab!: ICrontab;
 
     protected cache = new Map<string, ScriptUrlInfo>();
+
+    constructor(crontab: ICrontab | undefined) {
+        if (crontab) {
+            this.crontab = crontab;
+        }
+    }
 
     public listenMsg() {
         MsgCenter.listener(ScriptCache, (msg) => {
@@ -135,7 +141,6 @@ export class Scripts {
             }
             MsgCenter.connect(ScriptUpdate, script).addListener(msg => {
                 let s = <Script>msg;
-                console.log(s);
                 script.status = s.status
                 script.error = s.error;
                 resolve(true);

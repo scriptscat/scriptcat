@@ -4,38 +4,39 @@ import { IScript } from "./interface";
 
 export class Crontab implements IScript {
 
-    protected script = new ScriptModel();
+    protected sandboxWindow: Window;
+    constructor(iframe: Window) {
+        this.sandboxWindow = iframe;
+    }
 
     protected cronjobMap = new Map<number, CronJob>();
 
     public enableScript(script: Script): Promise<string> {
         return new Promise(resolve => {
-            let crontab = script.metadata["crontab"];
-            if (crontab == undefined) {
-                return resolve("无脚本定时时间");
+            this.sandboxWindow.postMessage({ action: 'start', data: script }, '*');
+            function listener(event: MessageEvent) {
+                console.log(event);
+                if (event.data.action != "start") {
+                    return;
+                }
+                resolve(event.data.data);
+                window.removeEventListener('message', listener);
             }
-            let cron = new CronJob(crontab[0], () => {
-                //TODO:执行脚本
-                console.log('定时');
-            }, null, true);
-            this.cronjobMap.set(script.id, cron);
-
-            return resolve("");
+            window.addEventListener('message', listener);
         });
     }
 
     public disableScript(script: Script): Promise<void> {
         return new Promise(async resolve => {
-            if (script.type != SCRIPT_TYPE_CRONTAB) {
-                return resolve();
+            this.sandboxWindow.postMessage({ action: 'stop', data: script }, '*');
+            function listener(event: MessageEvent) {
+                if (event.data.action != "stop") {
+                    return;
+                }
+                resolve();
+                window.removeEventListener('message', listener);
             }
-            let cronjob = this.cronjobMap.get(script.id);
-            if (cronjob == null) {
-                return resolve();
-            }
-            cronjob.stop();
-            this.cronjobMap.delete(script.id);
-            return resolve();
+            window.addEventListener('message', listener);
         });
     }
 

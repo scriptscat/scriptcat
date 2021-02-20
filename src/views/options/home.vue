@@ -12,7 +12,7 @@
 
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
-import { Scripts } from "@App/apps/script/scripts";
+import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
@@ -22,7 +22,7 @@ import {
 @Component({})
 export default class App extends Vue {
   private scripts: Array<Script> = new Array<Script>();
-  public scriptUtil: Scripts = new Scripts();
+  public scriptUtil: ScriptManager = new ScriptManager(undefined);
 
   mounted() {
     this.scriptUtil.scriptList(undefined).then(result => {

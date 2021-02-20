@@ -1,7 +1,8 @@
-import { Scripts } from "@App/apps/script/scripts";
+import { ScriptManager } from "@App/apps/script/manager";
+import { Crontab } from "./apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 
-let scripts = new Scripts();
+let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
 scripts.listenMsg();
 scripts.listenScriptUpdate();
 
@@ -40,9 +41,20 @@ async function installScript(tabid: number, url: string) {
 
 listenScriptInstall();
 
-//启动定时脚本
-scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then(items => {
-    items.forEach((value: Script, index: number) => {
-        scripts.enableScript(value);
+function sandboxLoad(event: MessageEvent) {
+    if (event.origin != "null") {
+        return;
+    }
+    if (event.data.action != "load") {
+        return;
+    }
+    //启动定时脚本
+    scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then(items => {
+        items.forEach((value: Script, index: number) => {
+            scripts.enableScript(value);
+        });
     });
-});
+    window.removeEventListener('message', sandbox);
+}
+
+window.addEventListener('message', sandboxLoad);
