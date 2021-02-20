@@ -3,4 +3,4 @@ declare module "*.vue" {
     export default Vue
 }
 
-declare var sandbox:any
+declare let sandbox:any

@@ -63,8 +63,8 @@ export default class App extends Vue {
           diffWordWrap: "off"
         });
         this.diff.setModel({
-          original: editor.createModel(this.script.code, "javascript"),
-          modified: editor.createModel(oldscript.code, "javascript")
+          original: editor.createModel(oldscript.code, "javascript"),
+          modified: editor.createModel(this.script.code, "javascript")
         });
         this.isupdate = true;
       } else {

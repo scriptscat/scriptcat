@@ -2,7 +2,7 @@ import { Metadata, Script, ScriptModel, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENA
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache, ScriptUpdate } from "@App/apps/msg-center/event";
+import { ScriptCache, ScriptGrant, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { ICrontab } from "@App/apps/script/interface";

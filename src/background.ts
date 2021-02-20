@@ -1,10 +1,16 @@
 import { ScriptManager } from "@App/apps/script/manager";
+import { BackgroundGrant } from "./apps/grant/background";
+import { ContentGrant } from "./apps/grant/context";
 import { Crontab } from "./apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 
 let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
+let grant = new BackgroundGrant();
+let content = new ContentGrant();
 scripts.listenMsg();
 scripts.listenScriptUpdate();
+grant.listenScriptGrant();
+content.listenScriptGrant();
 
 function listenScriptInstall() {
     chrome.webRequest.onBeforeRequest.addListener((req: chrome.webRequest.WebRequestBodyDetails) => {
