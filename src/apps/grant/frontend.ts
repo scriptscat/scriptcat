@@ -7,7 +7,6 @@ type FrontendApi = any;
 
 export class FrontendGrant {
 
-    //TODO:优化request表删除
     public request = new Map<string, Callback>();
 
     public apis = new Map<string, FrontendApi>();
@@ -66,21 +65,23 @@ export class FrontendGrant {
     }
 }
 
+//ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext {
 
     public id: number;
-    //TODO:优化request表删除
     public request = new Map<string, Callback>();
 
     constructor(id: number) {
         this.id = id;
-        window.addEventListener('message', event => {
-            let grant = <Grant>event.data;
-            let callback = this.request.get(grant.request);
-            if (callback) {
-                callback(grant);
-            }
-        });
+        window.addEventListener('message', this.message);
+    }
+
+    public message = (event: MessageEvent) => {
+        let grant = <Grant>event.data;
+        let callback = this.request.get(grant.request);
+        if (callback) {
+            callback(grant);
+        }
     }
 
     public postRequest = (value: string, params: any[], callback: Callback | undefined) => {
@@ -94,6 +95,21 @@ export class SandboxContext {
             this.request.set(grant.request, callback);
         }
         top.postMessage(grant, '*');
+    }
+
+    //沙盒脚本执行结束
+    public resolve = () => {
+
+    }
+
+    //沙盒脚本执行异常
+    public reject = () => {
+
+    }
+
+    public destruct() {
+        //释放资源
+        window.removeEventListener('message', this.message);
     }
 
 }

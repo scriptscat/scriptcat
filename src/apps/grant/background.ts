@@ -40,7 +40,7 @@ export class BackgroundGrant {
             return new Promise(async resolve => {
                 let grant = <Grant>msg;
                 let api = this.apis.get(grant.value);
-                //TODO:通过uuid校验权限
+                //TODO:通过id校验权限
                 if (api == undefined) {
                     return resolve(undefined);
                 }

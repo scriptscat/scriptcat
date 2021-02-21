@@ -10,40 +10,70 @@
 
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
-import { editor } from "monaco-editor";
+import { editor, KeyMod, KeyCode } from "monaco-editor";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCache } from "@App/apps/msg-center/event";
 import query from "query-string";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script } from "@App/model/script";
+import { Crontab } from "@App/apps/script/crontab";
 
 @Component({})
 export default class App extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
-  public scriptUtil: ScriptManager = new ScriptManager(undefined);
+  public scriptUtil: ScriptManager = new ScriptManager(new Crontab(window));
   public script: Script = <Script>{};
 
   mounted() {
+    if (!this.$route.params.id) {
+      console.log("新建");
+      return;
+    }
     this.scriptUtil.getScript(parseInt(this.$route.params.id)).then(result => {
       if (result == undefined) {
         return;
       }
       this.script = result;
-      let edit = document.getElementById("container");
-      if (edit == undefined) {
+      this.createEdit();
+    });
+  }
+
+  createEdit() {
+    let edit = document.getElementById("container");
+    if (edit == undefined) {
+      return;
+    }
+    this.editor = editor.create(edit, {
+      language: "javascript",
+      folding: true,
+      foldingStrategy: "indentation",
+      automaticLayout: true,
+      overviewRulerBorder: false,
+      scrollBeyondLastLine: false
+    });
+    this.editor.setValue(this.script.code);
+    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
+      //TODO:保存时候错误处理
+      let [script, _] = await this.scriptUtil.prepareScriptByCode(
+        this.editor.getValue(),
+        this.script.origin
+      );
+      if (script == undefined) {
+        alert("脚本格式错误");
         return;
       }
-      this.editor = editor.create(edit, {
-        language: "javascript",
-        folding: true,
-        foldingStrategy: "indentation",
-        automaticLayout: true,
-        overviewRulerBorder: false,
-        scrollBeyondLastLine: false,
-      });
-      this.editor.setValue(this.script.code);
+      this.script.name = script.name;
+      this.script.code = script.code;
+      this.script.author = script.author;
+      this.script.namespace = script.namespace;
+      this.script.metadata = script.metadata;
+      this.script.status = script.status;
+      this.script.error = script.error;
+      this.script.checktime = script.checktime;
+
+      this.scriptUtil.updateScript(this.script);
     });
   }
 }

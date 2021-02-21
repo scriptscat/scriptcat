@@ -1,4 +1,4 @@
-import { db, Model } from '@App/pkg/model';
+import { db, Model } from '@App/model/model';
 
 export type SCRIPT_TYPE = 1 | 2;
 
@@ -23,6 +23,9 @@ export interface Script {
     name: string;
     //script code
     code: string;
+    namespace: string
+    author: string
+    origin_domain: string
     //script origin
     origin: string
     //script checkupdate meta url
@@ -42,10 +45,6 @@ export interface Script {
     //last check update timestamp
     checktime?: number;
 }
-
-db.version(1).stores({
-    scripts: "++id,&uuid,&name,code,origin,checkupdate_url,metadata,type,status,error,createtime,updatetime,checktime"
-});
 
 export class ScriptModel extends Model<Script> {
 

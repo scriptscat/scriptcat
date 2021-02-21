@@ -29,8 +29,12 @@ export class ScriptManager {
     public listenScriptUpdate() {
         MsgCenter.listener(ScriptUpdate, async (msg): Promise<any> => {
             return new Promise(async resolve => {
-                let script = <Script>msg;
+                let script = <Script>msg[0];
+                let oldScript = <Script>msg[1];
                 if (script.status == SCRIPT_STATUS_ENABLE) {
+                    if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
+                        await this.disableScript(script);
+                    }
                     await this.enableScript(script);
                 } else if (script.status == SCRIPT_STATUS_DISABLE) {
                     this.disableScript(script);
@@ -104,11 +108,19 @@ export class ScriptManager {
             if (metadata["crontab"] != undefined && this.crontab.validCrontab(metadata["crontab"][0])) {
                 type = SCRIPT_TYPE_CRONTAB;
             }
+            let urlSplit = url.split('/');
+            let domain = '';
+            if (urlSplit[2]) {
+                domain = urlSplit[2];
+            }
             let script: Script = {
                 id: 0,
                 uuid: uuidv5(url, uuidv5.URL),
                 name: metadata["name"][0],
                 code: code,
+                author: metadata['author'] && metadata['author'][0],
+                namespace: metadata['namespace'] && metadata['namespace'][0],
+                origin_domain: domain,
                 origin: url,
                 checkupdate_url: url.replace("user.js", "meta.js"),
                 metadata: metadata,
@@ -120,26 +132,30 @@ export class ScriptManager {
                 script.id = old.id;
                 script.createtime = old.createtime;
                 script.status = old.status;
+                script.checktime = old.checktime;
             }
             return resolve([script, old]);
         });
     }
 
-    public async installScript(script: Script): Promise<boolean> {
+    public installScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             script.createtime = new Date().getTime();
             return resolve(await this.updateScript(script));
         });
     }
 
-    public updateScript(script: Script): Promise<boolean> {
+    public updateScript(script: Script, old?: Script): Promise<boolean> {
         return new Promise(async resolve => {
+            if (script.id && !old) {
+                old = await this.script.findById(script.id);
+            }
             script.updatetime = new Date().getTime();
             let ok = await this.script.save(script);
             if (!ok) {
                 return resolve(false);
             }
-            MsgCenter.connect(ScriptUpdate, script).addListener(msg => {
+            MsgCenter.connect(ScriptUpdate, [script, old]).addListener(msg => {
                 let s = <Script>msg;
                 script.status = s.status
                 script.error = s.error;
@@ -150,13 +166,16 @@ export class ScriptManager {
 
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            script.status = SCRIPT_STATUS_ENABLE;
             if (script.type == SCRIPT_TYPE_CRONTAB) {
                 let ret = await this.crontab.enableScript(script);
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;
+                } else {
+                    script.status = SCRIPT_STATUS_ENABLE;
                 }
+            } else {
+                script.status = SCRIPT_STATUS_ENABLE;
             }
             script.updatetime = new Date().getTime();
             let ok = await this.script.save(script);

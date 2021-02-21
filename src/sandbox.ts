@@ -6,16 +6,24 @@ import { FrontendGrant, SandboxContext } from "./apps/grant/frontend";
 let cronjobMap = new Map<number, CronJob>();
 let grant = new FrontendGrant(0);
 
-//TODO:缓存编译代码
+let cache = new Map<number, [SandboxContext, Function]>();
 function execScript(script: Script) {
     //使用SandboxContext接管postRequest
-    let context: { [key: string]: any } = new SandboxContext(script.id);
-    if (script.metadata["grant"] != undefined) {
-        script.metadata["grant"].forEach((value) => {
-            context[value] = grant.getApi(value);
-        });
+    let ret = cache.get(script.id);
+    let context: { [key: string]: any };
+    let func: Function;
+    if (ret) {
+        [context, func] = ret;
+    } else {
+        context = new SandboxContext(script.id);
+        if (script.metadata["grant"] != undefined) {
+            script.metadata["grant"].forEach((value) => {
+                context[value] = grant.getApi(value);
+            });
+        }
+        func = compileCode(script.code);
+        cache.set(script.id, [<SandboxContext>context, func]);
     }
-    let func = compileCode(script.code);
     func(createContext(window, context));
 }
 
@@ -24,7 +32,6 @@ function start(script: Script): any {
     if (crontab == undefined) {
         return top.postMessage({ action: 'start', data: '无脚本定时时间' }, '*');
     }
-    execScript(script);
     let cron = new CronJob(crontab[0], () => {
         execScript(script);
     }, null, true);
@@ -42,6 +49,12 @@ function stop(script: Script) {
     }
     cronjob.stop();
     cronjobMap.delete(script.id);
+    let ret = cache.get(script.id);
+    if (ret) {
+        let [context, _] = ret;
+        context.destruct();
+        cache.delete(script.id);
+    }
     return top.postMessage({ action: 'stop' }, '*');
 }
 

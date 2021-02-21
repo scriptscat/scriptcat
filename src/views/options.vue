@@ -1,7 +1,9 @@
 <template>
   <div style="height: 100%">
     <div>
+      <router-link to="/edit">新建脚本</router-link>
       <router-link to="/">脚本列表</router-link>
+      <router-link to="/logger">运行日志</router-link>
       <router-link to="/">管理设置</router-link>
     </div>
     <div style="margin-top:10px;height: 100%;"><router-view></router-view></div>
