@@ -1,26 +1,16 @@
-//沙盒测试
-
 import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { compileCode, createContext } from "@App/pkg/sandbox";
-import { FrontendGrant } from "./apps/grant/frontend";
-import { Grant } from "./apps/grant/interface";
-import { randomString } from "./pkg/utils";
+import { FrontendGrant, SandboxContext } from "./apps/grant/frontend";
 
 let cronjobMap = new Map<number, CronJob>();
-let grant = new FrontendGrant();
+let grant = new FrontendGrant(0);
 
+//TODO:缓存编译代码
 function execScript(script: Script) {
-    let context: { [key: string]: any } = {};
+    //使用SandboxContext接管postRequest
+    let context: { [key: string]: any } = new SandboxContext(script.id);
     if (script.metadata["grant"] != undefined) {
-        context["postRequest"] = function (value: string, params: any[]) {
-            let grant: Grant = {
-                value: value,
-                params: params,
-                request: randomString(32)
-            };
-            top.postMessage(grant, '*');
-        };
         script.metadata["grant"].forEach((value) => {
             context[value] = grant.getApi(value);
         });

@@ -15,7 +15,6 @@ export class Crontab implements IScript {
         return new Promise(resolve => {
             this.sandboxWindow.postMessage({ action: 'start', data: script }, '*');
             function listener(event: MessageEvent) {
-                console.log(event);
                 if (event.data.action != "start") {
                     return;
                 }

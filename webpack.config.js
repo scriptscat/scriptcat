@@ -76,6 +76,7 @@ module.exports = {
         rules: [{
             test: /\.vue$/,
             use: 'vue-loader',
+            exclude: /node_modules/,
         }, {
             test: /\.ts$/,
             use: [{
@@ -84,6 +85,7 @@ module.exports = {
                     appendTsSuffixTo: [/\.vue$/],
                 },
             }],
+            exclude: /node_modules/,
         }, {
             test: /\.css$/,
             use: ['style-loader', 'css-loader'],
