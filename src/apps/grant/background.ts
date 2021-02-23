@@ -1,7 +1,7 @@
 import axios from "axios";
 import { ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
-import { Grant, GM_xmlhttpRequestDetails, Api, IPostMessage, IGrantListener, GM_xmlhttpRespond } from "./interface";
+import { Grant, Api, IPostMessage, IGrantListener } from "./interface";
 
 class postMessage implements IPostMessage {
 
@@ -32,7 +32,8 @@ export class BackgroundGrant {
 
     constructor(listener: IGrantListener) {
         this.listener = listener;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie);
+        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification);
+
     }
 
     public listenScriptGrant() {
@@ -56,7 +57,7 @@ export class BackgroundGrant {
                 //错误
                 return resolve(undefined);
             }
-            let config = <GM_xmlhttpRequestDetails>grant.params[0];
+            let config = <GM_Types.XHRDetails>grant.params[0];
             axios(config).then(result => {
                 let text = '';
                 switch (typeof (result.data)) {
@@ -65,7 +66,7 @@ export class BackgroundGrant {
                     default:
                         text = JSON.stringify(result.data); break;
                 }
-                let respond: GM_xmlhttpRespond = {
+                let respond: GM_Types.XHRResponse = {
                     status: result.status,
                     statusText: result.statusText,
                     responseHeaders: result.headers,
@@ -82,6 +83,45 @@ export class BackgroundGrant {
     protected GM_cookie(): Promise<any> {
         return new Promise(resolve => {
             resolve(undefined);
+        });
+    }
+
+    protected GM_notification(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            let params = grant.params;
+            if (params.length == 0) {
+                return resolve(undefined);
+            }
+            let details: GM_Types.NotificationDetails = {};
+
+            if (params.length > 1) {
+                switch (params.length) {
+                    case 3: {
+                        details.image = params[2];
+                    }
+                    case 2: {
+                        details.title = params[1];
+                    }
+                    case 1: {
+                        details.text = params[0];
+                    }
+                }
+            } else {
+                details = params[0];
+            }
+            chrome.notifications.create({
+                title: details.title,
+                contextMessage: details.text,
+                iconUrl: details.image,
+                silent: details.silent,
+            }, (notificationId) => {
+                if (details.timeout) {
+                    setTimeout(() => {
+                        chrome.notifications.clear(notificationId);
+                    });
+                }
+            });
+
         });
     }
 }

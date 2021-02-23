@@ -67,7 +67,7 @@ module.exports = {
         new vueLoaderPlugin()
     ],
     resolve: {
-        extensions: ['.ts', '.js', '.vue'],
+        extensions: ['.ts', '.js', '.vue', '.d.ts'],
         alias: {
             "@App": path.resolve(__dirname, 'src/')
         }
@@ -78,7 +78,13 @@ module.exports = {
             use: 'vue-loader',
             exclude: /node_modules/,
         }, {
-            test: /\.ts$/,
+            test: /\.d\.ts$/,
+            use: [{
+                loader: "raw-loader",
+            }],
+            exclude: /node_modules/,
+        }, {
+            test: /(?<!\.d)\.ts$/,
             use: [{
                 loader: "ts-loader",
                 options: {

@@ -1,5 +1,5 @@
 import { randomString } from "@App/pkg/utils";
-import { GM_xmlhttpRequestDetails, GM_xmlhttpRespond, Grant } from "./interface";
+import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
 type FrontendApi = any;
@@ -15,7 +15,7 @@ export class FrontendGrant {
 
     constructor(id: number) {
         this.id = id;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie);
+        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification);
     }
 
     public listenScriptGrant() {
@@ -45,7 +45,7 @@ export class FrontendGrant {
         window.postMessage(grant, '*');
     }
 
-    public GM_xmlhttpRequest(details: GM_xmlhttpRequestDetails) {
+    public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let param = {
             method: details.method,
             timeout: details.timeout,
@@ -54,7 +54,7 @@ export class FrontendGrant {
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'load':
-                    details.onload && details.onload(<GM_xmlhttpRespond>grant.data.data);
+                    details.onload && details.onload(<GM_Types.XHRResponse>grant.data.data);
                     break;
             }
         });
@@ -62,6 +62,15 @@ export class FrontendGrant {
 
     public GM_cookie(action: string, details: any) {
         this.postRequest('GM_cookie', [action, details], undefined);
+    }
+
+    public GM_notification(text: string, title: string, image: string, onclick: Function): void;
+    public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: Function | string): void {
+        if (typeof detail === 'object') {
+
+        } else {
+
+        }
     }
 }
 

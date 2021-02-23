@@ -27,8 +27,8 @@ export default class App extends Vue {
   public script: Script = <Script>{};
 
   mounted() {
+    this.createEdit();
     if (!this.$route.params.id) {
-      console.log("新建");
       return;
     }
     this.scriptUtil.getScript(parseInt(this.$route.params.id)).then(result => {
@@ -36,7 +36,7 @@ export default class App extends Vue {
         return;
       }
       this.script = result;
-      this.createEdit();
+      this.editor.setValue(this.script.code);
     });
   }
 
@@ -53,7 +53,6 @@ export default class App extends Vue {
       overviewRulerBorder: false,
       scrollBeyondLastLine: false
     });
-    this.editor.setValue(this.script.code);
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理
       let [script, _] = await this.scriptUtil.prepareScriptByCode(

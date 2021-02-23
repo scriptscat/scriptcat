@@ -30,6 +30,7 @@
         "file-loader": "^6.2.0",
         "html-webpack-plugin": "^5.0.0-beta.6",
         "monaco-editor-locales-plugin": "0.0.3",
+        "raw-loader": "^4.0.2",
         "style-loader": "^2.0.0",
         "ts-loader": "^8.0.14",
         "typescript": "^4.1.3",
