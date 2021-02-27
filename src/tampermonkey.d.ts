@@ -80,8 +80,7 @@ declare function GM_openInTab(url: string, options: GM_Types.OpenTabOptions): vo
 declare function GM_openInTab(url: string, loadInBackground: boolean): void;
 declare function GM_openInTab(url: string): void;
 
-declare function GM_xmlhttpRequest<CONTEXT_TYPE>(details: GM_Types.XHRDetails<CONTEXT_TYPE>): GM_Types.AbortHandle<void>;
-
+declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;
 
 declare function GM_download(details: GM_Types.DownloadDetails): GM_Types.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GM_Types.AbortHandle<boolean>;
@@ -95,7 +94,36 @@ declare function GM_notification(text: string, title: string, image: string, onc
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
 
+declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
+
 declare namespace GM_Types {
+
+    type CookieAction = "list" | "delete" | "set";
+
+    interface CookieDetails {
+        url: string
+        name: string
+        value?: string
+        domain?: string
+        path?: string
+        secure?: boolean
+        httpOnly?: boolean
+        expirationDate?: number
+    }
+
+    interface Cookie {
+        domain: string;
+        name: string;
+        storeId: string;
+        value: string;
+        session: boolean;
+        hostOnly: boolean;
+        expirationDate?: number;
+        path: string;
+        httpOnly: boolean;
+        secure: boolean;
+    }
+
 
     type ValueChangeListener = (name: string, oldValue: any, newValue: any, remote: boolean) => any;
 
@@ -128,14 +156,15 @@ declare namespace GM_Types {
     type Listener<OBJ> = (event: OBJ) => any;
 
     interface XHRDetails {
-        method?: "GET" | "HEAD" | "POST",
-        url?: string,
-        headers?: { readonly [key: string]: string },
-        data?: string,
-        binary?: boolean,
-        timeout?: number,
-        context?: CONTEXT_TYPE,
-        responseType?: "arraybuffer" | "blob" | "json",
+        method?: "GET" | "HEAD" | "POST"
+        url?: string
+        headers?: { [key: string]: string }
+        data?: string
+        cookie?: string
+        binary?: boolean
+        timeout?: number
+        context?: CONTEXT_TYPE
+        responseType?: "arraybuffer" | "blob" | "json"
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,

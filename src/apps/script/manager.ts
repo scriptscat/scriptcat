@@ -105,24 +105,29 @@ export class ScriptManager {
                 return resolve([undefined, undefined]);
             }
             let type = SCRIPT_TYPE_NORMAL;
-            if (metadata["crontab"] != undefined && this.crontab.validCrontab(metadata["crontab"][0])) {
+            if (metadata["crontab"] != undefined && this.crontab.validCrontab(metadata["crontab"])) {
                 type = SCRIPT_TYPE_CRONTAB;
             }
-            let urlSplit = url.split('/');
+            let urlSplit: string[];
             let domain = '';
-            if (urlSplit[2]) {
-                domain = urlSplit[2];
+            let checkupdate_url = '';
+            if (url.indexOf('/') !== -1) {
+                urlSplit = url.split('/');
+                if (urlSplit[2]) {
+                    domain = urlSplit[2];
+                }
+                checkupdate_url = url.replace("user.js", "meta.js");
             }
             let script: Script = {
                 id: 0,
-                uuid: uuidv5(url, uuidv5.URL),
+                uuid: uuidv5(url + '?t=' + new Date().getTime(), uuidv5.URL),
                 name: metadata["name"][0],
                 code: code,
                 author: metadata['author'] && metadata['author'][0],
                 namespace: metadata['namespace'] && metadata['namespace'][0],
                 origin_domain: domain,
                 origin: url,
-                checkupdate_url: url.replace("user.js", "meta.js"),
+                checkupdate_url: checkupdate_url,
                 metadata: metadata,
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
@@ -149,6 +154,11 @@ export class ScriptManager {
         return new Promise(async resolve => {
             if (script.id && !old) {
                 old = await this.script.findById(script.id);
+                if (old) {
+                    script.createtime = old.createtime;
+                    script.checktime = old.checktime;
+                    script.lastruntime = old.lastruntime;
+                }
             }
             script.updatetime = new Date().getTime();
             let ok = await this.script.save(script);
@@ -224,6 +234,13 @@ export class ScriptManager {
     public getScript(id: number): Promise<Script | undefined> {
         return new Promise(async resolve => {
             resolve(await this.script.findById(id));
+        });
+    }
+
+    public setRuntime(id: number, time: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            this.script.table.update(id, { lastruntime: time })
+            resolve(true);
         });
     }
 }

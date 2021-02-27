@@ -9,14 +9,14 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
+import { Vue, Component, Watch } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCache } from "@App/apps/msg-center/event";
 import query from "query-string";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script } from "@App/model/script";
+import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
 import { Crontab } from "@App/apps/script/crontab";
 
 @Component({})
@@ -25,6 +25,15 @@ export default class App extends Vue {
   protected diff!: editor.IStandaloneDiffEditor;
   public scriptUtil: ScriptManager = new ScriptManager(new Crontab(window));
   public script: Script = <Script>{};
+
+  @Watch("$route", { immediate: true })
+  private changeRouter(route: any) {
+    this.script = <Script>{};
+    if (this.editor) {
+      this.editor.setValue("");
+      return;
+    }
+  }
 
   mounted() {
     this.createEdit();
@@ -57,22 +66,23 @@ export default class App extends Vue {
       //TODO:保存时候错误处理
       let [script, _] = await this.scriptUtil.prepareScriptByCode(
         this.editor.getValue(),
-        this.script.origin
+        this.script.origin || SCRIPT_ORIGIN_LOCAL
       );
       if (script == undefined) {
         alert("脚本格式错误");
         return;
       }
-      this.script.name = script.name;
-      this.script.code = script.code;
-      this.script.author = script.author;
-      this.script.namespace = script.namespace;
-      this.script.metadata = script.metadata;
-      this.script.status = script.status;
-      this.script.error = script.error;
-      this.script.checktime = script.checktime;
+      script.id = this.script.id;
+      script.status = this.script.status || script.status;
+      script.error = this.script.error;
+      script.checkupdate_url = this.script.checkupdate_url;
 
-      this.scriptUtil.updateScript(this.script);
+      this.script = script;
+      let oldId = this.script.id;
+      await this.scriptUtil.updateScript(this.script);
+      if (!oldId) {
+        this.$router.push({ path: "/" });
+      }
     });
   }
 }

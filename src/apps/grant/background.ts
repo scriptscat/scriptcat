@@ -1,6 +1,7 @@
 import axios from "axios";
 import { ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
+import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener } from "./interface";
 
 class postMessage implements IPostMessage {
@@ -29,10 +30,12 @@ export class BackgroundGrant {
 
     public apis = new Map<string, Api>();
     protected listener: IGrantListener;
+    protected scriptMgr: ScriptManager = new ScriptManager(undefined);
 
     constructor(listener: IGrantListener) {
         this.listener = listener;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification);
+        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification).
+            set('GM_setRuntime', this.GM_setRuntime);
 
     }
 
@@ -45,7 +48,7 @@ export class BackgroundGrant {
                 if (api == undefined) {
                     return resolve(undefined);
                 }
-                return resolve(await api(grant, postMessage));
+                return resolve(await api.apply(this, [grant, postMessage]));
             });
         });
     }
@@ -58,6 +61,8 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let config = <GM_Types.XHRDetails>grant.params[0];
+
+            console.log(config);
             axios(config).then(result => {
                 let text = '';
                 switch (typeof (result.data)) {
@@ -82,7 +87,7 @@ export class BackgroundGrant {
 
     protected GM_cookie(): Promise<any> {
         return new Promise(resolve => {
-            resolve(undefined);
+            return resolve(undefined);
         });
     }
 
@@ -92,36 +97,30 @@ export class BackgroundGrant {
             if (params.length == 0) {
                 return resolve(undefined);
             }
-            let details: GM_Types.NotificationDetails = {};
-
-            if (params.length > 1) {
-                switch (params.length) {
-                    case 3: {
-                        details.image = params[2];
-                    }
-                    case 2: {
-                        details.title = params[1];
-                    }
-                    case 1: {
-                        details.text = params[0];
-                    }
-                }
-            } else {
-                details = params[0];
-            }
-            chrome.notifications.create({
-                title: details.title,
-                contextMessage: details.text,
-                iconUrl: details.image,
+            let details: GM_Types.NotificationDetails = params[0];
+            let options: chrome.notifications.NotificationOptions = {
+                title: details.title || 'ScriptCat',
+                message: details.text,
+                iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
                 silent: details.silent,
-            }, (notificationId) => {
+                type: 'basic',
+            };
+
+            chrome.notifications.create(options, (notificationId) => {
                 if (details.timeout) {
                     setTimeout(() => {
                         chrome.notifications.clear(notificationId);
-                    });
+                    }, details.timeout);
                 }
             });
+            return resolve(undefined);
+        });
+    }
 
+    protected GM_setRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            this.scriptMgr.setRuntime(grant.id, grant.params[0]);
+            return resolve(undefined);
         });
     }
 }

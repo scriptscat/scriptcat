@@ -8,5 +8,5 @@ export interface IScript {
 }
 
 export interface ICrontab extends IScript {
-    validCrontab(crontab: string): boolean;
+    validCrontab(crontab: string[]): boolean;
 }

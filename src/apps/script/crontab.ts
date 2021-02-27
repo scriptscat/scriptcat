@@ -39,12 +39,15 @@ export class Crontab implements IScript {
         });
     }
 
-    public validCrontab(crontab: string): boolean {
-        try {
-            let t = new CronTime(crontab);
-            t.sendAt();
-        } catch (e) {
-            return false;
+    public validCrontab(crontab: string[]): boolean {
+        for (let i = 0; i < crontab.length; i++) {
+            let val = crontab[i].replaceAll('once', '*');
+            try {
+                let t = new CronTime(val);
+                t.sendAt();
+            } catch (e) {
+                return false;
+            }
         }
         return true;
     }

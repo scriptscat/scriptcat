@@ -6,6 +6,9 @@
     "background": {
         "page": "background.html"
     },
+    "icons": {
+        "64": "assets/logo.png"
+    },
     "options_ui": {
         "page": "options.html",
         "open_in_tab": true
@@ -15,6 +18,7 @@
         "storage",
         "webRequest",
         "<all_urls>",
+        "notifications",
         "webRequestBlocking"
     ],
     "sandbox": {

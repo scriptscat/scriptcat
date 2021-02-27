@@ -13,8 +13,19 @@ export function createContext(global: any, context: any) {
                 if (context.hasOwnProperty(key)) {
                     return context[key];
                 }
-                return global[key];
+                if (global[key]) {
+                    if (typeof global[key] === 'function' && global[key].bind) {
+                        context[key] = global[key].bind(global);
+                    } else {
+                        context[key] = global[key];
+                    }
+                }
+                return context[key];
             }
+        },
+        getOwnPropertyDescriptor(_, name) {
+            console.log(name);
+            return undefined;
         },
         has(_, key) {
             return key === 'undefined' || context.hasOwnProperty(key) || global.hasOwnProperty(key);

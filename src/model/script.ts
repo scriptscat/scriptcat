@@ -13,6 +13,7 @@ export const SCRIPT_STATUS_DISABLE: SCRIPT_STATUS = 2;
 export const SCRIPT_STATUS_ERROR: SCRIPT_STATUS = 3;
 export const SCRIPT_STATUS_PREPARE: SCRIPT_STATUS = 4;
 
+export const SCRIPT_ORIGIN_LOCAL = 'local';
 
 export type Metadata = { [key: string]: string[] };
 
@@ -44,6 +45,7 @@ export interface Script {
     updatetime?: number;
     //last check update timestamp
     checktime?: number;
+    lastruntime?: number;
 }
 
 export class ScriptModel extends Model<Script> {

@@ -4,7 +4,7 @@ import { Page } from "../pkg/utils";
 export let db = new Dexie("ScriptCat");
 
 db.version(1).stores({
-    scripts: "++id,&uuid,&name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
+    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
     logger:"++id,level,code,origin,type,createtime",
 });
 

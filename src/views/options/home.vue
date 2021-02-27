@@ -1,6 +1,7 @@
 <template>
   <div>
     <div v-for="(script, index) in scripts" :key="script.id">
+      <span>{{ script.id }} - </span>
       <span>{{ script.name }}</span>
       <router-link :to="/edit/ + script.id">编辑</router-link>
       <button @click="enable(index)">
