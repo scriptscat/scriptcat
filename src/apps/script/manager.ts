@@ -2,7 +2,7 @@ import { Metadata, Script, ScriptModel, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENA
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache, ScriptGrant, ScriptUpdate } from "@App/apps/msg-center/event";
+import { ScriptCache, ScriptGrant, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { ICrontab } from "@App/apps/script/interface";
@@ -40,6 +40,18 @@ export class ScriptManager {
                     this.disableScript(script);
                 }
                 return resolve(script);
+            });
+        });
+        MsgCenter.listener(ScriptUninstall, async (msg): Promise<any> => {
+            return new Promise(async resolve => {
+                let script = <Script>msg[0];
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.disableScript(script);
+                }
+                await this.script.delete(script.id).catch(() => {
+                    resolve(false);
+                });
+                resolve(true);
             });
         });
     }
@@ -210,12 +222,9 @@ export class ScriptManager {
 
     public uninstallScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            await this.script.delete(script.id).catch(e => {
-                resolve(false);
-                throw e;
+            MsgCenter.connect(ScriptUninstall, [script]).addListener(msg => {
+                resolve(msg);
             });
-            //TODO:删除后关闭脚本等操作
-            return resolve(true);
         });
     }
 
@@ -237,9 +246,16 @@ export class ScriptManager {
         });
     }
 
-    public setRuntime(id: number, time: number): Promise<boolean> {
+    public setLastRuntime(id: number, time: number): Promise<boolean> {
         return new Promise(async resolve => {
             this.script.table.update(id, { lastruntime: time })
+            resolve(true);
+        });
+    }
+
+    public setDelayRuntime(id: number, time: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            this.script.table.update(id, { delayruntime: time })
             resolve(true);
         });
     }

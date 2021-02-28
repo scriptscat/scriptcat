@@ -2,6 +2,7 @@
   <div style="height: 100%">
     <div class="info">
       <div class="name">{{ script.name }}</div>
+      <div style="color:red">请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!</div>
       <div class="control">
         <button @click="install">
           {{ isupdate ? "更新脚本" : "安装脚本" }}

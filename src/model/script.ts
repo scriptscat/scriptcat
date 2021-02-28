@@ -46,6 +46,7 @@ export interface Script {
     //last check update timestamp
     checktime?: number;
     lastruntime?: number;
+    delayruntime?: number;
 }
 
 export class ScriptModel extends Model<Script> {

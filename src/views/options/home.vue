@@ -7,6 +7,9 @@
       <button @click="enable(index)">
         {{ script.status == 1 ? "关闭" : "开启" }}
       </button>
+      <button @click="uninstall(index)">
+        删除
+      </button>
     </div>
   </div>
 </template>
@@ -38,6 +41,11 @@ export default class App extends Vue {
       this.scripts[index].status = SCRIPT_STATUS_ENABLE;
     }
     this.scriptUtil.updateScript(this.scripts[index]);
+  }
+
+  async uninstall(index: number) {
+    await this.scriptUtil.uninstallScript(this.scripts[index]);
+    this.scripts.splice(index, 1);
   }
 }
 </script>

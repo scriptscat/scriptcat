@@ -4,7 +4,7 @@
 
 可使用在线工具测试:https://tool.lu/crontab/
 
-#### 例子
+### Crontab例子
 
 ```javascript
 //@crontab * * * * * * 每秒运行一次
@@ -14,6 +14,17 @@
 //@crontab * once * * * 每小时最多运行一次
 //@crontab * * once * * 每天最多运行一次
 //@crontab * once 13 * * 每个月13号中的每小时最多运行一次
+```
+
+
+
+### 脚本执行失败
+
+once命令下,可使用`GMSC_reject`命令设置下一次延迟执行的时间
+
+```typescript
+declare function GMSC_reject(result: any): void;
+GMSC_reject(60);//当result为数字时判断为延迟重试执行,例如此项表示一分钟后重试执行
 ```
 
 

@@ -7,6 +7,20 @@ let cronjobMap = new Map<number, Array<CronJob>>();
 
 let cache = new Map<number, [SandboxContext, Function]>();
 
+function execScript(script: Script, retry?: boolean) {
+    //使用SandboxContext接管postRequest
+    let ret = cache.get(script.id);
+    if (ret) {
+        let [context, func] = ret;
+        if (retry) {
+            script.delayruntime = 0;
+            context.GM_setDelayRuntime(script.delayruntime);
+        }
+        script.lastruntime = new Date().getTime();
+        context.GM_setLastRuntime(script.lastruntime);
+        func(createContext(window, context));
+    }
+}
 
 function start(script: Script): any {
     let crontab = script.metadata["crontab"];
@@ -21,26 +35,26 @@ function start(script: Script): any {
     }
     cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
 
-    function execScript(script: Script) {
-        //使用SandboxContext接管postRequest
-        let ret = cache.get(script.id);
-        if (ret) {
-            let [context, func] = ret;
-            func(createContext(window, context));
-            script.lastruntime = new Date().getTime()
-            context.GM_setRuntime(script.lastruntime);
+    context.listenReject((result: any) => {
+        if (typeof result == 'number') {
+            script.delayruntime = new Date().getTime() + (result * 1000);
+            context.GM_setDelayRuntime(script.delayruntime);
         }
-    }
+    });
 
     let list = new Array<CronJob>();
     crontab.forEach((val) => {
         let oncePos = 0;
         if (val.indexOf('once') !== -1) {
-            val.split(' ').forEach((val, index) => {
+            let vals = val.split(' ');
+            vals.forEach((val, index) => {
                 if (val == 'once') {
                     oncePos = index;
                 }
             });
+            if (vals.length == 5) {
+                oncePos++;
+            }
             val = val.replaceAll('once', '*');
         }
         //TODO:优化once的逻辑，不必每分钟都判断一次
@@ -50,23 +64,33 @@ function start(script: Script): any {
                     execScript(script);
                     return;
                 }
-                let last = new Date(script.lastruntime);
                 let now = new Date();
+                if (script.delayruntime && script.delayruntime < now.getTime()) {
+                    execScript(script, true);
+                    return;
+                }
+                if (script.lastruntime > now.getTime()) {
+                    return;
+                }
+                let last = new Date(script.lastruntime);
                 let flag = false;
                 switch (oncePos) {
-                    case 1://每小时
+                    case 1://每分钟
+                        flag = last.getMinutes() != now.getMinutes();
+                        break;
+                    case 2://每小时
                         flag = last.getHours() != now.getHours()
                         break;
-                    case 2: //每天
+                    case 3: //每天
                         flag = last.getDay() != now.getDay()
                         break;
-                    case 3://每月
+                    case 4://每月
                         flag = last.getMonth() != now.getMonth()
                         break;
-                    case 4://每年
+                    case 5://每年
                         flag = last.getFullYear() != now.getFullYear()
                         break;
-                    case 5://每星期
+                    case 6://每星期
                         flag = getWeek(last) != getWeek(now);
                     default:
                 }

@@ -35,8 +35,7 @@ export class BackgroundGrant {
     constructor(listener: IGrantListener) {
         this.listener = listener;
         this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification).
-            set('GM_setRuntime', this.GM_setRuntime);
-
+            set('GM_setLastRuntime', this.GM_setLastRuntime).set('GM_setDelayRuntime', this.GM_setDelayRuntime);
     }
 
     public listenScriptGrant() {
@@ -62,7 +61,6 @@ export class BackgroundGrant {
             }
             let config = <GM_Types.XHRDetails>grant.params[0];
 
-            console.log(config);
             axios(config).then(result => {
                 let text = '';
                 switch (typeof (result.data)) {
@@ -85,8 +83,32 @@ export class BackgroundGrant {
         });
     }
 
-    protected GM_cookie(): Promise<any> {
+    protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
+            let param = grant.params;
+            if (param.length != 2) {
+                return resolve(undefined);
+            }
+            let detail = <GM_Types.CookieDetails>grant.params[1];
+            if (!detail.url || !detail.name) {
+                return resolve(undefined);
+            }
+            switch (param[0]) {
+                case 'list': {
+                    chrome.cookies.getAll({
+                        domain: detail.domain,
+                        name: detail.name,
+                        path: detail.path,
+                        secure: detail.secure,
+                        session: false,
+                        url: detail.url,
+                    }, (cookies) => {
+                        grant.data = { type: 'done', data: cookies };
+                        post.postMessage(grant);
+                    });
+                    break;
+                }
+            }
             return resolve(undefined);
         });
     }
@@ -117,10 +139,18 @@ export class BackgroundGrant {
         });
     }
 
-    protected GM_setRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+    protected GM_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            this.scriptMgr.setRuntime(grant.id, grant.params[0]);
+            this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
             return resolve(undefined);
         });
     }
+
+    protected GM_setDelayRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
+            return resolve(undefined);
+        });
+    }
+
 }

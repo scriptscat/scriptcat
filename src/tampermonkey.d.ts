@@ -96,6 +96,7 @@ declare function GM_setClipboard(data: string, info?: string | { type?: string, 
 
 declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
 
+declare function GMSC_reject(result: any): void;
 declare namespace GM_Types {
 
     type CookieAction = "list" | "delete" | "set";

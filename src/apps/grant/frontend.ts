@@ -1,5 +1,4 @@
 import { randomString } from "@App/pkg/utils";
-import { time } from "cron";
 import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
@@ -16,7 +15,7 @@ export class FrontendGrant {
 
     constructor(id: number) {
         this.id = id;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie)
+        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest)
             .set("GM_notification", this.GM_notification);
     }
 
@@ -68,10 +67,6 @@ export class FrontendGrant {
         });
     }
 
-    public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie, error: any)) {
-        this.postRequest('GM_cookie', [action, details], undefined);
-    }
-
     public GM_notification(text: string, title: string, image: string, onclick: Function): void
     public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: Function | string): void {
         let data: GM_Types.NotificationDetails = {};
@@ -99,15 +94,21 @@ export class FrontendGrant {
 
 }
 
+export type rejectCallback = (result: any) => void
 //ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext extends FrontendGrant {
 
     public request = new Map<string, Callback>();
+    protected rejectCallback!: Function;
 
     constructor(id: number) {
         super(id);
-        this.apis.set('GM_setRuntime', this.GM_setRuntime);
+        this.apis.set('GM_setRuntime', this.GM_setLastRuntime).set("GM_cookie", this.GM_cookie);
         window.addEventListener('message', this.message);
+    }
+
+    public listenReject(callback: rejectCallback) {
+        this.rejectCallback = callback;
     }
 
     public message = (event: MessageEvent) => {
@@ -118,19 +119,34 @@ export class SandboxContext extends FrontendGrant {
         }
     }
 
-    public GM_setRuntime(time: number) {
-        this.postRequest('GM_setRuntime', [time], () => {
+    public GM_setLastRuntime(time: number) {
+        this.postRequest('GM_setLastRuntime', [time], () => {
+        });
+    }
+
+    public GM_setDelayRuntime(time: number) {
+        this.postRequest('GM_setDelayRuntime', [time], () => {
+        });
+    }
+
+    public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) {
+        this.postRequest('GM_cookie', [action, details], (grant: Grant) => {
+            switch (grant.data.type) {
+                case 'done':
+                    done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
+                    break;
+            }
         });
     }
 
     //沙盒脚本执行结束
-    public resolve = () => {
+    public GMSC_resolve = () => {
 
     }
 
     //沙盒脚本执行异常
-    public reject = () => {
-
+    public GMSC_reject = (result: any) => {
+        this.rejectCallback && this.rejectCallback(result);
     }
 
     public destruct() {
