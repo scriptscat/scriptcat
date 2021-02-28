@@ -18,6 +18,7 @@ import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
 import { Crontab } from "@App/apps/script/crontab";
+import crontabTpl from "@App/template/crontab.tpl";
 
 @Component({})
 export default class App extends Vue {
@@ -30,7 +31,7 @@ export default class App extends Vue {
   private changeRouter(route: any) {
     this.script = <Script>{};
     if (this.editor) {
-      this.editor.setValue("");
+      this.editor.setValue(crontabTpl);
       return;
     }
   }

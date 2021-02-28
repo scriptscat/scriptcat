@@ -16,6 +16,7 @@ export class FrontendGrant {
     constructor(id: number) {
         this.id = id;
         this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest)
+        this.apis.set("GMSC_xmlhttpRequest", this.GMSC_xmlhttpRequest)
             .set("GM_notification", this.GM_notification);
     }
 
@@ -64,6 +65,15 @@ export class FrontendGrant {
                     details.onload && details.onload(<GM_Types.XHRResponse>grant.data.data);
                     break;
             }
+        });
+    }
+
+    public GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
+        return new Promise(resolve => {
+            details.onload = (xhr) => {
+                resolve(xhr);
+            }
+            this.GM_xmlhttpRequest(details);
         });
     }
 

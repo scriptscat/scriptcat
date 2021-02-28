@@ -81,6 +81,7 @@ declare function GM_openInTab(url: string, loadInBackground: boolean): void;
 declare function GM_openInTab(url: string): void;
 
 declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;
+declare function GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>;
 
 declare function GM_download(details: GM_Types.DownloadDetails): GM_Types.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GM_Types.AbortHandle<boolean>;
