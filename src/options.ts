@@ -33,6 +33,16 @@ const router = new VueRouter({
     routes
 })
 
+// @ts-ignore
+self.MonacoEnvironment = {
+    getWorkerUrl: function (moduleId: any, label: any) {
+        if (label === 'typescript' || label === 'javascript') {
+            return './src/ts.worker.js';
+        }
+        return './src/editor.worker.js';
+    }
+};
+
 languages.typescript.javascriptDefaults.addExtraLib(dts, 'tampermonkey.d.ts');
 
 new Vue({

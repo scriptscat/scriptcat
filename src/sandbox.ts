@@ -34,7 +34,10 @@ function start(script: Script): any {
         });
     }
     cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
-
+    //debug模式直接执行一次
+    if (script.metadata["debug"] != undefined) {
+        execScript(script);
+    }
     context.listenReject((result: any) => {
         if (typeof result == 'number') {
             script.delayruntime = new Date().getTime() + (result * 1000);

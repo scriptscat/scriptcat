@@ -1,8 +1,9 @@
 const path = require('path');
 const htmlWebpackPlugin = require('html-webpack-plugin');
 const vueLoaderPlugin = require('vue-loader/lib/plugin');
-const MonacoEditorPlugin = require('monaco-editor-webpack-plugin');
 const MonacoLocalesPlugin = require('monaco-editor-locales-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+
 const home = __dirname + '/src';
 module.exports = {
     entry: {
@@ -10,6 +11,8 @@ module.exports = {
         sandbox: home + '/sandbox.ts',
         options: home + '/options.ts',
         install: home + '/install.ts',
+        'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
+        "ts.worker": 'monaco-editor/esm/vs/language/typescript/ts.worker',
     },
     output: {
         path: __dirname + '/build/scriptcat/src',
@@ -56,13 +59,15 @@ module.exports = {
             },
             chunks: ['install']
         }),
-        new MonacoEditorPlugin({
-            languages: ['javascript', 'typescript'],
-        }),
         new MonacoLocalesPlugin({
             languages: ["es", "zh-cn"],
             defaultLanguage: "zh-cn",
             logUnmatched: false,
+        }),
+        new MiniCssExtractPlugin({
+            linkType: false,
+            filename: '[name].[hash].css',
+            chunkFilename: '[name].[hash].chunk.css',
         }),
         new vueLoaderPlugin()
     ],
@@ -100,7 +105,7 @@ module.exports = {
             exclude: /node_modules/,
         }, {
             test: /\.css$/,
-            use: ['style-loader', 'css-loader'],
+            use: [MiniCssExtractPlugin.loader, 'css-loader'],
         }, {
             test: /\.ttf$/,
             use: ['file-loader']

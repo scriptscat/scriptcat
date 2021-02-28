@@ -5,6 +5,7 @@
 // @description  try to take over the world!
 // @author       You
 // @crontab       * once * * *
+// @debug
 // ==/UserScript==
 
 (function() {

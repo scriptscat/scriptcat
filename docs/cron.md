@@ -17,7 +17,6 @@
 ```
 
 
-
 ### 脚本执行失败
 
 once命令下,可使用`GMSC_reject`命令设置下一次延迟执行的时间
@@ -27,5 +26,6 @@ declare function GMSC_reject(result: any): void;
 GMSC_reject(60);//当result为数字时判断为延迟重试执行,例如此项表示一分钟后重试执行
 ```
 
-
+### debug
+在`UserScript`中加入`@debug`可进入调试模式,每一次保存脚本都会立刻执行一次
 
