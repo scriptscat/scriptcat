@@ -52,6 +52,7 @@ export class FrontendGrant {
             timeout: details.timeout,
             url: details.url,
             headers: details.headers,
+            data: details.data,
         };
         if (details.cookie) {
             //TODO:不允许设置cookie header,找看看还有没有其他方法
