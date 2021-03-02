@@ -36,3 +36,10 @@ export function randomString(e: number) {
     for (let i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
     return n
 }
+
+export function isFirefox() {
+    if (navigator.userAgent.indexOf("Firefox") >= 0) {
+        return true;
+    }
+    return false;
+}

@@ -27,8 +27,9 @@ export class grantListener implements IGrantListener {
     }
 
     public listen(callback: (msg: any, postMessage: IPostMessage) => Promise<any>): void {
+        let extension_id = 'moz-extension://' + chrome.i18n.getMessage("@@extension_id");
         window.addEventListener('message', async event => {
-            if (event.origin != 'null') {
+            if (event.origin != 'null' && event.origin != extension_id) {
                 return;
             }
             let post = new postMessage(this.context, event);

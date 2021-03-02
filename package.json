@@ -5,13 +5,16 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "dev": "node_modules/.bin/webpack --mode development --config webpack.dev.js",
-        "build": "node_modules/.bin/webpack --mode production --config webpack.prod.js"
+        "build": "node_modules/.bin/webpack --mode production --config webpack.prod.js",
+        "pack": "rm ./build/scriptcat/src/* -f && npm run build && node ./scripts/pack.js"
     },
     "author": "CodFrm",
     "license": "MIT",
     "dependencies": {
+        "adm-zip": "^0.5.3",
         "axios": "^0.21.1",
         "cron": "^1.8.2",
+        "crx": "^5.0.1",
         "dexie": "^3.0.3",
         "monaco-editor": "^0.22.3",
         "query-string": "^6.13.8",

@@ -1,3 +1,4 @@
+import { isFirefox } from "@App/pkg/utils";
 import axios from "axios";
 import { ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
@@ -124,9 +125,11 @@ export class BackgroundGrant {
                 title: details.title || 'ScriptCat',
                 message: details.text,
                 iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
-                silent: details.silent,
                 type: 'basic',
             };
+            if (!isFirefox()) {
+                options.silent = details.silent;
+            }
 
             chrome.notifications.create(options, (notificationId) => {
                 if (details.timeout) {

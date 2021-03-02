@@ -4,3 +4,8 @@ build/scriptcat/**.html
 build/scriptcat/src/*.txt
 build/scriptcat/src/*.ttf
 build/scriptcat/src/*.css
+
+*.zip
+*.crx
+manifest_firefox.json
+scriptcat_firefox

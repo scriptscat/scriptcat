@@ -9,8 +9,8 @@ module.exports = merge(common, {
         minimizer: [new TerserPlugin()],
         splitChunks: {
             chunks: 'all',
-            minSize: 30000,
-            maxSize: 1048576,
+            minSize: 307200,
+            maxSize: 4194304,
             cacheGroups: {
                 monaco: {
                     test: /[\\/]node_modules[\\/]monaco-editor/,
