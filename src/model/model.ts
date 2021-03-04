@@ -5,7 +5,7 @@ export let db = new Dexie("ScriptCat");
 
 db.version(1).stores({
     scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
-    logger:"++id,level,code,origin,type,createtime",
+    logger: "++id,level,origin,createtime",
 });
 
 export abstract class Model<T> {
@@ -13,7 +13,14 @@ export abstract class Model<T> {
     public table!: Dexie.Table<T, number>;
     public tableName: string = "";
 
-    public list(query: Dexie.Collection | Dexie.Table, page: Page) {
+    public list(query: Dexie.Collection | Dexie.Table | Page, page?: Page) {
+        if (query instanceof Page) {
+            page = query;
+            query = this.table;
+        }
+        if (!page) {
+            page = new Page(1, 20);
+        }
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());
         if (page.sort() == "desc") {
             collect = collect.reverse();

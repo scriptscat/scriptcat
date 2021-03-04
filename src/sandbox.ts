@@ -2,23 +2,35 @@ import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { compileCode, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
+import { logger } from "./apps/logger/logger";
+import { SendLogger } from "./pkg/utils";
+import { LOGGER_LEVEL_INFO } from "./model/logger";
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 
 let cache = new Map<number, [SandboxContext, Function]>();
 
-function execScript(script: Script, retry?: boolean) {
+type ExecType = 'run' | 'retry' | 'debug';
+function execScript(script: Script, type?: ExecType) {
     //使用SandboxContext接管postRequest
     let ret = cache.get(script.id);
     if (ret) {
         let [context, func] = ret;
-        if (retry) {
+        if (type == 'retry') {
             script.delayruntime = 0;
             context.GM_setDelayRuntime(script.delayruntime);
         }
         script.lastruntime = new Date().getTime();
         context.GM_setLastRuntime(script.lastruntime);
-        func(createContext(window, context));
+        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "by:", <string>type);
+        let execRet = func(createContext(window, context));
+        if (execRet instanceof Promise) {
+            execRet.then(() => {
+                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "time:", (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms');
+            })
+        } else {
+            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "time:", (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms');
+        }
     }
 }
 
@@ -36,7 +48,7 @@ function start(script: Script): any {
     cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
     //debug模式直接执行一次
     if (script.metadata["debug"] != undefined) {
-        execScript(script);
+        execScript(script, 'debug');
     }
     context.listenReject((result: any) => {
         if (typeof result == 'number') {
@@ -69,7 +81,7 @@ function start(script: Script): any {
                 }
                 let now = new Date();
                 if (script.delayruntime && script.delayruntime < now.getTime()) {
-                    execScript(script, true);
+                    execScript(script, 'retry');
                     return;
                 }
                 if (script.lastruntime > now.getTime()) {

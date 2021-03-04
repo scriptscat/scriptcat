@@ -74,6 +74,9 @@ export class ScriptManager {
             values.push(val);
             ret[key] = values;
         }
+        if (ret['name'] == undefined) {
+            return null;
+        }
         return ret;
     }
 
@@ -89,6 +92,10 @@ export class ScriptManager {
         return new Promise(resolve => {
             axios.get(url).then((response): ScriptUrlInfo | undefined => {
                 if (response.status != 200) {
+                    return undefined;
+                }
+                let ok = this.parseMetadata(response.data);
+                if (!ok) {
                     return undefined;
                 }
                 let uuid = uuidv5(url, uuidv5.URL);
@@ -132,7 +139,7 @@ export class ScriptManager {
             }
             let script: Script = {
                 id: 0,
-                uuid: uuidv5(url + '?t=' + new Date().getTime(), uuidv5.URL),
+                uuid: uuidv5(url, uuidv5.URL),
                 name: metadata["name"][0],
                 code: code,
                 author: metadata['author'] && metadata['author'][0],
@@ -144,7 +151,7 @@ export class ScriptManager {
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
             };
-            let old = await this.script.findByName(script.name);
+            let old = await this.script.findByUUID(script.uuid);
             if (old) {
                 script.id = old.id;
                 script.createtime = old.createtime;
@@ -233,7 +240,7 @@ export class ScriptManager {
             let page = new Page(1, 20);
             if (equalityCriterias == undefined) {
                 equalityCriterias = {};
-                resolve(await this.script.list(this.script.table, page));
+                resolve(await this.script.list(page));
             } else {
                 resolve(await this.script.list(this.script.table.where(equalityCriterias), page));
             }

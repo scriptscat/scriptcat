@@ -1,3 +1,6 @@
+import { Logger } from "@App/apps/msg-center/event";
+import { LOGGER_LEVEL } from "@App/model/logger";
+
 export class Page {
     protected _page: number;
     protected _count: number;
@@ -42,4 +45,14 @@ export function isFirefox() {
         return true;
     }
     return false;
+}
+
+export function SendLogger(level: LOGGER_LEVEL, origin: string = 'system', ...msg: string[]) {
+    top.postMessage({
+        action: Logger, data: {
+            level: level,
+            message: msg.join(' '),
+            origin: origin,
+        }
+    }, '*');
 }

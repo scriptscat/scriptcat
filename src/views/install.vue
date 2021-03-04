@@ -2,7 +2,9 @@
   <div style="height: 100%">
     <div class="info">
       <div class="name">{{ script.name }}</div>
-      <div style="color:red">请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!</div>
+      <div style="color: red">
+        请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
+      </div>
       <div class="control">
         <button @click="install">
           {{ isupdate ? "更新脚本" : "安装脚本" }}
@@ -37,7 +39,7 @@ export default class App extends Vue {
     if (!parsed["uuid"]) {
       return;
     }
-    MsgCenter.connect(ScriptCache, parsed["uuid"]).addListener(async msg => {
+    MsgCenter.connect(ScriptCache, parsed["uuid"]).addListener(async (msg) => {
       let info = <ScriptUrlInfo>msg;
       let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
         info.code,
@@ -61,11 +63,11 @@ export default class App extends Vue {
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
           readOnly: true,
-          diffWordWrap: "off"
+          diffWordWrap: "off",
         });
         this.diff.setModel({
           original: editor.createModel(oldscript.code, "javascript"),
-          modified: editor.createModel(this.script.code, "javascript")
+          modified: editor.createModel(this.script.code, "javascript"),
         });
         this.isupdate = true;
       } else {
@@ -76,7 +78,7 @@ export default class App extends Vue {
           automaticLayout: true,
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
-          readOnly: true
+          readOnly: true,
         });
         this.editor.setValue(this.script.code);
       }

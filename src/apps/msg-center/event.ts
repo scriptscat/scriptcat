@@ -5,3 +5,5 @@ export const ScriptUpdate: string = "script-update"
 export const ScriptUninstall: string = "script-uninstall"
 
 export const ScriptGrant: string = "script-grant"
+
+export const Logger: string = "logger"

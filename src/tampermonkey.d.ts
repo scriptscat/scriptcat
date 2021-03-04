@@ -1,6 +1,8 @@
 
 //@copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
+import { LOGGER_LEVEL } from "./model/logger";
+
 declare var unsafeWindow: Window;
 
 declare var GM_info: {
@@ -66,7 +68,7 @@ declare function GM_setValue(name: string, value: any): void;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
-declare function GM_log(message: string): any;
+declare function GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): any;
 
 declare function GM_getResourceText(name: string): string;
 
@@ -101,6 +103,8 @@ declare function GMSC_reject(result: any): void;
 declare namespace GM_Types {
 
     type CookieAction = "list" | "delete" | "set";
+    
+    type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
 
     interface CookieDetails {
         url: string

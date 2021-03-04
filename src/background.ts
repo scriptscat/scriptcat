@@ -4,12 +4,21 @@ import { grantListener } from "@App/apps/grant/content";
 import { MultiGrantListener } from "@App/apps/grant/utils";
 import { Crontab } from "@App/apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
+import { Logger } from "./apps/msg-center/event";
+import { logger } from "./apps/logger/logger";
 
 let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
 let grant = new BackgroundGrant(new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
 scripts.listenMsg();
 scripts.listenScriptUpdate();
 grant.listenScriptGrant();
+window.addEventListener('message', (event) => {
+    if (event.data.action != Logger) {
+        return;
+    }
+    let data = event.data.data;
+    logger.Logger(data.level, data.origin, data.message);
+})
 
 function listenScriptInstall() {
     chrome.webRequest.onBeforeRequest.addListener((req: chrome.webRequest.WebRequestBodyDetails) => {

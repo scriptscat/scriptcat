@@ -7,9 +7,7 @@
       <button @click="enable(index)">
         {{ script.status == 1 ? "关闭" : "开启" }}
       </button>
-      <button @click="uninstall(index)">
-        删除
-      </button>
+      <button @click="uninstall(index)">删除</button>
     </div>
   </div>
 </template>
@@ -20,16 +18,16 @@ import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE
+  SCRIPT_STATUS_DISABLE,
 } from "@App/model/script";
 
 @Component({})
 export default class App extends Vue {
-  private scripts: Array<Script> = new Array<Script>();
-  public scriptUtil: ScriptManager = new ScriptManager(undefined);
+  protected scripts: Array<Script> = new Array();
+  protected scriptUtil: ScriptManager = new ScriptManager(undefined);
 
   mounted() {
-    this.scriptUtil.scriptList(undefined).then(result => {
+    this.scriptUtil.scriptList(undefined).then((result) => {
       this.scripts = result;
     });
   }

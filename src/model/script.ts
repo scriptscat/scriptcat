@@ -62,7 +62,7 @@ export class ScriptModel extends Model<Script> {
         return this.findOne({ name: name });
     }
 
-    public findByUUID(uuid: number) {
+    public findByUUID(uuid: string) {
         return this.findOne({ uuid: uuid });
     }
 }

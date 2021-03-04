@@ -1,5 +1,8 @@
+import { LOGGER_LEVEL_DEBUG, LOGGER_LEVEL_INFO } from "@App/model/logger";
 import { isFirefox } from "@App/pkg/utils";
+import { GM_Types } from "@App/tampermonkey";
 import axios from "axios";
+import { logger } from "../logger/logger";
 import { ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
@@ -36,13 +39,16 @@ export class BackgroundGrant {
     constructor(listener: IGrantListener) {
         this.listener = listener;
         this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification).
-            set('GM_setLastRuntime', this.GM_setLastRuntime).set('GM_setDelayRuntime', this.GM_setDelayRuntime);
+            set('GM_setLastRuntime', this.GM_setLastRuntime).set('GM_setDelayRuntime', this.GM_setDelayRuntime).set('GM_log', this.GM_log);
     }
 
     public listenScriptGrant() {
         this.listener.listen((msg, postMessage) => {
             return new Promise(async resolve => {
                 let grant = <Grant>msg;
+                if (!grant.value) {
+                    return;
+                }
                 let api = this.apis.get(grant.value);
                 //TODO:通过id校验权限
                 if (api == undefined) {
@@ -156,4 +162,13 @@ export class BackgroundGrant {
         });
     }
 
+    protected GM_log(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            if (!grant.params[0]) {
+                return resolve(undefined);
+            }
+            logger.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0]);
+            return resolve(undefined);
+        });
+    }
 }

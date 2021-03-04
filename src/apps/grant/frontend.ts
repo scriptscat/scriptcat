@@ -1,4 +1,5 @@
 import { randomString } from "@App/pkg/utils";
+import { GM_Types } from "@App/tampermonkey";
 import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
@@ -15,9 +16,8 @@ export class FrontendGrant {
 
     constructor(id: number) {
         this.id = id;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest)
-        this.apis.set("GMSC_xmlhttpRequest", this.GMSC_xmlhttpRequest)
-            .set("GM_notification", this.GM_notification);
+        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GMSC_xmlhttpRequest", this.GMSC_xmlhttpRequest)
+            .set("GM_notification", this.GM_notification).set('GM_log', this.GM_log);
     }
 
     public listenScriptGrant() {
@@ -33,7 +33,7 @@ export class FrontendGrant {
     }
 
     //会被替换上下文,沙盒环境由SandboxContext接管
-    public postRequest = (value: string, params: any[], callback: Callback | undefined) => {
+    public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
         let grant: Grant = {
             id: this.id,
             value: value,
@@ -101,6 +101,10 @@ export class FrontendGrant {
                 }
             }
         });
+    }
+
+    public GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): void {
+        this.postRequest('GM_log', [message, level]);
     }
 
 }
