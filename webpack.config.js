@@ -1,63 +1,63 @@
-const path = require('path');
-const htmlWebpackPlugin = require('html-webpack-plugin');
-const vueLoaderPlugin = require('vue-loader/lib/plugin');
-const MonacoLocalesPlugin = require('monaco-editor-locales-plugin');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const path = require("path");
+const htmlWebpackPlugin = require("html-webpack-plugin");
+const vueLoaderPlugin = require("vue-loader/lib/plugin");
+const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
-const home = __dirname + '/src';
+const home = __dirname + "/src";
 module.exports = {
     entry: {
-        background: home + '/background.ts',
-        sandbox: home + '/sandbox.ts',
-        options: home + '/options.ts',
-        install: home + '/install.ts',
-        'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
-        "ts.worker": 'monaco-editor/esm/vs/language/typescript/ts.worker',
+        background: home + "/background.ts",
+        sandbox: home + "/sandbox.ts",
+        options: home + "/options.ts",
+        install: home + "/install.ts",
+        "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
+        "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },
     output: {
-        path: __dirname + '/build/scriptcat/src',
-        filename: '[name].js'
+        path: __dirname + "/build/scriptcat/src",
+        filename: "[name].js",
     },
     plugins: [
         new htmlWebpackPlugin({
-            filename: __dirname + '/build/scriptcat/background.html',
-            template: __dirname + '/public/background.html',
-            inject: 'head',
-            title: 'Background - ScriptCat',
+            filename: __dirname + "/build/scriptcat/background.html",
+            template: __dirname + "/public/background.html",
+            inject: "head",
+            title: "Background - ScriptCat",
             minify: {
-                removeComments: true
+                removeComments: true,
             },
-            chunks: ['background']
+            chunks: ["background"],
         }),
         new htmlWebpackPlugin({
-            filename: __dirname + '/build/scriptcat/sandbox.html',
-            template: __dirname + '/public/sandbox.html',
-            inject: 'head',
-            title: 'Sandbox - ScriptCat',
+            filename: __dirname + "/build/scriptcat/sandbox.html",
+            template: __dirname + "/public/sandbox.html",
+            inject: "head",
+            title: "Sandbox - ScriptCat",
             minify: {
-                removeComments: true
+                removeComments: true,
             },
-            chunks: ['sandbox']
+            chunks: ["sandbox"],
         }),
         new htmlWebpackPlugin({
-            filename: __dirname + '/build/scriptcat/options.html',
-            template: __dirname + '/public/options.html',
-            inject: 'head',
-            title: 'Home - ScriptCat',
+            filename: __dirname + "/build/scriptcat/options.html",
+            template: __dirname + "/public/options.html",
+            inject: "head",
+            title: "Home - ScriptCat",
             minify: {
-                removeComments: true
+                removeComments: true,
             },
-            chunks: ['options']
+            chunks: ["options"],
         }),
         new htmlWebpackPlugin({
-            filename: __dirname + '/build/scriptcat/install.html',
-            template: __dirname + '/public/install.html',
-            inject: 'head',
-            title: 'Install - ScriptCat',
+            filename: __dirname + "/build/scriptcat/install.html",
+            template: __dirname + "/public/install.html",
+            inject: "head",
+            title: "Install - ScriptCat",
             minify: {
-                removeComments: true
+                removeComments: true,
             },
-            chunks: ['install']
+            chunks: ["install"],
         }),
         new MonacoLocalesPlugin({
             languages: ["es", "zh-cn"],
@@ -66,49 +66,85 @@ module.exports = {
         }),
         new MiniCssExtractPlugin({
             linkType: false,
-            filename: '[name].[hash].css',
-            chunkFilename: '[name].[hash].chunk.css',
+            filename: "[name].[hash].css",
+            chunkFilename: "[name].[hash].chunk.css",
         }),
-        new vueLoaderPlugin()
+        new vueLoaderPlugin(),
     ],
     resolve: {
-        extensions: ['.ts', '.js', '.vue', '.d.ts', '.tpl'],
+        extensions: [".ts", ".js", ".vue", ".d.ts", ".tpl"],
         alias: {
-            "@App": path.resolve(__dirname, 'src/')
-        }
+            "@App": path.resolve(__dirname, "src/"),
+        },
     },
     module: {
-        rules: [{
-            test: /\.vue$/,
-            use: 'vue-loader',
-            exclude: /node_modules/,
-        }, {
-            test: /\.d\.ts$/,
-            use: [{
-                loader: "raw-loader",
-            }],
-            exclude: /node_modules/,
-        }, {
-            test: /\.tpl$/,
-            use: [{
-                loader: "raw-loader",
-            }],
-            exclude: /node_modules/,
-        }, {
-            test: /(?<!\.d)\.ts$/,
-            use: [{
-                loader: "ts-loader",
-                options: {
-                    appendTsSuffixTo: [/\.vue$/],
-                },
-            }],
-            exclude: /node_modules/,
-        }, {
-            test: /\.css$/,
-            use: [MiniCssExtractPlugin.loader, 'css-loader'],
-        }, {
-            test: /\.ttf$/,
-            use: ['file-loader']
-        }]
-    }
-}
+        rules: [
+            {
+                test: /\.vue$/,
+                use: "vue-loader",
+                exclude: /node_modules/,
+            },
+            {
+                test: /\.d\.ts$/,
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
+                exclude: /node_modules/,
+            },
+            {
+                test: /\.tpl$/,
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
+                exclude: /node_modules/,
+            },
+            {
+                test: /(?<!\.d)\.ts$/,
+                use: [
+                    {
+                        loader: "ts-loader",
+                        options: {
+                            appendTsSuffixTo: [/\.vue$/],
+                        },
+                    },
+                ],
+                exclude: /node_modules/,
+            },
+            {
+                test: /\.css$/,
+                use: [MiniCssExtractPlugin.loader, "css-loader"],
+            },
+            {
+                test: /\.s(c|a)ss$/,
+                use: [
+                    "vue-style-loader",
+                    "css-loader",
+                    {
+                        loader: "sass-loader",
+                        // Requires sass-loader@^7.0.0
+                        options: {
+                            implementation: require("sass"),
+                            indentedSyntax: true, // optional
+                        },
+                        // Requires sass-loader@^8.0.0
+                        options: {
+                            implementation: require("sass"),
+                            sassOptions: {
+                                indentedSyntax: true, // optional
+                            },
+                        },
+                    },
+                ],
+            },
+
+            {
+                test: /\.ttf$/,
+                use: ["file-loader"],
+            },
+        ],
+    },
+};

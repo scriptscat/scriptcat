@@ -9,3 +9,5 @@ build/scriptcat/src/*.css
 *.crx
 manifest_firefox.json
 scriptcat_firefox
+
+private

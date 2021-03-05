@@ -1,51 +1,55 @@
-import Vue from 'vue'
-import App from '@App/views/options.vue'
-import Home from "@App/views/options/home.vue"
-import Edit from "@App/views/options/edit.vue"
-import Logger from "@App/views/options/logger.vue"
-import VueRouter, { RouteConfig } from 'vue-router'
-import { languages } from "monaco-editor"
-import dts from "@App/tampermonkey.d.ts"
+import Vue from "vue";
+import App from "@App/views/options.vue";
+import VueRouter, { RouteConfig } from "vue-router";
+import { languages } from "monaco-editor";
+import dts from "@App/tampermonkey.d.ts";
+import Vuetify from "vuetify";
+import "vuetify/dist/vuetify.min.css";
 
 Vue.use(VueRouter);
+Vue.use(Vuetify);
+
+const opts = {};
+const vuetifyInstance = new Vuetify(opts);
 
 const routes: Array<RouteConfig> = [
     {
-        path: '/',
-        name: 'Home',
-        component: Home,
+        path: "/",
+        name: "Home",
+        component: () => import("@App/views/options/home.vue"),
     },
     {
-        path: '/edit/:id?',
-        name: 'Edit',
-        component: Edit,
+        path: "/edit/:id?",
+        name: "Edit",
+        component: () => import("@App/views/options/edit.vue"),
     },
     {
-        path: '/logger',
-        name: 'Logger',
-        component: Logger,
+        path: "/logger",
+        name: "Logger",
+        component: () => import("@App/views/options/logger.vue"),
     },
-]
+];
 
 const router = new VueRouter({
-    mode: 'hash',
-    base: 'options.html',
-    routes
-})
+    mode: "hash",
+    base: "options.html",
+    routes,
+});
 
 // @ts-ignore
 self.MonacoEnvironment = {
     getWorkerUrl: function (moduleId: any, label: any) {
-        if (label === 'typescript' || label === 'javascript') {
-            return './src/ts.worker.js';
+        if (label === "typescript" || label === "javascript") {
+            return "./src/ts.worker.js";
         }
-        return './src/editor.worker.js';
-    }
+        return "./src/editor.worker.js";
+    },
 };
 
-languages.typescript.javascriptDefaults.addExtraLib(dts, 'tampermonkey.d.ts');
+languages.typescript.javascriptDefaults.addExtraLib(dts, "tampermonkey.d.ts");
 
 new Vue({
     router,
-    render: h => h(App),
-}).$mount('#app')
+    vuetify: vuetifyInstance,
+    render: (h) => h(App),
+}).$mount("#app");
