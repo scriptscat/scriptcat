@@ -1,7 +1,5 @@
 const fs = require("fs");
-const ChromeExtension = require("crx");
 var AdmZip = require("adm-zip");
-const { env } = require("process");
 
 // 处理 ts.worker.js
 let list = fs.readdirSync("./build/scriptcat/src");
@@ -20,20 +18,28 @@ fs.writeFileSync(
 );
 
 // 处理firefox和chrome的zip压缩包
-let json = fs.readFileSync("./build/scriptcat/manifest.json");
-json = JSON.parse(json);
-json["content_security_policy"] = "script-src 'self' 'unsafe-eval'; object-src 'self'";
-fs.writeFileSync("./build/manifest_firefox.json", JSON.stringify(json));
+let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json");
+let jsonFirefox = JSON.parse(jsonStr);
+let jsonChrome = JSON.parse(jsonStr);
 
-let zip = new AdmZip();
+delete jsonFirefox['sandbox'];
+fs.writeFileSync("./build/manifest_firefox.json", JSON.stringify(jsonFirefox));
+
+delete jsonChrome['content_security_policy'];
+fs.writeFileSync("./build/manifest_chrome.json", JSON.stringify(jsonChrome));
+
+let chrome = new AdmZip();
 let firefox = new AdmZip();
 
-zip.addLocalFolder("./build/scriptcat", ".");
+firefox.addLocalFile("./build/manifest_chrome.json", ".", "manifest.json");
+firefox.addLocalFolder("./build/scriptcat", ".", (filename) => {
+    return filename !== "manifest.json";
+});
 
 firefox.addLocalFile("./build/manifest_firefox.json", ".", "manifest.json");
 firefox.addLocalFolder("./build/scriptcat", ".", (filename) => {
     return filename !== "manifest.json";
 });
 
-zip.writeZip("./build/scriptcat.zip");
+chrome.writeZip("./build/scriptcat.zip");
 firefox.writeZip("./build/scriptcat_firefox.zip");

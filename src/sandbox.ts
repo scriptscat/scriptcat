@@ -11,7 +11,7 @@ let cronjobMap = new Map<number, Array<CronJob>>();
 let cache = new Map<number, [SandboxContext, Function]>();
 
 type ExecType = 'run' | 'retry' | 'debug';
-function execScript(script: Script, type?: ExecType) {
+function execScript(script: Script, type: ExecType = 'run') {
     //使用SandboxContext接管postRequest
     let ret = cache.get(script.id);
     if (ret) {
@@ -34,10 +34,10 @@ function execScript(script: Script, type?: ExecType) {
     }
 }
 
-function start(script: Script): any {
-    let crontab = script.metadata["crontab"];
-    if (crontab == undefined) {
-        return top.postMessage({ action: 'start', data: '无脚本定时时间' }, '*');
+function createContextCache(script: Script): SandboxContext {
+    let ret = cache.get(script.id);
+    if (ret) {
+        return ret[0];
     }
     let context: SandboxContext = new SandboxContext(script.id);
     if (script.metadata["grant"] != undefined) {
@@ -46,16 +46,21 @@ function start(script: Script): any {
         });
     }
     cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
-    //debug模式直接执行一次
-    if (script.metadata["debug"] != undefined) {
-        execScript(script, 'debug');
-    }
     context.listenReject((result: any) => {
         if (typeof result == 'number') {
             script.delayruntime = new Date().getTime() + (result * 1000);
             context.GM_setDelayRuntime(script.delayruntime);
         }
     });
+    return context;
+}
+
+function start(script: Script): any {
+    let crontab = script.metadata["crontab"];
+    if (crontab == undefined) {
+        return top.postMessage({ action: 'start', data: '无脚本定时时间' }, '*');
+    }
+    createContextCache(script);
 
     let list = new Array<CronJob>();
     crontab.forEach((val) => {
@@ -122,6 +127,12 @@ function start(script: Script): any {
     return top.postMessage({ action: 'start', data: '' }, '*');
 }
 
+function debug(script: Script) {
+    createContextCache(script);
+    execScript(script, 'debug');
+    return top.postMessage({ action: 'debug', data: '' }, '*');
+}
+
 function stop(script: Script) {
     if (script.type != SCRIPT_TYPE_CRONTAB) {
         return top.postMessage({ action: 'stop' }, '*');
@@ -162,6 +173,10 @@ window.addEventListener('message', (event) => {
         }
         case 'stop': {
             stop(event.data.data);
+            break;
+        }
+        case 'debug': {
+            debug(event.data.data);
             break;
         }
     }

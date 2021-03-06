@@ -1,8 +1,6 @@
 
 //@copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
-import { LOGGER_LEVEL } from "./model/logger";
-
 declare var unsafeWindow: Window;
 
 declare var GM_info: {

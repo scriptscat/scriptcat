@@ -41,15 +41,13 @@ export default class App extends Vue {
     if (!this.$route.params.id) {
       return;
     }
-    this.scriptUtil
-      .getScript(parseInt(this.$route.params.id))
-      .then((result) => {
-        if (result == undefined) {
-          return;
-        }
-        this.script = result;
-        this.editor.setValue(this.script.code);
-      });
+    this.scriptUtil.getScript(parseInt(this.$route.params.id)).then(result => {
+      if (result == undefined) {
+        return;
+      }
+      this.script = result;
+      this.editor.setValue(this.script.code);
+    });
   }
 
   createEdit() {
@@ -63,11 +61,11 @@ export default class App extends Vue {
       foldingStrategy: "indentation",
       automaticLayout: true,
       overviewRulerBorder: false,
-      scrollBeyondLastLine: false,
+      scrollBeyondLastLine: false
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理
-      let [script, _] = await this.scriptUtil.prepareScriptByCode(
+      let [script, old] = await this.scriptUtil.prepareScriptByCode(
         this.editor.getValue(),
         this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
       );
@@ -81,9 +79,12 @@ export default class App extends Vue {
       script.checkupdate_url = this.script.checkupdate_url;
 
       this.script = script;
-      let oldId = this.script.id;
-      await this.scriptUtil.updateScript(this.script);
-      if (!oldId) {
+      await this.scriptUtil.updateScript(this.script, old);
+      if (old) {
+        if (this.script.metadata["debug"] != undefined) {
+          this.scriptUtil.debugScript(this.script);
+        }
+      } else {
         this.$router.push({ path: "/" });
       }
     });

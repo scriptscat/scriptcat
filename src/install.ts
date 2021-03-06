@@ -2,7 +2,6 @@ import Vue from 'vue'
 import App from '@App/views/install.vue'
 
 // @ts-ignore
-// @ts-ignore
 self.MonacoEnvironment = {
     getWorkerUrl: function (moduleId: any, label: any) {
         if (label === 'typescript' || label === 'javascript') {

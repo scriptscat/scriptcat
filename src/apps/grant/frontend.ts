@@ -1,5 +1,4 @@
 import { randomString } from "@App/pkg/utils";
-import { GM_Types } from "@App/tampermonkey";
 import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;

@@ -1,6 +1,5 @@
 import { LOGGER_LEVEL_DEBUG, LOGGER_LEVEL_INFO } from "@App/model/logger";
 import { isFirefox } from "@App/pkg/utils";
-import { GM_Types } from "@App/tampermonkey";
 import axios from "axios";
 import { logger } from "../logger/logger";
 import { ScriptGrant } from "../msg-center/event";

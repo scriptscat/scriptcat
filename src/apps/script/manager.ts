@@ -1,8 +1,8 @@
-import { Metadata, Script, ScriptModel, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
+import { Metadata, Script, ScriptModel, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache, ScriptGrant, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
+import { ScriptCache, ScriptDebug, ScriptGrant, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { ICrontab } from "@App/apps/script/interface";
@@ -58,6 +58,17 @@ export class ScriptManager {
                     resolve(false);
                 });
                 resolve(true);
+            });
+        });
+        MsgCenter.listener(ScriptDebug, async (msg): Promise<any> => {
+            return new Promise(async resolve => {
+                let script = <Script>msg[0];
+                if (script.type == SCRIPT_TYPE_CRONTAB) {
+                    await this.crontab.debugScript(script);
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
             });
         });
     }
@@ -160,15 +171,22 @@ export class ScriptManager {
             };
             let old = await this.script.findByUUID(script.uuid);
             if (old) {
-                script.id = old.id;
-                script.createtime = old.createtime;
-                script.status = old.status;
-                script.checktime = old.checktime;
+                this.copyTime(script, old);
             } else {
                 script.checktime = new Date().getTime();
             }
             return resolve([script, old]);
         });
+    }
+
+    protected copyTime(script: Script, old: Script) {
+        script.id = old.id;
+        script.createtime = old.createtime;
+        script.status = old.status;
+        script.checktime = old.checktime;
+        script.lastruntime = old.lastruntime;
+        script.delayruntime = old.delayruntime;
+        script.error = old.error;
     }
 
     public installScript(script: Script): Promise<boolean> {
@@ -183,9 +201,7 @@ export class ScriptManager {
             if (script.id && !old) {
                 old = await this.script.findById(script.id);
                 if (old) {
-                    script.createtime = old.createtime;
-                    script.checktime = old.checktime;
-                    script.lastruntime = old.lastruntime;
+                    this.copyTime(script, old);
                 }
             }
             script.updatetime = new Date().getTime();
@@ -197,6 +213,32 @@ export class ScriptManager {
                 let s = <Script>msg;
                 script.status = s.status
                 script.error = s.error;
+                resolve(true);
+            });
+        });
+    }
+
+    public debugScript(script: Script): Promise<boolean> {
+        return new Promise(async resolve => {
+            MsgCenter.connect(ScriptDebug, [script]).addListener(msg => {
+                resolve(true);
+            });
+        });
+    }
+
+    public updateScriptStatus(id: number, status: SCRIPT_STATUS): Promise<boolean> {
+        return new Promise(async resolve => {
+            let old = await this.script.findById(id);
+            if (!old) {
+                return resolve(true);
+            }
+            let script: Script = Object.assign({}, old);
+            script.status = status;
+            let ok = await this.script.save(script);
+            if (!ok) {
+                return resolve(false);
+            }
+            MsgCenter.connect(ScriptUpdate, [script, old]).addListener(msg => {
                 resolve(true);
             });
         });
@@ -215,7 +257,6 @@ export class ScriptManager {
             } else {
                 script.status = SCRIPT_STATUS_ENABLE;
             }
-            script.updatetime = new Date().getTime();
             let ok = await this.script.save(script);
             if (!ok) {
                 return resolve(false);
@@ -230,7 +271,6 @@ export class ScriptManager {
             if (script.type == SCRIPT_TYPE_CRONTAB) {
                 await this.crontab.disableScript(script);
             }
-            script.updatetime = new Date().getTime();
             await this.script.save(script);
             resolve();
         });

@@ -117,3 +117,12 @@ declare namespace GM_Types {
 }
 ```
 
+### GM_log
+> 日志函数,日志将在控制面板的运行日志中看到
+
+```typescript
+declare function GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): any;
+declare namespace GM_Types {
+    type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
+}
+```

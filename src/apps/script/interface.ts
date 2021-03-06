@@ -5,6 +5,8 @@ export interface IScript {
     enableScript(script: Script): Promise<string>;
 
     disableScript(script: Script): Promise<void>;
+
+    debugScript(script: Script): Promise<void>;
 }
 
 export interface ICrontab extends IScript {

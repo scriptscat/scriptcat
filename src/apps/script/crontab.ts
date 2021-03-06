@@ -39,6 +39,20 @@ export class Crontab implements IScript {
         });
     }
 
+    public debugScript(script: Script): Promise<void> {
+        return new Promise(resolve => {
+            this.sandboxWindow.postMessage({ action: 'debug', data: script }, '*');
+            function listener(event: MessageEvent) {
+                if (event.data.action != "debug") {
+                    return;
+                }
+                resolve();
+                window.removeEventListener('message', listener);
+            }
+            window.addEventListener('message', listener);
+        });
+    }
+
     public validCrontab(crontab: string[]): boolean {
         for (let i = 0; i < crontab.length; i++) {
             let val = crontab[i].replaceAll('once', '*');
