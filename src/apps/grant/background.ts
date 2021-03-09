@@ -30,6 +30,14 @@ export class grantListener implements IGrantListener {
     }
 }
 
+interface GrantLevel {
+    name: string
+    // 在某些地方做警告
+    warn: boolean
+    // 如果有标签允许可以忽略
+    ignore?: (grant: Grant, meta: Metadata) => boolean
+}
+
 export class BackgroundGrant {
 
     public apis = new Map<string, Api>();

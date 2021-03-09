@@ -44,7 +44,7 @@ export interface Script {
     //script update timestamp
     updatetime?: number;
     //last check update timestamp
-    checktime?: number;
+    checktime: number;
     lastruntime?: number;
     delayruntime?: number;
 }

@@ -6,6 +6,7 @@ import { Crontab } from "@App/apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 import { Logger } from "./apps/msg-center/event";
 import { logger } from "./apps/logger/logger";
+import { SystemConfig } from "./pkg/config";
 
 let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
 let grant = new BackgroundGrant(new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
@@ -72,3 +73,14 @@ function sandboxLoad(event: MessageEvent) {
 }
 
 window.addEventListener('message', sandboxLoad);
+
+// 检查更新
+setInterval(() => {
+    scripts.scriptList((table: Dexie.Table) => {
+        return table.where('checktime').belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
+    }).then(items => {
+        items.forEach((value: Script) => {
+            scripts.scriptCheckupdate(value);
+        });
+    });
+}, 1000);

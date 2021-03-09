@@ -6,6 +6,7 @@ import { ScriptCache, ScriptGrant, ScriptUninstall, ScriptUpdate } from "@App/ap
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { ICrontab } from "@App/apps/script/interface";
+import { logger } from "../logger/logger";
 
 export class ScriptManager {
 
@@ -27,10 +28,14 @@ export class ScriptManager {
     }
 
     public listenScriptUpdate() {
+        // 监听脚本更新 处理脚本重新执行操作
         MsgCenter.listener(ScriptUpdate, async (msg): Promise<any> => {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 let oldScript = <Script>msg[1];
+                if (oldScript && script.code == oldScript.code) {
+                    return resolve(script);
+                }
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
                         await this.disableScript(script);
@@ -42,6 +47,7 @@ export class ScriptManager {
                 return resolve(script);
             });
         });
+        // 监听脚本卸载 关闭脚本
         MsgCenter.listener(ScriptUninstall, async (msg): Promise<any> => {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
@@ -150,6 +156,7 @@ export class ScriptManager {
                 metadata: metadata,
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
+                checktime: 0,
             };
             let old = await this.script.findByUUID(script.uuid);
             if (old) {
@@ -157,6 +164,8 @@ export class ScriptManager {
                 script.createtime = old.createtime;
                 script.status = old.status;
                 script.checktime = old.checktime;
+            } else {
+                script.checktime = new Date().getTime();
             }
             return resolve([script, old]);
         });
@@ -235,12 +244,14 @@ export class ScriptManager {
         });
     }
 
-    public scriptList(equalityCriterias: { [key: string]: any } | undefined): Promise<Array<Script>> {
+    public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Script>> {
         return new Promise(async resolve => {
-            let page = new Page(1, 20);
+            page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
-                equalityCriterias = {};
                 resolve(await this.script.list(page));
+            } else if (typeof equalityCriterias == 'function') {
+                let ret = (await this.script.list(equalityCriterias(this.script.table), page));
+                resolve(ret);
             } else {
                 resolve(await this.script.list(this.script.table.where(equalityCriterias), page));
             }
@@ -265,5 +276,65 @@ export class ScriptManager {
             this.script.table.update(id, { delayruntime: time })
             resolve(true);
         });
+    }
+
+    // 检查脚本更新
+    public scriptCheckupdate(script: Script): Promise<void> {
+        return new Promise(resolve => {
+            if (script.checkupdate_url == undefined) {
+                return resolve();
+            }
+            this.script.table.update(script.id, { checktime: new Date().getTime() });
+            axios.get(script.checkupdate_url).then((response): boolean => {
+                if (response.status != 200) {
+                    logger.Warn("check update", "script:" + script.id + " error:", "respond:", response.statusText);
+                    return false;
+                }
+                let meta = this.parseMetadata(response.data);
+                if (!meta) {
+                    logger.Warn("check update", "script:" + script.id + " error:", "metadata format");
+                    return false;
+                }
+                if (script.metadata['version'] == undefined) {
+                    script.metadata['version'] = ["v0.0.0"];
+                }
+                if (meta['version'] == undefined) {
+                    return false;
+                }
+                var regexp = /[0-9]*/g
+                var oldVersion = script.metadata['version'][0].match(regexp);
+                if (!oldVersion) {
+                    oldVersion = ["0", "0", "0"];
+                }
+                var Version = meta['version'][0].match(regexp);
+                if (!Version) {
+                    logger.Warn("check update", "script:" + script.id + " error:", "version format");
+                    return false;
+                }
+                for (let i = 0; i < Version.length; i++) {
+                    if (oldVersion[i] == undefined) {
+                        return true;
+                    }
+                    if (Version[i] > oldVersion[i]) {
+                        return true;
+                    }
+                }
+                return false;
+            }).then(async (val) => {
+                if (val) {
+                    let info = await this.loadScriptByUrl(script.origin);
+                    if (info != undefined) {
+                        chrome.tabs.create({
+                            url: 'install.html?uuid=' + info.uuid
+                        });
+                    }
+                }
+                resolve(undefined);
+            }).catch((e) => {
+                logger.Warn("check update", "script:" + script.id + " error:", e);
+                resolve(undefined);
+            });
+
+        })
     }
 }
