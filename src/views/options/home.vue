@@ -13,7 +13,6 @@
     >
       <template v-slot:top>
         <template v-if="selected.length">
-          <!-- <v-toolbar flat> -->
           <v-container fluid>
             <v-row align="center" dense>
               <v-col align-self="center" cols="2">
@@ -52,82 +51,26 @@
               </v-col>
             </v-row>
           </v-container>
-          <!-- </v-toolbar> -->
         </template>
       </template>
 
-      <!-- <v-toolbar-title>My CRUD</v-toolbar-title>
-            <v-divider class="mx-4" inset vertical></v-divider>
-            <v-spacer></v-spacer>
-            <v-dialog v-model="dialog" max-width="500px">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  color="primary"
-                  dark
-                  class="mb-2"
-                  v-bind="attrs"
-                  v-on="on"
-                >
-                  New Item
-                </v-btn>
-              </template>
-              <v-card>
-                <v-card-title>
-                  <span class="headline">{{ formTitle }}</span>
-                </v-card-title>
-
-                <v-card-text>
-                  <v-container>
-                    <v-row>
-                      <v-col cols="12" sm="6" md="4">
-                        <v-text-field
-                          v-model="editedItem.name"
-                          label="Dessert name"
-                        ></v-text-field>
-                      </v-col>
-                      <v-col cols="12" sm="6" md="4">
-                        <v-text-field
-                          v-model="editedItem.calories"
-                          label="Calories"
-                        ></v-text-field>
-                      </v-col>
-                      <v-col cols="12" sm="6" md="4">
-                        <v-text-field
-                          v-model="editedItem.fat"
-                          label="Fat (g)"
-                        ></v-text-field>
-                      </v-col>
-                      <v-col cols="12" sm="6" md="4">
-                        <v-text-field
-                          v-model="editedItem.carbs"
-                          label="Carbs (g)"
-                        ></v-text-field>
-                      </v-col>
-                      <v-col cols="12" sm="6" md="4">
-                        <v-text-field
-                          v-model="editedItem.protein"
-                          label="Protein (g)"
-                        ></v-text-field>
-                      </v-col>
-                    </v-row>
-                  </v-container>
-                </v-card-text>
-
-                <v-card-actions>
-                  <v-spacer></v-spacer>
-                  <v-btn color="blue darken-1" text @click="close">
-                    Cancel
-                  </v-btn>
-                  <v-btn color="blue darken-1" text @click="save"> Save </v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog> -->
-
       <template v-slot:item.status="{ item }">
         <v-switch
-          :value="getStatusBoolean(item)"
+          :input-value="getStatusBoolean(item)"
           @change="changeStatus(item)"
         ></v-switch>
+      </template>
+
+      <template v-slot:item.version="{ item }">
+        {{ item.metadata.version[0] }}
+      </template>
+
+      <template v-slot:item.site="{ item }">
+        {{ item.metadata.match[0] }}
+      </template>
+
+      <template v-slot:item.feature="{ item }">
+        {{ item.metadata.grant[0] }}
       </template>
 
       <template v-slot:item.origin="{ item }">
@@ -235,7 +178,7 @@ export default class App extends Vue {
     return item.status === SCRIPT_STATUS_ENABLE ? true : false;
   }
 
-  changeStatus(item: Script) {
+  async changeStatus(item: Script) {
     if (item.status === SCRIPT_STATUS_ENABLE) {
       item.status = SCRIPT_STATUS_DISABLE;
     } else {
@@ -250,6 +193,8 @@ export default class App extends Vue {
 
     // return icon
   }
+
+  mapFeatureToIcon(features: string[]) {}
 
   mapTimeStampToHumanized(timestamp: number) {
     return dayjs().to(dayjs(timestamp));
