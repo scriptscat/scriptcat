@@ -14,7 +14,12 @@
 </template>
 
 <script lang="ts">
+import devtools from "@vue/devtools";
 import { Vue, Component } from "vue-property-decorator";
+
+if (process.env.NODE_ENV === "development") {
+  devtools.connect(/* host, port */);
+}
 
 @Component({})
 export default class App extends Vue {}
