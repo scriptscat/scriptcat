@@ -1,4 +1,5 @@
 import { LOGGER_LEVEL_DEBUG, LOGGER_LEVEL_INFO } from "@App/model/logger";
+import { Script, SCRIPT_TYPE_CRONTAB } from "@App/model/script";
 import { isFirefox } from "@App/pkg/utils";
 import axios from "axios";
 import { logger } from "../logger/logger";
@@ -29,24 +30,85 @@ export class grantListener implements IGrantListener {
     }
 }
 
-interface GrantLevel {
-    name: string
-    // 在某些地方做警告
-    warn: boolean
-    // 如果有标签允许可以忽略
-    ignore?: (grant: Grant, meta: Metadata) => boolean
+interface ConfirmParam {
+    title: string
+    metadata: { [key: string]: string }
+    describe: string
 }
+
+interface Permission {
+    // 默认提供的函数
+    default?: boolean
+    // 是否只有沙盒环境中才能执行
+    sandbox?: boolean
+
+    // 是否需要弹出页面让用户进行确认
+    confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
+    // 必须用户确认
+    mustConfirm?: boolean
+}
+
 
 export class BackgroundGrant {
 
     public apis = new Map<string, Api>();
     protected listener: IGrantListener;
-    protected scriptMgr: ScriptManager = new ScriptManager(undefined);
+    protected scriptMgr: ScriptManager;
 
-    constructor(listener: IGrantListener) {
+    constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
         this.listener = listener;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GM_cookie", this.GM_cookie).set("GM_notification", this.GM_notification).
-            set('GM_setLastRuntime', this.GM_setLastRuntime).set('GM_setDelayRuntime', this.GM_setDelayRuntime).set('GM_log', this.GM_log);
+        this.scriptMgr = scriptMgr;
+    }
+
+    public static GMFunction(permission: Permission = {}) {
+        return function (
+            target: BackgroundGrant,
+            propertyName: string,
+            descriptor: PropertyDescriptor
+        ) {
+            let old = descriptor.value;
+            descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
+                return new Promise(async resolve => {
+                    //TODO: 权限错误提示
+                    let script = await target.scriptMgr.getScript(grant.id);
+                    if (!script) {
+                        return resolve(undefined);
+                    }
+                    let metaGrant = script.metadata["grant"];
+                    if (!metaGrant) {
+                        return resolve(undefined);
+                    }
+                    if (!permission.default) {
+                        let flag = false;
+                        for (let i = 0; i < metaGrant.length; i++) {
+                            if (metaGrant[i] == propertyName) {
+                                flag = true;
+                                break;
+                            }
+                        }
+                        if (!flag) {
+                            return resolve(undefined);
+                        }
+                    }
+
+                    if (permission.sandbox && script.type != SCRIPT_TYPE_CRONTAB) {
+                        return resolve(undefined);
+                    }
+
+                    if (permission.confirm) {
+                        let confirm = await permission.confirm(grant, script);
+                        if (confirm) {
+                            //弹出页面确认
+                          
+                        }
+
+                    }
+
+                    resolve(await old.apply(this, [grant, post]));
+                });
+            }
+            target.apis.set(propertyName, descriptor.value);
+        };
     }
 
     public listenScriptGrant() {
@@ -57,7 +119,6 @@ export class BackgroundGrant {
                     return;
                 }
                 let api = this.apis.get(grant.value);
-                //TODO:通过id校验权限
                 if (api == undefined) {
                     return resolve(undefined);
                 }
@@ -67,6 +128,7 @@ export class BackgroundGrant {
     }
 
     //TODO:按照tampermonkey文档实现
+    @BackgroundGrant.GMFunction()
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             if (grant.params.length <= 0) {
@@ -97,6 +159,7 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction({ sandbox: true })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let param = grant.params;
@@ -127,6 +190,7 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction()
     protected GM_notification(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let params = grant.params;
@@ -155,6 +219,7 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
     protected GM_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
@@ -162,6 +227,7 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
     protected GM_setDelayRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
@@ -169,6 +235,7 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction({ default: true })
     protected GM_log(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             if (!grant.params[0]) {

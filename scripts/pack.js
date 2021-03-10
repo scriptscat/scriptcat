@@ -31,8 +31,8 @@ fs.writeFileSync("./build/manifest_chrome.json", JSON.stringify(jsonChrome));
 let chrome = new AdmZip();
 let firefox = new AdmZip();
 
-firefox.addLocalFile("./build/manifest_chrome.json", ".", "manifest.json");
-firefox.addLocalFolder("./build/scriptcat", ".", (filename) => {
+chrome.addLocalFile("./build/manifest_chrome.json", ".", "manifest.json");
+chrome.addLocalFolder("./build/scriptcat", ".", (filename) => {
     return filename !== "manifest.json";
 });
 

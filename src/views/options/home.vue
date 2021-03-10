@@ -62,15 +62,15 @@
       </template>
 
       <template v-slot:item.version="{ item }">
-        {{ item.metadata.version[0] }}
+        {{ item.metadata.version && item.metadata.version[0] }}
       </template>
 
       <template v-slot:item.site="{ item }">
-        {{ item.metadata.match[0] }}
+        {{ item.metadata.match && item.metadata.match[0] }}
       </template>
 
       <template v-slot:item.feature="{ item }">
-        {{ item.metadata.grant[0] }}
+        {{ item.metadata.grant && item.metadata.grant[0] }}
       </template>
 
       <template v-slot:item.origin="{ item }">
@@ -116,7 +116,7 @@ import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE
+  SCRIPT_STATUS_DISABLE,
 } from "@App/model/script";
 
 import dayjs from "dayjs";
@@ -139,14 +139,14 @@ export default class App extends Vue {
     "@namespace",
     "@author",
     "@grant",
-    "@include"
+    "@include",
   ];
 
   dialogDelete = false;
   headers = [
     {
       text: "#",
-      value: "id"
+      value: "id",
     },
     { text: "开启", value: "status" },
     { text: "名称", value: "name" },
@@ -155,7 +155,7 @@ export default class App extends Vue {
     { text: "特性", value: "feature" },
     { text: "主页", value: "origin" },
     { text: "最后更新", value: "updatetime" },
-    { text: "操作", value: "actions", sortable: false }
+    { text: "操作", value: "actions", sortable: false },
   ];
   desserts: any[] = [];
   editedIndex = -1;
@@ -165,11 +165,11 @@ export default class App extends Vue {
     calories: 0,
     fat: 0,
     carbs: 0,
-    protein: 0
+    protein: 0,
   };
 
   created() {
-    this.scriptUtil.scriptList(undefined).then(result => {
+    this.scriptUtil.scriptList(undefined).then((result) => {
       this.scripts = result;
     });
   }

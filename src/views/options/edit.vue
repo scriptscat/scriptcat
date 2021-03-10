@@ -24,7 +24,7 @@ import crontabTpl from "@App/template/crontab.tpl";
 export default class App extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
-  public scriptUtil: ScriptManager = new ScriptManager(new Crontab(window));
+  public scriptMgr: ScriptManager = new ScriptManager(new Crontab(window));
   public script: Script = <Script>{};
 
   @Watch("$route", { immediate: true })
@@ -41,7 +41,7 @@ export default class App extends Vue {
     if (!this.$route.params.id) {
       return;
     }
-    this.scriptUtil.getScript(parseInt(this.$route.params.id)).then(result => {
+    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then(result => {
       if (result == undefined) {
         return;
       }
@@ -65,7 +65,7 @@ export default class App extends Vue {
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理
-      let [script, old] = await this.scriptUtil.prepareScriptByCode(
+      let [script, old] = await this.scriptMgr.prepareScriptByCode(
         this.editor.getValue(),
         this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
       );
@@ -79,10 +79,10 @@ export default class App extends Vue {
       script.checkupdate_url = this.script.checkupdate_url;
 
       this.script = script;
-      await this.scriptUtil.updateScript(this.script, old);
+      await this.scriptMgr.updateScript(this.script, old);
       if (old) {
         if (this.script.metadata["debug"] != undefined) {
-          this.scriptUtil.debugScript(this.script);
+          this.scriptMgr.debugScript(this.script);
         }
       } else {
         this.$router.push({ path: "/" });

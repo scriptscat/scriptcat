@@ -13,7 +13,10 @@ export class ScriptManager {
     protected script = new ScriptModel();
     protected crontab!: ICrontab;
 
-    protected cache = new Map<string, ScriptUrlInfo>();
+    protected infoCache = new Map<string, ScriptUrlInfo>();
+    // 脚本缓存 会在listen更新
+    protected scriptCache = new Map<number, Script>();
+
 
     constructor(crontab: ICrontab | undefined) {
         if (crontab) {
@@ -23,11 +26,11 @@ export class ScriptManager {
 
     public listenMsg() {
         MsgCenter.listener(ScriptCache, (msg) => {
-            return this.cache.get(msg);
+            return this.infoCache.get(msg);
         });
     }
 
-    public listenScriptUpdate() {
+    public listenScript() {
         // 监听脚本更新 处理脚本重新执行操作
         MsgCenter.listener(ScriptUpdate, async (msg): Promise<any> => {
             return new Promise(async resolve => {
@@ -44,6 +47,7 @@ export class ScriptManager {
                 } else if (script.status == SCRIPT_STATUS_DISABLE) {
                     this.disableScript(script);
                 }
+                this.scriptCache.set(script.id, script);
                 return resolve(script);
             });
         });
@@ -54,6 +58,7 @@ export class ScriptManager {
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     await this.disableScript(script);
                 }
+                this.scriptCache.delete(script.id);
                 await this.script.delete(script.id).catch(() => {
                     resolve(false);
                 });
@@ -121,7 +126,7 @@ export class ScriptManager {
                     code: response.data,
                     uuid: uuid
                 };
-                this.cache.set(uuid, ret);
+                this.infoCache.set(uuid, ret);
                 return ret;
             }).then((val) => {
                 resolve(val);
@@ -300,7 +305,15 @@ export class ScriptManager {
 
     public getScript(id: number): Promise<Script | undefined> {
         return new Promise(async resolve => {
-            resolve(await this.script.findById(id));
+            let ret = this.scriptCache.get(id);
+            if (ret) {
+                return resolve(ret);
+            }
+            ret = await this.script.findById(id);
+            if (ret) {
+                this.scriptCache.set(id, ret);
+            }
+            return resolve(ret);
         });
     }
 
