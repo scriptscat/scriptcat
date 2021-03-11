@@ -11,10 +11,6 @@
 <script lang="ts">
 import { Vue, Component, Watch } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache } from "@App/apps/msg-center/event";
-import query from "query-string";
-import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
 import { Crontab } from "@App/apps/script/crontab";

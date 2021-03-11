@@ -11,6 +11,7 @@ module.exports = {
         sandbox: home + "/sandbox.ts",
         options: home + "/options.ts",
         install: home + "/install.ts",
+        confirm: home + "/confirm.ts",
         "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
         "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },
@@ -58,6 +59,16 @@ module.exports = {
                 removeComments: true,
             },
             chunks: ["install"],
+        }),
+        new htmlWebpackPlugin({
+            filename: __dirname + "/build/scriptcat/confirm.html",
+            template: __dirname + "/public/confirm.html",
+            inject: "head",
+            title: "Confirm - ScriptCat",
+            minify: {
+                removeComments: true,
+            },
+            chunks: ["confirm"],
         }),
         new MonacoLocalesPlugin({
             languages: ["es", "zh-cn"],

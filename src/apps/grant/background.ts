@@ -1,12 +1,14 @@
-import { LOGGER_LEVEL_DEBUG, LOGGER_LEVEL_INFO } from "@App/model/logger";
+import { LOGGER_LEVEL_INFO } from "@App/model/logger";
+import { Permission, PermissionModel } from "@App/model/permission";
 import { Script, SCRIPT_TYPE_CRONTAB } from "@App/model/script";
 import { isFirefox } from "@App/pkg/utils";
 import axios from "axios";
-import { logger } from "../logger/logger";
-import { ScriptGrant } from "../msg-center/event";
+import { App } from "../app";
+import { PermissionConfirm, ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
-import { Grant, Api, IPostMessage, IGrantListener } from "./interface";
+import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam } from "./interface";
+import { v4 as uuidv4 } from "uuid"
 
 class postMessage implements IPostMessage {
 
@@ -30,39 +32,35 @@ export class grantListener implements IGrantListener {
     }
 }
 
-interface ConfirmParam {
-    title: string
-    metadata: { [key: string]: string }
-    describe: string
-}
-
-interface Permission {
-    // 默认提供的函数
-    default?: boolean
-    // 是否只有沙盒环境中才能执行
-    sandbox?: boolean
-
-    // 是否需要弹出页面让用户进行确认
-    confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
-    // 必须用户确认
-    mustConfirm?: boolean
-}
-
-
 export class BackgroundGrant {
 
-    public apis = new Map<string, Api>();
+    protected static apis = new Map<string, Api>();
+    protected static _singleInstance: BackgroundGrant;
     protected listener: IGrantListener;
     protected scriptMgr: ScriptManager;
+    protected permissionModel: PermissionModel = new PermissionModel();
 
-    constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
+    private constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
         this.listener = listener;
         this.scriptMgr = scriptMgr;
     }
 
-    public static GMFunction(permission: Permission = {}) {
+    // 单实例
+    public static SingleInstance(scriptMgr: ScriptManager, listener: IGrantListener): BackgroundGrant {
+        if (!BackgroundGrant._singleInstance) {
+            BackgroundGrant._singleInstance = new BackgroundGrant(scriptMgr, listener);
+        }
+        return BackgroundGrant._singleInstance;
+    }
+
+    public static Instance(): BackgroundGrant {
+        return BackgroundGrant._singleInstance;
+    }
+
+    // NOTE: 一大长串 尝试优化?
+    public static GMFunction(permission: PermissionParam = {}) {
         return function (
-            target: BackgroundGrant,
+            target: any,
             propertyName: string,
             descriptor: PropertyDescriptor
         ) {
@@ -70,7 +68,7 @@ export class BackgroundGrant {
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 return new Promise(async resolve => {
                     //TODO: 权限错误提示
-                    let script = await target.scriptMgr.getScript(grant.id);
+                    let script = await BackgroundGrant.Instance().scriptMgr.getScript(grant.id);
                     if (!script) {
                         return resolve(undefined);
                     }
@@ -98,16 +96,33 @@ export class BackgroundGrant {
                     if (permission.confirm) {
                         let confirm = await permission.confirm(grant, script);
                         if (confirm) {
+                            let ret = <Permission>await App.Cache.get("permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission);
+                            if (ret) {
+                                if (ret.allow) {
+                                    return resolve(await old.apply(this, [grant, post]));
+                                } else {
+                                    //TODO:执行拒绝的提示
+                                    return resolve(undefined);
+                                }
+                            }
                             //弹出页面确认
-                          
+                            let listener = (uuid: string) => {
+
+                            }
+                            let uuid = uuidv4();
+                            App.Cache.set("confirm:uuid:" + uuid, confirm);
+                            MsgCenter.listener(PermissionConfirm, listener);
+
+                            chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
+                        } else {
+                            return resolve(await old.apply(this, [grant, post]));
                         }
-
+                    } else {
+                        return resolve(await old.apply(this, [grant, post]));
                     }
-
-                    resolve(await old.apply(this, [grant, post]));
                 });
             }
-            target.apis.set(propertyName, descriptor.value);
+            BackgroundGrant.apis.set(propertyName, descriptor.value);
         };
     }
 
@@ -118,7 +133,7 @@ export class BackgroundGrant {
                 if (!grant.value) {
                     return;
                 }
-                let api = this.apis.get(grant.value);
+                let api = BackgroundGrant.apis.get(grant.value);
                 if (api == undefined) {
                     return resolve(undefined);
                 }
@@ -128,7 +143,35 @@ export class BackgroundGrant {
     }
 
     //TODO:按照tampermonkey文档实现
-    @BackgroundGrant.GMFunction()
+    @BackgroundGrant.GMFunction({
+        confirm: (grant: Grant, script: Script) => {
+            return new Promise(resolve => {
+                let config = <GM_Types.XHRDetails>grant.params[0];
+                let url = new URL(config.url);
+                if (script.metadata["connect"]) {
+                    let connect = script.metadata["connect"];
+                    for (let i = 0; i < connect.length; i++) {
+                        if (url.hostname.endsWith(connect[i])) {
+                            return resolve(undefined);
+                        }
+                    }
+                }
+                let ret: ConfirmParam = {
+                    permission: 'cors',
+                    permissionValue: url.hostname,
+                    title: '脚本正在试图访问跨域资源',
+                    metadata: {
+                        "名称": script.name,
+                        "请求域名": url.hostname,
+                        "请求地址": config.url,
+                    },
+                    describe: '请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项',
+                    wildcard: '域名',
+                };
+                resolve(ret);
+            });
+        }
+    })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             if (grant.params.length <= 0) {
@@ -241,7 +284,7 @@ export class BackgroundGrant {
             if (!grant.params[0]) {
                 return resolve(undefined);
             }
-            logger.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0]);
+            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0]);
             return resolve(undefined);
         });
     }

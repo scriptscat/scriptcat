@@ -101,7 +101,7 @@ declare function GMSC_reject(result: any): void;
 declare namespace GM_Types {
 
     type CookieAction = "list" | "delete" | "set";
-    
+
     type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
 
     interface CookieDetails {
@@ -161,7 +161,7 @@ declare namespace GM_Types {
 
     interface XHRDetails {
         method?: "GET" | "HEAD" | "POST"
-        url?: string
+        url: string
         headers?: { [key: string]: string }
         data?: string
         cookie?: string

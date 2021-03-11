@@ -5,11 +5,14 @@ import { MultiGrantListener } from "@App/apps/grant/utils";
 import { Crontab } from "@App/apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 import { Logger } from "./apps/msg-center/event";
-import { logger } from "./apps/logger/logger";
 import { SystemConfig } from "./pkg/config";
+import { App } from "./apps/app";
+import { SystemCache } from "./pkg/cache";
+
+App.Cache = new SystemCache(true);
 
 let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
-let grant = new BackgroundGrant(scripts, new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
+let grant = BackgroundGrant.SingleInstance(scripts, new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
 scripts.listenMsg();
 scripts.listenScript();
 grant.listenScriptGrant();
@@ -18,7 +21,7 @@ window.addEventListener('message', (event) => {
         return;
     }
     let data = event.data.data;
-    logger.Logger(data.level, data.origin, data.message);
+    App.Log.Logger(data.level, data.origin, data.message);
 })
 
 function listenScriptInstall() {

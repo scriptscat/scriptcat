@@ -20,7 +20,6 @@ import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCache } from "@App/apps/msg-center/event";
-import query from "query-string";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script } from "@App/model/script";
@@ -35,11 +34,12 @@ export default class App extends Vue {
   public isupdate: boolean = false;
 
   mounted() {
-    let parsed = query.parse(location.search);
-    if (!parsed["uuid"]) {
+    let url = new URL(location.href);
+    let uuid = url.searchParams.get("uuid");
+    if (!uuid) {
       return;
     }
-    MsgCenter.connect(ScriptCache, parsed["uuid"]).addListener(async (msg) => {
+    MsgCenter.connect(ScriptCache, uuid).addListener(async (msg) => {
       let info = <ScriptUrlInfo>msg;
       let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
         info.code,

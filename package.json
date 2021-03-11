@@ -17,7 +17,6 @@
         "dayjs": "^1.10.4",
         "dexie": "^3.0.3",
         "monaco-editor": "^0.22.3",
-        "query-string": "^6.13.8",
         "uuid": "^8.3.2",
         "vue": "^2.6.12",
         "vue-router": "^3.5.1",

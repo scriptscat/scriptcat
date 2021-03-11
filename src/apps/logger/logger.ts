@@ -32,5 +32,3 @@ export class Logger {
     }
 
 }
-
-export let logger = new Logger();

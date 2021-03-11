@@ -6,7 +6,7 @@ import { ScriptCache, ScriptDebug, ScriptGrant, ScriptUninstall, ScriptUpdate } 
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { ICrontab } from "@App/apps/script/interface";
-import { logger } from "../logger/logger";
+import { App } from "../app";
 
 export class ScriptManager {
 
@@ -340,12 +340,12 @@ export class ScriptManager {
             this.script.table.update(script.id, { checktime: new Date().getTime() });
             axios.get(script.checkupdate_url).then((response): boolean => {
                 if (response.status != 200) {
-                    logger.Warn("check update", "script:" + script.id + " error:", "respond:", response.statusText);
+                    App.Log.Warn("check update", "script:" + script.id + " error:", "respond:", response.statusText);
                     return false;
                 }
                 let meta = this.parseMetadata(response.data);
                 if (!meta) {
-                    logger.Warn("check update", "script:" + script.id + " error:", "metadata format");
+                    App.Log.Warn("check update", "script:" + script.id + " error:", "metadata format");
                     return false;
                 }
                 if (script.metadata['version'] == undefined) {
@@ -361,7 +361,7 @@ export class ScriptManager {
                 }
                 var Version = meta['version'][0].match(regexp);
                 if (!Version) {
-                    logger.Warn("check update", "script:" + script.id + " error:", "version format");
+                    App.Log.Warn("check update", "script:" + script.id + " error:", "version format");
                     return false;
                 }
                 for (let i = 0; i < Version.length; i++) {
@@ -384,7 +384,7 @@ export class ScriptManager {
                 }
                 resolve(undefined);
             }).catch((e) => {
-                logger.Warn("check update", "script:" + script.id + " error:", e);
+                App.Log.Warn("check update", "script:" + script.id + " error:", e);
                 resolve(undefined);
             });
 

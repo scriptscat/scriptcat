@@ -5,6 +5,7 @@
       <span>{{ log.level }}</span>
       <span>{{ log.origin }}</span>
       <span>{{ log.message }}</span>
+      <span>{{ new Date(log.createtime).toString() }}</span>
     </div>
   </div>
 </template>

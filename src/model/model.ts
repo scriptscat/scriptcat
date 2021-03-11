@@ -5,7 +5,10 @@ export let db = new Dexie("ScriptCat");
 
 db.version(1).stores({
     scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
+});
+db.version(2).stores({
     logger: "++id,level,origin,createtime",
+    permission: "++id,[scriptId+permission+permissionValue],createtime,updatetime",
 });
 
 export abstract class Model<T> {

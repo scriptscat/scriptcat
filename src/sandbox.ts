@@ -2,7 +2,6 @@ import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { compileCode, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
-import { logger } from "./apps/logger/logger";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_INFO } from "./model/logger";
 
