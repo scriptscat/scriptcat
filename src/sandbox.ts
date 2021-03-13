@@ -3,7 +3,7 @@ import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { compileCode, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
-import { LOGGER_LEVEL_INFO } from "./model/logger";
+import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 
@@ -24,9 +24,16 @@ function execScript(script: Script, type: ExecType = 'run') {
         SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " by: " + <string>type, script.name);
         let execRet = func(createContext(window, context));
         if (execRet instanceof Promise) {
-            execRet.then(() => {
-                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
-            })
+            execRet.then((result: any) => {
+                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " +
+                    (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms result: ' + result, script.name);
+            }).catch((msg: string, delayrun: number = 0) => {
+                SendLogger(LOGGER_LEVEL_ERROR, "sandbox", "exec script id: " + script.id.toString() + " error: " + msg + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
+                if (delayrun > 0) {
+                    script.delayruntime = new Date().getTime() + (delayrun * 1000);
+                    context.GM_setDelayRuntime(script.delayruntime);
+                }
+            });
         } else {
             SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
         }
@@ -45,12 +52,7 @@ function createContextCache(script: Script): SandboxContext {
         });
     }
     cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
-    context.listenReject((result: any) => {
-        if (typeof result == 'number') {
-            script.delayruntime = new Date().getTime() + (result * 1000);
-            context.GM_setDelayRuntime(script.delayruntime);
-        }
-    });
+
     return context;
 }
 

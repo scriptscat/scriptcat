@@ -1,10 +1,10 @@
 ## 定时脚本
 
-定时脚本由`@crontab`属性声明,可以精确到秒级调用,提供了一个once,表示某个时间内最多执行一次.
+定时脚本由`@crontab`属性声明,可以精确到秒级调用,提供了一个 once,表示某个时间内最多执行一次.建议脚本的运行时间不要大于定时时间的间隔.
 
 可使用在线工具测试:https://tool.lu/crontab/
 
-### Crontab例子
+### Crontab 例子
 
 ```javascript
 //@crontab * * * * * * 每秒运行一次
@@ -16,16 +16,31 @@
 //@crontab * once 13 * * 每个月13号中的每小时最多运行一次
 ```
 
+### Promise
 
-### 脚本执行失败
+> 十分推荐这种写法,也便于脚本管理器的脚本监控
 
-once命令下,可使用`GMSC_reject`命令设置下一次延迟执行的时间
+脚本返回`Promise`对象,管理器可以将返回的内容当作日志记录下来.
+在`crontab`的`once`中,`reject`的第二个参数将会作为延迟重试执行的时间来处理,单位为秒.
 
-```typescript
-declare function GMSC_reject(result: any): void;
-GMSC_reject(60);//当result为数字时判断为延迟重试执行,例如此项表示一分钟后重试执行
+```ts
+// ==UserScript==
+// @name         Promise测试demo
+// @namespace    wyz
+// @version      1.0.0
+// @author       wyz
+// @crontab * * * * *
+// @debug
+// ==/UserScript==
+return new Promise((resolve, reject) => {
+  if (Math.round((Math.random() * 10) % 2)) {
+    resolve("ok");
+  } else {
+    reject("error", 10);
+  }
+});
 ```
 
 ### debug
-在`UserScript`中加入`@debug`可进入调试模式,每一次保存脚本都会立刻执行一次
 
+在`UserScript`中加入`@debug`可进入调试模式,每一次保存脚本都会立刻执行一次

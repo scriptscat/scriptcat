@@ -8,9 +8,7 @@
 // @debug
 // ==/UserScript==
 
-(function() {
-    'use strict';
-    
+return new Promise((resolve, reject) => {
     // Your code here...
-    console.log(new Date());
-})();
+    resolve();
+});

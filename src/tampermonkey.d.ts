@@ -6,7 +6,7 @@ declare var unsafeWindow: Window;
 declare var GM_info: {
     version: string,
     scriptWillUpdate: boolean,
-    scriptHandler: "Tampermonkey",
+    scriptHandler: "ScriptCat",
     scriptUpdateURL?: string,
     scriptSource: string,
     scriptMetaStr?: string,
@@ -81,7 +81,6 @@ declare function GM_openInTab(url: string, loadInBackground: boolean): void;
 declare function GM_openInTab(url: string): void;
 
 declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;
-declare function GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>;
 
 declare function GM_download(details: GM_Types.DownloadDetails): GM_Types.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GM_Types.AbortHandle<boolean>;
@@ -97,7 +96,6 @@ declare function GM_setClipboard(data: string, info?: string | { type?: string, 
 
 declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
 
-declare function GMSC_reject(result: any): void;
 declare namespace GM_Types {
 
     type CookieAction = "list" | "delete" | "set";

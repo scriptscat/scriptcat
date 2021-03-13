@@ -5,29 +5,31 @@
       <span>{{ key + ":" + val }}</span>
     </div>
     <div>{{ param.describe }}</div>
-    <button @click="ignore">忽略({{ timeout }}秒)</button>
+    <v-btn @click="ignore">忽略({{ timeout }}秒)</v-btn>
     <div>
-      <button @click="allow(true, 1)">允许一次</button>
-      <button v-if="param.wildcard" @click="allow(true, 2)">临时允许</button>
-      <button @click="allow(true, 3)">
+      <v-btn @click="allow(true, 1)">允许一次</v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(true, 2)">临时允许</v-btn>
+      <v-btn @click="allow(true, 3)">
         临时允许此{{ param.permissionContent }}
-      </button>
-      <button v-if="param.wildcard" @click="allow(true, 4)">总是允许</button>
-      <button @click="allow(true, 5)">
+      </v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(true, 4)">总是允许</v-btn>
+      <v-btn @click="allow(true, 5)">
         总是允许此{{ param.permissionContent }}
-      </button>
+      </v-btn>
     </div>
 
     <div>
-      <button @click="allow(false, 1)">拒绝一次</button>
-      <button v-if="param.wildcard" @click="allow(false, 2)">临时拒绝</button>
-      <button @click="allow(false, 3)">
+      <v-btn @click="allow(false, 1)">拒绝一次</v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(false, 2)">临时拒绝</v-btn>
+      <v-btn @click="allow(false, 3)" color="error">
         临时拒绝此{{ param.permissionContent }}
-      </button>
-      <button v-if="param.wildcard" @click="allow(false, 4)">总是拒绝</button>
-      <button @click="allow(false, 5)">
+      </v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(false, 4)" color="error"
+        >总是拒绝</v-btn
+      >
+      <v-btn @click="allow(false, 5)" color="error">
         总是拒绝此{{ param.permissionContent }}
-      </button>
+      </v-btn>
     </div>
   </div>
 </template>

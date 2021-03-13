@@ -26,10 +26,6 @@ export default class App extends Vue {
   @Watch("$route", { immediate: true })
   private changeRouter(route: any) {
     this.script = <Script>{};
-    if (this.editor) {
-      this.editor.setValue(crontabTpl);
-      return;
-    }
   }
 
   mounted() {
@@ -57,7 +53,8 @@ export default class App extends Vue {
       foldingStrategy: "indentation",
       automaticLayout: true,
       overviewRulerBorder: false,
-      scrollBeyondLastLine: false
+      scrollBeyondLastLine: false,
+      value: crontabTpl
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理

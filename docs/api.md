@@ -1,8 +1,6 @@
 ## API文档
 > 本扩展api定义参考tampermonkey文档:https://www.tampermonkey.net/documentation.php,由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数.
 
-
-
 #### GM_cookie
 
 > 部分功能缺失,操作cookie,特供API,只能在定时脚本中使用
@@ -62,11 +60,10 @@ declare namespace GM_Types {
 
 #### GM_xmlhttpRequest
 
-> 部分功能缺失,同步函数
+> 部分功能缺失
 
 ```typescript
 declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;
-declare function GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>
 
 declare namespace GM_Types {
     interface XHRResponse {

@@ -3,6 +3,7 @@
     <div v-for="(log, index) in logs" :key="log.id">
       <span>{{ index + 1 }}</span>
       <span>{{ log.level }}</span>
+      <span>{{ log.title }}</span>
       <span>{{ log.origin }}</span>
       <span>{{ log.message }}</span>
       <span>{{ new Date(log.createtime).toString() }}</span>
@@ -22,7 +23,7 @@ export default class App extends Vue {
   protected logger: LoggerModel = new LoggerModel();
 
   mounted() {
-    this.logger.list(new Page(1, 20)).then((result) => {
+    this.logger.list(new Page(1, 20)).then(result => {
       this.logs = result;
     });
   }

@@ -110,21 +110,16 @@ export class FrontendGrant {
 
 }
 
-export type rejectCallback = (result: any) => void
+export type rejectCallback = (msg: string, delayrun: number) => void
 //ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext extends FrontendGrant {
 
     public request = new Map<string, Callback>();
-    protected rejectCallback!: Function;
 
     constructor(script: Script) {
         super(script);
         this.apis.set('GM_setRuntime', this.GM_setLastRuntime).set("GM_cookie", this.GM_cookie);
         window.addEventListener('message', this.message);
-    }
-
-    public listenReject(callback: rejectCallback) {
-        this.rejectCallback = callback;
     }
 
     public message = (event: MessageEvent) => {
@@ -153,16 +148,6 @@ export class SandboxContext extends FrontendGrant {
                     break;
             }
         });
-    }
-
-    //沙盒脚本执行结束
-    public GMSC_resolve = () => {
-
-    }
-
-    //沙盒脚本执行异常
-    public GMSC_reject = (result: any) => {
-        this.rejectCallback && this.rejectCallback(result);
     }
 
     public destruct() {

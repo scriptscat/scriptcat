@@ -11,6 +11,10 @@ db.version(2).stores({
     permission: "++id,[scriptId+permission+permissionValue],createtime,updatetime",
 });
 
+db.version(3).stores({
+    logger: "++id,level,title,origin,createtime",
+});
+
 export abstract class Model<T> {
 
     public table!: Dexie.Table<T, number>;

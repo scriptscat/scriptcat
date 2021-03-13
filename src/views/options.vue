@@ -7,7 +7,7 @@
       <v-tab to="/logger">运行日志</v-tab>
       <!-- <router-link to="/">管理设置</router-link> -->
     </v-tabs>
-    <div style="margin-top: 10px; height: 100%">
+    <div style="margin-top: 10px; height: 80%">
       <router-view></router-view>
     </div>
   </div>

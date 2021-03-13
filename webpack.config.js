@@ -89,40 +89,33 @@ module.exports = {
         },
     },
     module: {
-        rules: [
-            {
+        rules: [{
                 test: /\.vue$/,
                 use: "vue-loader",
                 exclude: /node_modules/,
             },
             {
                 test: /\.d\.ts$/,
-                use: [
-                    {
-                        loader: "raw-loader",
-                    },
-                ],
+                use: [{
+                    loader: "raw-loader",
+                }, ],
                 exclude: /node_modules/,
             },
             {
                 test: /\.tpl$/,
-                use: [
-                    {
-                        loader: "raw-loader",
-                    },
-                ],
+                use: [{
+                    loader: "raw-loader",
+                }, ],
                 exclude: /node_modules/,
             },
             {
                 test: /(?<!\.d)\.ts$/,
-                use: [
-                    {
-                        loader: "ts-loader",
-                        options: {
-                            appendTsSuffixTo: [/\.vue$/],
-                        },
+                use: [{
+                    loader: "ts-loader",
+                    options: {
+                        appendTsSuffixTo: [/\.vue$/],
                     },
-                ],
+                }, ],
                 exclude: /node_modules/,
             },
             {
@@ -151,7 +144,6 @@ module.exports = {
                     },
                 ],
             },
-
             {
                 test: /\.ttf$/,
                 use: ["file-loader"],

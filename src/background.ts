@@ -21,7 +21,7 @@ window.addEventListener('message', (event) => {
         return;
     }
     let data = event.data.data;
-    App.Log.Logger(data.level, data.origin, data.message);
+    App.Log.Logger(data.level, data.origin, data.message, data.title);
 })
 
 function listenScriptInstall() {
@@ -86,4 +86,4 @@ setInterval(() => {
             scripts.scriptCheckupdate(value);
         });
     });
-}, 1000);
+}, 60000);
