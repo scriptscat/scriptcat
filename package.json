@@ -1,6 +1,6 @@
 {
     "name": "scriptcat",
-    "version": "0.1.0",
+    "version": "0.1.6",
     "description": "",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",

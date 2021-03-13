@@ -10,4 +10,4 @@ export const ScriptGrant: string = "script-grant"
 
 export const Logger: string = "logger"
 
-export const SystemCacheEnvent: string = "system-cache"
+export const SystemCacheEvent: string = "system-cache"

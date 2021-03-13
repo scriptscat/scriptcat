@@ -39,6 +39,9 @@ export class MsgCenter {
         let val = topicMap.get(topic);
         if (val) {
             val.delete(callback);
+            if (!val.size) {
+                topicMap.delete(topic);
+            }
         }
     }
 

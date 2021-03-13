@@ -340,12 +340,12 @@ export class ScriptManager {
             this.script.table.update(script.id, { checktime: new Date().getTime() });
             axios.get(script.checkupdate_url).then((response): boolean => {
                 if (response.status != 200) {
-                    App.Log.Warn("check update", "script:" + script.id + " error:", "respond:", response.statusText);
+                    App.Log.Warn("check update", "script:" + script.id + " error: respond:" + response.statusText, script.name);
                     return false;
                 }
                 let meta = this.parseMetadata(response.data);
                 if (!meta) {
-                    App.Log.Warn("check update", "script:" + script.id + " error:", "metadata format");
+                    App.Log.Warn("check update", "script:" + script.id + " error: metadata format", script.name);
                     return false;
                 }
                 if (script.metadata['version'] == undefined) {
@@ -361,7 +361,7 @@ export class ScriptManager {
                 }
                 var Version = meta['version'][0].match(regexp);
                 if (!Version) {
-                    App.Log.Warn("check update", "script:" + script.id + " error:", "version format");
+                    App.Log.Warn("check update", "script:" + script.id + " error: version format", script.name);
                     return false;
                 }
                 for (let i = 0; i < Version.length; i++) {
@@ -384,7 +384,7 @@ export class ScriptManager {
                 }
                 resolve(undefined);
             }).catch((e) => {
-                App.Log.Warn("check update", "script:" + script.id + " error:", e);
+                App.Log.Warn("check update", "script:" + script.id + " error: " + e, script.name);
                 resolve(undefined);
             });
 

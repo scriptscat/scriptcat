@@ -21,14 +21,14 @@ function execScript(script: Script, type: ExecType = 'run') {
         }
         script.lastruntime = new Date().getTime();
         context.GM_setLastRuntime(script.lastruntime);
-        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "by:", <string>type);
+        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " by: " + <string>type, script.name);
         let execRet = func(createContext(window, context));
         if (execRet instanceof Promise) {
             execRet.then(() => {
-                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "time:", (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms');
+                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
             })
         } else {
-            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id:", script.id.toString(), "time:", (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms');
+            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
         }
     }
 }
@@ -38,7 +38,7 @@ function createContextCache(script: Script): SandboxContext {
     if (ret) {
         return ret[0];
     }
-    let context: SandboxContext = new SandboxContext(script.id);
+    let context: SandboxContext = new SandboxContext(script);
     if (script.metadata["grant"] != undefined) {
         script.metadata["grant"].forEach((value) => {
             (<{ [key: string]: any }>context)[value] = context.getApi(value);

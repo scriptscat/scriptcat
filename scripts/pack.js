@@ -1,5 +1,10 @@
 const fs = require("fs");
 var AdmZip = require("adm-zip");
+var pjson = require('../package.json');
+// 处理manifest version
+let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json").toString();
+jsonStr = jsonStr.replace(/"version": "(.*?)"/, '"version": "' + pjson.version + '"');
+fs.writeFileSync("./build/scriptcat/manifest.json", jsonStr);
 
 // 处理 ts.worker.js
 let list = fs.readdirSync("./build/scriptcat/src");
@@ -18,7 +23,7 @@ fs.writeFileSync(
 );
 
 // 处理firefox和chrome的zip压缩包
-let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json");
+jsonStr = fs.readFileSync("./build/scriptcat/manifest.json");
 let jsonFirefox = JSON.parse(jsonStr);
 let jsonChrome = JSON.parse(jsonStr);
 

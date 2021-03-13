@@ -5,6 +5,7 @@ export interface Grant {
     params: any[]
     request: string
     id: number
+    name: string
     data?: any
     error?: string
 }
@@ -31,8 +32,10 @@ export interface ConfirmParam {
     metadata?: { [key: string]: string }
     // 权限描述
     describe?: string
-    // 通配内容
-    wildcard?: string
+    // 是否通配
+    wildcard?: boolean
+    // 权限内容
+    permissionContent?: string
 }
 
 export interface PermissionParam {

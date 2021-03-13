@@ -47,12 +47,13 @@ export function isFirefox() {
     return false;
 }
 
-export function SendLogger(level: LOGGER_LEVEL, origin: string = 'system', ...msg: string[]) {
+export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = '') {
     top.postMessage({
         action: Logger, data: {
             level: level,
-            message: msg.join(' '),
+            message: msg,
             origin: origin,
+            title: title,
         }
     }, '*');
 }

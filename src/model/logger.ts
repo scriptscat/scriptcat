@@ -16,6 +16,7 @@ export interface Log {
     id: number
     level: LOGGER_LEVEL
     origin: string
+    title: string
     message: string
     createtime: number
 }

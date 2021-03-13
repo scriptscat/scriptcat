@@ -1,3 +1,4 @@
+import { Script } from "@App/model/script";
 import { randomString } from "@App/pkg/utils";
 import { Grant } from "./interface";
 
@@ -11,10 +12,10 @@ export class FrontendGrant {
 
     public apis = new Map<string, FrontendApi>();
 
-    public id: number;
+    public script: Script;
 
-    constructor(id: number) {
-        this.id = id;
+    constructor(script: Script) {
+        this.script = script;
         this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GMSC_xmlhttpRequest", this.GMSC_xmlhttpRequest)
             .set("GM_notification", this.GM_notification).set('GM_log', this.GM_log);
     }
@@ -34,7 +35,8 @@ export class FrontendGrant {
     //会被替换上下文,沙盒环境由SandboxContext接管
     public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
         let grant: Grant = {
-            id: this.id,
+            id: this.script.id,
+            name: this.script.name,
             value: value,
             params: params,
             request: randomString(32)
@@ -115,8 +117,8 @@ export class SandboxContext extends FrontendGrant {
     public request = new Map<string, Callback>();
     protected rejectCallback!: Function;
 
-    constructor(id: number) {
-        super(id);
+    constructor(script: Script) {
+        super(script);
         this.apis.set('GM_setRuntime', this.GM_setLastRuntime).set("GM_cookie", this.GM_cookie);
         window.addEventListener('message', this.message);
     }

@@ -66,9 +66,10 @@ export class BackgroundGrant {
         ) {
             let old = descriptor.value;
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
+                let _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise(async resolve => {
                     //TODO: 权限错误提示
-                    let script = await BackgroundGrant.Instance().scriptMgr.getScript(grant.id);
+                    let script = await _this.scriptMgr.getScript(grant.id);
                     if (!script) {
                         return resolve(undefined);
                     }
@@ -96,7 +97,18 @@ export class BackgroundGrant {
                     if (permission.confirm) {
                         let confirm = await permission.confirm(grant, script);
                         if (confirm) {
-                            let ret = <Permission>await App.Cache.get("permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission);
+                            let cacheKey = "permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission;
+                            let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
+                                return new Promise(async resolve => {
+                                    let ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: confirm?.permissionValue });
+                                    if (!ret) {
+                                        if (confirm?.wildcard) {
+                                            ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: '*' });
+                                        }
+                                    }
+                                    return resolve(ret);
+                                });
+                            });
                             if (ret) {
                                 if (ret.allow) {
                                     return resolve(await old.apply(this, [grant, post]));
@@ -106,12 +118,50 @@ export class BackgroundGrant {
                                 }
                             }
                             //弹出页面确认
-                            let listener = (uuid: string) => {
-
-                            }
                             let uuid = uuidv4();
                             App.Cache.set("confirm:uuid:" + uuid, confirm);
-                            MsgCenter.listener(PermissionConfirm, listener);
+                            let listener = async (param: any) => {
+                                MsgCenter.removeListener(PermissionConfirm + uuid, listener);
+                                ret = {
+                                    id: 0,
+                                    scriptId: script?.id || 0,//愚蠢的自动提示。。。
+                                    permission: confirm?.permission || '',
+                                    permissionValue: '',
+                                    allow: param.allow,
+                                    createtime: new Date().getTime(),
+                                    updatetime: 0,
+                                };
+                                switch (param.type) {
+                                    case 4:
+                                    case 2: {
+                                        ret.permissionValue = '*';
+                                        break;
+                                    }
+                                    case 5:
+                                    case 3: {
+                                        ret.permissionValue = confirm?.permissionValue || '';
+                                        break;
+                                    }
+                                }
+                                //临时 放入缓存
+                                if (param.type >= 2) {
+                                    App.Cache.set(cacheKey, ret);
+                                }
+                                //总是 放入数据库
+                                if (param.type >= 4) {
+                                    _this.permissionModel.save(ret);
+                                }
+                                if (param.allow) {
+                                    return resolve(await old.apply(this, [grant, post]));
+                                } else {
+                                    return resolve(undefined);
+                                }
+                            }
+                            MsgCenter.listener(PermissionConfirm + uuid, listener);
+                            setTimeout(() => {
+                                App.Cache.del("confirm:uuid:" + uuid);
+                                MsgCenter.removeListener(PermissionConfirm + uuid, listener)
+                            }, 30000);
 
                             chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
                         } else {
@@ -158,15 +208,16 @@ export class BackgroundGrant {
                 }
                 let ret: ConfirmParam = {
                     permission: 'cors',
-                    permissionValue: url.hostname,
+                    permissionValue: url.host,
                     title: '脚本正在试图访问跨域资源',
                     metadata: {
                         "名称": script.name,
-                        "请求域名": url.hostname,
+                        "请求域名": url.host,
                         "请求地址": config.url,
                     },
                     describe: '请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项',
-                    wildcard: '域名',
+                    wildcard: true,
+                    permissionContent: '域名',
                 };
                 resolve(ret);
             });
@@ -202,7 +253,30 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction({ sandbox: true })
+    @BackgroundGrant.GMFunction({
+        sandbox: true,
+        confirm: (grant: Grant, script: Script) => {
+            return new Promise(resolve => {
+                let detail = <GM_Types.CookieDetails>grant.params[1];
+                if (!detail.url || !detail.name) {
+                    return resolve(undefined);
+                }
+                let url = new URL(detail.url);
+                let ret: ConfirmParam = {
+                    permission: 'cookie',
+                    permissionValue: url.host,
+                    title: '脚本正在试图访问网站cookie内容',
+                    metadata: {
+                        "名称": script.name,
+                        "请求域名": url.host,
+                    },
+                    describe: '请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.',
+                    permissionContent: 'Cookie域',
+                };
+                resolve(ret);
+            });
+        }
+    })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let param = grant.params;
@@ -210,6 +284,7 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
+            console.log(detail);
             if (!detail.url || !detail.name) {
                 return resolve(undefined);
             }
@@ -284,7 +359,7 @@ export class BackgroundGrant {
             if (!grant.params[0]) {
                 return resolve(undefined);
             }
-            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0]);
+            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0], grant.name);
             return resolve(undefined);
         });
     }

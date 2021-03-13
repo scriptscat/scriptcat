@@ -1,10 +1,11 @@
-import { SystemCacheEnvent } from "@App/apps/msg-center/event";
+import { SystemCacheEvent } from "@App/apps/msg-center/event";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 
 export interface ICache {
     get(key: string): Promise<any>
-    set(key: string, val: any): void
+    set(key: string, val: any): Promise<any>
     getOrSet(key: string, set: () => Promise<any>): Promise<any>
+    del(key: string): Promise<any>
 }
 
 export class MapCache implements ICache {
@@ -14,8 +15,18 @@ export class MapCache implements ICache {
             return resolve(this.map.get(key));
         });
     }
-    set(key: string, val: any): void {
-        this.map.set(key, val);
+    set(key: string, val: any): Promise<any> {
+        return new Promise(resolve => {
+            this.map.set(key, val);
+            resolve(undefined);
+        });
+    }
+    del(key: string): Promise<any> {
+        this.map.delete(key);
+        return new Promise(resolve => {
+            this.map.delete(key);
+            resolve(undefined);
+        });
     }
     getOrSet(key: string, set: () => Promise<any>): Promise<any> {
         return new Promise(async resolve => {
@@ -36,9 +47,8 @@ export class SystemCache extends MapCache implements ICache {
     constructor(master: boolean) {
         super();
         this.master = master || false;
-        MsgCenter.listener(SystemCacheEnvent, (msg: any, port: chrome.runtime.Port): Promise<any> => {
+        MsgCenter.listener(SystemCacheEvent, (msg: any, port: chrome.runtime.Port): Promise<any> => {
             return new Promise(async resolve => {
-                console.log('key', msg);
                 return resolve(await this.get(msg, true));
             });
         });
@@ -53,7 +63,7 @@ export class SystemCache extends MapCache implements ICache {
             if (remote || this.master) {
                 return resolve(undefined);
             }
-            return MsgCenter.connect(SystemCacheEnvent, key).addListener((val: any, port) => {
+            return MsgCenter.connect(SystemCacheEvent, key).addListener((val: any, port) => {
                 this.set(key, val);
                 port.disconnect();
                 return resolve(val);
