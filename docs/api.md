@@ -1,9 +1,9 @@
 ## API文档
-> 本扩展api定义参考tampermonkey文档:https://www.tampermonkey.net/documentation.php,由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数.
+> 本扩展api定义参考[tampermonkey文档](https://www.tampermonkey.net/documentation.php),由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数.
 
-#### GM_cookie
+#### GM_cookie *
 
-> 部分功能缺失,操作cookie,特供API,只能在定时脚本中使用
+> 部分功能缺失,本扩展特供,操作cookie,只能在后台脚本中使用
 
 ```typescript
 declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
@@ -37,14 +37,24 @@ declare namespace GM_Types {
 
 
 
-#### GM_notification
+#### GM_notification *
 
-> 部分功能缺失,发送消息通知
+> 发送消息通知,提供了`progress`能力,可以显示进度条类型的通知,多提供了`GM_closeNotification`,`GM_updateNotification`两个方法.
+>
+> [demo](https://bbs.tampermonkey.net.cn/thread-403-1-1.html)
+
+
 
 ```typescript
 declare function GM_notification(details: GM_Types.NotificationDetails, ondone: Function): void;
 declare function GM_notification(text: string, title: string, image: string, onclick: Function): void;
+declare function GM_closeNotification(id: string): void;
+declare function GM_updateNotification(id: string, details: GM_Types.NotificationDetails): void;
+
 declare namespace GM_Types {
+    type NotificationOnClick = (this: NotificationThis, id: string) => any;
+    type NotificationOnDone = (this: NotificationThis, clicked: boolean, id: string) => any;
+
     interface NotificationDetails {
         text?: string
         title?: string
@@ -54,7 +64,10 @@ declare namespace GM_Types {
         timeout?: number
         onclick?: NotificationOnClick
         ondone?: NotificationOnDone
+        progress?: number
+        oncreate?: NotificationOnClick
     }
+
 }
 ```
 
@@ -114,7 +127,7 @@ declare namespace GM_Types {
 }
 ```
 
-### GM_log
+#### GM_log
 > 日志函数,日志将在控制面板的运行日志中看到
 
 ```typescript
@@ -123,3 +136,13 @@ declare namespace GM_Types {
     type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
 }
 ```
+
+#### GM_get/setValue
+> 从储存中获取或者设置值,数据在同一`namespace`中可以共享,但是不能实时同步
+
+```ts
+declare function GM_setValue(name: string, value: any): void;
+
+declare function GM_getValue(name: string, defaultValue?: any): any;
+```
+

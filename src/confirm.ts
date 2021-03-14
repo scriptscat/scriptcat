@@ -1,9 +1,9 @@
 import Vue from 'vue'
 import Confirm from '@App/views/confirm.vue'
-import { SystemCache } from './pkg/cache';
 import { App } from './apps/app';
 import Vuetify from "vuetify";
 import "vuetify/dist/vuetify.min.css";
+import { SystemCache } from './pkg/cache/system-cache';
 
 Vue.use(Vuetify);
 

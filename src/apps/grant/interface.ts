@@ -14,7 +14,7 @@ export interface IPostMessage {
     postMessage(msg: any): void
 }
 
-export type Api = (grant: Grant, postMessage: IPostMessage) => Promise<any>;
+export type Api = (grant: Grant, postMessage: IPostMessage, script?: Script) => Promise<any>;
 
 
 export interface IGrantListener {
@@ -45,4 +45,6 @@ export interface PermissionParam {
     sandbox?: boolean
     // 是否需要弹出页面让用户进行确认
     confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
+    // 监听方法
+    listener?: () => void
 }

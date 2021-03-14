@@ -7,7 +7,7 @@ import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/scrip
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
 import { App } from "./apps/app";
-import { SystemCache } from "./pkg/cache";
+import { SystemCache } from "./pkg/cache/system-cache";
 
 App.Cache = new SystemCache(true);
 

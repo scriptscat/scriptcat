@@ -31,6 +31,12 @@ export class Page {
     }
 }
 
+export class AllPage extends Page {
+    constructor() {
+        super(0, 0)
+    }
+}
+
 export function randomString(e: number) {
     e = e || 32;
     var t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678",

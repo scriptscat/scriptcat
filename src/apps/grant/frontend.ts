@@ -1,4 +1,5 @@
 import { Script } from "@App/model/script";
+import { Value } from "@App/model/value";
 import { randomString } from "@App/pkg/utils";
 import { Grant } from "./interface";
 
@@ -10,14 +11,25 @@ export class FrontendGrant {
 
     public request = new Map<string, Callback>();
 
-    public apis = new Map<string, FrontendApi>();
+    public static apis = new Map<string, FrontendApi>();
 
     public script: Script;
 
-    constructor(script: Script) {
+    public value: Map<string, Value>;
+
+    constructor(script: Script, value: Map<string, Value>) {
         this.script = script;
-        this.apis.set("GM_xmlhttpRequest", this.GM_xmlhttpRequest).set("GMSC_xmlhttpRequest", this.GMSC_xmlhttpRequest)
-            .set("GM_notification", this.GM_notification).set('GM_log', this.GM_log);
+        this.value = value;
+    }
+
+    public static GMFunction() {
+        return function (
+            target: any,
+            propertyName: string,
+            descriptor: PropertyDescriptor
+        ) {
+            FrontendGrant.apis.set(propertyName, descriptor.value);
+        }
     }
 
     public listenScriptGrant() {
@@ -29,7 +41,7 @@ export class FrontendGrant {
     }
 
     public getApi(grant: string): FrontendApi {
-        return this.apis.get(grant);
+        return FrontendGrant.apis.get(grant);
     }
 
     //会被替换上下文,沙盒环境由SandboxContext接管
@@ -47,6 +59,7 @@ export class FrontendGrant {
         top.postMessage(grant, '*');
     }
 
+    @FrontendGrant.GMFunction()
     public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let param = {
             method: details.method,
@@ -70,6 +83,7 @@ export class FrontendGrant {
         });
     }
 
+    @FrontendGrant.GMFunction()
     public GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
         return new Promise(resolve => {
             details.onload = (xhr) => {
@@ -80,7 +94,9 @@ export class FrontendGrant {
     }
 
     public GM_notification(text: string, title: string, image: string, onclick: Function): void
-    public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: Function | string): void {
+
+    @FrontendGrant.GMFunction()
+    public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: GM_Types.NotificationOnDone | string): void {
         let data: GM_Types.NotificationDetails = {};
         if (typeof detail === 'string') {
             data.text = detail;
@@ -94,18 +110,79 @@ export class FrontendGrant {
             }
         } else {
             data = detail;
+            data.ondone = data.ondone || <GM_Types.NotificationOnDone>ondone;
+        }
+        let click: GM_Types.NotificationOnClick, done: GM_Types.NotificationOnDone, create: GM_Types.NotificationOnClick;
+        if (data.onclick) {
+            click = data.onclick;
+            delete data.onclick;
+        }
+        if (data.ondone) {
+            done = data.ondone;
+            delete data.ondone;
+        }
+        if (data.oncreate) {
+            create = data.oncreate;
+            delete data.oncreate;
         }
         this.postRequest('GM_notification', [data], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'click': {
-
+                    click.apply({ id: grant.data.id }, [grant.data.id])
+                    break;
+                }
+                case 'done': {
+                    done.apply({ id: grant.data.id }, [grant.data.user, grant.data.id])
+                    break;
+                }
+                case 'create': {
+                    create.apply({ id: grant.data.id }, [grant.data.id]);
                 }
             }
         });
     }
 
+    @FrontendGrant.GMFunction()
+    public GM_closeNotification(id: string) {
+        this.postRequest('GM_closeNotification', [id]);
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_updateNotification(id: string, details: GM_Types.NotificationDetails): void {
+        this.postRequest('GM_updateNotification', [id, details]);
+    }
+
+    @FrontendGrant.GMFunction()
     public GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): void {
         this.postRequest('GM_log', [message, level]);
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_getValue(name: string, defaultValue?: any): any {
+        let ret = this.value.get(name);
+        if (ret) {
+            return ret.value;
+        }
+        return defaultValue;
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_setValue(name: string, value: any): void {
+        let ret = this.value.get(name);
+        if (ret) {
+            ret.value = value;
+        } else {
+            ret = {
+                id: 0,
+                scriptId: this.script.id,
+                namespace: this.script.namespace,
+                key: name,
+                value: value,
+                createtime: new Date().getTime()
+            };
+        }
+        this.value.set(name, ret);
+        this.postRequest('GM_setValue', [name, value]);
     }
 
 }
@@ -116,9 +193,8 @@ export class SandboxContext extends FrontendGrant {
 
     public request = new Map<string, Callback>();
 
-    constructor(script: Script) {
-        super(script);
-        this.apis.set('GM_setRuntime', this.GM_setLastRuntime).set("GM_cookie", this.GM_cookie);
+    constructor(script: Script, value: Map<string, Value>) {
+        super(script, value);
         window.addEventListener('message', this.message);
     }
 
@@ -140,6 +216,7 @@ export class SandboxContext extends FrontendGrant {
         });
     }
 
+    @FrontendGrant.GMFunction()
     public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) {
         this.postRequest('GM_cookie', [action, details], (grant: Grant) => {
             switch (grant.data.type) {

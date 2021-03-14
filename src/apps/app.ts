@@ -1,4 +1,4 @@
-import { ICache, SystemCache } from "@App/pkg/cache";
+import { ICache } from "@App/pkg/cache/cache";
 import { Logger } from "./logger/logger";
 
 export class App {

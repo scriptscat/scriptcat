@@ -89,8 +89,10 @@ declare function GM_getTab(callback: (obj: object) => any): void;
 declare function GM_saveTab(obj: object): void;
 declare function GM_getTabs(callback: (objs: { [key: number]: object }) => any): void;
 
-declare function GM_notification(details: GM_Types.NotificationDetails, ondone: Function): void;
-declare function GM_notification(text: string, title: string, image: string, onclick: Function): void;
+declare function GM_notification(details: GM_Types.NotificationDetails, ondone: GM_Types.NotificationOnDone): void;
+declare function GM_notification(text: string, title: string, image: string, onclick: GM_Types.NotificationOnClick): void;
+declare function GM_closeNotification(id: string): void;
+declare function GM_updateNotification(id: string, details: GM_Types.NotificationDetails): void;
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
 
@@ -207,8 +209,8 @@ declare namespace GM_Types {
         id: string
     }
 
-    type NotificationOnClick = (this: NotificationThis) => any;
-    type NotificationOnDone = (this: NotificationThis, clicked: boolean) => any;
+    type NotificationOnClick = (this: NotificationThis, id: string) => any;
+    type NotificationOnDone = (this: NotificationThis, clicked: boolean, id: string) => any;
 
     interface NotificationDetails {
         text?: string
@@ -219,5 +221,8 @@ declare namespace GM_Types {
         timeout?: number
         onclick?: NotificationOnClick
         ondone?: NotificationOnDone
+        progress?: number
+        oncreate?: NotificationOnClick
     }
+
 }

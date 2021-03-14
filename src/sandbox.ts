@@ -1,18 +1,21 @@
 import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
-import { compileCode, createContext } from "@App/pkg/sandbox";
+import { compileScript, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
+import { App } from "./apps/app";
+import { MapCache } from "./pkg/cache/cache";
+import { Value, ValueModel } from "./model/value";
+
+App.Cache = new MapCache();
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 
-let cache = new Map<number, [SandboxContext, Function]>();
-
 type ExecType = 'run' | 'retry' | 'debug';
-function execScript(script: Script, type: ExecType = 'run') {
+async function execScript(script: Script, type: ExecType = 'run') {
     //使用SandboxContext接管postRequest
-    let ret = cache.get(script.id);
+    let ret = await App.Cache.get('script:' + script.id);
     if (ret) {
         let [context, func] = ret;
         if (type == 'retry') {
@@ -40,28 +43,32 @@ function execScript(script: Script, type: ExecType = 'run') {
     }
 }
 
-function createContextCache(script: Script): SandboxContext {
-    let ret = cache.get(script.id);
+async function createContextCache(script: Script, value: Value[]): Promise<SandboxContext> {
+    let ret = await App.Cache.get("script:" + script.id);
     if (ret) {
         return ret[0];
     }
-    let context: SandboxContext = new SandboxContext(script);
+    let valMap = new Map();
+    value.forEach(val => {
+        valMap.set(val.key, val);
+    })
+    let context: SandboxContext = new SandboxContext(script, valMap);
     if (script.metadata["grant"] != undefined) {
         script.metadata["grant"].forEach((value) => {
             (<{ [key: string]: any }>context)[value] = context.getApi(value);
         });
     }
-    cache.set(script.id, [<SandboxContext>context, compileCode(script.code)]);
+    await App.Cache.set("script:" + script.id, [<SandboxContext>context, compileScript(script)]);
 
     return context;
 }
 
-function start(script: Script): any {
+function start(script: Script, value: Value[]): any {
     let crontab = script.metadata["crontab"];
     if (crontab == undefined) {
         return top.postMessage({ action: 'start', data: '无脚本定时时间' }, '*');
     }
-    createContextCache(script);
+    createContextCache(script, value);
 
     let list = new Array<CronJob>();
     crontab.forEach((val) => {
@@ -128,13 +135,13 @@ function start(script: Script): any {
     return top.postMessage({ action: 'start', data: '' }, '*');
 }
 
-function debug(script: Script) {
-    createContextCache(script);
+function debug(script: Script, value: Value[]) {
+    createContextCache(script, value);
     execScript(script, 'debug');
     return top.postMessage({ action: 'debug', data: '' }, '*');
 }
 
-function stop(script: Script) {
+async function stop(script: Script) {
     if (script.type != SCRIPT_TYPE_CRONTAB) {
         return top.postMessage({ action: 'stop' }, '*');
     }
@@ -146,11 +153,11 @@ function stop(script: Script) {
         val.stop();
     });
     cronjobMap.delete(script.id);
-    let ret = cache.get(script.id);
+    let ret = await App.Cache.get("script:" + script.id);
     if (ret) {
         let [context, _] = ret;
         context.destruct();
-        cache.delete(script.id);
+        App.Cache.del("script:" + script.id);
     }
     return top.postMessage({ action: 'stop' }, '*');
 }
@@ -169,7 +176,7 @@ function getWeek(date: Date) {
 window.addEventListener('message', (event) => {
     switch (event.data.action) {
         case 'start': {
-            start(event.data.data);
+            start(event.data.data, event.data.value);
             break;
         }
         case 'stop': {
@@ -177,7 +184,7 @@ window.addEventListener('message', (event) => {
             break;
         }
         case 'debug': {
-            debug(event.data.data);
+            debug(event.data.data, event.data.value);
             break;
         }
     }

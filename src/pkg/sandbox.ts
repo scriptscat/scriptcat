@@ -1,6 +1,7 @@
+import { Script } from "@App/model/script";
 
-export function compileCode(src: string) {
-    src = 'with (context) {' + src + '}'
+export function compileScript(script: Script) {
+    let src = 'with (context) {' + script.code + '}'
     return new Function('context', src)
 }
 

@@ -9,6 +9,7 @@ import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam } from "./interface";
 import { v4 as uuidv4 } from "uuid"
+import { Value, ValueModel } from "@App/model/value";
 
 class postMessage implements IPostMessage {
 
@@ -39,6 +40,7 @@ export class BackgroundGrant {
     protected listener: IGrantListener;
     protected scriptMgr: ScriptManager;
     protected permissionModel: PermissionModel = new PermissionModel();
+    protected valueModel = new ValueModel();
 
     private constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
         this.listener = listener;
@@ -65,6 +67,9 @@ export class BackgroundGrant {
             descriptor: PropertyDescriptor
         ) {
             let old = descriptor.value;
+            if (permission.listener) {
+                permission.listener();
+            }
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 let _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise(async resolve => {
@@ -111,7 +116,7 @@ export class BackgroundGrant {
                             });
                             if (ret) {
                                 if (ret.allow) {
-                                    return resolve(await old.apply(this, [grant, post]));
+                                    return resolve(await old.apply(this, [grant, post, script]));
                                 } else {
                                     //TODO:执行拒绝的提示
                                     return resolve(undefined);
@@ -120,7 +125,14 @@ export class BackgroundGrant {
                             //弹出页面确认
                             let uuid = uuidv4();
                             App.Cache.set("confirm:uuid:" + uuid, confirm);
+
+                            let timeout = setTimeout(() => {
+                                App.Cache.del("confirm:uuid:" + uuid);
+                                MsgCenter.removeListener(PermissionConfirm + uuid, listener);
+                            }, 30000);
                             let listener = async (param: any) => {
+                                clearTimeout(timeout);
+                                App.Cache.del("confirm:uuid:" + uuid);
                                 MsgCenter.removeListener(PermissionConfirm + uuid, listener);
                                 ret = {
                                     id: 0,
@@ -152,23 +164,19 @@ export class BackgroundGrant {
                                     _this.permissionModel.save(ret);
                                 }
                                 if (param.allow) {
-                                    return resolve(await old.apply(this, [grant, post]));
+                                    return resolve(await old.apply(this, [grant, post, script]));
                                 } else {
                                     return resolve(undefined);
                                 }
                             }
                             MsgCenter.listener(PermissionConfirm + uuid, listener);
-                            setTimeout(() => {
-                                App.Cache.del("confirm:uuid:" + uuid);
-                                MsgCenter.removeListener(PermissionConfirm + uuid, listener)
-                            }, 30000);
 
                             chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
                         } else {
-                            return resolve(await old.apply(this, [grant, post]));
+                            return resolve(await old.apply(this, [grant, post, script]));
                         }
                     } else {
-                        return resolve(await old.apply(this, [grant, post]));
+                        return resolve(await old.apply(this, [grant, post, script]));
                     }
                 });
             }
@@ -284,7 +292,6 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
-            console.log(detail);
             if (!detail.url || !detail.name) {
                 return resolve(undefined);
             }
@@ -308,7 +315,28 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction()
+    @BackgroundGrant.GMFunction({
+        listener: () => {
+            chrome.notifications.onClosed.addListener(async (id, user) => {
+                let grant: Grant, post: IPostMessage;
+                let ret = await App.Cache.get("GM_notification:" + id);
+                if (ret) {
+                    [grant, post] = ret;
+                    grant.data = { type: 'done', id: id, user: user };
+                    post.postMessage(grant);
+                    App.Cache.del("GM_notification:" + id);
+                }
+            });
+            chrome.notifications.onClicked.addListener(async (id) => {
+                let grant: Grant, post: IPostMessage;
+                [grant, post] = await App.Cache.get("GM_notification:" + id);
+                if (grant) {
+                    grant.data = { type: 'click', id: id };
+                    post.postMessage(grant);
+                }
+            });
+        }
+    })
     protected GM_notification(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let params = grant.params;
@@ -320,19 +348,50 @@ export class BackgroundGrant {
                 title: details.title || 'ScriptCat',
                 message: details.text,
                 iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
-                type: 'basic',
+                type: details.progress === undefined ? 'basic' : 'progress',
             };
             if (!isFirefox()) {
                 options.silent = details.silent;
             }
 
             chrome.notifications.create(options, (notificationId) => {
+                App.Cache.set("GM_notification:" + notificationId, [grant, post]);
+                grant.data = { type: 'create', id: notificationId };
+                post.postMessage(grant);
                 if (details.timeout) {
                     setTimeout(() => {
                         chrome.notifications.clear(notificationId);
                     }, details.timeout);
                 }
             });
+            return resolve(undefined);
+        });
+    }
+
+    @BackgroundGrant.GMFunction()
+    protected GM_closeNotification(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            chrome.notifications.clear(grant.params[0]);
+            return resolve(undefined);
+        });
+    }
+
+    @BackgroundGrant.GMFunction()
+    protected GM_updateNotification(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            let id = grant.params[0];
+            let details: GM_Types.NotificationDetails = grant.params[1];
+            let options: chrome.notifications.NotificationOptions = {
+                title: details.title,
+                message: details.text,
+                iconUrl: details.image,
+                type: details.progress === undefined ? 'basic' : 'progress',
+                progress: Math.round(details.progress || 0),
+            };
+            if (!isFirefox()) {
+                options.silent = details.silent;
+            }
+            chrome.notifications.update(id, options);
             return resolve(undefined);
         });
     }
@@ -363,4 +422,31 @@ export class BackgroundGrant {
             return resolve(undefined);
         });
     }
+
+    @BackgroundGrant.GMFunction()
+    protected GM_setValue(grant: Grant, post: IPostMessage, script?: Script): Promise<any> {
+        //getValue直接从缓存中返回了,无需编写
+        return new Promise(async resolve => {
+            let [key, value] = grant.params;
+            let model: Value | undefined;
+            if (script?.namespace) {
+                model = await this.valueModel.findOne({ namespace: script.namespace, key: key });
+            } else {
+                model = await this.valueModel.findOne({ scriptId: script?.id, key: key });
+            }
+            if (!model) {
+                model = {
+                    id: 0,
+                    scriptId: script?.id || 0,
+                    namespace: script?.namespace || '',
+                    key: key,
+                    value: value,
+                    createtime: new Date().getTime()
+                }
+            }
+            this.valueModel.save(model);
+            resolve(undefined);
+        })
+    }
+
 }
