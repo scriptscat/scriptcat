@@ -1,17 +1,26 @@
 import { Script } from "@App/model/script";
 import { Value } from "@App/model/value";
 import { randomString } from "@App/pkg/utils";
-import { Grant } from "./interface";
+import { Api, Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
 type FrontendApi = any;
 
+interface DescriptionParam {
+    sync?: boolean
+    depend?: string[]
+}
+
+export interface FrontenApiValue {
+    api: FrontendApi
+    param: DescriptionParam
+}
 
 export class FrontendGrant {
 
     public request = new Map<string, Callback>();
 
-    public static apis = new Map<string, FrontendApi>();
+    public static apis = new Map<string, FrontenApiValue>();
 
     public script: Script;
 
@@ -22,13 +31,20 @@ export class FrontendGrant {
         this.value = value;
     }
 
-    public static GMFunction() {
+    public static GMFunction(param: DescriptionParam = {}) {
         return function (
             target: any,
             propertyName: string,
             descriptor: PropertyDescriptor
         ) {
-            FrontendGrant.apis.set(propertyName, descriptor.value);
+            let key = propertyName;
+            if (param.sync) {
+                key = 'GM.' + key;
+            }
+            FrontendGrant.apis.set(key, {
+                api: descriptor.value,
+                param: param
+            });
         }
     }
 
@@ -40,7 +56,7 @@ export class FrontendGrant {
         });
     }
 
-    public getApi(grant: string): FrontendApi {
+    public getApi(grant: string): FrontenApiValue | undefined {
         return FrontendGrant.apis.get(grant);
     }
 
@@ -83,7 +99,7 @@ export class FrontendGrant {
         });
     }
 
-    @FrontendGrant.GMFunction()
+    @FrontendGrant.GMFunction({ depend: ['GM_xmlhttpRequest'] })
     public GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
         return new Promise(resolve => {
             details.onload = (xhr) => {
@@ -128,15 +144,15 @@ export class FrontendGrant {
         this.postRequest('GM_notification', [data], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'click': {
-                    click.apply({ id: grant.data.id }, [grant.data.id])
+                    click && click.apply({ id: grant.data.id }, [grant.data.id])
                     break;
                 }
                 case 'done': {
-                    done.apply({ id: grant.data.id }, [grant.data.user, grant.data.id])
+                    done && done.apply({ id: grant.data.id }, [grant.data.user, grant.data.id])
                     break;
                 }
                 case 'create': {
-                    create.apply({ id: grant.data.id }, [grant.data.id]);
+                    create && create.apply({ id: grant.data.id }, [grant.data.id]);
                 }
             }
         });
@@ -184,6 +200,17 @@ export class FrontendGrant {
         this.value.set(name, ret);
         this.postRequest('GM_setValue', [name, value]);
     }
+
+    @FrontendGrant.GMFunction({ sync: true, depend: ['GM_xmlhttpRequest'] })
+    public fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
+        return new Promise(resolve => {
+            details.onload = (xhr) => {
+                resolve(xhr);
+            }
+            this.GM_xmlhttpRequest(details);
+        });
+    }
+
 
 }
 

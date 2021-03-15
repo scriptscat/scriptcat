@@ -1,3 +1,4 @@
+import { App } from "../app";
 import { ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { Api, Grant, IGrantListener, IPostMessage } from "./interface";
@@ -27,9 +28,8 @@ export class grantListener implements IGrantListener {
     }
 
     public listen(callback: (msg: any, postMessage: IPostMessage) => Promise<any>): void {
-        let extension_id = 'moz-extension://' + chrome.i18n.getMessage("@@extension_id");
         window.addEventListener('message', async event => {
-            if (event.origin != 'null' && event.origin != extension_id) {
+            if (event.origin != 'null' && event.origin != App.ExtensionId) {
                 return;
             }
             let post = new postMessage(this.context, event);

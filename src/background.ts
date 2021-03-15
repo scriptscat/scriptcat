@@ -6,10 +6,11 @@ import { Crontab } from "@App/apps/script/crontab";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
-import { App } from "./apps/app";
+import { App, InitApp } from "./apps/app";
 import { SystemCache } from "./pkg/cache/system-cache";
 
 App.Cache = new SystemCache(true);
+InitApp();
 
 let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
 let grant = BackgroundGrant.SingleInstance(scripts, new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
@@ -60,7 +61,7 @@ async function installScript(tabid: number, url: string) {
 listenScriptInstall();
 
 function sandboxLoad(event: MessageEvent) {
-    if (event.origin != "null") {
+    if (event.origin != 'null' && event.origin != App.ExtensionId) {
         return;
     }
     if (event.data.action != "load") {
@@ -87,3 +88,4 @@ setInterval(() => {
         });
     });
 }, 60000);
+

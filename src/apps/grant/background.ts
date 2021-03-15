@@ -78,6 +78,7 @@ export class BackgroundGrant {
                     if (!script) {
                         return resolve(undefined);
                     }
+                    App.Log.Debug("script", "call function: " + propertyName, script.name);
                     let metaGrant = script.metadata["grant"];
                     if (!metaGrant) {
                         return resolve(undefined);
@@ -87,6 +88,17 @@ export class BackgroundGrant {
                         for (let i = 0; i < metaGrant.length; i++) {
                             if (metaGrant[i] == propertyName) {
                                 flag = true;
+                                break;
+                            }
+                            if (permission.alias) {
+                                for (let n = 0; n < permission.alias.length; n++) {
+                                    if (permission.alias[n] == metaGrant[i]) {
+                                        flag = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (flag) {
                                 break;
                             }
                         }
@@ -229,7 +241,8 @@ export class BackgroundGrant {
                 };
                 resolve(ret);
             });
-        }
+        },
+        alias:['GMSC_xmlhttpRequest','GM.fetch'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {

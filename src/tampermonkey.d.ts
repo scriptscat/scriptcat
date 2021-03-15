@@ -98,6 +98,11 @@ declare function GM_setClipboard(data: string, info?: string | { type?: string, 
 
 declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
 
+// 同步函数
+declare namespace GM {
+    declare function fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>;
+}
+
 declare namespace GM_Types {
 
     type CookieAction = "list" | "delete" | "set";

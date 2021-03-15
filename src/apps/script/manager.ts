@@ -36,9 +36,6 @@ export class ScriptManager {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 let oldScript = <Script>msg[1];
-                if (oldScript && script.code == oldScript.code) {
-                    return resolve(script);
-                }
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
                         await this.disableScript(script);

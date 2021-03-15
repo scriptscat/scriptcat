@@ -54,8 +54,27 @@ async function createContextCache(script: Script, value: Value[]): Promise<Sandb
     })
     let context: SandboxContext = new SandboxContext(script, valMap);
     if (script.metadata["grant"] != undefined) {
+        (<{ [key: string]: any }>context)['GM'] = (<{ [key: string]: any }>context);
         script.metadata["grant"].forEach((value) => {
-            (<{ [key: string]: any }>context)[value] = context.getApi(value);
+            let apiVal = context.getApi(value);
+            if (value.startsWith('GM.')) {
+                let [_, t] = value.split('.');
+                (<{ [key: string]: any }>context)['GM'][t] = apiVal?.api;
+            } else {
+                (<{ [key: string]: any }>context)[value] = apiVal?.api;
+            }
+            if (apiVal?.param.depend) {
+                for (let i = 0; i < apiVal?.param.depend.length; i++) {
+                    let value = apiVal.param.depend[i];
+                    let dependApi = context.getApi(value);
+                    if (value.startsWith('GM.')) {
+                        let [_, t] = value.split('.');
+                        (<{ [key: string]: any }>context)['GM'][t] = dependApi?.api;
+                    } else {
+                        (<{ [key: string]: any }>context)[value] = dependApi?.api;
+                    }
+                }
+            }
         });
     }
     await App.Cache.set("script:" + script.id, [<SandboxContext>context, compileScript(script)]);

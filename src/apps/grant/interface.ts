@@ -47,4 +47,6 @@ export interface PermissionParam {
     confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
     // 监听方法
     listener?: () => void
+    // 别名
+    alias?: string[]
 }

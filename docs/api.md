@@ -1,5 +1,5 @@
 ## API文档
-> 本扩展api定义参考[tampermonkey文档](https://www.tampermonkey.net/documentation.php),由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数.
+> 本扩展api定义参考[tampermonkey文档](https://www.tampermonkey.net/documentation.php),由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数,同步函数规则:GM.*.
 
 #### GM_cookie *
 
@@ -126,6 +126,12 @@ declare namespace GM_Types {
     }
 }
 ```
+
+#### GM.fetch
+
+> 功能缺失
+
+
 
 #### GM_log
 > 日志函数,日志将在控制面板的运行日志中看到
