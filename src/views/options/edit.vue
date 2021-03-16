@@ -13,14 +13,14 @@ import { Vue, Component, Watch } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
-import { Crontab } from "@App/apps/script/crontab";
+import { Background } from "@App/apps/script/background";
 import crontabTpl from "@App/template/crontab.tpl";
 
 @Component({})
 export default class App extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
-  public scriptMgr: ScriptManager = new ScriptManager(new Crontab(window));
+  public scriptMgr: ScriptManager = new ScriptManager(new Background(window));
   public script: Script = <Script>{};
 
   @Watch("$route", { immediate: true })
@@ -33,7 +33,7 @@ export default class App extends Vue {
     if (!this.$route.params.id) {
       return;
     }
-    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then(result => {
+    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then((result) => {
       if (result == undefined) {
         return;
       }
@@ -54,7 +54,7 @@ export default class App extends Vue {
       automaticLayout: true,
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
-      value: crontabTpl
+      value: crontabTpl,
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理

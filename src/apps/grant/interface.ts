@@ -8,6 +8,7 @@ export interface Grant {
     name: string
     data?: any
     error?: string
+    errorMsg?: string
 }
 
 export interface IPostMessage {

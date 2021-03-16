@@ -60,7 +60,6 @@ export class FrontendGrant {
         return FrontendGrant.apis.get(grant);
     }
 
-    //会被替换上下文,沙盒环境由SandboxContext接管
     public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
         let grant: Grant = {
             id: this.script.id,
@@ -70,7 +69,12 @@ export class FrontendGrant {
             request: randomString(32)
         };
         if (callback) {
-            this.request.set(grant.request, callback);
+            this.request.set(grant.request, (grant: Grant) => {
+                if (grant.error != '') {
+                    throw 'ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
+                }
+                callback(grant);
+            });
         }
         top.postMessage(grant, '*');
     }
@@ -218,8 +222,6 @@ export type rejectCallback = (msg: string, delayrun: number) => void
 //ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext extends FrontendGrant {
 
-    public request = new Map<string, Callback>();
-
     constructor(script: Script, value: Map<string, Value>) {
         super(script, value);
         window.addEventListener('message', this.message);
@@ -257,6 +259,8 @@ export class SandboxContext extends FrontendGrant {
     public destruct() {
         //释放资源
         window.removeEventListener('message', this.message);
+        this.request.clear();
+        this.value.clear();
     }
 
 }

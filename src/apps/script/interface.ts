@@ -8,7 +8,3 @@ export interface IScript {
 
     debugScript(script: Script): Promise<void>;
 }
-
-export interface ICrontab extends IScript {
-    validCrontab(crontab: string[]): boolean;
-}

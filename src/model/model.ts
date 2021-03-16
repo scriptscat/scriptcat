@@ -3,20 +3,6 @@ import { Page } from "../pkg/utils";
 
 export let db = new Dexie("ScriptCat");
 
-db.version(1).stores({
-    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
-});
-db.version(2).stores({
-    logger: "++id,level,origin,createtime",
-    permission: "++id,[scriptId+permission+permissionValue],createtime,updatetime",
-});
-db.version(3).stores({
-    logger: "++id,level,title,origin,createtime",
-});
-db.version(4).stores({
-    value: "++id,scriptId,namespace,key,createtime",
-});
-
 export abstract class Model<T> {
 
     public table!: Dexie.Table<T, number>;

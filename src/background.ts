@@ -2,17 +2,18 @@ import { ScriptManager } from "@App/apps/script/manager";
 import { BackgroundGrant, grantListener as bgGrantListener } from "@App/apps/grant/background";
 import { grantListener } from "@App/apps/grant/content";
 import { MultiGrantListener } from "@App/apps/grant/utils";
-import { Crontab } from "@App/apps/script/crontab";
-import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script } from "./model/script";
+import { Background } from "@App/apps/script/background";
+import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_BACKGROUND } from "./model/script";
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
 import { App, InitApp } from "./apps/app";
 import { SystemCache } from "./pkg/cache/system-cache";
+import "./model/migrate";
 
 App.Cache = new SystemCache(true);
 InitApp();
 
-let scripts = new ScriptManager(new Crontab(<Window>sandbox.window));
+let scripts = new ScriptManager(new Background(<Window>sandbox.window));
 let grant = BackgroundGrant.SingleInstance(scripts, new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)));
 scripts.listenMsg();
 scripts.listenScript();
@@ -69,6 +70,12 @@ function sandboxLoad(event: MessageEvent) {
     }
     //启动定时脚本
     scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then(items => {
+        items.forEach((value: Script) => {
+            scripts.enableScript(value);
+        });
+    });
+    //启动后台脚本
+    scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_TYPE_BACKGROUND }).then(items => {
         items.forEach((value: Script) => {
             scripts.enableScript(value);
         });

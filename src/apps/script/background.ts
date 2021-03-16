@@ -1,10 +1,11 @@
-import { ScriptModel, SCRIPT_TYPE_CRONTAB, Script, SCRIPT_STATUS_ENABLE } from "@App/model/script";
+import { Script } from "@App/model/script";
 import { Value, ValueModel } from "@App/model/value";
 import { AllPage } from "@App/pkg/utils";
-import { CronTime, CronJob } from "cron";
+import { CronJob } from "cron";
 import { IScript } from "./interface";
 
-export class Crontab implements IScript {
+//后台脚本
+export class Background implements IScript {
 
     protected sandboxWindow: Window;
     constructor(iframe: Window) {
@@ -76,17 +77,5 @@ export class Crontab implements IScript {
         });
     }
 
-    public validCrontab(crontab: string[]): boolean {
-        for (let i = 0; i < crontab.length; i++) {
-            let val = crontab[i].replaceAll('once', '*');
-            try {
-                let t = new CronTime(val);
-                t.sendAt();
-            } catch (e) {
-                return false;
-            }
-        }
-        return true;
-    }
 }
 

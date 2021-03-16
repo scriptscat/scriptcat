@@ -1,18 +1,18 @@
 <template>
-  <div style="height: 80%">
-    <div class="info">
+  <v-app>
+    <div class="script-info">
       <div class="name">{{ script.name }}</div>
       <div style="color: red">
         请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
       </div>
       <div class="control">
-        <v-btn @click="install">
+        <v-btn @click="install" depressed color="primary">
           {{ isupdate ? "更新脚本" : "安装脚本" }}
         </v-btn>
       </div>
     </div>
     <div id="container"></div>
-  </div>
+  </v-app>
 </template>
 
 <script lang="ts">
@@ -23,13 +23,13 @@ import { ScriptCache } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script } from "@App/model/script";
-import { Crontab } from "@App/apps/script/crontab";
+import { Background } from "@App/apps/script/background";
 
 @Component({})
 export default class App extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
-  public scriptUtil: ScriptManager = new ScriptManager(new Crontab(window));
+  public scriptUtil: ScriptManager = new ScriptManager(new Background(window));
   public script: Script = <Script>{};
   public isupdate: boolean = false;
 
@@ -39,7 +39,7 @@ export default class App extends Vue {
     if (!uuid) {
       return;
     }
-    MsgCenter.connect(ScriptCache, uuid).addListener(async msg => {
+    MsgCenter.connect(ScriptCache, uuid).addListener(async (msg) => {
       let info = <ScriptUrlInfo>msg;
       let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
         info.code,
@@ -63,11 +63,11 @@ export default class App extends Vue {
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
           readOnly: true,
-          diffWordWrap: "off"
+          diffWordWrap: "off",
         });
         this.diff.setModel({
           original: editor.createModel(oldscript.code, "javascript"),
-          modified: editor.createModel(this.script.code, "javascript")
+          modified: editor.createModel(this.script.code, "javascript"),
         });
         this.isupdate = true;
       } else {
@@ -78,7 +78,7 @@ export default class App extends Vue {
           automaticLayout: true,
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
-          readOnly: true
+          readOnly: true,
         });
         this.editor.setValue(this.script.code);
       }

@@ -1,26 +1,26 @@
-import { Metadata, Script, ScriptModel, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
+import { Metadata, Script, ScriptModel, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCache, ScriptDebug, ScriptGrant, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
-import { ICrontab } from "@App/apps/script/interface";
+import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 
 export class ScriptManager {
 
     protected script = new ScriptModel();
-    protected crontab!: ICrontab;
+    protected background!: IScript;
 
     protected infoCache = new Map<string, ScriptUrlInfo>();
     // 脚本缓存 会在listen更新
     protected scriptCache = new Map<number, Script>();
 
 
-    constructor(crontab: ICrontab | undefined) {
-        if (crontab) {
-            this.crontab = crontab;
+    constructor(background: IScript | undefined) {
+        if (background) {
+            this.background = background;
         }
     }
 
@@ -66,7 +66,7 @@ export class ScriptManager {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 if (script.type == SCRIPT_TYPE_CRONTAB) {
-                    await this.crontab.debugScript(script);
+                    await this.background.debugScript(script);
                     resolve(true);
                 } else {
                     resolve(false);
@@ -143,8 +143,10 @@ export class ScriptManager {
                 return resolve([undefined, undefined]);
             }
             let type = SCRIPT_TYPE_NORMAL;
-            if (metadata["crontab"] != undefined && this.crontab.validCrontab(metadata["crontab"])) {
+            if (metadata["crontab"] != undefined) {
                 type = SCRIPT_TYPE_CRONTAB;
+            } else if (metadata["background"] != undefined) {
+                type = SCRIPT_TYPE_BACKGROUND;
             }
             let urlSplit: string[];
             let domain = '';
@@ -249,7 +251,7 @@ export class ScriptManager {
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB) {
-                let ret = await this.crontab.enableScript(script);
+                let ret = await this.background.enableScript(script);
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;
@@ -271,7 +273,7 @@ export class ScriptManager {
         return new Promise(async resolve => {
             script.status = SCRIPT_STATUS_DISABLE;
             if (script.type == SCRIPT_TYPE_CRONTAB) {
-                await this.crontab.disableScript(script);
+                await this.background.disableScript(script);
             }
             await this.script.save(script);
             resolve();

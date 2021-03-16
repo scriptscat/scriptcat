@@ -6,7 +6,7 @@ import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
 import { App } from "./apps/app";
 import { MapCache } from "./pkg/cache/cache";
-import { Value, ValueModel } from "./model/value";
+import { Value } from "./model/value";
 
 App.Cache = new MapCache();
 
@@ -24,21 +24,21 @@ async function execScript(script: Script, type: ExecType = 'run') {
         }
         script.lastruntime = new Date().getTime();
         context.GM_setLastRuntime(script.lastruntime);
-        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " by: " + <string>type, script.name);
+        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " by: " + <string>type, script.name);
         let execRet = func(createContext(window, context));
         if (execRet instanceof Promise) {
             execRet.then((result: any) => {
-                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " +
+                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " time: " +
                     (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms result: ' + result, script.name);
             }).catch((msg: string, delayrun: number = 0) => {
-                SendLogger(LOGGER_LEVEL_ERROR, "sandbox", "exec script id: " + script.id.toString() + " error: " + msg + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
+                SendLogger(LOGGER_LEVEL_ERROR, "sandbox", "exec script id: " + script.id + " error: " + msg + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
                 if (delayrun > 0) {
                     script.delayruntime = new Date().getTime() + (delayrun * 1000);
                     context.GM_setDelayRuntime(script.delayruntime);
                 }
             });
         } else {
-            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id.toString() + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
+            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
         }
     }
 }
@@ -83,10 +83,17 @@ async function createContextCache(script: Script, value: Value[]): Promise<Sandb
 }
 
 function start(script: Script, value: Value[]): any {
-    let crontab = script.metadata["crontab"];
-    if (crontab == undefined) {
-        return top.postMessage({ action: 'start', data: '无脚本定时时间' }, '*');
+    if (script.metadata["crontab"]) {
+        return runCrontab(script, value);
+    } else if (script.metadata["background"]) {
+        createContextCache(script, value);
+        execScript(script, 'run');
+        return top.postMessage({ action: 'start', data: '' }, '*');
     }
+}
+
+function runCrontab(script: Script, value: Value[]) {
+    let crontab = script.metadata["crontab"];
     createContextCache(script, value);
 
     let list = new Array<CronJob>();

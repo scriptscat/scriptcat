@@ -1,9 +1,10 @@
 import { db, Model } from '@App/model/model';
 
-export type SCRIPT_TYPE = 1 | 2;
+export type SCRIPT_TYPE = 1 | 2 | 3;
 
 export const SCRIPT_TYPE_NORMAL: SCRIPT_TYPE = 1;
 export const SCRIPT_TYPE_CRONTAB: SCRIPT_TYPE = 2;
+export const SCRIPT_TYPE_BACKGROUND: SCRIPT_TYPE = 3;
 
 
 export type SCRIPT_STATUS = 1 | 2 | 3 | 4;

@@ -207,7 +207,18 @@ export class BackgroundGrant {
                 if (api == undefined) {
                     return resolve(undefined);
                 }
-                return resolve(await api.apply(this, [grant, postMessage]));
+                api.apply(this, [grant, postMessage]).then(result => {
+                    if (result === undefined) {
+                        grant.error = 'GM_PERMISSION';
+                        resolve(grant);
+                    } else {
+                        resolve(result);
+                    }
+                }).catch(e => {
+                    grant.error = 'GM_ERROR';
+                    grant.errorMsg = e;
+                    resolve(grant);
+                });
             });
         });
     }
@@ -242,7 +253,7 @@ export class BackgroundGrant {
                 resolve(ret);
             });
         },
-        alias:['GMSC_xmlhttpRequest','GM.fetch'],
+        alias: ['GMSC_xmlhttpRequest', 'GM.fetch'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
@@ -431,7 +442,7 @@ export class BackgroundGrant {
             if (!grant.params[0]) {
                 return resolve(undefined);
             }
-            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'script', grant.params[0], grant.name);
+            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name);
             return resolve(undefined);
         });
     }

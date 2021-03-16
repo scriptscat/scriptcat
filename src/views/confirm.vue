@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <v-app>
     <div>{{ param.title }}</div>
     <div v-for="(val, key) in param.metadata" :key="key">
       <span>{{ key + ":" + val }}</span>
@@ -7,20 +7,26 @@
     <div>{{ param.describe }}</div>
     <v-btn @click="ignore">忽略({{ timeout }}秒)</v-btn>
     <div>
-      <v-btn @click="allow(true, 1)">允许一次</v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(true, 2)">临时允许</v-btn>
-      <v-btn @click="allow(true, 3)">
+      <v-btn @click="allow(true, 1)" color="primary">允许一次</v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(true, 2)" color="primary"
+        >临时允许</v-btn
+      >
+      <v-btn @click="allow(true, 3)" color="primary">
         临时允许此{{ param.permissionContent }}
       </v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(true, 4)">总是允许</v-btn>
-      <v-btn @click="allow(true, 5)">
+      <v-btn v-if="param.wildcard" @click="allow(true, 4)" color="primary"
+        >总是允许</v-btn
+      >
+      <v-btn @click="allow(true, 5)" color="primary">
         总是允许此{{ param.permissionContent }}
       </v-btn>
     </div>
 
     <div>
-      <v-btn @click="allow(false, 1)">拒绝一次</v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(false, 2)">临时拒绝</v-btn>
+      <v-btn @click="allow(false, 1)" color="error">拒绝一次</v-btn>
+      <v-btn v-if="param.wildcard" @click="allow(false, 2)" color="error"
+        >临时拒绝</v-btn
+      >
       <v-btn @click="allow(false, 3)" color="error">
         临时拒绝此{{ param.permissionContent }}
       </v-btn>
@@ -31,7 +37,7 @@
         总是拒绝此{{ param.permissionContent }}
       </v-btn>
     </div>
-  </div>
+  </v-app>
 </template>
 
 <script lang="ts">
@@ -70,7 +76,7 @@ export default class Confirm extends Vue {
   allow(allow: boolean, type: number) {
     MsgCenter.connect(PermissionConfirm + this.uuid, {
       allow: allow,
-      type: type
+      type: type,
     }).addListener(() => {
       window.close();
     });
