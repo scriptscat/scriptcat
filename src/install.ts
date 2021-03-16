@@ -4,6 +4,9 @@ import { languages } from "monaco-editor";
 import dts from "@App/tampermonkey.d.ts";
 import Vuetify from "vuetify";
 import "vuetify/dist/vuetify.min.css";
+import { migrate } from './model/migrate';
+
+migrate();
 
 Vue.use(Vuetify);
 

@@ -208,15 +208,11 @@ export class BackgroundGrant {
                     return resolve(undefined);
                 }
                 api.apply(this, [grant, postMessage]).then(result => {
-                    if (result === undefined) {
-                        grant.error = 'GM_PERMISSION';
-                        resolve(grant);
-                    } else {
-                        resolve(result);
-                    }
+                    resolve(result);
                 }).catch(e => {
                     grant.error = 'GM_ERROR';
                     grant.errorMsg = e;
+                    console.log(e);
                     resolve(grant);
                 });
             });

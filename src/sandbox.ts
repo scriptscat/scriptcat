@@ -4,18 +4,28 @@ import { compileScript, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
-import { App } from "./apps/app";
+import { App, InitApp } from "./apps/app";
 import { MapCache } from "./pkg/cache/cache";
 import { Value } from "./model/value";
+import { ConsoleLogger } from "./apps/logger/logger";
 
-App.Cache = new MapCache();
+InitApp({
+    Log: new ConsoleLogger(),
+    Cache: new MapCache(),
+    Environment: 'frontend',
+});
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 
 type ExecType = 'run' | 'retry' | 'debug';
 async function execScript(script: Script, type: ExecType = 'run') {
     //使用SandboxContext接管postRequest
-    let ret = await App.Cache.get('script:' + script.id);
+    let ret: any;
+    if (type == 'debug') {
+        ret = await App.Cache.get('script:debug:' + script.id);
+    } else {
+        ret = await App.Cache.get('script:' + script.id);
+    }
     if (ret) {
         let [context, func] = ret;
         if (type == 'retry') {
@@ -43,10 +53,12 @@ async function execScript(script: Script, type: ExecType = 'run') {
     }
 }
 
-async function createContextCache(script: Script, value: Value[]): Promise<SandboxContext> {
-    let ret = await App.Cache.get("script:" + script.id);
-    if (ret) {
-        return ret[0];
+async function createContextCache(script: Script, value: Value[], isdebug: boolean = false): Promise<SandboxContext> {
+    let key: string;
+    if (isdebug) {
+        key = "script:debug:" + script.id;
+    } else {
+        key = "script:" + script.id;
     }
     let valMap = new Map();
     value.forEach(val => {
@@ -77,8 +89,7 @@ async function createContextCache(script: Script, value: Value[]): Promise<Sandb
             }
         });
     }
-    await App.Cache.set("script:" + script.id, [<SandboxContext>context, compileScript(script)]);
-
+    await App.Cache.set(key, [<SandboxContext>context, compileScript(script)]);
     return context;
 }
 
@@ -162,7 +173,7 @@ function runCrontab(script: Script, value: Value[]) {
 }
 
 function debug(script: Script, value: Value[]) {
-    createContextCache(script, value);
+    createContextCache(script, value, true);
     execScript(script, 'debug');
     return top.postMessage({ action: 'debug', data: '' }, '*');
 }
