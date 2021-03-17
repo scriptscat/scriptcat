@@ -214,8 +214,13 @@ declare namespace GM_Types {
         id: string
     }
 
-    type NotificationOnClick = (this: NotificationThis, id: string) => any;
+    type NotificationOnClick = (this: NotificationThis, id: string, index?: number) => any;
     type NotificationOnDone = (this: NotificationThis, clicked: boolean, id: string) => any;
+
+    interface NotificationButton {
+        title: string
+        iconUrl?: string
+    }
 
     interface NotificationDetails {
         text?: string
@@ -228,6 +233,7 @@ declare namespace GM_Types {
         ondone?: NotificationOnDone
         progress?: number
         oncreate?: NotificationOnClick
+        buttons?: NotificationButton[]
     }
 
 }

@@ -1,5 +1,12 @@
-## API文档
-> 本扩展api定义参考[tampermonkey文档](https://www.tampermonkey.net/documentation.php),由于时间和精力问题,只实现了部分api,后续将继续迭代,本扩展特供的API将在文档中特殊标注.对于某些API还提供了同步函数,同步函数规则:GM.*.
+## API 文档
+### 说明
+
+本扩展api定义参考[tampermonkey文档](https://www.tampermonkey.net/documentation.php),由于时间和精力问题,只实现了部分API,后续将继续迭代,本扩展进行扩充或者与原GM不同的API将在文档中特殊标注.对于某些API还提供了同步函数,同步函数规则:GM.*,具体请看文档内容.
+
+API的详细定义,请看`tempermonkey.d.ts`或者内置编辑器提示,文档更新可能不会及时.对于本扩展特有的API请看[CatApi文档](cat-api.md)
+
+### 定义
+
 
 #### GM_cookie *
 
@@ -39,7 +46,7 @@ declare namespace GM_Types {
 
 #### GM_notification *
 
-> 发送消息通知,提供了`progress`能力,可以显示进度条类型的通知,多提供了`GM_closeNotification`,`GM_updateNotification`两个方法.
+> 发送消息通知,提供了`progress`和`buttons`的能力,可以显示进度条类型和按钮类型的通知,多提供了`GM_closeNotification`,`GM_updateNotification`两个方法.
 >
 > [demo](https://bbs.tampermonkey.net.cn/thread-403-1-1.html)
 
@@ -52,8 +59,14 @@ declare function GM_closeNotification(id: string): void;
 declare function GM_updateNotification(id: string, details: GM_Types.NotificationDetails): void;
 
 declare namespace GM_Types {
-    type NotificationOnClick = (this: NotificationThis, id: string) => any;
+
+    type NotificationOnClick = (this: NotificationThis, id: string, index?: number) => any;
     type NotificationOnDone = (this: NotificationThis, clicked: boolean, id: string) => any;
+
+    interface NotificationButton {
+        title: string
+        iconUrl?: string
+    }
 
     interface NotificationDetails {
         text?: string
@@ -66,6 +79,8 @@ declare namespace GM_Types {
         ondone?: NotificationOnDone
         progress?: number
         oncreate?: NotificationOnClick
+        // 只能存在2个
+        buttons?: NotificationButton[]
     }
 
 }

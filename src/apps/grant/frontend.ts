@@ -148,7 +148,7 @@ export class FrontendGrant {
         this.postRequest('GM_notification', [data], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'click': {
-                    click && click.apply({ id: grant.data.id }, [grant.data.id])
+                    click && click.apply({ id: grant.data.id }, [grant.data.id, grant.data.index])
                     break;
                 }
                 case 'done': {

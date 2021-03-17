@@ -351,7 +351,15 @@ export class BackgroundGrant {
                 let grant: Grant, post: IPostMessage;
                 [grant, post] = await App.Cache.get("GM_notification:" + id);
                 if (grant) {
-                    grant.data = { type: 'click', id: id };
+                    grant.data = { type: 'click', id: id, index: -1 };
+                    post.postMessage(grant);
+                }
+            });
+            chrome.notifications.onButtonClicked.addListener(async (id, buttonIndex) => {
+                let grant: Grant, post: IPostMessage;
+                [grant, post] = await App.Cache.get("GM_notification:" + id);
+                if (grant) {
+                    grant.data = { type: 'click', id: id, index: buttonIndex };
                     post.postMessage(grant);
                 }
             });
@@ -369,6 +377,7 @@ export class BackgroundGrant {
                 message: details.text,
                 iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
                 type: details.progress === undefined ? 'basic' : 'progress',
+                buttons: details.buttons,
             };
             if (!isFirefox()) {
                 options.silent = details.silent;
