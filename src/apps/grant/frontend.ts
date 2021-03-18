@@ -70,8 +70,8 @@ export class FrontendGrant {
         };
         if (callback) {
             this.request.set(grant.request, (grant: Grant) => {
-                if (grant.error != '') {
-                    throw 'ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
+                if (grant.error) {
+                    throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
                 }
                 callback(grant);
             });
