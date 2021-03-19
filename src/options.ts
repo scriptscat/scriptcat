@@ -3,17 +3,13 @@ import App from "@App/views/options.vue";
 import VueRouter, { RouteConfig } from "vue-router";
 import { languages } from "monaco-editor";
 import dts from "@App/tampermonkey.d.ts";
-import Vuetify from "vuetify";
 import "vuetify/dist/vuetify.min.css";
 import { migrate } from "./model/migrate";
+import { i18n, vuetify } from "../i18n/i18n";
 
 migrate();
 
 Vue.use(VueRouter);
-Vue.use(Vuetify);
-
-const opts = {};
-const vuetifyInstance = new Vuetify(opts);
 
 const routes: Array<RouteConfig> = [
     {
@@ -51,8 +47,10 @@ self.MonacoEnvironment = {
 
 languages.typescript.javascriptDefaults.addExtraLib(dts, "tampermonkey.d.ts");
 
+
+
 new Vue({
-    router,
-    vuetify: vuetifyInstance,
+    router, i18n,
+    vuetify: vuetify,
     render: (h) => h(App),
 }).$mount("#app");

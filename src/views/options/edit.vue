@@ -33,7 +33,7 @@ export default class App extends Vue {
     if (!this.$route.params.id) {
       return;
     }
-    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then((result) => {
+    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then(result => {
       if (result == undefined) {
         return;
       }
@@ -54,7 +54,7 @@ export default class App extends Vue {
       automaticLayout: true,
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
-      value: crontabTpl,
+      value: crontabTpl
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理
@@ -74,8 +74,9 @@ export default class App extends Vue {
       this.script = script;
       await this.scriptMgr.updateScript(this.script, old);
       if (old) {
+        // 后台脚本才可以调用
         if (this.script.metadata["debug"] != undefined) {
-          this.scriptMgr.debugScript(this.script);
+          this.scriptMgr.execScript(this.script, true);
         }
       } else {
         this.$router.push({ path: "/" });

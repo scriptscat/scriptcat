@@ -235,14 +235,18 @@ export class SandboxContext extends FrontendGrant {
         }
     }
 
-    public GM_setLastRuntime(time: number) {
-        this.postRequest('GM_setLastRuntime', [time], () => {
+    public CAT_setLastRuntime(time: number) {
+        this.postRequest('CAT_setLastRuntime', [time], () => {
         });
     }
 
-    public GM_setDelayRuntime(time: number) {
-        this.postRequest('GM_setDelayRuntime', [time], () => {
+    public CAT_setRunError(error: string, time: number) {
+        this.postRequest('CAT_setRunError', [error, time], () => {
         });
+    }
+
+    public CAT_runComplete() {
+        this.postRequest('CAT_runComplete', []);
     }
 
     @FrontendGrant.GMFunction()

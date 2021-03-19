@@ -66,7 +66,12 @@
       </template>
 
       <template v-slot:item.site="{ item }">
-        {{ item.metadata.match && item.metadata.match[0] }}
+        <span v-if="item.type === 1">
+          {{ item.site }}
+        </span>
+        <span v-else>
+          {{ $t("script.runStatus." + (item.runStatus || "complete")) }}
+        </span>
       </template>
 
       <template v-slot:item.feature="{ item }">
@@ -84,6 +89,9 @@
       <template v-slot:item.actions="{ item }">
         <v-icon small class="mr-2" @click="editItem(item)"> mdi-pencil </v-icon>
         <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
+        <v-icon small @click="execScript(item)" v-if="item.type !== 1">
+          mdi-play
+        </v-icon>
       </template>
 
       <template v-slot:no-data> 啊哦，还没有安装脚本 </template>
@@ -116,7 +124,7 @@ import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_DISABLE
 } from "@App/model/script";
 
 import dayjs from "dayjs";
@@ -139,23 +147,23 @@ export default class App extends Vue {
     "@namespace",
     "@author",
     "@grant",
-    "@include",
+    "@include"
   ];
 
   dialogDelete = false;
   headers = [
     {
       text: "#",
-      value: "id",
+      value: "id"
     },
     { text: "开启", value: "status" },
     { text: "名称", value: "name" },
     { text: "版本", value: "version" },
-    { text: "应用至", value: "site" },
+    { text: "应用至/运行状态", value: "site" },
     { text: "特性", value: "feature" },
     { text: "主页", value: "origin" },
     { text: "最后更新", value: "updatetime" },
-    { text: "操作", value: "actions", sortable: false },
+    { text: "操作", value: "actions", sortable: false }
   ];
   desserts: any[] = [];
   editedIndex = -1;
@@ -165,11 +173,11 @@ export default class App extends Vue {
     calories: 0,
     fat: 0,
     carbs: 0,
-    protein: 0,
+    protein: 0
   };
 
   created() {
-    this.scriptUtil.scriptList(undefined).then((result) => {
+    this.scriptUtil.scriptList(undefined).then(result => {
       this.scripts = result;
     });
   }
@@ -188,6 +196,10 @@ export default class App extends Vue {
     this.scriptUtil.updateScriptStatus(item.id, item.status);
   }
 
+  execScript(item: Script) {
+    this.scriptUtil.execScript(item, false);
+  }
+  
   mapSiteToSiteIcon(site: string) {
     return site.slice(0, 15);
 

@@ -18,4 +18,7 @@ export function migrate() {
     db.version(5).stores({
         logger: "++id,level,origin,createtime,title,[origin+title],[level+origin+title]",
     });
+    db.version(6).stores({
+        scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
+    });
 }

@@ -1,4 +1,5 @@
 import { Script } from "@App/model/script";
+import { Value } from "@App/model/value";
 import { AxiosRequestConfig } from "axios";
 
 export interface IScript {
@@ -6,5 +7,5 @@ export interface IScript {
 
     disableScript(script: Script): Promise<void>;
 
-    debugScript(script: Script): Promise<void>;
+    execScript(script: Script, isdebug: boolean): Promise<void>;
 }

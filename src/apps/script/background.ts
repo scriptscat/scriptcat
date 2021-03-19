@@ -53,7 +53,7 @@ export class Background implements IScript {
         });
     }
 
-    public debugScript(script: Script): Promise<void> {
+    public execScript(script: Script, isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
             let list: Value[];
             if (script.namespace) {
@@ -65,9 +65,9 @@ export class Background implements IScript {
                     return table.where({ scriptId: script.id });
                 }, new AllPage());
             }
-            this.sandboxWindow.postMessage({ action: 'debug', data: script, value: list }, '*');
+            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: list, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
-                if (event.data.action != "debug") {
+                if (event.data.action != "exec") {
                     return;
                 }
                 resolve();

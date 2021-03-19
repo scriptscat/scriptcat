@@ -28,23 +28,30 @@ async function execScript(script: Script, type: ExecType = 'run') {
     }
     if (ret) {
         let [context, func] = ret;
-        if (type == 'retry') {
+        if (type !== 'debug') {
             script.delayruntime = 0;
-            context.GM_setDelayRuntime(script.delayruntime);
+            context.CAT_setRunError("", 0);
+            script.lastruntime = new Date().getTime();
+            context.CAT_setLastRuntime(script.lastruntime);
         }
-        script.lastruntime = new Date().getTime();
-        context.GM_setLastRuntime(script.lastruntime);
-        SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " by: " + <string>type, script.name);
+        SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id + " by: " + <string>type, script.name);
         let execRet = func(createContext(window, context));
         if (execRet instanceof Promise) {
             execRet.then((result: any) => {
-                SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " time: " +
+                SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id + " time: " +
                     (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms result: ' + result, script.name);
-            }).catch((msg: string, delayrun: number = 0) => {
-                SendLogger(LOGGER_LEVEL_ERROR, "sandbox", "exec script id: " + script.id + " error: " + msg + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
-                if (delayrun > 0) {
-                    script.delayruntime = new Date().getTime() + (delayrun * 1000);
-                    context.GM_setDelayRuntime(script.delayruntime);
+                if (type !== 'debug') {
+                    context.CAT_runComplete();
+                }
+            }).catch((error: string, delayrun: number = 0) => {
+                SendLogger(LOGGER_LEVEL_ERROR, type, "exec script id: " + script.id + " error: " + error + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
+                if (type !== 'debug') {
+                    if (delayrun > 0) {
+                        script.delayruntime = new Date().getTime() + (delayrun * 1000);
+                        context.CAT_setRunError(error, script.delayruntime);
+                    } else {
+                        context.CAT_setRunError(error, 0);
+                    }
                 }
             });
         } else {
@@ -131,6 +138,7 @@ function runCrontab(script: Script, value: Value[]) {
                 }
                 let now = new Date();
                 if (script.delayruntime && script.delayruntime < now.getTime()) {
+                    //TODO:使用单独的计时器执行
                     execScript(script, 'retry');
                     return;
                 }
@@ -172,10 +180,10 @@ function runCrontab(script: Script, value: Value[]) {
     return top.postMessage({ action: 'start', data: '' }, '*');
 }
 
-function debug(script: Script, value: Value[]) {
-    createContextCache(script, value, true);
-    execScript(script, 'debug');
-    return top.postMessage({ action: 'debug', data: '' }, '*');
+function exec(script: Script, value: Value[], isdebug: boolean) {
+    createContextCache(script, value, isdebug);
+    execScript(script, isdebug ? 'debug' : 'run');
+    return top.postMessage({ action: 'exec', data: '' }, '*');
 }
 
 async function stop(script: Script) {
@@ -193,6 +201,7 @@ async function stop(script: Script) {
     let ret = await App.Cache.get("script:" + script.id);
     if (ret) {
         let [context, _] = ret;
+        //释放资源
         context.destruct();
         App.Cache.del("script:" + script.id);
     }
@@ -220,8 +229,8 @@ window.addEventListener('message', (event) => {
             stop(event.data.data);
             break;
         }
-        case 'debug': {
-            debug(event.data.data, event.data.value);
+        case 'exec': {
+            exec(event.data.data, event.data.value, event.data.isdebug);
             break;
         }
     }

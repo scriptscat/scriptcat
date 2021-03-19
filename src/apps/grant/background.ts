@@ -426,7 +426,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true, sandbox: true })
-    protected GM_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
             return resolve(undefined);
@@ -434,9 +434,17 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true, sandbox: true })
-    protected GM_setDelayRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_setRunError(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
+            this.scriptMgr.setRunError(grant.id, grant.params[0], grant.params[1]);
+            return resolve(undefined);
+        });
+    }
+
+    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
+    protected CAT_runComplete(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            this.scriptMgr.setRunComplete(grant.id);
             return resolve(undefined);
         });
     }
@@ -478,4 +486,8 @@ export class BackgroundGrant {
         })
     }
 
+    protected CAT_proxy() {
+
+        // chrome.proxy.settings.
+    }
 }

@@ -14,6 +14,13 @@ export const SCRIPT_STATUS_DISABLE: SCRIPT_STATUS = 2;
 export const SCRIPT_STATUS_ERROR: SCRIPT_STATUS = 3;
 export const SCRIPT_STATUS_PREPARE: SCRIPT_STATUS = 4;
 
+export type SCRIPT_RUN_STATUS = 'running' | 'complete' | 'error' | 'retry';
+export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = 'running';
+export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = 'complete';
+export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = 'error';
+export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = 'retry';
+
+
 export const SCRIPT_ORIGIN_LOCAL = 'local';
 
 export type Metadata = { [key: string]: string[] };
@@ -38,6 +45,8 @@ export interface Script {
     type: SCRIPT_TYPE;
     //script status. 1:enable 2:disable 3:error 4:prepare
     status: SCRIPT_STATUS;
+    //script run status.
+    runStatus: SCRIPT_RUN_STATUS;
     //script error info
     error?: string;
     //script install timestamp
