@@ -62,4 +62,8 @@ export abstract class Model<T> {
     public delete(id: number) {
         return this.table.delete(id);
     }
+
+    public update(id: number, changes: { [key: string]: any }) {
+        return this.table.update(id, changes);
+    }
 }

@@ -8,7 +8,7 @@ export function compileScript(script: Script) {
 let blacklist = new Map<string, boolean>();
 blacklist.set('chrome', true).set('browser', true);
 //TODO:做一些恶意操作拦截等
-export function createContext(global: any, context: any) {
+export function buildThis(global: any, context: any) {
     return new Proxy(context, {
         get(_, key) {
             if (blacklist.has(<string>key)) {

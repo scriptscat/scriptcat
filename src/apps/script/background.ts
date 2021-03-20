@@ -41,7 +41,21 @@ export class Background implements IScript {
 
     public disableScript(script: Script): Promise<void> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'stop', data: script }, '*');
+            this.sandboxWindow.postMessage({ action: 'stop', data: script, isdebug: false }, '*');
+            function listener(event: MessageEvent) {
+                if (event.data.action != "stop") {
+                    return;
+                }
+                resolve();
+                window.removeEventListener('message', listener);
+            }
+            window.addEventListener('message', listener);
+        });
+    }
+
+    public stopScript(script: Script, isdebug: boolean): Promise<void> {
+        return new Promise(async resolve => {
+            this.sandboxWindow.postMessage({ action: 'stop', data: script, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "stop") {
                     return;

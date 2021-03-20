@@ -17,6 +17,7 @@ export interface IPostMessage {
 
 export type Api = (grant: Grant, postMessage: IPostMessage, script?: Script) => Promise<any>;
 
+export type FreedCallback = (grant: Grant) => void;
 
 export interface IGrantListener {
     listen(callback: (msg: any, postMessage: IPostMessage) => Promise<any>): void
@@ -42,12 +43,14 @@ export interface ConfirmParam {
 export interface PermissionParam {
     // 默认提供的函数
     default?: boolean
-    // 是否只有沙盒环境中才能执行
-    sandbox?: boolean
+    // 是否只有后台环境中才能执行
+    background?: boolean
     // 是否需要弹出页面让用户进行确认
     confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
     // 监听方法
     listener?: () => void
     // 别名
     alias?: string[]
+    // 执行完毕释放资源
+    freed?: FreedCallback
 }

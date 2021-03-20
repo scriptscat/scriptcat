@@ -1,8 +1,8 @@
-import { Metadata, Script, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_RUN_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
+import { Metadata, Script, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_RUN_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache, ScriptExec, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
+import { ScriptCache, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { Page } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
@@ -67,6 +67,20 @@ export class ScriptManager {
                 let script = <Script>msg[0];
                 if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                     await this.background.execScript(script, msg[1]);
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            });
+        });
+        MsgCenter.listener(ScriptStop, async (msg): Promise<any> => {
+            return new Promise(async resolve => {
+                let script = <Script>msg[0];
+                if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
+                    await this.background.stopScript(script, msg[1]);
+                    if (script.runStatus == SCRIPT_RUN_STATUS_RUNNING) {
+                        this.script.update(script.id, { runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+                    }
                     resolve(true);
                 } else {
                     resolve(false);
@@ -231,6 +245,14 @@ export class ScriptManager {
         });
     }
 
+    public stopScript(script: Script, isdebug: boolean): Promise<boolean> {
+        return new Promise(async resolve => {
+            MsgCenter.connect(ScriptStop, [script, isdebug]).addListener(msg => {
+                resolve(true);
+            });
+        });
+    }
+
     public updateScriptStatus(id: number, status: SCRIPT_STATUS): Promise<boolean> {
         return new Promise(async resolve => {
             let old = await this.script.findById(id);
@@ -319,7 +341,10 @@ export class ScriptManager {
 
     public setLastRuntime(id: number, time: number): Promise<boolean> {
         return new Promise(async resolve => {
-            this.script.table.update(id, { lastruntime: time, runStatus: SCRIPT_RUN_STATUS_COMPLETE })
+            this.script.table.update(id, {
+                lastruntime: time, runStatus: SCRIPT_RUN_STATUS_RUNNING
+            })
+            MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_RUNNING]);
             resolve(true);
         });
     }
@@ -328,8 +353,12 @@ export class ScriptManager {
         return new Promise(async resolve => {
             if (error !== '' && time !== 0) {
                 this.script.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_RETRY })
+                MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_RETRY]);
             } else {
                 this.script.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_ERROR })
+                if (error) {
+                    MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_ERROR]);
+                }
             }
             resolve(true);
         });
@@ -338,6 +367,7 @@ export class ScriptManager {
     public setRunComplete(id: number): Promise<boolean> {
         return new Promise(async resolve => {
             this.script.table.update(id, { error: "", runStatus: SCRIPT_RUN_STATUS_COMPLETE })
+            MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_COMPLETE]);
             resolve(true);
         });
     }

@@ -89,8 +89,19 @@
       <template v-slot:item.actions="{ item }">
         <v-icon small class="mr-2" @click="editItem(item)"> mdi-pencil </v-icon>
         <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
-        <v-icon small @click="execScript(item)" v-if="item.type !== 1">
+        <v-icon
+          small
+          @click="execScript(item)"
+          v-if="item.type !== 1 && item.runStatus != 'running'"
+        >
           mdi-play
+        </v-icon>
+        <v-icon
+          small
+          @click="stopScript(item)"
+          v-else-if="item.type !== 1 && item.runStatus == 'running'"
+        >
+          mdi-stop
         </v-icon>
       </template>
 
@@ -130,6 +141,8 @@ import {
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
+import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -180,6 +193,15 @@ export default class App extends Vue {
     this.scriptUtil.scriptList(undefined).then(result => {
       this.scripts = result;
     });
+    // 监听script状态变更
+    MsgCenter.listener(ScriptRunStatusChange, param => {
+      for (let i = 0; i < this.scripts.length; i++) {
+        if (this.scripts[i].id == param[0]) {
+          this.scripts[i].runStatus = param[1];
+          break;
+        }
+      }
+    });
   }
 
   getStatusBoolean(item: Script) {
@@ -199,11 +221,13 @@ export default class App extends Vue {
   execScript(item: Script) {
     this.scriptUtil.execScript(item, false);
   }
-  
+
+  stopScript(item: Script) {
+    this.scriptUtil.stopScript(item, false);
+  }
+
   mapSiteToSiteIcon(site: string) {
     return site.slice(0, 15);
-
-    // return icon
   }
 
   mapFeatureToIcon(features: string[]) {}

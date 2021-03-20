@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
-import { compileScript, createContext } from "@App/pkg/sandbox";
+import { buildThis, compileScript } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
@@ -17,56 +17,50 @@ InitApp({
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 
-type ExecType = 'run' | 'retry' | 'debug';
-async function execScript(script: Script, type: ExecType = 'run') {
-    //使用SandboxContext接管postRequest
-    let ret: any;
-    if (type == 'debug') {
-        ret = await App.Cache.get('script:debug:' + script.id);
-    } else {
-        ret = await App.Cache.get('script:' + script.id);
-    }
-    if (ret) {
-        let [context, func] = ret;
-        if (type !== 'debug') {
-            script.delayruntime = 0;
-            context.CAT_setRunError("", 0);
-            script.lastruntime = new Date().getTime();
-            context.CAT_setLastRuntime(script.lastruntime);
+type ExecType = 'run' | 'crontab' | 'retry' | 'debug';
+async function execScript(script: Script, func: Function, context: SandboxContext, type: ExecType = 'run'): Promise<boolean> {
+    return new Promise(async resolve => {
+        //使用SandboxContext接管postRequest
+        let key: any;
+        if (type == 'debug') {
+            key = 'script:debug:' + script.id;
+        } else {
+            key = 'script:' + script.id;
         }
-        SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id + " by: " + <string>type, script.name);
-        let execRet = func(createContext(window, context));
+        script.delayruntime = 0;
+        context.CAT_setRunError("", 0);
+        script.lastruntime = new Date().getTime();
+        context.CAT_setLastRuntime(script.lastruntime);
+        SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id, script.name);
+        let execRet = func(buildThis(window, context));
         if (execRet instanceof Promise) {
             execRet.then((result: any) => {
                 SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id + " time: " +
                     (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms result: ' + result, script.name);
-                if (type !== 'debug') {
-                    context.CAT_runComplete();
-                }
+                context.CAT_runComplete();
+                resolve(true);
             }).catch((error: string, delayrun: number = 0) => {
                 SendLogger(LOGGER_LEVEL_ERROR, type, "exec script id: " + script.id + " error: " + error + (delayrun ? ' delayrun: ' + delayrun : ''), script.name);
-                if (type !== 'debug') {
-                    if (delayrun > 0) {
-                        script.delayruntime = new Date().getTime() + (delayrun * 1000);
-                        context.CAT_setRunError(error, script.delayruntime);
-                    } else {
-                        context.CAT_setRunError(error, 0);
-                    }
+                if (delayrun > 0) {
+                    script.delayruntime = new Date().getTime() + (delayrun * 1000);
+                } else {
+                    script.delayruntime = 0;
                 }
+                context.CAT_setRunError(error, script.delayruntime);
+                resolve(true);
             });
         } else {
-            SendLogger(LOGGER_LEVEL_INFO, "sandbox", "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
+            SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + 'ms', script.name);
+            //30s后标记完成并清理资源
+            setTimeout(() => {
+                context.CAT_runComplete();
+            }, 30 * 1000);
+            resolve(true);
         }
-    }
+    });
 }
 
-async function createContextCache(script: Script, value: Value[], isdebug: boolean = false): Promise<SandboxContext> {
-    let key: string;
-    if (isdebug) {
-        key = "script:debug:" + script.id;
-    } else {
-        key = "script:" + script.id;
-    }
+function createContext(script: Script, value: Value[]): SandboxContext {
     let valMap = new Map();
     value.forEach(val => {
         valMap.set(val.key, val);
@@ -96,7 +90,6 @@ async function createContextCache(script: Script, value: Value[], isdebug: boole
             }
         });
     }
-    await App.Cache.set(key, [<SandboxContext>context, compileScript(script)]);
     return context;
 }
 
@@ -104,15 +97,18 @@ function start(script: Script, value: Value[]): any {
     if (script.metadata["crontab"]) {
         return runCrontab(script, value);
     } else if (script.metadata["background"]) {
-        createContextCache(script, value);
-        execScript(script, 'run');
+        let context = createContext(script, value);
+        App.Cache.set("script:" + script.id, context);
+        execScript(script, compileScript(script), context, 'run');
         return top.postMessage({ action: 'start', data: '' }, '*');
     }
 }
 
 function runCrontab(script: Script, value: Value[]) {
     let crontab = script.metadata["crontab"];
-    createContextCache(script, value);
+    let context = createContext(script, value);
+    App.Cache.set("script:" + script.id, context);
+    let func = compileScript(script);
 
     let list = new Array<CronJob>();
     crontab.forEach((val) => {
@@ -133,13 +129,13 @@ function runCrontab(script: Script, value: Value[]) {
         let cron = new CronJob(val, () => {
             if (oncePos) {
                 if (!script.lastruntime) {
-                    execScript(script);
+                    execScript(script, func, context, 'crontab');
                     return;
                 }
                 let now = new Date();
                 if (script.delayruntime && script.delayruntime < now.getTime()) {
                     //TODO:使用单独的计时器执行
-                    execScript(script, 'retry');
+                    execScript(script, func, context, 'retry');
                     return;
                 }
                 if (script.lastruntime > now.getTime()) {
@@ -168,10 +164,10 @@ function runCrontab(script: Script, value: Value[]) {
                     default:
                 }
                 if (flag) {
-                    execScript(script);
+                    execScript(script, func, context, 'crontab');
                 }
             } else {
-                execScript(script);
+                execScript(script, func, context, 'crontab');
             }
         }, null, true);
         list.push(cron);
@@ -180,13 +176,18 @@ function runCrontab(script: Script, value: Value[]) {
     return top.postMessage({ action: 'start', data: '' }, '*');
 }
 
-function exec(script: Script, value: Value[], isdebug: boolean) {
-    createContextCache(script, value, isdebug);
-    execScript(script, isdebug ? 'debug' : 'run');
+async function exec(script: Script, value: Value[], isdebug: boolean) {
+    let context = createContext(script, value);
+    App.Cache.set("script:" + (isdebug ? "debug:" : "") + script.id, context);
+    execScript(script, compileScript(script), context, isdebug ? 'debug' : 'run');
     return top.postMessage({ action: 'exec', data: '' }, '*');
 }
 
-async function stop(script: Script) {
+async function stop(script: Script, isdebug: boolean) {
+    let context = <SandboxContext>await App.Cache.get("script:" + (isdebug ? "debug:" : "") + script.id);
+    if (context) {
+        context.CAT_runComplete();
+    }
     if (script.type != SCRIPT_TYPE_CRONTAB) {
         return top.postMessage({ action: 'stop' }, '*');
     }
@@ -198,13 +199,7 @@ async function stop(script: Script) {
         val.stop();
     });
     cronjobMap.delete(script.id);
-    let ret = await App.Cache.get("script:" + script.id);
-    if (ret) {
-        let [context, _] = ret;
-        //释放资源
-        context.destruct();
-        App.Cache.del("script:" + script.id);
-    }
+
     return top.postMessage({ action: 'stop' }, '*');
 }
 
@@ -226,7 +221,7 @@ window.addEventListener('message', (event) => {
             break;
         }
         case 'stop': {
-            stop(event.data.data);
+            stop(event.data.data, event.data.isdebug);
             break;
         }
         case 'exec': {

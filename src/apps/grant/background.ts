@@ -7,7 +7,7 @@ import { App } from "../app";
 import { PermissionConfirm, ScriptGrant } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
-import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam } from "./interface";
+import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
 import { v4 as uuidv4 } from "uuid"
 import { Value, ValueModel } from "@App/model/value";
 
@@ -36,6 +36,7 @@ export class grantListener implements IGrantListener {
 export class BackgroundGrant {
 
     protected static apis = new Map<string, Api>();
+    protected static freedCallback = new Map<string, FreedCallback>();
     protected static _singleInstance: BackgroundGrant;
     protected listener: IGrantListener;
     protected scriptMgr: ScriptManager;
@@ -70,6 +71,9 @@ export class BackgroundGrant {
             if (permission.listener) {
                 permission.listener();
             }
+            if (permission.freed) {
+                BackgroundGrant.freedCallback.set(propertyName, permission.freed);
+            }
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 let _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise(async resolve => {
@@ -80,9 +84,6 @@ export class BackgroundGrant {
                     }
                     App.Log.Debug("script", "call function: " + propertyName, script.name);
                     let metaGrant = script.metadata["grant"];
-                    if (!metaGrant) {
-                        return resolve(undefined);
-                    }
                     if (!permission.default) {
                         let flag = false;
                         for (let i = 0; i < metaGrant.length; i++) {
@@ -107,7 +108,7 @@ export class BackgroundGrant {
                         }
                     }
 
-                    if (permission.sandbox && script.type != SCRIPT_TYPE_CRONTAB) {
+                    if (permission.background && script.type != SCRIPT_TYPE_CRONTAB) {
                         return resolve(undefined);
                     }
 
@@ -208,11 +209,16 @@ export class BackgroundGrant {
                     return resolve(undefined);
                 }
                 api.apply(this, [grant, postMessage]).then(result => {
+                    if (grant.value == "CAT_runComplete" || (grant.value == "CAT_setRunError" && grant.params[0])) {
+                        //执行完毕,释放资源
+                        BackgroundGrant.freedCallback.forEach(v => {
+                            v(grant);
+                        });
+                    }
                     resolve(result);
                 }).catch(e => {
                     grant.error = 'GM_ERROR';
                     grant.errorMsg = e;
-                    console.log(e);
                     resolve(grant);
                 });
             });
@@ -282,7 +288,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({
-        sandbox: true,
+        background: true,
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
@@ -425,7 +431,7 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
+    @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
@@ -433,7 +439,7 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
+    @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_setRunError(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setRunError(grant.id, grant.params[0], grant.params[1]);
@@ -441,7 +447,7 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction({ default: true, sandbox: true })
+    @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_runComplete(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             this.scriptMgr.setRunComplete(grant.id);
@@ -486,8 +492,21 @@ export class BackgroundGrant {
         })
     }
 
-    protected CAT_proxy() {
+    @BackgroundGrant.GMFunction({
+        background: true,
+        listener: () => {
+            chrome.proxy.settings.onChange.addListener(async (details) => {
+                console.log(details);
+            });
+            chrome.proxy.onProxyError.addListener((details) => {
+                console.log(details);
+            });
+        },
+        freed: (grant: Grant) => {
 
-        // chrome.proxy.settings.
+        }
+    })
+    protected CAT_proxy() {
+        // chrome.proxy.settings.set();
     }
 }

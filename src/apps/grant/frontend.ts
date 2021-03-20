@@ -48,12 +48,26 @@ export class FrontendGrant {
         }
     }
 
-    public listenScriptGrant() {
+    public begin() {
         //TODO:做前端通信时完成
-        window.addEventListener('message', event => {
-            let grant = <Grant>event.data;
+        window.addEventListener('message', this.message);
+    }
 
-        });
+    public message = (event: MessageEvent) => {
+        let grant = <Grant>event.data;
+        if (!grant.request) {
+            return;
+        }
+        let callback = this.request.get(grant.request);
+        if (callback) {
+            callback(grant);
+        }
+    }
+
+    public end() {
+        //释放资源
+        window.removeEventListener('message', this.message);
+        this.request.clear();
     }
 
     public getApi(grant: string): FrontenApiValue | undefined {
@@ -224,28 +238,22 @@ export class SandboxContext extends FrontendGrant {
 
     constructor(script: Script, value: Map<string, Value>) {
         super(script, value);
-        window.addEventListener('message', this.message);
-    }
-
-    public message = (event: MessageEvent) => {
-        let grant = <Grant>event.data;
-        let callback = this.request.get(grant.request);
-        if (callback) {
-            callback(grant);
-        }
     }
 
     public CAT_setLastRuntime(time: number) {
+        this.begin();
         this.postRequest('CAT_setLastRuntime', [time], () => {
         });
     }
 
     public CAT_setRunError(error: string, time: number) {
+        this.end();
         this.postRequest('CAT_setRunError', [error, time], () => {
         });
     }
 
     public CAT_runComplete() {
+        this.end();
         this.postRequest('CAT_runComplete', []);
     }
 
@@ -258,13 +266,6 @@ export class SandboxContext extends FrontendGrant {
                     break;
             }
         });
-    }
-
-    public destruct() {
-        //释放资源
-        window.removeEventListener('message', this.message);
-        this.request.clear();
-        this.value.clear();
     }
 
 }
