@@ -492,6 +492,47 @@ export class BackgroundGrant {
         })
     }
 
+    protected static proxyRule = new Map<number, CAT_Types.ProxyRule[] | string>();
+    protected static buildProxyPACScript(): string {
+        let ret = 'function FindProxyForURL(url, host) {\nlet ret;';
+        BackgroundGrant.proxyRule.forEach((val, key) => {
+            if (typeof val == 'string') {
+                ret += `\nfunction pac${key}(){\n${val}\nreturn FindProxyForURL(url,host)}\nret=pac${key}();if(ret && ret!='DIRECT'){return ret;}`;
+            } else {
+                val.forEach(val => {
+                    val.matchUrl.forEach(url => {
+                        let regex = url;
+                        if (regex.indexOf('*') === -1) {
+                            regex = regex.replaceAll('.', '\\.');
+                            if (regex.indexOf('.') === 1 || regex.indexOf('//.') !== -1) {
+                                regex = regex.replace('\\.', '(?:^|www)\\.');
+                            }
+                        } else {
+                            regex = regex.replaceAll('.', '\\.');
+                            regex = regex.replace('*', '(?:^|.*?)')
+                        }
+                        regex = regex.replaceAll('/', '\\/');
+                        ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` + (val.proxyServer.port ? ':' + val.proxyServer.port : '') + `"}\n`;
+                    });
+                });
+            }
+        });
+        return ret + '\nreturn "DIRECT"}';
+    }
+    protected static freedProxy(id: number) {
+        BackgroundGrant.proxyRule.delete(id);
+        if (BackgroundGrant.proxyRule.size == 0) {
+            return chrome.proxy.settings.clear({});
+        }
+        chrome.proxy.settings.set({
+            value: {
+                mode: 'pac_script',
+                pacScript: {
+                    data: BackgroundGrant.buildProxyPACScript(),
+                }
+            }
+        });
+    }
     @BackgroundGrant.GMFunction({
         background: true,
         listener: () => {
@@ -503,10 +544,30 @@ export class BackgroundGrant {
             });
         },
         freed: (grant: Grant) => {
-
+            BackgroundGrant.freedProxy(grant.id);
         }
     })
-    protected CAT_proxy() {
-        // chrome.proxy.settings.set();
+    protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            BackgroundGrant.proxyRule.set(grant.id, grant.params[0]);
+            chrome.proxy.settings.set({
+                value: {
+                    mode: 'pac_script',
+                    pacScript: {
+                        data: BackgroundGrant.buildProxyPACScript(),
+                    }
+                }
+            });
+            resolve(undefined);
+        });
     }
+
+    @BackgroundGrant.GMFunction({ background: true })
+    protected CAT_clearProxy(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            BackgroundGrant.freedProxy(grant.id);
+            resolve(undefined);
+        });
+    }
+
 }

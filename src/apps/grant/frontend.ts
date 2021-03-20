@@ -268,4 +268,14 @@ export class SandboxContext extends FrontendGrant {
         });
     }
 
+    @FrontendGrant.GMFunction()
+    public CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void {
+        this.postRequest('CAT_setProxy', [rule]);
+    }
+
+    @FrontendGrant.GMFunction()
+    public CAT_clearProxy(): void {
+        this.postRequest('CAT_clearProxy', []);
+    }
+
 }
