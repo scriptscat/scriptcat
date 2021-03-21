@@ -95,11 +95,11 @@ export class ScriptManager {
         if (!header) {
             return null;
         }
-        regex = /\/\/\s*@(.*?)\s+(.*?)$/gm;
+        regex = /\/\/\s*@([\S]+)((.+?)$|$)/gm;
         let ret: Metadata = {};
         let meta: RegExpExecArray | null;
         while (meta = regex.exec(header[1])) {
-            let [key, val] = [meta[1].toLowerCase(), meta[2]];
+            let [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
             let values = ret[key]
             if (values == null) {
                 values = [];

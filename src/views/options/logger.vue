@@ -27,5 +27,6 @@ export default class App extends Vue {
       this.logs = result;
     });
   }
+
 }
 </script>

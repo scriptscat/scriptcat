@@ -1,6 +1,6 @@
 import { LOGGER_LEVEL_INFO } from "@App/model/logger";
 import { Permission, PermissionModel } from "@App/model/permission";
-import { Script, SCRIPT_TYPE_CRONTAB } from "@App/model/script";
+import { Script, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/model/script";
 import { isFirefox } from "@App/pkg/utils";
 import axios from "axios";
 import { App } from "../app";
@@ -108,7 +108,7 @@ export class BackgroundGrant {
                         }
                     }
 
-                    if (permission.background && script.type != SCRIPT_TYPE_CRONTAB) {
+                    if (permission.background && (script.type != SCRIPT_TYPE_CRONTAB && script.type != SCRIPT_TYPE_BACKGROUND)) {
                         return resolve(undefined);
                     }
 
@@ -535,14 +535,6 @@ export class BackgroundGrant {
     }
     @BackgroundGrant.GMFunction({
         background: true,
-        listener: () => {
-            chrome.proxy.settings.onChange.addListener(async (details) => {
-                console.log(details);
-            });
-            chrome.proxy.onProxyError.addListener((details) => {
-                console.log(details);
-            });
-        },
         freed: (grant: Grant) => {
             BackgroundGrant.freedProxy(grant.id);
         }
@@ -550,6 +542,7 @@ export class BackgroundGrant {
     protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.proxyRule.set(grant.id, grant.params[0]);
+            App.Log.Debug("background", "enable proxy", grant.name);
             chrome.proxy.settings.set({
                 value: {
                     mode: 'pac_script',
