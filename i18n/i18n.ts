@@ -1,4 +1,4 @@
-import { zh_cn } from './cn';
+import { zh_CN } from './cn';
 import { en } from './en';
 import VueI18n from 'vue-i18n';
 import Vuetify from "vuetify";
@@ -8,12 +8,18 @@ Vue.use(VueI18n);
 Vue.use(Vuetify);
 
 export const messages = {
-    "zh-CN": zh_cn,
+    "zh_CN": zh_CN,
     "en": en,
 };
 
+let defaultLocale = chrome.i18n.getUILanguage().replaceAll('-', '_');
+
+if (!(<any>messages)[defaultLocale]) {
+    defaultLocale = "en";
+}
+
 export const i18n = new VueI18n({
-    locale: 'zh-CN',
+    locale: defaultLocale,
     messages: messages,
 });
 

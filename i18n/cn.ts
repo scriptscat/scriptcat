@@ -1,4 +1,4 @@
-export const zh_cn = {
+export const zh_CN = {
     script: {
         runStatus: {
             running: '运行中',
@@ -8,4 +8,3 @@ export const zh_cn = {
         }
     }
 }
-

@@ -13,6 +13,7 @@
         "page": "options.html",
         "open_in_tab": true
     },
+    "default_locale": "zh_CN",
     "permissions": [
         "tabs",
         "proxy",
