@@ -519,6 +519,7 @@ export class BackgroundGrant {
         });
         return ret + '\nreturn "DIRECT"}';
     }
+
     protected static freedProxy(id: number) {
         BackgroundGrant.proxyRule.delete(id);
         if (BackgroundGrant.proxyRule.size == 0) {
@@ -533,6 +534,7 @@ export class BackgroundGrant {
             }
         });
     }
+
     @BackgroundGrant.GMFunction({
         background: true,
         freed: (grant: Grant) => {

@@ -273,7 +273,7 @@ export class ScriptManager {
 
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            if (script.type == SCRIPT_TYPE_CRONTAB) {
+            if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                 let ret = await this.background.enableScript(script);
                 if (ret) {
                     script.error = ret;
@@ -295,7 +295,7 @@ export class ScriptManager {
     public disableScript(script: Script): Promise<void> {
         return new Promise(async resolve => {
             script.status = SCRIPT_STATUS_DISABLE;
-            if (script.type == SCRIPT_TYPE_CRONTAB) {
+            if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                 await this.background.disableScript(script);
             }
             await this.script.save(script);
