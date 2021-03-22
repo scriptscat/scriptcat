@@ -27,8 +27,6 @@ jobs:
           ${{ runner.OS }}-
 
     - name: Package with Node
-      env:
-        CHROME_PEM: ${{ secrets.CHROME_PEM }}
       run: |
         npm ci  
         npm test
