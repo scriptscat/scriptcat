@@ -95,23 +95,40 @@ export class FrontendGrant {
 
     @FrontendGrant.GMFunction()
     public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
-        let param = {
+        let param: GM_Types.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
             url: details.url,
             headers: details.headers,
             data: details.data,
+            cookie: details.cookie,
+            context: details.context,
+            responseType: details.responseType,
+            overrideMimeType: details.overrideMimeType,
+            anonymous: details.anonymous,
+            username: details.username,
+            password: details.password
         };
-        if (details.cookie) {
-            //TODO:不允许设置cookie header,找看看还有没有其他方法
-            param.headers = param.headers || {};
-            param.headers['Cookie'] = details.cookie;
-        }
 
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'load':
-                    details.onload && details.onload(<GM_Types.XHRResponse>grant.data.data);
+                    details.onload && details.onload(grant.data.data);
+                    break;
+                case 'onloadend':
+                    details.onloadend && details.onloadend(grant.data.data);
+                    break;
+                case 'onloadstart':
+                    details.onloadstart && details.onloadstart(grant.data.data);
+                    break;
+                case 'onprogress':
+                    details.onprogress && details.onprogress(grant.data.data);
+                    break;
+                case 'onreadystatechange':
+                    details.onreadystatechange && details.onreadystatechange(grant.data.data);
+                    break;
+                case 'ontimeout':
+                    details.ontimeout && details.ontimeout();
                     break;
             }
         });
@@ -229,6 +246,22 @@ export class FrontendGrant {
         });
     }
 
+    public GM_openInTab(url: string, loadInBackground: boolean): void
+    public GM_openInTab(url: string, options: GM_Types.OpenTabOptions): void
+    @FrontendGrant.GMFunction()
+    public GM_openInTab(url: string): void {
+        let option: GM_Types.OpenTabOptions = {};
+        if (arguments.length == 1) {
+            option.active = true;
+        } else {
+            if (typeof arguments[1] == 'boolean') {
+                option.active = !arguments[1];
+            } else {
+                option = arguments[1];
+            }
+        }
+        this.postRequest('GM_openInTab', [url, option]);
+    }
 
 }
 

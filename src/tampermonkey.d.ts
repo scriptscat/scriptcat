@@ -172,7 +172,7 @@ declare namespace GM_Types {
         done: number,
         lengthComputable: boolean,
         loaded: number,
-        position: number,
+        position?: number,
         total: number,
         totalSize: number
     }
@@ -197,9 +197,10 @@ declare namespace GM_Types {
 
         onload?: Listener<XHRResponse>,
         onloadstart?: Listener<XHRResponse>,
+        onloadend?: Listener<XHRResponse>,
         onprogress?: Listener<XHRProgress>,
         onreadystatechange?: Listener<XHRResponse>,
-        ontimeout?: Listener<Function>,
+        ontimeout?: Function,
         onabort?: Function,
         onerror?: Function
     }

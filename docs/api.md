@@ -133,9 +133,10 @@ declare namespace GM_Types {
 
         onload?: Listener<XHRResponse>,
         onloadstart?: Listener<XHRResponse>,
+        onloadend?: Listener<XHRResponse>,
         onprogress?: Listener<XHRProgress>,
         onreadystatechange?: Listener<XHRResponse>,
-        ontimeout?: Listener<Function>,
+        ontimeout?: Function,
         onabort?: Function,
         onerror?: Function
     }
@@ -148,8 +149,8 @@ declare namespace GM_Types {
 
 
 
-#### GM_log
-> 日志函数,日志将在控制面板的运行日志中看到
+#### GM_log *
+> 日志函数,日志将在控制面板的运行日志中看到.相比于tm增加了一个日志的level
 
 ```typescript
 declare function GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): any;
@@ -167,3 +168,19 @@ declare function GM_setValue(name: string, value: any): void;
 declare function GM_getValue(name: string, defaultValue?: any): any;
 ```
 
+#### GM_openInTab
+> 打开一个新窗口
+
+```ts
+declare function GM_openInTab(url: string, options: GM_Types.OpenTabOptions): void;
+declare function GM_openInTab(url: string, loadInBackground: boolean): void;
+declare function GM_openInTab(url: string): void
+
+declare namespace GM_Types {
+    interface OpenTabOptions {
+        active?: boolean,
+        insert?: boolean,
+        setParent?: boolean
+    }
+}
+```

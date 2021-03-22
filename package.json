@@ -1,12 +1,12 @@
 {
     "name": "scriptcat",
-    "version": "0.1.8",
+    "version": "0.2.0",
     "description": "",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "echo \"Skip test\"",
         "dev": "node_modules/.bin/webpack --mode development --config webpack.dev.js",
         "build": "node_modules/.bin/webpack --mode production --config webpack.prod.js",
-        "pack": "rm ./build/scriptcat/src/* -f && npm run build && node ./scripts/pack.js"
+        "pack": "node ./scripts/pack.js"
     },
     "author": "CodFrm",
     "license": "MIT",

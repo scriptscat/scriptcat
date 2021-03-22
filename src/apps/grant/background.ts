@@ -42,10 +42,58 @@ export class BackgroundGrant {
     protected scriptMgr: ScriptManager;
     protected permissionModel: PermissionModel = new PermissionModel();
     protected valueModel = new ValueModel();
+    protected rand = uuidv4();
 
     private constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
         this.listener = listener;
         this.scriptMgr = scriptMgr;
+        //处理xhrcookie的问题
+        chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
+            let setCookie = '';
+            let cookie = '';
+            let anonymous = false;
+            let cookieIndex = -1;
+            let requestHeaders: chrome.webRequest.HttpHeader[] = [];
+            data.requestHeaders?.forEach((val, key) => {
+                switch (val.name.toLowerCase()) {
+                    case "x-cat-" + this.rand + "-cookie": {
+                        setCookie = val.value || '';
+                        break;
+                    }
+                    case "x-cat-" + this.rand + "-anonymous": {
+                        anonymous = true;
+                        break;
+                    }
+                    case "cookie": {
+                        cookieIndex = key;
+                        cookie = val.value || '';
+                        break;
+                    }
+                    default: {
+                        requestHeaders.push(val);
+                    }
+                }
+            });
+            if (anonymous) {
+                cookie = '';
+            }
+            if (setCookie) {
+                if (!cookie || cookie.endsWith(';')) {
+                    cookie += setCookie;
+                } else {
+                    cookie += ';' + setCookie;
+                }
+            }
+            cookie && requestHeaders.push({
+                name: 'cookie',
+                value: cookie
+            });
+            return {
+                requestHeaders: requestHeaders,
+            }
+        }, {
+            urls: ["<all_urls>"],
+        }, ["blocking", "requestHeaders", "extraHeaders"]);
     }
 
     // 单实例
@@ -225,6 +273,26 @@ export class BackgroundGrant {
         });
     }
 
+
+    protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
+        let respond: GM_Types.XHRResponse = {
+            readyState: <any>xhr.readyState,
+            status: xhr.status,
+            statusText: xhr.statusText,
+            responseHeaders: xhr.getAllResponseHeaders(),
+        };
+        if (xhr.readyState === 4) {
+            if (!config.responseType && xhr.getResponseHeader("Content-Type")?.indexOf("application/json") !== -1) {
+                respond.response = JSON.parse(xhr.responseText);
+            } else {
+                respond.response = xhr.response;
+            }
+            respond.responseText = xhr.responseText;
+            respond.responseXML = xhr.responseXML;
+        }
+        return respond;
+    }
+
     //TODO:按照tampermonkey文档实现
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
@@ -265,24 +333,60 @@ export class BackgroundGrant {
             }
             let config = <GM_Types.XHRDetails>grant.params[0];
 
-            axios(config).then(result => {
-                let text = '';
-                switch (typeof (result.data)) {
-                    case 'string':
-                        text = result.data; break;
-                    default:
-                        text = JSON.stringify(result.data); break;
-                }
-                let respond: GM_Types.XHRResponse = {
-                    status: result.status,
-                    statusText: result.statusText,
-                    responseHeaders: result.headers,
-                    response: result.data,
-                    responseText: text,
-                };
-                grant.data = { type: 'load', data: respond };
+            let xhr = new XMLHttpRequest();
+            xhr.open(config.method || 'GET', config.url);
+            xhr.responseType = config.responseType || '';
+            let _this = this;
+
+            function deal(event: string) {
+                let respond = _this.dealXhr(config, xhr);
+                grant.data = { type: event, data: respond };
                 post.postMessage(grant);
-            });
+            }
+            xhr.onload = (event) => {
+                deal("load");
+            }
+            xhr.onloadstart = (event) => {
+                deal("onloadstart");
+            }
+            xhr.onloadend = (event) => {
+                deal("onloadstart");
+            }
+            xhr.onprogress = (event) => {
+                let respond: GM_Types.XHRProgress = {
+                    done: xhr.DONE,
+                    lengthComputable: event.lengthComputable,
+                    loaded: event.loaded,
+                    total: event.total,
+                    totalSize: event.total,
+                };
+                grant.data = { type: 'onprogress', data: respond };
+                post.postMessage(grant);
+            }
+            xhr.onreadystatechange = (event) => {
+                deal("onreadystatechange");
+            }
+            xhr.ontimeout = () => {
+                grant.data = { type: 'ontimeout', data: "" };
+                post.postMessage(grant);
+            }
+            for (const key in config.headers) {
+                const val = config.headers[key];
+                xhr.setRequestHeader(key, val);
+            }
+            if (config.timeout) {
+                xhr.timeout = config.timeout;
+            }
+            if (config.cookie) {
+                xhr.setRequestHeader("X-Cat-" + this.rand + "-Cookie", config.cookie);
+            }
+            if (config.anonymous) {
+                xhr.setRequestHeader("X-Cat-" + this.rand + "-Anonymous", "true")
+            }
+            if (config.overrideMimeType) {
+                xhr.overrideMimeType(config.overrideMimeType);
+            }
+            xhr.send(config.data);
             return resolve(undefined);
         });
     }
@@ -337,6 +441,18 @@ export class BackgroundGrant {
                     break;
                 }
             }
+            return resolve(undefined);
+        });
+    }
+
+    @BackgroundGrant.GMFunction()
+    protected GM_openInTab(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            let param: GM_Types.OpenTabOptions = grant.params[1] || {};
+            chrome.tabs.create({
+                url: grant.params[0],
+                active: param.active || false,
+            });
             return resolve(undefined);
         });
     }
