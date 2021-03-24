@@ -9,8 +9,9 @@ ScriptCat
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
 [![Build Status](https://github.com/scriptscat/scriptcat/workflows/build/badge.svg?branch=master)](https://github.com/scriptscat/scriptcat)
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/scriptscat/scriptcat.svg?label=version)
-[![Chrome](https://img.shields.io/badge/chrome-success-brightgreen)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
-[![FireFox](https://img.shields.io/badge/firefox-success-brightgreen)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
+[![Chrome](https://img.shields.io/badge/chrome-sucess-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
+[![Edge](https://img.shields.io/badge/edge-sucess-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
+[![FireFox](https://img.shields.io/badge/firefox-sucess-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 ![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
 
 
@@ -59,6 +60,6 @@ ScriptCat
 #### 扩展商城
 
 * [Chrome商店](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
-
+* [Edge商店](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 * [FireFox商店](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 

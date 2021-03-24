@@ -4,8 +4,8 @@
     "description": "",
     "scripts": {
         "test": "echo \"Skip test\"",
-        "dev": "node_modules/.bin/webpack --mode development --config webpack.dev.js",
-        "build": "node_modules/.bin/webpack --mode production --config webpack.prod.js",
+        "dev": "webpack --mode development --config webpack.dev.js",
+        "build": "webpack --mode production --config webpack.prod.js",
         "pack": "node ./scripts/pack.js"
     },
     "author": "CodFrm",
