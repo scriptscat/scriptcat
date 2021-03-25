@@ -80,7 +80,7 @@ function sandboxLoad(event: MessageEvent) {
         });
     });
     //启动后台脚本
-    scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_TYPE_BACKGROUND }).then(items => {
+    scripts.scriptList({ type: SCRIPT_TYPE_BACKGROUND, status: SCRIPT_STATUS_ENABLE }).then(items => {
         items.forEach((value: Script) => {
             scripts.enableScript(value);
         });

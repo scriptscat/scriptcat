@@ -12,6 +12,7 @@ module.exports = {
         options: home + "/options.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
+        content: home + "/content.ts",
         "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
         "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },

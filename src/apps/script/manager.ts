@@ -43,6 +43,7 @@ export class ScriptManager {
                     await this.enableScript(script);
                 } else if (script.status == SCRIPT_STATUS_DISABLE) {
                     this.disableScript(script);
+                    script.runStatus = 'complete';
                 }
                 this.scriptCache.set(script.id, script);
                 return resolve(script);
