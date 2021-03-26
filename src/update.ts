@@ -5,7 +5,7 @@ import { languages } from "monaco-editor";
 
 import "vuetify/dist/vuetify.min.css";
 
-import App from "@App/views/pages/Option";
+import App from "@App/views/pages/Update/index.vue";
 // @ts-ignore
 import dts from "@App/types/tampermonkey.d.ts";
 import { migrate } from "./model/migrate";
@@ -16,21 +16,21 @@ migrate();
 Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
-    // {
-    //     path: "/",
-    //     name: "Home",
-    //     component: () => import("@App/views/options/ScriptList.vue"),
-    // },
-    // {
-    //     path: "/edit/:id?",
-    //     name: "Edit",
-    //     component: () => import("@App/views/options/Editor.vue"),
-    // },
-    // {
-    //     path: "/logger",
-    //     name: "Logger",
-    //     component: () => import("@App/views/options/Logger.vue"),
-    // },
+    {
+        path: "/",
+        name: "Home",
+        component: () => import("@App/views/options/ScriptList.vue"),
+    },
+    {
+        path: "/edit/:id?",
+        name: "Edit",
+        component: () => import("@App/views/options/Editor.vue"),
+    },
+    {
+        path: "/logger",
+        name: "Logger",
+        component: () => import("@App/views/options/Logger.vue"),
+    },
 ];
 
 const router = new VueRouter({
@@ -57,7 +57,3 @@ new Vue({
     vuetify: vuetify,
     render: (h) => h(App),
 }).$mount("#app");
-
-if (process.env.NODE_ENV === "development") {
-    import("@vue/devtools").then((devtools) => devtools.connect(/* host, port */));
-}

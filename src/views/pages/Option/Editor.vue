@@ -3,6 +3,14 @@
     <div class="info">
       <div class="name">{{ script.name }}</div>
       <div class="control"></div>
+      <div :style="{ height: '10%' }">script cat logo</div>
+      <v-tabs background-color="cyan">
+        <v-tab to="/edit">编辑器</v-tab>
+        <v-tab to="/">设置</v-tab>
+        <v-tab to="/logger">运行日志</v-tab>
+        <!-- <router-link to="/">管理设置</router-link> -->
+        <v-tab></v-tab>
+      </v-tabs>
     </div>
     <div id="container"></div>
   </div>
@@ -11,6 +19,7 @@
 <script lang="ts">
 import { Vue, Component, Watch } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
+
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
 import { Background } from "@App/apps/script/background";
@@ -33,7 +42,7 @@ export default class App extends Vue {
     if (!this.$route.params.id) {
       return;
     }
-    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then(result => {
+    this.scriptMgr.getScript(parseInt(this.$route.params.id)).then((result) => {
       if (result == undefined) {
         return;
       }
@@ -54,7 +63,7 @@ export default class App extends Vue {
       automaticLayout: true,
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
-      value: crontabTpl
+      value: crontabTpl,
     });
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       //TODO:保存时候错误处理

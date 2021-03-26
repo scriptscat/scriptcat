@@ -1,11 +1,13 @@
-const path = require("path");
-const htmlWebpackPlugin = require("html-webpack-plugin");
-const vueLoaderPlugin = require("vue-loader/lib/plugin");
-const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
-const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+import path from "path";
+import htmlWebpackPlugin from "html-webpack-plugin";
+import vueLoaderPlugin from "vue-loader/lib/plugin";
+import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
+import MiniCssExtractPlugin from "mini-css-extract-plugin";
+import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
-module.exports = {
+
+const config: Configuration = {
     entry: {
         background: home + "/background.ts",
         sandbox: home + "/sandbox.ts",
@@ -84,39 +86,57 @@ module.exports = {
         new vueLoaderPlugin(),
     ],
     resolve: {
-        extensions: [".ts", ".js", ".vue", ".d.ts", ".tpl"],
+        extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],
         alias: {
             "@App": path.resolve(__dirname, "src/"),
+            "@components": path.resolve(__dirname, "src/views/components"),
         },
     },
     module: {
-        rules: [{
+        rules: [
+            {
                 test: /\.vue$/,
                 use: "vue-loader",
                 exclude: /node_modules/,
             },
             {
                 test: /\.d\.ts$/,
-                use: [{
-                    loader: "raw-loader",
-                }, ],
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
                 test: /\.tpl$/,
-                use: [{
-                    loader: "raw-loader",
-                }, ],
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
-                test: /(?<!\.d)\.ts$/,
-                use: [{
-                    loader: "ts-loader",
-                    options: {
-                        appendTsSuffixTo: [/\.vue$/],
+                test: /\.m?js$/,
+                exclude: /(node_modules|bower_components)/,
+                use: [
+                    {
+                        loader: "babel-loader",
                     },
-                }, ],
+                ],
+            },
+            {
+                test: /(?<!\.d)\.tsx?$/,
+                use: [
+                    "babel-loader",
+                    {
+                        loader: "ts-loader",
+                        options: {
+                            appendTsSuffixTo: [/\.vue$/],
+                        },
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
@@ -130,11 +150,6 @@ module.exports = {
                     "css-loader",
                     {
                         loader: "sass-loader",
-                        // Requires sass-loader@^7.0.0
-                        options: {
-                            implementation: require("sass"),
-                            indentedSyntax: true, // optional
-                        },
                         // Requires sass-loader@^8.0.0
                         options: {
                             implementation: require("sass"),
@@ -152,3 +167,5 @@ module.exports = {
         ],
     },
 };
+
+export default config;

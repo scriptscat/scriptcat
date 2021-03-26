@@ -54,18 +54,18 @@
         </template>
       </template>
 
-      <template v-slot:item.status="{ item }">
+      <template v-slot:[`item.status`]="{ item }">
         <v-switch
           :input-value="getStatusBoolean(item)"
           @change="changeStatus(item)"
         ></v-switch>
       </template>
 
-      <template v-slot:item.version="{ item }">
+      <template v-slot:[`item.version`]="{ item }">
         {{ item.metadata.version && item.metadata.version[0] }}
       </template>
 
-      <template v-slot:item.site="{ item }">
+      <template v-slot:[`item.site`]="{ item }">
         <span v-if="item.type === 1">
           {{ item.site }}
         </span>
@@ -74,19 +74,19 @@
         </span>
       </template>
 
-      <template v-slot:item.feature="{ item }">
+      <template v-slot:[`item.feature`]="{ item }">
         {{ item.metadata.grant && item.metadata.grant[0] }}
       </template>
 
-      <template v-slot:item.origin="{ item }">
+      <template v-slot:[`item.origin`]="{ item }">
         {{ mapSiteToSiteIcon(item.origin) }}
       </template>
 
-      <template v-slot:item.updatetime="{ item }">
+      <template v-slot:[`item.updatetime`]="{ item }">
         {{ mapTimeStampToHumanized(item.updatetime) }}
       </template>
 
-      <template v-slot:item.actions="{ item }">
+      <template v-slot:[`item.actions`]="{ item }">
         <v-icon small class="mr-2" @click="editItem(item)"> mdi-pencil </v-icon>
         <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
         <v-icon
@@ -135,14 +135,16 @@ import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE
+  SCRIPT_STATUS_DISABLE,
 } from "@App/model/script";
 
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
+
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+import eventBus from "@App/views/EventBus";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -160,14 +162,14 @@ export default class App extends Vue {
     "@namespace",
     "@author",
     "@grant",
-    "@include"
+    "@include",
   ];
 
   dialogDelete = false;
   headers = [
     {
       text: "#",
-      value: "id"
+      value: "id",
     },
     { text: "开启", value: "status" },
     { text: "名称", value: "name" },
@@ -176,7 +178,7 @@ export default class App extends Vue {
     { text: "特性", value: "feature" },
     { text: "主页", value: "origin" },
     { text: "最后更新", value: "updatetime" },
-    { text: "操作", value: "actions", sortable: false }
+    { text: "操作", value: "actions", sortable: false },
   ];
   desserts: any[] = [];
   editedIndex = -1;
@@ -186,15 +188,15 @@ export default class App extends Vue {
     calories: 0,
     fat: 0,
     carbs: 0,
-    protein: 0
+    protein: 0,
   };
 
   created() {
-    this.scriptUtil.scriptList(undefined).then(result => {
+    this.scriptUtil.scriptList(undefined).then((result) => {
       this.scripts = result;
     });
     // 监听script状态变更
-    MsgCenter.listener(ScriptRunStatusChange, param => {
+    MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
         if (this.scripts[i].id == param[0]) {
           this.scripts[i].runStatus = param[1];
@@ -241,7 +243,8 @@ export default class App extends Vue {
   executeMutipleAction() {}
 
   editItem(item: Script) {
-    this.routeTo(`/edit/${item.id}`);
+    eventBus.$emit("edit-script", item.id);
+    // this.routeTo(`/edit/${item.id}`);
   }
 
   routeTo(path: string) {

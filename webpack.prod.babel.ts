@@ -1,14 +1,15 @@
-const merge = require('webpack-merge');
-const common = require('./webpack.config.js');
-const TerserPlugin = require("terser-webpack-plugin");
+import merge from "webpack-merge";
+import commonConfig from "./webpack.config.babel";
+import TerserPlugin from "terser-webpack-plugin";
+import { Configuration } from "webpack";
 
-module.exports = merge(common, {
+const localConfig: Configuration = {
     devtool: false,
     optimization: {
         minimize: true,
         minimizer: [new TerserPlugin()],
         splitChunks: {
-            chunks: 'all',
+            chunks: "all",
             minSize: 307200,
             maxSize: 4194304,
             cacheGroups: {
@@ -21,18 +22,18 @@ module.exports = merge(common, {
                 vendors: {
                     test: /[\\/]node_modules[\\/]/,
                     priority: -10,
-                    name: 'vendor',
-                    chunks: 'all',
+                    name: "vendor",
+                    chunks: "all",
                 },
                 default: {
                     minChunks: 2,
                     priority: -20,
-                    reuseExistingChunk: true
-                }
-            }
-        }
+                    reuseExistingChunk: true,
+                },
+            },
+        },
     },
-    plugins: [
+    plugins: [],
+};
 
-    ]
-})
+export default merge(commonConfig, localConfig);
