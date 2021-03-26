@@ -1,7 +1,7 @@
 import { VNode } from "vue";
 import { Vue, Component, Provide, Prop, Watch } from "vue-property-decorator";
 
-import Tab from "./index";
+import Tab from "./Tab";
 
 const noop = () => {};
 
@@ -9,6 +9,7 @@ const noop = () => {};
 export default class TabPane extends Vue {
     $parent!: Tab;
 
+    @Prop() tabKey!: string | number;
     @Prop({ default: "" }) title!: string;
     @Prop({ default: "" }) icon!: string;
     @Prop({ default: null }) tabData!: any;

@@ -243,7 +243,7 @@ export default class App extends Vue {
   executeMutipleAction() {}
 
   editItem(item: Script) {
-    eventBus.$emit("edit-script", item.id);
+    eventBus.$emit<IEditScript>("edit-script", { scriptId: item.id });
     // this.routeTo(`/edit/${item.id}`);
   }
 

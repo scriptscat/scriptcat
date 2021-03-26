@@ -12,6 +12,7 @@ const config: Configuration = {
         background: home + "/background.ts",
         sandbox: home + "/sandbox.ts",
         options: home + "/options.ts",
+        popup: home + "/popup.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
         content: home + "/content.ts",
@@ -52,6 +53,16 @@ const config: Configuration = {
                 removeComments: true,
             },
             chunks: ["options"],
+        }),
+        new htmlWebpackPlugin({
+            filename: __dirname + "/build/scriptcat/popup.html",
+            template: __dirname + "/public/popup.html",
+            inject: "head",
+            title: "Home - ScriptCat",
+            minify: {
+                removeComments: true,
+            },
+            chunks: ["popup"],
         }),
         new htmlWebpackPlugin({
             filename: __dirname + "/build/scriptcat/install.html",

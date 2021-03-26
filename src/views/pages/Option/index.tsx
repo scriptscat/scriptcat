@@ -1,135 +1,168 @@
 import { Vue, Component } from "vue-property-decorator";
+import { VIcon } from "vuetify/lib";
 
 import eventBus from "@App/views/EventBus";
-import Tab from "@App/views/components/Tab";
-import TabPane from "@App/views/components/Tab/TabPane";
+import { Tab, TabPane } from "@App/views/components/Tab";
 
-import Test from "../../components/Test.vue";
-
-import Edit from "./Editor.vue";
-import List from "./ScriptList.vue";
+import Editor from "./Editor.vue";
+import ScriptList from "./ScriptList.vue";
 import Logger from "./Logger.vue";
 
 interface ITabItem {
+    tabKey: string | number;
     title?: string | JSX.Element;
     icon?: JSX.Element;
     content?: JSX.Element;
     closable?: boolean;
     lazy?: boolean;
     keepAlive?: boolean;
+    scriptId?: number;
 }
 
 @Component({})
 export default class App extends Vue {
-    fixedTabs: ITabItem[] = [];
+    $refs!: {
+        tabRef: Tab;
+    };
 
-    editTabs: ITabItem[] = [];
+    allTabs: ITabItem[] = [];
 
     created() {
-        this.fixedTabs.push(
+        eventBus.$on<IEditScript>("edit-script", this.handleEditScript);
+        // todo 如果是在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab
+        eventBus.$on<any>("save-script", this.handleSaveScript);
+        eventBus.$on<IChangeTitle>("change-title", this.handleChangeTitle);
+    }
+
+    mounted() {
+        this.allTabs.push(
             {
+                tabKey: 0,
                 title: "脚本列表",
-                content: <List></List>,
-                closable: true,
+                content: <ScriptList></ScriptList>,
+                closable: false,
                 lazy: false,
             },
             {
+                tabKey: 1,
                 title: "运行日志",
                 content: <Logger></Logger>,
-                closable: true,
+                closable: false,
                 keepAlive: false,
             },
             {
-                title: "新建脚本",
-                icon: <v-icon small> mdi-plus </v-icon>,
-                content: <Edit></Edit>,
+                tabKey: 2,
+                icon: <VIcon small>mdi-plus</VIcon>,
+                content: <Editor></Editor>,
                 closable: false,
+                keepAlive: true,
             },
         );
     }
 
-    // get test() {
-    //     return [
-    //         {
-    //             title: "脚本列表",
-    //             content: <List></List>,
-    //             closable: true,
-    //             lazy: false,
-    //         },
-    //         {
-    //             title: "新建脚本",
-    //             icon: <v-icon small> mdi-plus </v-icon>,
-    //             content: <Edit></Edit>,
-    //             closable: false,
-    //         },
-    //         {
-    //             title: "运行日志",
-    //             content: <Logger></Logger>,
-    //             closable: true,
-    //             keepAlive: false,
-    //         },
-    //     ];
-    // }
+    handleEditScript({ scriptId }: IEditScript) {
+        const scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
+        // 如果不存在
+        if (scriptTabIndex === -1) {
+            // 则新建
+            this.allTabs.push({
+                tabKey: Math.random(),
+                scriptId,
+                title: `${scriptId}`,
+                content: <Editor scriptId={scriptId}></Editor>,
+                closable: true,
+                keepAlive: false,
+            });
+        }
 
-    // public get allTabs(): ITabItem[] {
-    //     return [...this.fixedTabs, ...this.editTabs];
-    // }
+        this.$nextTick(() => {
+            this.$refs.tabRef.navigateToTab(
+                scriptTabIndex === -1 ? this.allTabs.length - 1 : scriptTabIndex,
+            );
+        });
+    }
 
-    // created() {
-    //     eventBus.$on("edit-script", this.handleEditScript);
-    // }
+    handleSaveScript() {}
 
-    // handleEditScript(scriptId: string) {
-    //     const scriptTab = this.editTabs.find((tab) => tab.scriptId === scriptId);
-    //     // 如果不存在
-    //     if (!scriptTab) {
-    //         // 则新建
-    //         this.editTabs.push({
-    //             type: "edit",
-    //             scriptId,
-    //             routeTo: `/edit/${scriptId}`,
-    //             title: `${scriptId}`,
-    //         });
-    //     }
+    handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
+        if (initial) {
+            const newScriptTab = { ...(this.allTabs.find((tab) => tab.tabKey === 2) as ITabItem) };
 
-    //     // this.routeTo(`/edit/${scriptId}`);
-    // }
+            newScriptTab.title = title;
+            newScriptTab.icon = undefined;
+            newScriptTab.closable = true;
 
-    // closeEditTab(scriptId: string) {
-    //     const scriptTabIndex = this.editTabs.findIndex((tab) => tab.scriptId === scriptId);
+            this.allTabs[2] = newScriptTab;
+        } else {
+            const scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
 
-    //     if (scriptTabIndex !== -1) {
-    //         this.editTabs.splice(scriptTabIndex, 1);
-    //     }
-    // }
+            if (scriptTabIndex === -1) {
+                return;
+            } else {
+                const scriptTab = { ...this.allTabs[scriptTabIndex] };
+                console.error(scriptTab);
+                scriptTab.title = title;
+                this.allTabs[scriptTabIndex] = scriptTab;
+            }
+        }
 
-    // routeTo(path: string) {
-    //     this.$router.push(path);
-    // }
+        this.$forceUpdate();
+    }
 
     removeTab(index: number) {
-        this.fixedTabs.splice(index, 1);
+        if (index === 2) {
+            const newScriptTab = { ...(this.allTabs.find((tab) => tab.tabKey === 2) as ITabItem) };
+
+            newScriptTab.title = undefined;
+            newScriptTab.icon = <VIcon small>mdi-plus</VIcon>;
+            newScriptTab.closable = false;
+
+            this.allTabs[2] = newScriptTab;
+            this.$forceUpdate();
+
+            this.$nextTick(() => {
+                // todo 此处未起到作用
+                this.$refs.tabRef.navigateToTab(0);
+            });
+        } else {
+            this.allTabs.splice(index, 1);
+        }
     }
 
     render() {
         return (
             <div style={{ height: "100%" }}>
-                <div style={{ height: "10%" }}>
-                    <span>script cat logo</span>
-                    <span>ScriptCat Next Generation Script Manager</span>
+                <div style={{ display: "grid", placeItems: "center" }}>
+                    <div
+                        style={{
+                            width: "100px",
+                            height: "100px",
+                        }}
+                    >
+                        script cat logo
+                    </div>
+                    <div
+                        style={{
+                            fontSize: "24px",
+                        }}
+                    >
+                        ScriptCat Next Generation Script Manager
+                    </div>
                 </div>
 
-                <Tab onTabRemove={this.removeTab}>
-                    {this.fixedTabs.map((tab) => {
+                <Tab onTabRemove={this.removeTab} ref="tabRef">
+                    {this.allTabs.map((tab) => {
                         const { title, icon, content, ...rest } = tab;
 
                         return (
                             <TabPane
                                 {...{ props: rest }}
-                                title={typeof title === "string" && title}
+                                title={typeof title === "string" ? title : undefined}
                             >
-                                {title && typeof title !== "string" && <title> {title} </title>}
-                                {icon && <icon>{icon}</icon>}
+                                {title && typeof title !== "string" && (
+                                    <div slot="title"> {title} </div>
+                                )}
+                                {icon && <div slot="icon"> {icon}</div>}
                                 {content}
                             </TabPane>
                         );
@@ -137,39 +170,5 @@ export default class App extends Vue {
                 </Tab>
             </div>
         );
-        {
-            /* <v-tabs background-color="cyan" v-model="allTabs">
-      <v-tab
-        v-for="tab in allTabs"
-        :key="tab.title || tab.icon"
-        :to="tab.routeTo"
-        tag="div"
-      >
-        <template
-          v-if="tab.type === 'edit'"
-          :style="{
-            display: 'flex',
-            justifyContent: 'space-around',
-          }"
-        >
-          {{ tab.title }}
-          <v-icon
-            @click="closeEditTab(tab.scriptId)"
-            :style="{ marginLeft: 30 }"
-            >mdi-phone</v-icon
-          >
-        </template>
-        <template v-else>
-          {{ tab.title }}
-        </template>
-      </v-tab>
-    </v-tabs> */
-        }
-
-        {
-            /* <div style="margin-top: 10px; height: 80%">
-      <router-view></router-view>
-    </div>  */
-        }
     }
 }

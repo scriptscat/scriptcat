@@ -1,3 +1,19 @@
+.vue-tabs {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-grow: 1;
+}
+
+.vue-tabs .tab-content {
+    flex-grow: 1;
+    display: flex;
+}
+
+.vue-tabs .tab-content .tab-container {
+    flex-grow: 1;
+}
+
 /* 所有tab title的容器 */
 .vue-tabs .nav {
     margin-bottom: 0;
@@ -72,9 +88,10 @@
 /* 卡片样式 */
 .vue-tabs .nav-tabs {
     border-bottom: 1px solid #ddd;
+    display: flex;
 }
 .vue-tabs .nav-tabs > li {
-    float: left;
+    /* float: left; */
     margin-bottom: -1px;
 }
 .vue-tabs .nav-tabs > li > a {
@@ -98,7 +115,7 @@
 
 /* 默认是卡片样式，这是另一种 */
 .vue-tabs .nav-pills > li {
-    float: left;
+    /* float: left; */
 }
 .vue-tabs .nav-pills > li > a {
     border-radius: 4px;
@@ -120,7 +137,7 @@
 }
 .vue-tabs .nav-justified > li,
 .vue-tabs .nav-tabs.nav-justified > li {
-    float: none;
+    /* float: none; */
 }
 .vue-tabs .nav-justified > li > a,
 .vue-tabs .nav-tabs.nav-justified > li > a {
@@ -176,7 +193,7 @@
     }
 }
 
-/* tab pane的样式 */
+/* tab pane的样式
 .vue-tabs .tab-content > .tab-pane {
     display: none;
 }
@@ -187,4 +204,4 @@
 
 .vue-tabs section[aria-hidden="true"] {
     display: none;
-}
+} */

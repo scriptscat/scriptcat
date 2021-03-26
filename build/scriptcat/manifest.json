@@ -13,16 +13,21 @@
         "page": "options.html",
         "open_in_tab": true
     },
+    "browser_action": {
+        "default_popup": "popup.html"
+    },
     "default_locale": "zh_CN",
-    "content_scripts": [{
-        "matches": [
-            "<all_urls>"
-        ],
-        "js": [
-            "src/content.js"
-        ],
-        "all_frames": true
-    }],
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "src/content.js"
+            ],
+            "all_frames": true
+        }
+    ],
     "permissions": [
         "tabs",
         "proxy",
