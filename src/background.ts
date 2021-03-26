@@ -30,6 +30,7 @@ let grant = BackgroundGrant.SingleInstance(
 );
 scripts.listenMsg();
 scripts.listenScript();
+scripts.listenScriptMath();
 grant.listenScriptGrant();
 window.addEventListener("message", (event) => {
     if (event.data.action != Logger) {

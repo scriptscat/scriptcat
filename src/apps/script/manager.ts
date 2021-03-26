@@ -90,6 +90,11 @@ export class ScriptManager {
         });
     }
 
+    public listenScriptMath() {
+        // 监听脚本匹配
+        
+    }
+
     protected parseMetadata(code: string): Metadata | null {
         let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;
         let header = regex.exec(code)

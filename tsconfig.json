@@ -21,6 +21,9 @@
             "@components/*": [
                 "src/views/components/*"
             ],
+            "@Test/*": [
+                "tests/*"
+            ]
         },
         "typeRoots": [
             "./node_modules/@types/",
@@ -35,5 +38,6 @@
     "include": [
         "src/**/*.ts",
         "src/**/*.tsx",
+        "./tests/*.test.ts"
     ]
 }
