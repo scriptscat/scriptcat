@@ -1,6 +1,6 @@
 import { CronJob } from "cron";
 import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
-import { buildThis, compileScript } from "@App/pkg/sandbox";
+import { buildThis, compileScript, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
@@ -45,11 +45,11 @@ async function execScript(
                         LOGGER_LEVEL_INFO,
                         type,
                         "exec script id: " +
-                            script.id +
-                            " time: " +
-                            (new Date().getTime() - (script.lastruntime || 0)).toString() +
-                            "ms result: " +
-                            result,
+                        script.id +
+                        " time: " +
+                        (new Date().getTime() - (script.lastruntime || 0)).toString() +
+                        "ms result: " +
+                        result,
                         script.name,
                     );
                     context.CAT_runComplete();
@@ -60,10 +60,10 @@ async function execScript(
                         LOGGER_LEVEL_ERROR,
                         type,
                         "exec script id: " +
-                            script.id +
-                            " error: " +
-                            error +
-                            (delayrun ? " delayrun: " + delayrun : ""),
+                        script.id +
+                        " error: " +
+                        error +
+                        (delayrun ? " delayrun: " + delayrun : ""),
                         script.name,
                     );
                     if (delayrun > 0) {
@@ -79,10 +79,10 @@ async function execScript(
                 LOGGER_LEVEL_INFO,
                 type,
                 "exec script id: " +
-                    script.id +
-                    " time: " +
-                    (new Date().getTime() - (script.lastruntime || 0)).toString() +
-                    "ms",
+                script.id +
+                " time: " +
+                (new Date().getTime() - (script.lastruntime || 0)).toString() +
+                "ms",
                 script.name,
             );
             //30s后标记完成并清理资源
@@ -94,44 +94,20 @@ async function execScript(
     });
 }
 
-function createContext(script: Script, value: Value[]): SandboxContext {
+function createSandboxContext(script: Script, value: Value[]): SandboxContext {
     let valMap = new Map();
     value.forEach((val) => {
         valMap.set(val.key, val);
     });
     let context: SandboxContext = new SandboxContext(script, valMap);
-    if (script.metadata["grant"] != undefined) {
-        (<{ [key: string]: any }>context)["GM"] = <{ [key: string]: any }>context;
-        script.metadata["grant"].forEach((value) => {
-            let apiVal = context.getApi(value);
-            if (value.startsWith("GM.")) {
-                let [_, t] = value.split(".");
-                (<{ [key: string]: any }>context)["GM"][t] = apiVal?.api;
-            } else {
-                (<{ [key: string]: any }>context)[value] = apiVal?.api;
-            }
-            if (apiVal?.param.depend) {
-                for (let i = 0; i < apiVal?.param.depend.length; i++) {
-                    let value = apiVal.param.depend[i];
-                    let dependApi = context.getApi(value);
-                    if (value.startsWith("GM.")) {
-                        let [_, t] = value.split(".");
-                        (<{ [key: string]: any }>context)["GM"][t] = dependApi?.api;
-                    } else {
-                        (<{ [key: string]: any }>context)[value] = dependApi?.api;
-                    }
-                }
-            }
-        });
-    }
-    return context;
+    return <SandboxContext>createContext(context, script);
 }
 
 function start(script: Script, value: Value[]): any {
     if (script.metadata["crontab"]) {
         return runCrontab(script, value);
     } else if (script.metadata["background"]) {
-        let context = createContext(script, value);
+        let context = createSandboxContext(script, value);
         App.Cache.set("script:" + script.id, context);
         execScript(script, compileScript(script), context, "run");
         return top.postMessage({ action: "start", data: "" }, "*");
@@ -140,7 +116,7 @@ function start(script: Script, value: Value[]): any {
 
 function runCrontab(script: Script, value: Value[]) {
     let crontab = script.metadata["crontab"];
-    let context = createContext(script, value);
+    let context = createSandboxContext(script, value);
     App.Cache.set("script:" + script.id, context);
     let func = compileScript(script);
 
@@ -216,7 +192,7 @@ function runCrontab(script: Script, value: Value[]) {
 }
 
 async function exec(script: Script, value: Value[], isdebug: boolean) {
-    let context = createContext(script, value);
+    let context = createSandboxContext(script, value);
     App.Cache.set("script:" + (isdebug ? "debug:" : "") + script.id, context);
     execScript(script, compileScript(script), context, isdebug ? "debug" : "run");
     return top.postMessage({ action: "exec", data: "" }, "*");

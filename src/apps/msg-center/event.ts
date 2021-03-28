@@ -1,5 +1,5 @@
 
-export const ScriptCache: string = "script-cache"
+export const ScriptCacheEvent: string = "script-cache"
 export const PermissionConfirm: string = "permission-confirm"
 
 export const ScriptUpdate: string = "script-update"

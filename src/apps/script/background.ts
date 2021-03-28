@@ -1,6 +1,5 @@
 import { Script } from "@App/model/script";
-import { Value, ValueModel } from "@App/model/value";
-import { AllPage } from "@App/pkg/utils";
+import { Value } from "@App/model/value";
 import { CronJob } from "cron";
 import { IScript } from "./interface";
 
@@ -13,21 +12,10 @@ export class Background implements IScript {
     }
 
     protected cronjobMap = new Map<number, CronJob>();
-    protected valueModel = new ValueModel();
 
-    public enableScript(script: Script): Promise<string> {
+    public enableScript(script: Script, value: Value[]): Promise<string> {
         return new Promise(async resolve => {
-            let list: Value[];
-            if (script.namespace) {
-                list = await this.valueModel.list((table) => {
-                    return table.where({ namespace: script.namespace });
-                }, new AllPage());
-            } else {
-                list = await this.valueModel.list((table) => {
-                    return table.where({ scriptId: script.id });
-                }, new AllPage());
-            }
-            this.sandboxWindow.postMessage({ action: 'start', data: script, value: list }, '*');
+            this.sandboxWindow.postMessage({ action: 'start', data: script, value: value }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "start") {
                     return;
@@ -67,19 +55,9 @@ export class Background implements IScript {
         });
     }
 
-    public execScript(script: Script, isdebug: boolean): Promise<void> {
+    public execScript(script: Script, value: Value[], isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
-            let list: Value[];
-            if (script.namespace) {
-                list = await this.valueModel.list((table) => {
-                    return table.where({ namespace: script.namespace });
-                }, new AllPage());
-            } else {
-                list = await this.valueModel.list((table) => {
-                    return table.where({ scriptId: script.id });
-                }, new AllPage());
-            }
-            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: list, isdebug: isdebug }, '*');
+            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: value, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "exec") {
                     return;

@@ -16,7 +16,11 @@ export interface FrontenApiValue {
     param: DescriptionParam
 }
 
-export class FrontendGrant {
+export interface ScriptContext {
+    [key: string]: any
+}
+
+export class FrontendGrant implements ScriptContext {
 
     public request = new Map<string, Callback>();
 

@@ -8,6 +8,7 @@ describe("UrlMatch", () => {
     url.add("*://*.test.m.baidu.com/lll*233", "ok3");
     url.add("http://test.baidu.com/*", "ok4");
     url.add("http://example.org/foo/bar.html", "ok5")
+    url.add("https://bbs.tampermonkey.net.cn/*","ok6")
     it("match", () => {
         expect(url.match("https://www.baidu.com")).toEqual(["ok"]);
         expect(url.match("https://m.baidu.com")).toEqual(["ok"]);

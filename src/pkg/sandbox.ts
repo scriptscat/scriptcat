@@ -1,3 +1,4 @@
+import { ScriptContext } from "@App/apps/grant/frontend";
 import { Script } from "@App/model/script";
 
 export function compileScript(script: Script) {
@@ -35,4 +36,32 @@ export function buildThis(global: any, context: any) {
             return key === 'undefined' || context.hasOwnProperty(key) || global.hasOwnProperty(key);
         }
     })
+}
+
+export function createContext(context: ScriptContext, script: Script): ScriptContext {
+    if (script.metadata["grant"] != undefined) {
+        context["GM"] = context;
+        script.metadata["grant"].forEach((value) => {
+            let apiVal = context.getApi(value);
+            if (value.startsWith("GM.")) {
+                let [_, t] = value.split(".");
+                context["GM"][t] = apiVal?.api;
+            } else {
+                context[value] = apiVal?.api;
+            }
+            if (apiVal?.param.depend) {
+                for (let i = 0; i < apiVal?.param.depend.length; i++) {
+                    let value = apiVal.param.depend[i];
+                    let dependApi = context.getApi(value);
+                    if (value.startsWith("GM.")) {
+                        let [_, t] = value.split(".");
+                        context["GM"][t] = dependApi?.api;
+                    } else {
+                        context[value] = dependApi?.api;
+                    }
+                }
+            }
+        });
+    }
+    return context;
 }

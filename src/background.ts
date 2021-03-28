@@ -87,13 +87,11 @@ function sandboxLoad(event: MessageEvent) {
         return;
     }
     //启动定时脚本
-    scripts
-        .scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE })
-        .then((items) => {
-            items.forEach((value: Script) => {
-                scripts.enableScript(value);
-            });
+    scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then((items) => {
+        items.forEach((value: Script) => {
+            scripts.enableScript(value);
         });
+    });
     //启动后台脚本
     scripts.scriptList({ type: SCRIPT_TYPE_BACKGROUND, status: SCRIPT_STATUS_ENABLE }).then(items => {
         items.forEach((value: Script) => {

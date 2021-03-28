@@ -1,21 +1,27 @@
-import { Metadata, Script, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_RUN_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
+import { Metadata, Script, ScriptCache, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_RUN_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
+import { ScriptCacheEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
-import { Page } from "@App/pkg/utils";
+import { AllPage, Page } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
+import { UrlMatch } from "@App/pkg/match";
+import { Value, ValueModel } from "@App/model/value";
 
 export class ScriptManager {
 
-    protected script = new ScriptModel();
+    protected scriptModel = new ScriptModel();
     protected background!: IScript;
+
+    protected match = new UrlMatch<ScriptCache>();
 
     protected infoCache = new Map<string, ScriptUrlInfo>();
     // 脚本缓存 会在listen更新
     protected scriptCache = new Map<number, Script>();
+
+    protected valueModel = new ValueModel();
 
 
     constructor(background: IScript | undefined) {
@@ -25,7 +31,7 @@ export class ScriptManager {
     }
 
     public listenMsg() {
-        MsgCenter.listener(ScriptCache, (msg) => {
+        MsgCenter.listener(ScriptCacheEvent, (msg) => {
             return this.infoCache.get(msg);
         });
     }
@@ -57,7 +63,7 @@ export class ScriptManager {
                     await this.disableScript(script);
                 }
                 this.scriptCache.delete(script.id);
-                await this.script.delete(script.id).catch(() => {
+                await this.scriptModel.delete(script.id).catch(() => {
                     resolve(false);
                 });
                 resolve(true);
@@ -67,7 +73,7 @@ export class ScriptManager {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                    await this.background.execScript(script, msg[1]);
+                    await this.background.execScript(script, await this.getScriptValue(script), msg[1]);
                     resolve(true);
                 } else {
                     resolve(false);
@@ -80,7 +86,7 @@ export class ScriptManager {
                 if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                     await this.background.stopScript(script, msg[1]);
                     if (script.runStatus == SCRIPT_RUN_STATUS_RUNNING) {
-                        this.script.update(script.id, { runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+                        this.scriptModel.update(script.id, { runStatus: SCRIPT_RUN_STATUS_COMPLETE });
                     }
                     resolve(true);
                 } else {
@@ -90,9 +96,67 @@ export class ScriptManager {
         });
     }
 
+    public async getScriptValue(script: Script): Promise<Value[]> {
+        return new Promise(async resolve => {
+            let list: Value[];
+            if (script.namespace) {
+                list = await this.valueModel.list((table) => {
+                    return table.where({ namespace: script.namespace });
+                }, new AllPage());
+            } else {
+                list = await this.valueModel.list((table) => {
+                    return table.where({ scriptId: script.id });
+                }, new AllPage());
+            }
+            resolve(list);
+        });
+    }
+
     public listenScriptMath() {
-        // 监听脚本匹配
-        
+        this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
+            items.forEach(script => {
+                let match = script.metadata['match'];
+                if (match) {
+                    match.forEach(async val => {
+                        this.match.add(val, await this.buildScriptCache(script));
+                    });
+                }
+            });
+        });
+        chrome.runtime.onMessage.addListener((msg, detail, send) => {
+            if (msg !== 'runScript') {
+                return;
+            }
+            if (!detail.url) {
+                return;
+            }
+            let scripts = this.match.match(detail.url);
+            let filter: ScriptCache[] = [];
+            scripts.forEach(script => {
+                if (script.metadata['@noframes']) {
+                    if (detail.frameId != 0) {
+                        return;
+                    }
+                }
+                filter.push(script);
+            });
+            send({ scripts: filter });
+        });
+    }
+
+    public buildScriptCache(script: Script): Promise<ScriptCache> {
+        return new Promise(async resolve => {
+            let ret: ScriptCache = <ScriptCache>script;
+
+            let valMap = new Map();
+            let list = await this.getScriptValue(script);
+            list.forEach(val => {
+                valMap.set(val.key, val);
+            });
+            ret.value = valMap;
+
+            resolve(ret);
+        });
     }
 
     protected parseMetadata(code: string): Metadata | null {
@@ -194,7 +258,7 @@ export class ScriptManager {
                 runStatus: SCRIPT_RUN_STATUS_COMPLETE,
                 checktime: 0,
             };
-            let old = await this.script.findByUUID(script.uuid);
+            let old = await this.scriptModel.findByUUID(script.uuid);
             if (old) {
                 this.copyTime(script, old);
             } else {
@@ -224,13 +288,13 @@ export class ScriptManager {
     public updateScript(script: Script, old?: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.id && !old) {
-                old = await this.script.findById(script.id);
+                old = await this.scriptModel.findById(script.id);
                 if (old) {
                     this.copyTime(script, old);
                 }
             }
             script.updatetime = new Date().getTime();
-            let ok = await this.script.save(script);
+            let ok = await this.scriptModel.save(script);
             if (!ok) {
                 return resolve(false);
             }
@@ -261,13 +325,13 @@ export class ScriptManager {
 
     public updateScriptStatus(id: number, status: SCRIPT_STATUS): Promise<boolean> {
         return new Promise(async resolve => {
-            let old = await this.script.findById(id);
+            let old = await this.scriptModel.findById(id);
             if (!old) {
                 return resolve(true);
             }
             let script: Script = Object.assign({}, old);
             script.status = status;
-            let ok = await this.script.save(script);
+            let ok = await this.scriptModel.save(script);
             if (!ok) {
                 return resolve(false);
             }
@@ -280,7 +344,7 @@ export class ScriptManager {
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                let ret = await this.background.enableScript(script);
+                let ret = await this.background.enableScript(script, await this.getScriptValue(script));
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;
@@ -290,7 +354,7 @@ export class ScriptManager {
             } else {
                 script.status = SCRIPT_STATUS_ENABLE;
             }
-            let ok = await this.script.save(script);
+            let ok = await this.scriptModel.save(script);
             if (!ok) {
                 return resolve(false);
             }
@@ -304,7 +368,7 @@ export class ScriptManager {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                 await this.background.disableScript(script);
             }
-            await this.script.save(script);
+            await this.scriptModel.save(script);
             resolve();
         });
     }
@@ -321,12 +385,12 @@ export class ScriptManager {
         return new Promise(async resolve => {
             page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
-                resolve(await this.script.list(page));
+                resolve(await this.scriptModel.list(page));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.script.list(equalityCriterias(this.script.table), page));
+                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table), page));
                 resolve(ret);
             } else {
-                resolve(await this.script.list(this.script.table.where(equalityCriterias), page));
+                resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias), page));
             }
         });
     }
@@ -337,7 +401,7 @@ export class ScriptManager {
             if (ret) {
                 return resolve(ret);
             }
-            ret = await this.script.findById(id);
+            ret = await this.scriptModel.findById(id);
             if (ret) {
                 this.scriptCache.set(id, ret);
             }
@@ -347,7 +411,7 @@ export class ScriptManager {
 
     public setLastRuntime(id: number, time: number): Promise<boolean> {
         return new Promise(async resolve => {
-            this.script.table.update(id, {
+            this.scriptModel.table.update(id, {
                 lastruntime: time, runStatus: SCRIPT_RUN_STATUS_RUNNING
             })
             MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_RUNNING]);
@@ -358,10 +422,10 @@ export class ScriptManager {
     public setRunError(id: number, error: string, time: number): Promise<boolean> {
         return new Promise(async resolve => {
             if (error !== '' && time !== 0) {
-                this.script.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_RETRY })
+                this.scriptModel.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_RETRY })
                 MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_RETRY]);
             } else {
-                this.script.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_ERROR })
+                this.scriptModel.table.update(id, { error: error, delayruntime: time, runStatus: SCRIPT_RUN_STATUS_ERROR })
                 if (error) {
                     MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_ERROR]);
                 }
@@ -372,7 +436,7 @@ export class ScriptManager {
 
     public setRunComplete(id: number): Promise<boolean> {
         return new Promise(async resolve => {
-            this.script.table.update(id, { error: "", runStatus: SCRIPT_RUN_STATUS_COMPLETE })
+            this.scriptModel.table.update(id, { error: "", runStatus: SCRIPT_RUN_STATUS_COMPLETE })
             MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_COMPLETE]);
             resolve(true);
         });
@@ -384,7 +448,7 @@ export class ScriptManager {
             if (script.checkupdate_url == undefined) {
                 return resolve();
             }
-            this.script.table.update(script.id, { checktime: new Date().getTime() });
+            this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });
             axios.get(script.checkupdate_url).then((response): boolean => {
                 if (response.status != 200) {
                     App.Log.Warn("check update", "script:" + script.id + " error: respond:" + response.statusText, script.name);

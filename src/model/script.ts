@@ -1,4 +1,5 @@
 import { db, Model } from '@App/model/model';
+import { Value } from './value';
 
 export type SCRIPT_TYPE = 1 | 2 | 3;
 
@@ -24,6 +25,10 @@ export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = 'retry';
 export const SCRIPT_ORIGIN_LOCAL = 'local';
 
 export type Metadata = { [key: string]: string[] };
+
+export interface ScriptCache extends Script {
+    value: Map<string, Value>
+}
 
 export interface Script {
     id: number;

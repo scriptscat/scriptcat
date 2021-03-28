@@ -19,7 +19,7 @@
 import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCache } from "@App/apps/msg-center/event";
+import { ScriptCacheEvent } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script } from "@App/model/script";
@@ -39,7 +39,7 @@ export default class App extends Vue {
     if (!uuid) {
       return;
     }
-    MsgCenter.connect(ScriptCache, uuid).addListener(async (msg) => {
+    MsgCenter.connect(ScriptCacheEvent, uuid).addListener(async (msg) => {
       let info = <ScriptUrlInfo>msg;
       let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
         info.code,
