@@ -4,11 +4,12 @@ import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCacheEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
-import { AllPage, Page } from "@App/pkg/utils";
+import { AllPage, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { Value, ValueModel } from "@App/model/value";
+import { dealScript, get } from "@App/utils/common";
 
 export class ScriptManager {
 
@@ -113,15 +114,20 @@ export class ScriptManager {
     }
 
     public listenScriptMath() {
+        let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
             items.forEach(script => {
                 let match = script.metadata['match'];
                 if (match) {
                     match.forEach(async val => {
-                        this.match.add(val, await this.buildScriptCache(script));
+                        this.match.add(val, await this.buildScriptCache(script, scriptFlag));
                     });
                 }
             });
+        });
+        let injectedSource = '';
+        get(chrome.extension.getURL('src/injected.js'), (source: string) => {
+            injectedSource = dealScript(chrome.runtime.getURL('src/injected.js'), `(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`);
         });
         chrome.runtime.onMessage.addListener((msg, detail, send) => {
             if (msg !== 'runScript') {
@@ -140,11 +146,57 @@ export class ScriptManager {
                 }
                 filter.push(script);
             });
-            send({ scripts: filter });
+            // 注入框架
+            chrome.tabs.executeScript(detail.tab!.id!, {
+                frameId: detail.frameId,
+                code: `(function(){
+                    let temp = document.createElement('script');
+                    temp.setAttribute('type', 'text/javascript');
+                    temp.innerHTML = "` + injectedSource + `";
+                    temp.className = "injected-js";
+                    document.documentElement.appendChild(temp)
+                    temp.remove();
+                }())`,
+                runAt: "document_start",
+            });
+            filter.forEach(script => {
+                // 注入实际脚本
+                // 还有body和menu未实现
+                let runAt = 'document_idle';
+                if (script.metadataMap.get('run-at')) {
+                    runAt = script.metadataMap.get('run-at')![0];
+                }
+                switch (runAt) {
+                    case 'document-start':
+                        runAt = 'document_start';
+                        break;
+                    case 'document-end':
+                        runAt = 'document_end';
+                        break;
+                    case 'document-idle':
+                        runAt = 'document_idle';
+                        break;
+                    default:
+                        runAt = 'document_idle';
+                        break;
+                }
+                chrome.tabs.executeScript(detail.tab!.id!, {
+                    frameId: detail.frameId,
+                    code: `(function(){
+                        let temp = document.createElement('script');
+                        temp.setAttribute('type', 'text/javascript');
+                        temp.innerHTML = "` + script.code + `";
+                        temp.className = "injected-js";
+                        document.documentElement.appendChild(temp)
+                        temp.remove();
+                    }())`,
+                    runAt: runAt,
+                });
+            });
         });
     }
 
-    public buildScriptCache(script: Script): Promise<ScriptCache> {
+    public buildScriptCache(script: Script, scriptFlag: string): Promise<ScriptCache> {
         return new Promise(async resolve => {
             let ret: ScriptCache = <ScriptCache>script;
 
@@ -154,6 +206,13 @@ export class ScriptManager {
                 valMap.set(val.key, val);
             });
             ret.value = valMap;
+
+            ret.code = dealScript(chrome.runtime.getURL('/' + script.name + '.user.js#uuid=' + script.uuid), `window['${scriptFlag}']=function(){\n${script.code}\n}`);
+
+            ret.metadataMap = new Map();
+            for (const key in ret.metadata) {
+                ret.metadataMap.set(key, ret.metadata[key]);
+            }
 
             resolve(ret);
         });

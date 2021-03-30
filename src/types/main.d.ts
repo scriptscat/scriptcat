@@ -13,3 +13,5 @@ interface IChangeTitle {
 interface IEditScript {
     scriptId: number;
 }
+
+declare const ScriptFlag;

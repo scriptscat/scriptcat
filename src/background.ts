@@ -46,6 +46,10 @@ function listenScriptInstall() {
             if (req.method != "GET") {
                 return;
             }
+            if (req.url.startsWith(chrome.runtime.getURL('/'))) {
+                // 跳转到option页面
+                return;
+            }
             let hash = req.url
                 .split("#")
                 .splice(1)
@@ -57,7 +61,7 @@ function listenScriptInstall() {
             return { redirectUrl: "javascript:void 0" };
         },
         {
-            urls: ["*://*/*.user.js", "*://*/*.user.js?*"],
+            urls: ["*://*/*.user.js", "*://*/*.user.js?*", chrome.runtime.getURL("/") + '*.user.js'],
             types: ["main_frame"],
         },
         ["blocking"],

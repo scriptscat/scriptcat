@@ -22,7 +22,11 @@ import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCacheEvent } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script } from "@App/model/script";
+import {
+  Script,
+  SCRIPT_TYPE_NORMAL,
+  SCRIPT_STATUS_ENABLE,
+} from "@App/model/script";
 import { Background } from "@App/apps/script/background";
 
 @Component({})
@@ -93,6 +97,9 @@ export default class App extends Vue {
     if (this.isupdate) {
       ok = await this.scriptUtil.updateScript(this.script);
     } else {
+      if (this.script.type == SCRIPT_TYPE_NORMAL) {
+        this.script.status = SCRIPT_STATUS_ENABLE;
+      }
       ok = await this.scriptUtil.installScript(this.script);
     }
     if (ok) {

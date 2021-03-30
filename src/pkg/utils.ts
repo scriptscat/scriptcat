@@ -39,7 +39,7 @@ export class AllPage extends Page {
 
 export function randomString(e: number) {
     e = e || 32;
-    var t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678",
+    var t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz",
         a = t.length,
         n = "";
     for (let i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));

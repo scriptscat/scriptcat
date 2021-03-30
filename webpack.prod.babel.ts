@@ -3,6 +3,7 @@ import commonConfig from "./webpack.config.babel";
 import TerserPlugin from "terser-webpack-plugin";
 import { Configuration } from "webpack";
 
+// split对injected可能会有问题
 const localConfig: Configuration = {
     devtool: false,
     optimization: {
