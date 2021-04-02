@@ -1,7 +1,7 @@
-import { Script } from "@App/model/script";
-import { Value } from "@App/model/value";
+import { ScriptCache } from "@App/model/script";
 import { randomString } from "@App/pkg/utils";
-import { Api, Grant } from "./interface";
+import { BrowserMsg } from "../msg-center/browser";
+import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
 type FrontendApi = any;
@@ -26,13 +26,16 @@ export class FrontendGrant implements ScriptContext {
 
     public static apis = new Map<string, FrontenApiValue>();
 
-    public script: Script;
+    public script: ScriptCache;
 
-    public value: Map<string, Value>;
+    public browserMsg: BrowserMsg;
 
-    constructor(script: Script, value: Map<string, Value>) {
+    constructor(script: ScriptCache, browserMsg: BrowserMsg | undefined) {
         this.script = script;
-        this.value = value;
+        this.browserMsg = browserMsg!;
+        if (browserMsg) {
+            this.licenseMsg();
+        }
     }
 
     public static GMFunction(param: DescriptionParam = {}) {
@@ -52,28 +55,6 @@ export class FrontendGrant implements ScriptContext {
         }
     }
 
-    public begin() {
-        //TODO:做前端通信时完成
-        window.addEventListener('message', this.message);
-    }
-
-    public message = (event: MessageEvent) => {
-        let grant = <Grant>event.data;
-        if (!grant.request) {
-            return;
-        }
-        let callback = this.request.get(grant.request);
-        if (callback) {
-            callback(grant);
-        }
-    }
-
-    public end() {
-        //释放资源
-        window.removeEventListener('message', this.message);
-        this.request.clear();
-    }
-
     public getApi(grant: string): FrontenApiValue | undefined {
         return FrontendGrant.apis.get(grant);
     }
@@ -84,7 +65,8 @@ export class FrontendGrant implements ScriptContext {
             name: this.script.name,
             value: value,
             params: params,
-            request: randomString(32)
+            request: randomString(32),
+            flag: this.script.flag,
         };
         if (callback) {
             this.request.set(grant.request, (grant: Grant) => {
@@ -94,7 +76,16 @@ export class FrontendGrant implements ScriptContext {
                 callback(grant);
             });
         }
-        top.postMessage(grant, '*');
+        this.browserMsg.send("grant", grant);
+    }
+
+    public licenseMsg = () => {
+        this.browserMsg.listen(this.script.flag!, (grant: Grant) => {
+            let callback = this.request.get(grant.request);
+            if (callback) {
+                callback(grant);
+            }
+        });
     }
 
     @FrontendGrant.GMFunction()
@@ -214,7 +205,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_getValue(name: string, defaultValue?: any): any {
-        let ret = this.value.get(name);
+        let ret = this.script.value![name];
         if (ret) {
             return ret.value;
         }
@@ -223,7 +214,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_setValue(name: string, value: any): void {
-        let ret = this.value.get(name);
+        let ret = this.script.value![name];
         if (ret) {
             ret.value = value;
         } else {
@@ -236,7 +227,7 @@ export class FrontendGrant implements ScriptContext {
                 createtime: new Date().getTime()
             };
         }
-        this.value.set(name, ret);
+        this.script.value![name] = ret;
         this.postRequest('GM_setValue', [name, value]);
     }
 
@@ -273,8 +264,48 @@ export type rejectCallback = (msg: string, delayrun: number) => void
 //ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext extends FrontendGrant {
 
-    constructor(script: Script, value: Map<string, Value>) {
-        super(script, value);
+    constructor(script: ScriptCache) {
+        super(script, undefined);
+    }
+
+    public begin() {
+        window.addEventListener('message', this.message);
+    }
+
+    public end() {
+        //释放资源
+        window.removeEventListener('message', this.message);
+        this.request.clear();
+    }
+
+    public message = (event: MessageEvent) => {
+        let grant = <Grant>event.data;
+        if (!grant.request) {
+            return;
+        }
+        let callback = this.request.get(grant.request);
+        if (callback) {
+            callback(grant);
+        }
+    }
+
+    public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
+        let grant: Grant = {
+            id: this.script.id,
+            name: this.script.name,
+            value: value,
+            params: params,
+            request: randomString(32)
+        };
+        if (callback) {
+            this.request.set(grant.request, (grant: Grant) => {
+                if (grant.error) {
+                    throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
+                }
+                callback(grant);
+            });
+        }
+        top.postMessage(grant, '*');
     }
 
     public CAT_setLastRuntime(time: number) {

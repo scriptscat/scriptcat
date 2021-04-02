@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { Script, SCRIPT_TYPE_CRONTAB } from "./model/script";
+import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { buildThis, compileScript, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
@@ -95,11 +95,12 @@ async function execScript(
 }
 
 function createSandboxContext(script: Script, value: Value[]): SandboxContext {
-    let valMap = new Map();
+    let cache: ScriptCache = script;
+    let context: SandboxContext = new SandboxContext(cache);
+    cache.value = {};
     value.forEach((val) => {
-        valMap.set(val.key, val);
+        cache.value![val.key] = val;
     });
-    let context: SandboxContext = new SandboxContext(script, valMap);
     return <SandboxContext>createContext(context, script);
 }
 

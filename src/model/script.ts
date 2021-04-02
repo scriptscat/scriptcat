@@ -27,8 +27,9 @@ export const SCRIPT_ORIGIN_LOCAL = 'local';
 export type Metadata = { [key: string]: string[] };
 
 export interface ScriptCache extends Script {
-    metadataMap: Map<string, string[]>
-    value: Map<string, Value>
+    grantMap?: { [key: string]: string }
+    value?: { [key: string]: Value }
+    flag?: string
 }
 
 export interface Script {

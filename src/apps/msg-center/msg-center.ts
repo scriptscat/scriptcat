@@ -64,6 +64,9 @@ export class onRecv {
     constructor(port: chrome.runtime.Port) {
         this.port = port;
         this.port.onMessage.addListener((msg, port) => {
+            if (!msg) {
+                return;
+            }
             let ret = this.callback(msg, port);
             if (ret) {
                 if (ret instanceof Promise) {

@@ -116,11 +116,12 @@ export class ScriptManager {
     public listenScriptMath() {
         let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
-            items.forEach(script => {
+            items.forEach(async script => {
                 let match = script.metadata['match'];
                 if (match) {
-                    match.forEach(async val => {
-                        this.match.add(val, await this.buildScriptCache(script, scriptFlag));
+                    let cache = await this.buildScriptCache(script);
+                    match.forEach(val => {
+                        this.match.add(val, cache);
                     });
                 }
             });
@@ -159,12 +160,13 @@ export class ScriptManager {
                 }())`,
                 runAt: "document_start",
             });
+            send({ scripts: scripts, flag: scriptFlag });
             filter.forEach(script => {
                 // 注入实际脚本
                 // 还有body和menu未实现
                 let runAt = 'document_idle';
-                if (script.metadataMap.get('run-at')) {
-                    runAt = script.metadataMap.get('run-at')![0];
+                if (script.metadata['run-at']) {
+                    runAt = script.metadata['run-at'][0];
                 }
                 switch (runAt) {
                     case 'document-start':
@@ -196,23 +198,27 @@ export class ScriptManager {
         });
     }
 
-    public buildScriptCache(script: Script, scriptFlag: string): Promise<ScriptCache> {
+    public buildScriptCache(script: Script): Promise<ScriptCache> {
         return new Promise(async resolve => {
             let ret: ScriptCache = <ScriptCache>script;
 
-            let valMap = new Map();
+            ret.value = {};
             let list = await this.getScriptValue(script);
             list.forEach(val => {
-                valMap.set(val.key, val);
+                ret.value![val.key] = val;
             });
-            ret.value = valMap;
 
-            ret.code = dealScript(chrome.runtime.getURL('/' + script.name + '.user.js#uuid=' + script.uuid), `window['${scriptFlag}']=function(){\n${script.code}\n}`);
+            ret.flag = randomString(16);
+            ret.code = dealScript(chrome.runtime.getURL('/' + script.name + '.user.js#uuid=' + script.uuid), `window['${ret.flag}']=function(context){\n
+                with(context){
+                    ${script.code}
+                }
+            }`);
 
-            ret.metadataMap = new Map();
-            for (const key in ret.metadata) {
-                ret.metadataMap.set(key, ret.metadata[key]);
-            }
+            ret.grantMap = {};
+            ret.metadata['grant'].forEach(val => {
+                ret.grantMap![val] = 'ok';
+            });
 
             resolve(ret);
         });

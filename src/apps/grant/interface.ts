@@ -9,6 +9,7 @@ export interface Grant {
     data?: any
     error?: string
     errorMsg?: string
+    flag?: string
 }
 
 export interface IPostMessage {
