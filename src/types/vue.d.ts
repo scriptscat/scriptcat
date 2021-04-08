@@ -28,5 +28,7 @@ declare module "vue/types/vue" {
         $emit<T = any>(event: string, payload: T): void;
         $on<T = any>(event: string | string[], callback: (payload: T) => any): void;
         $confirm(options: IVuetifyDialogOptions): Promise<any>;
+        $router: VueRouter,
+        $route: Route
     }
 }

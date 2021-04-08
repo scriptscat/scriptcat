@@ -5,7 +5,7 @@ import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
 import { App, InitApp } from "./apps/app";
-import { MapCache } from "./pkg/cache/cache";
+import { MapCache } from "./pkg/storage/cache/cache";
 import { Value } from "./model/value";
 import { ConsoleLogger } from "./apps/logger/logger";
 

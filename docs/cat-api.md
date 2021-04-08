@@ -44,3 +44,9 @@ declare function CAT_clearProxy(): void;
 
 
 
+#### CAT_click
+> 模拟点击
+
+```ts
+declare function CAT_click(el: HTMLElement): void;
+```

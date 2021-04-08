@@ -15,6 +15,9 @@ class postMessage implements IPostMessage {
         this.context.postMessage(msg, '*');
     }
 
+    public sender(): any {
+        return undefined;
+    }
 }
 
 export class grantListener implements IGrantListener {

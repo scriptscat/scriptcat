@@ -97,9 +97,6 @@ export default class App extends Vue {
     if (this.isupdate) {
       ok = await this.scriptUtil.updateScript(this.script);
     } else {
-      if (this.script.type == SCRIPT_TYPE_NORMAL) {
-        this.script.status = SCRIPT_STATUS_ENABLE;
-      }
       ok = await this.scriptUtil.installScript(this.script);
     }
     if (ok) {

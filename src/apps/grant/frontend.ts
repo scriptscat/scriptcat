@@ -258,6 +258,10 @@ export class FrontendGrant implements ScriptContext {
         this.postRequest('GM_openInTab', [url, option]);
     }
 
+    @FrontendGrant.GMFunction()
+    public CAT_click(el: HTMLElement): void {
+        this.postRequest('CAT_click', [el.offsetLeft, el.offsetTop]);
+    }
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

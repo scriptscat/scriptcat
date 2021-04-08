@@ -1,4 +1,4 @@
-import { Storage } from "./storage";
+import { ChangeCallback, Storage } from "./storage";
 
 export class ChromeStorage implements Storage {
     private prefix: string;
@@ -41,19 +41,23 @@ export class ChromeStorage implements Storage {
         });
     }
 
-    public keys(prefix: string): Promise<Map<string, any>> {
+    public keys(): Promise<{ [key: string]: any }> {
         return new Promise((resolve) => {
-            let ret = new Map<string, any>();
-            prefix = this.buildKey(prefix);
+            let ret: { [key: string]: any } = {};
+            let prefix = this.buildKey('');
             this.storage.get({}, (items) => {
                 items.forEach((value: any, key: string) => {
                     if (key.indexOf(prefix) == 0) {
-                        ret.set(key, value);
+                        ret[key] = value;
                     }
                 });
                 resolve(ret);
             });
         });
+    }
+
+    public listenChange(callback: ChangeCallback): void {
+
     }
 
 }

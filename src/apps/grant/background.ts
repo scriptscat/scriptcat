@@ -19,6 +19,10 @@ class postMessage implements IPostMessage {
         this.port = port;
     }
 
+    public sender(): any {
+        return this.port.sender;
+    }
+
     public postMessage(msg: string): void {
         this.port.postMessage(msg);
     }
@@ -677,6 +681,25 @@ export class BackgroundGrant {
     protected CAT_clearProxy(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.freedProxy(grant.id);
+            resolve(undefined);
+        });
+    }
+
+    @BackgroundGrant.GMFunction()
+    public CAT_click(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            let target = { tabId: (<chrome.runtime.MessageSender>post.sender()).tab?.id };
+            console.log(grant, post, target);
+            let param = grant.params;
+            chrome.debugger.attach(target, '1.2', () => {
+                console.log(123);
+                chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                    console.log(result);
+                    chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                        console.log(result);
+                    });
+                });
+            });
             resolve(undefined);
         });
     }

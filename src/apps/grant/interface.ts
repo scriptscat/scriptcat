@@ -10,9 +10,11 @@ export interface Grant {
     error?: string
     errorMsg?: string
     flag?: string
+    tabId?: number
 }
 
 export interface IPostMessage {
+    sender(): any
     postMessage(msg: any): void
 }
 

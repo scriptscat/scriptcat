@@ -84,8 +84,7 @@ import crontabTpl from "@App/template/crontab.tpl";
 
 import eventBus from "../../EventBus";
 import { Tab, TabPane } from "@App/views/components/Tab";
-
-import { sleep } from "@App/utils/common";
+import { sleep } from "@App/pkg/utils";
 
 @Component({
   components: {

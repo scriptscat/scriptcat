@@ -12,7 +12,7 @@ import {
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
 import { App, InitApp } from "./apps/app";
-import { SystemCache } from "./pkg/cache/system-cache";
+import { SystemCache } from "./pkg/storage/cache/system-cache";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
 
@@ -20,7 +20,7 @@ migrate();
 
 InitApp({
     Log: new DBLogger(),
-    Cache: new SystemCache(true),
+    Cache: new SystemCache(),
 });
 
 let scripts = new ScriptManager(new Background(<Window>sandbox.window));

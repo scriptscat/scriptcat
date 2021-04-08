@@ -4,12 +4,13 @@ import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptCacheEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
-import { AllPage, Page, randomString } from "@App/pkg/utils";
+import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { Value, ValueModel } from "@App/model/value";
-import { dealScript, get } from "@App/utils/common";
+import { ADD_CHANGE_EVENT, DELETE_CHANGE_EVENT, UPDATE_CHANGE_EVENT } from "@App/pkg/storage/storage";
+import { hasProto } from "vue-class-component/lib/util";
 
 export class ScriptManager {
 
@@ -19,8 +20,6 @@ export class ScriptManager {
     protected match = new UrlMatch<ScriptCache>();
 
     protected infoCache = new Map<string, ScriptUrlInfo>();
-    // 脚本缓存 会在listen更新
-    protected scriptCache = new Map<number, Script>();
 
     protected valueModel = new ValueModel();
 
@@ -52,7 +51,7 @@ export class ScriptManager {
                     this.disableScript(script);
                     script.runStatus = 'complete';
                 }
-                this.scriptCache.set(script.id, script);
+                App.Cache.set("script:" + script.id, script);
                 return resolve(script);
             });
         });
@@ -63,7 +62,7 @@ export class ScriptManager {
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     await this.disableScript(script);
                 }
-                this.scriptCache.delete(script.id);
+                App.Cache.del("script:" + script.id);
                 await this.scriptModel.delete(script.id).catch(() => {
                     resolve(false);
                 });
@@ -114,6 +113,35 @@ export class ScriptManager {
     }
 
     public listenScriptMath() {
+        App.Cache.listenChange(async (ev, key, data, old) => {
+            if (!key.startsWith("script:")) {
+                return;
+            }
+            let oldScript = <Script>old;
+            let script = <Script>data;
+            let has = this.match.has(script);
+            if (oldScript || has) {
+                if (has) {
+                    oldScript = script;
+                }
+                let match = oldScript.metadata['match'];
+                if (match) {
+                    match.forEach(val => {
+                        this.match.del(val, oldScript);
+                    });
+                }
+            }
+            if (script && script.status == SCRIPT_STATUS_ENABLE) {
+                // 对首次添加进行处理
+                let match = script.metadata['match'];
+                if (match) {
+                    let cache = await this.buildScriptCache(script);
+                    match.forEach(val => {
+                        this.match.add(val, cache);
+                    });
+                }
+            }
+        });
         let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
             items.forEach(async script => {
@@ -200,18 +228,17 @@ export class ScriptManager {
 
     public buildScriptCache(script: Script): Promise<ScriptCache> {
         return new Promise(async resolve => {
-            let ret: ScriptCache = <ScriptCache>script;
-
+            let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
             ret.value = {};
-            let list = await this.getScriptValue(script);
+            let list = await this.getScriptValue(ret);
             list.forEach(val => {
                 ret.value![val.key] = val;
             });
 
             ret.flag = randomString(16);
-            ret.code = dealScript(chrome.runtime.getURL('/' + script.name + '.user.js#uuid=' + script.uuid), `window['${ret.flag}']=function(context){\n
+            ret.code = dealScript(chrome.runtime.getURL('/' + ret.name + '.user.js#uuid=' + ret.uuid), `window['${ret.flag}']=function(context){\n
                 with(context){
-                    ${script.code}
+                    ${ret.code}
                 }
             }`);
 
@@ -328,6 +355,13 @@ export class ScriptManager {
                 this.copyTime(script, old);
             } else {
                 script.checktime = new Date().getTime();
+            }
+            if (script.type == SCRIPT_TYPE_NORMAL) {
+                if (old) {
+                    script.status = old.status;
+                } else {
+                    script.status = SCRIPT_STATUS_ENABLE;
+                }
             }
             return resolve([script, old]);
         });
@@ -462,13 +496,9 @@ export class ScriptManager {
 
     public getScript(id: number): Promise<Script | undefined> {
         return new Promise(async resolve => {
-            let ret = this.scriptCache.get(id);
+            let ret = await this.scriptModel.findById(id);
             if (ret) {
-                return resolve(ret);
-            }
-            ret = await this.scriptModel.findById(id);
-            if (ret) {
-                this.scriptCache.set(id, ret);
+                App.Cache.set("script:" + id, ret);
             }
             return resolve(ret);
         });

@@ -2,7 +2,6 @@
 export class UrlMatch<T> {
 
     protected cache = new Map<string, T[]>();
-    protected reverseCache = new Map<T, string[]>();
     protected rule = new Map<string, T[]>();
 
     protected parseURL(url: string): Url | undefined {
@@ -38,6 +37,9 @@ export class UrlMatch<T> {
         } else {
             re += u.path.replace(/\*/g, '.*?');
         }
+        if (u.search) {
+            re += u.search.replace('*', '.+?');
+        }
         return re.replace(/\//g, "\/") + '$';
     }
 
@@ -52,7 +54,24 @@ export class UrlMatch<T> {
             this.rule.set(re, rule);
         }
         rule.push(val);
-        this.delCache(url, val);
+        this.delCache(val);
+    }
+
+    public has(val: T): boolean {
+        let arr = Array.from(this.rule.keys());
+        let key: string | undefined = '';
+        while (key = arr.pop()) {
+            let rule = this.rule.get(key);
+            if (!rule) {
+                continue;
+            }
+            for (let i = 0; i < rule.length; i++) {
+                if (this.getId(rule[i]) == this.getId(val)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public match(url: string): T[] {
@@ -65,18 +84,17 @@ export class UrlMatch<T> {
             let re = new RegExp(key);
             if (re.test(url)) {
                 ret!.push(...val);
-                val.forEach(val => {
-                    let list = this.reverseCache.get(val);
-                    if (!list) {
-                        list = [];
-                    }
-                    list.push(url);
-                    this.reverseCache.set(val, list);
-                });
             }
         });
         this.cache.set(url, ret);
         return ret;
+    }
+
+    protected getId(val: T): string {
+        if (typeof val == 'object') {
+            return (<any>val).id;
+        }
+        return <string><unknown>val;
     }
 
     public del(url: string, delVal: T) {
@@ -85,10 +103,11 @@ export class UrlMatch<T> {
             return;
         }
         let rule = this.rule.get(re);
+        let id = this.getId(delVal);
         if (rule) {
             let tmp: T[] = [];
             rule.forEach(val => {
-                if (val != delVal) {
+                if (this.getId(val) != id) {
                     tmp.push(val);
                 }
             })
@@ -98,23 +117,11 @@ export class UrlMatch<T> {
                 this.rule.delete(re);
             }
         }
-        this.delCache(url, delVal);
+        this.delCache(delVal);
     }
 
-    protected delCache(url: string, delVal: T) {
-        let keys = this.reverseCache.get(delVal);
-        keys?.forEach(key => {
-            let cache = this.cache.get(key);
-            if (cache) {
-                this.cache.delete(key);
-            }
-        });
-        this.reverseCache.delete(delVal);
-        this.cache.forEach((val, key) => {
-            if (!val.length) {
-                this.cache.delete(key);
-            }
-        })
+    protected delCache(delVal: T) {
+        this.cache.clear();
     }
 
 }

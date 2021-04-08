@@ -100,6 +100,7 @@ declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.Cook
 
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
+declare function CAT_click(el: HTMLElement): void;
 // 同步函数
 declare namespace GM {
     declare function fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>;

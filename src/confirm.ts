@@ -6,7 +6,7 @@ import "vuetify/dist/vuetify.min.css";
 
 import Confirm from "@App/views/pages/Confirm/index.vue";
 import { App, InitApp } from "./apps/app";
-import { SystemCache } from "./pkg/cache/system-cache";
+import { SystemCache } from "./pkg/storage/cache/system-cache";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
 
@@ -19,7 +19,7 @@ const vuetifyInstance = new Vuetify(opts);
 
 InitApp({
     Log: new DBLogger(),
-    Cache: new SystemCache(false),
+    Cache: new SystemCache(),
 });
 
 new Vue({

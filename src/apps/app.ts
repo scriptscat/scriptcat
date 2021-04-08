@@ -1,4 +1,4 @@
-import { ICache } from "@App/pkg/cache/cache";
+import { ICache } from "@App/pkg/storage/cache/cache";
 import { Logger } from "./logger/logger";
 
 export const ENV_BACKGROUND = 'background';
