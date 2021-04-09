@@ -160,7 +160,7 @@ declare namespace GM_Types {
 ```
 
 #### GM_get/setValue
-> 从储存中获取或者设置值,数据在同一`namespace`中可以共享,但是不能实时同步
+> 从储存中获取或者设置值,数据在同一`namespace`中可以共享,且可以实时的同步.
 
 ```ts
 declare function GM_setValue(name: string, value: any): void;

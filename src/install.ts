@@ -9,12 +9,20 @@ import App from "@App/views/pages/Install/index.vue";
 // @ts-ignore
 import dts from "@App/types/tampermonkey.d.ts";
 import { migrate } from "./model/migrate";
+import { InitApp } from "./apps/app";
+import { DBLogger } from "./apps/logger/logger";
+import { SystemCache } from "./pkg/storage/cache/system-cache";
 
 import { InitApp } from "./apps/app";
 import { DBLogger } from "./apps/logger/logger";
 import { SystemCache } from "./pkg/storage/cache/system-cache";
 
 migrate();
+
+InitApp({
+    Log: new DBLogger(),
+    Cache: new SystemCache(),
+});
 
 Vue.use(Vuetify);
 
@@ -28,7 +36,7 @@ InitApp({
 
 // @ts-ignore
 self.MonacoEnvironment = {
-    getWorkerUrl: function(moduleId: any, label: any) {
+    getWorkerUrl: function (moduleId: any, label: any) {
         if (label === "typescript" || label === "javascript") {
             return "./src/ts.worker.js";
         }

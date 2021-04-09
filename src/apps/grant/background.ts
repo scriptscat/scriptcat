@@ -4,7 +4,7 @@ import { Script, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/model/
 import { isFirefox } from "@App/pkg/utils";
 import axios from "axios";
 import { App } from "../app";
-import { PermissionConfirm, ScriptGrant } from "../msg-center/event";
+import { AppEvent, PermissionConfirm, ScriptGrant, ScriptValueChange } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
@@ -129,8 +129,9 @@ export class BackgroundGrant {
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 let _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise(async resolve => {
-                    //TODO: 权限错误提示
-                    let script = await _this.scriptMgr.getScript(grant.id);
+                    let script = await App.Cache.getOrSet('script:' + grant.id, () => {
+                        return _this.scriptMgr.getScript(grant.id)
+                    });
                     if (!script) {
                         return resolve(undefined);
                     }
@@ -275,6 +276,7 @@ export class BackgroundGrant {
                 });
             });
         });
+
     }
 
 
@@ -606,8 +608,18 @@ export class BackgroundGrant {
                     value: value,
                     createtime: new Date().getTime()
                 }
+            } else {
+                model.value = value;
             }
+
+            if (value === undefined) {
+                this.valueModel.delete(model!.id);
+                AppEvent.trigger(ScriptValueChange, model);
+                return resolve(undefined);
+            }
+
             this.valueModel.save(model);
+            AppEvent.trigger(ScriptValueChange, model);
             resolve(undefined);
         })
     }
@@ -689,16 +701,28 @@ export class BackgroundGrant {
     public CAT_click(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let target = { tabId: (<chrome.runtime.MessageSender>post.sender()).tab?.id };
-            console.log(grant, post, target);
             let param = grant.params;
-            chrome.debugger.attach(target, '1.2', () => {
-                console.log(123);
-                chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
-                    console.log(result);
-                    chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
-                        console.log(result);
+            chrome.debugger.getTargets(result => {
+                let flag = false;
+                for (let i = 0; i < result.length; i++) {
+                    if (result[i].tabId == target.tabId) {
+                        flag = result[i].attached;
+                        break;
+                    }
+                }
+                if (flag) {
+                    chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                        chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                        });
                     });
-                });
+                } else {
+                    chrome.debugger.attach(target, '1.2', () => {
+                        chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                            chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                            });
+                        });
+                    });
+                }
             });
             resolve(undefined);
         });

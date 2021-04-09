@@ -112,6 +112,7 @@ export default class Editor extends Vue {
   snackbarInfo = "";
 
   async mounted() {
+    
     await this.createEditor();
     await this.initialSctipt();
 

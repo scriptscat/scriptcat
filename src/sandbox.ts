@@ -8,6 +8,7 @@ import { App, InitApp } from "./apps/app";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { Value } from "./model/value";
 import { ConsoleLogger } from "./apps/logger/logger";
+import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
 
 InitApp({
     Log: new ConsoleLogger(),
@@ -94,17 +95,14 @@ async function execScript(
     });
 }
 
-function createSandboxContext(script: Script, value: Value[]): SandboxContext {
+function createSandboxContext(script: Script, value: { [key: string]: Value }): SandboxContext {
     let cache: ScriptCache = script;
     let context: SandboxContext = new SandboxContext(cache);
-    cache.value = {};
-    value.forEach((val) => {
-        cache.value![val.key] = val;
-    });
+    cache.value = value;
     return <SandboxContext>createContext(context, script);
 }
 
-function start(script: Script, value: Value[]): any {
+function start(script: Script, value: { [key: string]: Value }): any {
     if (script.metadata["crontab"]) {
         return runCrontab(script, value);
     } else if (script.metadata["background"]) {
@@ -115,7 +113,7 @@ function start(script: Script, value: Value[]): any {
     }
 }
 
-function runCrontab(script: Script, value: Value[]) {
+function runCrontab(script: Script, value: { [key: string]: Value }) {
     let crontab = script.metadata["crontab"];
     let context = createSandboxContext(script, value);
     App.Cache.set("script:" + script.id, context);
@@ -192,7 +190,7 @@ function runCrontab(script: Script, value: Value[]) {
     return top.postMessage({ action: "start", data: "" }, "*");
 }
 
-async function exec(script: Script, value: Value[], isdebug: boolean) {
+async function exec(script: Script, value: { [key: string]: Value }, isdebug: boolean) {
     let context = createSandboxContext(script, value);
     App.Cache.set("script:" + (isdebug ? "debug:" : "") + script.id, context);
     execScript(script, compileScript(script), context, isdebug ? "debug" : "run");
@@ -204,7 +202,7 @@ async function stop(script: Script, isdebug: boolean) {
         await App.Cache.get("script:" + (isdebug ? "debug:" : "") + script.id)
     );
     if (context) {
-        context.CAT_runComplete();
+        context.destruct();
     }
     if (script.type != SCRIPT_TYPE_CRONTAB) {
         return top.postMessage({ action: "stop" }, "*");
@@ -244,6 +242,9 @@ window.addEventListener("message", (event) => {
         case "exec": {
             exec(event.data.data, event.data.value, event.data.isdebug);
             break;
+        }
+        case ScriptValueChange: {
+            AppEvent.trigger(ScriptValueChange, event.data.value);
         }
     }
 });

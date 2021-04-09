@@ -1,6 +1,8 @@
 import { Script } from "@App/model/script";
 import { Value } from "@App/model/value";
+import App from "@App/views/pages/Option";
 import { CronJob } from "cron";
+import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { IScript } from "./interface";
 
 //后台脚本
@@ -9,11 +11,15 @@ export class Background implements IScript {
     protected sandboxWindow: Window;
     constructor(iframe: Window) {
         this.sandboxWindow = iframe;
+        // 监听值修改事件,并发送给沙盒环境
+        AppEvent.listener(ScriptValueChange, async (model: Value) => {
+            this.sandboxWindow.postMessage({ action: ScriptValueChange, value: model }, '*');
+        });
     }
 
     protected cronjobMap = new Map<number, CronJob>();
 
-    public enableScript(script: Script, value: Value[]): Promise<string> {
+    public enableScript(script: Script, value: { [key: string]: Value }): Promise<string> {
         return new Promise(async resolve => {
             this.sandboxWindow.postMessage({ action: 'start', data: script, value: value }, '*');
             function listener(event: MessageEvent) {
@@ -55,7 +61,7 @@ export class Background implements IScript {
         });
     }
 
-    public execScript(script: Script, value: Value[], isdebug: boolean): Promise<void> {
+    public execScript(script: Script, value: { [key: string]: Value }, isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
             this.sandboxWindow.postMessage({ action: 'exec', data: script, value: value, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {

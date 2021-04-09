@@ -2,15 +2,13 @@ import { Metadata, Script, ScriptCache, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE,
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCacheEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { Value, ValueModel } from "@App/model/value";
-import { ADD_CHANGE_EVENT, DELETE_CHANGE_EVENT, UPDATE_CHANGE_EVENT } from "@App/pkg/storage/storage";
-import { hasProto } from "vue-class-component/lib/util";
 
 export class ScriptManager {
 
@@ -19,10 +17,7 @@ export class ScriptManager {
 
     protected match = new UrlMatch<ScriptCache>();
 
-    protected infoCache = new Map<string, ScriptUrlInfo>();
-
     protected valueModel = new ValueModel();
-
 
     constructor(background: IScript | undefined) {
         if (background) {
@@ -30,9 +25,33 @@ export class ScriptManager {
         }
     }
 
-    public listenMsg() {
-        MsgCenter.listener(ScriptCacheEvent, (msg) => {
-            return this.infoCache.get(msg);
+    protected changePort = new Map<any, chrome.runtime.Port>();
+    public listenEvent() {
+        // 监听值修改事件,并发送给全局
+        AppEvent.listener(ScriptValueChange, async (model: Value) => {
+            let vals: { [key: string]: Value } = {};
+            let key = '';
+            if (model.namespace) {
+                vals = await App.Cache.get("value:namespace:" + model.namespace);
+                key = "value:namespace:" + model.namespace;
+            } else {
+                vals = await App.Cache.get("value:" + model.scriptId);
+                key = "value:" + model.namespace;
+            }
+            if (!vals) {
+                vals = {};
+                await App.Cache.set(key, vals);
+            }
+            vals[model.key] = model;
+            this.changePort.forEach(val => {
+                val.postMessage(model);
+            })
+        });
+        MsgCenter.listener(ScriptValueChange, (msg, port) => {
+            this.changePort.set(port.sender?.tab?.id, port);
+            port.onDisconnect.addListener(() => {
+                this.changePort.delete(port.sender?.tab?.id);
+            })
         });
     }
 
@@ -96,19 +115,34 @@ export class ScriptManager {
         });
     }
 
-    public async getScriptValue(script: Script): Promise<Value[]> {
-        return new Promise(async resolve => {
-            let list: Value[];
-            if (script.namespace) {
-                list = await this.valueModel.list((table) => {
-                    return table.where({ namespace: script.namespace });
-                }, new AllPage());
-            } else {
-                list = await this.valueModel.list((table) => {
+    // 第一次获取后在内存中维护
+    public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
+        if (script.namespace) {
+            return App.Cache.getOrSet("value:namespace:" + script.namespace, () => {
+                return new Promise(async resolve => {
+                    let list = <Value[]>await this.valueModel.list((table) => {
+                        return table.where({ namespace: script.namespace });
+                    }, new AllPage());
+                    let ret: { [key: string]: Value } = {};
+                    list.forEach(val => {
+                        ret[val.key] = val;
+                    });
+                    resolve(ret);
+                });
+            });
+        }
+        return App.Cache.getOrSet("value:" + script.id, () => {
+            return new Promise(async resolve => {
+                let list = <Value[]>await this.valueModel.list((table) => {
                     return table.where({ scriptId: script.id });
                 }, new AllPage());
-            }
-            resolve(list);
+                let ret: { [key: string]: Value } = {};
+                list.forEach(val => {
+                    ret[val.key] = val;
+                });
+                console.log(1231212312333, script, ret);
+                resolve(ret);
+            });
         });
     }
 
@@ -229,11 +263,7 @@ export class ScriptManager {
     public buildScriptCache(script: Script): Promise<ScriptCache> {
         return new Promise(async resolve => {
             let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
-            ret.value = {};
-            let list = await this.getScriptValue(ret);
-            list.forEach(val => {
-                ret.value![val.key] = val;
-            });
+            ret.value = await this.getScriptValue(ret);
 
             ret.flag = randomString(16);
             ret.code = dealScript(chrome.runtime.getURL('/' + ret.name + '.user.js#uuid=' + ret.uuid), `window['${ret.flag}']=function(context){\n
@@ -299,7 +329,7 @@ export class ScriptManager {
                     code: response.data,
                     uuid: uuid
                 };
-                this.infoCache.set(uuid, ret);
+                App.Cache.set("uuid:script:" + uuid, ret);
                 return ret;
             }).then((val) => {
                 resolve(val);
@@ -495,13 +525,7 @@ export class ScriptManager {
     }
 
     public getScript(id: number): Promise<Script | undefined> {
-        return new Promise(async resolve => {
-            let ret = await this.scriptModel.findById(id);
-            if (ret) {
-                App.Cache.set("script:" + id, ret);
-            }
-            return resolve(ret);
-        });
+        return this.scriptModel.findById(id);
     }
 
     public setLastRuntime(id: number, time: number): Promise<boolean> {

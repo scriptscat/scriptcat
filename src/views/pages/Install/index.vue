@@ -18,75 +18,68 @@
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptCacheEvent } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
-import {
-  Script,
-  SCRIPT_TYPE_NORMAL,
-  SCRIPT_STATUS_ENABLE,
-} from "@App/model/script";
+import { Script } from "@App/model/script";
 import { Background } from "@App/apps/script/background";
+import { App } from "@App/apps/app";
 
 @Component({})
-export default class App extends Vue {
+export default class Index extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
   public scriptUtil: ScriptManager = new ScriptManager(new Background(window));
   public script: Script = <Script>{};
   public isupdate: boolean = false;
 
-  mounted() {
+  async mounted() {
     let url = new URL(location.href);
     let uuid = url.searchParams.get("uuid");
     if (!uuid) {
       return;
     }
-    MsgCenter.connect(ScriptCacheEvent, uuid).addListener(async (msg) => {
-      let info = <ScriptUrlInfo>msg;
-      let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
-        info.code,
-        info.url
-      );
-      if (script == undefined) {
-        return;
-      }
-      this.script = script;
-      let edit = document.getElementById("container");
-      if (edit == undefined) {
-        return;
-      }
-      if (oldscript) {
-        this.diff = editor.createDiffEditor(edit, {
-          enableSplitViewResizing: false,
-          renderSideBySide: false,
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: true,
-          diffWordWrap: "off",
-        });
-        this.diff.setModel({
-          original: editor.createModel(oldscript.code, "javascript"),
-          modified: editor.createModel(this.script.code, "javascript"),
-        });
-        this.isupdate = true;
-      } else {
-        this.editor = editor.create(edit, {
-          language: "javascript",
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: true,
-        });
-        this.editor.setValue(this.script.code);
-      }
-    });
+    let info = <ScriptUrlInfo>await App.Cache.get("uuid:script:" + uuid);
+    let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
+      info.code,
+      info.url
+    );
+    if (script == undefined) {
+      return;
+    }
+    this.script = script;
+    let edit = document.getElementById("container");
+    if (edit == undefined) {
+      return;
+    }
+    if (oldscript) {
+      this.diff = editor.createDiffEditor(edit, {
+        enableSplitViewResizing: false,
+        renderSideBySide: false,
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: true,
+        diffWordWrap: "off",
+      });
+      this.diff.setModel({
+        original: editor.createModel(oldscript.code, "javascript"),
+        modified: editor.createModel(this.script.code, "javascript"),
+      });
+      this.isupdate = true;
+    } else {
+      this.editor = editor.create(edit, {
+        language: "javascript",
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: true,
+      });
+      this.editor.setValue(this.script.code);
+    }
   }
 
   public async install() {

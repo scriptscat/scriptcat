@@ -27,6 +27,7 @@ describe("UrlMatch", () => {
         expect(url.match("http://test.baidu.com/")).toEqual(["ok", "ok4"]);
         expect(url.match("http://example.org/foo/bar.html")).toEqual(["ok5"]);
         expect(url.match("https://bbs.tampermonkey.net.cn/test/thread-63-1-1.html")).toEqual(["ok6", "ok66"]);
+        expect(url.match("https://bbs.tampermonkey.net.cn/forum-68-1.html")).toEqual(["ok6"]);
         expect(url.match("https:///bbs.tampermonkey.net.cn/test/param?a=1&b=2")).
             toEqual(["ok7"]);
     });

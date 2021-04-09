@@ -1,6 +1,8 @@
 import { ScriptCache } from "@App/model/script";
+import { Value } from "@App/model/value";
 import { randomString } from "@App/pkg/utils";
 import { BrowserMsg } from "../msg-center/browser";
+import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
@@ -270,6 +272,24 @@ export class SandboxContext extends FrontendGrant {
 
     constructor(script: ScriptCache) {
         super(script, undefined);
+        // 监听Value Change
+        AppEvent.listener(ScriptValueChange, this.valueChange);
+    }
+
+    public valueChange = (msg: Value) => {
+        if (!this.script.value) {
+            this.script.value = {};
+        }
+        if (this.script.namespace && this.script.namespace == msg.namespace) {
+            this.script.value[msg.key] = msg;
+        } else if (this.script.id == msg.scriptId) {
+            this.script.value[msg.key] = msg;
+        }
+    }
+
+    public destruct() {
+        AppEvent.removeListener(ScriptValueChange, this.valueChange);
+        this.CAT_runComplete();
     }
 
     public begin() {

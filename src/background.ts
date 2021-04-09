@@ -20,7 +20,7 @@ migrate();
 
 InitApp({
     Log: new DBLogger(),
-    Cache: new SystemCache(),
+    Cache: new SystemCache(true),
 });
 
 let scripts = new ScriptManager(new Background(<Window>sandbox.window));
@@ -28,7 +28,7 @@ let grant = BackgroundGrant.SingleInstance(
     scripts,
     new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
 );
-scripts.listenMsg();
+scripts.listenEvent();
 scripts.listenScript();
 scripts.listenScriptMath();
 grant.listenScriptGrant();
