@@ -1,4 +1,4 @@
-import Dexie from "dexie";
+import Dexie, { PromiseExtended } from "dexie";
 import { Page } from "../pkg/utils";
 
 export let db = new Dexie("ScriptCat");
@@ -59,8 +59,15 @@ export abstract class Model<T> {
         return this.table.get(id);
     }
 
-    public delete(id: number) {
-        return this.table.delete(id);
+    public async delete(id: number | { [key: string]: any }) {
+        if (typeof id == 'number') {
+            return this.table.delete(id);
+        }
+        let ret = await this.findOne(id);
+        if (!ret) {
+            return undefined;
+        }
+        return this.table.delete((<any>ret).id);
     }
 
     public update(id: number, changes: { [key: string]: any }) {

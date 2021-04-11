@@ -21,4 +21,8 @@ export function migrate() {
     db.version(6).stores({
         scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
     });
+    db.version(7).stores({
+        resource: "++id,&url,content,type,createtime,updatetime",
+        resourceLink: "++id,url,scriptId,createtime",
+    });
 }

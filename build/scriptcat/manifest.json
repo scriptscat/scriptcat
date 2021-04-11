@@ -36,6 +36,7 @@
         "webRequest",
         "<all_urls>",
         "notifications",
+        "clipboardWrite",
         "webRequestBlocking"
     ],
     "sandbox": {

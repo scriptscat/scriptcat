@@ -264,6 +264,11 @@ export class FrontendGrant implements ScriptContext {
     public CAT_click(el: HTMLElement): void {
         this.postRequest('CAT_click', [el.offsetLeft, el.offsetTop]);
     }
+
+    @FrontendGrant.GMFunction()
+    public GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void {
+        
+    }
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

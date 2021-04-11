@@ -184,3 +184,10 @@ declare namespace GM_Types {
     }
 }
 ```
+
+#### GM_setClipboard
+> 设置剪辑板
+
+```ts
+declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
+```

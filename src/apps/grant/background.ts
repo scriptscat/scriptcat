@@ -728,4 +728,11 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction()
+    public GM_setClipboard(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+
+            resolve(undefined);
+        });
+    }
 }

@@ -45,7 +45,9 @@ export class DBLogger implements Logger {
     }
 
     public Debug(origin: string, msg: string, title: string = ""): Logger {
-        return this.Logger(LOGGER_LEVEL_DEBUG, origin, msg, title);
+        console.log(origin + "-" + title + ": " + msg);
+        return this;
+        // return this.Logger(LOGGER_LEVEL_DEBUG, origin, msg, title);
     }
 
     public Info(origin: string, msg: string, title: string = ""): Logger {

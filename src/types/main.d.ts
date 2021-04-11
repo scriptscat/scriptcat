@@ -15,3 +15,9 @@ interface IEditScript {
 }
 
 declare const ScriptFlag;
+
+declare module chrome {
+    declare module clipboard {
+        
+    }
+}

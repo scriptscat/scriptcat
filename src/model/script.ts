@@ -1,4 +1,5 @@
 import { db, Model } from '@App/model/model';
+import { Resource } from './resource';
 import { Value } from './value';
 
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -30,6 +31,7 @@ export interface ScriptCache extends Script {
     grantMap?: { [key: string]: string }
     value?: { [key: string]: Value }
     flag?: string
+    resource?: { [key: string]: Resource }
 }
 
 export interface Script {

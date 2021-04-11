@@ -5,7 +5,7 @@ import { BrowserMsg } from "./apps/msg-center/browser";
 import { ScriptValueChange } from "./apps/msg-center/event";
 import { ScriptCache } from "./model/script";
 import { Value } from "./model/value";
-import { createContext } from "./pkg/sandbox";
+import { buildThis, buildWindow, createContext } from "./pkg/sandbox";
 
 let browserMsg = new BrowserMsg(ScriptFlag);
 browserMsg.listen("scripts", (msg) => {
@@ -33,12 +33,16 @@ browserMsg.listen("scripts", (msg) => {
                 } else {
                     context = new FrontendGrant(script, browserMsg);
                     context = createContext(context, script);
-                    context['window'] = 'notfound';
                     if (script.grantMap!['unsafeWindow']) {
                         context['unsafeWindow'] = window;
                     }
+                    // TODO: 处理window
+                    // let global = buildWindow();
+                    // context['window'] = global;
+                    // context = buildThis(global, context);
+                    context = buildThis({}, context);
                 }
-                val(context);
+                val.apply(context, [context]);
             }
         });
 

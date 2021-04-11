@@ -9,6 +9,7 @@ import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { Value, ValueModel } from "@App/model/value";
+import { ResourceManager } from "../resource";
 
 export class ScriptManager {
 
@@ -18,6 +19,8 @@ export class ScriptManager {
     protected match = new UrlMatch<ScriptCache>();
 
     protected valueModel = new ValueModel();
+
+    protected resource = new ResourceManager();
 
     constructor(background: IScript | undefined) {
         if (background) {
@@ -70,6 +73,10 @@ export class ScriptManager {
                     this.disableScript(script);
                     script.runStatus = 'complete';
                 }
+                // 加载资源
+                script.metadata['require']?.forEach(val => {
+                    this.resource.addResource(val, script.id)
+                });
                 App.Cache.set("script:" + script.id, script);
                 return resolve(script);
             });
@@ -85,6 +92,8 @@ export class ScriptManager {
                 await this.scriptModel.delete(script.id).catch(() => {
                     resolve(false);
                 });
+
+                // this.resource.deleteResource();
                 resolve(true);
             });
         });
@@ -153,6 +162,9 @@ export class ScriptManager {
             }
             let oldScript = <Script>old;
             let script = <Script>data;
+            if (script.type !== SCRIPT_TYPE_NORMAL) {
+                return;
+            }
             let has = this.match.has(script);
             if (oldScript || has) {
                 if (has) {
@@ -264,6 +276,17 @@ export class ScriptManager {
         return new Promise(async resolve => {
             let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
             ret.value = await this.getScriptValue(ret);
+
+            ret.resource = {};
+            if (ret.metadata['require']) {
+                for (let i = 0; i < ret.metadata['require']?.length; i++) {
+                    let val = ret.metadata['require'][i];
+                    let res = await this.resource.getResource(val);
+                    if (res) {
+                        ret.code = res.content + "\n" + ret.code;
+                    }
+                }
+            }
 
             ret.flag = randomString(16);
             ret.code = dealScript(chrome.runtime.getURL('/' + ret.name + '.user.js#uuid=' + ret.uuid), `window['${ret.flag}']=function(context){\n
