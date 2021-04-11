@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <div>
     <div
       v-for="(log, index) in logs"
       :key="index"
@@ -26,7 +26,9 @@
 
       <span>{{ log.message }}</span>
     </div>
-  </v-app>
+
+    <v-pagination v-model="page" :length="15" :total-visible="7"></v-pagination>
+  </div>
 </template>
 
 <script lang="ts">
@@ -44,9 +46,11 @@ import { Vue, Component } from "vue-property-decorator";
 import dayjs from "dayjs";
 
 @Component({})
-export default class App extends Vue {
+export default class Logger_ extends Vue {
   protected logs: Array<Logger> = new Array();
   protected logger: LoggerModel = new LoggerModel();
+
+  page = 1;
 
   mounted() {
     this.logger.list(new Page(1, 20)).then((result) => {

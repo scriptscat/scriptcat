@@ -16,11 +16,17 @@ export default class TabPane extends Vue {
     @Prop({ default: false }) closable!: boolean;
     @Prop({ default: true }) keepAlive!: boolean;
     @Prop({ default: true }) lazy!: boolean;
-    /***
+    /**
      * Function to execute before tab switch. Return value must be boolean
+     *
      * If the return result is false, tab switch is restricted
      */
-    @Prop({ default: noop }) beforeChange!: Function;
+    @Prop({ default: () => Promise.resolve(true) }) beforeChange!: (
+        tabPane: TabPane,
+    ) => Promise<boolean>;
+    @Prop({ default: () => Promise.resolve(true) }) beforeRemove!: (
+        tabPane: TabPane,
+    ) => Promise<boolean>;
     @Prop() id!: string;
     @Prop() route!: string | any;
     @Prop() disabled!: boolean;
@@ -42,9 +48,9 @@ export default class TabPane extends Vue {
     }
 
     mounted() {
-        if (this.isValidParent) {
-            this.$parent.addTab(this);
-        }
+        // if (this.isValidParent) {
+        this.$parent.addTab(this);
+        // }
     }
 
     destroyed() {
@@ -88,7 +94,18 @@ export default class TabPane extends Vue {
                 role="tabpanel"
                 v-show={this.active}
             >
-                {loadContentFlag && this.$slots.default}
+                {/* flex item下实现overflow */}
+                <div
+                    style={{
+                        position: "absolute",
+                        height: "100%",
+                        width: "100%",
+                        overflowY: "auto",
+                    }}
+                >
+                    {loadContentFlag && this.$slots.default}
+                </div>
+                {/* </div> */}
             </section>
         );
     }

@@ -33,7 +33,6 @@ const localConfig: Configuration = {
             },
         },
     },
-    plugins: [],
 };
 
 export default merge(commonConfig, localConfig);

@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <div>
     <v-data-table
       :headers="headers"
       :items="scripts"
@@ -126,33 +126,33 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-app>
+  </div>
 </template>
 
 <script lang="ts">
 import { Vue, Component, Watch } from "vue-property-decorator";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
+import relativeTime from "dayjs/plugin/relativeTime";
+
 import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
 } from "@App/model/script";
-
-import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
-import relativeTime from "dayjs/plugin/relativeTime";
-
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+
 import eventBus from "@App/views/EventBus";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
 @Component({})
-export default class App extends Vue {
+export default class ScriptList extends Vue {
+  scriptUtil: ScriptManager = new ScriptManager(undefined);
   protected scripts: Array<Script> = [];
-  protected scriptUtil: ScriptManager = new ScriptManager(undefined);
   selected = [];
 
   multipleActionTypes = ["启用", "禁用", "导出", "更新", "重置", "删除"];
@@ -192,6 +192,7 @@ export default class App extends Vue {
   };
 
   created() {
+    // todo 监听脚本列表更新，自动同步最新(比如新建)
     this.scriptUtil.scriptList(undefined).then((result) => {
       this.scripts = result;
     });

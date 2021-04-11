@@ -1,36 +1,45 @@
 <template>
-  <!-- <div :style="{ width: '500px', height: '500px' }"> -->
-  <Tab>
-    <TabPane title="已安装" :keepAlive="true">
-      <v-list dense>
-        <v-list-item-group
-          :value="false"
-          no-action
-          v-for="(item, i) in items"
-          :key="i"
-        >
-          <v-list-item-action>
-            <v-switch></v-switch>
-          </v-list-item-action>
+  <v-app>
+    <Tab>
+      <TabPane title="已安装" :keepAlive="true">
+        <v-expansion-panels>
+          <v-expansion-panel
+            v-for="script in scripts"
+            :key="script.id"
+            :style="{
+              backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
+            }"
+          >
+            <v-expansion-panel-header>
+              {{ script.name }}
+            </v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <v-switch
+                :input-value="getStatusBoolean(script)"
+                @change="changeStatus(script)"
+              ></v-switch>
 
-          <template v-slot:activator>
-            <v-list-item-content>
-              <v-list-item-title>scriptName</v-list-item-title>
-            </v-list-item-content>
-          </template>
-
-          <v-list-item v-for="child in item.items" :key="child.title">
-            <v-list-item-content>
-              <v-list-item-title v-text="child.title"></v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list-item-group>
-      </v-list>
-    </TabPane>
-    <TabPane title="后台"></TabPane>
-    <TabPane title="可用"> 可用脚本包含已安装脚本，突出一下</TabPane>
-  </Tab>
-  <!-- </div> -->
+              <v-btn color="primary" @click="navigateToEditor(script)">
+                编辑
+              </v-btn>
+              <!-- <div>BUG反馈</div> -->
+            </v-expansion-panel-content>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </TabPane>
+      <TabPane title="后台"></TabPane>
+      <TabPane title="可用">
+        从资源站获取，当前页面可以使用的脚本 可用脚本包含已安装脚本，突出一下
+      </TabPane>
+      <TabPane title="其它">
+        <div>管理面板</div>
+        <div>获取脚本</div>
+        <div>新建脚本</div>
+        <div>问题反馈</div>
+        <div>Github</div>
+      </TabPane>
+    </Tab>
+  </v-app>
 </template>
 
 <script lang="ts">
@@ -38,56 +47,61 @@ import { Vue, Component } from "vue-property-decorator";
 
 import { Tab, TabPane } from "@App/views/components/Tab";
 
+import { ScriptManager } from "@App/apps/script/manager";
+import {
+  Script,
+  SCRIPT_STATUS_ENABLE,
+  SCRIPT_STATUS_DISABLE,
+} from "@App/model/script";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
+import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+
 @Component({
   components: {
     Tab,
     TabPane,
   },
 })
-export default class App extends Vue {
-  selectedItem = 1;
-  items = [
-    {
-      action: "mdi-ticket",
-      items: [{ title: "List Item" }],
-      title: "Attractions",
-    },
-    {
-      action: "mdi-silverware-fork-knife",
-      active: true,
-      items: [
-        { title: "Breakfast & brunch" },
-        { title: "New American" },
-        { title: "Sushi" },
-      ],
-      title: "Dining",
-    },
-    {
-      action: "mdi-school",
-      items: [{ title: "List Item" }],
-      title: "Education",
-    },
-    {
-      action: "mdi-run",
-      items: [{ title: "List Item" }],
-      title: "Family",
-    },
-    {
-      action: "mdi-bottle-tonic-plus",
-      items: [{ title: "List Item" }],
-      title: "Health",
-    },
-    {
-      action: "mdi-content-cut",
-      items: [{ title: "List Item" }],
-      title: "Office",
-    },
-    {
-      action: "mdi-tag",
-      items: [{ title: "List Item" }],
-      title: "Promotions",
-    },
-  ];
+export default class Popup extends Vue {
+  scriptUtil: ScriptManager = new ScriptManager(undefined);
+  protected scripts: Array<Script> = [];
+
+  created() {
+    this.scriptUtil.scriptList(undefined).then((result) => {
+      this.scripts = result;
+    });
+    // 监听script状态变更
+    MsgCenter.listener(ScriptRunStatusChange, (param) => {
+      for (let i = 0; i < this.scripts.length; i++) {
+        if (this.scripts[i].id == param[0]) {
+          this.scripts[i].runStatus = param[1];
+          break;
+        }
+      }
+    });
+  }
+
+  getStatusBoolean(item: Script) {
+    return item.status === SCRIPT_STATUS_ENABLE ? true : false;
+  }
+
+  async changeStatus(item: Script) {
+    if (item.status === SCRIPT_STATUS_ENABLE) {
+      item.status = SCRIPT_STATUS_DISABLE;
+    } else {
+      item.status = SCRIPT_STATUS_ENABLE;
+    }
+
+    this.scriptUtil.updateScriptStatus(item.id, item.status);
+  }
+
+  navigateToEditor(script: Script) {
+    const targetUrl = chrome.runtime.getURL(
+      `options.html#/?target=editor&id=${script.id}`
+    );
+
+    chrome.tabs.create({ url: targetUrl });
+  }
 }
 </script>
 

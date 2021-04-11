@@ -5,9 +5,9 @@ export class Page {
     protected _page: number;
     protected _count: number;
     protected _order: string;
-    protected _sort: string;
+    protected _sort: "asc" | "desc";
 
-    constructor(page: number, count: number, order?: string, sort?: string) {
+    constructor(page: number, count: number, order?: string, sort?: "asc" | "desc") {
         this._page = page;
         this._count = count;
         this._order = order || "id";
@@ -33,7 +33,7 @@ export class Page {
 
 export class AllPage extends Page {
     constructor() {
-        super(0, 0)
+        super(0, 0);
     }
 }
 
@@ -43,7 +43,7 @@ export function randomString(e: number) {
         a = t.length,
         n = "";
     for (let i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
-    return n
+    return n;
 }
 
 export function isFirefox() {
@@ -53,13 +53,17 @@ export function isFirefox() {
     return false;
 }
 
-export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = '') {
-    top.postMessage({
-        action: Logger, data: {
-            level: level,
-            message: msg,
-            origin: origin,
-            title: title,
-        }
-    }, '*');
+export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = "") {
+    top.postMessage(
+        {
+            action: Logger,
+            data: {
+                level: level,
+                message: msg,
+                origin: origin,
+                title: title,
+            },
+        },
+        "*",
+    );
 }

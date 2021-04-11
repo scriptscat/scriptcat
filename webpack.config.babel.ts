@@ -3,6 +3,8 @@ import htmlWebpackPlugin from "html-webpack-plugin";
 import vueLoaderPlugin from "vue-loader/lib/plugin";
 import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
 import MiniCssExtractPlugin from "mini-css-extract-plugin";
+import CopyPlugin from "copy-webpack-plugin";
+import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
@@ -11,7 +13,7 @@ const config: Configuration = {
     entry: {
         background: home + "/background.ts",
         sandbox: home + "/sandbox.ts",
-        options: home + "/options.ts",
+        options: home + "/options.tsx",
         popup: home + "/popup.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
@@ -95,6 +97,13 @@ const config: Configuration = {
             chunkFilename: "[name].[hash].chunk.css",
         }),
         new vueLoaderPlugin(),
+        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
+        new CopyPlugin({
+            patterns: [
+                { from: "manifest.json", to: "../" },
+                { from: "assets", to: "../assets" },
+            ],
+        }),
     ],
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],

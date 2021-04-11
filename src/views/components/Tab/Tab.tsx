@@ -73,20 +73,31 @@ export default class Tab extends Vue {
     }
 
     navigateToTab(index: number, route: string = "") {
-        console.log("navigate");
+        console.log(`navigate to ${index}`);
 
-        this.changeTab(this.activeTabIndex, index, route);
+        if (index !== this.activeTabIndex) {
+            this.changeTab(this.activeTabIndex, index, route);
+        } else {
+            console.error("refuse to navigate to same tab");
+        }
     }
 
-    changeTab(oldIndex: number, newIndex: number, route: string = "") {
-        let oldTab = this.tabs[oldIndex] || {};
-        let newTab = this.tabs[newIndex];
-        if (newTab.disabled) return;
-        oldTab.active = false;
+    async changeTab(oldIndex: number, newIndex: number, route: string = "") {
+        const oldTab = this.tabs[oldIndex] || {};
 
-        this.activateTab(newIndex);
-        this.$emit("tab-change", newIndex, newTab, oldTab);
-        this.tryChangeRoute(route);
+        const continueFlag = await oldTab.beforeChange(oldTab);
+
+        if (continueFlag) {
+            const newTab = this.tabs[newIndex];
+            if (newTab.disabled) return;
+            oldTab.active = false;
+
+            this.activateTab(newIndex);
+            this.$emit("tab-change", newIndex, newTab, oldTab);
+            this.tryChangeRoute(route);
+        } else {
+            console.error("navigate has been blocked cause of beforeChange hook");
+        }
     }
 
     activateTab(index: number) {
@@ -97,7 +108,7 @@ export default class Tab extends Vue {
         if (tab.loaded === false) {
             tab.loaded = true;
         }
-        this.$emit("input", tab.title);
+        this.$emit("activeTab", tab.title);
     }
 
     tryChangeRoute(route: string) {
@@ -171,7 +182,7 @@ export default class Tab extends Vue {
         const tab = this.tabs[index];
 
         if (tab.$slots.icon) {
-            return tab.$slots.icon;
+            return <div class="title">{tab.$slots.icon}</div>;
         } else {
             const { icon } = tab;
             if (icon) {
@@ -200,8 +211,17 @@ export default class Tab extends Vue {
             const closeButton = (
                 <v-icon
                     color=""
-                    onClick={() => {
-                        this.$emit("tabRemove", index);
+                    onClick={async (e: Event) => {
+                        const continueFlag = await tab.beforeRemove(tab);
+                        if (continueFlag) {
+                            this.$emit("tabRemove", index);
+                        } else {
+                            console.error(
+                                "tab removing has been blocked cause of beforeRemove hook",
+                            );
+                        }
+                        e.preventDefault();
+                        return false;
                     }}
                     small
                 >

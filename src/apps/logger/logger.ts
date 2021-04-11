@@ -11,6 +11,7 @@ import {
 } from "@App/model/logger";
 
 export interface Logger {
+    // todo 可以改造为可调用实例
     Logger(level: LOGGER_LEVEL, origin: string, msg: string, title: string): Logger;
 
     Debug(origin: string, msg: string, title: string): Logger;
