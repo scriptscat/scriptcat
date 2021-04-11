@@ -100,7 +100,7 @@ export default class TabPane extends Vue {
                         position: "absolute",
                         height: "100%",
                         width: "100%",
-                        overflowY: "auto",
+                        overflowY: this.$parent.overflow ? "auto" : undefined,
                     }}
                 >
                     {loadContentFlag && this.$slots.default}

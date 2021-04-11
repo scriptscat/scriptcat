@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <Tab>
+    <Tab :overflow="false">
       <TabPane title="已安装" :keepAlive="true">
         <v-expansion-panels>
           <v-expansion-panel

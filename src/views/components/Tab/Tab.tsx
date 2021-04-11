@@ -16,6 +16,7 @@ export default class Tab extends Vue {
     @Prop({ default: "tabs" }) type!: "tabs" | "pills";
     /** Centers the tabs and makes the container div full width */
     @Prop({ default: false }) centered!: boolean;
+    @Prop({ default: true }) overflow!: boolean;
     @Prop() value!: string | number | any;
 
     activeTabIndex = 0;
