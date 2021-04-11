@@ -1,9 +1,13 @@
+import "reflect-metadata";
 import Vue from "vue";
-import App from "@App/views/options.vue";
 import VueRouter, { RouteConfig } from "vue-router";
 import { languages } from "monaco-editor";
-import dts from "@App/tampermonkey.d.ts";
+
 import "vuetify/dist/vuetify.min.css";
+
+import App from "@App/views/pages/Update/index.vue";
+// @ts-ignore
+import dts from "@App/types/tampermonkey.d.ts";
 import { migrate } from "./model/migrate";
 import { i18n, vuetify } from "../i18n/i18n";
 
@@ -15,17 +19,17 @@ const routes: Array<RouteConfig> = [
     {
         path: "/",
         name: "Home",
-        component: () => import("@App/views/options/home.vue"),
+        component: () => import("@App/views/options/ScriptList.vue"),
     },
     {
         path: "/edit/:id?",
         name: "Edit",
-        component: () => import("@App/views/options/edit.vue"),
+        component: () => import("@App/views/options/Editor.vue"),
     },
     {
         path: "/logger",
         name: "Logger",
-        component: () => import("@App/views/options/logger.vue"),
+        component: () => import("@App/views/options/Logger.vue"),
     },
 ];
 
@@ -37,7 +41,7 @@ const router = new VueRouter({
 
 // @ts-ignore
 self.MonacoEnvironment = {
-    getWorkerUrl: function (moduleId: any, label: any) {
+    getWorkerUrl: function(moduleId: any, label: any) {
         if (label === "typescript" || label === "javascript") {
             return "./src/ts.worker.js";
         }
@@ -47,10 +51,9 @@ self.MonacoEnvironment = {
 
 languages.typescript.javascriptDefaults.addExtraLib(dts, "tampermonkey.d.ts");
 
-
-
 new Vue({
-    router, i18n,
+    router,
+    i18n,
     vuetify: vuetify,
     render: (h) => h(App),
 }).$mount("#app");

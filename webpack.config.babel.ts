@@ -1,15 +1,20 @@
-const path = require("path");
-const htmlWebpackPlugin = require("html-webpack-plugin");
-const vueLoaderPlugin = require("vue-loader/lib/plugin");
-const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
-const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+import path from "path";
+import htmlWebpackPlugin from "html-webpack-plugin";
+import vueLoaderPlugin from "vue-loader/lib/plugin";
+import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
+import MiniCssExtractPlugin from "mini-css-extract-plugin";
+import CopyPlugin from "copy-webpack-plugin";
+import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
-module.exports = {
+
+const config: Configuration = {
     entry: {
         background: home + "/background.ts",
         sandbox: home + "/sandbox.ts",
-        options: home + "/options.ts",
+        options: home + "/options.tsx",
+        popup: home + "/popup.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
         content: home + "/content.ts",
@@ -52,6 +57,16 @@ module.exports = {
             chunks: ["options"],
         }),
         new htmlWebpackPlugin({
+            filename: __dirname + "/build/scriptcat/popup.html",
+            template: __dirname + "/public/popup.html",
+            inject: "head",
+            title: "Home - ScriptCat",
+            minify: {
+                removeComments: true,
+            },
+            chunks: ["popup"],
+        }),
+        new htmlWebpackPlugin({
             filename: __dirname + "/build/scriptcat/install.html",
             template: __dirname + "/public/install.html",
             inject: "head",
@@ -82,41 +97,66 @@ module.exports = {
             chunkFilename: "[name].[hash].chunk.css",
         }),
         new vueLoaderPlugin(),
+        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
+        new CopyPlugin({
+            patterns: [
+                { from: "manifest.json", to: "../" },
+                { from: "assets", to: "../assets" },
+            ],
+        }),
     ],
     resolve: {
-        extensions: [".ts", ".js", ".vue", ".d.ts", ".tpl"],
+        extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],
         alias: {
             "@App": path.resolve(__dirname, "src/"),
+            "@components": path.resolve(__dirname, "src/views/components"),
         },
     },
     module: {
-        rules: [{
+        rules: [
+            {
                 test: /\.vue$/,
                 use: "vue-loader",
                 exclude: /node_modules/,
             },
             {
                 test: /\.d\.ts$/,
-                use: [{
-                    loader: "raw-loader",
-                }, ],
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
                 test: /\.tpl$/,
-                use: [{
-                    loader: "raw-loader",
-                }, ],
+                use: [
+                    {
+                        loader: "raw-loader",
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
-                test: /(?<!\.d)\.ts$/,
-                use: [{
-                    loader: "ts-loader",
-                    options: {
-                        appendTsSuffixTo: [/\.vue$/],
+                test: /\.m?js$/,
+                exclude: /(node_modules|bower_components)/,
+                use: [
+                    {
+                        loader: "babel-loader",
                     },
-                }, ],
+                ],
+            },
+            {
+                test: /(?<!\.d)\.tsx?$/,
+                use: [
+                    "babel-loader",
+                    {
+                        loader: "ts-loader",
+                        options: {
+                            appendTsSuffixTo: [/\.vue$/],
+                        },
+                    },
+                ],
                 exclude: /node_modules/,
             },
             {
@@ -130,11 +170,6 @@ module.exports = {
                     "css-loader",
                     {
                         loader: "sass-loader",
-                        // Requires sass-loader@^7.0.0
-                        options: {
-                            implementation: require("sass"),
-                            indentedSyntax: true, // optional
-                        },
                         // Requires sass-loader@^8.0.0
                         options: {
                             implementation: require("sass"),
@@ -152,3 +187,5 @@ module.exports = {
         ],
     },
 };
+
+export default config;

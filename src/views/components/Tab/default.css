@@ -1,0 +1,211 @@
+.vue-tabs {
+    display: flex;
+    flex-direction: column;
+    /* 自动占满100%高度有风险，当tab并未占满全部空间时，设置为100%，会导致overflow */
+    /* 将tab的高度交由外部(使用者)定义，而不是默认100% */
+    /* height: 100%; */
+    flex-grow: 1;
+}
+
+.vue-tabs .tab-content {
+    flex-grow: 1;
+    display: flex;
+}
+
+.vue-tabs .tab-content .tab-container {
+    flex-grow: 1;
+    /* display: flex; */
+    position: relative;
+}
+
+/* 所有tab title的容器 */
+.vue-tabs .nav {
+    margin-bottom: 0;
+    margin-top: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+/* ? 不知道有什么用 */
+.vue-tabs .nav:before,
+.vue-tabs .nav:after {
+    content: " ";
+    display: table;
+}
+.vue-tabs .nav:after {
+    clear: both;
+}
+
+/* 用来v-ripple */
+.vue-tabs .nav > li {
+    position: relative;
+    display: block;
+}
+.vue-tabs .nav > li > a {
+    position: relative;
+    /* display: block; */
+    display: flex;
+    padding: 10px 15px;
+}
+
+/* 实际上的title容器，就是li > a */
+.vue-tabs .tabs__link {
+    text-decoration: none;
+    color: gray;
+}
+.vue-tabs .nav > li > a:hover,
+.vue-tabs .nav > li > a:focus {
+    text-decoration: none;
+    background-color: #eeeeee;
+}
+
+/* 可能存在的title slot */
+.vue-tabs .nav > li span.title {
+    display: flex;
+    justify-content: center;
+    font-size: 16px !important;
+    font-family: "Segoe UI", Arial, "Microsoft Yahei", sans-serif;
+}
+
+/* 禁用状态的文字 */
+.vue-tabs .nav > li.disabled > a {
+    color: #777777;
+}
+.vue-tabs .nav > li.disabled > a:hover,
+.vue-tabs .nav > li.disabled > a:focus {
+    color: #777777;
+    text-decoration: none;
+    cursor: not-allowed;
+    background-color: transparent;
+    border-color: transparent;
+}
+/* .vue-tabs .nav .nav-divider {
+    height: 1px;
+    margin: 9px 0;
+    overflow: hidden;
+    background-color: #e5e5e5;
+}
+.vue-tabs .nav > li > a > img {
+    max-width: none;
+} */
+
+/* 卡片样式 */
+.vue-tabs .nav-tabs {
+    border-bottom: 1px solid #ddd;
+    display: flex;
+}
+.vue-tabs .nav-tabs > li {
+    /* float: left; */
+    margin-bottom: -1px;
+}
+.vue-tabs .nav-tabs > li > a {
+    margin-right: 2px;
+    line-height: 1.42857;
+    border: 1px solid transparent;
+    border-radius: 4px 4px 0 0;
+}
+.vue-tabs .nav-tabs > li > a:hover {
+    border-color: #eeeeee #eeeeee #ddd;
+}
+.vue-tabs .nav-tabs > li.active > a,
+.vue-tabs .nav-tabs > li.active > a:hover,
+.vue-tabs .nav-tabs > li.active > a:focus {
+    color: #555555;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-bottom-color: transparent;
+    cursor: default;
+}
+
+/* 默认是卡片样式，这是另一种 */
+.vue-tabs .nav-pills > li {
+    /* float: left; */
+}
+.vue-tabs .nav-pills > li > a {
+    border-radius: 4px;
+}
+.vue-tabs .nav-pills > li + li {
+    margin-left: 2px;
+}
+.vue-tabs .nav-pills > li.active > a,
+.vue-tabs .nav-pills > li.active > a:hover,
+.vue-tabs .nav-pills > li.active > a:focus {
+    color: #fff;
+    background-color: #337ab7;
+}
+
+/* 居中tab nav */
+.vue-tabs .nav-justified,
+.vue-tabs .nav-tabs.nav-justified {
+    width: 100%;
+}
+.vue-tabs .nav-justified > li,
+.vue-tabs .nav-tabs.nav-justified > li {
+    /* float: none; */
+}
+.vue-tabs .nav-justified > li > a,
+.vue-tabs .nav-tabs.nav-justified > li > a {
+    text-align: center;
+    margin-bottom: 5px;
+}
+.vue-tabs .nav-justified > .dropdown .dropdown-menu {
+    top: auto;
+    left: auto;
+}
+@media (min-width: 768px) {
+    .vue-tabs .nav-justified > li,
+    .vue-tabs .nav-tabs.nav-justified > li {
+        display: table-cell;
+        width: 1%;
+    }
+    .vue-tabs .nav-justified > li > a,
+    .vue-tabs .nav-tabs.nav-justified > li > a {
+        margin-bottom: 0;
+    }
+}
+
+.vue-tabs .nav-tabs-justified,
+.vue-tabs .nav-tabs.nav-justified {
+    border-bottom: 0;
+}
+.vue-tabs .nav-tabs-justified > li > a,
+.vue-tabs .nav-tabs.nav-justified > li > a {
+    margin-right: 0;
+    border-radius: 4px;
+}
+.vue-tabs .nav-tabs-justified > .active > a,
+.vue-tabs .nav-tabs.nav-justified > .active > a,
+.vue-tabs .nav-tabs-justified > .active > a:hover,
+.vue-tabs .nav-tabs.nav-justified > .active > a:hover,
+.vue-tabs .nav-tabs-justified > .active > a:focus,
+.vue-tabs .nav-tabs.nav-justified > .active > a:focus {
+    border: 1px solid #ddd;
+}
+@media (min-width: 768px) {
+    .vue-tabs .nav-tabs-justified > li > a,
+    .vue-tabs .nav-tabs.nav-justified > li > a {
+        border-bottom: 1px solid #ddd;
+        border-radius: 4px 4px 0 0;
+    }
+    .vue-tabs .nav-tabs-justified > .active > a,
+    .vue-tabs .nav-tabs.nav-justified > .active > a,
+    .vue-tabs .nav-tabs-justified > .active > a:hover,
+    .vue-tabs .nav-tabs.nav-justified > .active > a:hover,
+    .vue-tabs .nav-tabs-justified > .active > a:focus,
+    .vue-tabs .nav-tabs.nav-justified > .active > a:focus {
+        border-bottom-color: #fff;
+    }
+}
+
+/* tab pane的样式
+.vue-tabs .tab-content > .tab-pane {
+    display: none;
+}
+
+.vue-tabs .tab-content > .active {
+    display: block;
+}
+
+.vue-tabs section[aria-hidden="true"] {
+    display: none;
+} */
