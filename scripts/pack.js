@@ -3,14 +3,6 @@ var AdmZip = require("adm-zip");
 var pjson = require('../package.json');
 const { execSync } = require("child_process");
 
-let files = fs.readdirSync("./build/scriptcat/src");
-files.forEach(val => {
-    if (val === '.gitignore') {
-        return;
-    }
-    fs.unlinkSync("./build/scriptcat/src/" + val);
-});
-
 execSync("npm run build");
 
 // 处理manifest version

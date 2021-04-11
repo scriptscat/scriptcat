@@ -98,13 +98,7 @@ const config: Configuration = {
             chunkFilename: "[name].[hash].chunk.css",
         }),
         new vueLoaderPlugin(),
-        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
-        new CopyPlugin({
-            patterns: [
-                { from: "manifest.json", to: "../" },
-                { from: "assets", to: "../assets" },
-            ],
-        }),
+        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false })
     ],
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],

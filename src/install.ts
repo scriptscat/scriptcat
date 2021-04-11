@@ -9,9 +9,6 @@ import App from "@App/views/pages/Install/index.vue";
 // @ts-ignore
 import dts from "@App/types/tampermonkey.d.ts";
 import { migrate } from "./model/migrate";
-import { InitApp } from "./apps/app";
-import { DBLogger } from "./apps/logger/logger";
-import { SystemCache } from "./pkg/storage/cache/system-cache";
 
 import { InitApp } from "./apps/app";
 import { DBLogger } from "./apps/logger/logger";
@@ -28,11 +25,6 @@ Vue.use(Vuetify);
 
 const opts = {};
 const vuetifyInstance = new Vuetify(opts);
-
-InitApp({
-    Log: new DBLogger(),
-    Cache: new SystemCache(),
-});
 
 // @ts-ignore
 self.MonacoEnvironment = {
