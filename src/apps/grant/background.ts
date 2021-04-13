@@ -728,10 +728,27 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction()
+    protected static textarea: HTMLElement = document.createElement('textarea');
+    protected static clipboardData: any;
+    @BackgroundGrant.GMFunction({
+        listener: () => {
+            document.body.appendChild(BackgroundGrant.textarea);
+            document.addEventListener('copy', (e: ClipboardEvent) => {
+                e.preventDefault();
+                let { type, data } = BackgroundGrant.clipboardData;
+                console.log(type, data, BackgroundGrant.clipboardData);
+                (<any>e).clipboardData.setData(type || 'text/plain', data);
+            })
+        }
+    })
     public GM_setClipboard(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-
+            BackgroundGrant.clipboardData = {
+                type: grant.params[1],
+                data: grant.params[0]
+            };
+            BackgroundGrant.textarea.focus();
+            document.execCommand('copy', false, <any>null);
             resolve(undefined);
         });
     }

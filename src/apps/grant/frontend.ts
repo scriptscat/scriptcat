@@ -267,7 +267,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void {
-        
+        this.postRequest('GM_setClipboard', [data, info]);
     }
 }
 
