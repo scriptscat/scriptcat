@@ -1,9 +1,23 @@
 import { ScriptContext } from "@App/apps/grant/frontend";
-import { Script } from "@App/model/script";
+import { Resource } from "@App/model/resource";
+import { Script, ScriptCache } from "@App/model/script";
 
-export function compileScript(script: Script) {
-    let src = 'with (context) {' + script.code + '}'
-    return new Function('context', src)
+export function compileScriptCode(script: ScriptCache): string {
+    let code = script.code;
+    if (script.metadata['require']) {
+        for (let i = 0; i < script.metadata['require'].length; i++) {
+            let val = script.metadata['require'][i];
+            let res = script.resource![val];
+            if (res) {
+                code = res.content + "\n" + code;
+            }
+        }
+    }
+    return 'with (context) {\n' + code + '\n}'
+}
+
+export function compileScript(script: ScriptCache) {
+    return new Function('context', script.code);
 }
 
 let blacklist = new Map<string, boolean>();

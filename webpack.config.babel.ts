@@ -106,6 +106,7 @@ const config: Configuration = {
             "@App": path.resolve(__dirname, "src/"),
             "@components": path.resolve(__dirname, "src/views/components"),
         },
+        fallback: { "crypto": require.resolve("crypto-browserify"), "stream": require.resolve("stream-browserify") }
     },
     module: {
         rules: [

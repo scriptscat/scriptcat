@@ -1,12 +1,11 @@
-import { Script } from "@App/model/script";
-import { Value } from "@App/model/value";
+import { Script, ScriptCache } from "@App/model/script";
 
 export interface IScript {
     // 用于自动启动
-    enableScript(script: Script, value: { [key: string]: Value }): Promise<string>;
+    enableScript(script: ScriptCache): Promise<string>;
     disableScript(script: Script): Promise<void>;
 
     // 用于单次操作
-    execScript(script: Script, value: { [key: string]: Value }, isdebug: boolean): Promise<void>;
+    execScript(script: ScriptCache, isdebug: boolean): Promise<void>;
     stopScript(script: Script, isdebug: boolean): Promise<void>;
 }

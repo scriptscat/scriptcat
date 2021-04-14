@@ -95,27 +95,27 @@ async function execScript(
     });
 }
 
-function createSandboxContext(script: Script, value: { [key: string]: Value }): SandboxContext {
+function createSandboxContext(script: ScriptCache): SandboxContext {
     let cache: ScriptCache = script;
     let context: SandboxContext = new SandboxContext(cache);
-    cache.value = value;
+    cache.value = script.value;
     return <SandboxContext>createContext(context, script);
 }
 
-function start(script: Script, value: { [key: string]: Value }): any {
+function start(script: ScriptCache): any {
     if (script.metadata["crontab"]) {
-        return runCrontab(script, value);
+        return runCrontab(script);
     } else if (script.metadata["background"]) {
-        let context = createSandboxContext(script, value);
+        let context = createSandboxContext(script);
         App.Cache.set("script:" + script.id, context);
         execScript(script, compileScript(script), context, "run");
         return top.postMessage({ action: "start", data: "" }, "*");
     }
 }
 
-function runCrontab(script: Script, value: { [key: string]: Value }) {
+function runCrontab(script: ScriptCache) {
     let crontab = script.metadata["crontab"];
-    let context = createSandboxContext(script, value);
+    let context = createSandboxContext(script);
     App.Cache.set("script:" + script.id, context);
     let func = compileScript(script);
 
@@ -190,8 +190,8 @@ function runCrontab(script: Script, value: { [key: string]: Value }) {
     return top.postMessage({ action: "start", data: "" }, "*");
 }
 
-async function exec(script: Script, value: { [key: string]: Value }, isdebug: boolean) {
-    let context = createSandboxContext(script, value);
+async function exec(script: ScriptCache, isdebug: boolean) {
+    let context = createSandboxContext(script);
     App.Cache.set("script:" + (isdebug ? "debug:" : "") + script.id, context);
     execScript(script, compileScript(script), context, isdebug ? "debug" : "run");
     return top.postMessage({ action: "exec", data: "" }, "*");
@@ -232,7 +232,7 @@ function getWeek(date: Date) {
 window.addEventListener("message", (event) => {
     switch (event.data.action) {
         case "start": {
-            start(event.data.data, event.data.value);
+            start(event.data.data);
             break;
         }
         case "stop": {
@@ -240,7 +240,7 @@ window.addEventListener("message", (event) => {
             break;
         }
         case "exec": {
-            exec(event.data.data, event.data.value, event.data.isdebug);
+            exec(event.data.data, event.data.isdebug);
             break;
         }
         case ScriptValueChange: {

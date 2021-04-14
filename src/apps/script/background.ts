@@ -1,4 +1,4 @@
-import { Script } from "@App/model/script";
+import { Script, ScriptCache } from "@App/model/script";
 import { Value } from "@App/model/value";
 import App from "@App/views/pages/Option";
 import { CronJob } from "cron";
@@ -19,9 +19,9 @@ export class Background implements IScript {
 
     protected cronjobMap = new Map<number, CronJob>();
 
-    public enableScript(script: Script, value: { [key: string]: Value }): Promise<string> {
+    public enableScript(script: ScriptCache): Promise<string> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'start', data: script, value: value }, '*');
+            this.sandboxWindow.postMessage({ action: 'start', data: script, value: script.value }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "start") {
                     return;
@@ -61,9 +61,9 @@ export class Background implements IScript {
         });
     }
 
-    public execScript(script: Script, value: { [key: string]: Value }, isdebug: boolean): Promise<void> {
+    public execScript(script: ScriptCache, isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: value, isdebug: isdebug }, '*');
+            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: script.value, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "exec") {
                     return;

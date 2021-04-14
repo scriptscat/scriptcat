@@ -10,6 +10,8 @@ import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { Value, ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
+import { compileScript, compileScriptCode } from "@App/pkg/sandbox";
+import { Resource } from "@App/model/resource";
 
 export class ScriptManager {
 
@@ -92,8 +94,10 @@ export class ScriptManager {
                 await this.scriptModel.delete(script.id).catch(() => {
                     resolve(false);
                 });
-
-                // this.resource.deleteResource();
+                //TODO:释放资源
+                script.metadata["require"]?.forEach(val => {
+                    this.resource.deleteResource(val, script.id);
+                })
                 resolve(true);
             });
         });
@@ -101,7 +105,7 @@ export class ScriptManager {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                    await this.background.execScript(script, await this.getScriptValue(script), msg[1]);
+                    await this.background.execScript(await this.buildScriptCache(script), msg[1]);
                     resolve(true);
                 } else {
                     resolve(false);
@@ -162,7 +166,7 @@ export class ScriptManager {
             }
             let oldScript = <Script>old;
             let script = <Script>data;
-            if (script.type !== SCRIPT_TYPE_NORMAL) {
+            if (script && script.type !== SCRIPT_TYPE_NORMAL) {
                 return;
             }
             let has = this.match.has(script);
@@ -182,6 +186,8 @@ export class ScriptManager {
                 let match = script.metadata['match'];
                 if (match) {
                     let cache = await this.buildScriptCache(script);
+                    cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
+                        cache.code + `\n}`);
                     match.forEach(val => {
                         this.match.add(val, cache);
                     });
@@ -194,6 +200,8 @@ export class ScriptManager {
                 let match = script.metadata['match'];
                 if (match) {
                     let cache = await this.buildScriptCache(script);
+                    cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
+                        cache.code + `\n}`);
                     match.forEach(val => {
                         this.match.add(val, cache);
                     });
@@ -268,6 +276,7 @@ export class ScriptManager {
                     }())`,
                     runAt: runAt,
                 });
+                console.log(123);
             });
         });
     }
@@ -277,28 +286,32 @@ export class ScriptManager {
             let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
             ret.value = await this.getScriptValue(ret);
 
-            ret.resource = {};
-            if (ret.metadata['require']) {
-                for (let i = 0; i < ret.metadata['require']?.length; i++) {
-                    let val = ret.metadata['require'][i];
-                    let res = await this.resource.getResource(val);
+            ret.resource = await this.getResource(ret);
+
+            ret.flag = randomString(16);
+            ret.code = compileScriptCode(ret);
+
+            ret.grantMap = {};
+            ret.metadata['grant']?.forEach(val => {
+                ret.grantMap![val] = 'ok';
+            });
+
+            resolve(ret);
+        });
+    }
+
+    public getResource(script: Script): Promise<{ [key: string]: Resource }> {
+        return new Promise(async resolve => {
+            let ret: { [key: string]: Resource } = {};
+            if (script.metadata['require']) {
+                for (let i = 0; i < script.metadata['require'].length; i++) {
+                    let res = await this.resource.getResource(script.metadata['require'][i]);
                     if (res) {
-                        ret.code = res.content + "\n" + ret.code;
+                        ret[script.metadata['require'][i]] = res;
                     }
                 }
             }
-
-            ret.flag = randomString(16);
-            ret.code = dealScript(chrome.runtime.getURL('/' + ret.name + '.user.js#uuid=' + ret.uuid), `window['${ret.flag}']=function(context){\n
-                with(context){
-                    ${ret.code}
-                }
-            }`);
-
-            ret.grantMap = {};
-            ret.metadata['grant'].forEach(val => {
-                ret.grantMap![val] = 'ok';
-            });
+            //TODO: 支持@resource
 
             resolve(ret);
         });
@@ -496,7 +509,7 @@ export class ScriptManager {
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                let ret = await this.background.enableScript(script, await this.getScriptValue(script));
+                let ret = await this.background.enableScript(await this.buildScriptCache(script));
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;
