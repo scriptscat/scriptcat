@@ -5,6 +5,7 @@
 * 支持`@require`引用其他脚本
 * 将GM_set/getValue函数使其实时全局同步
 * 添加了`CAT_click`API,可进行真实点击
+* 支持了`GM_setClipboard`
 
 ## v0.2.0
 > 第一个可用的版本

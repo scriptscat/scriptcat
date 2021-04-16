@@ -12,7 +12,7 @@ export class BrowserMsg {
     constructor(id: string) {
         this.id = id;
         document.addEventListener(this.id, event => {
-            let detail = (<any>event).detail
+            let detail = JSON.parse((<any>event).detail);
             let ret = this.listenMap.get(detail.topic);
             if (ret) {
                 ret(detail.msg);
@@ -21,11 +21,12 @@ export class BrowserMsg {
     }
 
     public send(topic: string, msg: any) {
+        // 兼容火狐的序列化
         let ev = new CustomEvent(this.id, {
-            detail: {
+            detail: JSON.stringify({
                 topic: topic,
                 msg: msg,
-            },
+            }),
         });
         document.dispatchEvent(ev);
     }

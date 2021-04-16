@@ -52,7 +52,7 @@ import {
   Script,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
-} from "@App/model/script";
+} from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 

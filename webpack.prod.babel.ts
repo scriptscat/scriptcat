@@ -19,18 +19,7 @@ const localConfig: Configuration = {
                     name: "monaco",
                     chunks: "all",
                     priority: 1,
-                },
-                vendors: {
-                    test: /[\\/]node_modules[\\/]/,
-                    priority: -10,
-                    name: "vendor",
-                    chunks: "all",
-                },
-                default: {
-                    minChunks: 2,
-                    priority: -20,
-                    reuseExistingChunk: true,
-                },
+                }
             },
         },
     },

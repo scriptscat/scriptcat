@@ -33,13 +33,13 @@
 
 <script lang="ts">
 import { Logger } from "@App/apps/logger/logger";
+import { LoggerModel } from "@App/model/logger";
 import {
-  LoggerModel,
   LOGGER_LEVEL_DEBUG,
   LOGGER_LEVEL_ERROR,
   LOGGER_LEVEL_INFO,
   LOGGER_LEVEL_WARN,
-} from "@App/model/logger";
+} from "@App/model/do/logger";
 import { Page } from "@App/pkg/utils";
 import { Vue, Component } from "vue-property-decorator";
 

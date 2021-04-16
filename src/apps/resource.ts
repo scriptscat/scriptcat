@@ -1,4 +1,5 @@
-import { hash, Resource, ResourceLinkModel, ResourceModel } from "@App/model/resource";
+import { Resource } from "@App/model/do/resource";
+import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
 import { SystemConfig } from "@App/pkg/config";
 import axios from "axios";
 import crypto from "crypto-js";
@@ -11,20 +12,19 @@ export class ResourceManager {
     public addResource(url: string, scriptId: number): Promise<boolean> {
         return new Promise(async resolve => {
             let u = this.parseUrl(url);
-            this.getResource(u.url).then(async result => {
-                if (!result) {
-                    let resource = await this.loadByUrl(u.url);
-                    if (!resource) {
-                        return;
-                    }
-                    resource.createtime = new Date().getTime();
-                    resource.updatetime = new Date().getTime();
-                    await App.Cache.set('resource:' + u.url, resource);
-                    if (await this.model.save(resource)) {
-                        App.Log.Info("resource", u.url, "add");
-                    }
+            let result = await this.getResource(u.url);
+            if (!result) {
+                let resource = await this.loadByUrl(u.url);
+                if (!resource) {
+                    return resolve(false);
                 }
-            });
+                resource.createtime = new Date().getTime();
+                resource.updatetime = new Date().getTime();
+                await App.Cache.set('resource:' + u.url, resource);
+                if (await this.model.save(resource)) {
+                    App.Log.Info("resource", u.url, "add");
+                }
+            }
 
             let link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
             if (link) {

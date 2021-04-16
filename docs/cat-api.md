@@ -5,7 +5,6 @@
 本扩展特有的API将会以 CAT_ 开头进行定义,如有同步类型的API,也会使用 CAT.* 的方式进行定义.对于某些API为了使用方便会提供GM的别名.
 
 
-
 ### 定义
 
 
@@ -33,7 +32,6 @@ declare namespace CAT_Types {
 ```
 
 
-
 #### CAT_clearProxy
 
 > 清理代理
@@ -43,10 +41,10 @@ declare function CAT_clearProxy(): void;
 ```
 
 
-
 #### CAT_click
-> 模拟点击
+> 真实点击
 
+使用了[Input.dispatchMouseEvent](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchMouseEvent)实现,请确认元素在可视区域内,且坐标是相对于窗口的位置.
 ```ts
-declare function CAT_click(el: HTMLElement): void;
+declare function CAT_click(x: number, y: number): void
 ```

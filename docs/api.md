@@ -88,7 +88,7 @@ declare namespace GM_Types {
 
 #### GM_xmlhttpRequest
 
-> 部分功能缺失
+> 部分功能缺失,cookie功能firefox暂不支持
 
 ```typescript
 declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;

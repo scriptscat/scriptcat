@@ -1,14 +1,13 @@
 import { CronJob } from "cron";
-import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/script";
 import { buildThis, compileScript, createContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
-import { LOGGER_LEVEL_ERROR, LOGGER_LEVEL_INFO } from "./model/logger";
 import { App, InitApp } from "./apps/app";
 import { MapCache } from "./pkg/storage/cache/cache";
-import { Value } from "./model/value";
 import { ConsoleLogger } from "./apps/logger/logger";
 import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
+import { LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR } from "./model/do/logger";
+import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/do/script";
 
 InitApp({
     Log: new ConsoleLogger(),
@@ -120,7 +119,7 @@ function runCrontab(script: ScriptCache) {
     let func = compileScript(script);
 
     let list = new Array<CronJob>();
-    crontab.forEach((val) => {
+    crontab.forEach((val: string) => {
         let oncePos = 0;
         if (val.indexOf("once") !== -1) {
             let vals = val.split(" ");

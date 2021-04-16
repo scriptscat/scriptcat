@@ -20,7 +20,7 @@ import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script } from "@App/model/script";
+import { Script } from "@App/model/do/script";
 import { Background } from "@App/apps/script/background";
 import { App } from "@App/apps/app";
 

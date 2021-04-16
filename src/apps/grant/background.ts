@@ -1,15 +1,16 @@
-import { LOGGER_LEVEL_INFO } from "@App/model/logger";
-import { Permission, PermissionModel } from "@App/model/permission";
-import { Script, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/model/script";
+import { PermissionModel } from "@App/model/permission";
 import { isFirefox } from "@App/pkg/utils";
-import axios from "axios";
 import { App } from "../app";
 import { AppEvent, PermissionConfirm, ScriptGrant, ScriptValueChange } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
 import { v4 as uuidv4 } from "uuid"
-import { Value, ValueModel } from "@App/model/value";
+import { ValueModel } from "@App/model/value";
+import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
+import { Permission } from "@App/model/do/permission";
+import { SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, Script } from "@App/model/do/script";
+import { Value } from "@App/model/do/value";
 
 class postMessage implements IPostMessage {
 
@@ -51,53 +52,56 @@ export class BackgroundGrant {
     private constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
         this.listener = listener;
         this.scriptMgr = scriptMgr;
-        //处理xhrcookie的问题
-        chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
-            let setCookie = '';
-            let cookie = '';
-            let anonymous = false;
-            let cookieIndex = -1;
-            let requestHeaders: chrome.webRequest.HttpHeader[] = [];
-            data.requestHeaders?.forEach((val, key) => {
-                switch (val.name.toLowerCase()) {
-                    case "x-cat-" + this.rand + "-cookie": {
-                        setCookie = val.value || '';
-                        break;
+        //处理xhrcookie的问题,firefox不支持
+        try {
+            chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
+                let setCookie = '';
+                let cookie = '';
+                let anonymous = false;
+                let cookieIndex = -1;
+                let requestHeaders: chrome.webRequest.HttpHeader[] = [];
+                data.requestHeaders?.forEach((val, key) => {
+                    switch (val.name.toLowerCase()) {
+                        case "x-cat-" + this.rand + "-cookie": {
+                            setCookie = val.value || '';
+                            break;
+                        }
+                        case "x-cat-" + this.rand + "-anonymous": {
+                            anonymous = true;
+                            break;
+                        }
+                        case "cookie": {
+                            cookieIndex = key;
+                            cookie = val.value || '';
+                            break;
+                        }
+                        default: {
+                            requestHeaders.push(val);
+                        }
                     }
-                    case "x-cat-" + this.rand + "-anonymous": {
-                        anonymous = true;
-                        break;
-                    }
-                    case "cookie": {
-                        cookieIndex = key;
-                        cookie = val.value || '';
-                        break;
-                    }
-                    default: {
-                        requestHeaders.push(val);
+                });
+                if (anonymous) {
+                    cookie = '';
+                }
+                if (setCookie) {
+                    if (!cookie || cookie.endsWith(';')) {
+                        cookie += setCookie;
+                    } else {
+                        cookie += ';' + setCookie;
                     }
                 }
-            });
-            if (anonymous) {
-                cookie = '';
-            }
-            if (setCookie) {
-                if (!cookie || cookie.endsWith(';')) {
-                    cookie += setCookie;
-                } else {
-                    cookie += ';' + setCookie;
+                cookie && requestHeaders.push({
+                    name: 'cookie',
+                    value: cookie
+                });
+                return {
+                    requestHeaders: requestHeaders,
                 }
-            }
-            cookie && requestHeaders.push({
-                name: 'cookie',
-                value: cookie
-            });
-            return {
-                requestHeaders: requestHeaders,
-            }
-        }, {
-            urls: ["<all_urls>"],
-        }, ["blocking", "requestHeaders", "extraHeaders"]);
+            }, {
+                urls: ["<all_urls>"],
+            }, ["blocking", "requestHeaders", "extraHeaders"]);
+        } catch (e) {
+        }
     }
 
     // 单实例
@@ -329,7 +333,7 @@ export class BackgroundGrant {
                 resolve(ret);
             });
         },
-        alias: ['GMSC_xmlhttpRequest', 'GM.fetch'],
+        alias: ['GM.fetch'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
@@ -736,7 +740,6 @@ export class BackgroundGrant {
             document.addEventListener('copy', (e: ClipboardEvent) => {
                 e.preventDefault();
                 let { type, data } = BackgroundGrant.clipboardData;
-                console.log(type, data, BackgroundGrant.clipboardData);
                 (<any>e).clipboardData.setData(type || 'text/plain', data);
             })
         }

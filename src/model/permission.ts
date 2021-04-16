@@ -1,14 +1,5 @@
 import { db, Model } from '@App/model/model';
-
-export interface Permission {
-    id: number
-    scriptId: number
-    permission: string
-    permissionValue: string
-    allow: boolean
-    createtime: number
-    updatetime: number
-}
+import { Permission } from './do/permission';
 
 export class PermissionModel extends Model<Permission> {
 

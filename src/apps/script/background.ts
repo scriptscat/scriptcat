@@ -1,6 +1,5 @@
-import { Script, ScriptCache } from "@App/model/script";
-import { Value } from "@App/model/value";
-import App from "@App/views/pages/Option";
+import { ScriptCache, Script } from "@App/model/do/script";
+import { Value } from "@App/model/do/value";
 import { CronJob } from "cron";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { IScript } from "./interface";

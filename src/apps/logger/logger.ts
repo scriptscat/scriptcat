@@ -1,14 +1,5 @@
-import {
-    Log,
-    LoggerModel,
-    LOGGER_LEVEL,
-    LOGGER_LEVEL_DEBUG,
-    LOGGER_LEVEL_ERROR,
-    LOGGER_LEVEL_INFO,
-    LOGGER_LEVEL_WARN,
-    LOGGER_TYPE,
-    LOGGER_TYPE_SYSTEM,
-} from "@App/model/logger";
+import { LOGGER_LEVEL, Log, LOGGER_LEVEL_INFO, LOGGER_LEVEL_WARN, LOGGER_LEVEL_ERROR, LOGGER_LEVEL_DEBUG } from "@App/model/do/logger";
+import { LoggerModel } from "@App/model/logger";
 
 export interface Logger {
     // todo 可以改造为可调用实例

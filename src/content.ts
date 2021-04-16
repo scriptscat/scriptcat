@@ -2,10 +2,10 @@ import { Grant } from "./apps/grant/interface";
 import { BrowserMsg } from "./apps/msg-center/browser";
 import { ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
 import { MsgCenter } from "./apps/msg-center/msg-center";
-import { ScriptCache } from "./model/script";
+import { ScriptCache } from "./model/do/script";
 
-chrome.runtime.sendMessage("runScript", (event) => {
-    let scripts = event.scripts;
+chrome.runtime.sendMessage("runScript", (event: any) => {
+    let scripts = <ScriptCache[]>event.scripts;
     let flag = event.flag;
     let browserMsg = new BrowserMsg(flag);
 

@@ -3,9 +3,9 @@
 import { FrontendGrant, ScriptContext } from "./apps/grant/frontend";
 import { BrowserMsg } from "./apps/msg-center/browser";
 import { ScriptValueChange } from "./apps/msg-center/event";
-import { ScriptCache } from "./model/script";
-import { Value } from "./model/value";
-import { buildThis, buildWindow, createContext } from "./pkg/sandbox";
+import { ScriptCache } from "./model/do/script";
+import { Value } from "./model/do/value";
+import { buildThis, createContext } from "./pkg/sandbox";
 
 let browserMsg = new BrowserMsg(ScriptFlag);
 browserMsg.listen("scripts", (msg) => {
@@ -23,25 +23,24 @@ browserMsg.listen("scripts", (msg) => {
                 }
             })
         });
+        // 构建沙盒
+        let context: ScriptContext = {};
+        if (script.grantMap!['none']) {
+            context = window;
+        } else {
+            context = new FrontendGrant(script, browserMsg);
+            context = createContext(context, script);
+            if (script.grantMap!['unsafeWindow']) {
+                context['unsafeWindow'] = window;
+            }
+            context = buildThis(window, context);
+        }
+        if ((<any>window)[script.flag!]) {
+            (<any>window)[script.flag!].apply(context, [context]);
+        }
         Object.defineProperty(window, script.flag!, {
             get: () => { return undefined; },
             set: (val) => {
-                // 构建沙盒
-                let context: ScriptContext = {};
-                if (script.grantMap!['none']) {
-                    context['window'] = window;
-                } else {
-                    context = new FrontendGrant(script, browserMsg);
-                    context = createContext(context, script);
-                    if (script.grantMap!['unsafeWindow']) {
-                        context['unsafeWindow'] = window;
-                    }
-                    // TODO: 处理window
-                    // let global = buildWindow();
-                    // context['window'] = global;
-                    // context = buildThis(global, context);
-                    context = buildThis({}, context);
-                }
                 val.apply(context, [context]);
             }
         });

@@ -1,4 +1,3 @@
-import { Metadata, Script, ScriptCache, ScriptModel, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_RUN_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_ERROR, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/script";
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
@@ -8,10 +7,13 @@ import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
-import { Value, ValueModel } from "@App/model/value";
+import { ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
-import { compileScript, compileScriptCode } from "@App/pkg/sandbox";
-import { Resource } from "@App/model/resource";
+import { compileScriptCode } from "@App/pkg/sandbox";
+import { Resource } from "@App/model/do/resource";
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_PREPARE, SCRIPT_STATUS, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, Metadata } from "@App/model/do/script";
+import { Value } from "@App/model/do/value";
+import { ScriptModel } from "@App/model/script";
 
 export class ScriptManager {
 
@@ -66,6 +68,10 @@ export class ScriptManager {
             return new Promise(async resolve => {
                 let script = <Script>msg[0];
                 let oldScript = <Script>msg[1];
+                // 加载资源
+                for (let i = 0; i < script.metadata['require']?.length; i++) {
+                    await this.resource.addResource(script.metadata['require'][i], script.id)
+                }
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
                         await this.disableScript(script);
@@ -75,10 +81,6 @@ export class ScriptManager {
                     this.disableScript(script);
                     script.runStatus = 'complete';
                 }
-                // 加载资源
-                script.metadata['require']?.forEach(val => {
-                    this.resource.addResource(val, script.id)
-                });
                 App.Cache.set("script:" + script.id, script);
                 return resolve(script);
             });
@@ -90,12 +92,12 @@ export class ScriptManager {
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     await this.disableScript(script);
                 }
-                App.Cache.del("script:" + script.id);
+                await App.Cache.del("script:" + script.id);
                 await this.scriptModel.delete(script.id).catch(() => {
                     resolve(false);
                 });
                 //TODO:释放资源
-                script.metadata["require"]?.forEach(val => {
+                script.metadata["require"]?.forEach((val: string) => {
                     this.resource.deleteResource(val, script.id);
                 })
                 resolve(true);
@@ -153,7 +155,6 @@ export class ScriptManager {
                 list.forEach(val => {
                     ret[val.key] = val;
                 });
-                console.log(1231212312333, script, ret);
                 resolve(ret);
             });
         });
@@ -176,7 +177,7 @@ export class ScriptManager {
                 }
                 let match = oldScript.metadata['match'];
                 if (match) {
-                    match.forEach(val => {
+                    match.forEach((val: string) => {
                         this.match.del(val, oldScript);
                     });
                 }
@@ -188,7 +189,7 @@ export class ScriptManager {
                     let cache = await this.buildScriptCache(script);
                     cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
                         cache.code + `\n}`);
-                    match.forEach(val => {
+                    match.forEach((val: string) => {
                         this.match.add(val, cache);
                     });
                 }
@@ -202,7 +203,7 @@ export class ScriptManager {
                     let cache = await this.buildScriptCache(script);
                     cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
                         cache.code + `\n}`);
-                    match.forEach(val => {
+                    match.forEach((val: string) => {
                         this.match.add(val, cache);
                     });
                 }
@@ -242,7 +243,7 @@ export class ScriptManager {
                 }())`,
                 runAt: "document_start",
             });
-            send({ scripts: scripts, flag: scriptFlag });
+            send({ scripts: filter, flag: scriptFlag });
             filter.forEach(script => {
                 // 注入实际脚本
                 // 还有body和menu未实现
@@ -276,7 +277,6 @@ export class ScriptManager {
                     }())`,
                     runAt: runAt,
                 });
-                console.log(123);
             });
         });
     }
@@ -292,7 +292,7 @@ export class ScriptManager {
             ret.code = compileScriptCode(ret);
 
             ret.grantMap = {};
-            ret.metadata['grant']?.forEach(val => {
+            ret.metadata['grant']?.forEach((val: string) => {
                 ret.grantMap![val] = 'ok';
             });
 
@@ -303,12 +303,10 @@ export class ScriptManager {
     public getResource(script: Script): Promise<{ [key: string]: Resource }> {
         return new Promise(async resolve => {
             let ret: { [key: string]: Resource } = {};
-            if (script.metadata['require']) {
-                for (let i = 0; i < script.metadata['require'].length; i++) {
-                    let res = await this.resource.getResource(script.metadata['require'][i]);
-                    if (res) {
-                        ret[script.metadata['require'][i]] = res;
-                    }
+            for (let i = 0; i < script.metadata['require']?.length; i++) {
+                let res = await this.resource.getResource(script.metadata['require'][i]);
+                if (res) {
+                    ret[script.metadata['require'][i]] = res;
                 }
             }
             //TODO: 支持@resource

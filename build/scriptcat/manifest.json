@@ -25,6 +25,7 @@
             "js": [
                 "src/content.js"
             ],
+            "run_at": "document_start",
             "all_frames": true
         }
     ],
@@ -33,6 +34,7 @@
         "proxy",
         "cookies",
         "storage",
+        "debugger",
         "webRequest",
         "<all_urls>",
         "notifications",

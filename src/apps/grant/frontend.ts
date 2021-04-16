@@ -1,5 +1,5 @@
-import { ScriptCache } from "@App/model/script";
-import { Value } from "@App/model/value";
+import { ScriptCache } from "@App/model/do/script";
+import { Value } from "@App/model/do/value";
 import { randomString } from "@App/pkg/utils";
 import { BrowserMsg } from "../msg-center/browser";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
@@ -131,16 +131,6 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({ depend: ['GM_xmlhttpRequest'] })
-    public GMSC_xmlhttpRequest(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
-        return new Promise(resolve => {
-            details.onload = (xhr) => {
-                resolve(xhr);
-            }
-            this.GM_xmlhttpRequest(details);
-        });
-    }
-
     public GM_notification(text: string, title: string, image: string, onclick: Function): void
 
     @FrontendGrant.GMFunction()
@@ -261,8 +251,8 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    public CAT_click(el: HTMLElement): void {
-        this.postRequest('CAT_click', [el.offsetLeft, el.offsetTop]);
+    public CAT_click(x: number, y: number): void {
+        this.postRequest('CAT_click', [x, y]);
     }
 
     @FrontendGrant.GMFunction()

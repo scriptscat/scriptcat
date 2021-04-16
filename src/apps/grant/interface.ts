@@ -1,4 +1,4 @@
-import { Script } from "@App/model/script";
+import { Script } from "@App/model/do/script";
 
 export interface Grant {
     value: string

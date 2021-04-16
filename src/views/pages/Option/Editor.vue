@@ -78,7 +78,7 @@ import { Vue, Component, Watch, Prop } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
 
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/script";
+import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/do/script";
 import { Background } from "@App/apps/script/background";
 import crontabTpl from "@App/template/crontab.tpl";
 

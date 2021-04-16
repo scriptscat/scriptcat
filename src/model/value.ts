@@ -1,13 +1,5 @@
 import { db, Model } from '@App/model/model';
-
-export interface Value {
-    id: number
-    scriptId: number
-    namespace?: string
-    key: string
-    value: any
-    createtime: number
-}
+import { Value } from './do/value';
 
 export class ValueModel extends Model<Value> {
 

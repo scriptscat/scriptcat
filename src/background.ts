@@ -3,18 +3,13 @@ import { BackgroundGrant, grantListener as bgGrantListener } from "@App/apps/gra
 import { grantListener } from "@App/apps/grant/content";
 import { MultiGrantListener } from "@App/apps/grant/utils";
 import { Background } from "@App/apps/script/background";
-import {
-    SCRIPT_TYPE_CRONTAB,
-    SCRIPT_STATUS_ENABLE,
-    Script,
-    SCRIPT_TYPE_BACKGROUND,
-} from "./model/script";
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
 import { App, InitApp } from "./apps/app";
 import { SystemCache } from "./pkg/storage/cache/system-cache";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
+import { SCRIPT_TYPE_CRONTAB, SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_BACKGROUND } from "./model/do/script";
 
 migrate();
 
@@ -44,10 +39,6 @@ function listenScriptInstall() {
     chrome.webRequest.onBeforeRequest.addListener(
         (req: chrome.webRequest.WebRequestBodyDetails) => {
             if (req.method != "GET") {
-                return;
-            }
-            if (req.url.startsWith(chrome.runtime.getURL('/'))) {
-                // 跳转到option页面
                 return;
             }
             let hash = req.url

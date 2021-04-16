@@ -1,6 +1,5 @@
 import { ScriptContext } from "@App/apps/grant/frontend";
-import { Resource } from "@App/model/resource";
-import { Script, ScriptCache } from "@App/model/script";
+import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
@@ -20,9 +19,6 @@ export function compileScript(script: ScriptCache) {
     return new Function('context', script.code);
 }
 
-let blacklist = new Map<string, boolean>();
-blacklist.set('chrome', true).set('browser', true);
-//TODO:做一些恶意操作拦截等
 
 export function buildWindow(): any {
     return {
@@ -30,39 +26,41 @@ export function buildWindow(): any {
     }
 }
 
+//TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
-    return new Proxy(context, {
+    let proxy: any = new Proxy(context, {
         get(_, key) {
-            if (blacklist.has(<string>key)) {
-                return undefined;
+            switch (key) {
+                case 'window':
+                case 'global':
+                case 'self':
+                case 'globalThis':
+                    return proxy;
             }
             if (key !== 'undefined' && key !== Symbol.unscopables) {
                 if (context.hasOwnProperty(key)) {
                     return context[key];
                 }
                 if (global[key]) {
-                    if (typeof global[key] === 'function' && global[key].bind) {
-                        context[key] = global[key].bind(global);
-                    } else {
-                        context[key] = global[key];
+                    if (typeof global[key] === 'function' && !global[key].prototype) {
+                        return global[key].bind(global);
                     }
+                    return global[key];
                 }
                 return context[key];
             }
         },
-        has(_, key) {
-            if (blacklist.has(<string>key)) {
-                throw new ReferenceError(<string>key + " is not defined");
-            }
-            return key === 'undefined' || context.hasOwnProperty(key) || global.hasOwnProperty(key);
+        has() {
+            return true;
         }
     })
+    return proxy;
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
     if (script.metadata["grant"] != undefined) {
         context["GM"] = context;
-        script.metadata["grant"].forEach((value) => {
+        script.metadata["grant"].forEach((value: any) => {
             let apiVal = context.getApi(value);
             if (value.startsWith("GM.")) {
                 let [_, t] = value.split(".");

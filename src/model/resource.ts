@@ -1,28 +1,6 @@
+import { Resource, ResourceLink } from "./do/resource";
 import { db, Model } from "./model";
 
-export interface Resource {
-    id: number
-    url: string
-    content: string
-    hash: hash,
-    createtime?: number
-    updatetime?: number
-}
-
-export interface hash {
-    md5: string
-    sha1: string
-    sha256: string
-    sha384: string
-    sha512: string
-}
-
-export interface ResourceLink {
-    id: number
-    url: string
-    scriptId: number
-    createtime?: number
-}
 
 export class ResourceModel extends Model<Resource> {
 
