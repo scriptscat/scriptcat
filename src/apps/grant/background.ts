@@ -639,15 +639,15 @@ export class BackgroundGrant {
                     val.matchUrl.forEach(url => {
                         let regex = url;
                         if (regex.indexOf('*') === -1) {
-                            regex = regex.replaceAll('.', '\\.');
+                            regex = regex.replace(/\./g, '\\.');
                             if (regex.indexOf('.') === 1 || regex.indexOf('//.') !== -1) {
                                 regex = regex.replace('\\.', '(?:^|www)\\.');
                             }
                         } else {
-                            regex = regex.replaceAll('.', '\\.');
+                            regex = regex.replace(/\./g, '\\.');
                             regex = regex.replace('*', '(?:^|.*?)')
                         }
-                        regex = regex.replaceAll('/', '\\/');
+                        regex = regex.replace(/\//g, '\\/');
                         ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` + (val.proxyServer.port ? ':' + val.proxyServer.port : '') + `"}\n`;
                     });
                 });

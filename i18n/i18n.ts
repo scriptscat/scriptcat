@@ -12,7 +12,7 @@ export const messages = {
     "en": en,
 };
 
-let defaultLocale = chrome.i18n.getUILanguage().replaceAll('-', '_');
+let defaultLocale = chrome.i18n.getUILanguage().replace(/-/g, '_');
 
 if (!(<any>messages)[defaultLocale]) {
     defaultLocale = "en";

@@ -131,7 +131,7 @@ function runCrontab(script: ScriptCache) {
             if (vals.length == 5) {
                 oncePos++;
             }
-            val = val.replaceAll("once", "*");
+            val = val.replace(/once/g, "*");
         }
         //TODO:优化once的逻辑，不必每分钟都判断一次
         let cron = new CronJob(

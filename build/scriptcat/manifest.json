@@ -36,6 +36,7 @@
         "storage",
         "debugger",
         "webRequest",
+        "background",
         "<all_urls>",
         "notifications",
         "clipboardWrite",
