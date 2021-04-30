@@ -3,15 +3,12 @@ import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
-    if (script.metadata['require']) {
-        for (let i = 0; i < script.metadata['require'].length; i++) {
-            let val = script.metadata['require'][i];
-            let res = script.resource![val];
-            if (res) {
-                code = res.content + "\n" + code;
-            }
+    script.metadata['require']?.forEach((val) => {
+        let res = script.resource![val];
+        if (res) {
+            code = res.content + "\n" + code;
         }
-    }
+    });
     return 'with (context) {\n' + code + '\n}'
 }
 

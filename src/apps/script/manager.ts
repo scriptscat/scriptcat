@@ -30,6 +30,14 @@ export class ScriptManager {
         if (background) {
             this.background = background;
         }
+        chrome.contextMenus.create({
+            id: 'script-cat',
+            title: "ScriptCat",
+            contexts: ['all'],
+            onclick: () => {
+                console.log('exec script');
+            },
+        });
     }
 
     protected changePort = new Map<any, chrome.runtime.Port>();
@@ -72,6 +80,9 @@ export class ScriptManager {
                 for (let i = 0; i < script.metadata['require']?.length; i++) {
                     await this.resource.addResource(script.metadata['require'][i], script.id)
                 }
+                for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                    await this.resource.addResource(script.metadata['require-css'][i], script.id)
+                }
                 if (script.status == SCRIPT_STATUS_ENABLE) {
                     if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
                         await this.disableScript(script);
@@ -99,7 +110,10 @@ export class ScriptManager {
                 //TODO:释放资源
                 script.metadata["require"]?.forEach((val: string) => {
                     this.resource.deleteResource(val, script.id);
-                })
+                });
+                script.metadata["require-css"]?.forEach((val: string) => {
+                    this.resource.deleteResource(val, script.id);
+                });
                 resolve(true);
             });
         });
@@ -246,7 +260,7 @@ export class ScriptManager {
             send({ scripts: filter, flag: scriptFlag });
             filter.forEach(script => {
                 // 注入实际脚本
-                // 还有body和menu未实现
+                // TODO: 还有body和menu未实现
                 let runAt = 'document_idle';
                 if (script.metadata['run-at']) {
                     runAt = script.metadata['run-at'][0];
@@ -261,6 +275,9 @@ export class ScriptManager {
                     case 'document-idle':
                         runAt = 'document_idle';
                         break;
+                    case 'document-body':
+                    case 'document-menu':
+                        return;
                     default:
                         runAt = 'document_idle';
                         break;
@@ -307,6 +324,12 @@ export class ScriptManager {
                 let res = await this.resource.getResource(script.metadata['require'][i]);
                 if (res) {
                     ret[script.metadata['require'][i]] = res;
+                }
+            }
+            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                let res = await this.resource.getResource(script.metadata['require-css'][i]);
+                if (res) {
+                    ret[script.metadata['require-css'][i]] = res;
                 }
             }
             //TODO: 支持@resource
@@ -516,6 +539,20 @@ export class ScriptManager {
                 }
             } else {
                 script.status = SCRIPT_STATUS_ENABLE;
+                if (script.metadata['run-at'] && script.metadata['run-at'][0] == 'document-menu') {
+                    // 处理menu类型脚本
+                    chrome.contextMenus.create({
+                        id: script.uuid,
+                        title: script.name,
+                        contexts: ['all'],
+                        parentId: "script-cat",
+                        onclick: () => {
+                            console.log('exec script');
+                        },
+                        documentUrlPatterns: script.metadata['match'],
+                    });
+                }
+
             }
             let ok = await this.scriptModel.save(script);
             if (!ok) {
@@ -530,6 +567,12 @@ export class ScriptManager {
             script.status = SCRIPT_STATUS_DISABLE;
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                 await this.background.disableScript(script);
+            } else {
+                // 处理menu类型脚本
+                if (script.metadata['run-at'] && script.metadata['run-at'][0] == 'document-menu') {
+                    // 处理menu类型脚本
+                    chrome.contextMenus.remove(script.uuid);
+                }
             }
             await this.scriptModel.save(script);
             resolve();

@@ -81,14 +81,7 @@ function sandboxLoad(event: MessageEvent) {
     if (event.data.action != "load") {
         return;
     }
-    //启动定时脚本
-    scripts.scriptList({ type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_ENABLE }).then((items) => {
-        items.forEach((value: Script) => {
-            scripts.enableScript(value);
-        });
-    });
-    //启动后台脚本
-    scripts.scriptList({ type: SCRIPT_TYPE_BACKGROUND, status: SCRIPT_STATUS_ENABLE }).then(items => {
+    scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
         items.forEach((value: Script) => {
             scripts.enableScript(value);
         });
@@ -113,7 +106,3 @@ setInterval(() => {
         });
 }, 60000);
 
-// todo 根据url，动态修改图标
-// 有可用/已激活脚本，一个颜色，脚本——脚本数量
-// 无可用脚本，但是有匹配脚本
-// 无可用脚本，也无匹配脚本

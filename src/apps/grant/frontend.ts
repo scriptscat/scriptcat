@@ -1,5 +1,6 @@
 import { ScriptCache } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
+import { addStyle } from "@App/pkg/frontend";
 import { randomString } from "@App/pkg/utils";
 import { BrowserMsg } from "../msg-center/browser";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
@@ -20,6 +21,7 @@ export interface FrontenApiValue {
 
 export interface ScriptContext {
     [key: string]: any
+    ValueChange(name: string, value: Value): void
 }
 
 export class FrontendGrant implements ScriptContext {
@@ -219,8 +221,48 @@ export class FrontendGrant implements ScriptContext {
                 createtime: new Date().getTime()
             };
         }
-        this.script.value![name] = ret;
+        if (value === undefined) {
+            delete this.script.value![name];
+        } else {
+            this.script.value![name] = ret;
+        }
         this.postRequest('GM_setValue', [name, value]);
+    }
+
+    private valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
+
+    public ValueChange(name: string, value: Value): void {
+        this.valueChangeListener.forEach(val => {
+            if (val.name === name) {
+                val.listener(name, this.script.value, value.value, this.script.value === value.value);
+            }
+        });
+    }
+
+    @FrontendGrant.GMFunction({ depend: ['GM_setValue'] })
+    public GM_deleteValue(name: string): void {
+        GM_setValue(name, undefined);
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_listValues(): string[] {
+        let ret: string[] = [];
+        for (let key in this.script.value) {
+            ret.push(key);
+        }
+        return ret;
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_addValueChangeListener(name: string, listener: GM_Types.ValueChangeListener): number {
+        let id = Math.random() * 10000000;
+        this.valueChangeListener.set(id, { name: name, listener: listener });
+        return id;
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_removeValueChangeListener(listenerId: number): void {
+        this.valueChangeListener.delete(listenerId);
     }
 
     @FrontendGrant.GMFunction({ sync: true, depend: ['GM_xmlhttpRequest'] })
@@ -259,6 +301,12 @@ export class FrontendGrant implements ScriptContext {
     public GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void {
         this.postRequest('GM_setClipboard', [data, info]);
     }
+
+    @FrontendGrant.GMFunction()
+    public GM_addStyle(css: string): HTMLElement {
+        return addStyle(css);
+    }
+
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

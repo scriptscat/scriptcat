@@ -38,6 +38,7 @@
         "webRequest",
         "background",
         "<all_urls>",
+        "contextMenus",
         "notifications",
         "clipboardWrite",
         "webRequestBlocking"

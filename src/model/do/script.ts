@@ -1,3 +1,4 @@
+import { ScriptContext } from "@App/apps/grant/frontend";
 import { Resource } from "./resource";
 import { Value } from "./value";
 
@@ -31,6 +32,7 @@ export interface ScriptCache extends Script {
     value?: { [key: string]: Value }
     flag?: string
     resource?: { [key: string]: Resource }
+    context?: ScriptContext
 }
 
 export interface Script {

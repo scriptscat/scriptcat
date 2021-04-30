@@ -52,7 +52,7 @@ declare var GM_info: {
     [key: string]: any,
 };
 
-declare function GM_addStyle(css: string): void;
+declare function GM_addStyle(css: string): HTMLElement;
 
 declare function GM_deleteValue(name: string): void;
 

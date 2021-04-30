@@ -159,13 +159,24 @@ declare namespace GM_Types {
 }
 ```
 
-#### GM_get/setValue
-> 从储存中获取或者设置值,数据在同一`namespace`中可以共享,且可以实时的同步.
+#### GM_get/set/deleteValue
+> 从储存中获取或者设置值,数据在同一`namespace`中可以共享,且可以实时的同步.同一`namespace`中共享是一个实验性的功能🧪.
 
 ```ts
 declare function GM_setValue(name: string, value: any): void;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
+
+declare function GM_deleteValue(name: string): void;
+```
+
+#### GM_add/removeValueChangeListener
+> 对值的监听操作,add会返回一个监听id,使用remove可以取消监听
+
+```ts
+declare function GM_addValueChangeListener(name: string, listener: GM_Types.ValueChangeListener): number;
+
+declare function GM_removeValueChangeListener(listenerId: number): void;
 ```
 
 #### GM_openInTab
@@ -190,4 +201,11 @@ declare namespace GM_Types {
 
 ```ts
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
+```
+
+#### GM_addStyle
+> 添加样式到页面中,返回样式DOM
+
+```ts
+declare function GM_addStyle(css: string): HTMLElement;
 ```

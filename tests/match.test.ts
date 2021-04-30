@@ -23,12 +23,16 @@ describe("UrlMatch", () => {
         expect(url.match("http://a.test.m.baidu.com/lll/a/233")).toEqual(["ok3"]);
         expect(url.match("http://a.test.m.baidu.com/lll/233")).toEqual(["ok3"]);
         expect(url.match("http://a.test.m.baidu.com/lll233")).toEqual(["ok3"]);
+        expect(url.match("http://a.test.m.baidu.com/lll233end")).toEqual([]);
         expect(url.match("http://test.baidu.com/aaa")).toEqual(["ok4"]);
         expect(url.match("http://test.baidu.com/")).toEqual(["ok", "ok4"]);
         expect(url.match("http://example.org/foo/bar.html")).toEqual(["ok5"]);
         expect(url.match("https://bbs.tampermonkey.net.cn/test/thread-63-1-1.html")).toEqual(["ok6", "ok66"]);
         expect(url.match("https://bbs.tampermonkey.net.cn/forum-68-1.html")).toEqual(["ok6"]);
+        expect(url.match("https://bbs.tampermonkey.net.cn/")).toEqual(["ok6"]);
         expect(url.match("https:///bbs.tampermonkey.net.cn/test/param?a=1&b=2")).
+            toEqual(["ok7"]);
+        expect(url.match("https:///www.baidu.com/test/param")).
             toEqual(["ok7"]);
     });
     it("delete", () => {
