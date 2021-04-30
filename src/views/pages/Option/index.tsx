@@ -1,14 +1,13 @@
-import { Vue, Component } from "vue-property-decorator";
+import { Tab, TabPane } from "@App/views/components/Tab";
+import eventBus from "@App/views/EventBus";
+import { Component, Vue } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
-import eventBus from "@App/views/EventBus";
-import { Tab, TabPane } from "@App/views/components/Tab";
-
-import Editor from "./Editor.vue";
-import ScriptList from "./ScriptList.vue";
-import Logger from "./Logger.vue";
 import Carousel from "./Carousel.vue";
 import Config from "./Config.vue";
+import Editor from "./Editor.vue";
+import Logger from "./Logger.vue";
+import ScriptList from "./ScriptList.vue";
 
 interface ITabItem {
     tabKey: string | number;
@@ -250,7 +249,6 @@ export default class App extends Vue {
             // });
         } else {
             this.allTabs.splice(index, 1);
-            this.$refs.tabRef.navigateToTab(0);
         }
     }
 

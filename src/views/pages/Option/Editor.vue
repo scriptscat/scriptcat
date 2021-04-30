@@ -225,7 +225,6 @@
           </v-card>
         </template>
       </TabPane>
-      <TabPane title="运行日志"></TabPane>
     </Tab>
 
     <v-snackbar v-model="snackbar" color="success" top right>
@@ -395,7 +394,6 @@ export default class Editor extends Vue {
   snackbarInfo = "";
 
   async mounted() {
-    
     await this.createEditor();
     await this.initialSctipt();
 

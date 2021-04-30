@@ -1,12 +1,18 @@
-import { VNode } from "node_modules/vue/types";
-import { Vue, Component, Provide, Prop, Watch } from "vue-property-decorator";
-import TabPane from "./TabPane";
-
 import "./default.css";
+
+import { VNode } from "node_modules/vue/types";
+import { Component, Prop, Provide, Vue, Watch } from "vue-property-decorator";
+
+import CloseButton from "./CloseButton.vue";
+import TabPane from "./TabPane";
 
 interface ITabItem {}
 
-@Component({})
+@Component({
+    components: {
+        // CloseButton,
+    },
+})
 export default class Tab extends Vue {
     @Prop() activeTabColor!: string;
     @Prop() activeTextColor!: string;
@@ -14,6 +20,7 @@ export default class Tab extends Vue {
     @Prop() disabledTextColor!: string;
     /** Tab style type */
     @Prop({ default: "tabs" }) type!: "tabs" | "pills";
+    @Prop({ default: "head" }) activePattern!: "head" | "near";
     /** Centers the tabs and makes the container div full width */
     @Prop({ default: false }) centered!: boolean;
     @Prop({ default: true }) overflow!: boolean;
@@ -40,16 +47,21 @@ export default class Tab extends Vue {
     }
 
     @Watch("tabs")
-    onTabsChange(newList: any[]) {
-        if (newList.length > 0 && !this.value) {
-            if (newList.length <= this.activeTabIndex) {
-                this.activateTab(this.activeTabIndex - 1);
+    onTabsChange(newTabs: TabPane[]) {
+        if (newTabs.length > 0) {
+            if (this.value) {
+                this.findTabAndActivate(this.value);
             } else {
-                this.activateTab(this.activeTabIndex);
+                if (newTabs.length <= this.activeTabIndex) {
+                    if (this.activePattern === "head") {
+                        this.activateTab(0);
+                    } else {
+                        this.activateTab(this.activeTabIndex - 1);
+                    }
+                } else {
+                    this.activateTab(this.activeTabIndex);
+                }
             }
-        }
-        if (newList.length > 0 && this.value) {
-            this.findTabAndActivate(this.value);
         }
     }
 
@@ -90,10 +102,17 @@ export default class Tab extends Vue {
 
         if (continueFlag) {
             const newTab = this.tabs[newIndex];
-            if (newTab.disabled) return;
+
             oldTab.active = false;
 
-            this.activateTab(newIndex);
+            if (newTab) {
+                // 点击tabTitle触发删除时，也会触发click，从而导致触发当前方法
+                // 而此时，tab已被删除，所以会出现undefined问题
+                if (!newTab.disabled) {
+                    this.activateTab(newIndex);
+                }
+            }
+
             this.$emit("tab-change", newIndex, newTab, oldTab);
             this.tryChangeRoute(route);
         } else {
@@ -210,24 +229,31 @@ export default class Tab extends Vue {
             let active = this.activeTabIndex === index;
 
             const closeButton = (
-                <v-icon
-                    color=""
-                    onClick={async (e: Event) => {
-                        const continueFlag = await tab.beforeRemove(tab);
-                        if (continueFlag) {
-                            this.$emit("tabRemove", index);
-                        } else {
-                            console.error(
-                                "tab removing has been blocked cause of beforeRemove hook",
-                            );
-                        }
-                        e.preventDefault();
-                        return false;
+                // <v-icon
+                //     color=""
+                //     onClick={async (e: Event) => {
+                //         const continueFlag = await tab.beforeRemove(tab);
+                //         if (continueFlag) {
+                //             this.$emit("tabRemove", index);
+                //         } else {
+                //             console.error(
+                //                 "tab removing has been blocked cause of beforeRemove hook",
+                //             );
+                //         }
+                //         e.preventDefault();
+                //         return false;
+                //     }}
+                //     small
+                // >
+                //     mdi-close
+                // </v-icon>
+                <CloseButton
+                    tab={tab}
+                    index={index}
+                    onTabRemove={() => {
+                        this.$emit("tabRemove", index);
                     }}
-                    small
-                >
-                    mdi-close
-                </v-icon>
+                />
             );
 
             return (
@@ -245,10 +271,11 @@ export default class Tab extends Vue {
                 >
                     <a
                         href="#"
-                        onClick={(e: Event) => {
-                            e.preventDefault();
-                            return false;
-                        }}
+                        // vOn:click_stop_prevent={(e: Event) => {
+                        //     e.preventDefault();
+                        //     return false;
+                        // }}
+                        // onClick
                         style={active ? this.activeTabStyle : this.tabStyles(tab)}
                         class={[{ active_tab: active }, "tabs__link"]}
                         role="tab"
