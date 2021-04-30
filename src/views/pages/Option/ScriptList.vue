@@ -87,22 +87,24 @@
       </template>
 
       <template v-slot:[`item.actions`]="{ item }">
-        <v-icon small class="mr-2" @click="editItem(item)"> mdi-pencil </v-icon>
-        <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
-        <v-icon
-          small
-          @click="execScript(item)"
-          v-if="item.type !== 1 && item.runStatus != 'running'"
-        >
-          mdi-play
-        </v-icon>
-        <v-icon
-          small
-          @click="stopScript(item)"
-          v-else-if="item.type !== 1 && item.runStatus == 'running'"
-        >
-          mdi-stop
-        </v-icon>
+        <span class="action-buttons">
+          <v-icon small @click="editItem(item)"> mdi-pencil </v-icon>
+          <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
+          <v-icon
+            v-if="item.type !== 1 && item.runStatus != 'running'"
+            dense
+            @click="execScript(item)"
+          >
+            mdi-play
+          </v-icon>
+          <v-icon
+            v-else-if="item.type !== 1 && item.runStatus == 'running'"
+            dense
+            @click="stopScript(item)"
+          >
+            mdi-stop
+          </v-icon>
+        </span>
       </template>
 
       <template v-slot:no-data> 啊哦，还没有安装脚本 </template>
@@ -279,3 +281,15 @@ export default class ScriptList extends Vue {
   }
 }
 </script>
+
+<style scoped >
+.action-buttons {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.action-buttons .v-icon {
+  margin-right: 5px;
+}
+</style>
