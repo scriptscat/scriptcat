@@ -1,6 +1,6 @@
 import { Grant } from "./apps/grant/interface";
 import { BrowserMsg } from "./apps/msg-center/browser";
-import { ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
+import { ScriptExec, ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
 import { MsgCenter } from "./apps/msg-center/msg-center";
 import { ScriptCache } from "./model/do/script";
 
@@ -18,5 +18,15 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
     MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
         browserMsg.send(ScriptValueChange, msg);
     })
+    console.log(123);
+    chrome.runtime.onMessage.addListener((event) => {
+        console.log(event);
+        switch (event.action) {
+            case 'exec':
+                browserMsg.send(ScriptExec, event.uuid);
+                break;
+        }
+    });
+
 });
 

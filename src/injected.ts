@@ -2,7 +2,7 @@
 
 import { FrontendGrant, ScriptContext } from "./apps/grant/frontend";
 import { BrowserMsg } from "./apps/msg-center/browser";
-import { ScriptValueChange } from "./apps/msg-center/event";
+import { ScriptExec, ScriptValueChange } from "./apps/msg-center/event";
 import { ScriptCache } from "./model/do/script";
 import { Value } from "./model/do/value";
 import { addStyle } from "./pkg/frontend";
@@ -21,6 +21,15 @@ browserMsg.listen("scripts", (msg) => {
             }
         })
     });
+    browserMsg.listen(ScriptExec, (msg) => {
+        console.log(msg, scripts);
+        for (let i = 0; i < scripts.length; i++) {
+            if (scripts[i].uuid == msg) {
+                (<any>window)[scripts[i].flag!].apply(scripts[i].context, [scripts[i].context]);
+                break;
+            }
+        }
+    });
     scripts.forEach(script => {
         // 构建沙盒
         let context: ScriptContext;
@@ -34,6 +43,9 @@ browserMsg.listen("scripts", (msg) => {
             }
             context = buildThis(window, context);
             script.context = context;
+        }
+        if (script.metadata['run-at'] && script.metadata['run-at'][0] === 'document-menu') {
+            return;
         }
         if ((<any>window)[script.flag!]) {
             (<any>window)[script.flag!].apply(context, [context]);

@@ -260,12 +260,13 @@ export class ScriptManager {
             send({ scripts: filter, flag: scriptFlag });
             filter.forEach(script => {
                 // 注入实际脚本
-                // TODO: 还有body和menu未实现
                 let runAt = 'document_idle';
                 if (script.metadata['run-at']) {
                     runAt = script.metadata['run-at'][0];
                 }
                 switch (runAt) {
+                    case 'document-body':
+                    case 'document-menu':
                     case 'document-start':
                         runAt = 'document_start';
                         break;
@@ -275,9 +276,6 @@ export class ScriptManager {
                     case 'document-idle':
                         runAt = 'document_idle';
                         break;
-                    case 'document-body':
-                    case 'document-menu':
-                        return;
                     default:
                         runAt = 'document_idle';
                         break;
@@ -539,20 +537,22 @@ export class ScriptManager {
                 }
             } else {
                 script.status = SCRIPT_STATUS_ENABLE;
-                if (script.metadata['run-at'] && script.metadata['run-at'][0] == 'document-menu') {
+                if (script.metadata['run-at'] && script.metadata['match'] && script.metadata['run-at'][0] == 'document-menu') {
                     // 处理menu类型脚本
                     chrome.contextMenus.create({
                         id: script.uuid,
                         title: script.name,
                         contexts: ['all'],
                         parentId: "script-cat",
-                        onclick: () => {
-                            console.log('exec script');
+                        onclick: (info, tab) => {
+                            // 通信发送
+                            chrome.tabs.sendMessage(tab.id!, {
+                                "action": "exec", "uuid": script.uuid,
+                            });
                         },
                         documentUrlPatterns: script.metadata['match'],
                     });
                 }
-
             }
             let ok = await this.scriptModel.save(script);
             if (!ok) {

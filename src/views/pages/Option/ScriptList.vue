@@ -147,6 +147,7 @@ import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
+import { Page } from "@App/pkg/utils";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -195,7 +196,7 @@ export default class ScriptList extends Vue {
 
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
-    this.scriptUtil.scriptList(undefined).then((result) => {
+    this.scriptUtil.scriptList(undefined, new Page(1, 1000)).then((result) => {
       this.scripts = result;
     });
     // 监听script状态变更
