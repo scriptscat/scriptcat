@@ -3,6 +3,7 @@
     <v-data-table
       :headers="headers"
       :items="scripts"
+      :items-per-page="count"
       sort-by="id"
       class="elevation-1"
       v-model="selected"
@@ -128,6 +129,12 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-pagination
+      v-model="page"
+      :length="length"
+      :total-visible="7"
+    ></v-pagination>
   </div>
 </template>
 
@@ -194,10 +201,25 @@ export default class ScriptList extends Vue {
     protein: 0,
   };
 
+  page = 1;
+  count = 20;
+  length = 1;
+
+  @Watch("page")
+  onPageChange(newPage: number) {
+    this.scriptUtil
+      .scriptList(undefined, new Page(newPage, this.count))
+      .then((result) => {
+        this.scripts = result;
+      });
+  }
+
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
+    // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
     this.scriptUtil.scriptList(undefined, new Page(1, 1000)).then((result) => {
       this.scripts = result;
+      this.length = Math.ceil(result.length / this.count);
     });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
