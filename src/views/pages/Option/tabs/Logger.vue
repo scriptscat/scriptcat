@@ -27,7 +27,11 @@
       <span>{{ log.message }}</span>
     </div>
 
-    <v-pagination v-model="page" :length="15" :total-visible="7"></v-pagination>
+    <v-pagination
+      v-model="page"
+      :length="length"
+      :total-visible="7"
+    ></v-pagination>
   </div>
 </template>
 
@@ -41,7 +45,7 @@ import {
   LOGGER_LEVEL_WARN,
 } from "@App/model/do/logger";
 import { Page } from "@App/pkg/utils";
-import { Vue, Component } from "vue-property-decorator";
+import { Vue, Component, Watch } from "vue-property-decorator";
 
 import dayjs from "dayjs";
 
@@ -51,10 +55,24 @@ export default class Logger_ extends Vue {
   protected logger: LoggerModel = new LoggerModel();
 
   page = 1;
+  count = 20;
+  length = 1;
 
-  mounted() {
+  @Watch("page")
+  onPageChange(newPage: number) {
+    this.logger.list(new Page(newPage, this.count)).then((result) => {
+      this.logs = result;
+    });
+  }
+
+  created() {
+    // todo 日志也可以使用data-table，list有点丑
     this.logger.list(new Page(1, 20)).then((result) => {
       this.logs = result;
+    });
+
+    this.logger.list(new Page(1, 1000)).then((result) => {
+      this.length = Math.ceil(result.length / this.count);
     });
   }
 

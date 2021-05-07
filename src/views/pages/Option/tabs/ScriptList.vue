@@ -219,6 +219,7 @@ export default class ScriptList extends Vue {
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
     this.scriptUtil.scriptList(undefined, new Page(1, 1000)).then((result) => {
       this.scripts = result;
+      // todo 为scriptList和logger实现直接访问dexie的count，而不是获取list之后再length，性能有点问题
       this.length = Math.ceil(result.length / this.count);
     });
     // 监听script状态变更
