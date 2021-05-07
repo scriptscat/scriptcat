@@ -233,29 +233,14 @@ export default class Tab extends Vue {
             let active = this.activeTabIndex === index;
 
             const closeButton = (
-                // <v-icon
-                //     color=""
-                //     onClick={async (e: Event) => {
-                //         const continueFlag = await tab.beforeRemove(tab);
-                //         if (continueFlag) {
-                //             this.$emit("tabRemove", index);
-                //         } else {
-                //             console.error(
-                //                 "tab removing has been blocked cause of beforeRemove hook",
-                //             );
-                //         }
-                //         e.preventDefault();
-                //         return false;
-                //     }}
-                //     small
-                // >
-                //     mdi-close
-                // </v-icon>
                 <CloseButton
                     tab={tab}
                     index={index}
                     onTabRemove={() => {
                         this.$emit("tabRemove", index);
+                    }}
+                    style={{
+                        marginLeft: "5px",
                     }}
                 />
             );

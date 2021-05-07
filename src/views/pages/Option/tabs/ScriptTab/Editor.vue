@@ -61,6 +61,8 @@ export default class CloseButton extends Vue {
         currentCode: this.editor.getValue(),
       });
     });
+
+    eventBus.$emit("initial-script");
   }
 }
 </script>

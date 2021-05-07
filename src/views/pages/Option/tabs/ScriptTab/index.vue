@@ -88,17 +88,6 @@ export default class ScriptTab extends Vue {
 
   @Prop() scriptId!: number;
 
-  hasInitial = false;
-  onMetaChange = false;
-  async created() {
-    eventBus.$on<IUpdateMeta>("update-meta", this.handleUpdateMeta);
-    // eventBus.$on<void>("initial-script", this.handleInitialSctipt);
-    eventBus.$on<ISave>("save", this.handleSave);
-    eventBus.$on(EventType.CodeChange, this.handleCodeChange);
-
-    await this.handleInitialSctipt();
-  }
-
   script: Script = <Script>{};
   scriptMgr: ScriptManager = new ScriptManager(new Background(window));
   localScriptId: number | null = null;
@@ -107,12 +96,26 @@ export default class ScriptTab extends Vue {
     [key: string]: any[] | undefined;
   } = {};
 
+  hasInitial = false;
+  onMetaChange = false;
+
+  async created() {
+    eventBus.$on<IUpdateMeta>("update-meta", this.handleUpdateMeta);
+    eventBus.$on<void>("initial-script", this.handleInitialSctipt);
+    eventBus.$on<ISave>("save", this.handleSave);
+    eventBus.$on(EventType.CodeChange, this.handleCodeChange);
+
+    // await this.handleInitialSctipt();
+  }
+
   async handleInitialSctipt() {
     if (!(this.scriptId || this.localScriptId)) {
       eventBus.$emit<IChangeTitle>("change-title", {
         title: "新建脚本",
         initial: true,
       });
+
+      this.$refs.editor.hasInitial = true;
 
       return;
     }
@@ -199,6 +202,9 @@ export default class ScriptTab extends Vue {
         this.scriptMgr.execScript(this.script, true);
       }
     } else {
+      // eventBus.$emit<INewScript>("new-script", {
+      //   scriptId: this.scriptId ?? this.localScriptId,
+      // });
       // this.$router.push({ path: "/" });
     }
 

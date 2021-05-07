@@ -42,15 +42,14 @@ export default class App extends Vue {
 
     created() {
         eventBus.$on<IEditScript>("edit-script", this.handleEditScript);
-        // todo 如果是在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab
-        eventBus.$on<ISaveScript>("save-script", this.handleSaveScript);
+        eventBus.$on<INewScript>("new-script", this.handleNewScript);
         eventBus.$on<IChangeTitle>("change-title", this.handleChangeTitle);
     }
 
-    generatorPlusTab() {
+    generatePlusTab() {
         return {
             tabKey: PLUS_INDEX,
-            icon: <VIcon small>mdi-plus</VIcon>,
+            icon: <VIcon dense>mdi-plus</VIcon>,
             content: (
                 <div
                     style={{
@@ -63,6 +62,71 @@ export default class App extends Vue {
             ),
             closable: false,
             keepAlive: false,
+        };
+    }
+
+    generateScriptTab(scriptId: number): ITabItem {
+        return {
+            tabKey: Math.random(),
+            scriptId,
+            title: `${scriptId}`,
+            content: (
+                <div
+                    style={{
+                        display: "flex",
+                        height: "100%",
+                    }}
+                >
+                    <ScriptTab scriptId={scriptId} />
+                </div>
+            ),
+            closable: true,
+            keepAlive: false,
+            beforeChange: (currentTab) => {
+                return new Promise((resolve) => {
+                    console.log(currentTab);
+
+                    if (currentTab.title.startsWith("*")) {
+                        this.$confirm({
+                            title: "注意",
+                            text: "有未保存的更改，切换将丢失，确认要切换吗？",
+                            acceptText: "确认切换",
+                            cancelText: "取消",
+                        })
+                            .then(() => {
+                                // todo 去除tab title前的"* "
+                                return resolve(true);
+                            })
+                            .catch(() => {
+                                return resolve(false);
+                            });
+                    } else {
+                        return resolve(true);
+                    }
+                });
+            },
+            beforeRemove: (currentTab) => {
+                return new Promise((resolve) => {
+                    console.log(currentTab);
+
+                    if (currentTab.title.startsWith("*")) {
+                        this.$confirm({
+                            title: "注意",
+                            text: "有未保存的更改，确认要关闭吗？",
+                            acceptText: "确认",
+                            cancelText: "取消",
+                        })
+                            .then(() => {
+                                return resolve(true);
+                            })
+                            .catch(() => {
+                                return resolve(false);
+                            });
+                    } else {
+                        return resolve(true);
+                    }
+                });
+            },
         };
     }
 
@@ -89,7 +153,7 @@ export default class App extends Vue {
                 closable: false,
                 keepAlive: false,
             },
-            this.generatorPlusTab(),
+            this.generatePlusTab(),
         );
 
         this.$nextTick(() => {
@@ -109,68 +173,7 @@ export default class App extends Vue {
         // 如果不存在
         if (scriptTabIndex === -1) {
             // 则新建
-            this.allTabs.push({
-                tabKey: Math.random(),
-                scriptId,
-                title: `${scriptId}`,
-                content: (
-                    <div
-                        style={{
-                            display: "flex",
-                            height: "100%",
-                        }}
-                    >
-                        <ScriptTab scriptId={scriptId} />
-                    </div>
-                ),
-                closable: true,
-                keepAlive: false,
-                beforeChange: (currentTab) => {
-                    return new Promise((resolve) => {
-                        console.log(currentTab);
-
-                        if (currentTab.title.startsWith("*")) {
-                            this.$confirm({
-                                title: "注意",
-                                text: "有未保存的更改，切换将丢失，确认要切换吗？",
-                                acceptText: "确认切换",
-                                cancelText: "取消",
-                            })
-                                .then(() => {
-                                    // todo 去除tab title前的"* "
-                                    return resolve(true);
-                                })
-                                .catch(() => {
-                                    return resolve(false);
-                                });
-                        } else {
-                            return resolve(true);
-                        }
-                    });
-                },
-                beforeRemove: (currentTab) => {
-                    return new Promise((resolve) => {
-                        console.log(currentTab);
-
-                        if (currentTab.title.startsWith("*")) {
-                            this.$confirm({
-                                title: "注意",
-                                text: "有未保存的更改，确认要关闭吗？",
-                                acceptText: "确认",
-                                cancelText: "取消",
-                            })
-                                .then(() => {
-                                    return resolve(true);
-                                })
-                                .catch(() => {
-                                    return resolve(false);
-                                });
-                        } else {
-                            return resolve(true);
-                        }
-                    });
-                },
-            });
+            this.allTabs.push(this.generateScriptTab(scriptId));
         }
 
         //新建后跳转
@@ -181,8 +184,18 @@ export default class App extends Vue {
         });
     }
 
-    handleSaveScript({}: ISaveScript) {
-        // 当关闭由加号按钮激活的编辑器tab时，还原至加号
+    handleNewScript({ scriptId }: INewScript) {
+        // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab为加号
+        // this.allTabs.splice(PLUS_INDEX, 1, this.generatePlusTab());
+        this.allTabs[PLUS_INDEX] = this.generatePlusTab();
+        this.$forceUpdate();
+
+        this.allTabs.push(this.generateScriptTab(scriptId));
+
+        //新建后跳转
+        this.$nextTick(() => {
+            this.$refs.tabRef.navigateToTab(this.allTabs.length - 1);
+        });
     }
 
     handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
@@ -214,23 +227,20 @@ export default class App extends Vue {
 
     manualNavigateFlag = false;
 
-    removeTab(index: number) {
+    handleTabRemove(index: number) {
         if (index === PLUS_INDEX) {
             // vue未监听通过index修改array的方式，所以手动update
             // this.allTabs[PLUS_INDEX] = newScriptTab;
             // this.$forceUpdate();
             // 或者直接splice替换
-            this.allTabs.splice(index, 1, this.generatorPlusTab());
+            this.$refs.tabRef.navigateToTab(0);
+            this.allTabs.splice(index, 1, this.generatePlusTab());
 
             // 当tabChange时，tab组件内部会自动navigate一次，
             // 所以要保证，手动的navigate发生在自动调用之后
             // 配合onActiveTab回调使用
             // todo activePattern设置为head之后，似乎没必要手动navigate了？
-            this.manualNavigateFlag = true;
-
-            // this.$nextTick(() => {
-            //     this.$once("tab-change", () => {});
-            // });
+            // this.manualNavigateFlag = true;
         } else {
             this.allTabs.splice(index, 1);
         }
@@ -249,14 +259,14 @@ export default class App extends Vue {
                     <Carousel></Carousel>
 
                     <Tab
-                        onTabRemove={this.removeTab}
-                        onActiveTab={() => {
-                            if (this.manualNavigateFlag) {
-                                this.manualNavigateFlag = false;
-                                this.$refs.tabRef.navigateToTab(0);
-                            }
-                        }}
                         ref="tabRef"
+                        onTabRemove={this.handleTabRemove}
+                        // onActiveTab={() => {
+                        // if (this.manualNavigateFlag) {
+                        //     this.manualNavigateFlag = false;
+                        //     this.$refs.tabRef.navigateToTab(0);
+                        // }
+                        // }}
                     >
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;

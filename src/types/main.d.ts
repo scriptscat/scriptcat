@@ -14,7 +14,9 @@ interface IEditScript {
     scriptId: number;
 }
 
-interface ISaveScript {}
+interface INewScript {
+    scriptId: number;
+}
 
 interface IUpdateMeta {
     code: string;
