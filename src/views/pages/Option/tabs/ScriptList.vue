@@ -18,6 +18,7 @@
             <v-row align="center" dense>
               <v-col align-self="center" cols="2">
                 <v-select
+                  v-model="multipleAction"
                   :items="multipleActionTypes"
                   label="选择一个操作"
                   solo
@@ -27,6 +28,7 @@
 
               <v-col align-self="center" cols="2">
                 <v-select
+                  v-model="multipleFilter"
                   :items="multipleFilterTypes"
                   label="选择过滤方式"
                   solo
@@ -36,6 +38,7 @@
 
               <v-col align-self="center" cols="3">
                 <v-text-field
+                  v-model="filterText"
                   label="过滤字段"
                   :rules="rules"
                   hide-details
@@ -48,7 +51,9 @@
                 align-self="center"
                 :style="{ display: 'flex', justifyContent: 'flex-end' }"
               >
-                <v-btn color="primary" large>应用批量操作</v-btn>
+                <v-btn color="primary" large @click="takeMultipleAction()">
+                  应用批量操作
+                </v-btn>
               </v-col>
             </v-row>
           </v-container>
@@ -159,13 +164,26 @@ import { Page } from "@App/pkg/utils";
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
+const multipleActionTypes = [
+  "启用",
+  "禁用",
+  "导出",
+  "更新",
+  "重置",
+  "删除",
+] as const;
+
 @Component({})
 export default class ScriptList extends Vue {
   scriptUtil: ScriptManager = new ScriptManager(undefined);
   protected scripts: Array<Script> = [];
-  selected = [];
+  selected: Script[] = [];
 
-  multipleActionTypes = ["启用", "禁用", "导出", "更新", "重置", "删除"];
+  multipleAction: typeof multipleActionTypes[number] = "删除";
+  multipleFilter = null;
+  filterText = "";
+
+  multipleActionTypes = multipleActionTypes;
   multipleFilterTypes = [
     "自动",
     "@name",
@@ -174,6 +192,23 @@ export default class ScriptList extends Vue {
     "@grant",
     "@include",
   ];
+
+  async takeMultipleAction() {
+    // todo 使用filterType和filterText过滤
+    const targets = this.selected;
+
+    // 执行操作
+    switch (this.multipleAction) {
+      case "删除":
+        for (const script of targets) {
+          await this.scriptUtil.uninstallScript(script);
+        }
+
+        alert("批量删除成功");
+        // todo 响应式scriptList
+        break;
+    }
+  }
 
   dialogDelete = false;
   headers = [
