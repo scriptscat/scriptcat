@@ -358,13 +358,12 @@ export default class CloseButton extends Vue {
     // 拼接新config和code
     const newCode = result + pureCode;
 
-    const payload: IUpdateMeta = {
+    eventBus.$emit<IUpdateMeta>("update-meta", {
+      scriptId: this.script.id,
       code: newCode,
       name: formattedConfig.name.flat()[0],
       metadata: JSON.parse(JSON.stringify(formattedConfig)),
-    };
-
-    eventBus.$emit("update-meta", payload);
+    });
   }
 }
 </script>

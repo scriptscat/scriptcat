@@ -210,6 +210,10 @@ export default class App extends Vue {
 
             this.allTabs[PLUS_INDEX] = newScriptTab;
         } else {
+            if (!scriptId) {
+                alert("title修改失败，未能识别scriptId");
+            }
+
             const scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
 
             if (scriptTabIndex === -1) {

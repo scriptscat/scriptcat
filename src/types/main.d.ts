@@ -19,13 +19,23 @@ interface INewScript {
 }
 
 interface IUpdateMeta {
+    scriptId: number;
     code: string;
     name: string;
     metadata: any;
 }
 
 interface ISave {
+    scriptId: number;
     currentCode: string;
+}
+
+interface IInitialScript {
+    scriptId: number;
+}
+
+interface ICodeChange {
+    scriptId: number;
 }
 
 declare const ScriptFlag;

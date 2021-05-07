@@ -50,7 +50,9 @@ export default class CloseButton extends Vue {
 
       if (this.hasInitial && !this.hasUnsavedChange) {
         if (!this.onMetaChange) {
-          eventBus.$emit(EventType.CodeChange);
+          eventBus.$emit<ICodeChange>(EventType.CodeChange, {
+            scriptId: this.scriptId,
+          });
           this.hasUnsavedChange = true;
         }
       }
@@ -58,11 +60,14 @@ export default class CloseButton extends Vue {
 
     this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
       eventBus.$emit<ISave>(EventType.Save, {
+        scriptId: this.scriptId,
         currentCode: this.editor.getValue(),
       });
     });
 
-    eventBus.$emit("initial-script");
+    eventBus.$emit<IInitialScript>("initial-script", {
+      scriptId: this.scriptId,
+    });
   }
 }
 </script>

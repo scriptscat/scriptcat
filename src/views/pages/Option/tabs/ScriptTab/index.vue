@@ -100,15 +100,42 @@ export default class ScriptTab extends Vue {
   onMetaChange = false;
 
   async created() {
-    eventBus.$on<IUpdateMeta>("update-meta", this.handleUpdateMeta);
-    eventBus.$on<void>("initial-script", this.handleInitialSctipt);
-    eventBus.$on<ISave>("save", this.handleSave);
-    eventBus.$on(EventType.CodeChange, this.handleCodeChange);
+    // todo 使用vuex重构，
+    // interface ScriptStatus {
+    //   [scriptId: number]: {
+    //     meta: any;
+    //     title: string;
+    //     hasInitial: false;
+    //     hasUnsavedChange: boolean;
+    //   };
+    // }
+
+    eventBus.$on<IUpdateMeta>("update-meta", (payload) => {
+      if (payload.scriptId === this.scriptId) {
+        this.handleUpdateMeta(payload);
+      }
+    });
+
+    eventBus.$on<IInitialScript>("initial-script", (payload) => {
+      if (payload.scriptId === this.scriptId) {
+        this.handleInitialSctipt(payload);
+      }
+    });
+    eventBus.$on<ISave>("save", (payload) => {
+      if (payload.scriptId === this.scriptId) {
+        this.handleSave(payload);
+      }
+    });
+    eventBus.$on<ICodeChange>(EventType.CodeChange, (payload) => {
+      if (payload.scriptId === this.scriptId) {
+        this.handleCodeChange(payload);
+      }
+    });
 
     // await this.handleInitialSctipt();
   }
 
-  async handleInitialSctipt() {
+  async handleInitialSctipt({}: IInitialScript) {
     if (!(this.scriptId || this.localScriptId)) {
       eventBus.$emit<IChangeTitle>("change-title", {
         title: "新建脚本",
@@ -152,7 +179,7 @@ export default class ScriptTab extends Vue {
     // 保存成功后
     this.showSnackbar("config更新成功");
     this.onMetaChange = true;
-    await this.handleInitialSctipt();
+    await this.handleInitialSctipt({} as any);
     this.onMetaChange = false;
   }
 
@@ -188,7 +215,7 @@ export default class ScriptTab extends Vue {
 
     // 保存成功后
     this.showSnackbar("脚本保存成功");
-    await this.handleInitialSctipt();
+    await this.handleInitialSctipt({} as any);
 
     // 还原unsavdChange状态的title
     eventBus.$emit<IChangeTitle>("change-title", {
@@ -211,7 +238,7 @@ export default class ScriptTab extends Vue {
     this.$refs.editor.hasUnsavedChange = false;
   }
 
-  async handleCodeChange() {
+  async handleCodeChange({}: ICodeChange) {
     console.log(1331251223);
     if (this.hasInitial) {
       eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
