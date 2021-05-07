@@ -8,6 +8,8 @@ import TabPane from "./TabPane";
 
 interface ITabItem {}
 
+const noop = () => {};
+
 @Component({
     components: {
         // CloseButton,
@@ -25,6 +27,8 @@ export default class Tab extends Vue {
     @Prop({ default: false }) centered!: boolean;
     @Prop({ default: true }) overflow!: boolean;
     @Prop() value!: string | number | any;
+    /** 当所有tabPane添加至tab后的nextTick，可以假定所有TabPane已经mounted？ */
+    @Prop({ default: noop }) whenReady!: () => Promise<any>;
 
     activeTabIndex = 0;
     tabs: TabPane[] = [];

@@ -22,8 +22,14 @@
             "@App/*": [
                 "src/*"
             ],
+            "@views/*": [
+                "src/views/*"
+            ],
             "@components/*": [
                 "src/views/components/*"
+            ],
+            "@Option/*": [
+                "src/views/pages/Option/*"
             ],
             "@Test/*": [
                 "tests/*"

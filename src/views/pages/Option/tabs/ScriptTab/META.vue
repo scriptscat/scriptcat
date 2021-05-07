@@ -174,7 +174,20 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from "vue-property-decorator";
+import { Component, Prop, Vue, Watch } from "vue-property-decorator";
+
+import { Script } from "@App/model/do/script";
+import eventBus from "@views/EventBus";
+
+const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+
+function getRandomColor() {
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function formatConfigProperty(key: string, value: string) {
+  return `// @${key.padEnd(20, " ")}${value}`;
+}
 
 const grant = [
   "GM_setValue",
@@ -195,49 +208,95 @@ const grant = [
   "unsafeWindow",
 ];
 
-const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
-
-function getRandomColor() {
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-function formatConfigProperty(key: string, value: string) {
-  return `// @${key.padEnd(20, " ")}${value}`;
-}
-
 @Component({})
 export default class CloseButton extends Vue {
+  @Prop() script!: Script;
+
+  valid = false;
+
+  @Prop() metaBuffer!: {
+    grant?: { text: string; color: string }[];
+    [key: string]: any[] | undefined;
+  };
+
   grant = grant.map((text) => ({
     text,
     color: getRandomColor(),
   }));
 
-  /** 从metadata中提取为适合form的格式 */
-  prepareMetaBuffer(metaData: { [key: string]: string[] }) {
-    const buffer: {
-      grant?: { text: string; color: string }[];
-      [key: string]: any[] | undefined;
-    } = {};
+  licence = ["MIT", "GPL-3.0", "Apache"];
+  browsers = ["chrome", "safari", "edge", "ie"];
+  runAtHooks = ["document-start", "document-end"];
 
-    for (const [key, values] of Object.entries(metaData)) {
-      if (["grant", "match", "connect", "require"].includes(key)) {
-        const newValues = [];
+  activator = null;
+  attach = null;
+  colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+  editing = null;
+  editingIndex = -1;
+  items = [
+    { header: "Select an option or create one" },
+    {
+      text: "Foo",
+      color: "blue",
+    },
+    {
+      text: "Bar",
+      color: "red",
+    },
+  ];
+  nonce = 1;
+  menu = false;
+  model = [
+    {
+      text: "Foo",
+      color: "blue",
+    },
+  ];
+  x = 0;
+  search = null;
+  y = 0;
 
-        for (const value of values) {
-          newValues.push({ text: value, color: getRandomColor() });
-        }
-
-        buffer[key] = newValues;
-      } else if (key === "version") {
-        buffer[key] = values[0].split(".");
-      } else if (key === "compatible") {
-        buffer[key] = values.map((item) => item.toLowerCase());
-      } else {
-        buffer[key] = values;
-      }
+  edit(index: number, item: any) {
+    if (!this.editing) {
+      this.editing = item;
+      this.editingIndex = index;
+    } else {
+      this.editing = null;
+      this.editingIndex = -1;
     }
+  }
 
-    this.metaBuffer = buffer;
+  filter(item: any, queryText: string, itemText: string) {
+    if (item.header) return false;
+
+    const hasValue = (val: any) => (val != null ? val : "");
+
+    const text = hasValue(itemText);
+    const query = hasValue(queryText);
+
+    return (
+      text.toString().toLowerCase().indexOf(query.toString().toLowerCase()) > -1
+    );
+  }
+
+  @Watch("model")
+  onModelChange(val: any[], prev: any[]) {
+    if (val.length === prev.length) return;
+
+    this.model = val.map((v: any) => {
+      if (typeof v === "string") {
+        v = {
+          text: v,
+          color: this.colors[this.nonce - 1],
+        };
+
+        this.items.push(v);
+
+        this.nonce++;
+      }
+
+      return v;
+    });
   }
 
   /** 从form格式还原为metadata格式 */
@@ -299,25 +358,14 @@ export default class CloseButton extends Vue {
     // 拼接新config和code
     const newCode = result + pureCode;
 
-    // 这里只更新了code
-    this.script.code = newCode;
-    this.script.name = formattedConfig.name.flat()[0];
-    // 更新脚本的metadata
-    this.script.metadata = JSON.parse(JSON.stringify(formattedConfig));
-    // 同步至indexDB
-    await this.scriptMgr.updateScript(this.script);
+    const payload: IUpdateMeta = {
+      code: newCode,
+      name: formattedConfig.name.flat()[0],
+      metadata: JSON.parse(JSON.stringify(formattedConfig)),
+    };
 
-    // 保存成功后
-    this.snackbar = true;
-    this.snackbarInfo = "config更新成功";
-    setTimeout(() => {
-      this.snackbar = false;
-    }, 4000);
-
-    await this.initialSctipt();
+    eventBus.$emit("update-meta", payload);
   }
 }
 </script>
 
-<style>
-</style>

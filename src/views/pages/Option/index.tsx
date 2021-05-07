@@ -1,13 +1,13 @@
-import { Tab, TabPane } from "@App/views/components/Tab";
-import eventBus from "@App/views/EventBus";
+import { Tab, TabPane } from "@components/Tab";
+import eventBus from "@views/EventBus";
 import { Component, Vue } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
 import Carousel from "./Carousel.vue";
-import Config from "./Config.vue";
-import Editor from "./Editor.vue";
-import Logger from "./Logger.vue";
-import ScriptList from "./ScriptList.vue";
+import Config from "./tabs/Config.vue";
+import Logger from "./tabs/Logger.vue";
+import ScriptList from "./tabs/ScriptList.vue";
+import ScriptTab from "./tabs/ScriptTab/index.vue";
 
 interface ITabItem {
     tabKey: string | number;
@@ -40,12 +40,10 @@ export default class App extends Vue {
 
     allTabs: ITabItem[] = [];
 
-    manualNavigateFlag = false;
-
     created() {
         eventBus.$on<IEditScript>("edit-script", this.handleEditScript);
         // todo 如果是在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab
-        eventBus.$on<any>("save-script", this.handleSaveScript);
+        eventBus.$on<ISaveScript>("save-script", this.handleSaveScript);
         eventBus.$on<IChangeTitle>("change-title", this.handleChangeTitle);
     }
 
@@ -60,7 +58,7 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <Editor></Editor>
+                    <ScriptTab />
                 </div>
             ),
             closable: false,
@@ -122,7 +120,7 @@ export default class App extends Vue {
                             height: "100%",
                         }}
                     >
-                        <Editor scriptId={scriptId}></Editor>
+                        <ScriptTab scriptId={scriptId} />
                     </div>
                 ),
                 closable: true,
@@ -139,6 +137,7 @@ export default class App extends Vue {
                                 cancelText: "取消",
                             })
                                 .then(() => {
+                                    // todo 去除tab title前的"* "
                                     return resolve(true);
                                 })
                                 .catch(() => {
@@ -182,7 +181,9 @@ export default class App extends Vue {
         });
     }
 
-    handleSaveScript() {}
+    handleSaveScript({}: ISaveScript) {
+        // 当关闭由加号按钮激活的编辑器tab时，还原至加号
+    }
 
     handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
         if (initial) {
@@ -211,28 +212,10 @@ export default class App extends Vue {
         this.$forceUpdate();
     }
 
+    manualNavigateFlag = false;
+
     removeTab(index: number) {
-        // 当关闭由加号按钮激活的编辑器tab时，还原至加号
         if (index === PLUS_INDEX) {
-            // const newScriptTab = {
-            //     ...(this.allTabs.find((tab) => tab.tabKey === PLUS_INDEX) as ITabItem),
-            // };
-
-            // newScriptTab.title = undefined;
-            // newScriptTab.icon = <VIcon small>mdi-plus</VIcon>;
-            // newScriptTab.closable = false;
-            // newScriptTab.content = (
-            //     <div
-            //         style={{
-            //             display: "flex",
-            //             height: "100%",
-            //         }}
-            //     >
-            //         {/* 清除Editor上的script绑定，以恢复到initial状态 */}
-            //         <Editor></Editor>
-            //     </div>
-            // );
-
             // vue未监听通过index修改array的方式，所以手动update
             // this.allTabs[PLUS_INDEX] = newScriptTab;
             // this.$forceUpdate();
@@ -241,10 +224,11 @@ export default class App extends Vue {
 
             // 当tabChange时，tab组件内部会自动navigate一次，
             // 所以要保证，手动的navigate发生在自动调用之后
+            // 配合onActiveTab回调使用
+            // todo activePattern设置为head之后，似乎没必要手动navigate了？
             this.manualNavigateFlag = true;
 
             // this.$nextTick(() => {
-
             //     this.$once("tab-change", () => {});
             // });
         } else {
@@ -263,23 +247,6 @@ export default class App extends Vue {
                     }}
                 >
                     <Carousel></Carousel>
-                    {/* <div style={{ display: "grid", placeItems: "center" }}>
-                        <div
-                            style={{
-                                width: "100px",
-                                height: "100px",
-                            }}
-                        >
-                            script cat logo
-                        </div>
-                        <div
-                            style={{
-                                fontSize: "24px",
-                            }}
-                        >
-                            ScriptCat Next Generation Script Manager
-                        </div>
-                    </div> */}
 
                     <Tab
                         onTabRemove={this.removeTab}

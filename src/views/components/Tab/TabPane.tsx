@@ -1,9 +1,6 @@
-import { VNode } from "vue";
-import { Vue, Component, Provide, Prop, Watch } from "vue-property-decorator";
+import { Component, Prop, Vue } from "vue-property-decorator";
 
 import Tab from "./Tab";
-
-const noop = () => {};
 
 @Component({})
 export default class TabPane extends Vue {
@@ -47,7 +44,9 @@ export default class TabPane extends Vue {
         return this.id ? this.id : this.title;
     }
 
-    mounted() {
+    created() {
+        // mounted时添加，TabPane内部会存在mount不同步的问题，created也许可以解决？
+
         // if (this.isValidParent) {
         this.$parent.addTab(this);
         // }
@@ -56,9 +55,10 @@ export default class TabPane extends Vue {
     destroyed() {
         console.log(`${this.tabId} has been destroyed`);
 
-        if (this.$el && this.$el.parentNode) {
+        if (this.$el?.parentNode) {
             this.$el.parentNode.removeChild(this.$el);
         }
+
         this.$parent.removeTab(this);
     }
 
@@ -105,7 +105,6 @@ export default class TabPane extends Vue {
                 >
                     {loadContentFlag && this.$slots.default}
                 </div>
-                {/* </div> */}
             </section>
         );
     }

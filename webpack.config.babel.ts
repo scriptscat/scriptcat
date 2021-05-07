@@ -1,10 +1,11 @@
 import path from "path";
-import htmlWebpackPlugin from "html-webpack-plugin";
-import vueLoaderPlugin from "vue-loader/lib/plugin";
-import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
-import MiniCssExtractPlugin from "mini-css-extract-plugin";
-import CopyPlugin from "copy-webpack-plugin";
+
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import CopyPlugin from "copy-webpack-plugin";
+import htmlWebpackPlugin from "html-webpack-plugin";
+import MiniCssExtractPlugin from "mini-css-extract-plugin";
+import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
+import vueLoaderPlugin from "vue-loader/lib/plugin";
 import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
@@ -18,7 +19,7 @@ const config: Configuration = {
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
         content: home + "/content.ts",
-        injected: home + '/injected.ts',
+        injected: home + "/injected.ts",
         "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
         "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },
@@ -98,15 +99,20 @@ const config: Configuration = {
             chunkFilename: "[name].[hash].chunk.css",
         }),
         new vueLoaderPlugin(),
-        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false })
+        new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
     ],
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],
         alias: {
             "@App": path.resolve(__dirname, "src/"),
+            "@views": path.resolve(__dirname, "src/views"),
             "@components": path.resolve(__dirname, "src/views/components"),
+            "@Option": path.resolve(__dirname, "src/views/pages/Option"),
         },
-        fallback: { "crypto": require.resolve("crypto-browserify"), "stream": require.resolve("stream-browserify") }
+        fallback: {
+            crypto: require.resolve("crypto-browserify"),
+            stream: require.resolve("stream-browserify"),
+        },
     },
     module: {
         rules: [
