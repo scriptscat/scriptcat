@@ -90,6 +90,14 @@ export class UrlMatch<T> {
         return ret;
     }
 
+    public include(url: string): T[] {
+        return [];
+    }
+
+    public exclude(): T[] {
+        return [];
+    }
+
     protected getId(val: T): string {
         if (typeof val == 'object') {
             return (<any>val).id;

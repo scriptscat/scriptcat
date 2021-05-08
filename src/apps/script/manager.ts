@@ -439,14 +439,11 @@ export class ScriptManager {
             if (old) {
                 this.copyTime(script, old);
             } else {
-                script.checktime = new Date().getTime();
-            }
-            if (script.type == SCRIPT_TYPE_NORMAL) {
-                if (old) {
-                    script.status = old.status;
-                } else {
+                // 前台脚本默认开启
+                if (script.type == SCRIPT_TYPE_NORMAL) {
                     script.status = SCRIPT_STATUS_ENABLE;
                 }
+                script.checktime = new Date().getTime();
             }
             return resolve([script, old]);
         });
@@ -542,7 +539,7 @@ export class ScriptManager {
                     chrome.contextMenus.create({
                         id: script.uuid,
                         title: script.name,
-                        contexts: ['all'],
+                        contexts: ["all"],
                         parentId: "script-cat",
                         onclick: (info, tab) => {
                             // 通信发送

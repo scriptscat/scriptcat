@@ -129,6 +129,12 @@ export class FrontendGrant implements ScriptContext {
                 case 'ontimeout':
                     details.ontimeout && details.ontimeout();
                     break;
+                case 'onerror':
+                    details.onerror && details.onerror();
+                    break;
+                case 'onabort':
+                    details.onabort && details.onabort();
+                    break;
             }
         });
     }

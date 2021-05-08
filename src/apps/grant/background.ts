@@ -292,7 +292,8 @@ export class BackgroundGrant {
             responseHeaders: xhr.getAllResponseHeaders(),
         };
         if (xhr.readyState === 4) {
-            if (!config.responseType && xhr.getResponseHeader("Content-Type")?.indexOf("application/json") !== -1) {
+            let contentType = xhr.getResponseHeader("Content-Type");
+            if (!config.responseType && contentType && contentType.indexOf("application/json") !== -1) {
                 respond.response = JSON.parse(xhr.responseText);
             } else {
                 respond.response = xhr.response;
@@ -361,6 +362,12 @@ export class BackgroundGrant {
             }
             xhr.onloadend = (event) => {
                 deal("onloadstart");
+            }
+            xhr.onabort = (event) => {
+                deal("onabort");
+            }
+            xhr.onerror = (event) => {
+                deal("onerror");
             }
             xhr.onprogress = (event) => {
                 let respond: GM_Types.XHRProgress = {

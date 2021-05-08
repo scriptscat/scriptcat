@@ -50,7 +50,11 @@ import { Vue, Component, Watch, Prop } from "vue-property-decorator";
 import { editor, KeyMod, KeyCode } from "monaco-editor";
 
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script, SCRIPT_ORIGIN_LOCAL } from "@App/model/do/script";
+import {
+  Script,
+  SCRIPT_ORIGIN_LOCAL,
+  SCRIPT_STATUS_ENABLE,
+} from "@App/model/do/script";
 import { Background } from "@App/apps/script/background";
 import crontabTpl from "@App/template/crontab.tpl";
 
@@ -137,7 +141,7 @@ export default class ScriptTab extends Vue {
 
   async handleInitialSctipt({}: IInitialScript) {
     if (!(this.scriptId || this.localScriptId)) {
-      eventBus.$emit<IChangeTitle>("change-title", {
+      eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
         title: "新建脚本",
         initial: true,
       });
@@ -210,7 +214,10 @@ export default class ScriptTab extends Vue {
     newScript.checkupdate_url = this.script.checkupdate_url;
 
     this.script = newScript;
-
+    if (!oldScript) {
+      // 新脚本默认开启
+      this.script.status = SCRIPT_STATUS_ENABLE;
+    }
     await this.scriptMgr.updateScript(this.script, oldScript);
 
     // 保存成功后
@@ -239,7 +246,6 @@ export default class ScriptTab extends Vue {
   }
 
   async handleCodeChange({}: ICodeChange) {
-    console.log(1331251223);
     if (this.hasInitial) {
       eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
         title: `* ${this.script.name}`,

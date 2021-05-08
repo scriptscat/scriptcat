@@ -100,7 +100,7 @@ export default class Logger_ extends Vue {
   }
 
   formatTime(time: Date) {
-    dayjs(time).format("YYYY-MM-DD");
+    return dayjs(time).format("MM-DD HH:mm:ss");
   }
 }
 </script>

@@ -10,7 +10,6 @@
 // @description  try to take over the world!
 // @author       You
 // @crontab      * * once * *
-// @debug
 // ==/UserScript==
 ```
 
@@ -104,10 +103,6 @@ match的别名
 
 
 ### 额外描述值
-
-#### debug🧪
-
-表示调试脚本,保存的时候自动运行一次,未来会去除优化.
 
 #### license
 

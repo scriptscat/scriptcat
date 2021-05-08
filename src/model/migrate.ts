@@ -25,4 +25,7 @@ export function migrate() {
         resource: "++id,&url,content,type,createtime,updatetime",
         resourceLink: "++id,url,scriptId,createtime",
     });
+    db.version(8).stores({
+        logger: "++id,level,origin,createtime",
+    });
 }

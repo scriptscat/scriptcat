@@ -136,12 +136,7 @@ export function post(url: string, data: any, json = true, success: Function) {
  * 创建http请求
  */
 function createRequest(): XMLHttpRequest {
-    let xmlhttp: XMLHttpRequest;
-    if (window.XMLHttpRequest) {
-        xmlhttp = new XMLHttpRequest();
-    } else {
-        xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
-    }
+    let xmlhttp = new XMLHttpRequest();
     (<any>xmlhttp).error = function (callback: Function) {
         (<any>xmlhttp).errorCallback = callback;
         return xmlhttp;

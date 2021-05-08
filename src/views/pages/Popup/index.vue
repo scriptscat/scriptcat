@@ -28,15 +28,14 @@
         </v-expansion-panels>
       </TabPane>
       <TabPane title="后台"></TabPane>
-      <TabPane title="可用">
-        从资源站获取，当前页面可以使用的脚本 可用脚本包含已安装脚本，突出一下
-      </TabPane>
       <TabPane title="其它">
-        <div>管理面板</div>
-        <div>获取脚本</div>
-        <div>新建脚本</div>
-        <div>问题反馈</div>
-        <div>Github</div>
+        <a href="/options.html" target="_black">管理面板</a>
+        <a href="https://bbs.tampermonkey.net.cn/forum-2-1.html" target="_black"
+          >获取脚本</a
+        >
+        <a href="/options.html" target="_black">新建脚本</a>
+        <a href="https://github.com/scriptscat/scriptcat/issues" target="_black">问题反馈</a>
+        <a href="https://github.com/scriptscat/scriptcat" target="_black">Github</a>
       </TabPane>
     </Tab>
   </v-app>
@@ -105,5 +104,4 @@ export default class Popup extends Vue {
 }
 </script>
 
-<style>
-</style>
+<style></style>

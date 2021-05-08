@@ -4,6 +4,7 @@ import { Component, Vue } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
 import Carousel from "./Carousel.vue";
+import EventType from "./EventType";
 import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
@@ -41,9 +42,9 @@ export default class App extends Vue {
     allTabs: ITabItem[] = [];
 
     created() {
-        eventBus.$on<IEditScript>("edit-script", this.handleEditScript);
-        eventBus.$on<INewScript>("new-script", this.handleNewScript);
-        eventBus.$on<IChangeTitle>("change-title", this.handleChangeTitle);
+        eventBus.$on<IEditScript>(EventType.EditScript, this.handleEditScript);
+        eventBus.$on<INewScript>(EventType.NewScript, this.handleNewScript);
+        eventBus.$on<IChangeTitle>(EventType.ChangeTitle, this.handleChangeTitle);
     }
 
     generatePlusTab() {
