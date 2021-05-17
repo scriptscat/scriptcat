@@ -29,13 +29,25 @@
       </TabPane>
       <TabPane title="后台"></TabPane>
       <TabPane title="其它">
-        <a href="/options.html" target="_black">管理面板</a>
-        <a href="https://bbs.tampermonkey.net.cn/forum-2-1.html" target="_black"
-          >获取脚本</a
-        >
-        <a href="/options.html" target="_black">新建脚本</a>
-        <a href="https://github.com/scriptscat/scriptcat/issues" target="_black">问题反馈</a>
-        <a href="https://github.com/scriptscat/scriptcat" target="_black">Github</a>
+        <v-list>
+          <v-list-item
+            v-for="(item, index) in otherOptions"
+            :key="index"
+            link
+            :href="item.route"
+            target="_black"
+          >
+            <v-list-item-icon>
+              <v-icon v-text="item.icon"></v-icon>
+            </v-list-item-icon>
+
+            <v-list-item-content>
+              <v-list-item-title> {{ item.title }} </v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+        </v-list>
+
+        <v-icon v-text="'mdi-github'"></v-icon>
       </TabPane>
     </Tab>
   </v-app>
@@ -64,6 +76,34 @@ import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 export default class Popup extends Vue {
   scriptUtil: ScriptManager = new ScriptManager(undefined);
   protected scripts: Array<Script> = [];
+
+  otherOptions: { title: string; icon: string; route: string }[] = [
+    {
+      title: "管理面板",
+      icon: "mdi-cog-outline",
+      route: "/options.html",
+    },
+    {
+      title: "获取脚本",
+      icon: "",
+      route: "https://bbs.tampermonkey.net.cn/forum-2-1.html",
+    },
+    {
+      title: "新建脚本",
+      icon: "",
+      route: "/options.html",
+    },
+    {
+      title: "问题反馈",
+      icon: "",
+      route: "https://github.com/scriptscat/scriptcat/issues",
+    },
+    {
+      title: "Github",
+      icon: "mdi-github",
+      route: "https://github.com/scriptscat/scriptcat",
+    },
+  ];
 
   created() {
     this.scriptUtil.scriptList(undefined).then((result) => {
