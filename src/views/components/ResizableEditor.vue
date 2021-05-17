@@ -9,11 +9,6 @@
       overflow: 'hidden',
     }"
   >
-    <v-toolbar dense>
-      <v-btn @click="debugScript" icon>
-        <v-icon>mdi-play</v-icon>
-      </v-btn>
-    </v-toolbar>
     <div
       :id="uniqueEditorId"
       :style="{
