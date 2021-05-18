@@ -125,7 +125,7 @@ export default class ScriptTab extends Vue {
         this.handleInitialSctipt(payload);
       }
     });
-    eventBus.$on<ISave>("save", (payload) => {
+    eventBus.$on<ISave>(EventType.Save, (payload) => {
       if (payload.scriptId === this.scriptId) {
         this.handleSave(payload);
       }
@@ -163,7 +163,7 @@ export default class ScriptTab extends Vue {
     this.script = script;
     this.metaBuffer = this.prepareMetaBuffer(this.script.metadata);
 
-    eventBus.$emit<IChangeTitle>("change-title", {
+    eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: script.name,
       scriptId: this.scriptId ?? this.localScriptId,
     });
@@ -187,7 +187,7 @@ export default class ScriptTab extends Vue {
     this.onMetaChange = false;
   }
 
-  async handleSave({ currentCode }: ISave) {
+  async handleSave({ currentCode, debug }: ISave) {
     // todo 保存时候错误处理
     let [newScript, oldScript] = await this.scriptMgr.prepareScriptByCode(
       currentCode,
@@ -225,21 +225,14 @@ export default class ScriptTab extends Vue {
     await this.handleInitialSctipt({} as any);
 
     // 还原unsavdChange状态的title
-    eventBus.$emit<IChangeTitle>("change-title", {
+    eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: `${this.script.name}`,
       scriptId: this.scriptId ?? this.localScriptId,
     });
 
-    if (oldScript) {
-      // 后台脚本才可以调用
-      if (this.script.metadata["debug"] != undefined) {
-        this.scriptMgr.execScript(this.script, true);
-      }
-    } else {
-      // eventBus.$emit<INewScript>("new-script", {
-      //   scriptId: this.scriptId ?? this.localScriptId,
-      // });
-      // this.$router.push({ path: "/" });
+    // 后台脚本才可以调用
+    if (debug) {
+      this.scriptMgr.execScript(this.script, true);
     }
 
     this.$refs.editor.hasUnsavedChange = false;

@@ -125,7 +125,11 @@ export default class CloseButton extends Vue {
       {
         action: "调试",
         handler: () => {
-          console.log("菜单action");
+          eventBus.$emit<ISave>(EventType.Save, {
+            scriptId: this.scriptId,
+            currentCode: this.editor.getValue(),
+            debug: true,
+          });
         },
         tooltip: "调试后台脚本",
       },
@@ -154,6 +158,7 @@ export default class CloseButton extends Vue {
       eventBus.$emit<ISave>(EventType.Save, {
         scriptId: this.scriptId,
         currentCode: this.editor.getValue(),
+        debug: false,
       });
     });
 

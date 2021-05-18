@@ -28,6 +28,7 @@ interface IUpdateMeta {
 interface ISave {
     scriptId: number;
     currentCode: string;
+    debug: boolean;
 }
 
 interface IInitialScript {

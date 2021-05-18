@@ -376,7 +376,11 @@ export class ScriptManager {
 
     public loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined> {
         return new Promise(resolve => {
-            axios.get(url).then((response): ScriptUrlInfo | undefined => {
+            axios.get(url, {
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            }).then((response): ScriptUrlInfo | undefined => {
                 if (response.status != 200) {
                     return undefined;
                 }
