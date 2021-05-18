@@ -44,8 +44,8 @@ export function buildThis(global: any, context: any) {
                     }
                     return global[key];
                 }
-                return context[key];
             }
+            return undefined;
         },
         has() {
             return true;

@@ -140,7 +140,7 @@ export class BackgroundGrant {
                         return resolve(undefined);
                     }
                     App.Log.Debug("script", "call function: " + propertyName, script.name);
-                    let metaGrant = script.metadata["grant"];
+                    let metaGrant = script.metadata["grant"] || [];
                     if (!permission.default) {
                         let flag = false;
                         for (let i = 0; i < metaGrant.length; i++) {

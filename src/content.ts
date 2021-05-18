@@ -18,7 +18,6 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
     MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
         browserMsg.send(ScriptValueChange, msg);
     })
-    console.log(123);
     chrome.runtime.onMessage.addListener((event) => {
         console.log(event);
         switch (event.action) {

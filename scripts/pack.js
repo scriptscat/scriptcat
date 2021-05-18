@@ -10,7 +10,7 @@ let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json").toString();
 jsonStr = jsonStr.replace(/"version": "(.*?)"/, '"version": "' + pjson.version + '"');
 fs.writeFileSync("./build/scriptcat/manifest.json", jsonStr);
 
-// 处理 ts.worker.js
+// 处理 ts.worker.js 和 editor.worker.js
 let list = fs.readdirSync("./build/scriptcat/src");
 let monaco = [];
 for (let i = 0; i < list.length; i++) {
@@ -23,6 +23,13 @@ let old = fs.readFileSync("./build/scriptcat/src/ts.worker.js", "utf-8");
 
 fs.writeFileSync(
     "./build/scriptcat/src/ts.worker.js",
+    'importScripts("' + monaco.join('","') + '");\n' + old.toString(),
+);
+
+old = fs.readFileSync("./build/scriptcat/src/editor.worker.js", "utf-8");
+
+fs.writeFileSync(
+    "./build/scriptcat/src/editor.worker.js",
     'importScripts("' + monaco.join('","') + '");\n' + old.toString(),
 );
 

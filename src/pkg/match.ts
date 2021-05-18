@@ -1,6 +1,5 @@
 
-export class UrlMatch<T> {
-
+export class Match<T> {
     protected cache = new Map<string, T[]>();
     protected rule = new Map<string, T[]>();
 
@@ -12,6 +11,15 @@ export class UrlMatch<T> {
                 host: match[2],
                 path: match[4] || "/",
                 search: match[5],
+            };
+        }
+        match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
+        if (match) {
+            return {
+                scheme: '*',
+                host: match[1],
+                path: match[3] || "/",
+                search: match[4],
             };
         }
         return undefined;
@@ -30,7 +38,7 @@ export class UrlMatch<T> {
                 u.scheme = 'http[s]';
                 break;
         }
-        u.host = u.host.replace('*', '.+?');
+        u.host = u.host.replace('*', '.*?');
         let re: string = `^${u.scheme}://${u.host}`;
         if (u.path == '/') {
             re += '[/]?';
@@ -90,14 +98,6 @@ export class UrlMatch<T> {
         return ret;
     }
 
-    public include(url: string): T[] {
-        return [];
-    }
-
-    public exclude(): T[] {
-        return [];
-    }
-
     protected getId(val: T): string {
         if (typeof val == 'object') {
             return (<any>val).id;
@@ -130,6 +130,37 @@ export class UrlMatch<T> {
 
     protected delCache(delVal: T) {
         this.cache.clear();
+    }
+
+}
+
+export class UrlMatch<T> extends Match<T>{
+    protected excludeMatch = new Match<T>();
+
+    public exclude(url: string, val: T) {
+        this.excludeMatch.add(url, val);
+    }
+
+    public match(url: string): T[] {
+        let ret = super.match(url);
+        // 排除
+        let includeMap = new Map();
+        ret.forEach(val => {
+            includeMap.set(this.getId(val), val);
+        })
+        let exclude = this.excludeMatch.match(url);
+        let excludeMap = new Map();
+        exclude.forEach(val => {
+            excludeMap.set(this.getId(val), 1);
+        })
+        ret = [];
+        includeMap.forEach((val, key) => {
+            if (!excludeMap.has(key)) {
+                ret!.push(val);
+            }
+        })
+        this.cache.set(url, ret);
+        return ret;
     }
 
 }

@@ -295,5 +295,3 @@ export default class ScriptTab extends Vue {
   }
 }
 </script>
-
-

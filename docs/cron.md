@@ -30,7 +30,6 @@
 // @version      1.0.0
 // @author       wyz
 // @crontab * * * * *
-// @debug
 // ==/UserScript==
 return new Promise((resolve, reject) => {
   if (Math.round((Math.random() * 10) % 2)) {
@@ -40,7 +39,3 @@ return new Promise((resolve, reject) => {
   }
 });
 ```
-
-### debug
-
-在`UserScript`中加入`@debug`可进入调试模式,每一次保存脚本都会立刻执行一次

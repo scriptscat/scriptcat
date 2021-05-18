@@ -1,12 +1,12 @@
 ## v0.3.4
 
-* 修复 `GM_XHR` API的bug
-* 修复日志无时间的bug
-* 修复低内核浏览器兼容问题(replaceAll导致的)
 * 新建脚本默认开启
 * 管理面板简单的分页功能
 * 增加开机启动自动运行
 * 支持`@require-css`直接引入css文件
+* 支持`document-menu`执行方式
+* 修复若干bug
+* 支持`@include`和`@exclude`
 
 ## v0.3.0
 > 开始支持油猴脚本了

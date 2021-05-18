@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
         "scriptcat"
-    ]
+    ],
+    "jest.jestCommandLine": "jest"
 }

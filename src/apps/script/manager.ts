@@ -189,38 +189,44 @@ export class ScriptManager {
                 if (has) {
                     oldScript = script;
                 }
-                let match = oldScript.metadata['match'];
-                if (match) {
-                    match.forEach((val: string) => {
-                        this.match.del(val, oldScript);
-                    });
-                }
+                oldScript.metadata['match']?.forEach(val => {
+                    this.match.del(val, oldScript);
+                })
+                oldScript.metadata['include']?.forEach(val => {
+                    this.match.del(val, oldScript);
+                })
             }
             if (script && script.status == SCRIPT_STATUS_ENABLE) {
                 // 对首次添加进行处理
-                let match = script.metadata['match'];
-                if (match) {
-                    let cache = await this.buildScriptCache(script);
-                    cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
-                        cache.code + `\n}`);
-                    match.forEach((val: string) => {
-                        this.match.add(val, cache);
-                    });
-                }
+                let cache = await this.buildScriptCache(script);
+                cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
+                    cache.code + `\n}`);
+                script.metadata['match']?.forEach(val => {
+                    this.match.add(val, cache);
+                });
+                script.metadata['include']?.forEach(val => {
+                    this.match.add(val, cache);
+                });
+                script.metadata['exclude']?.forEach(val => {
+                    this.match.exclude(val, cache);
+                });
             }
         });
         let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
             items.forEach(async script => {
-                let match = script.metadata['match'];
-                if (match) {
-                    let cache = await this.buildScriptCache(script);
-                    cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
-                        cache.code + `\n}`);
-                    match.forEach((val: string) => {
-                        this.match.add(val, cache);
-                    });
-                }
+                let cache = await this.buildScriptCache(script);
+                cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
+                    cache.code + `\n}`);
+                script.metadata['match']?.forEach(val => {
+                    this.match.add(val, cache);
+                });
+                script.metadata['include']?.forEach(val => {
+                    this.match.add(val, cache);
+                });
+                script.metadata['exclude']?.forEach(val => {
+                    this.match.exclude(val, cache);
+                });
             });
         });
         let injectedSource = '';
