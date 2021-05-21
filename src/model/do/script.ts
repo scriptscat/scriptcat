@@ -27,6 +27,18 @@ export const SCRIPT_ORIGIN_LOCAL = 'local';
 
 export type Metadata = { [key: string]: string[] };
 
+export type ConfigType = 'text' | 'boolean' | 'select' | 'number';
+
+export interface Config {
+    [key: string]: any
+    title: string
+    description: string
+    default?: any
+    type?: ConfigType
+}
+
+export type UserConfig = { [key: string]: { [key: string]: Config } };
+
 export interface ScriptCache extends Script {
     grantMap?: { [key: string]: string }
     value?: { [key: string]: Value }
@@ -51,6 +63,8 @@ export interface Script {
     checkupdate_url: string
     //script metadata
     metadata: Metadata;
+    // user config
+    config?: UserConfig;
     //script type. 1:normal 2:crontab
     type: SCRIPT_TYPE;
     //script status. 1:enable 2:disable 3:error 4:prepare

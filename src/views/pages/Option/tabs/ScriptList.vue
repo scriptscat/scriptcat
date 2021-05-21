@@ -96,6 +96,119 @@
         <span class="action-buttons">
           <v-icon small @click="editItem(item)"> mdi-pencil </v-icon>
           <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
+          <v-dialog
+            v-if="item.config"
+            transition="dialog-bottom-transition"
+            max-width="600"
+          >
+            <template v-slot:activator="{ on, attrs }">
+              <v-icon small @click="settingItem(item)" v-bind="attrs" v-on="on">
+                mdi-settings
+              </v-icon>
+            </template>
+            <template v-slot:default="dialog">
+              <v-card>
+                <v-toolbar color="primary" dark>
+                  <v-toolbar-title>{{ item.name }} 配置</v-toolbar-title>
+                  <v-spacer></v-spacer>
+                  <v-toolbar-items>
+                    <v-btn icon dark @click="dialog.value = false" right>
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </v-toolbar-items>
+                </v-toolbar>
+                <v-tabs v-model="configTab[item.name]">
+                  <v-tab v-for="(group, name) in item.config" :key="name">
+                    {{ name }}
+                  </v-tab>
+                </v-tabs>
+
+                <v-tabs-items v-model="configTab[item.name]">
+                  <v-tab-item v-for="(group, name) in item.config" :key="name">
+                    <v-card style="padding: 10px">
+                      <div v-for="(item, key) in group" :key="key">
+                        <v-text-field
+                          clearable
+                          v-model="item.value"
+                          v-if="item.type === 'text'"
+                          :type="item.password ? 'password' : 'text'"
+                          :label="item.title"
+                          :hint="item.description"
+                          :rules="[
+                            () =>
+                              !item.min ||
+                              item.min <= item.value.length ||
+                              item.title + '不能少于' + item.min + '个字符',
+                            () =>
+                              !item.max ||
+                              item.max >= item.value.length ||
+                              item.title + '不能多于' + item.max + '个字符',
+                          ]"
+                        >
+                        </v-text-field>
+                        <v-text-field
+                          clearable
+                          v-model="item.value"
+                          v-else-if="item.type === 'number'"
+                          :suffix="item.unit"
+                          :label="item.title"
+                          :hint="item.description"
+                          :rules="[
+                            () =>
+                              !item.min ||
+                              item.min <= item.value ||
+                              item.title + '不能比' + item.min + '小',
+                            () =>
+                              !item.max ||
+                              item.max >= item.value ||
+                              item.title + '不能比' + item.max + '大',
+                          ]"
+                        >
+                        </v-text-field>
+                        <v-checkbox
+                          hide-details
+                          v-model="item.value"
+                          color="success"
+                          v-else-if="item.type === 'boolean'"
+                        >
+                          <template v-slot:label>
+                            {{ item.title }}
+                            <div
+                              class="text--disabled"
+                              style="font-size: 10px; padding-left: 10px"
+                            >
+                              {{ item.description }}
+                            </div>
+                          </template>
+                        </v-checkbox>
+                        <v-select
+                          v-model="item.value"
+                          v-else-if="item.type === 'select'"
+                          :items="item.values"
+                          :suffix="item.unit"
+                          :label="item.title"
+                          :hint="item.description"
+                        >
+                        </v-select>
+                      </div>
+                      <v-card-actions class="justify-end">
+                        <v-btn
+                          text
+                          color="success"
+                          @click="
+                            saveUserConfig(item, name, () => {
+                              dialog.value = false;
+                            })
+                          "
+                          >保存</v-btn
+                        >
+                      </v-card-actions>
+                    </v-card>
+                  </v-tab-item>
+                </v-tabs-items>
+              </v-card>
+            </template>
+          </v-dialog>
           <v-icon
             v-if="item.type !== 1 && item.runStatus != 'running'"
             dense
@@ -160,6 +273,9 @@ import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
 import { Page } from "@App/pkg/utils";
+import { ValueModel } from "@App/model/value";
+import { Value } from "@App/model/do/value";
+import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -240,12 +356,15 @@ export default class ScriptList extends Vue {
   count = 20;
   length = 1;
 
+  configTab = {};
+
   @Watch("page")
   onPageChange(newPage: number) {
     this.scriptUtil
       .scriptList(undefined, new Page(newPage, this.count))
       .then((result) => {
         this.scripts = result;
+        this.handleScriptConfig(this.scripts);
       });
   }
 
@@ -254,6 +373,7 @@ export default class ScriptList extends Vue {
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
     this.scriptUtil.scriptList(undefined, new Page(1, 1000)).then((result) => {
       this.scripts = result;
+      this.handleScriptConfig(this.scripts);
       // todo 为scriptList和logger实现直接访问dexie的count，而不是获取list之后再length，性能有点问题
       this.length = Math.ceil(result.length / this.count);
     });
@@ -266,6 +386,80 @@ export default class ScriptList extends Vue {
         }
       }
     });
+  }
+
+  protected valueModel = new ValueModel();
+
+  handleScriptConfig(scripts: Script[]) {
+    scripts.forEach((val) => {
+      if (val.config) {
+        for (const gkey in val.config) {
+          let group = val.config[gkey];
+          for (const key in group) {
+            if (typeof group[key].default == "boolean") {
+              group[key].type = "boolean";
+            } else if (group[key].values) {
+              group[key].type = "select";
+            } else if (typeof group[key].default == "number") {
+              group[key].type = "number";
+            } else {
+              group[key].type = "text";
+            }
+            let where: any = { key: gkey + "." + key };
+            if (val.namespace) {
+              where["namespace"] = val.namespace;
+            } else {
+              where["scriptId"] = val.id;
+            }
+            this.valueModel.findOne(where).then((val) => {
+              // 读取value
+              if (val) {
+                group[key].value = val?.value;
+              } else {
+                group[key].value = group[key].default || "";
+              }
+            });
+          }
+        }
+      }
+    });
+  }
+
+  async saveUserConfig(script: Script, name: string, success: () => {}) {
+    for (const itemKey in script.config![name]) {
+      let item = script.config![name][itemKey];
+      let key = name + "." + itemKey;
+      let model: Value | undefined;
+      if (script?.namespace) {
+        model = await this.valueModel.findOne({
+          namespace: script.namespace,
+          key: key,
+        });
+      } else {
+        model = await this.valueModel.findOne({
+          scriptId: script?.id,
+          key: key,
+        });
+      }
+      if (model) {
+        if (model.value == item.value) {
+          continue;
+        }
+        model.value = item.value;
+      } else {
+        model = {
+          id: 0,
+          scriptId: script?.id || 0,
+          namespace: script?.namespace || "",
+          key: key,
+          value: item.value,
+          createtime: new Date().getTime(),
+        };
+      }
+      this.valueModel.save(model);
+      MsgCenter.connect(ScriptValueChange, model);
+    }
+    success();
   }
 
   getStatusBoolean(item: Script) {
@@ -305,7 +499,7 @@ export default class ScriptList extends Vue {
   executeMutipleAction() {}
 
   editItem(item: Script) {
-    eventBus.$emit<IEditScript>("edit-script", { scriptId: item.id });
+    eventBus.$emit?.<IEditScript>("edit-script", { scriptId: item.id });
     // this.routeTo(`/edit/${item.id}`);
   }
 
@@ -318,6 +512,8 @@ export default class ScriptList extends Vue {
     this.editedItem = Object.assign({}, item);
     this.dialogDelete = true;
   }
+
+  settingItem(item: any) {}
 
   async deleteItemConfirm() {
     await this.scriptUtil.uninstallScript(this.editedItem);
@@ -341,7 +537,7 @@ export default class ScriptList extends Vue {
 }
 </script>
 
-<style scoped >
+<style scoped>
 .action-buttons {
   display: flex;
   flex-direction: row;

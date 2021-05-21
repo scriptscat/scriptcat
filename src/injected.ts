@@ -17,12 +17,11 @@ browserMsg.listen("scripts", (msg) => {
                 val.value = {};
             }
             if ((val.namespace && val.namespace == msg.namespace) || val.id == msg.id) {
-                val.context?.ValueChange(msg.key, msg);
+                val.context && val.context.ValueChange && val.context.ValueChange(msg.key, msg);
             }
         })
     });
     browserMsg.listen(ScriptExec, (msg) => {
-        console.log(msg, scripts);
         for (let i = 0; i < scripts.length; i++) {
             if (scripts[i].uuid == msg) {
                 (<any>window)[scripts[i].flag!].apply(scripts[i].context, [scripts[i].context]);

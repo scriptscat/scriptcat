@@ -237,7 +237,9 @@ export class FrontendGrant implements ScriptContext {
 
     private valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
 
-    public ValueChange(name: string, value: Value): void {
+    ValueChange = (name: string, value: Value): void => {
+        console.log(name, value, this.script.id);
+        this.script.value![name] = value;
         this.valueChangeListener.forEach(val => {
             if (val.name === name) {
                 val.listener(name, this.script.value, value.value, this.script.value === value.value);
@@ -325,14 +327,15 @@ export class SandboxContext extends FrontendGrant {
         AppEvent.listener(ScriptValueChange, this.valueChange);
     }
 
+
     public valueChange = (msg: Value) => {
         if (!this.script.value) {
             this.script.value = {};
         }
         if (this.script.namespace && this.script.namespace == msg.namespace) {
-            this.script.value[msg.key] = msg;
+            this.ValueChange(msg.key, msg);
         } else if (this.script.id == msg.scriptId) {
-            this.script.value[msg.key] = msg;
+            this.ValueChange(msg.key, msg);
         }
     }
 

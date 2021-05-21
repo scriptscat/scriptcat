@@ -158,8 +158,6 @@ export default class App extends Vue {
         );
 
         this.$nextTick(() => {
-            // 外部跳转
-            console.log(this.$route);
 
             const query = (this.$route.query as unknown) as IExternalAction;
 
@@ -221,7 +219,6 @@ export default class App extends Vue {
                 return;
             } else {
                 const scriptTab = { ...this.allTabs[scriptTabIndex] };
-                console.error(scriptTab);
                 scriptTab.title = title.length > 20 ? title.slice(0, 20) + "..." : title;
                 this.allTabs[scriptTabIndex] = scriptTab;
             }

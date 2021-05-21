@@ -26,7 +26,8 @@
         "vue-i18n": "^8.24.1",
         "vue-router": "^3.5.1",
         "vuetify": "^2.4.5",
-        "vuetify-dialog-promise": "^2.4.2"
+        "vuetify-dialog-promise": "^2.4.2",
+        "yaml": "^1.10.2"
     },
     "devDependencies": {
         "@babel/core": "^7.13.10",

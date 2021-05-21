@@ -11,9 +11,10 @@ import { ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
 import { compileScriptCode } from "@App/pkg/sandbox";
 import { Resource } from "@App/model/do/resource";
-import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_PREPARE, SCRIPT_STATUS, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, Metadata } from "@App/model/do/script";
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_PREPARE, SCRIPT_STATUS, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, Metadata, UserConfig } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { ScriptModel } from "@App/model/script";
+import YAML from 'yaml'
 
 export class ScriptManager {
 
@@ -63,10 +64,14 @@ export class ScriptManager {
             })
         });
         MsgCenter.listener(ScriptValueChange, (msg, port) => {
-            this.changePort.set(port.sender?.tab?.id, port);
-            port.onDisconnect.addListener(() => {
-                this.changePort.delete(port.sender?.tab?.id);
-            })
+            if (typeof msg == 'string') {
+                this.changePort.set(port.sender?.tab?.id, port);
+                port.onDisconnect.addListener(() => {
+                    this.changePort.delete(port.sender?.tab?.id);
+                })
+            } else {
+                AppEvent.trigger(ScriptValueChange, msg);
+            }
         });
     }
 
@@ -366,6 +371,23 @@ export class ScriptManager {
         return ret;
     }
 
+    protected parseUserConfig(code: string): UserConfig | undefined {
+        let regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
+        let config = regex.exec(code)
+        if (!config) {
+            return undefined;
+        }
+        let configs = config[1].trim().split(/[-]{3,}/);
+        let ret: UserConfig = {};
+        configs.forEach(val => {
+            let obj = YAML.parse(val);
+            for (const key in obj) {
+                ret[key] = obj[key];
+            }
+        });
+        return ret;
+    }
+
     protected validMetadata(metadata: Metadata | null): Metadata | null {
         if (metadata == null) {
             return null;
@@ -439,6 +461,7 @@ export class ScriptManager {
                 origin_domain: domain,
                 origin: url,
                 checkupdate_url: checkupdate_url,
+                config: this.parseUserConfig(code),
                 metadata: metadata,
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
