@@ -158,11 +158,12 @@ export default class App extends Vue {
         );
 
         this.$nextTick(() => {
-
             const query = (this.$route.query as unknown) as IExternalAction;
 
             if (query?.target === "editor") {
                 this.handleEditScript({ scriptId: parseInt(query.id as string) });
+            } else if (query?.target === "initial") {
+                this.$refs.tabRef.navigateToTab(this.allTabs.length - 1);
             }
         });
     }
