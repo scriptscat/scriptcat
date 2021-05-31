@@ -594,7 +594,7 @@ export class BackgroundGrant {
             if (!grant.params[0]) {
                 return resolve(undefined);
             }
-            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name);
+            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name, grant.id);
             return resolve(undefined);
         });
     }

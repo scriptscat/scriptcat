@@ -17,5 +17,6 @@ export interface Log {
     origin: string
     title: string
     message: string
+    scriptId?: number
     createtime: number
 }

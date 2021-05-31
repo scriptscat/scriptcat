@@ -36,36 +36,25 @@ async function execScript(
         context.CAT_setRunError("", 0);
         script.lastruntime = new Date().getTime();
         context.CAT_setLastRuntime(script.lastruntime);
-        SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id, script.name);
+        SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id, script.name, script.id);
         let execRet = func(buildThis(window, context));
         if (execRet instanceof Promise) {
             execRet
                 .then((result: any) => {
-                    SendLogger(
-                        LOGGER_LEVEL_INFO,
-                        type,
-                        "exec script id: " +
-                        script.id +
-                        " time: " +
-                        (new Date().getTime() - (script.lastruntime || 0)).toString() +
-                        "ms result: " +
-                        result,
-                        script.name,
-                    );
+                    let msg = "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + "ms"
+                    if (result) {
+                        msg += " result: " + result;
+                    }
+                    SendLogger(LOGGER_LEVEL_INFO, type, msg, script.name, script.id);
                     context.CAT_runComplete();
                     resolve(true);
                 })
                 .catch((error: string, delayrun: number = 0) => {
-                    SendLogger(
-                        LOGGER_LEVEL_ERROR,
-                        type,
-                        "exec script id: " +
-                        script.id +
-                        " error: " +
-                        error +
-                        (delayrun ? " delayrun: " + delayrun : ""),
-                        script.name,
-                    );
+                    let msg = "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + "ms"
+                    if (error) {
+                        msg += " error: " + error + (delayrun ? " delayrun: " + delayrun : "")
+                    }
+                    SendLogger(LOGGER_LEVEL_ERROR, type, msg, script.name, script.id);
                     if (delayrun > 0) {
                         script.delayruntime = new Date().getTime() + delayrun * 1000;
                     } else {
@@ -83,7 +72,7 @@ async function execScript(
                 " time: " +
                 (new Date().getTime() - (script.lastruntime || 0)).toString() +
                 "ms",
-                script.name,
+                script.name, script.id
             );
             //30s后标记完成并清理资源
             setTimeout(() => {

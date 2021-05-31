@@ -1,33 +1,39 @@
 <template>
   <div>
-    <div
-      v-for="(log, index) in logs"
-      :key="index"
-      :style="{ display: 'flex', marginRight: '10px', height: '30px' }"
-    >
-      <span :style="{ width: '15px' }">{{ index + 1 }}</span>
-
-      <span>{{ formatTime(log.createtime) }}</span>
-
-      <span :style="{ width: '70px', display: 'grid', placeItems: 'center' }">
-        <v-chip
-          :color="mapLevelToColor(log.level)"
-          text-color="white"
-          small
-          label
-        >
-          {{ log.level }}
-        </v-chip>
-      </span>
-
-      <span>{{ log.title }}</span>
-
-      <span>{{ log.origin }}</span>
-
-      <span>{{ log.message }}</span>
-    </div>
-
+    <v-simple-table dense>
+      <template v-slot:default>
+        <thead>
+          <tr>
+            <th class="text-left">等级</th>
+            <th class="text-left">标题</th>
+            <th class="text-left">内容</th>
+            <th class="text-left">来源</th>
+            <th class="text-left">时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(log, index) in logs" :key="index">
+            <td>
+              <v-chip
+                :color="mapLevelToColor(log.level)"
+                text-color="white"
+                small
+                label
+              >
+                {{ log.level }}
+              </v-chip>
+            </td>
+            <td>{{ log.title }}</td>
+            <td>{{ log.message }}</td>
+            <td>{{ log.origin }}</td>
+            <td>{{ formatTime(log.createtime) }}</td>
+          </tr>
+        </tbody>
+      </template>
+      <template v-slot:no-data> 暂无日志 </template>
+    </v-simple-table>
     <v-pagination
+      v-if="length > 1"
       v-model="page"
       :length="length"
       :total-visible="7"

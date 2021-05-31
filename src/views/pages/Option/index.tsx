@@ -168,17 +168,19 @@ export default class App extends Vue {
     }
 
     handleEditScript({ scriptId }: IEditScript) {
-        const scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
+        let scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
         // 如果不存在
         if (scriptTabIndex === -1) {
             // 则新建
-            this.allTabs.push(this.generateScriptTab(scriptId));
+            // this.allTabs.push(this.generateScriptTab(scriptId));
+            scriptTabIndex = this.allTabs.length - 1;
+            this.allTabs.splice(this.allTabs.length - 1, 0, this.generateScriptTab(scriptId));
         }
 
         //新建后跳转
         this.$nextTick(() => {
             this.$refs.tabRef.navigateToTab(
-                scriptTabIndex === -1 ? this.allTabs.length - 1 : scriptTabIndex,
+                scriptTabIndex,
             );
         });
     }
@@ -186,10 +188,11 @@ export default class App extends Vue {
     handleNewScript({ scriptId }: INewScript) {
         // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab为加号
         // this.allTabs.splice(PLUS_INDEX, 1, this.generatePlusTab());
-        this.allTabs[PLUS_INDEX] = this.generatePlusTab();
-        this.$forceUpdate();
+        this.allTabs[this.allTabs.length - 1] = this.generatePlusTab();
+        // this.$forceUpdate();
 
-        this.allTabs.push(this.generateScriptTab(scriptId));
+        // this.allTabs.push(this.generateScriptTab(scriptId));
+        this.allTabs.splice(this.allTabs.length - 1, 0, this.generateScriptTab(scriptId));
 
         //新建后跳转
         this.$nextTick(() => {
@@ -236,7 +239,7 @@ export default class App extends Vue {
             // this.$forceUpdate();
             // 或者直接splice替换
             this.$refs.tabRef.navigateToTab(0);
-            this.allTabs.splice(index, 1, this.generatePlusTab());
+            this.allTabs.splice(index, 1);
 
             // 当tabChange时，tab组件内部会自动navigate一次，
             // 所以要保证，手动的navigate发生在自动调用之后
@@ -263,12 +266,12 @@ export default class App extends Vue {
                     <Tab
                         ref="tabRef"
                         onTabRemove={this.handleTabRemove}
-                        // onActiveTab={() => {
-                        // if (this.manualNavigateFlag) {
-                        //     this.manualNavigateFlag = false;
-                        //     this.$refs.tabRef.navigateToTab(0);
-                        // }
-                        // }}
+                    // onActiveTab={() => {
+                    // if (this.manualNavigateFlag) {
+                    //     this.manualNavigateFlag = false;
+                    //     this.$refs.tabRef.navigateToTab(0);
+                    // }
+                    // }}
                     >
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;

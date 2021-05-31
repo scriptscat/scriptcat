@@ -1,34 +1,26 @@
 <template>
   <v-app>
-    <Tab :overflow="false">
-      <TabPane title="已安装" :keepAlive="true">
-        <v-expansion-panels>
-          <v-expansion-panel
-            v-for="script in scripts"
-            :key="script.id"
-            :style="{
-              backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
-            }"
-          >
-            <v-expansion-panel-header>
-              {{ script.name }}
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <v-switch
-                :input-value="getStatusBoolean(script)"
-                @change="changeStatus(script)"
-              ></v-switch>
-
-              <v-btn color="primary" @click="navigateToEditor(script)">
-                编辑
-              </v-btn>
-              <!-- <div>BUG反馈</div> -->
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-        </v-expansion-panels>
-      </TabPane>
-      <TabPane title="后台"></TabPane>
-      <TabPane title="其它">
+    <v-tabs
+      background-color="#1296DB"
+      center-active
+      dark
+      grow
+      v-model="tabs"
+      style="flex: 0"
+    >
+      <v-tabs-slider color="#81D4FA"></v-tabs-slider>
+      <v-tab>运行脚本</v-tab>
+      <v-tab>后台脚本</v-tab>
+      <v-tab>其它</v-tab>
+    </v-tabs>
+    <v-tabs-items v-model="tabs">
+      <v-tab-item>
+        <ScriptList v-model="scripts" />
+      </v-tab-item>
+      <v-tab-item>
+        <ScriptList v-model="bgScripts" />
+      </v-tab-item>
+      <v-tab-item>
         <v-list>
           <v-list-item
             v-for="(item, index) in otherOptions"
@@ -48,8 +40,8 @@
         </v-list>
 
         <v-icon v-text="'mdi-github'"></v-icon>
-      </TabPane>
-    </Tab>
+      </v-tab-item>
+    </v-tabs-items>
   </v-app>
 </template>
 
@@ -61,21 +53,29 @@ import { Tab, TabPane } from "@App/views/components/Tab";
 import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE,
+  SCRIPT_TYPE_CRONTAB,
+  SCRIPT_TYPE_BACKGROUND,
 } from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+
+import ScriptList from "./ScriptList.vue";
 
 @Component({
   components: {
     Tab,
     TabPane,
+    ScriptList,
   },
 })
 export default class Popup extends Vue {
   scriptUtil: ScriptManager = new ScriptManager(undefined);
   protected scripts: Array<Script> = [];
+  protected bgScripts: Array<Script> = [];
+
+  items = [{}];
+
+  tabs = null;
 
   otherOptions: { title: string; icon: string; route: string }[] = [
     {
@@ -109,39 +109,24 @@ export default class Popup extends Vue {
     this.scriptUtil.scriptList(undefined).then((result) => {
       this.scripts = result;
     });
-    // 监听script状态变更
-    MsgCenter.listener(ScriptRunStatusChange, (param) => {
-      for (let i = 0; i < this.scripts.length; i++) {
-        if (this.scripts[i].id == param[0]) {
-          this.scripts[i].runStatus = param[1];
-          break;
-        }
-      }
-    });
-  }
-
-  getStatusBoolean(item: Script) {
-    return item.status === SCRIPT_STATUS_ENABLE ? true : false;
-  }
-
-  async changeStatus(item: Script) {
-    if (item.status === SCRIPT_STATUS_ENABLE) {
-      item.status = SCRIPT_STATUS_DISABLE;
-    } else {
-      item.status = SCRIPT_STATUS_ENABLE;
-    }
-
-    this.scriptUtil.updateScriptStatus(item.id, item.status);
-  }
-
-  navigateToEditor(script: Script) {
-    const targetUrl = chrome.runtime.getURL(
-      `options.html#/?target=editor&id=${script.id}`
-    );
-
-    chrome.tabs.create({ url: targetUrl });
+    this.scriptUtil
+      .scriptList((where) => {
+        return where
+          .where("type")
+          .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
+      })
+      .then((result) => {
+        this.bgScripts = result;
+      });
   }
 }
 </script>
 
-<style></style>
+<style>
+.inner-pan > * {
+  padding-top: 0px;
+  padding-right: 0px;
+  padding-bottom: 0px;
+  padding-left: 16px;
+}
+</style>

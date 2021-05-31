@@ -32,7 +32,7 @@ window.addEventListener("message", (event) => {
         return;
     }
     let data = event.data.data;
-    App.Log.Logger(data.level, data.origin, data.message, data.title);
+    App.Log.Logger(data.level, data.origin, data.message, data.title, data.scriptId);
 });
 
 function listenScriptInstall() {

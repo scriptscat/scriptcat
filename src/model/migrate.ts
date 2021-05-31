@@ -28,4 +28,7 @@ export function migrate() {
     db.version(8).stores({
         logger: "++id,level,origin,createtime",
     });
+    db.version(9).stores({
+        logger: "++id,level,scriptId,origin,createtime",
+    });
 }
