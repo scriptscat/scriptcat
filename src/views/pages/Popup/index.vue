@@ -2,11 +2,10 @@
   <v-app>
     <v-tabs
       background-color="#1296DB"
-      center-active
       dark
       grow
       v-model="tabs"
-      style="flex: 0"
+      style="flex: none"
     >
       <v-tabs-slider color="#81D4FA"></v-tabs-slider>
       <v-tab>运行脚本</v-tab>
@@ -32,9 +31,8 @@
             <v-list-item-icon>
               <v-icon v-text="item.icon"></v-icon>
             </v-list-item-icon>
-
             <v-list-item-content>
-              <v-list-item-title> {{ item.title }} </v-list-item-title>
+              <v-list-item-title v-text="item.title"></v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>
@@ -56,10 +54,17 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_BACKGROUND,
 } from "@App/model/do/script";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import ScriptList from "./ScriptList.vue";
+import {
+  mdiGithub,
+  mdiCogOutline,
+  mdiMagnify,
+  mdiFileOutline,
+  mdiHelpCircleOutline,
+} from "@mdi/js";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
+import { TabRunScript } from "@App/apps/msg-center/event";
 
 @Component({
   components: {
@@ -80,35 +85,38 @@ export default class Popup extends Vue {
   otherOptions: { title: string; icon: string; route: string }[] = [
     {
       title: "管理面板",
-      icon: "mdi-cog-outline",
+      icon: mdiCogOutline,
       route: "/options.html",
     },
     {
       title: "获取脚本",
-      icon: "",
+      icon: mdiMagnify,
       route: "https://bbs.tampermonkey.net.cn/forum-2-1.html",
     },
     {
       title: "新建脚本",
-      icon: "",
+      icon: mdiFileOutline,
       route: "/options.html",
     },
     {
       title: "问题反馈",
-      icon: "",
+      icon: mdiHelpCircleOutline,
       route: "https://github.com/scriptscat/scriptcat/issues",
     },
     {
       title: "Github",
-      icon: "mdi-github",
+      icon: mdiGithub,
       route: "https://github.com/scriptscat/scriptcat",
     },
   ];
 
   created() {
-    this.scriptUtil.scriptList(undefined).then((result) => {
-      this.scripts = result;
+    chrome.tabs.query({ active: true }, async (tabs) => {
+      MsgCenter.connect(TabRunScript, tabs[0].url).addListener((val) => {
+        this.scripts = val;
+      });
     });
+
     this.scriptUtil
       .scriptList((where) => {
         return where
@@ -124,9 +132,7 @@ export default class Popup extends Vue {
 
 <style>
 .inner-pan > * {
-  padding-top: 0px;
-  padding-right: 0px;
-  padding-bottom: 0px;
+  padding: 0px;
   padding-left: 16px;
 }
 </style>

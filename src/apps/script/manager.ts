@@ -1,7 +1,7 @@
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange, TabRunScript } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
@@ -201,7 +201,7 @@ export class ScriptManager {
                     this.match.del(val, oldScript);
                 })
             }
-            if (script && script.status == SCRIPT_STATUS_ENABLE) {
+            if (script) {
                 // 对首次添加进行处理
                 let cache = await this.buildScriptCache(script);
                 cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
@@ -218,7 +218,7 @@ export class ScriptManager {
             }
         });
         let scriptFlag = randomString(8);
-        this.scriptList({ type: SCRIPT_TYPE_NORMAL, status: SCRIPT_STATUS_ENABLE }).then(items => {
+        this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
             items.forEach(async script => {
                 let cache = await this.buildScriptCache(script);
                 cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
@@ -248,6 +248,9 @@ export class ScriptManager {
             let scripts = this.match.match(detail.url);
             let filter: ScriptCache[] = [];
             scripts.forEach(script => {
+                if (script.status !== SCRIPT_STATUS_ENABLE) {
+                    return;
+                }
                 if (script.metadata['@noframes']) {
                     if (detail.frameId != 0) {
                         return;
@@ -269,6 +272,18 @@ export class ScriptManager {
                 runAt: "document_start",
             });
             send({ scripts: filter, flag: scriptFlag });
+            if (!filter.length) {
+                return;
+            }
+            // 角标和脚本
+            chrome.browserAction.setBadgeText({
+                text: filter.length.toString(),
+                tabId: detail.tab?.id,
+            });
+            chrome.browserAction.setBadgeBackgroundColor({
+                color: [255, 0, 0, 255],
+                tabId: detail.tab?.id,
+            });
             filter.forEach(script => {
                 // 注入实际脚本
                 let runAt = 'document_idle';
@@ -304,6 +319,9 @@ export class ScriptManager {
                     runAt: runAt,
                 });
             });
+        });
+        MsgCenter.listener(TabRunScript, (val) => {
+            return this.match.match(val);
         });
     }
 

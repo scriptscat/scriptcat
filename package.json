@@ -1,6 +1,6 @@
 {
     "name": "scriptcat",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
     "scripts": {
         "test": "jest",
@@ -35,6 +35,7 @@
         "@babel/preset-env": "^7.13.10",
         "@babel/preset-typescript": "^7.13.0",
         "@babel/register": "^7.13.8",
+        "@mdi/js": "^5.9.55",
         "@types/chrome": "0.0.127",
         "@types/cron": "^1.7.2",
         "@types/crypto-js": "^4.0.1",

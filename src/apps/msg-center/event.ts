@@ -6,6 +6,7 @@ export const ScriptExec: string = "script-exec"
 export const ScriptStop: string = "script-stop"
 export const ScriptUninstall: string = "script-uninstall"
 export const ScriptRunStatusChange: string = "script-run-status-change"
+export const TabRunScript: string = "tabRunScript"
 
 export const ScriptGrant: string = "script-grant"
 

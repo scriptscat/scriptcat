@@ -1,5 +1,12 @@
 <template>
   <v-expansion-panels accordion>
+    <span
+      v-if="!scripts.length"
+      class="text-subtitle-1"
+      style="margin-top: 10px"
+    >
+      当前页没有可用脚本
+    </span>
     <v-expansion-panel
       v-for="script in scripts"
       :key="script.id"
@@ -28,12 +35,23 @@
           }"
         >
           <v-list-item-group v-if="script.type >= 2" multiple>
-            <v-list-item @click="runScript(script)">
+            <v-list-item
+              v-if="script.runStatus === 'complete'"
+              @click="scriptUtil.execScript(script, false)"
+            >
               <v-list-item-icon>
                 <v-icon>mdi-play</v-icon>
               </v-list-item-icon>
               <v-list-item-content>
                 <v-list-item-title v-text="`运行一次`"></v-list-item-title>
+              </v-list-item-content>
+            </v-list-item>
+            <v-list-item v-else @click="scriptUtil.stopScript(script, false)">
+              <v-list-item-icon>
+                <v-icon>mdi-stop</v-icon>
+              </v-list-item-icon>
+              <v-list-item-content>
+                <v-list-item-title v-text="`停止`"></v-list-item-title>
               </v-list-item-content>
             </v-list-item>
           </v-list-item-group>
@@ -60,6 +78,8 @@ import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_CRONTAB,
+  SCRIPT_RUN_STATUS_RUNNING,
+  SCRIPT_RUN_STATUS_COMPLETE,
 } from "@App/model/do/script";
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
@@ -113,10 +133,6 @@ export default class ScriptList extends Vue {
     );
 
     chrome.tabs.create({ url: targetUrl });
-  }
-
-  runScript(script: Script) {
-    this.scriptUtil.execScript(script, false);
   }
 }
 </script>

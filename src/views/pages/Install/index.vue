@@ -1,14 +1,23 @@
 <template>
   <v-app>
-    <div class="script-info">
-      <div class="name">{{ script.name }}</div>
-      <div style="color: red">
+    <div class="script-info" style="padding: 4px">
+      <div class="text-h5">{{ script.name }}</div>
+      <div class="text-subtitle-1" style="color: red">
         请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
       </div>
-      <div class="control">
+      <div class="control" style="margin-bottom: 10px">
         <v-btn @click="install" depressed color="primary">
           {{ isupdate ? "更新脚本" : "安装脚本" }}
         </v-btn>
+        <v-switch
+          :input-value="getStatusBoolean(script)"
+          hide-details
+          flat
+          @change="changeStatus(script)"
+          style="margin: 0; flex: none"
+          label="开启脚本"
+        >
+        </v-switch>
       </div>
     </div>
     <div id="container"></div>
@@ -20,7 +29,11 @@ import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { ScriptManager } from "@App/apps/script/manager";
-import { Script } from "@App/model/do/script";
+import {
+  Script,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
+} from "@App/model/do/script";
 import { Background } from "@App/apps/script/background";
 import { App } from "@App/apps/app";
 
@@ -96,6 +109,18 @@ export default class Index extends Vue {
       window.close();
     } else {
       alert("安装失败!");
+    }
+  }
+
+  getStatusBoolean(item: Script) {
+    return item.status === SCRIPT_STATUS_ENABLE ? true : false;
+  }
+
+  async changeStatus(item: Script) {
+    if (item.status === SCRIPT_STATUS_ENABLE) {
+      item.status = SCRIPT_STATUS_DISABLE;
+    } else {
+      item.status = SCRIPT_STATUS_ENABLE;
     }
   }
 }

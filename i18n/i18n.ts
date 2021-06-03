@@ -23,8 +23,4 @@ export const i18n = new VueI18n({
     messages: messages,
 });
 
-export const vuetify = new Vuetify({
-    // lang: {
-    //     t: (key, ...params) => <string>i18n.t(key, params),
-    // }
-});
+export const vuetify = new Vuetify({});
