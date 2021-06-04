@@ -89,7 +89,7 @@ export function dealSymbol(source: string): string {
  * get请求
  * @param {*} url
  */
-export function get(url: string, success: Function) {
+export function get(url: string, success: (resp: string, resource: any) => void) {
     let xmlhttp = createRequest();
     xmlhttp.open("GET", url, true);
     xmlhttp.onreadystatechange = function () {

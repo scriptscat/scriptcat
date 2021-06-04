@@ -65,8 +65,9 @@ import META from "./META.vue";
 import Editor from "./Editor.vue";
 import Resource from "./Resource.vue";
 import Storage from "./Storage.vue";
-import { sleep } from "@App/pkg/utils";
+import { sleep, get } from "@App/pkg/utils";
 import EventType from "../../EventType";
+import { languages } from "monaco-editor";
 
 const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
 
@@ -169,6 +170,10 @@ export default class ScriptTab extends Vue {
     });
 
     this.hasInitial = true;
+    // require自动补全
+    this.script.metadata["definition"]?.forEach((val) => {
+      this.handleDTs(val);
+    });
   }
 
   async handleUpdateMeta({ code, name, metadata }: IUpdateMeta) {
@@ -236,6 +241,12 @@ export default class ScriptTab extends Vue {
     }
 
     this.$refs.editor.hasUnsavedChange = false;
+  }
+
+  handleDTs(val: string) {
+    get(val, (resp) => {
+      languages.typescript.javascriptDefaults.addExtraLib(resp, val);
+    });
   }
 
   async handleCodeChange({}: ICodeChange) {

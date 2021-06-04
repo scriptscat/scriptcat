@@ -70,7 +70,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-import { KeyMod, KeyCode } from "monaco-editor";
+import { KeyMod, KeyCode, languages } from "monaco-editor";
 import eventBus from "@views/EventBus";
 import { Script } from "@App/model/do/script";
 
@@ -142,8 +142,6 @@ export default class CloseButton extends Vue {
 
   async initialEditor() {
     this.editor.onDidChangeModelContent(() => {
-      console.log("code changed");
-
       if (this.hasInitial && !this.hasUnsavedChange) {
         if (!this.onMetaChange) {
           eventBus.$emit<ICodeChange>(EventType.CodeChange, {
