@@ -87,9 +87,7 @@
             <span v-if="item.type == 2">
               定时脚本,下一次运行时间:{{ nextTime(item) }}
             </span>
-            <span v-else>
-              后台脚本,会在扩展开启时自动执行
-            </span>
+            <span v-else> 后台脚本,会在扩展开启时自动执行 </span>
           </v-tooltip>
         </span>
       </template>
@@ -184,6 +182,7 @@
                           v-model="item.value"
                           color="success"
                           v-else-if="item.type === 'boolean'"
+                          style="margin-top: 0; margin-bottom: 12px; padding: 0"
                         >
                           <template v-slot:label>
                             {{ item.title }}
@@ -579,20 +578,11 @@ export default class ScriptList extends Vue {
             .add(1, "hour")
             .format("YYYY-MM-DD HH 每小时运行一次");
         case 3: //每天
-          return cron
-            .sendAt()
-            .add(1, "day")
-            .format("YYYY-MM-DD 每天运行一次");
+          return cron.sendAt().add(1, "day").format("YYYY-MM-DD 每天运行一次");
         case 4: //每月
-          return cron
-            .sendAt()
-            .add(1, "month")
-            .format("YYYY-MM 每月运行一次");
+          return cron.sendAt().add(1, "month").format("YYYY-MM 每月运行一次");
         case 5: //每年
-          return cron
-            .sendAt()
-            .add(1, "year")
-            .format("YYYY 每年运行一次");
+          return cron.sendAt().add(1, "year").format("YYYY 每年运行一次");
         case 6: //每星期
           return cron.sendAt().format("YYYY-MM-DD 每星期运行一次");
       }

@@ -1,4 +1,4 @@
-
+// TODO: 优化消息通信机制
 export const PermissionConfirm: string = "permission-confirm"
 
 export const ScriptUpdate: string = "script-update"
@@ -7,6 +7,8 @@ export const ScriptStop: string = "script-stop"
 export const ScriptUninstall: string = "script-uninstall"
 export const ScriptRunStatusChange: string = "script-run-status-change"
 export const TabRunScript: string = "tabRunScript"
+export const TabRemove: string = "tabRemove"
+export const TabMenuClick: string = "tab-menu-click"
 
 export const ScriptGrant: string = "script-grant"
 

@@ -1,7 +1,7 @@
 import { ScriptCache } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { addStyle } from "@App/pkg/frontend";
-import { randomString } from "@App/pkg/utils";
+import { randomInt, randomString } from "@App/pkg/utils";
 import { BrowserMsg } from "../msg-center/browser";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { Grant } from "./interface";
@@ -238,7 +238,6 @@ export class FrontendGrant implements ScriptContext {
     private valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
 
     ValueChange = (name: string, value: Value): void => {
-        console.log(name, value, this.script.id);
         this.script.value![name] = value;
         this.valueChangeListener.forEach(val => {
             if (val.name === name) {
@@ -420,6 +419,20 @@ export class SandboxContext extends FrontendGrant {
     @FrontendGrant.GMFunction()
     public CAT_clearProxy(): void {
         this.postRequest('CAT_clearProxy', []);
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_registerMenuCommand(name: string, listener: Function, accessKey?: string): number {
+        let id = randomInt(1, 100000);
+        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], (grant: Grant) => {
+            listener();
+        });
+        return id;
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_unregisterMenuCommand(id: number): void {
+        this.postRequest('GM_unregisterMenuCommand', [{ id: id }]);
     }
 
 }

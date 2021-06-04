@@ -54,6 +54,6 @@ export interface PermissionParam {
     listener?: () => void
     // 别名
     alias?: string[]
-    // 执行完毕释放资源
+    // 执行完毕释放资源,后台脚本才有本事件
     freed?: FreedCallback
 }

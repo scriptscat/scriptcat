@@ -1,7 +1,7 @@
 import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange, TabRunScript } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange, TabRemove, TabRunScript } from "@App/apps/msg-center/event";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { IScript } from "@App/apps/script/interface";
@@ -320,8 +320,65 @@ export class ScriptManager {
                 });
             });
         });
+        let runMenu = new Map<number, { [key: number]: Array<any> }>();
+        let bgMenu: { [key: number]: Array<any> } = {};
+        AppEvent.listener("GM_registerMenuCommand", msg => {
+            let param = msg.param;
+            if (msg.type == "frontend") {
+                let tabMenus = runMenu.get(param.tabId);
+                if (!tabMenus) {
+                    tabMenus = {};
+                }
+                let scriptMenu = tabMenus[param.scriptId];
+                if (!scriptMenu) {
+                    scriptMenu = new Array();
+                }
+                scriptMenu.push(param);
+                tabMenus[param.scriptId] = scriptMenu;
+                runMenu.set(param.tabId, tabMenus);
+            } else {
+                let scriptMenu = bgMenu[param.scriptId];
+                if (!scriptMenu) {
+                    scriptMenu = new Array();
+                }
+                scriptMenu.push(param);
+                bgMenu[param.scriptId] = scriptMenu;
+            }
+        });
+        AppEvent.listener("GM_unregisterMenuCommand", msg => {
+            let param = msg.param;
+            let scriptMenu: any[] = [];
+            if (msg.type == "frontend") {
+                let tabMenus = runMenu.get(param.tabId);
+                if (tabMenus) {
+                    scriptMenu = tabMenus[param.scriptId];
+                }
+            } else {
+                scriptMenu = bgMenu[param.scriptId];
+            }
+            for (let i = 0; i < scriptMenu.length; i++) {
+                if (scriptMenu[i].id == param.id) {
+                    scriptMenu.splice(i, 1);
+                }
+            }
+        });
+        chrome.tabs.onRemoved.addListener(tabId => {
+            runMenu.delete(tabId);
+            AppEvent.trigger(TabRemove, tabId);
+        });
+        chrome.tabs.onUpdated.addListener((tabId, info) => {
+            if (info.status != "loading") {
+                return;
+            }
+            runMenu.delete(tabId);
+            AppEvent.trigger(TabRemove, tabId);
+        });
         MsgCenter.listener(TabRunScript, (val) => {
-            return this.match.match(val);
+            return {
+                run: this.match.match(val.url),
+                runMenu: runMenu.get(val.tabId),
+                bgMenu: bgMenu,
+            }
         });
     }
 

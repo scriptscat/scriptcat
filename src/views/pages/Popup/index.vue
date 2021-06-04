@@ -14,10 +14,10 @@
     </v-tabs>
     <v-tabs-items v-model="tabs">
       <v-tab-item>
-        <ScriptList v-model="scripts" />
+        <ScriptList v-model="scripts" :menu="menu" />
       </v-tab-item>
       <v-tab-item>
-        <ScriptList v-model="bgScripts" />
+        <ScriptList v-model="bgScripts" :menu="bgMenu" />
       </v-tab-item>
       <v-tab-item>
         <v-list>
@@ -78,6 +78,9 @@ export default class Popup extends Vue {
   protected scripts: Array<Script> = [];
   protected bgScripts: Array<Script> = [];
 
+  menu: any = {};
+  bgMenu: any = {};
+
   items = [{}];
 
   tabs = null;
@@ -111,21 +114,37 @@ export default class Popup extends Vue {
   ];
 
   created() {
-    chrome.tabs.query({ active: true }, async (tabs) => {
-      MsgCenter.connect(TabRunScript, tabs[0].url).addListener((val) => {
-        this.scripts = val;
-      });
-    });
-
-    this.scriptUtil
-      .scriptList((where) => {
-        return where
-          .where("type")
-          .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
-      })
-      .then((result) => {
-        this.bgScripts = result;
-      });
+    chrome.tabs.query(
+      { active: true, lastFocusedWindow: true },
+      async (tabs) => {
+        MsgCenter.connect(TabRunScript, {
+          tabId: tabs[0].id,
+          url: tabs[0].url,
+        }).addListener((val) => {
+          this.scripts = val.run;
+          this.menu = val.runMenu || {};
+          this.bgMenu = val.bgMenu || {};
+          // 将有菜单的后台脚本,放到运行脚本中
+          this.scriptUtil
+            .scriptList((where) => {
+              return where
+                .where("type")
+                .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
+            })
+            .then((result) => {
+              this.bgScripts = result;
+              let map = new Map();
+              result.forEach((val) => {
+                map.set(val.id, val);
+              });
+              for (const id in this.bgMenu) {
+                this.scripts.push(map.get(parseInt(id)));
+                this.menu[id] = this.bgMenu[id];
+              }
+            });
+        });
+      }
+    );
   }
 }
 </script>

@@ -30,7 +30,30 @@
             }"
           ></v-switch>
         </v-expansion-panel-header>
-
+        <div
+          v-if="menu && menu[script.id]"
+          class="inner-pan"
+          style="padding-left: 16px"
+        >
+          <v-list dense flat style="padding: 0">
+            <v-list-item-group multiple>
+              <v-list-item
+                v-for="(item, index) in menu[script.id]"
+                :key="index"
+                @click="menuClick(item)"
+              >
+                <v-list-item-icon>
+                  <v-icon v-text="mdiConfig"></v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title
+                    >{{ item.name }}({{ item.accessKey }})</v-list-item-title
+                  >
+                </v-list-item-content>
+              </v-list-item>
+            </v-list-item-group>
+          </v-list>
+        </div>
         <v-expansion-panel-content class="inner-pan" dense>
           <v-list
             dense
@@ -87,23 +110,30 @@ import {
   Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-  SCRIPT_TYPE_CRONTAB,
-  SCRIPT_RUN_STATUS_RUNNING,
-  SCRIPT_RUN_STATUS_COMPLETE,
 } from "@App/model/do/script";
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+import {
+  ScriptRunStatusChange,
+  TabMenuClick,
+} from "@App/apps/msg-center/event";
+import { mdiCogOutline } from "@mdi/js";
 
 @Component({})
 export default class ScriptList extends Vue {
   scriptUtil: ScriptManager = new ScriptManager(undefined);
+
+  //TODO: 检测菜单快捷键
+  mdiConfig = mdiCogOutline;
 
   @Prop({
     type: Array,
     required: true,
   })
   value!: Array<Script>;
+
+  @Prop({ required: true })
+  menu: any;
 
   scripts: Array<Script> = this.value;
 
@@ -143,6 +173,11 @@ export default class ScriptList extends Vue {
     );
 
     chrome.tabs.create({ url: targetUrl });
+  }
+
+  menuClick(item: any) {
+    MsgCenter.connect(TabMenuClick, item);
+    window.close();
   }
 }
 </script>

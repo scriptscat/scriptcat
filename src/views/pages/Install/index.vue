@@ -3,6 +3,9 @@
     <div class="d-flex">
       <div class="script-info justify-start" style="padding: 4px; flex: 1">
         <div class="text-h5">{{ script.name }}</div>
+        <div class="text-subtitle-2" v-if="desctiption">
+          {{ desctiption }}
+        </div>
         <div class="text-subtitle-1" style="color: red">
           请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
         </div>
@@ -75,6 +78,7 @@ export default class Index extends Vue {
   public connect: string[] = [];
   public isCookie: boolean = false;
   public isupdate: boolean = false;
+  public desctiption = "";
 
   async mounted() {
     let url = new URL(location.href);
@@ -125,6 +129,9 @@ export default class Index extends Vue {
         readOnly: true,
       });
       this.editor.setValue(this.script.code);
+    }
+    if (this.script.metadata["description"]) {
+      this.desctiption = this.script.metadata["description"][0];
     }
     this.version = script.metadata["version"] && script.metadata["version"][0];
     this.connect = script.metadata["connect"];

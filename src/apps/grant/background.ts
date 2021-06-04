@@ -1,7 +1,7 @@
 import { PermissionModel } from "@App/model/permission";
 import { isFirefox } from "@App/pkg/utils";
 import { App } from "../app";
-import { AppEvent, PermissionConfirm, ScriptGrant, ScriptValueChange } from "../msg-center/event";
+import { AppEvent, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
@@ -11,6 +11,7 @@ import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
 import { Permission } from "@App/model/do/permission";
 import { SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
+import { resolvePlugin } from "@babel/core";
 
 class postMessage implements IPostMessage {
 
@@ -188,8 +189,12 @@ export class BackgroundGrant {
                         }
                     }
 
-                    if (permission.background && (script.type != SCRIPT_TYPE_CRONTAB && script.type != SCRIPT_TYPE_BACKGROUND)) {
-                        return resolve(undefined);
+                    grant.tabId = (<chrome.runtime.MessageSender>post.sender())?.tab?.id;
+                    // 判断是否只能后台环境调用
+                    if (permission.background) {
+                        if (grant.tabId) {
+                            return resolve(undefined);
+                        }
                     }
 
                     if (permission.confirm) {
@@ -810,4 +815,87 @@ export class BackgroundGrant {
             resolve(undefined);
         });
     }
+
+    protected static menu = new Map<number, Map<number, Map<number, any>>>();
+    protected static bgMenu = new Map<number, Map<number, any>>();
+    @BackgroundGrant.GMFunction({
+        listener: () => {
+            AppEvent.listener(TabRemove, val => {
+                BackgroundGrant.menu.delete(val);
+            });
+            MsgCenter.listener(TabMenuClick, (msg) => {
+                let scriptMenu: Map<number, any> | undefined;
+                if (msg.tabId) {
+                    let tabMenu = BackgroundGrant.menu.get(msg.tabId);
+                    if (!tabMenu) {
+                        return;
+                    }
+                    scriptMenu = tabMenu.get(msg.scriptId);
+                } else {
+                    scriptMenu = BackgroundGrant.bgMenu.get(msg.scriptId);
+                }
+                if (!scriptMenu) {
+                    return;
+                }
+                let menu = scriptMenu.get(msg.id);
+                if (menu) {
+                    menu.grant.data = { action: "click" };
+                    menu.post.postMessage(menu.grant);
+                }
+            });
+        }
+    })
+    public GM_registerMenuCommand(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            grant.params[0].scriptId = grant.id;
+            let scriptMenu: Map<number, any> | undefined;
+            if (grant.tabId) {
+                grant.params[0].tabId = grant.tabId;
+                AppEvent.trigger("GM_registerMenuCommand", { type: 'frontend', param: grant.params[0] })
+                let tabMenu = BackgroundGrant.menu.get(grant.tabId);
+                if (!tabMenu) {
+                    tabMenu = new Map();
+                }
+                scriptMenu = tabMenu.get(grant.id);
+                if (!scriptMenu) {
+                    scriptMenu = new Map();
+                }
+                tabMenu.set(grant.id, scriptMenu);
+                BackgroundGrant.menu.set(grant.tabId, tabMenu);
+            } else {
+                AppEvent.trigger("GM_registerMenuCommand", { type: 'backend', param: grant.params[0] })
+                scriptMenu = BackgroundGrant.bgMenu.get(grant.id);
+                if (!scriptMenu) {
+                    scriptMenu = new Map();
+                }
+                BackgroundGrant.bgMenu.set(grant.id, scriptMenu);
+            }
+            scriptMenu.set(grant.params[0].id, {
+                grant: grant,
+                post: post,
+            });
+            resolve(undefined);
+        });
+    }
+
+
+    @BackgroundGrant.GMFunction({})
+    public GM_unregisterMenuCommand(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            grant.params[0].scriptId = grant.id;
+            if (grant.tabId) {
+                grant.params[0].tabId = grant.tabId;
+                AppEvent.trigger("GM_unregisterMenuCommand", { type: 'frontend', param: grant.params[0] });
+                // 清理交给removetab事件,直接清理tab下所有的
+            } else {
+                AppEvent.trigger("GM_unregisterMenuCommand", { type: 'backend', param: grant.params[0] })
+                let scriptMenu = BackgroundGrant.bgMenu.get(grant.id);
+                if (scriptMenu) {
+                    scriptMenu.delete(grant.params[0]);
+                }
+            }
+            resolve(undefined);
+        });
+    }
+
 }
