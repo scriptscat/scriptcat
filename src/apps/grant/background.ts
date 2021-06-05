@@ -57,8 +57,9 @@ export class BackgroundGrant {
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
                 let setCookie = '';
                 let cookie = '';
+                let referer = '';
+                let origin = '';
                 let anonymous = false;
-                let cookieIndex = -1;
                 let requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 data.requestHeaders?.forEach((val, key) => {
                     switch (val.name.toLowerCase()) {
@@ -70,10 +71,24 @@ export class BackgroundGrant {
                             anonymous = true;
                             break;
                         }
+                        case "x-cat-" + this.rand + "-referer": {
+                            referer = val.value || '';
+                            break;
+                        }
+                        case "x-cat-" + this.rand + "-origin": {
+                            origin = val.value || '';
+                            break;
+                        }
                         case "cookie": {
-                            cookieIndex = key;
                             cookie = val.value || '';
                             break;
+                        }
+                        case "referer": {
+                            referer = referer || val.value || '';
+                            break;
+                        }
+                        case "origin": {
+                            origin = origin || val.value || '';
                         }
                         default: {
                             requestHeaders.push(val);
@@ -93,6 +108,14 @@ export class BackgroundGrant {
                 cookie && requestHeaders.push({
                     name: 'cookie',
                     value: cookie
+                });
+                referer && requestHeaders.push({
+                    name: 'referer',
+                    value: referer,
+                });
+                origin && requestHeaders.push({
+                    name: 'origin',
+                    value: origin,
                 });
                 return {
                     requestHeaders: requestHeaders,
@@ -387,8 +410,16 @@ export class BackgroundGrant {
                 grant.data = { type: 'ontimeout', data: "" };
                 post.postMessage(grant);
             }
-            for (const key in config.headers) {
+            for (let key in config.headers) {
                 const val = config.headers[key];
+                // 处理unsafe的header
+                switch (key.toLowerCase()) {
+                    case "origin":
+                    case "referer": {
+                        key = "X-Cat-" + this.rand + "-" + key.toLowerCase();
+                        break;
+                    }
+                }
                 xhr.setRequestHeader(key, val);
             }
             if (config.timeout) {

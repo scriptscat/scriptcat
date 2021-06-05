@@ -96,7 +96,7 @@ declare function GM_updateNotification(id: string, details: GM_Types.Notificatio
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
 
-declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void): void;
+declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[], error: any) => void): void;
 
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
