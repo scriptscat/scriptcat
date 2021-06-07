@@ -1,23 +1,50 @@
 <template>
   <v-app>
-    <div class="script-info" style="padding: 4px">
-      <div class="text-h5">{{ script.name }}</div>
-      <div class="text-subtitle-1" style="color: red">
-        请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
+    <div class="d-flex">
+      <div class="script-info justify-start" style="padding: 4px; flex: 1">
+        <div class="text-h5">{{ script.name }}</div>
+        <div class="text-subtitle-1" style="color: red">
+          请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
+        </div>
+        <div class="control" style="margin-bottom: 10px">
+          <v-btn @click="install" depressed color="primary">
+            {{ isupdate ? "更新脚本" : "安装脚本" }}
+          </v-btn>
+          <v-switch
+            :input-value="getStatusBoolean(script)"
+            hide-details
+            flat
+            @change="changeStatus(script)"
+            style="margin: 0; flex: none"
+            label="开启脚本"
+          >
+          </v-switch>
+        </div>
       </div>
-      <div class="control" style="margin-bottom: 10px">
-        <v-btn @click="install" depressed color="primary">
-          {{ isupdate ? "更新脚本" : "安装脚本" }}
-        </v-btn>
-        <v-switch
-          :input-value="getStatusBoolean(script)"
-          hide-details
-          flat
-          @change="changeStatus(script)"
-          style="margin: 0; flex: none"
-          label="开启脚本"
+      <div class="justify-start" style="flex: 1">
+        <span class="text-subtitle-1 d-flex"
+          ><span class="justify-start" style="flex: 1"
+            >安装版本:{{ version }}</span
+          ><span class="justify-start" style="flex: 1" v-if="isupdate"
+            >当前版本:{{ oldVersion }}</span
+          ></span
         >
-        </v-switch>
+        <div v-if="connect">
+          <span class="text-subtitle-1">脚本将获得以下地址的完整访问权限:</span>
+          <span
+            v-for="item in connect"
+            :key="item"
+            class="text-subtitle-2"
+            style="margin-right: 4px"
+          >
+            {{ item }}
+          </span>
+        </div>
+        <div v-if="isCookie">
+          <span class="text-subtitle-1" style="color: red">
+            请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
+          </span>
+        </div>
       </div>
     </div>
     <div id="container"></div>
@@ -43,6 +70,10 @@ export default class Index extends Vue {
   protected diff!: editor.IStandaloneDiffEditor;
   public scriptUtil: ScriptManager = new ScriptManager(new Background(window));
   public script: Script = <Script>{};
+  public version: string = "";
+  public oldVersion: string = "";
+  public connect: string[] = [];
+  public isCookie: boolean = false;
   public isupdate: boolean = false;
 
   async mounted() {
@@ -81,6 +112,8 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
+      this.oldVersion =
+        oldscript.metadata["version"] && oldscript.metadata["version"][0];
     } else {
       this.editor = editor.create(edit, {
         language: "javascript",
@@ -93,6 +126,13 @@ export default class Index extends Vue {
       });
       this.editor.setValue(this.script.code);
     }
+    this.version = script.metadata["version"] && script.metadata["version"][0];
+    this.connect = script.metadata["connect"];
+    script.metadata["grant"]?.forEach((val) => {
+      if (val == "GM_cookie") {
+        this.isCookie = true;
+      }
+    });
   }
 
   public async install() {

@@ -49,7 +49,7 @@ export interface PermissionParam {
     // 是否只有后台环境中才能执行
     background?: boolean
     // 是否需要弹出页面让用户进行确认
-    confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | undefined>
+    confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | boolean>
     // 监听方法
     listener?: () => void
     // 别名

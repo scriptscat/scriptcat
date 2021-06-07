@@ -487,6 +487,9 @@ export class ScriptManager {
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
+            if (!old) {
+                old = await this.scriptModel.findByName(script.name);
+            }
             if (old) {
                 this.copyTime(script, old);
             } else {

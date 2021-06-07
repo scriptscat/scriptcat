@@ -5,6 +5,7 @@ import axios from "axios";
 import crypto from "crypto-js";
 import { App } from "./app";
 
+// @resource @require 等资源管理
 export class ResourceManager {
     public model = new ResourceModel();
     public linkModel = new ResourceLinkModel();

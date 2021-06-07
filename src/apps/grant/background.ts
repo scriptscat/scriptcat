@@ -193,8 +193,9 @@ export class BackgroundGrant {
                     }
 
                     if (permission.confirm) {
-                        let confirm = await permission.confirm(grant, script);
-                        if (confirm) {
+                        let confirmParam = await permission.confirm(grant, script);
+                        if (typeof confirmParam == "object") {
+                            let confirm = <ConfirmParam>confirmParam;
                             let cacheKey = "permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission;
                             let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
                                 return new Promise(async resolve => {
@@ -266,7 +267,10 @@ export class BackgroundGrant {
 
                             chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
                         } else {
-                            return resolve(await old.apply(this, [grant, post, script]));
+                            if (confirmParam === true) {
+                                return resolve(await old.apply(this, [grant, post, script]));
+                            }
+                            return resolve(undefined);
                         }
                     } else {
                         return resolve(await old.apply(this, [grant, post, script]));
@@ -337,7 +341,7 @@ export class BackgroundGrant {
                     let connect = script.metadata["connect"];
                     for (let i = 0; i < connect.length; i++) {
                         if (url.hostname.endsWith(connect[i])) {
-                            return resolve(undefined);
+                            return resolve(true);
                         }
                     }
                 }
@@ -445,9 +449,22 @@ export class BackgroundGrant {
             return new Promise(resolve => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
                 if (!detail.url || !detail.name) {
-                    return resolve(undefined);
+                    return resolve(true);
                 }
                 let url = new URL(detail.url);
+                let flag = false;
+                if (script.metadata["connect"]) {
+                    let connect = script.metadata["connect"];
+                    for (let i = 0; i < connect.length; i++) {
+                        if (url.hostname.endsWith(connect[i])) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                }
+                if (!flag) {
+                    return resolve(false);
+                }
                 let ret: ConfirmParam = {
                     permission: 'cookie',
                     permissionValue: url.host,
