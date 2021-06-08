@@ -96,7 +96,7 @@ export default class Popup extends Vue {
     {
       title: "新建脚本",
       icon: mdiFileOutline,
-      route: "/options.html",
+      route: "/options.html#/?target=initial",
     },
     {
       title: "问题反馈",

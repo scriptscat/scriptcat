@@ -1,73 +1,83 @@
 <template>
   <v-expansion-panels accordion>
-    <span
-      v-if="!scripts.length"
-      class="text-subtitle-1"
-      style="margin-top: 10px"
-    >
-      当前页没有可用脚本
-    </span>
-    <v-expansion-panel
-      v-for="script in scripts"
-      :key="script.id"
-      :style="{
-        backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
-      }"
-    >
-      <v-expansion-panel-header style="padding: 2px; min-height: 48px">
-        <v-switch
-          :input-value="getStatusBoolean(script)"
-          :label="script.name"
-          @click.stop
-          hide-details
-          flat
-          @change="changeStatus(script)"
-          style="margin: 0; flex: none"
-        ></v-switch>
-      </v-expansion-panel-header>
-      <v-expansion-panel-content class="inner-pan" dense>
-        <v-list
-          dense
-          flat
-          :style="{
-            backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
-            padding: 0,
-          }"
-        >
-          <v-list-item-group v-if="script.type >= 2" multiple>
-            <v-list-item
-              v-if="script.runStatus === 'complete'"
-              @click="scriptUtil.execScript(script, false)"
-            >
-              <v-list-item-icon>
-                <v-icon>mdi-play</v-icon>
-              </v-list-item-icon>
-              <v-list-item-content>
-                <v-list-item-title v-text="`运行一次`"></v-list-item-title>
-              </v-list-item-content>
-            </v-list-item>
-            <v-list-item v-else @click="scriptUtil.stopScript(script, false)">
-              <v-list-item-icon>
-                <v-icon>mdi-stop</v-icon>
-              </v-list-item-icon>
-              <v-list-item-content>
-                <v-list-item-title v-text="`停止`"></v-list-item-title>
-              </v-list-item-content>
-            </v-list-item>
-          </v-list-item-group>
-          <v-list-item-group multiple>
-            <v-list-item @click="navigateToEditor(script)">
-              <v-list-item-icon>
-                <v-icon>mdi-pencil</v-icon>
-              </v-list-item-icon>
-              <v-list-item-content>
-                <v-list-item-title v-text="`编辑`"></v-list-item-title>
-              </v-list-item-content>
-            </v-list-item>
-          </v-list-item-group>
-        </v-list>
-      </v-expansion-panel-content>
-    </v-expansion-panel>
+    <template v-if="!scripts.length">
+      <span class="text-subtitle-1" style="margin-top: 10px">
+        当前页没有可用脚本
+      </span>
+    </template>
+
+    <template v-else>
+      <v-expansion-panel
+        v-for="script in scripts"
+        :key="script.id"
+        :style="{
+          backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
+          paddingRight: '5px',
+        }"
+      >
+        <v-expansion-panel-header style="padding: 2px; min-height: 48px">
+          <v-switch
+            :input-value="getStatusBoolean(script)"
+            :label="script.name"
+            @click.stop
+            hide-details
+            flat
+            @change="changeStatus(script)"
+            :style="{
+              margin: '0',
+              padding: '0 5px',
+              flex: 'none',
+            }"
+          ></v-switch>
+        </v-expansion-panel-header>
+
+        <v-expansion-panel-content class="inner-pan" dense>
+          <v-list
+            dense
+            flat
+            :style="{
+              backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
+              padding: 0,
+            }"
+          >
+            <v-list-item-group v-if="script.type >= 2" multiple>
+              <template v-if="script.runStatus === 'complete'">
+                <v-list-item @click="scriptUtil.execScript(script, false)">
+                  <v-list-item-icon>
+                    <v-icon>mdi-play</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-content>
+                    <v-list-item-title v-text="`运行一次`"></v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+              </template>
+
+              <template v-else>
+                <v-list-item @click="scriptUtil.stopScript(script, false)">
+                  <v-list-item-icon>
+                    <v-icon>mdi-stop</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-content>
+                    <v-list-item-title v-text="`停止`"></v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+              </template>
+            </v-list-item-group>
+
+            <v-list-item-group multiple>
+              <v-list-item @click="navigateToEditor(script)">
+                <v-list-item-icon>
+                  <v-icon>mdi-pencil</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title v-text="`编辑`"></v-list-item-title>
+                </v-list-item-content>
+              </v-list-item>
+            </v-list-item-group>
+          </v-list>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </template>
   </v-expansion-panels>
 </template>
 
