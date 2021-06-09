@@ -58,10 +58,10 @@ export class BackgroundGrant {
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
                 let setCookie = '';
                 let cookie = '';
-                let referer = '';
-                let origin = '';
                 let anonymous = false;
                 let requestHeaders: chrome.webRequest.HttpHeader[] = [];
+                let unsafeHeader: { [key: string]: string } = {};
+                // TODO: 优化小写的问题
                 data.requestHeaders?.forEach((val, key) => {
                     switch (val.name.toLowerCase()) {
                         case "x-cat-" + this.rand + "-cookie": {
@@ -72,25 +72,25 @@ export class BackgroundGrant {
                             anonymous = true;
                             break;
                         }
-                        case "x-cat-" + this.rand + "-referer": {
-                            referer = val.value || '';
-                            break;
-                        }
+                        case "x-cat-" + this.rand + "-host":
+                        case "x-cat-" + this.rand + "-user-agent":
+                        case "x-cat-" + this.rand + "-referer":
                         case "x-cat-" + this.rand + "-origin": {
-                            origin = val.value || '';
+                            unsafeHeader[val.name.toLowerCase().substr(("x-cat-" + this.rand).length + 1)] = val.value || '';
                             break;
                         }
                         case "cookie": {
                             cookie = val.value || '';
                             break;
                         }
-                        case "referer": {
-                            referer = referer || val.value || '';
-                            break;
-                        }
-                        case "origin": {
-                            origin = origin || val.value || '';
-                        }
+                        case "user-agent":
+                        case "host":
+                        case "origin":
+                        case "referer":
+                            {
+                                unsafeHeader[val.name.toLowerCase()] = unsafeHeader[val.name.toLowerCase()] || val.value || '';
+                                break
+                            }
                         default: {
                             requestHeaders.push(val);
                         }
@@ -107,17 +107,15 @@ export class BackgroundGrant {
                     }
                 }
                 cookie && requestHeaders.push({
-                    name: 'cookie',
+                    name: 'Cookie',
                     value: cookie
                 });
-                referer && requestHeaders.push({
-                    name: 'referer',
-                    value: referer,
-                });
-                origin && requestHeaders.push({
-                    name: 'origin',
-                    value: origin,
-                });
+                for (const name in unsafeHeader) {
+                    requestHeaders.push({
+                        name: name,
+                        value: unsafeHeader[name]
+                    });
+                }
                 return {
                     requestHeaders: requestHeaders,
                 }
@@ -423,6 +421,8 @@ export class BackgroundGrant {
                 const val = config.headers[key];
                 // 处理unsafe的header
                 switch (key.toLowerCase()) {
+                    case "user-agent":
+                    case "host":
                     case "origin":
                     case "referer": {
                         key = "X-Cat-" + this.rand + "-" + key.toLowerCase();
@@ -492,7 +492,7 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
-            if (!detail.url || !detail.name) {
+            if (!detail.domain) {
                 return resolve(undefined);
             }
             switch (param[0]) {
@@ -502,7 +502,7 @@ export class BackgroundGrant {
                         name: detail.name,
                         path: detail.path,
                         secure: detail.secure,
-                        session: false,
+                        session: detail.session,
                         url: detail.url,
                     }, (cookies) => {
                         grant.data = { type: 'done', data: cookies };

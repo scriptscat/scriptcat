@@ -132,6 +132,7 @@ declare namespace GM_Types {
         domain?: string
         path?: string
         secure?: boolean
+        session?: boolean
         httpOnly?: boolean
         expirationDate?: number
     }
