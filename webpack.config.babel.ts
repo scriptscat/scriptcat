@@ -18,8 +18,6 @@ const config: Configuration = {
         popup: home + "/popup.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
-        content: home + "/content.ts",
-        injected: home + "/injected.ts",
         "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
         "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },

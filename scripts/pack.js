@@ -5,6 +5,8 @@ const { execSync } = require("child_process");
 
 execSync("npm run build");
 
+execSync("npm run build-no-split");
+
 // 处理manifest version
 let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json").toString();
 jsonStr = jsonStr.replace(/"version": "(.*?)"/, '"version": "' + pjson.version + '"');

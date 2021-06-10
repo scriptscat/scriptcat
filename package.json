@@ -8,6 +8,7 @@
         "devtool": "vue-devtools",
         "dev": "webpack --mode development --config webpack.dev.babel.ts",
         "build": "webpack --mode production --config webpack.prod.babel.ts",
+        "build-no-split": "webpack --mode production --config webpack.no.split.babel.ts",
         "pack": "node ./scripts/pack.js"
     },
     "author": "CodFrm",
