@@ -283,7 +283,10 @@ import {
   SCRIPT_STATUS_DISABLE,
 } from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+import {
+  ScriptRunStatusChange,
+  ScriptUpdate,
+} from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
 import { Page } from "@App/pkg/utils";
@@ -401,6 +404,16 @@ export default class ScriptList extends Vue {
         }
       }
     });
+
+    // MsgCenter.listener(ScriptUpdate, () => {
+    //   console.log("on ScriptUpdate");
+
+    //   this.scriptUtil
+    //     .scriptList(undefined, new Page(this.page, this.count))
+    //     .then((result) => {
+    //       this.scripts = result;
+    //     });
+    // });
   }
 
   protected valueModel = new ValueModel();

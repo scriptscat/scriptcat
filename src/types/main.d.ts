@@ -3,6 +3,19 @@ declare let sandbox: any;
 declare module "@App/tampermonkey.d.ts";
 declare module "*.tpl";
 
+interface ITabItem {
+    tabKey: string | number;
+    title?: string | JSX.Element;
+    icon?: JSX.Element;
+    content?: JSX.Element;
+    closable?: boolean;
+    lazy?: boolean;
+    keepAlive?: boolean;
+    scriptId?: number;
+    beforeChange?: (tabPane: TabPane) => Promise<boolean>;
+    beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
+}
+
 interface IChangeTitle {
     title: string;
     /** 是否是在新建脚本 */
@@ -14,19 +27,20 @@ interface IEditScript {
     scriptId: number;
 }
 
-interface INewScript {
+interface IHandleScriptIdChange {
+    tabKey: number | string;
     scriptId: number;
 }
 
+interface INewScript {}
+
 interface IUpdateMeta {
-    scriptId: number;
     code: string;
     name: string;
     metadata: any;
 }
 
-interface ISave {
-    scriptId: number;
+interface ISaveScript {
     currentCode: string;
     debug: boolean;
 }

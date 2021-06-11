@@ -177,19 +177,18 @@
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 
 import { Script } from "@App/model/do/script";
-import eventBus from "@views/EventBus";
 
-const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+const COLORS = ["green", "purple", "indigo", "cyan", "teal", "orange"];
 
 function getRandomColor() {
-  return colors[Math.floor(Math.random() * colors.length)];
+  return COLORS[Math.floor(Math.random() * COLORS.length)];
 }
 
 function formatConfigProperty(key: string, value: string) {
   return `// @${key.padEnd(20, " ")}${value}`;
 }
 
-const grant = [
+const GRANT = [
   "GM_setValue",
   "GM_getValue",
   "GM_setClipboard",
@@ -219,8 +218,8 @@ export default class CloseButton extends Vue {
     [key: string]: any[] | undefined;
   };
 
-  grant = grant.map((text) => ({
-    text,
+  grant = GRANT.map((name) => ({
+    text: name,
     color: getRandomColor(),
   }));
 
@@ -246,12 +245,7 @@ export default class CloseButton extends Vue {
   ];
   nonce = 1;
   menu = false;
-  model = [
-    {
-      text: "Foo",
-      color: "blue",
-    },
-  ];
+
   x = 0;
   search = null;
   y = 0;
@@ -278,6 +272,13 @@ export default class CloseButton extends Vue {
       text.toString().toLowerCase().indexOf(query.toString().toLowerCase()) > -1
     );
   }
+
+  model = [
+    {
+      text: "Foo",
+      color: "blue",
+    },
+  ];
 
   @Watch("model")
   onModelChange(val: any[], prev: any[]) {
@@ -317,7 +318,7 @@ export default class CloseButton extends Vue {
           buffer[key] = values;
         } else {
           // 如name，单选select(license)等
-          const castValues = (values as unknown) as string;
+          const castValues = values as unknown as string;
 
           buffer[key] = [castValues];
         }
@@ -358,8 +359,7 @@ export default class CloseButton extends Vue {
     // 拼接新config和code
     const newCode = result + pureCode;
 
-    eventBus.$emit<IUpdateMeta>("update-meta", {
-      scriptId: this.script.id,
+    this.$emit<IUpdateMeta>("update-meta", {
       code: newCode,
       name: formattedConfig.name.flat()[0],
       metadata: JSON.parse(JSON.stringify(formattedConfig)),
