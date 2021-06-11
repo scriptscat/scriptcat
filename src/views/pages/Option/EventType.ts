@@ -5,7 +5,7 @@ enum EventType {
     EditScript = "edit-script",
     ChangeTitle = "change-title",
     InitialScript = "initial-script",
-    ScriptIdChange = "script-id-change",
+    UpdateScriptList = "update-script-list",
 }
 
 export default EventType;

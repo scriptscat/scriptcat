@@ -27,12 +27,9 @@ interface IEditScript {
     scriptId: number;
 }
 
-interface IHandleScriptIdChange {
-    tabKey: number | string;
+interface INewScript {
     scriptId: number;
 }
-
-interface INewScript {}
 
 interface IUpdateMeta {
     code: string;
