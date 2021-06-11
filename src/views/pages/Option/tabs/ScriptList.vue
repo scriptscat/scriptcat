@@ -294,6 +294,7 @@ import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
 import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
 import { CronTime } from "cron";
+import EventType from "../EventType";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -327,6 +328,8 @@ export default class ScriptList extends Vue {
     "@include",
   ];
 
+  rules = [];
+
   async takeMultipleAction() {
     // todo 使用filterType和filterText过滤
     const targets = this.selected;
@@ -339,9 +342,14 @@ export default class ScriptList extends Vue {
         }
 
         alert("批量删除成功");
-        // todo 响应式scriptList
+
+        // 响应式scriptList
+        eventBus.$emit(EventType.UpdateScriptList);
+
         break;
     }
+
+    this.selected = [];
   }
 
   dialogDelete = false;
@@ -406,14 +414,15 @@ export default class ScriptList extends Vue {
     });
 
     // MsgCenter.listener(ScriptUpdate, () => {
-    //   console.log("on ScriptUpdate");
+    eventBus.$on(EventType.UpdateScriptList, () => {
+      console.log("on UpdateScriptList");
 
-    //   this.scriptUtil
-    //     .scriptList(undefined, new Page(this.page, this.count))
-    //     .then((result) => {
-    //       this.scripts = result;
-    //     });
-    // });
+      this.scriptUtil
+        .scriptList(undefined, new Page(this.page, this.count))
+        .then((result) => {
+          this.scripts = result;
+        });
+    });
   }
 
   protected valueModel = new ValueModel();

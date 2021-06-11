@@ -1,17 +1,15 @@
 import { Tab, TabPane } from "@components/Tab";
 import eventBus from "@views/EventBus";
-import { Component, Vue, Watch } from "vue-property-decorator";
+import { Component, Vue } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
 import Carousel from "./Carousel.vue";
 import EventType from "./EventType";
+import Snackbar from "./Snackbar.vue";
 import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
 import ScriptTab from "./tabs/ScriptTab/index.vue";
-import Snackbar from "./Snackbar.vue";
-
-import { scriptModule } from "@Option/store/script";
 
 interface IExternalAction {
     target?: "editor";
@@ -21,7 +19,6 @@ interface IExternalAction {
 const SCRIPT_LIST_INDEX = 0;
 const LOGGER_INDEX = 1;
 const CONFIG_LIST_INDEX = 2;
-const PLUS_INDEX = 3;
 
 @Component({})
 export default class App extends Vue {
@@ -30,33 +27,6 @@ export default class App extends Vue {
     };
 
     allTabs: ITabItem[] = [];
-
-    // get allTabs() {
-    //     return scriptModule.allTabs;
-    // }
-
-    // get activeTabIndex() {
-    //     return scriptModule.currentActiveTabIndex;
-    // }
-
-    // @Watch("activeTabIndex")
-    // changeActive(newIndex: number) {
-    //     this.$nextTick(() => {
-    //         this.$refs.tabRef.navigateToTab(newIndex);
-    //         this.$forceUpdate();
-    //     });
-    // }
-
-    // @Watch("toggleUpdateStatus")
-    // toggleForceUpdate() {
-    //     this.$nextTick(() => {
-    //         this.$forceUpdate();
-    //     });
-    // }
-
-    // get tabTitleMap() {
-    //     return scriptModule.tabTitleMap;
-    // }
 
     created() {
         eventBus.$on<INewScript>(EventType.NewScript, this.handleNewScript);
@@ -77,7 +47,7 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <ScriptTab tabKey={tabKey} onScriptIdChange={this.handleScriptIdChange} />
+                    <ScriptTab tabKey={tabKey} />
                 </div>
             ),
             closable: false,
@@ -99,11 +69,7 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <ScriptTab
-                        tabKey={tabKey}
-                        scriptId={scriptId}
-                        onScriptIdChange={this.handleScriptIdChange}
-                    />
+                    <ScriptTab tabKey={tabKey} scriptId={scriptId} />
                 </div>
             ),
             closable: true,
@@ -232,20 +198,17 @@ export default class App extends Vue {
     }
 
     /** 在原PlusTab中保存了脚本时触发 */
-    handleNewScript({}: INewScript) {
-        // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab为加号
-        // 或者直接将当前tab视为普通ScriptTab，在最后添加一个PlusTab即可
+    handleNewScript({ scriptId }: INewScript) {
         console.log("handleNewScript");
 
+        // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，
+        this.updateTab({
+            index: this.allTabs.length - 1,
+            newTab: this.generateScriptTab(scriptId),
+        });
+
+        // 并还原新建脚本这个tab为加号
         this.allTabs.push(this.generatePlusTab());
-    }
-
-    handleScriptIdChange({ tabKey, scriptId }: IHandleScriptIdChange) {
-        const scriptTab = this.allTabs.find((tab) => tab.tabKey == tabKey);
-
-        if (scriptTab) {
-            scriptTab.scriptId = scriptId;
-        }
     }
 
     handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
@@ -274,15 +237,14 @@ export default class App extends Vue {
                 scriptTab.title = title.length > 20 ? title.slice(0, 20) + "..." : title;
                 this.allTabs[scriptTabIndex] = scriptTab;
             }
+
+            eventBus.$emit(EventType.UpdateScriptList);
         }
 
         this.$forceUpdate();
     }
 
     handleTabRemove(index: number) {
-        // const newTabs = [...this.allTabs];
-
-        // this.$refs.tabRef.navigateToTab(0);
         this.activeTab(0);
 
         if (index === this.allTabs.length - 1) {
@@ -293,9 +255,8 @@ export default class App extends Vue {
         } else {
             this.allTabs.splice(index, 1);
         }
-
-        // scriptModule.updateTabs(newTabs);
     }
+
     render() {
         return (
             <VApp>
@@ -306,25 +267,12 @@ export default class App extends Vue {
                         flexDirection: "column",
                     }}
                 >
-                    <Carousel></Carousel>
+                    <Carousel />
                     <Snackbar />
 
                     <Tab ref="tabRef" onTabRemove={this.handleTabRemove}>
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;
-
-                            // let finalTitle: string | JSX.Element | undefined;
-                            // if (typeof title === "string") {
-                            //     if (
-                            //         Object.keys(scriptModule.tabTitleMap).includes(
-                            //             tabKey.toString(),
-                            //         )
-                            //     ) {
-                            //         finalTitle = scriptModule.tabTitleMap[tabKey as number];
-                            //     }
-                            // } else {
-                            //     finalTitle = title;
-                            // }
 
                             const finalTitle = title;
 

@@ -177,13 +177,6 @@ export default class ScriptTab extends Vue {
     if (this.scriptId) {
       newScript.id = this.script.id;
     } else {
-      // 由plus演变而来的tab中保存，此时script为新建的script，
-      // 简单来说，就是id需要从IndexedDB中获取
-      eventBus.$emit<IHandleScriptIdChange>(EventType.ScriptIdChange, {
-        tabKey: this.tabKey,
-        scriptId: newScript.id,
-      });
-
       newScriptFlag = true;
     }
 
@@ -204,12 +197,6 @@ export default class ScriptTab extends Vue {
     scriptModule.showSnackbar("脚本保存成功");
     await this.handleInitialSctipt({} as any);
 
-    // 还原unsavdChange状态的title
-    // scriptModule.changeTitle({
-    //   title: `${this.script.name}`,
-    //   scriptId: this.scriptId,
-    // });
-
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: `${this.script.name}`,
       initial: this.scriptId ? undefined : true,
@@ -223,7 +210,16 @@ export default class ScriptTab extends Vue {
 
     this.$refs.editor.hasUnsavedChange = false;
 
-    newScriptFlag && eventBus.$emit<INewScript>(EventType.NewScript, {});
+    // 最后执行新建脚本相关的事件
+    if (newScriptFlag) {
+      // 由plus演变而来的tab中保存，此时script为新建的script，
+      // 简单来说，就是id需要从IndexedDB中获取
+      eventBus.$emit<INewScript>(EventType.NewScript, {
+        scriptId: newScript.id,
+      });
+    }
+
+    eventBus.$emit(EventType.UpdateScriptList);
   }
 
   handleDTs(val: string) {
