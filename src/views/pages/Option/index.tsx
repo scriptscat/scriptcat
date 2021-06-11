@@ -1,6 +1,6 @@
 import { Tab, TabPane } from "@components/Tab";
 import eventBus from "@views/EventBus";
-import { Component, Vue } from "vue-property-decorator";
+import { Component, Vue, Watch } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
 import Carousel from "./Carousel.vue";
@@ -9,19 +9,9 @@ import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
 import ScriptTab from "./tabs/ScriptTab/index.vue";
+import Snackbar from "./Snackbar.vue";
 
-interface ITabItem {
-    tabKey: string | number;
-    title?: string | JSX.Element;
-    icon?: JSX.Element;
-    content?: JSX.Element;
-    closable?: boolean;
-    lazy?: boolean;
-    keepAlive?: boolean;
-    scriptId?: number;
-    beforeChange?: (tabPane: TabPane) => Promise<boolean>;
-    beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
-}
+import { scriptModule } from "@Option/store/script";
 
 interface IExternalAction {
     target?: "editor";
@@ -41,15 +31,44 @@ export default class App extends Vue {
 
     allTabs: ITabItem[] = [];
 
+    // get allTabs() {
+    //     return scriptModule.allTabs;
+    // }
+
+    // get activeTabIndex() {
+    //     return scriptModule.currentActiveTabIndex;
+    // }
+
+    // @Watch("activeTabIndex")
+    // changeActive(newIndex: number) {
+    //     this.$nextTick(() => {
+    //         this.$refs.tabRef.navigateToTab(newIndex);
+    //         this.$forceUpdate();
+    //     });
+    // }
+
+    // @Watch("toggleUpdateStatus")
+    // toggleForceUpdate() {
+    //     this.$nextTick(() => {
+    //         this.$forceUpdate();
+    //     });
+    // }
+
+    // get tabTitleMap() {
+    //     return scriptModule.tabTitleMap;
+    // }
+
     created() {
-        eventBus.$on<IEditScript>(EventType.EditScript, this.handleEditScript);
         eventBus.$on<INewScript>(EventType.NewScript, this.handleNewScript);
+        eventBus.$on<IEditScript>(EventType.EditScript, this.handleEditScript);
         eventBus.$on<IChangeTitle>(EventType.ChangeTitle, this.handleChangeTitle);
     }
 
     generatePlusTab() {
+        const tabKey = Math.random();
+
         return {
-            tabKey: PLUS_INDEX,
+            tabKey,
             icon: <VIcon dense>mdi-plus</VIcon>,
             content: (
                 <div
@@ -58,7 +77,7 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <ScriptTab />
+                    <ScriptTab tabKey={tabKey} onScriptIdChange={this.handleScriptIdChange} />
                 </div>
             ),
             closable: false,
@@ -67,8 +86,10 @@ export default class App extends Vue {
     }
 
     generateScriptTab(scriptId: number): ITabItem {
+        const tabKey = Math.random();
+
         return {
-            tabKey: Math.random(),
+            tabKey,
             scriptId,
             title: `${scriptId}`,
             content: (
@@ -78,34 +99,38 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <ScriptTab scriptId={scriptId} />
+                    <ScriptTab
+                        tabKey={tabKey}
+                        scriptId={scriptId}
+                        onScriptIdChange={this.handleScriptIdChange}
+                    />
                 </div>
             ),
             closable: true,
-            keepAlive: false,
-            beforeChange: (currentTab) => {
-                return new Promise((resolve) => {
-                    console.log(currentTab);
+            keepAlive: true,
+            // beforeChange: (currentTab) => {
+            //     return new Promise((resolve) => {
+            //         console.log(currentTab);
 
-                    if (currentTab.title.startsWith("*")) {
-                        this.$confirm({
-                            title: "注意",
-                            text: "有未保存的更改，切换将丢失，确认要切换吗？",
-                            acceptText: "确认切换",
-                            cancelText: "取消",
-                        })
-                            .then(() => {
-                                // todo 去除tab title前的"* "
-                                return resolve(true);
-                            })
-                            .catch(() => {
-                                return resolve(false);
-                            });
-                    } else {
-                        return resolve(true);
-                    }
-                });
-            },
+            //         if (currentTab.title.startsWith("*")) {
+            //             this.$confirm({
+            //                 title: "注意",
+            //                 text: "有未保存的更改，切换将丢失，确认要切换吗？",
+            //                 acceptText: "确认切换",
+            //                 cancelText: "取消",
+            //             })
+            //                 .then(() => {
+            //                     // todo 去除tab title前的"* "
+            //                     return resolve(true);
+            //                 })
+            //                 .catch(() => {
+            //                     return resolve(false);
+            //                 });
+            //         } else {
+            //             return resolve(true);
+            //         }
+            //     });
+            // },
             beforeRemove: (currentTab) => {
                 return new Promise((resolve) => {
                     console.log(currentTab);
@@ -157,61 +182,84 @@ export default class App extends Vue {
             this.generatePlusTab(),
         );
 
+        // 外部跳转
         this.$nextTick(() => {
             const query = (this.$route.query as unknown) as IExternalAction;
 
             if (query?.target === "editor") {
+                // 编辑脚本
                 this.handleEditScript({ scriptId: parseInt(query.id as string) });
             } else if (query?.target === "initial") {
-                this.$refs.tabRef.navigateToTab(this.allTabs.length - 1);
+                // 新建脚本
+                this.activeTab(this.allTabs.length - 1);
             }
         });
     }
 
+    activeTab(index: number) {
+        this.$refs.tabRef.navigateToTab(index);
+    }
+
+    updateTab({ index, newTab }: { index: number; newTab: ITabItem }) {
+        this.allTabs.splice(index, 1, newTab);
+    }
+
+    appendTab({ index, newTab }: { index?: number; newTab: ITabItem }) {
+        if (index) {
+            this.allTabs.splice(index, 0, newTab);
+        } else {
+            this.allTabs.push(newTab);
+        }
+    }
+
     handleEditScript({ scriptId }: IEditScript) {
         let scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
-        // 如果不存在
+        // 如果不存在，则新建
         if (scriptTabIndex === -1) {
-            // 则新建
-            // this.allTabs.push(this.generateScriptTab(scriptId));
+            // 保留最后为PLUS，所以新添加的tab是倒数第二个
             scriptTabIndex = this.allTabs.length - 1;
-            this.allTabs.splice(this.allTabs.length - 1, 0, this.generateScriptTab(scriptId));
+
+            this.appendTab({
+                index: scriptTabIndex,
+                newTab: this.generateScriptTab(scriptId),
+            });
         }
 
         //新建后跳转
         this.$nextTick(() => {
-            this.$refs.tabRef.navigateToTab(
-                scriptTabIndex,
-            );
+            this.activeTab(scriptTabIndex);
         });
     }
 
-    handleNewScript({ scriptId }: INewScript) {
+    /** 在原PlusTab中保存了脚本时触发 */
+    handleNewScript({}: INewScript) {
         // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，并还原新建脚本这个tab为加号
-        // this.allTabs.splice(PLUS_INDEX, 1, this.generatePlusTab());
-        this.allTabs[this.allTabs.length - 1] = this.generatePlusTab();
-        // this.$forceUpdate();
+        // 或者直接将当前tab视为普通ScriptTab，在最后添加一个PlusTab即可
+        console.log("handleNewScript");
 
-        // this.allTabs.push(this.generateScriptTab(scriptId));
-        this.allTabs.splice(this.allTabs.length - 1, 0, this.generateScriptTab(scriptId));
+        this.allTabs.push(this.generatePlusTab());
+    }
 
-        //新建后跳转
-        this.$nextTick(() => {
-            this.$refs.tabRef.navigateToTab(this.allTabs.length - 1);
-        });
+    handleScriptIdChange({ tabKey, scriptId }: IHandleScriptIdChange) {
+        const scriptTab = this.allTabs.find((tab) => tab.tabKey == tabKey);
+
+        if (scriptTab) {
+            scriptTab.scriptId = scriptId;
+        }
     }
 
     handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
         if (initial) {
-            const newScriptTab = {
-                ...(this.allTabs.find((tab) => tab.tabKey === PLUS_INDEX) as ITabItem),
-            };
+            const newScriptIndex = this.allTabs.length - 1;
+
+            const newScriptTab = { ...this.allTabs[newScriptIndex] };
 
             newScriptTab.title = title;
             newScriptTab.icon = undefined;
             newScriptTab.closable = true;
+            newScriptTab.keepAlive = true;
 
-            this.allTabs[PLUS_INDEX] = newScriptTab;
+            this.allTabs[newScriptIndex] = newScriptTab;
         } else {
             if (!scriptId) {
                 alert("title修改失败，未能识别scriptId");
@@ -231,27 +279,23 @@ export default class App extends Vue {
         this.$forceUpdate();
     }
 
-    manualNavigateFlag = false;
-
     handleTabRemove(index: number) {
-        if (index === PLUS_INDEX) {
-            // vue未监听通过index修改array的方式，所以手动update
-            // this.allTabs[PLUS_INDEX] = newScriptTab;
-            // this.$forceUpdate();
-            // 或者直接splice替换
-            this.$refs.tabRef.navigateToTab(0);
-            this.allTabs.splice(index, 1);
+        // const newTabs = [...this.allTabs];
 
-            // 当tabChange时，tab组件内部会自动navigate一次，
-            // 所以要保证，手动的navigate发生在自动调用之后
-            // 配合onActiveTab回调使用
-            // todo activePattern设置为head之后，似乎没必要手动navigate了？
-            // this.manualNavigateFlag = true;
+        // this.$refs.tabRef.navigateToTab(0);
+        this.activeTab(0);
+
+        if (index === this.allTabs.length - 1) {
+            this.updateTab({
+                index,
+                newTab: this.generatePlusTab(),
+            });
         } else {
             this.allTabs.splice(index, 1);
         }
-    }
 
+        // scriptModule.updateTabs(newTabs);
+    }
     render() {
         return (
             <VApp>
@@ -263,19 +307,26 @@ export default class App extends Vue {
                     }}
                 >
                     <Carousel></Carousel>
+                    <Snackbar />
 
-                    <Tab
-                        ref="tabRef"
-                        onTabRemove={this.handleTabRemove}
-                    // onActiveTab={() => {
-                    // if (this.manualNavigateFlag) {
-                    //     this.manualNavigateFlag = false;
-                    //     this.$refs.tabRef.navigateToTab(0);
-                    // }
-                    // }}
-                    >
+                    <Tab ref="tabRef" onTabRemove={this.handleTabRemove}>
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;
+
+                            // let finalTitle: string | JSX.Element | undefined;
+                            // if (typeof title === "string") {
+                            //     if (
+                            //         Object.keys(scriptModule.tabTitleMap).includes(
+                            //             tabKey.toString(),
+                            //         )
+                            //     ) {
+                            //         finalTitle = scriptModule.tabTitleMap[tabKey as number];
+                            //     }
+                            // } else {
+                            //     finalTitle = title;
+                            // }
+
+                            const finalTitle = title;
 
                             return (
                                 <TabPane
@@ -284,10 +335,10 @@ export default class App extends Vue {
                                     // key必须唯一
                                     key={tabKey}
                                     {...{ props: rest }}
-                                    title={typeof title === "string" ? title : undefined}
+                                    title={typeof finalTitle === "string" ? finalTitle : undefined}
                                 >
-                                    {title && typeof title !== "string" && (
-                                        <div slot="title"> {title} </div>
+                                    {finalTitle && typeof finalTitle !== "string" && (
+                                        <div slot="title"> {finalTitle} </div>
                                     )}
                                     {icon && <div slot="icon"> {icon}</div>}
                                     {content}

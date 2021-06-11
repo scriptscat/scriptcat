@@ -71,11 +71,12 @@
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { KeyMod, KeyCode, languages } from "monaco-editor";
-import eventBus from "@views/EventBus";
 import { Script } from "@App/model/do/script";
 
 import ResizableEditor from "@components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
+import { scriptModule } from "../../store/script";
+import eventBus from "@App/views/EventBus";
 
 interface IEditorMenu {
   [title: string]: {
@@ -100,9 +101,8 @@ export default class CloseButton extends Vue {
 
   @Prop() scriptId!: number;
   @Prop() script!: Script;
-  // @Prop() hasInitial!: boolean;
-  @Prop() onMetaChange!: boolean;
 
+  @Prop() onMetaChange!: boolean;
   hasInitial = false;
   hasUnsavedChange = false;
 
@@ -115,6 +115,43 @@ export default class CloseButton extends Vue {
     }
   }
 
+  async mounted() {
+    this.initialEditor();
+  }
+
+  async initialEditor() {
+    this.editor.onDidChangeModelContent(() => {
+      if (this.hasInitial && !this.hasUnsavedChange) {
+        // 修改meta会自动保存，或者不保存也行，统一交由用户决定(保存)
+        if (!this.onMetaChange) {
+          // scriptModule.changeTitle({
+          //   scriptId: this.scriptId,
+          //   title: `* ${this.script.name}`,
+          // });
+
+          eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
+            title: `* ${this.script.name}`,
+            initial: this.scriptId ? undefined : true,
+            scriptId: this.scriptId,
+          });
+
+          this.hasUnsavedChange = true;
+        }
+      }
+    });
+
+    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
+      this.$emit<ISaveScript>(EventType.SaveScript, {
+        currentCode: this.editor.getValue(),
+        debug: false,
+      });
+    });
+
+    this.$emit<IInitialScript>(EventType.InitialScript, {
+      scriptId: this.scriptId,
+    });
+  }
+
   menu: IEditorMenu = {
     文件: [
       { action: "导入", handler: () => {}, disabled: true },
@@ -125,8 +162,7 @@ export default class CloseButton extends Vue {
       {
         action: "调试",
         handler: () => {
-          eventBus.$emit<ISave>(EventType.Save, {
-            scriptId: this.scriptId,
+          this.$emit<ISaveScript>(EventType.SaveScript, {
             currentCode: this.editor.getValue(),
             debug: true,
           });
@@ -135,35 +171,6 @@ export default class CloseButton extends Vue {
       },
     ],
   };
-
-  async mounted() {
-    this.initialEditor();
-  }
-
-  async initialEditor() {
-    this.editor.onDidChangeModelContent(() => {
-      if (this.hasInitial && !this.hasUnsavedChange) {
-        if (!this.onMetaChange) {
-          eventBus.$emit<ICodeChange>(EventType.CodeChange, {
-            scriptId: this.scriptId,
-          });
-          this.hasUnsavedChange = true;
-        }
-      }
-    });
-
-    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
-      eventBus.$emit<ISave>(EventType.Save, {
-        scriptId: this.scriptId,
-        currentCode: this.editor.getValue(),
-        debug: false,
-      });
-    });
-
-    eventBus.$emit<IInitialScript>("initial-script", {
-      scriptId: this.scriptId,
-    });
-  }
 }
 </script>
 

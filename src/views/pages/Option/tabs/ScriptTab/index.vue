@@ -13,11 +13,17 @@
           :script="script"
           :scriptId="scriptId"
           :onMetaChange="onMetaChange"
+          @initial-script="handleInitialSctipt"
+          @save-script="handleSaveScript"
         />
       </TabPane>
 
       <TabPane title="META">
-        <META :script="script" :metaBuffer="metaBuffer" />
+        <META
+          :script="script"
+          :metaBuffer="metaBuffer"
+          @update-meta="handleUpdateMeta"
+        />
       </TabPane>
 
       <TabPane title="设置">
@@ -32,16 +38,6 @@
         <Resource />
       </TabPane>
     </Tab>
-
-    <v-snackbar v-model="snackbar" color="success" top right>
-      {{ snackbarInfo }}
-
-      <template v-slot:action="{ attrs }">
-        <v-btn color="pink" text v-bind="attrs" @click="snackbar = false">
-          Close
-        </v-btn>
-      </template>
-    </v-snackbar>
   </div>
 </template>
 
@@ -52,6 +48,7 @@ import { editor, KeyMod, KeyCode } from "monaco-editor";
 import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
+  // Script,
   SCRIPT_ORIGIN_LOCAL,
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
@@ -68,6 +65,7 @@ import Storage from "./Storage.vue";
 import { sleep, get } from "@App/pkg/utils";
 import EventType from "../../EventType";
 import { languages } from "monaco-editor";
+import { scriptModule } from "../../store/script";
 
 const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
 
@@ -91,61 +89,27 @@ export default class ScriptTab extends Vue {
     editor: Editor;
   };
 
-  @Prop() scriptId!: number;
-
-  script: Script = <Script>{};
   scriptMgr: ScriptManager = new ScriptManager(new Background(window));
-  localScriptId: number | null = null;
+
+  @Prop() tabKey!: number | string;
+  @Prop() scriptId!: number;
+  script: Script = <Script>{};
+
+  hasInitial = false;
+  onMetaChange = false;
+
   metaBuffer: {
     grant?: { text: string; color: string }[];
     [key: string]: any[] | undefined;
   } = {};
 
-  hasInitial = false;
-  onMetaChange = false;
-
-  async created() {
-    // todo 使用vuex重构，
-    // interface ScriptStatus {
-    //   [scriptId: number]: {
-    //     meta: any;
-    //     title: string;
-    //     hasInitial: false;
-    //     hasUnsavedChange: boolean;
-    //   };
-    // }
-
-    eventBus.$on<IUpdateMeta>("update-meta", (payload) => {
-      if (payload.scriptId === this.scriptId) {
-        this.handleUpdateMeta(payload);
-      }
-    });
-
-    eventBus.$on<IInitialScript>("initial-script", (payload) => {
-      if (payload.scriptId === this.scriptId) {
-        this.handleInitialSctipt(payload);
-      }
-    });
-    eventBus.$on<ISave>(EventType.Save, (payload) => {
-      if (payload.scriptId === this.scriptId) {
-        this.handleSave(payload);
-      }
-    });
-    eventBus.$on<ICodeChange>(EventType.CodeChange, (payload) => {
-      if (payload.scriptId === this.scriptId) {
-        this.handleCodeChange(payload);
-      }
-    });
-
-    // await this.handleInitialSctipt();
-  }
-
   async handleInitialSctipt({}: IInitialScript) {
-    if (!(this.scriptId || this.localScriptId)) {
+    if (!this.scriptId) {
       eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
         title: "新建脚本",
         initial: true,
       });
+      // scriptModule.changeTitle({});
 
       this.$refs.editor.hasInitial = true;
 
@@ -155,18 +119,21 @@ export default class ScriptTab extends Vue {
     // todo scriptMgr似乎会缓存数据(缓存旧的script)，所以必须每次重新new一个
     // todo 或者修改一下scriptManager的实现，可以在外部控制是否缓存
     const scriptMgr: ScriptManager = new ScriptManager(new Background(window));
-    const script = await scriptMgr.getScript(
-      this.scriptId ?? this.localScriptId
-    );
+    const script = await scriptMgr.getScript(this.scriptId);
 
     if (!script) return;
 
     this.script = script;
     this.metaBuffer = this.prepareMetaBuffer(this.script.metadata);
 
+    // scriptModule.changeTitle({
+    //   title: script.name,
+    //   scriptId: this.scriptId,
+    // });
+
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: script.name,
-      scriptId: this.scriptId ?? this.localScriptId,
+      scriptId: this.scriptId,
     });
 
     this.hasInitial = true;
@@ -186,13 +153,14 @@ export default class ScriptTab extends Vue {
     await this.scriptMgr.updateScript(this.script);
 
     // 保存成功后
-    this.showSnackbar("config更新成功");
+    scriptModule.showSnackbar("config更新成功");
+    // this.showSnackbar();
     this.onMetaChange = true;
     await this.handleInitialSctipt({} as any);
     this.onMetaChange = false;
   }
 
-  async handleSave({ currentCode, debug }: ISave) {
+  async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
     let [newScript, oldScript] = await this.scriptMgr.prepareScriptByCode(
       currentCode,
@@ -204,14 +172,19 @@ export default class ScriptTab extends Vue {
       return;
     }
 
-    console.log({ newScript });
+    let newScriptFlag = false;
 
     if (this.scriptId) {
       newScript.id = this.script.id;
     } else {
       // 由plus演变而来的tab中保存，此时script为新建的script，
-      // 所以反而需要从newScript中取id
-      this.localScriptId = newScript.id;
+      // 简单来说，就是id需要从IndexedDB中获取
+      eventBus.$emit<IHandleScriptIdChange>(EventType.ScriptIdChange, {
+        tabKey: this.tabKey,
+        scriptId: newScript.id,
+      });
+
+      newScriptFlag = true;
     }
 
     newScript.status = this.script.status || newScript.status;
@@ -226,13 +199,21 @@ export default class ScriptTab extends Vue {
     await this.scriptMgr.updateScript(this.script, oldScript);
 
     // 保存成功后
-    this.showSnackbar("脚本保存成功");
+
+    console.log("脚本保存成功");
+    scriptModule.showSnackbar("脚本保存成功");
     await this.handleInitialSctipt({} as any);
 
     // 还原unsavdChange状态的title
+    // scriptModule.changeTitle({
+    //   title: `${this.script.name}`,
+    //   scriptId: this.scriptId,
+    // });
+
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: `${this.script.name}`,
-      scriptId: this.scriptId ?? this.localScriptId,
+      initial: this.scriptId ? undefined : true,
+      scriptId: this.scriptId,
     });
 
     // 后台脚本才可以调用
@@ -241,21 +222,14 @@ export default class ScriptTab extends Vue {
     }
 
     this.$refs.editor.hasUnsavedChange = false;
+
+    newScriptFlag && eventBus.$emit<INewScript>(EventType.NewScript, {});
   }
 
   handleDTs(val: string) {
     get(val, (resp) => {
       languages.typescript.javascriptDefaults.addExtraLib(resp, val);
     });
-  }
-
-  async handleCodeChange({}: ICodeChange) {
-    if (this.hasInitial) {
-      eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
-        title: `* ${this.script.name}`,
-        scriptId: this.scriptId ?? this.localScriptId,
-      });
-    }
   }
 
   /** 从metadata中提取为适合form的格式 */
@@ -285,17 +259,6 @@ export default class ScriptTab extends Vue {
     }
 
     return buffer;
-  }
-
-  snackbar = false;
-  snackbarInfo = "";
-
-  showSnackbar(message: string) {
-    this.snackbar = true;
-    this.snackbarInfo = message;
-    setTimeout(() => {
-      this.snackbar = false;
-    }, 4000);
   }
 }
 </script>
