@@ -1,8 +1,9 @@
 
 export type ListenCallback = (msg: any, port: chrome.runtime.Port) => any | Promise<any>;
 
-let topicMap = new Map<string, Map<any, any>>();
+export type MessageCallback = (body: any, sendResponse: (response?: any) => void, sender?: chrome.runtime.MessageSender) => void;
 
+let topicMap = new Map<string, Map<ListenCallback, ListenCallback>>();
 chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
     let val = topicMap.get(port.name);
     if (!val) {
@@ -24,8 +25,10 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
     });
 });
 
+// 在扩展页面之间的消息传递
 export class MsgCenter {
 
+    // 应该只有bg页面才能使用
     public static listener(topic: string, callback: ListenCallback) {
         let val = topicMap.get(topic);
         if (!val) {
@@ -33,6 +36,15 @@ export class MsgCenter {
             topicMap.set(topic, val);
         }
         val.set(callback, callback);
+    }
+
+    // 监听msg操作的只能有一个
+    public static listenerMessage(topic: string, callback: MessageCallback) {
+        let val = new Map();
+        topicMap.set(topic, val);
+        val.set(callback, (msg: any, port: chrome.runtime.Port) => {
+            callback(msg, (resp) => { port.postMessage(resp) }, port.sender);
+        });
     }
 
     public static removeListener(topic: string, callback: ListenCallback) {
@@ -45,6 +57,7 @@ export class MsgCenter {
         }
     }
 
+    // 只有除bg页以外的页面使用
     public static connect(topic: string, msg?: any): onRecv {
         let port = chrome.runtime.connect({
             name: topic,
@@ -54,6 +67,19 @@ export class MsgCenter {
         }
         return new onRecv(port);
     }
+
+    // 仅发送消息,由于可能有sync的方法,使用长连接的方法实现
+    public static sendMessage(topic: string, body?: any, respondCallback?: (respond: any) => void) {
+        let port = chrome.runtime.connect({
+            name: topic,
+        });
+        port.postMessage(body);
+        port.onMessage.addListener(msg => {
+            respondCallback && respondCallback(msg);
+            port.disconnect();
+        })
+    }
+
 }
 
 export class onRecv {

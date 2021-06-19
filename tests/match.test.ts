@@ -42,13 +42,13 @@ describe("UrlMatch", () => {
             toEqual(["ok9"]);
     });
     it("delete", () => {
-        url.del("http://example.org/foo/bar.html", "ok5");
+        url.del("ok5");
         expect(url.match("http://example.org/foo/bar.html")).toEqual([]);
         url.add("http://example.org/foo/bar.html", "ok4");
         expect(url.match("http://example.org/foo/bar.html")).toEqual(["ok4"]);
-        url.del("http://example.org/foo/bar.html", "ok5");
+        url.del("ok5");
         expect(url.match("http://example.org/foo/bar.html")).toEqual(["ok4"]);
-        url.del("http://example.org/foo/bar.html", "ok4");
+        url.del("ok4");
         expect(url.match("http://example.org/foo/bar.html")).toEqual([]);
         expect(url.match("http://test.baidu.com/")).toEqual(["ok", "ok4"]);
     })

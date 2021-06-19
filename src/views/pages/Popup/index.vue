@@ -64,7 +64,7 @@ import {
   mdiHelpCircleOutline,
 } from "@mdi/js";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { TabRunScript } from "@App/apps/msg-center/event";
+import { RequestTabRunScript } from "@App/apps/msg-center/event";
 
 @Component({
   components: {
@@ -74,7 +74,7 @@ import { TabRunScript } from "@App/apps/msg-center/event";
   },
 })
 export default class Popup extends Vue {
-  scriptUtil: ScriptManager = new ScriptManager(undefined);
+  scriptUtil: ScriptManager = new ScriptManager();
   protected scripts: Array<Script> = [];
   protected bgScripts: Array<Script> = [];
 
@@ -117,32 +117,36 @@ export default class Popup extends Vue {
     chrome.tabs.query(
       { active: true, lastFocusedWindow: true },
       async (tabs) => {
-        MsgCenter.connect(TabRunScript, {
-          tabId: tabs[0].id,
-          url: tabs[0].url,
-        }).addListener((val) => {
-          this.scripts = val.run;
-          this.menu = val.runMenu || {};
-          this.bgMenu = val.bgMenu || {};
-          // 将有菜单的后台脚本,放到运行脚本中
-          this.scriptUtil
-            .scriptList((where) => {
-              return where
-                .where("type")
-                .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
-            })
-            .then((result) => {
-              this.bgScripts = result;
-              let map = new Map();
-              result.forEach((val) => {
-                map.set(val.id, val);
+        MsgCenter.sendMessage(
+          RequestTabRunScript,
+          {
+            tabId: tabs[0].id,
+            url: tabs[0].url,
+          },
+          (val) => {
+            this.scripts = val.run;
+            this.menu = val.runMenu || {};
+            this.bgMenu = val.bgMenu || {};
+            // 将有菜单的后台脚本,放到运行脚本中
+            this.scriptUtil
+              .scriptList((where) => {
+                return where
+                  .where("type")
+                  .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
+              })
+              .then((result) => {
+                this.bgScripts = result;
+                let map = new Map();
+                result.forEach((val) => {
+                  map.set(val.id, val);
+                });
+                for (const id in this.bgMenu) {
+                  this.scripts.push(map.get(parseInt(id)));
+                  this.menu[id] = this.bgMenu[id];
+                }
               });
-              for (const id in this.bgMenu) {
-                this.scripts.push(map.get(parseInt(id)));
-                this.menu[id] = this.bgMenu[id];
-              }
-            });
-        });
+          }
+        );
       }
     );
   }

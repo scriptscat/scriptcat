@@ -66,6 +66,7 @@ import { sleep, get } from "@App/pkg/utils";
 import EventType from "../../EventType";
 import { languages } from "monaco-editor";
 import { scriptModule } from "../../store/script";
+import { ScriptController } from "@App/apps/script/controller";
 
 const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
 
@@ -89,7 +90,7 @@ export default class ScriptTab extends Vue {
     editor: Editor;
   };
 
-  scriptMgr: ScriptManager = new ScriptManager(new Background(window));
+  scriptController: ScriptController = new ScriptController();
 
   @Prop() tabKey!: number | string;
   @Prop() scriptId!: number;
@@ -118,8 +119,8 @@ export default class ScriptTab extends Vue {
 
     // todo scriptMgr似乎会缓存数据(缓存旧的script)，所以必须每次重新new一个
     // todo 或者修改一下scriptManager的实现，可以在外部控制是否缓存
-    const scriptMgr: ScriptManager = new ScriptManager(new Background(window));
-    const script = await scriptMgr.getScript(this.scriptId);
+    const scriptController: ScriptManager = new ScriptManager();
+    const script = await scriptController.getScript(this.scriptId);
 
     if (!script) return;
 
@@ -150,7 +151,7 @@ export default class ScriptTab extends Vue {
     // 更新脚本的metadata
     this.script.metadata = metadata;
     // 同步至indexDB
-    await this.scriptMgr.updateScript(this.script);
+    await this.scriptController.update(this.script);
 
     // 保存成功后
     scriptModule.showSnackbar("config更新成功");
@@ -162,7 +163,10 @@ export default class ScriptTab extends Vue {
 
   async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
-    let [newScript, oldScript] = await this.scriptMgr.prepareScriptByCode(
+    let [
+      newScript,
+      oldScript,
+    ] = await this.scriptController.prepareScriptByCode(
       currentCode,
       this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
     );
@@ -189,7 +193,7 @@ export default class ScriptTab extends Vue {
       // 新脚本默认开启
       this.script.status = SCRIPT_STATUS_ENABLE;
     }
-    await this.scriptMgr.updateScript(this.script, oldScript);
+    await this.scriptController.update(this.script);
 
     // 保存成功后
 
@@ -205,7 +209,7 @@ export default class ScriptTab extends Vue {
 
     // 后台脚本才可以调用
     if (debug) {
-      this.scriptMgr.execScript(this.script, true);
+      this.scriptController.exec(this.script.id, true);
     }
 
     this.$refs.editor.hasUnsavedChange = false;

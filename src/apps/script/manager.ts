@@ -1,25 +1,25 @@
-import { v5 as uuidv5 } from "uuid";
 import axios from "axios";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStop, ScriptUninstall, ScriptUpdate, ScriptValueChange, TabRemove, TabRunScript } from "@App/apps/msg-center/event";
-import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
+import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo } from "@App/apps/msg-center/event";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
-import { IScript } from "@App/apps/script/interface";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
 import { compileScriptCode } from "@App/pkg/sandbox";
 import { Resource } from "@App/model/do/resource";
-import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_PREPARE, SCRIPT_STATUS, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, Metadata, UserConfig } from "@App/model/do/script";
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { ScriptModel } from "@App/model/script";
-import YAML from 'yaml'
+import { Background } from "./background";
+import { loadScriptByUrl, parseMetadata } from "./utils";
+import { ScriptUrlInfo } from "../msg-center/structs";
 
+// 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
 
     protected scriptModel = new ScriptModel();
-    protected background!: IScript;
+    protected background = new Background();
 
     protected match = new UrlMatch<ScriptCache>();
 
@@ -27,10 +27,7 @@ export class ScriptManager {
 
     protected resource = new ResourceManager();
 
-    constructor(background: IScript | undefined) {
-        if (background) {
-            this.background = background;
-        }
+    constructor() {
         chrome.contextMenus.create({
             id: 'script-cat',
             title: "ScriptCat",
@@ -62,6 +59,8 @@ export class ScriptManager {
             this.changePort.forEach(val => {
                 val.postMessage(model);
             })
+            // 监听值修改事件,并发送给沙盒环境
+            sandbox.postMessage({ action: ScriptValueChange, value: model }, '*');
         });
         MsgCenter.listener(ScriptValueChange, (msg, port) => {
             if (typeof msg == 'string') {
@@ -75,77 +74,193 @@ export class ScriptManager {
         });
     }
 
-    public listenScript() {
-        // 监听脚本更新 处理脚本重新执行操作
-        MsgCenter.listener(ScriptUpdate, async (msg): Promise<any> => {
-            return new Promise(async resolve => {
-                let script = <Script>msg[0];
-                let oldScript = <Script>msg[1];
-                // 加载资源
-                for (let i = 0; i < script.metadata['require']?.length; i++) {
-                    await this.resource.addResource(script.metadata['require'][i], script.id)
+    public listen() {
+
+        // 消息监听处理
+        this.listenerMessage(ScriptInstall, this.scriptInstall)
+        this.listenerMessage(ScriptReinstall, this.scriptReinstall)
+        this.listenerMessage(ScriptUninstall, this.scriptUninstall)
+        this.listenerMessage(ScriptStatusChange, this.scriptStatusChange);
+        this.listenerMessage(ScriptExec, this.execScript);
+        this.listenerMessage(ScriptStop, this.stopScript);
+        this.listenerMessage(RequestInstallInfo, this.requestInstallInfo);
+
+        // 扩展事件监听操作
+        this.listenScriptInstall();
+    }
+
+    public listenScriptInstall() {
+        chrome.webRequest.onBeforeRequest.addListener(
+            (req: chrome.webRequest.WebRequestBodyDetails) => {
+                if (req.method != "GET") {
+                    return;
                 }
-                for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                    await this.resource.addResource(script.metadata['require-css'][i], script.id)
+                let hash = req.url
+                    .split("#")
+                    .splice(1)
+                    .join("#");
+                if (hash.indexOf("bypass=true") != -1) {
+                    return;
                 }
-                if (script.status == SCRIPT_STATUS_ENABLE) {
-                    if (oldScript && oldScript.status == SCRIPT_STATUS_ENABLE) {
-                        await this.disableScript(script);
-                    }
-                    await this.enableScript(script);
-                } else if (script.status == SCRIPT_STATUS_DISABLE) {
-                    this.disableScript(script);
-                    script.runStatus = 'complete';
-                }
-                App.Cache.set("script:" + script.id, script);
-                return resolve(script);
+                this.installScript(req.tabId, req.url);
+                return { redirectUrl: "javascript:void 0" };
+            },
+            {
+                urls: ["*://*/*.user.js", "*://*/*.user.js?*", chrome.runtime.getURL("/") + '*.user.js'],
+                types: ["main_frame"],
+            },
+            ["blocking"],
+        );
+    }
+
+    public async installScript(tabid: number, url: string) {
+        let info = await loadScriptByUrl(url);
+        if (info != undefined) {
+            App.Cache.set("install:info:" + info.uuid, info);
+            chrome.tabs.create({
+                url: "install.html?uuid=" + info.uuid,
             });
+        } else {
+            chrome.tabs.update(tabid, {
+                url: url + "#bypass=true",
+            });
+        }
+    }
+
+    public listenerMessage(topic: string, callback: MessageCallback) {
+        MsgCenter.listenerMessage(topic, async (body, send, sender) => {
+            let ret = <any>callback.call(this, body, send, sender)
+            if (ret instanceof Promise) {
+                ret.then(result => {
+                    send(result);
+                });
+            } else {
+                send(ret);
+            }
         });
-        // 监听脚本卸载 关闭脚本
-        MsgCenter.listener(ScriptUninstall, async (msg): Promise<any> => {
-            return new Promise(async resolve => {
-                let script = <Script>msg[0];
-                if (script.status == SCRIPT_STATUS_ENABLE) {
+    }
+
+    public requestInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
+        return new Promise(resolve => {
+            let info = App.Cache.get("install:info:" + uuid);
+            resolve(info);
+        });
+    }
+
+    public scriptInstall(script: Script): Promise<number> {
+        return new Promise(async resolve => {
+            // 加载资源
+            for (let i = 0; i < script.metadata['require']?.length; i++) {
+                await this.resource.addResource(script.metadata['require'][i], script.id)
+            }
+            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                await this.resource.addResource(script.metadata['require-css'][i], script.id)
+            }
+            if (script.status == SCRIPT_STATUS_ENABLE) {
+                await this.enableScript(script);
+            }
+            await this.scriptModel.save(script);
+            return resolve(script.id);
+        });
+    }
+
+    public scriptReinstall(script: Script): Promise<boolean> {
+        return new Promise(async resolve => {
+            let oldScript = await this.scriptModel.findById(script.id);
+            if (!oldScript) {
+                return resolve(false);
+            }
+            // 加载资源
+            for (let i = 0; i < script.metadata['require']?.length; i++) {
+                await this.resource.addResource(script.metadata['require'][i], script.id)
+            }
+            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                await this.resource.addResource(script.metadata['require-css'][i], script.id)
+            }
+            if (script.status == SCRIPT_STATUS_ENABLE) {
+                if (oldScript.status == SCRIPT_STATUS_ENABLE) {
                     await this.disableScript(script);
                 }
-                await App.Cache.del("script:" + script.id);
-                await this.scriptModel.delete(script.id).catch(() => {
-                    resolve(false);
-                });
-                //TODO:释放资源
-                script.metadata["require"]?.forEach((val: string) => {
-                    this.resource.deleteResource(val, script.id);
-                });
-                script.metadata["require-css"]?.forEach((val: string) => {
-                    this.resource.deleteResource(val, script.id);
-                });
+                await this.enableScript(script);
+            } else if (script.status == SCRIPT_STATUS_DISABLE) {
+                if (oldScript.status == SCRIPT_STATUS_ENABLE) {
+                    await this.disableScript(script);
+                }
+                script.runStatus = 'complete';
+            }
+            await this.scriptModel.save(script);
+            return resolve(true);
+        });
+    }
+
+    public scriptUninstall(scriptId: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            let script = await this.scriptModel.findById(scriptId);
+            if (!script) {
+                return resolve(false);
+            }
+            if (script.status == SCRIPT_STATUS_ENABLE) {
+                await this.disableScript(script);
+            }
+            await this.scriptModel.delete(script.id);
+            //TODO:释放资源
+            script.metadata["require"]?.forEach((val: string) => {
+                this.resource.deleteResource(val, script!.id);
+            });
+            script.metadata["require-css"]?.forEach((val: string) => {
+                this.resource.deleteResource(val, script!.id);
+            });
+            return resolve(true);
+        });
+    }
+
+    public scriptStatusChange(msg: any): Promise<boolean> {
+        return new Promise(async resolve => {
+            let script = await this.scriptModel.findById(msg.scriptId);
+            if (!script) {
+                return resolve(false);
+            }
+            if (script.status == msg.status) {
+                return resolve(true);
+            }
+            script.status = msg.status;
+            if (script.status == SCRIPT_STATUS_ENABLE) {
+                await this.enableScript(script);
+            } else {
+                await this.disableScript(script);
+            }
+            return resolve(true);
+        });
+    }
+
+    public execScript(msg: any): Promise<boolean> {
+        return new Promise(async resolve => {
+            let script = await this.scriptModel.findById(msg.scriptId);
+            if (!script) {
+                return resolve(false);
+            }
+            if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
+                await this.background.execScript(await this.buildScriptCache(script), msg.isdebug);
                 resolve(true);
-            });
+            } else {
+                resolve(false);
+            }
         });
-        MsgCenter.listener(ScriptExec, async (msg): Promise<any> => {
-            return new Promise(async resolve => {
-                let script = <Script>msg[0];
-                if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                    await this.background.execScript(await this.buildScriptCache(script), msg[1]);
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            });
-        });
-        MsgCenter.listener(ScriptStop, async (msg): Promise<any> => {
-            return new Promise(async resolve => {
-                let script = <Script>msg[0];
-                if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                    await this.background.stopScript(script, msg[1]);
-                    if (script.runStatus == SCRIPT_RUN_STATUS_RUNNING) {
-                        this.scriptModel.update(script.id, { runStatus: SCRIPT_RUN_STATUS_COMPLETE });
-                    }
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            });
+    }
+
+    public stopScript(msg: any): Promise<boolean> {
+        return new Promise(async resolve => {
+            let script = await this.scriptModel.findById(msg.scriptId);
+            if (!script) {
+                return resolve(false);
+            }
+            if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
+                await this.background.stopScript(script, msg.isdebug);
+                this.setRunComplete(script.id)
+                resolve(true);
+            } else {
+                resolve(false);
+            }
         });
     }
 
@@ -180,42 +295,23 @@ export class ScriptManager {
     }
 
     public listenScriptMath() {
-        App.Cache.listenChange(async (ev, key, data, old) => {
-            if (!key.startsWith("script:")) {
-                return;
-            }
-            let oldScript = <Script>old;
-            let script = <Script>data;
+        AppEvent.listener(ScriptStatusChange, async (script: Script) => {
             if (script && script.type !== SCRIPT_TYPE_NORMAL) {
                 return;
             }
-            let has = this.match.has(script);
-            if (oldScript || has) {
-                if (has) {
-                    oldScript = script;
-                }
-                oldScript.metadata['match']?.forEach(val => {
-                    this.match.del(val, oldScript);
-                })
-                oldScript.metadata['include']?.forEach(val => {
-                    this.match.del(val, oldScript);
-                })
-            }
-            if (script) {
-                // 对首次添加进行处理
-                let cache = await this.buildScriptCache(script);
-                cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
-                    cache.code + `\n}`);
-                script.metadata['match']?.forEach(val => {
-                    this.match.add(val, cache);
-                });
-                script.metadata['include']?.forEach(val => {
-                    this.match.add(val, cache);
-                });
-                script.metadata['exclude']?.forEach(val => {
-                    this.match.exclude(val, cache);
-                });
-            }
+            this.match.del(script);
+            let cache = await this.buildScriptCache(script);
+            cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
+                cache.code + `\n}`);
+            script.metadata['match']?.forEach(val => {
+                this.match.add(val, cache);
+            });
+            script.metadata['include']?.forEach(val => {
+                this.match.add(val, cache);
+            });
+            script.metadata['exclude']?.forEach(val => {
+                this.match.exclude(val, cache);
+            });
         });
         let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
@@ -373,13 +469,13 @@ export class ScriptManager {
             runMenu.delete(tabId);
             AppEvent.trigger(TabRemove, tabId);
         });
-        MsgCenter.listener(TabRunScript, (val) => {
+        this.listenerMessage(RequestTabRunScript, (val) => {
             return {
                 run: this.match.match(val.url),
                 runMenu: runMenu.get(val.tabId),
                 bgMenu: bgMenu,
             }
-        });
+        })
     }
 
     public buildScriptCache(script: Script): Promise<ScriptCache> {
@@ -422,217 +518,6 @@ export class ScriptManager {
         });
     }
 
-    protected parseMetadata(code: string): Metadata | null {
-        let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;
-        let header = regex.exec(code)
-        if (!header) {
-            return null;
-        }
-        regex = /\/\/\s*@([\S]+)((.+?)$|$)/gm;
-        let ret: Metadata = {};
-        let meta: RegExpExecArray | null;
-        while (meta = regex.exec(header[1])) {
-            let [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
-            let values = ret[key]
-            if (values == null) {
-                values = [];
-            }
-            values.push(val);
-            ret[key] = values;
-        }
-        if (ret['name'] == undefined) {
-            return null;
-        }
-        return ret;
-    }
-
-    protected parseUserConfig(code: string): UserConfig | undefined {
-        let regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
-        let config = regex.exec(code)
-        if (!config) {
-            return undefined;
-        }
-        let configs = config[1].trim().split(/[-]{3,}/);
-        let ret: UserConfig = {};
-        configs.forEach(val => {
-            let obj = YAML.parse(val);
-            for (const key in obj) {
-                ret[key] = obj[key];
-            }
-        });
-        return ret;
-    }
-
-    protected validMetadata(metadata: Metadata | null): Metadata | null {
-        if (metadata == null) {
-            return null;
-        }
-
-        return metadata;
-    }
-
-    public loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined> {
-        return new Promise(resolve => {
-            axios.get(url, {
-                headers: {
-                    'Cache-Control': 'no-cache'
-                }
-            }).then((response): ScriptUrlInfo | undefined => {
-                if (response.status != 200) {
-                    return undefined;
-                }
-                let ok = this.parseMetadata(response.data);
-                if (!ok) {
-                    return undefined;
-                }
-                let uuid = uuidv5(url, uuidv5.URL);
-                let ret = {
-                    url: url,
-                    code: response.data,
-                    uuid: uuid
-                };
-                App.Cache.set("uuid:script:" + uuid, ret);
-                return ret;
-            }).then((val) => {
-                resolve(val);
-            }).catch((e) => {
-                resolve(undefined);
-            });
-        });
-    }
-
-    public async prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | undefined]> {
-        return new Promise(async resolve => {
-            let metadata = this.parseMetadata(code);
-            if (metadata == null) {
-                return resolve([undefined, undefined]);
-            }
-            if (metadata["name"] == undefined) {
-                return resolve([undefined, undefined]);
-            }
-            let type = SCRIPT_TYPE_NORMAL;
-            if (metadata["crontab"] != undefined) {
-                type = SCRIPT_TYPE_CRONTAB;
-            } else if (metadata["background"] != undefined) {
-                type = SCRIPT_TYPE_BACKGROUND;
-            }
-            let urlSplit: string[];
-            let domain = '';
-            let checkupdate_url = '';
-            if (url.indexOf('/') !== -1) {
-                urlSplit = url.split('/');
-                if (urlSplit[2]) {
-                    domain = urlSplit[2];
-                }
-                checkupdate_url = url.replace("user.js", "meta.js");
-            }
-            let script: Script = {
-                id: 0,
-                uuid: uuidv5(url, uuidv5.URL),
-                name: metadata["name"][0],
-                code: code,
-                author: metadata['author'] && metadata['author'][0],
-                namespace: metadata['namespace'] && metadata['namespace'][0],
-                origin_domain: domain,
-                origin: url,
-                checkupdate_url: checkupdate_url,
-                config: this.parseUserConfig(code),
-                metadata: metadata,
-                type: type,
-                status: SCRIPT_STATUS_PREPARE,
-                runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-                checktime: 0,
-            };
-            let old = await this.scriptModel.findByUUID(script.uuid);
-            if (!old) {
-                old = await this.scriptModel.findByName(script.name);
-            }
-            if (old) {
-                this.copyTime(script, old);
-            } else {
-                // 前台脚本默认开启
-                if (script.type == SCRIPT_TYPE_NORMAL) {
-                    script.status = SCRIPT_STATUS_ENABLE;
-                }
-                script.checktime = new Date().getTime();
-            }
-            return resolve([script, old]);
-        });
-    }
-
-    protected copyTime(script: Script, old: Script) {
-        script.id = old.id;
-        script.createtime = old.createtime;
-        script.status = old.status;
-        script.checktime = old.checktime;
-        script.lastruntime = old.lastruntime;
-        script.delayruntime = old.delayruntime;
-        script.error = old.error;
-    }
-
-    public installScript(script: Script): Promise<boolean> {
-        return new Promise(async resolve => {
-            script.createtime = new Date().getTime();
-            return resolve(await this.updateScript(script));
-        });
-    }
-
-    public updateScript(script: Script, old?: Script): Promise<boolean> {
-        return new Promise(async resolve => {
-            if (script.id && !old) {
-                old = await this.scriptModel.findById(script.id);
-                if (old) {
-                    this.copyTime(script, old);
-                }
-            }
-            script.updatetime = new Date().getTime();
-            let ok = await this.scriptModel.save(script);
-            if (!ok) {
-                return resolve(false);
-            }
-            MsgCenter.connect(ScriptUpdate, [script, old]).addListener(msg => {
-                let s = <Script>msg;
-                script.status = s.status
-                script.error = s.error;
-                resolve(true);
-            });
-        });
-    }
-
-    public execScript(script: Script, isdebug: boolean): Promise<boolean> {
-        return new Promise(async resolve => {
-            MsgCenter.connect(ScriptExec, [script, isdebug]).addListener(msg => {
-                resolve(true);
-            });
-        });
-    }
-
-    public stopScript(script: Script, isdebug: boolean): Promise<boolean> {
-        return new Promise(async resolve => {
-            MsgCenter.connect(ScriptStop, [script, isdebug]).addListener(msg => {
-                resolve(true);
-            });
-        });
-    }
-
-    public updateScriptStatus(id: number, status: SCRIPT_STATUS): Promise<boolean> {
-        return new Promise(async resolve => {
-            let old = await this.scriptModel.findById(id);
-            if (!old) {
-                return resolve(true);
-            }
-            let script: Script = Object.assign({}, old);
-            script.status = status;
-            let ok = await this.scriptModel.save(script);
-            if (!ok) {
-                return resolve(false);
-            }
-            MsgCenter.connect(ScriptUpdate, [script, old]).addListener(msg => {
-                resolve(true);
-            });
-        });
-    }
-
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
@@ -662,10 +547,8 @@ export class ScriptManager {
                     });
                 }
             }
-            let ok = await this.scriptModel.save(script);
-            if (!ok) {
-                return resolve(false);
-            }
+            await this.scriptModel.save(script);
+            AppEvent.trigger(ScriptStatusChange, script);
             return resolve(true);
         });
     }
@@ -683,15 +566,8 @@ export class ScriptManager {
                 }
             }
             await this.scriptModel.save(script);
+            AppEvent.trigger(ScriptStatusChange, script);
             resolve();
-        });
-    }
-
-    public uninstallScript(script: Script): Promise<boolean> {
-        return new Promise(async resolve => {
-            MsgCenter.connect(ScriptUninstall, [script]).addListener(msg => {
-                resolve(msg);
-            });
         });
     }
 
@@ -713,6 +589,7 @@ export class ScriptManager {
         return this.scriptModel.findById(id);
     }
 
+    // 设置脚本最后一次运行时间
     public setLastRuntime(id: number, time: number): Promise<boolean> {
         return new Promise(async resolve => {
             this.scriptModel.table.update(id, {
@@ -723,6 +600,7 @@ export class ScriptManager {
         });
     }
 
+    // 设置脚本运行错误
     public setRunError(id: number, error: string, time: number): Promise<boolean> {
         return new Promise(async resolve => {
             if (error !== '' && time !== 0) {
@@ -738,6 +616,7 @@ export class ScriptManager {
         });
     }
 
+    // 设置脚本运行完成
     public setRunComplete(id: number): Promise<boolean> {
         return new Promise(async resolve => {
             this.scriptModel.table.update(id, { error: "", runStatus: SCRIPT_RUN_STATUS_COMPLETE })
@@ -758,7 +637,7 @@ export class ScriptManager {
                     App.Log.Warn("check update", "script:" + script.id + " error: respond:" + response.statusText, script.name);
                     return false;
                 }
-                let meta = this.parseMetadata(response.data);
+                let meta = parseMetadata(response.data);
                 if (!meta) {
                     App.Log.Warn("check update", "script:" + script.id + " error: metadata format", script.name);
                     return false;
@@ -790,8 +669,9 @@ export class ScriptManager {
                 return false;
             }).then(async (val) => {
                 if (val) {
-                    let info = await this.loadScriptByUrl(script.origin);
-                    if (info != undefined) {
+                    let info = await loadScriptByUrl(script.origin);
+                    if (info) {
+                        App.Cache.set("install:info:" + info.uuid, info);
                         chrome.tabs.create({
                             url: 'install.html?uuid=' + info.uuid
                         });

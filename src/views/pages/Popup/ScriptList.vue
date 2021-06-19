@@ -65,7 +65,7 @@
           >
             <v-list-item-group v-if="script.type >= 2" multiple>
               <template v-if="script.runStatus === 'complete'">
-                <v-list-item @click="scriptUtil.execScript(script, false)">
+                <v-list-item @click="scriptController.exec(script.id, false)">
                   <v-list-item-icon>
                     <v-icon>mdi-play</v-icon>
                   </v-list-item-icon>
@@ -76,7 +76,7 @@
               </template>
 
               <template v-else>
-                <v-list-item @click="scriptUtil.stopScript(script, false)">
+                <v-list-item @click="scriptController.exec(script.id, false)">
                   <v-list-item-icon>
                     <v-icon>mdi-stop</v-icon>
                   </v-list-item-icon>
@@ -105,7 +105,6 @@
 </template>
 
 <script lang="ts">
-import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_DISABLE,
@@ -118,10 +117,11 @@ import {
   TabMenuClick,
 } from "@App/apps/msg-center/event";
 import { mdiCogOutline } from "@mdi/js";
+import { ScriptController } from "@App/apps/script/controller";
 
 @Component({})
 export default class ScriptList extends Vue {
-  scriptUtil: ScriptManager = new ScriptManager(undefined);
+  scriptController: ScriptController = new ScriptController();
 
   //TODO: 检测菜单快捷键
   mdiConfig = mdiCogOutline;
@@ -160,11 +160,11 @@ export default class ScriptList extends Vue {
   async changeStatus(item: Script) {
     if (item.status === SCRIPT_STATUS_ENABLE) {
       item.status = SCRIPT_STATUS_DISABLE;
+      this.scriptController.disable(item.id);
     } else {
       item.status = SCRIPT_STATUS_ENABLE;
+      this.scriptController.enable(item.id);
     }
-
-    this.scriptUtil.updateScriptStatus(item.id, item.status);
   }
 
   navigateToEditor(script: Script) {

@@ -65,23 +65,6 @@ export class Match<T> {
         this.delCache(val);
     }
 
-    public has(val: T): boolean {
-        let arr = Array.from(this.rule.keys());
-        let key: string | undefined = '';
-        while (key = arr.pop()) {
-            let rule = this.rule.get(key);
-            if (!rule) {
-                continue;
-            }
-            for (let i = 0; i < rule.length; i++) {
-                if (this.getId(rule[i]) == this.getId(val)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     public match(url: string): T[] {
         let ret = this.cache.get(url);
         if (ret) {
@@ -105,14 +88,9 @@ export class Match<T> {
         return <string><unknown>val;
     }
 
-    public del(url: string, delVal: T) {
-        let re = this.compileRe(url);
-        if (!re) {
-            return;
-        }
-        let rule = this.rule.get(re);
-        let id = this.getId(delVal);
-        if (rule) {
+    public del(val: T) {
+        let id = this.getId(val);
+        this.rule.forEach((rule, key) => {
             let tmp: T[] = [];
             rule.forEach(val => {
                 if (this.getId(val) != id) {
@@ -120,12 +98,12 @@ export class Match<T> {
                 }
             })
             if (tmp) {
-                this.rule.set(re, tmp);
+                this.rule.set(key, tmp);
             } else {
-                this.rule.delete(re);
+                this.rule.delete(key);
             }
-        }
-        this.delCache(delVal);
+        });
+        this.delCache(val);
     }
 
     protected delCache(delVal: T) {

@@ -21,6 +21,9 @@ export abstract class Model<T> {
             return query.toArray();
         }
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());
+        if (page.order() !== "id") {
+            collect.sortBy(page.order());
+        }
         if (page.sort() == "desc") {
             collect = collect.reverse();
         }
@@ -72,5 +75,9 @@ export abstract class Model<T> {
 
     public update(id: number, changes: { [key: string]: any }) {
         return this.table.update(id, changes);
+    }
+
+    public count() {
+        return this.table.count();
     }
 }

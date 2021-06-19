@@ -3,6 +3,7 @@
 
 export type ListenMsg = (msg: any) => void;
 
+// 浏览器页面之间的通信,主要在content和injected页面之间
 export class BrowserMsg {
 
     public id: string;

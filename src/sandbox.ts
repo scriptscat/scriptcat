@@ -196,7 +196,7 @@ async function stop(script: Script, isdebug: boolean) {
         return top.postMessage({ action: "stop" }, "*");
     }
     let list = cronjobMap.get(script.id);
-    if (list == null) {
+    if (!list) {
         return top.postMessage({ action: "stop" }, "*");
     }
     list.forEach((val) => {

@@ -2,25 +2,13 @@ import { ScriptCache, Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { CronJob } from "cron";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
-import { IScript } from "./interface";
 
 //后台脚本
-export class Background implements IScript {
-
-    protected sandboxWindow: Window;
-    constructor(iframe: Window) {
-        this.sandboxWindow = iframe;
-        // 监听值修改事件,并发送给沙盒环境
-        AppEvent.listener(ScriptValueChange, async (model: Value) => {
-            this.sandboxWindow.postMessage({ action: ScriptValueChange, value: model }, '*');
-        });
-    }
-
-    protected cronjobMap = new Map<number, CronJob>();
+export class Background {
 
     public enableScript(script: ScriptCache): Promise<string> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'start', data: script, value: script.value }, '*');
+            sandbox.postMessage({ action: 'start', data: script, value: script.value }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "start") {
                     return;
@@ -34,7 +22,7 @@ export class Background implements IScript {
 
     public disableScript(script: Script): Promise<void> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'stop', data: script, isdebug: false }, '*');
+            sandbox.postMessage({ action: 'stop', data: script, isdebug: false }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "stop") {
                     return;
@@ -48,7 +36,7 @@ export class Background implements IScript {
 
     public stopScript(script: Script, isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'stop', data: script, isdebug: isdebug }, '*');
+            sandbox.postMessage({ action: 'stop', data: script, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "stop") {
                     return;
@@ -62,7 +50,7 @@ export class Background implements IScript {
 
     public execScript(script: ScriptCache, isdebug: boolean): Promise<void> {
         return new Promise(async resolve => {
-            this.sandboxWindow.postMessage({ action: 'exec', data: script, value: script.value, isdebug: isdebug }, '*');
+            sandbox.postMessage({ action: 'exec', data: script, value: script.value, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "exec") {
                     return;

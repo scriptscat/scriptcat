@@ -69,6 +69,8 @@ export interface Script {
     type: SCRIPT_TYPE;
     //script status. 1:enable 2:disable 3:error 4:prepare
     status: SCRIPT_STATUS;
+    // 脚本排序
+    sort: number;
     //script run status.
     runStatus: SCRIPT_RUN_STATUS;
     //script error info

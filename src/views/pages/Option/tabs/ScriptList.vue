@@ -3,8 +3,9 @@
     <v-data-table
       :headers="headers"
       :items="scripts"
-      :items-per-page="count"
-      sort-by="id"
+      sort-by="sort"
+      items-per-page="1000"
+      :sort-desc="true"
       class="elevation-1"
       v-model="selected"
       :single-select="false"
@@ -94,6 +95,10 @@
 
       <template v-slot:[`item.feature`]="{ item }">
         {{ item.metadata.grant && item.metadata.grant[0] }}
+      </template>
+
+      <template v-slot:[`item.sort`]="">
+        <v-icon small> mdi-menu </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -261,12 +266,9 @@
       </v-card>
     </v-dialog>
 
-    <v-pagination
-      v-if="length > 1"
-      v-model="page"
-      :length="length"
-      :total-visible="7"
-    ></v-pagination>
+    <span v-if="scripts.length" class="v-text" style="padding:10px"
+      >总脚本数量: {{ scripts.length }}</span
+    >
   </div>
 </template>
 
@@ -275,26 +277,22 @@ import { Vue, Component, Watch } from "vue-property-decorator";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
-
-import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
 } from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import {
-  ScriptRunStatusChange,
-  ScriptUpdate,
-} from "@App/apps/msg-center/event";
+import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
-import { Page } from "@App/pkg/utils";
+import { Page, AllPage } from "@App/pkg/utils";
 import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
 import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
 import { CronTime } from "cron";
 import EventType from "../EventType";
+import { ScriptController } from "@App/apps/script/controller";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -310,8 +308,8 @@ const multipleActionTypes = [
 
 @Component({})
 export default class ScriptList extends Vue {
-  scriptUtil: ScriptManager = new ScriptManager(undefined);
-  protected scripts: Array<Script> = [];
+  scriptController: ScriptController = new ScriptController();
+  protected scripts: Script[] = [];
   selected: Script[] = [];
 
   multipleAction: typeof multipleActionTypes[number] = "删除";
@@ -338,7 +336,7 @@ export default class ScriptList extends Vue {
     switch (this.multipleAction) {
       case "删除":
         for (const script of targets) {
-          await this.scriptUtil.uninstallScript(script);
+          await this.scriptController.uninstall(script.id);
         }
 
         alert("批量删除成功");
@@ -364,6 +362,7 @@ export default class ScriptList extends Vue {
     { text: "应用至/运行状态", value: "site" },
     { text: "特性", value: "feature" },
     { text: "主页", value: "origin" },
+    { text: "排序", value: "sort", align: "center" },
     { text: "最后更新", value: "updatetime" },
     { text: "操作", value: "actions", sortable: false },
   ];
@@ -378,31 +377,17 @@ export default class ScriptList extends Vue {
     protein: 0,
   };
 
-  page = 1;
-  count = 20;
-  length = 1;
-
   configTab = {};
-
-  @Watch("page")
-  onPageChange(newPage: number) {
-    this.scriptUtil
-      .scriptList(undefined, new Page(newPage, this.count))
-      .then((result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
-  }
 
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptUtil.scriptList(undefined, new Page(1, 1000)).then((result) => {
-      this.scripts = result;
-      this.handleScriptConfig(this.scripts);
-      // todo 为scriptList和logger实现直接访问dexie的count，而不是获取list之后再length，性能有点问题
-      this.length = Math.ceil(result.length / this.count);
-    });
+    this.scriptController
+      .scriptList(undefined, new AllPage())
+      .then(async (result) => {
+        this.scripts = result;
+        this.handleScriptConfig(this.scripts);
+      });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
@@ -417,10 +402,11 @@ export default class ScriptList extends Vue {
     eventBus.$on(EventType.UpdateScriptList, () => {
       console.log("on UpdateScriptList");
 
-      this.scriptUtil
-        .scriptList(undefined, new Page(this.page, this.count))
+      this.scriptController
+        .scriptList(undefined, new AllPage())
         .then((result) => {
           this.scripts = result;
+          this.handleScriptConfig(this.scripts);
         });
     });
   }
@@ -505,20 +491,24 @@ export default class ScriptList extends Vue {
 
   async changeStatus(item: Script) {
     if (item.status === SCRIPT_STATUS_ENABLE) {
-      item.status = SCRIPT_STATUS_DISABLE;
+      let ok = await this.scriptController.disable(item.id);
+      if (ok) {
+        item.status = SCRIPT_STATUS_DISABLE;
+      }
     } else {
-      item.status = SCRIPT_STATUS_ENABLE;
+      let ok = await this.scriptController.enable(item.id);
+      if (ok) {
+        item.status = SCRIPT_STATUS_ENABLE;
+      }
     }
-
-    this.scriptUtil.updateScriptStatus(item.id, item.status);
   }
 
   execScript(item: Script) {
-    this.scriptUtil.execScript(item, false);
+    this.scriptController.exec(item.id, false);
   }
 
   stopScript(item: Script) {
-    this.scriptUtil.stopScript(item, false);
+    this.scriptController.stop(item.id, false);
   }
 
   mapSiteToSiteIcon(site: string) {
@@ -553,7 +543,7 @@ export default class ScriptList extends Vue {
   settingItem(item: any) {}
 
   async deleteItemConfirm() {
-    await this.scriptUtil.uninstallScript(this.editedItem);
+    await this.scriptController.uninstall(this.editedItem.id);
     this.scripts.splice(this.editedIndex, 1);
 
     this.closeDelete();
@@ -600,11 +590,20 @@ export default class ScriptList extends Vue {
             .add(1, "hour")
             .format("YYYY-MM-DD HH 每小时运行一次");
         case 3: //每天
-          return cron.sendAt().add(1, "day").format("YYYY-MM-DD 每天运行一次");
+          return cron
+            .sendAt()
+            .add(1, "day")
+            .format("YYYY-MM-DD 每天运行一次");
         case 4: //每月
-          return cron.sendAt().add(1, "month").format("YYYY-MM 每月运行一次");
+          return cron
+            .sendAt()
+            .add(1, "month")
+            .format("YYYY-MM 每月运行一次");
         case 5: //每年
-          return cron.sendAt().add(1, "year").format("YYYY 每年运行一次");
+          return cron
+            .sendAt()
+            .add(1, "year")
+            .format("YYYY 每年运行一次");
         case 6: //每星期
           return cron.sendAt().format("YYYY-MM-DD 每星期运行一次");
       }

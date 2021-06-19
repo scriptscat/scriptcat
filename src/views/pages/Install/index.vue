@@ -58,7 +58,6 @@
 import { Vue, Component } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
-import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_STATUS_DISABLE,
@@ -66,12 +65,15 @@ import {
 } from "@App/model/do/script";
 import { Background } from "@App/apps/script/background";
 import { App } from "@App/apps/app";
+import { ScriptController } from "@App/apps/script/controller";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
+import { RequestInstallInfo } from "@App/apps/msg-center/event";
 
 @Component({})
 export default class Index extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
-  public scriptUtil: ScriptManager = new ScriptManager(new Background(window));
+  public scriptController: ScriptController = new ScriptController();
   public script: Script = <Script>{};
   public version: string = "";
   public oldVersion: string = "";
@@ -80,14 +82,21 @@ export default class Index extends Vue {
   public isupdate: boolean = false;
   public desctiption = "";
 
-  async mounted() {
+  mounted() {
     let url = new URL(location.href);
     let uuid = url.searchParams.get("uuid");
     if (!uuid) {
       return;
     }
-    let info = <ScriptUrlInfo>await App.Cache.get("uuid:script:" + uuid);
-    let [script, oldscript] = await this.scriptUtil.prepareScriptByCode(
+    MsgCenter.sendMessage(RequestInstallInfo, uuid, (resp) => {
+      if (resp) {
+        this.load(resp);
+      }
+    });
+  }
+
+  async load(info: ScriptUrlInfo) {
+    let [script, oldscript] = await this.scriptController.prepareScriptByCode(
       info.code,
       info.url
     );
@@ -146,13 +155,13 @@ export default class Index extends Vue {
     if (!this.script) {
       return;
     }
-    let ok: boolean;
+    let id: number;
     if (this.isupdate) {
-      ok = await this.scriptUtil.updateScript(this.script);
+      id = await this.scriptController.update(this.script);
     } else {
-      ok = await this.scriptUtil.installScript(this.script);
+      id = await this.scriptController.update(this.script);
     }
-    if (ok) {
+    if (id) {
       window.close();
     } else {
       alert("安装失败!");

@@ -31,4 +31,12 @@ export function migrate() {
     db.version(9).stores({
         logger: "++id,level,scriptId,origin,createtime",
     });
+    db.version(10).stores({
+        scripts: "++id,&uuid,name,namespace,author,origin_domain,type,sort,status,runStatus,createtime,updatetime,checktime",
+    }).upgrade(tx => {
+        return tx.table("scripts").toCollection().modify(script => {
+            script.sort = 0;
+        });
+    });;
+
 }

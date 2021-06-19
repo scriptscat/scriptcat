@@ -1,12 +1,16 @@
 // TODO: 优化消息通信机制
 export const PermissionConfirm: string = "permission-confirm";
 
-export const ScriptUpdate: string = "script-update";
 export const ScriptExec: string = "script-exec";
 export const ScriptStop: string = "script-stop";
+export const ScriptInstall: string = "script-install";
+export const ScriptReinstall: string = "script-reinstall";
 export const ScriptUninstall: string = "script-uninstall";
+export const ScriptStatusChange: string = "script-status-change";
 export const ScriptRunStatusChange: string = "script-run-status-change";
-export const TabRunScript: string = "tabRunScript";
+export const RequestInstallInfo: string = "request-install-info";
+
+export const RequestTabRunScript: string = "request-tab-run-script";
 export const TabRemove: string = "tabRemove";
 export const TabMenuClick: string = "tab-menu-click";
 
@@ -19,6 +23,8 @@ export const SystemCacheEvent: string = "system-cache";
 export const ScriptValueChange: string = "script-value-change";
 
 export type ListenCallback = (msg: any) => void;
+
+// 单页面内的消息
 export class AppEvent {
     public static eventMap = new Map<string, Map<any, any>>();
 

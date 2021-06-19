@@ -7,7 +7,7 @@ export class Page {
     protected _order: string;
     protected _sort: "asc" | "desc";
 
-    constructor(page: number, count: number, order?: string, sort?: "asc" | "desc") {
+    constructor(page: number, count: number, sort?: "asc" | "desc", order?: string) {
         this._page = page;
         this._count = count;
         this._order = order || "id";
