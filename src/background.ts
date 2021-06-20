@@ -5,10 +5,9 @@ import { MultiGrantListener } from "@App/apps/grant/utils";
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
 import { App, InitApp } from "./apps/app";
-import { SystemCache } from "./pkg/storage/cache/system-cache";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
-import { SCRIPT_STATUS_ENABLE, Script } from "./model/do/script";
+import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL } from "./model/do/script";
 import { MapCache } from "./pkg/storage/cache/cache";
 
 migrate();
@@ -44,7 +43,10 @@ function sandboxLoad(event: MessageEvent) {
     }
     scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
         items.forEach((value: Script) => {
-            scripts.enableScript(value);
+            // 只开启后台脚本
+            if (value.type != SCRIPT_TYPE_NORMAL) {
+                scripts.enableScript(value);
+            }
         });
     });
     window.removeEventListener("message", sandboxLoad);

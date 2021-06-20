@@ -1,7 +1,7 @@
 import { PermissionModel } from "@App/model/permission";
 import { isFirefox } from "@App/pkg/utils";
 import { App } from "../app";
-import { AppEvent, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
+import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { ScriptManager } from "../script/manager";
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
@@ -455,7 +455,7 @@ export class BackgroundGrant {
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
-                if (!detail.url && !detail.domain) {
+                if ((!detail.url && !detail.domain) || !detail.name) {
                     return resolve(false);
                 }
                 let url: any = {};
@@ -499,7 +499,8 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
-            if (!detail.url && !detail.domain) {
+            // url或者域名不能为空,且必须有name
+            if ((!detail.url && !detail.domain) || !detail.name) {
                 return resolve(undefined);
             }
             switch (param[0]) {
@@ -655,6 +656,7 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name, grant.id);
+            AppEvent.trigger(ListenGmLog, { level: grant.params[1] ?? LOGGER_LEVEL_INFO, scriptId: grant.id, message: grant.params[0] });
             return resolve(undefined);
         });
     }

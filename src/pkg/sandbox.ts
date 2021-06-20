@@ -82,16 +82,19 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
     if (script.metadata["console"]) {
         context["console"] = {};
         let logMap = new Map();
-        let info = (...data: any[]) => {
-            let msg = "";
-            data.forEach(val => {
-                msg = msg + val + " ";
-            });
-            msg = msg.trimEnd();
-            console.log(...data);
-            context.GM_log(msg, "info");
+        let log = (level: GM_Types.LOGGER_LEVEL) => {
+            return (...data: any[]) => {
+                let msg = "";
+                data.forEach(val => {
+                    msg = msg + val + " ";
+                });
+                msg = msg.trimEnd();
+                console[level](...data);
+                context.GM_log(msg, level);
+            }
         }
-        logMap.set("info", info).set("log", info);
+        logMap.set("info", log("info")).set("log", log("info")).
+            set("warn", log("warn")).set("error", log("error"));
         script.metadata["console"].forEach(val => {
             let strs = val.split(" ");
             strs.forEach(val => {

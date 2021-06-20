@@ -76,7 +76,7 @@
         <span v-if="item.type === 1">
           {{ item.site }}
         </span>
-        <span v-else style="cursor:pointer">
+        <span v-else style="cursor: pointer" @click="showLog(item)">
           <v-tooltip top>
             <template v-slot:activator="{ on, attrs }">
               <span v-bind="attrs" v-on="on">
@@ -98,7 +98,7 @@
       </template>
 
       <template v-slot:[`item.sort`]="">
-        <v-icon small style="cursor:pointer"> mdi-menu </v-icon>
+        <v-icon small style="cursor: pointer"> mdi-menu </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -113,10 +113,10 @@
           indeterminate
           color="primary"
         ></v-progress-circular>
-        <span v-else-if="item.updatetime === -2" style="color:#ff6565"
+        <span v-else-if="item.updatetime === -2" style="color: #ff6565"
           >有更新</span
         >
-        <span v-else style="cursor:pointer" @click="checkUpdate(item)">
+        <span v-else style="cursor: pointer" @click="checkUpdate(item)">
           {{ mapTimeStampToHumanized(item.updatetime) }}</span
         >
       </template>
@@ -278,7 +278,55 @@
       </v-card>
     </v-dialog>
 
-    <span v-if="scripts.length" class="v-text" style="padding:10px"
+    <v-dialog
+      v-model="showlog"
+      transition="dialog-bottom-transition"
+      max-width="600"
+    >
+      <template v-slot:default="dialog">
+        <v-card>
+          <v-toolbar color="primary" dark>
+            <v-toolbar-title>{{ logScript.name }} 日志</v-toolbar-title>
+            <v-spacer></v-spacer>
+            <v-toolbar-items>
+              <v-btn icon dark @click="dialog.value = false" right>
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </v-toolbar-items>
+          </v-toolbar>
+          <v-card-text
+            id="log-show"
+            style="margin-top: 10px; overflow-y: scroll; max-height: 520px"
+          >
+            <div v-for="(log, i) in logs" :key="i">
+              {{ log.level }} {{ formatTime(log.createtime) }} -
+              {{ log.message }}
+            </div>
+            <div class="d-flex justify-center" style="padding: 4px">
+              <div>
+                <v-progress-circular
+                  indeterminate
+                  size="20"
+                  width="1"
+                  color="primary"
+                ></v-progress-circular>
+                <span style="color: #1976d2; margin-left: 4px"
+                  >等待日志...</span
+                >
+              </div>
+            </div>
+          </v-card-text>
+          <v-divider></v-divider>
+          <v-card-actions class="justify-end">
+            <v-btn text color="error" @click="clearLog(logScript)"
+              >清空日志</v-btn
+            >
+          </v-card-actions>
+        </v-card>
+      </template>
+    </v-dialog>
+
+    <span v-if="scripts.length" class="v-text" style="padding: 10px"
       >总脚本数量: {{ scripts.length }}</span
     >
   </div>
@@ -295,7 +343,7 @@ import {
   SCRIPT_STATUS_DISABLE,
 } from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptRunStatusChange } from "@App/apps/msg-center/event";
+import { ListenGmLog, ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
 import { Page, AllPage } from "@App/pkg/utils";
@@ -305,6 +353,7 @@ import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
 import { CronTime } from "cron";
 import EventType from "../EventType";
 import { ScriptController } from "@App/apps/script/controller";
+import { Log } from "@App/model/do/logger";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -421,9 +470,45 @@ export default class ScriptList extends Vue {
           this.handleScriptConfig(this.scripts);
         });
     });
+
+    MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {
+      if (this.logScript && msg.scriptId == this.logScript.id && this.showlog) {
+        this.logs.push({
+          id: 0,
+          level: msg.level,
+          origin: "GM_log",
+          title: this.logScript.name,
+          message: msg.message,
+          scriptId: msg.scriptId,
+          createtime: new Date().getTime(),
+        });
+        let el = document.querySelector("#log-show");
+        if (el) {
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+    });
   }
 
   protected valueModel = new ValueModel();
+  showlog = false;
+  logs: Log[] = [];
+  logScript?: Script;
+
+  async showLog(item: Script) {
+    this.logScript = item;
+    this.logs = [];
+    this.showlog = true;
+    this.logs = await this.scriptController.getScriptLog(
+      item.id,
+      new Page(1, 20, "asc")
+    );
+  }
+
+  async clearLog(item: Script) {
+    await this.scriptController.clearLog(item.id);
+    this.logs = [];
+  }
 
   handleScriptConfig(scripts: Script[]) {
     scripts.forEach((val) => {
@@ -602,20 +687,11 @@ export default class ScriptList extends Vue {
             .add(1, "hour")
             .format("YYYY-MM-DD HH 每小时运行一次");
         case 3: //每天
-          return cron
-            .sendAt()
-            .add(1, "day")
-            .format("YYYY-MM-DD 每天运行一次");
+          return cron.sendAt().add(1, "day").format("YYYY-MM-DD 每天运行一次");
         case 4: //每月
-          return cron
-            .sendAt()
-            .add(1, "month")
-            .format("YYYY-MM 每月运行一次");
+          return cron.sendAt().add(1, "month").format("YYYY-MM 每月运行一次");
         case 5: //每年
-          return cron
-            .sendAt()
-            .add(1, "year")
-            .format("YYYY 每年运行一次");
+          return cron.sendAt().add(1, "year").format("YYYY 每年运行一次");
         case 6: //每星期
           return cron.sendAt().format("YYYY-MM-DD 每星期运行一次");
       }
@@ -634,6 +710,10 @@ export default class ScriptList extends Vue {
     } else {
       item.updatetime = old;
     }
+  }
+
+  formatTime(time: Date) {
+    return dayjs(time).format("MM-DD HH:mm:ss");
   }
 }
 </script>

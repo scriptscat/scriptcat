@@ -9,11 +9,15 @@ import axios from 'axios';
 import { ScriptUrlInfo } from '../msg-center/structs';
 import { App } from '../app';
 import { ConfirmParam } from '../grant/interface';
+import { LoggerModel } from '@App/model/logger';
+import { Log } from '@App/model/do/logger';
+import { VTabItem } from 'vuetify/lib';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
 
     protected scriptModel = new ScriptModel();
+    protected logModel = new LoggerModel();
 
     public update(script: Script): Promise<number> {
         return new Promise(resolve => {
@@ -204,4 +208,13 @@ export class ScriptController {
         });
     }
 
+    public getScriptLog(scriptId: number, page?: Page): Promise<Log[]> {
+        return this.logModel.list(query => {
+            return query.where({ scriptId: scriptId, origin: "GM_log" });
+        }, page);
+    }
+
+    public clearLog(scriptId: number) {
+        return this.logModel.delete({ scriptId: scriptId, origin: "GM_log" });
+    }
 }

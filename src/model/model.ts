@@ -66,11 +66,7 @@ export abstract class Model<T> {
         if (typeof id == 'number') {
             return this.table.delete(id);
         }
-        let ret = await this.findOne(id);
-        if (!ret) {
-            return undefined;
-        }
-        return this.table.delete((<any>ret).id);
+        return this.table.where(id).delete();
     }
 
     public update(id: number, changes: { [key: string]: any }) {

@@ -11,9 +11,9 @@ export const ScriptRunStatusChange: string = "script-run-status-change";
 export const ScriptCheckUpdate = "script-check-update";
 export const RequestInstallInfo: string = "request-install-info";
 export const RequestConfirmInfo: string = "request-confirm-info";
-
 export const RequestTabRunScript: string = "request-tab-run-script";
-export const TabRemove: string = "tabRemove";
+export const ListenGmLog: string = "gm-log";
+export const TabRemove: string = "tab-remove";
 export const TabMenuClick: string = "tab-menu-click";
 
 export const ScriptGrant: string = "script-grant";

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, ListenCallback } from "@App/apps/msg-center/event";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -88,6 +88,9 @@ export class ScriptManager {
         this.listenerMessage(ScriptCheckUpdate, this.scriptCheckUpdate);
         this.listenerMessage(RequestConfirmInfo, this.requestConfirmInfo);
 
+        // 监听事件,并转发
+        this.listenerProxy(ListenGmLog);
+
         // 扩展事件监听操作
         this.listenScriptInstall();
     }
@@ -130,16 +133,37 @@ export class ScriptManager {
         }
     }
 
+    // 监听来自AppEvent的事件和连接来自其它地方的长链接,转发AppEvent的事件
+    public listenerProxy(topic: string, callback?: (msg: any) => any) {
+        // 暂时只支持一个连接
+        let conns = new Map<string, chrome.runtime.Port>();
+        MsgCenter.listener(topic, (msg: any, port: chrome.runtime.Port) => {
+            let rand = randomString(8);
+            conns.set(rand, port);
+            port.onDisconnect.addListener(() => {
+                conns.delete(rand);
+            });
+        });
+        AppEvent.listener(topic, async (msg: any) => {
+            if (callback) {
+                msg = callback.call(this, msg);
+                if (msg instanceof Promise) {
+                    msg = await msg;
+                }
+            }
+            conns.forEach(val => {
+                val.postMessage(msg);
+            });
+        })
+    }
+
     public listenerMessage(topic: string, callback: MessageCallback) {
         MsgCenter.listenerMessage(topic, async (body, send, sender) => {
             let ret = <any>callback.call(this, body, send, sender)
             if (ret instanceof Promise) {
-                ret.then(result => {
-                    send(result);
-                });
-            } else {
-                send(ret);
+                ret = await ret;
             }
+            send(ret);
         });
     }
 
