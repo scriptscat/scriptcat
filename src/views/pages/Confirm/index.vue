@@ -46,8 +46,11 @@ import { Vue, Component } from "vue-property-decorator";
 import { ConfirmParam } from "@App/apps/grant/interface";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { PermissionConfirm, ScriptGrant } from "@App/apps/msg-center/event";
+import { ScriptController } from "@App/apps/script/controller";
 @Component({})
 export default class Confirm extends Vue {
+  scriptConrtoller: ScriptController = new ScriptController();
+
   protected param: ConfirmParam = {};
   protected timeout: number = 30;
   protected uuid = "";
@@ -58,8 +61,7 @@ export default class Confirm extends Vue {
       return;
     }
     this.uuid = uuid;
-    this.param = await App.Cache.get("confirm:uuid:" + uuid);
-    console.log(this.param);
+    this.param = await this.scriptConrtoller.getConfirmInfo(uuid);
     let i = setInterval(() => {
       this.timeout--;
       if (!this.timeout) {
@@ -87,5 +89,4 @@ export default class Confirm extends Vue {
 }
 </script>
 
-<style>
-</style>
+<style></style>

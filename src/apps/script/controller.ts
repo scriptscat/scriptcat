@@ -2,12 +2,13 @@ import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { Page } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo } from "../msg-center/event";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyTime } from "./utils";
 import axios from 'axios';
 import { ScriptUrlInfo } from '../msg-center/structs';
 import { App } from '../app';
+import { ConfirmParam } from '../grant/interface';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -69,6 +70,15 @@ export class ScriptController {
         });
     }
 
+    // 检查更新
+    public check(scriptId: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            MsgCenter.sendMessage(ScriptCheckUpdate, scriptId, resp => {
+                resolve(resp);
+            });
+        });
+    }
+
     public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Script>> {
         return new Promise(async resolve => {
             page = page || new Page(1, 20);
@@ -87,9 +97,17 @@ export class ScriptController {
         return this.scriptModel.findById(id);
     }
 
-    public getInstallInfo(uuid: string): Promise<any> {
+    public getInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestInstallInfo, uuid, resp => {
+                resolve(resp);
+            });
+        });
+    }
+
+    public getConfirmInfo(uuid: string): Promise<ConfirmParam> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(RequestConfirmInfo, uuid, resp => {
                 resolve(resp);
             });
         });
@@ -166,6 +184,7 @@ export class ScriptController {
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
                 runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+                updatetime: new Date().getTime(),
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
@@ -185,7 +204,4 @@ export class ScriptController {
         });
     }
 
-    public total() {
-        return this.scriptModel.count();
-    }
 }

@@ -84,9 +84,7 @@ async function execScript(
 }
 
 function createSandboxContext(script: ScriptCache): SandboxContext {
-    let cache: ScriptCache = script;
-    let context: SandboxContext = new SandboxContext(cache);
-    cache.value = script.value;
+    let context: SandboxContext = new SandboxContext(script);
     return <SandboxContext>createContext(context, script);
 }
 

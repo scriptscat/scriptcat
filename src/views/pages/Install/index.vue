@@ -156,11 +156,7 @@ export default class Index extends Vue {
       return;
     }
     let id: number;
-    if (this.isupdate) {
-      id = await this.scriptController.update(this.script);
-    } else {
-      id = await this.scriptController.update(this.script);
-    }
+    id = await this.scriptController.update(this.script);
     if (id) {
       window.close();
     } else {

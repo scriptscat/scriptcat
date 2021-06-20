@@ -18,5 +18,7 @@ export interface Log {
     title: string
     message: string
     scriptId?: number
+    // 脚本执行的一次日志组,可以使用时间戳来做日志组
+    group?: string
     createtime: number
 }

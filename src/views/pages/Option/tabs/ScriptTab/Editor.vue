@@ -154,6 +154,15 @@ export default class CloseButton extends Vue {
 
   menu: IEditorMenu = {
     文件: [
+      {
+        action: "保存",
+        handler: () => {
+          this.$emit<ISaveScript>(EventType.SaveScript, {
+            currentCode: this.editor.getValue(),
+            debug: false,
+          });
+        },
+      },
       { action: "导入", handler: () => {}, disabled: true },
       { action: "导出", handler: () => {}, disabled: true },
     ],

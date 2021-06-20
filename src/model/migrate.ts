@@ -37,6 +37,5 @@ export function migrate() {
         return tx.table("scripts").toCollection().modify(script => {
             script.sort = 0;
         });
-    });;
-
+    });
 }

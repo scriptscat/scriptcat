@@ -62,7 +62,7 @@ setInterval(() => {
         })
         .then((items) => {
             items.forEach((value: Script) => {
-                scripts.scriptCheckupdate(value);
+                scripts.scriptCheckUpdate(value.id);
             });
         });
 }, 60000);

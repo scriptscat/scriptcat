@@ -4,7 +4,7 @@
       :headers="headers"
       :items="scripts"
       sort-by="sort"
-      items-per-page="1000"
+      :items-per-page="1000"
       :sort-desc="true"
       class="elevation-1"
       v-model="selected"
@@ -76,7 +76,7 @@
         <span v-if="item.type === 1">
           {{ item.site }}
         </span>
-        <span v-else>
+        <span v-else style="cursor:pointer">
           <v-tooltip top>
             <template v-slot:activator="{ on, attrs }">
               <span v-bind="attrs" v-on="on">
@@ -98,7 +98,7 @@
       </template>
 
       <template v-slot:[`item.sort`]="">
-        <v-icon small> mdi-menu </v-icon>
+        <v-icon small style="cursor:pointer"> mdi-menu </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -106,7 +106,19 @@
       </template>
 
       <template v-slot:[`item.updatetime`]="{ item }">
-        {{ mapTimeStampToHumanized(item.updatetime) }}
+        <v-progress-circular
+          v-if="item.updatetime === -1"
+          :size="20"
+          :width="2"
+          indeterminate
+          color="primary"
+        ></v-progress-circular>
+        <span v-else-if="item.updatetime === -2" style="color:#ff6565"
+          >有更新</span
+        >
+        <span v-else style="cursor:pointer" @click="checkUpdate(item)">
+          {{ mapTimeStampToHumanized(item.updatetime) }}</span
+        >
       </template>
 
       <template v-slot:[`item.actions`]="{ item }">
@@ -363,7 +375,7 @@ export default class ScriptList extends Vue {
     { text: "特性", value: "feature" },
     { text: "主页", value: "origin" },
     { text: "排序", value: "sort", align: "center" },
-    { text: "最后更新", value: "updatetime" },
+    { text: "最后更新", value: "updatetime", width: 100, align: "center" },
     { text: "操作", value: "actions", sortable: false },
   ];
   desserts: any[] = [];
@@ -610,6 +622,17 @@ export default class ScriptList extends Vue {
       return "错误表达式";
     } else {
       return cron.sendAt().format("YYYY-MM-DD HH:mm:ss");
+    }
+  }
+
+  async checkUpdate(item: Script) {
+    let old = item.updatetime;
+    item.updatetime = -1;
+    let isupdate = await this.scriptController.check(item.id);
+    if (isupdate) {
+      item.updatetime = -2;
+    } else {
+      item.updatetime = old;
     }
   }
 }

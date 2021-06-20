@@ -1,6 +1,13 @@
 <template>
   <div>
     <v-simple-table dense>
+      <template v-slot:top>
+        <div class="d-flex justify-end">
+          <v-btn depressed color="error" @click="clear">
+            清空日志
+          </v-btn>
+        </div>
+      </template>
       <template v-slot:default>
         <thead>
           <tr>
@@ -80,6 +87,12 @@ export default class Logger_ extends Vue {
     this.logger.list(new Page(1, 1000)).then((result) => {
       this.length = Math.ceil(result.length / this.count);
     });
+  }
+
+  clear() {
+    this.logs = [];
+    this.length = 0;
+    this.logger.table.clear();
   }
 
   mapLevelToColor(level: string) {

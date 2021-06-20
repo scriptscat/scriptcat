@@ -45,16 +45,12 @@
 
 <script lang="ts">
 import { Vue, Component } from "vue-property-decorator";
-
 import { Tab, TabPane } from "@App/views/components/Tab";
-
-import { ScriptManager } from "@App/apps/script/manager";
 import {
   Script,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_BACKGROUND,
 } from "@App/model/do/script";
-
 import ScriptList from "./ScriptList.vue";
 import {
   mdiGithub,
@@ -65,6 +61,7 @@ import {
 } from "@mdi/js";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { RequestTabRunScript } from "@App/apps/msg-center/event";
+import { ScriptController } from "@App/apps/script/controller";
 
 @Component({
   components: {
@@ -74,7 +71,7 @@ import { RequestTabRunScript } from "@App/apps/msg-center/event";
   },
 })
 export default class Popup extends Vue {
-  scriptUtil: ScriptManager = new ScriptManager();
+  scriptConrtoller: ScriptController = new ScriptController();
   protected scripts: Array<Script> = [];
   protected bgScripts: Array<Script> = [];
 
@@ -128,7 +125,7 @@ export default class Popup extends Vue {
             this.menu = val.runMenu || {};
             this.bgMenu = val.bgMenu || {};
             // 将有菜单的后台脚本,放到运行脚本中
-            this.scriptUtil
+            this.scriptConrtoller
               .scriptList((where) => {
                 return where
                   .where("type")

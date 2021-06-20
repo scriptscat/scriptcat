@@ -55,7 +55,7 @@ export function buildThis(global: any, context: any) {
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
-    if (script.metadata["grant"] != undefined) {
+    if (script.metadata["grant"]) {
         context["GM"] = context;
         script.metadata["grant"].forEach((value: any) => {
             let apiVal = context.getApi(value);
@@ -77,6 +77,26 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
                     }
                 }
             }
+        });
+    }
+    if (script.metadata["console"]) {
+        context["console"] = {};
+        let logMap = new Map();
+        let info = (...data: any[]) => {
+            let msg = "";
+            data.forEach(val => {
+                msg = msg + val + " ";
+            });
+            msg = msg.trimEnd();
+            console.log(...data);
+            context.GM_log(msg, "info");
+        }
+        logMap.set("info", info).set("log", info);
+        script.metadata["console"].forEach(val => {
+            let strs = val.split(" ");
+            strs.forEach(val => {
+                context["console"][val] = logMap.get(val);
+            })
         });
     }
     return context;

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "@App/apps/msg-center/event";
 import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -12,8 +12,9 @@ import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIP
 import { Value } from "@App/model/do/value";
 import { ScriptModel } from "@App/model/script";
 import { Background } from "./background";
-import { loadScriptByUrl, parseMetadata } from "./utils";
+import { copyTime, loadScriptByUrl, parseMetadata } from "./utils";
 import { ScriptUrlInfo } from "../msg-center/structs";
+import { ConfirmParam } from "../grant/interface";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -84,6 +85,8 @@ export class ScriptManager {
         this.listenerMessage(ScriptExec, this.execScript);
         this.listenerMessage(ScriptStop, this.stopScript);
         this.listenerMessage(RequestInstallInfo, this.requestInstallInfo);
+        this.listenerMessage(ScriptCheckUpdate, this.scriptCheckUpdate);
+        this.listenerMessage(RequestConfirmInfo, this.requestConfirmInfo);
 
         // 扩展事件监听操作
         this.listenScriptInstall();
@@ -140,6 +143,13 @@ export class ScriptManager {
         });
     }
 
+    public requestConfirmInfo(uuid: string): Promise<ConfirmParam> {
+        return new Promise(resolve => {
+            let info = App.Cache.get("confirm:info:" + uuid);
+            resolve(info);
+        });
+    }
+
     public requestInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
         return new Promise(resolve => {
             let info = App.Cache.get("install:info:" + uuid);
@@ -177,16 +187,11 @@ export class ScriptManager {
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
                 await this.resource.addResource(script.metadata['require-css'][i], script.id)
             }
+            copyTime(script, oldScript);
+            script.updatetime = new Date().getTime();
             if (script.status == SCRIPT_STATUS_ENABLE) {
-                if (oldScript.status == SCRIPT_STATUS_ENABLE) {
-                    await this.disableScript(script);
-                }
+                await this.disableScript(script);
                 await this.enableScript(script);
-            } else if (script.status == SCRIPT_STATUS_DISABLE) {
-                if (oldScript.status == SCRIPT_STATUS_ENABLE) {
-                    await this.disableScript(script);
-                }
-                script.runStatus = 'complete';
             }
             await this.scriptModel.save(script);
             return resolve(true);
@@ -626,36 +631,40 @@ export class ScriptManager {
     }
 
     // 检查脚本更新
-    public scriptCheckupdate(script: Script): Promise<void> {
-        return new Promise(resolve => {
+    public scriptCheckUpdate(scriptId: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            let script = await this.getScript(scriptId);
+            if (!script) {
+                return resolve(false);
+            }
             if (script.checkupdate_url == undefined) {
-                return resolve();
+                return resolve(false);
             }
             this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });
             axios.get(script.checkupdate_url).then((response): boolean => {
                 if (response.status != 200) {
-                    App.Log.Warn("check update", "script:" + script.id + " error: respond:" + response.statusText, script.name);
+                    App.Log.Warn("check update", "script:" + script!.id + " error: respond:" + response.statusText, script!.name);
                     return false;
                 }
                 let meta = parseMetadata(response.data);
                 if (!meta) {
-                    App.Log.Warn("check update", "script:" + script.id + " error: metadata format", script.name);
+                    App.Log.Warn("check update", "script:" + script!.id + " error: metadata format", script!.name);
                     return false;
                 }
-                if (script.metadata['version'] == undefined) {
-                    script.metadata['version'] = ["v0.0.0"];
+                if (script!.metadata['version'] == undefined) {
+                    script!.metadata['version'] = ["v0.0.0"];
                 }
                 if (meta['version'] == undefined) {
                     return false;
                 }
                 var regexp = /[0-9]*/g
-                var oldVersion = script.metadata['version'][0].match(regexp);
+                var oldVersion = script!.metadata['version'][0].match(regexp);
                 if (!oldVersion) {
                     oldVersion = ["0", "0", "0"];
                 }
                 var Version = meta['version'][0].match(regexp);
                 if (!Version) {
-                    App.Log.Warn("check update", "script:" + script.id + " error: version format", script.name);
+                    App.Log.Warn("check update", "script:" + script!.id + " error: version format", script!.name);
                     return false;
                 }
                 for (let i = 0; i < Version.length; i++) {
@@ -669,7 +678,7 @@ export class ScriptManager {
                 return false;
             }).then(async (val) => {
                 if (val) {
-                    let info = await loadScriptByUrl(script.origin);
+                    let info = await loadScriptByUrl(script!.origin);
                     if (info) {
                         App.Cache.set("install:info:" + info.uuid, info);
                         chrome.tabs.create({
@@ -677,10 +686,10 @@ export class ScriptManager {
                         });
                     }
                 }
-                resolve(undefined);
+                resolve(val);
             }).catch((e) => {
-                App.Log.Warn("check update", "script:" + script.id + " error: " + e, script.name);
-                resolve(undefined);
+                App.Log.Warn("check update", "script:" + script!.id + " error: " + e, script!.name);
+                resolve(false);
             });
 
         })

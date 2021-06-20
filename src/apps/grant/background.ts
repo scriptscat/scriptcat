@@ -9,9 +9,8 @@ import { v4 as uuidv4 } from "uuid"
 import { ValueModel } from "@App/model/value";
 import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
 import { Permission } from "@App/model/do/permission";
-import { SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, Script } from "@App/model/do/script";
+import { Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
-import { resolvePlugin } from "@babel/core";
 
 class postMessage implements IPostMessage {
 
@@ -61,7 +60,6 @@ export class BackgroundGrant {
                 let anonymous = false;
                 let requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 let unsafeHeader: { [key: string]: string } = {};
-                // TODO: 优化小写的问题
                 data.requestHeaders?.forEach((val, key) => {
                     switch (val.name.toLowerCase()) {
                         case "x-cat-" + this.rand + "-cookie": {
@@ -75,8 +73,10 @@ export class BackgroundGrant {
                         case "x-cat-" + this.rand + "-host":
                         case "x-cat-" + this.rand + "-user-agent":
                         case "x-cat-" + this.rand + "-referer":
-                        case "x-cat-" + this.rand + "-origin": {
-                            unsafeHeader[val.name.toLowerCase().substr(("x-cat-" + this.rand).length + 1)] = val.value || '';
+                        case "x-cat-" + this.rand + "-origin":
+                        case "x-cat-" + this.rand + "-accept-encoding":
+                        case "x-cat-" + this.rand + "-connection": {
+                            unsafeHeader[val.name.substr(("x-cat-" + this.rand).length + 1)] = val.value || '';
                             break;
                         }
                         case "cookie": {
@@ -88,7 +88,7 @@ export class BackgroundGrant {
                         case "origin":
                         case "referer":
                             {
-                                unsafeHeader[val.name.toLowerCase()] = unsafeHeader[val.name.toLowerCase()] || val.value || '';
+                                unsafeHeader[val.name] = unsafeHeader[val.name] || val.value || '';
                                 break
                             }
                         default: {
@@ -221,15 +221,15 @@ export class BackgroundGrant {
                             }
                             //弹出页面确认
                             let uuid = uuidv4();
-                            App.Cache.set("confirm:uuid:" + uuid, confirm);
+                            App.Cache.set("confirm:info:" + uuid, confirm);
 
                             let timeout = setTimeout(() => {
-                                App.Cache.del("confirm:uuid:" + uuid);
+                                App.Cache.del("confirm:info:" + uuid);
                                 MsgCenter.removeListener(PermissionConfirm + uuid, listener);
                             }, 30000);
                             let listener = async (param: any) => {
                                 clearTimeout(timeout);
-                                App.Cache.del("confirm:uuid:" + uuid);
+                                App.Cache.del("confirm:info:" + uuid);
                                 MsgCenter.removeListener(PermissionConfirm + uuid, listener);
                                 ret = {
                                     id: 0,
@@ -424,8 +424,10 @@ export class BackgroundGrant {
                     case "user-agent":
                     case "host":
                     case "origin":
+                    case "accept-encoding":
+                    case "connection":
                     case "referer": {
-                        key = "X-Cat-" + this.rand + "-" + key.toLowerCase();
+                        key = "X-Cat-" + this.rand + "-" + key;
                         break;
                     }
                 }
@@ -453,29 +455,34 @@ export class BackgroundGrant {
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
-                if (!detail.url || !detail.name) {
-                    return resolve(true);
+                if (!detail.url && !detail.domain) {
+                    return resolve(false);
                 }
-                let url = new URL(detail.url);
-                let flag = false;
-                if (script.metadata["connect"]) {
-                    let connect = script.metadata["connect"];
-                    for (let i = 0; i < connect.length; i++) {
-                        if (url.hostname.endsWith(connect[i])) {
-                            flag = true;
-                            break;
+                let url: any = {};
+                if (detail.url) {
+                    url = new URL(detail.url);
+                    let flag = false;
+                    if (script.metadata["connect"]) {
+                        let connect = script.metadata["connect"];
+                        for (let i = 0; i < connect.length; i++) {
+                            if (url.hostname.endsWith(connect[i])) {
+                                flag = true;
+                                break;
+                            }
                         }
                     }
-                }
-                if (!flag) {
-                    return resolve(false);
+                    if (!flag) {
+                        return resolve(false);
+                    }
+                } else {
+                    url.host = detail.domain;
                 }
                 let ret: ConfirmParam = {
                     permission: 'cookie',
                     permissionValue: url.host,
                     title: '脚本正在试图访问网站cookie内容',
                     metadata: {
-                        "名称": script.name,
+                        "脚本名称": script.name,
                         "请求域名": url.host,
                     },
                     describe: '请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.',
@@ -492,7 +499,7 @@ export class BackgroundGrant {
                 return resolve(undefined);
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
-            if (!detail.domain) {
+            if (!detail.url && !detail.domain) {
                 return resolve(undefined);
             }
             switch (param[0]) {
