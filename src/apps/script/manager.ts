@@ -190,10 +190,10 @@ export class ScriptManager {
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
                 await this.resource.addResource(script.metadata['require-css'][i], script.id)
             }
+            await this.scriptModel.save(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.enableScript(script);
             }
-            await this.scriptModel.save(script);
             return resolve(script.id);
         });
     }

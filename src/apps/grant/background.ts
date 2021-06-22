@@ -328,8 +328,10 @@ export class BackgroundGrant {
             } else {
                 respond.response = xhr.response;
             }
-            respond.responseText = xhr.responseText;
-            respond.responseXML = xhr.responseXML;
+            if (config.responseType != "arraybuffer") {
+                respond.responseText = xhr.responseText;
+                respond.responseXML = xhr.responseXML || null;
+            }
         }
         return respond;
     }
@@ -375,8 +377,10 @@ export class BackgroundGrant {
             let config = <GM_Types.XHRDetails>grant.params[0];
 
             let xhr = new XMLHttpRequest();
-            xhr.open(config.method || 'GET', config.url);
+            xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
             xhr.responseType = config.responseType || '';
+            config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
+            
             let _this = this;
 
             function deal(event: string) {

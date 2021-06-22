@@ -69,3 +69,11 @@ setInterval(() => {
         });
 }, 60000);
 
+
+chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason == "install") {
+        chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
+    } else if (details.reason == "update") {
+        chrome.tabs.create({ url: "https://docs.scriptcat.org/change/" });
+    }
+});

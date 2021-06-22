@@ -194,8 +194,9 @@ declare namespace GM_Types {
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,
-        username?: string,
+        user?: string,
         password?: string,
+        nocache?: boolean
 
         onload?: Listener<XHRResponse>,
         onloadstart?: Listener<XHRResponse>,

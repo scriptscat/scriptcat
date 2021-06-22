@@ -98,16 +98,19 @@ export class FrontendGrant implements ScriptContext {
             method: details.method,
             timeout: details.timeout,
             url: details.url,
-            headers: details.headers,
+            headers: details.headers || {},
             data: details.data,
             cookie: details.cookie,
             context: details.context,
             responseType: details.responseType,
             overrideMimeType: details.overrideMimeType,
             anonymous: details.anonymous,
-            username: details.username,
+            user: details.user,
             password: details.password
         };
+        if (details.nocache) {
+            param.headers!["Cache-Control"] = 'no-cache';
+        }
 
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
             switch (grant.data.type) {
