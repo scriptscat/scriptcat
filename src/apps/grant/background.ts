@@ -538,29 +538,34 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         listener: () => {
             chrome.notifications.onClosed.addListener(async (id, user) => {
-                let grant: Grant, post: IPostMessage;
                 let ret = await App.Cache.get("GM_notification:" + id);
                 if (ret) {
-                    [grant, post] = ret;
+                    let [grant, post] = ret;
                     grant.data = { type: 'done', id: id, user: user };
                     post.postMessage(grant);
                     App.Cache.del("GM_notification:" + id);
                 }
             });
             chrome.notifications.onClicked.addListener(async (id) => {
-                let grant: Grant, post: IPostMessage;
-                [grant, post] = await App.Cache.get("GM_notification:" + id);
-                if (grant) {
-                    grant.data = { type: 'click', id: id, index: -1 };
+                let ret = await App.Cache.get("GM_notification:" + id);
+                if (ret) {
+                    let [grant, post] = ret;
+                    grant.data = { type: 'click', id: id, index: undefined };
                     post.postMessage(grant);
+                    grant.data = { type: 'done', id: id, user: true };
+                    post.postMessage(grant);
+                    App.Cache.del("GM_notification:" + id);
                 }
             });
             chrome.notifications.onButtonClicked.addListener(async (id, buttonIndex) => {
-                let grant: Grant, post: IPostMessage;
-                [grant, post] = await App.Cache.get("GM_notification:" + id);
-                if (grant) {
+                let ret = await App.Cache.get("GM_notification:" + id);
+                if (ret) {
+                    let [grant, post] = ret;
                     grant.data = { type: 'click', id: id, index: buttonIndex };
                     post.postMessage(grant);
+                    grant.data = { type: 'done', id: id, user: true };
+                    post.postMessage(grant);
+                    App.Cache.del("GM_notification:" + id);
                 }
             });
         }
@@ -590,6 +595,9 @@ export class BackgroundGrant {
                 if (details.timeout) {
                     setTimeout(() => {
                         chrome.notifications.clear(notificationId);
+                        grant.data = { type: 'done', id: notificationId, user: false };
+                        post.postMessage(grant);
+                        App.Cache.del("GM_notification:" + notificationId);
                     }, details.timeout);
                 }
             });
@@ -599,8 +607,17 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction()
     protected GM_closeNotification(grant: Grant): Promise<any> {
-        return new Promise(resolve => {
+        return new Promise(async resolve => {
             chrome.notifications.clear(grant.params[0]);
+
+            let ret = await App.Cache.get("GM_notification:" + grant.params[0]);
+            if (ret) {
+                let [grant, post] = ret;
+                grant.data = { type: 'done', id: grant.params[0], user: false };
+                post.postMessage(grant);
+                App.Cache.del("GM_notification:" + grant.params[0]);
+            }
+
             return resolve(undefined);
         });
     }
