@@ -569,7 +569,7 @@ export class ScriptManager {
                         onclick: (info, tab) => {
                             // 通信发送
                             chrome.tabs.sendMessage(tab.id!, {
-                                "action": "exec", "uuid": script.uuid,
+                                "action": ScriptExec, "uuid": script.uuid,
                             });
                         },
                         documentUrlPatterns: script.metadata['match'],

@@ -1,32 +1,33 @@
 <template>
   <v-app>
-    <v-tabs
-      background-color="#1296DB"
-      dark
-      grow
-      v-model="tabs"
-      style="flex: none"
-    >
-      <v-tabs-slider color="#81D4FA"></v-tabs-slider>
-      <v-tab>运行脚本</v-tab>
-      <v-tab>后台脚本</v-tab>
-      <v-tab>其它</v-tab>
-    </v-tabs>
-    <v-tabs-items v-model="tabs">
-      <v-tab-item>
-        <ScriptList v-model="scripts" :menu="menu" />
-      </v-tab-item>
-      <v-tab-item>
-        <ScriptList v-model="bgScripts" :menu="bgMenu" />
-      </v-tab-item>
-      <v-tab-item>
+    <v-app-bar color="#1296DB" dense dark>
+      <v-app-bar-nav-icon></v-app-bar-nav-icon>
+
+      <v-toolbar-title>ScriptCat</v-toolbar-title>
+
+      <v-spacer></v-spacer>
+
+      <!-- <v-switch color="#E1F5FE" hide-details></v-switch> -->
+
+      <v-btn icon href="/options.html" target="_blank">
+        <v-icon v-text="icons.mdiCogOutline"></v-icon>
+      </v-btn>
+
+      <v-menu bottom left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn dark icon v-bind="attrs" v-on="on">
+            <v-icon>mdi-dots-vertical</v-icon>
+          </v-btn>
+        </template>
+
         <v-list>
           <v-list-item
-            v-for="(item, index) in otherOptions"
-            :key="index"
+            v-for="(item, i) in otherOptions"
+            :key="i"
             link
             :href="item.route"
             target="_black"
+            dense
           >
             <v-list-item-icon>
               <v-icon v-text="item.icon"></v-icon>
@@ -36,10 +37,36 @@
             </v-list-item-content>
           </v-list-item>
         </v-list>
+      </v-menu>
+    </v-app-bar>
+    <v-content
+      class="content"
+      style="max-height: 500px; overflow-y: scroll; padding: 6px"
+    >
+      <v-expansion-panels v-model="panel" multiple>
+        <v-expansion-panel>
+          <v-expansion-panel-header>当前页运行脚本</v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <ScriptList v-model="scripts" :menu="menu" />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
 
-        <v-icon v-text="'mdi-github'"></v-icon>
-      </v-tab-item>
-    </v-tabs-items>
+        <v-expansion-panel>
+          <v-expansion-panel-header>后台脚本</v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <ScriptList v-model="bgScripts" :menu="bgMenu" />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+      </v-expansion-panels>
+    </v-content>
+    <v-footer color="#1296DB" dense>
+      <div class="d-flex justify-space-between" style="width: 100%">
+        <v-text class="v-text d-flex" style="color: #fff"
+          >当前版本: {{ version }} {{ isdebug ? "debug" : "" }}</v-text
+        >
+        <v-text class="v-text d-flex" style="color: #fff">已是最新版本</v-text>
+      </div>
+    </v-footer>
   </v-app>
 </template>
 
@@ -56,12 +83,14 @@ import {
   mdiGithub,
   mdiCogOutline,
   mdiMagnify,
-  mdiFileOutline,
-  mdiHelpCircleOutline,
+  mdiPlus,
+  mdiBugOutline,
+  mdiFileDocumentMultipleOutline,
 } from "@mdi/js";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { RequestTabRunScript } from "@App/apps/msg-center/event";
 import { ScriptController } from "@App/apps/script/controller";
+import { ExtVersion } from "@App/apps/config";
 
 @Component({
   components: {
@@ -82,11 +111,18 @@ export default class Popup extends Vue {
 
   tabs = null;
 
+  version = ExtVersion;
+  isdebug = process.env.NODE_ENV == "development";
+
+  panel = [0];
+
+  icons = { mdiCogOutline: mdiCogOutline };
+
   otherOptions: { title: string; icon: string; route: string }[] = [
     {
-      title: "管理面板",
-      icon: mdiCogOutline,
-      route: "/options.html",
+      title: "新建脚本",
+      icon: mdiPlus,
+      route: "/options.html#/?target=initial",
     },
     {
       title: "获取脚本",
@@ -94,14 +130,14 @@ export default class Popup extends Vue {
       route: "https://bbs.tampermonkey.net.cn/forum-2-1.html",
     },
     {
-      title: "新建脚本",
-      icon: mdiFileOutline,
-      route: "/options.html#/?target=initial",
+      title: "Bug/问题反馈",
+      icon: mdiBugOutline,
+      route: "https://github.com/scriptscat/scriptcat/issues",
     },
     {
-      title: "问题反馈",
-      icon: mdiHelpCircleOutline,
-      route: "https://github.com/scriptscat/scriptcat/issues",
+      title: "项目文档",
+      icon: mdiFileDocumentMultipleOutline,
+      route: "https://docs.scriptcat.org",
     },
     {
       title: "Github",
@@ -154,5 +190,12 @@ export default class Popup extends Vue {
 .inner-pan > * {
   padding: 0px;
   padding-left: 16px;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
+}
+.content {
+  scrollbar-width: none;
 }
 </style>

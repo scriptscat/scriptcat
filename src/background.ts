@@ -43,10 +43,7 @@ function sandboxLoad(event: MessageEvent) {
     }
     scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
         items.forEach((value: Script) => {
-            // 只开启后台脚本
-            if (value.type != SCRIPT_TYPE_NORMAL) {
-                scripts.enableScript(value);
-            }
+            scripts.enableScript(value);
         });
     });
     window.removeEventListener("message", sandboxLoad);

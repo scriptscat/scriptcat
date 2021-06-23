@@ -19,9 +19,8 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
         browserMsg.send(ScriptValueChange, msg);
     })
     chrome.runtime.onMessage.addListener((event) => {
-        console.log(event);
         switch (event.action) {
-            case 'exec':
+            case ScriptExec:
                 browserMsg.send(ScriptExec, event.uuid);
                 break;
         }

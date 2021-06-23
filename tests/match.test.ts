@@ -50,7 +50,7 @@ describe("UrlMatch", () => {
         expect(url.match("http://example.org/foo/bar.html")).toEqual(["ok4"]);
         url.del("ok4");
         expect(url.match("http://example.org/foo/bar.html")).toEqual([]);
-        expect(url.match("http://test.baidu.com/")).toEqual(["ok", "ok4"]);
+        expect(url.match("http://test.baidu.com/")).toEqual(["ok"]);
     })
 
 });

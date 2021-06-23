@@ -260,6 +260,12 @@ export default class App extends Vue {
     render() {
         return (
             <VApp>
+                <v-app-bar color="#1296DB" dense dark>
+                    <v-app-bar-nav-icon></v-app-bar-nav-icon>
+
+                    <v-toolbar-title>ScriptCat</v-toolbar-title>
+                    <v-spacer></v-spacer>
+                </v-app-bar>
                 <div
                     style={{
                         height: "100%",
@@ -267,9 +273,6 @@ export default class App extends Vue {
                         flexDirection: "column",
                     }}
                 >
-                    <Carousel />
-                    <Snackbar />
-
                     <Tab ref="tabRef" onTabRemove={this.handleTabRemove}>
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;

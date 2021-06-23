@@ -6,9 +6,9 @@ import { Component, Prop, Provide, Vue, Watch } from "vue-property-decorator";
 import CloseButton from "./CloseButton.vue";
 import TabPane from "./TabPane";
 
-interface ITabItem {}
+interface ITabItem { }
 
-const noop = () => {};
+const noop = () => { };
 
 @Component({
     components: {

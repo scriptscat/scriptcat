@@ -76,7 +76,7 @@
               </template>
 
               <template v-else>
-                <v-list-item @click="scriptController.exec(script.id, false)">
+                <v-list-item @click="scriptController.stop(script.id, false)">
                   <v-list-item-icon>
                     <v-icon>mdi-stop</v-icon>
                   </v-list-item-icon>

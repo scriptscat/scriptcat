@@ -3,14 +3,19 @@ var AdmZip = require("adm-zip");
 var pjson = require('../package.json');
 const { execSync } = require("child_process");
 
+// 处理manifest version
+let str = fs.readFileSync("./build/scriptcat/manifest.json").toString();
+str = str.replace(/"version": "(.*?)"/, '"version": "' + pjson.version + '"');
+fs.writeFileSync("./build/scriptcat/manifest.json", str);
+
+// 处理config.ts version
+str = fs.readFileSync("./src/apps/config.ts").toString();
+str = str.replace(/ExtVersion = "(.*?)";/, 'ExtVersion = "' + pjson.version + '";');
+fs.writeFileSync("./src/apps/config.ts", str);
+
 execSync("npm run build");
 
 execSync("npm run build-no-split");
-
-// 处理manifest version
-let jsonStr = fs.readFileSync("./build/scriptcat/manifest.json").toString();
-jsonStr = jsonStr.replace(/"version": "(.*?)"/, '"version": "' + pjson.version + '"');
-fs.writeFileSync("./build/scriptcat/manifest.json", jsonStr);
 
 // 处理 ts.worker.js 和 editor.worker.js
 let list = fs.readdirSync("./build/scriptcat/src");

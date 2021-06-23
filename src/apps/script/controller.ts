@@ -1,5 +1,5 @@
 import { v5 as uuidv5 } from 'uuid';
-import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { Page } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
@@ -117,36 +117,6 @@ export class ScriptController {
         });
     }
 
-    public loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined> {
-        return new Promise(resolve => {
-            axios.get(url, {
-                headers: {
-                    'Cache-Control': 'no-cache'
-                }
-            }).then((response): ScriptUrlInfo | undefined => {
-                if (response.status != 200) {
-                    return undefined;
-                }
-                let ok = parseMetadata(response.data);
-                if (!ok) {
-                    return undefined;
-                }
-                let uuid = uuidv5(url, uuidv5.URL);
-                let ret = {
-                    url: url,
-                    code: response.data,
-                    uuid: uuid
-                };
-                App.Cache.set("install:" + uuid, ret);
-                return ret;
-            }).then((val) => {
-                resolve(val);
-            }).catch((e) => {
-                resolve(undefined);
-            });
-        });
-    }
-
     public prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | undefined]> {
         return new Promise(async resolve => {
             let metadata = parseMetadata(code);
@@ -192,7 +162,7 @@ export class ScriptController {
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
-            if (!old) {
+            if (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL)) {
                 old = await this.scriptModel.findByName(script.name);
             }
             if (old) {

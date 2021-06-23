@@ -26,12 +26,6 @@ async function execScript(
 ): Promise<boolean> {
     return new Promise(async (resolve) => {
         //使用SandboxContext接管postRequest
-        let key: any;
-        if (type == "debug") {
-            key = "script:debug:" + script.id;
-        } else {
-            key = "script:" + script.id;
-        }
         script.delayruntime = 0;
         context.CAT_setRunError("", 0);
         script.lastruntime = new Date().getTime();
@@ -183,25 +177,38 @@ async function exec(script: ScriptCache, isdebug: boolean) {
     return top.postMessage({ action: "exec", data: "" }, "*");
 }
 
-async function stop(script: Script, isdebug: boolean) {
+async function disable(script: Script) {
     let context = <SandboxContext>(
-        await App.Cache.get("script:" + (isdebug ? "debug:" : "") + script.id)
+        await App.Cache.get("script:" + script.id)
     );
     if (context) {
         context.destruct();
     }
     if (script.type != SCRIPT_TYPE_CRONTAB) {
-        return top.postMessage({ action: "stop" }, "*");
+        return top.postMessage({ action: "disable" }, "*");
     }
     let list = cronjobMap.get(script.id);
     if (!list) {
-        return top.postMessage({ action: "stop" }, "*");
+        return top.postMessage({ action: "disable" }, "*");
     }
     list.forEach((val) => {
         val.stop();
     });
     cronjobMap.delete(script.id);
+    return top.postMessage({ action: "disable" }, "*");
+}
 
+async function stop(script: Script, isdebug: boolean) {
+    let context = <SandboxContext>(
+        await App.Cache.get("script:" + (isdebug ? "debug:" : "") + script.id)
+    );
+    if (context) {
+        if (script.type == SCRIPT_TYPE_CRONTAB) {
+            context.CAT_runComplete();
+        } else {
+            context.destruct();
+        }
+    }
     return top.postMessage({ action: "stop" }, "*");
 }
 
@@ -221,12 +228,16 @@ window.addEventListener("message", (event) => {
             start(event.data.data);
             break;
         }
-        case "stop": {
-            stop(event.data.data, event.data.isdebug);
+        case "disable": {
+            disable(event.data.data);
             break;
         }
         case "exec": {
             exec(event.data.data, event.data.isdebug);
+            break;
+        }
+        case "stop": {
+            stop(event.data.data, event.data.isdebug);
             break;
         }
         case ScriptValueChange: {
