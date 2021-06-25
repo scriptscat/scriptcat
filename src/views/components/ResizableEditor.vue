@@ -16,7 +16,6 @@
         padding: 0,
         border: 0,
         flexGrow: 1,
-        border: '1px solid red',
       }"
     />
   </div>

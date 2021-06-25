@@ -1,42 +1,56 @@
 <template>
-  <v-app>
-    <div>{{ param.title }}</div>
-    <div v-for="(val, key) in param.metadata" :key="key">
-      <span>{{ key + ":" + val }}</span>
-    </div>
-    <div>{{ param.describe }}</div>
-    <v-btn @click="ignore">忽略({{ timeout }}秒)</v-btn>
-    <div>
-      <v-btn @click="allow(true, 1)" color="primary">允许一次</v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(true, 2)" color="primary"
-        >临时允许</v-btn
-      >
-      <v-btn @click="allow(true, 3)" color="primary">
-        临时允许此{{ param.permissionContent }}
-      </v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(true, 4)" color="primary"
-        >总是允许</v-btn
-      >
-      <v-btn @click="allow(true, 5)" color="primary">
-        总是允许此{{ param.permissionContent }}
-      </v-btn>
-    </div>
+  <v-app style="overflow: hidden">
+    <v-app-bar
+      color="#1296DB"
+      style="position: unset"
+      dense
+      dark
+      extension-height
+    >
+      <v-app-bar-nav-icon></v-app-bar-nav-icon>
 
-    <div>
-      <v-btn @click="allow(false, 1)" color="error">拒绝一次</v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(false, 2)" color="error"
-        >临时拒绝</v-btn
-      >
-      <v-btn @click="allow(false, 3)" color="error">
-        临时拒绝此{{ param.permissionContent }}
-      </v-btn>
-      <v-btn v-if="param.wildcard" @click="allow(false, 4)" color="error"
-        >总是拒绝</v-btn
-      >
-      <v-btn @click="allow(false, 5)" color="error">
-        总是拒绝此{{ param.permissionContent }}
-      </v-btn>
-    </div>
+      <v-toolbar-title>ScriptCat</v-toolbar-title>
+      <v-spacer></v-spacer>
+    </v-app-bar>
+    <v-content style="height: 100%; padding: 6px">
+      <div class="text-h6">{{ param.title }}</div>
+      <div v-for="(val, key) in param.metadata" :key="key">
+        <span class="text-subtitle-1 font-weight-medium">{{ key + ":" + val }}</span>
+      </div>
+      <div class="text-h6">{{ param.describe }}</div>
+      <v-btn @click="ignore" color="secondary">忽略({{ timeout }}秒)</v-btn>
+      <div>
+        <v-btn @click="allow(true, 1)" color="primary">允许一次</v-btn>
+        <v-btn v-if="param.wildcard" @click="allow(true, 2)" color="primary"
+          >临时允许</v-btn
+        >
+        <v-btn @click="allow(true, 3)" color="primary">
+          临时允许此{{ param.permissionContent }}
+        </v-btn>
+        <v-btn v-if="param.wildcard" @click="allow(true, 4)" color="primary"
+          >总是允许</v-btn
+        >
+        <v-btn @click="allow(true, 5)" color="primary">
+          总是允许此{{ param.permissionContent }}
+        </v-btn>
+      </div>
+
+      <div style="margin-top: 4px">
+        <v-btn @click="allow(false, 1)" color="error">拒绝一次</v-btn>
+        <v-btn v-if="param.wildcard" @click="allow(false, 2)" color="error"
+          >临时拒绝</v-btn
+        >
+        <v-btn @click="allow(false, 3)" color="error">
+          临时拒绝此{{ param.permissionContent }}
+        </v-btn>
+        <v-btn v-if="param.wildcard" @click="allow(false, 4)" color="error"
+          >总是拒绝</v-btn
+        >
+        <v-btn @click="allow(false, 5)" color="error">
+          总是拒绝此{{ param.permissionContent }}
+        </v-btn>
+      </div>
+    </v-content>
   </v-app>
 </template>
 

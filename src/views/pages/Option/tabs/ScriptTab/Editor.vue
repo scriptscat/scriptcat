@@ -5,58 +5,49 @@
       flexDirection: 'column',
     }"
   >
-    <div>
+    <div style="padding-left: 6px; background: #e0e0e0">
       <v-menu
         v-for="[title, items] in Object.entries(menu)"
         :key="title"
-        open-on-hover
-        rounded="lg"
         offset-y
       >
         <template v-slot:activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
             v-on="on"
-            color="rgb(128, 128, 128)"
+            color="rgb(88, 88, 88)"
             outlined
+            style="border-color: #e0e0e0"
+            tile
             text
-            height="36"
+            small
+            height="30"
           >
             {{ title }}
           </v-btn>
         </template>
-
-        <v-list dense :width="100">
-          <v-list-item v-for="(item, index) in items" :key="index" link>
-            <template v-if="item.tooltip">
-              <v-tooltip right>
-                <template v-slot:activator="{ on, attrs }">
-                  <v-list-item-title
-                    @click="item.handler"
-                    v-bind="attrs"
-                    v-on="on"
-                    :class="{
-                      'disabled-action-title': item.disabled === true,
-                    }"
-                  >
-                    {{ item.action }}
-                  </v-list-item-title>
-                </template>
-
-                <span>{{ item.tooltip }}</span>
-              </v-tooltip>
-            </template>
-
-            <template v-else>
-              <v-list-item-title
-                @click="item.handler"
-                :class="{
-                  'disabled-action-title': item.disabled === true,
-                }"
-              >
-                {{ item.action }}
-              </v-list-item-title>
-            </template>
+        <v-list dense>
+          <v-list-item
+            v-for="(item, index) in items"
+            :key="index"
+            link
+            style="min-height:0"
+          >
+            <v-list-item-icon style="margin:0;margin-right:6px">
+              <v-icon v-text="item.icon" style="margin:0"></v-icon>
+            </v-list-item-icon>
+            <v-list-item-title
+              @click="item.handler"
+              :class="{
+                'disabled-action-title': item.disabled === true,
+                'd-flex': true,
+                'justify-space-between': true,
+              }"
+              style="width:300px;"
+            >
+              <span>{{ item.action }} </span>
+              <span v-if="item.keys">{{ item.keys }}</span>
+            </v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -82,8 +73,9 @@ interface IEditorMenu {
   [title: string]: {
     action: string;
     handler: Function;
-    tooltip?: string;
     disabled?: boolean;
+    icon?: any;
+    keys?: string;
   }[];
 }
 
@@ -162,12 +154,11 @@ export default class CloseButton extends Vue {
             debug: false,
           });
         },
+        icon: "mdi-content-save",
+        keys: "Ctrl+S",
       },
-      { action: "导入", handler: () => {}, disabled: true },
-      { action: "导出", handler: () => {}, disabled: true },
     ],
     操作: [
-      { action: "运行", handler: () => {}, disabled: true },
       {
         action: "调试",
         handler: () => {
@@ -176,7 +167,8 @@ export default class CloseButton extends Vue {
             debug: true,
           });
         },
-        tooltip: "调试后台脚本",
+        icon: "mdi-bug",
+        keys: "",
       },
     ],
   };

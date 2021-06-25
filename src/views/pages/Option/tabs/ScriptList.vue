@@ -85,8 +85,10 @@
                 }}</span
               >
             </template>
-            <span v-if="item.type == 2">
-              定时脚本,下一次运行时间:{{ nextTime(item) }}
+            <span v-if="item.type == 2 && item.metadata['crontab']">
+              定时脚本,下一次运行时间:{{
+                nextTime(item.metadata["crontab"][0])
+              }}
             </span>
             <span v-else> 后台脚本,会在扩展开启时自动执行 </span>
           </v-tooltip>
@@ -346,7 +348,7 @@ import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ListenGmLog, ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
-import { Page, AllPage } from "@App/pkg/utils";
+import { Page, AllPage, nextTime } from "@App/pkg/utils";
 import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
 import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
@@ -494,6 +496,8 @@ export default class ScriptList extends Vue {
   showlog = false;
   logs: Log[] = [];
   logScript?: Script;
+
+  nextTime = nextTime;
 
   async showLog(item: Script) {
     this.logScript = item;
@@ -664,48 +668,6 @@ export default class ScriptList extends Vue {
   @Watch("dialogDelete")
   onDialogDeleteChange(val: string, oldVal: string) {
     val || this.closeDelete();
-  }
-
-  nextTime(script: Script): string {
-    let oncePos = 0;
-    let crontab = script.metadata!["crontab"][0];
-    if (crontab.indexOf("once") !== -1) {
-      let vals = crontab.split(" ");
-      vals.forEach((val, index) => {
-        if (val == "once") {
-          oncePos = index;
-        }
-      });
-      if (vals.length == 5) {
-        oncePos++;
-      }
-    }
-    let cron = new CronTime(crontab.replaceAll("once", "*"));
-    if (oncePos) {
-      switch (oncePos) {
-        case 1: //每分钟
-          return cron
-            .sendAt()
-            .add(1, "minute")
-            .format("YYYY-MM-DD HH:mm 每分钟运行一次");
-        case 2: //每小时
-          return cron
-            .sendAt()
-            .add(1, "hour")
-            .format("YYYY-MM-DD HH 每小时运行一次");
-        case 3: //每天
-          return cron.sendAt().add(1, "day").format("YYYY-MM-DD 每天运行一次");
-        case 4: //每月
-          return cron.sendAt().add(1, "month").format("YYYY-MM 每月运行一次");
-        case 5: //每年
-          return cron.sendAt().add(1, "year").format("YYYY 每年运行一次");
-        case 6: //每星期
-          return cron.sendAt().format("YYYY-MM-DD 每星期运行一次");
-      }
-      return "错误表达式";
-    } else {
-      return cron.sendAt().format("YYYY-MM-DD HH:mm:ss");
-    }
   }
 
   async checkUpdate(item: Script) {
