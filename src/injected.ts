@@ -8,7 +8,7 @@ import { Value } from "./model/do/value";
 import { addStyle } from "./pkg/frontend";
 import { buildThis, createContext } from "./pkg/sandbox";
 
-let browserMsg = new BrowserMsg(ScriptFlag);
+let browserMsg = new BrowserMsg(ScriptFlag, false);
 browserMsg.listen("scripts", (msg) => {
     let scripts: ScriptCache[] = msg;
     browserMsg.listen(ScriptValueChange, (msg: Value) => {

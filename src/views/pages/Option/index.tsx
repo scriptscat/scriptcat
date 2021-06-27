@@ -3,7 +3,6 @@ import eventBus from "@views/EventBus";
 import { Component, Vue } from "vue-property-decorator";
 import { VApp, VIcon } from "vuetify/lib";
 
-import Carousel from "./Carousel.vue";
 import EventType from "./EventType";
 import Snackbar from "./Snackbar.vue";
 import Config from "./tabs/Config.vue";
@@ -273,6 +272,7 @@ export default class App extends Vue {
                         flexDirection: "column",
                     }}
                 >
+                    <Snackbar />
                     <Tab ref="tabRef" onTabRemove={this.handleTabRemove}>
                         {this.allTabs.map((tab) => {
                             const { title, icon, content, tabKey, ...rest } = tab;

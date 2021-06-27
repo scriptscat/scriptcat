@@ -1,12 +1,13 @@
 {
     "name": "scriptcat",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
     "scripts": {
         "test": "jest",
         "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
         "devtool": "vue-devtools",
         "dev": "webpack --mode development --config webpack.dev.babel.ts",
+        "dev:no.split": "webpack --mode development --config webpack.dev.no.split.babel.ts",
         "build": "webpack --mode production --config webpack.prod.babel.ts",
         "build-no-split": "webpack --mode production --config webpack.no.split.babel.ts",
         "pack": "node ./scripts/pack.js"

@@ -13,6 +13,15 @@
             <img :src="script.metadata['icon'][0]" />
           </v-avatar>
           {{ script.name }}
+          <v-switch
+            :input-value="getStatusBoolean(script)"
+            hide-details
+            flat
+            @change="changeStatus(script)"
+            style="display:inline-block"
+            label="开启脚本"
+          >
+          </v-switch>
         </div>
         <div class="text-subtitle-2" v-if="script.metadata['author']">
           作者: {{ script.metadata["author"][0] }}
@@ -34,15 +43,6 @@
           >
             关闭
           </v-btn>
-          <v-switch
-            :input-value="getStatusBoolean(script)"
-            hide-details
-            flat
-            @change="changeStatus(script)"
-            style="margin: 0; flex: none"
-            label="开启脚本"
-          >
-          </v-switch>
         </div>
         <div class="text-subtitle-1" style="color: red">
           请从合法的来源安装脚本!!!未知的脚本可能会侵犯您的隐私或者做出恶意的操作!!!
@@ -194,6 +194,7 @@ export default class Index extends Vue {
       this.isupdate = true;
       this.oldVersion =
         oldscript.metadata["version"] && oldscript.metadata["version"][0];
+      document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {
         language: "javascript",
@@ -205,12 +206,13 @@ export default class Index extends Vue {
         readOnly: true,
       });
       this.editor.setValue(this.script.code);
+      document.title = "安装脚本 - " + this.script.name + " - ScriptCat ";
     }
     if (this.script.metadata["description"]) {
       this.desctiption = this.script.metadata["description"][0];
     }
     this.version = script.metadata["version"] && script.metadata["version"][0];
-    this.connect = script.metadata["connect"];
+    this.connect = script.metadata["connect"] || [];
     script.metadata["grant"]?.forEach((val) => {
       if (val == "GM_cookie") {
         this.isCookie = true;

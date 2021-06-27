@@ -9,7 +9,7 @@ export function compileScriptCode(script: ScriptCache): string {
             code = res.content + "\n" + code;
         }
     });
-    return 'with (context) {\n' + code + '\n}'
+    return 'with (context) (()=>{\n' + code + '\n})()'
 }
 
 export function compileScript(script: ScriptCache) {
@@ -26,32 +26,58 @@ export function buildWindow(): any {
 //TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
     let proxy: any = new Proxy(context, {
-        get(_, key) {
-            switch (key) {
+        defineProperty(_, name, desc) {
+            return Object.defineProperty(context, name, desc);
+        },
+        get(_, name) {
+            switch (name) {
                 case 'window':
                 case 'global':
-                case 'self':
                 case 'globalThis':
                     return proxy;
             }
-            if (key !== 'undefined' && key !== Symbol.unscopables) {
-                if (context.hasOwnProperty(key)) {
-                    return context[key];
+            if (name !== 'undefined' && name !== Symbol.unscopables) {
+                if (context[name]) {
+                    return context[name];
                 }
-                if (global[key]) {
-                    if (typeof global[key] === 'function' && !global[key].prototype) {
-                        return global[key].bind(global);
+                if (global[name]) {
+                    if (typeof global[name] === 'function' && !global[name].prototype) {
+                        return global[name].bind(global);
                     }
-                    return global[key];
+                    return global[name];
                 }
             }
             return undefined;
         },
-        has() {
-            return true;
+        has(_, name) {
+            return name == 'undefined' || context[name] || global.hasOwnProperty(name);
+        },
+        getOwnPropertyDescriptor(_, name) {
+            let ret = Object.getOwnPropertyDescriptor(context, name)
+            ret = ret || global.hasOwnProperty(name) && Object.getOwnPropertyDescriptor(global, name);
+            if (ret) {
+                return ret;
+            }
+            return undefined;
         }
-    })
+    });
     return proxy;
+}
+
+function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
+    if (apiVal?.param.depend) {
+        for (let i = 0; i < apiVal?.param.depend.length; i++) {
+            let value = apiVal.param.depend[i];
+            let dependApi = context.getApi(value);
+            if (value.startsWith("GM.")) {
+                let [_, t] = value.split(".");
+                context["GM"][t] = dependApi?.api;
+            } else {
+                context[value] = dependApi?.api;
+            }
+            setDepend(context, dependApi);
+        }
+    }
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
@@ -65,18 +91,7 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
             } else {
                 context[value] = apiVal?.api;
             }
-            if (apiVal?.param.depend) {
-                for (let i = 0; i < apiVal?.param.depend.length; i++) {
-                    let value = apiVal.param.depend[i];
-                    let dependApi = context.getApi(value);
-                    if (value.startsWith("GM.")) {
-                        let [_, t] = value.split(".");
-                        context["GM"][t] = dependApi?.api;
-                    } else {
-                        context[value] = dependApi?.api;
-                    }
-                }
-            }
+            setDepend(context, apiVal);
         });
     }
     if (script.metadata["console"]) {
@@ -102,5 +117,11 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
             })
         });
     }
-    return context;
+    context['GM_info'] = {
+        scriptHandler: "ScriptCat",
+        version: script.metadata['version'] && script.metadata['version'][0],
+    };
+
+    // 去除原型链
+    return Object.assign({}, context);
 }

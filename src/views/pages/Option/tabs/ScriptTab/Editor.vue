@@ -33,7 +33,7 @@
             link
             style="min-height:0"
           >
-            <v-list-item-icon style="margin:0;margin-right:6px">
+            <v-list-item-icon style="margin:0;margin-right:8px">
               <v-icon v-text="item.icon" style="margin:0"></v-icon>
             </v-list-item-icon>
             <v-list-item-title
@@ -62,7 +62,7 @@
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { KeyMod, KeyCode, languages } from "monaco-editor";
-import { Script } from "@App/model/do/script";
+import { Script, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
 
 import ResizableEditor from "@components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
@@ -99,7 +99,10 @@ export default class CloseButton extends Vue {
   hasUnsavedChange = false;
 
   @Watch("script")
-  onScriptChange() {
+  onScriptChange(news: Script, old: Script) {
+    if (old && news.id == old.id) {
+      return;
+    }
     this.editor.setValue(this.script.code);
 
     if (!this.hasInitial) {
@@ -162,6 +165,9 @@ export default class CloseButton extends Vue {
       {
         action: "调试",
         handler: () => {
+          if (this.script.type == SCRIPT_TYPE_NORMAL) {
+            return alert("仅后台脚本能进行调试");
+          }
           this.$emit<ISaveScript>(EventType.SaveScript, {
             currentCode: this.editor.getValue(),
             debug: true,

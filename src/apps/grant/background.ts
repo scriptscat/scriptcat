@@ -326,9 +326,20 @@ export class BackgroundGrant {
             if (!config.responseType && contentType && contentType.indexOf("application/json") !== -1) {
                 respond.response = JSON.parse(xhr.responseText);
             } else {
-                respond.response = xhr.response;
+                if (!respond.response && (config.responseType == "arraybuffer" || config.responseType == "blob")) {
+                    if (xhr.response instanceof ArrayBuffer) {
+                        respond.response = URL.createObjectURL(new Blob([xhr.response]));
+                    } else {
+                        respond.response = URL.createObjectURL(xhr.response);
+                    }
+                    setTimeout(() => {
+                        URL.revokeObjectURL(respond.response);
+                    }, 60e3)
+                } else {
+                    respond.response = xhr.response;
+                }
             }
-            if (config.responseType != "arraybuffer") {
+            if (config.responseType != "arraybuffer" && config.responseType != "blob") {
                 respond.responseText = xhr.responseText;
                 respond.responseXML = xhr.responseXML || null;
             }
@@ -355,7 +366,7 @@ export class BackgroundGrant {
                     permissionValue: url.host,
                     title: '脚本正在试图访问跨域资源',
                     metadata: {
-                        "名称": script.name,
+                        "脚本名称": script.name,
                         "请求域名": url.host,
                         "请求地址": config.url,
                     },
@@ -380,7 +391,7 @@ export class BackgroundGrant {
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
             xhr.responseType = config.responseType || '';
             config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
-            
+
             let _this = this;
 
             function deal(event: string) {

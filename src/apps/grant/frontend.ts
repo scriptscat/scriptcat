@@ -12,6 +12,7 @@ type FrontendApi = any;
 interface DescriptionParam {
     sync?: boolean
     depend?: string[]
+    listener?: () => void
 }
 
 export interface FrontenApiValue {
@@ -52,6 +53,7 @@ export class FrontendGrant implements ScriptContext {
             if (param.sync) {
                 key = 'GM.' + key;
             }
+            param.listener && param.listener();
             FrontendGrant.apis.set(key, {
                 api: descriptor.value,
                 param: param
@@ -93,6 +95,15 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
+    public CAT_fetchBlob(url: string): Promise<Blob> {
+        return new Promise(resolve => {
+            this.postRequest('CAT_fetchBlob', [url], (grant: Grant) => {
+                resolve(grant.data);
+            });
+        });
+    }
+
+    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
     public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let param: GM_Types.XHRDetails = {
             method: details.method,
@@ -110,6 +121,19 @@ export class FrontendGrant implements ScriptContext {
         };
         if (details.nocache) {
             param.headers!["Cache-Control"] = 'no-cache';
+        }
+
+        if (details.onload && (details.responseType == "arraybuffer" || details.responseType == "blob")) {
+            let old = details.onload;
+            details.onload = async (xhr) => {
+                let resp = await this.CAT_fetchBlob(xhr.response);
+                if (details.responseType == "arraybuffer") {
+                    xhr.response = await resp.arrayBuffer();
+                } else {
+                    xhr.response = resp;
+                }
+                old(xhr);
+            }
         }
 
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {

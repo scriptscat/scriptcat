@@ -10,7 +10,7 @@
       <!-- <v-switch color="#E1F5FE" hide-details></v-switch> -->
 
       <v-btn icon href="/options.html" target="_blank">
-        <v-icon v-text="icons.mdiCogOutline"></v-icon>
+        <v-icon>mdi-home</v-icon>
       </v-btn>
 
       <v-menu bottom left>
@@ -81,7 +81,6 @@ import {
 import ScriptList from "./ScriptList.vue";
 import {
   mdiGithub,
-  mdiCogOutline,
   mdiMagnify,
   mdiPlus,
   mdiBugOutline,
@@ -115,8 +114,6 @@ export default class Popup extends Vue {
   isdebug = process.env.NODE_ENV == "development";
 
   panel = [0];
-
-  icons = { mdiCogOutline: mdiCogOutline };
 
   otherOptions: { title: string; icon: string; route: string }[] = [
     {
