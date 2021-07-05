@@ -1,5 +1,5 @@
-import { ScriptContext } from "@App/apps/grant/frontend";
-import { ScriptCache, Script } from "@App/model/do/script";
+import {ScriptContext} from "@App/apps/grant/frontend";
+import {ScriptCache, Script} from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
@@ -9,7 +9,7 @@ export function compileScriptCode(script: ScriptCache): string {
             code = res.content + "\n" + code;
         }
     });
-    return 'with (context) (()=>{\n' + code + '\n})()'
+    return 'with (context) return (()=>{\n' + code + '\n})()'
 }
 
 export function compileScript(script: ScriptCache) {
@@ -108,8 +108,7 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
                 context.GM_log(msg, level);
             }
         }
-        logMap.set("info", log("info")).set("log", log("info")).
-            set("warn", log("warn")).set("error", log("error"));
+        logMap.set("info", log("info")).set("log", log("info")).set("warn", log("warn")).set("error", log("error"));
         script.metadata["console"].forEach(val => {
             let strs = val.split(" ");
             strs.forEach(val => {
