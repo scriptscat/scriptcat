@@ -12,7 +12,7 @@
       <v-toolbar-title>ScriptCat</v-toolbar-title>
       <v-spacer></v-spacer>
     </v-app-bar>
-    <v-content style="height: 100%; padding: 6px">
+    <v-main style="height: 100%; padding: 6px">
       <div class="text-h6">{{ param.title }}</div>
       <div v-for="(val, key) in param.metadata" :key="key">
         <span class="text-subtitle-1 font-weight-medium">{{ key + ":" + val }}</span>
@@ -50,7 +50,7 @@
           总是拒绝此{{ param.permissionContent }}
         </v-btn>
       </div>
-    </v-content>
+    </v-main>
   </v-app>
 </template>
 

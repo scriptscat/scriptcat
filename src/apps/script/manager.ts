@@ -360,7 +360,7 @@ export class ScriptManager {
             });
         });
         let injectedSource = '';
-        get(chrome.extension.getURL('src/injected.js'), (source: string) => {
+        get(chrome.runtime.getURL('src/injected.js'), (source: string) => {
             injectedSource = dealScript(chrome.runtime.getURL('src/injected.js'), `(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`);
         });
         chrome.runtime.onMessage.addListener((msg, detail, send) => {

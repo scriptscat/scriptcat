@@ -39,7 +39,7 @@
         </v-list>
       </v-menu>
     </v-app-bar>
-    <v-content
+    <v-main
       class="content"
       style="max-height: 500px; overflow-y: scroll; padding: 6px"
     >
@@ -58,13 +58,13 @@
           </v-expansion-panel-content>
         </v-expansion-panel>
       </v-expansion-panels>
-    </v-content>
+    </v-main>
     <v-footer color="#1296DB" dense>
       <div class="d-flex justify-space-between" style="width: 100%">
-        <v-text class="v-text d-flex" style="color: #fff"
-          >当前版本: {{ version }} {{ isdebug ? "debug" : "" }}</v-text
+        <span class="v-text d-flex" style="color: #fff"
+          >当前版本: {{ version }} {{ isdebug ? "debug" : "" }}</span
         >
-        <v-text class="v-text d-flex" style="color: #fff">已是最新版本</v-text>
+        <span class="v-text d-flex" style="color: #fff">已是最新版本</span>
       </div>
     </v-footer>
   </v-app>

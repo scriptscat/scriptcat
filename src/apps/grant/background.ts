@@ -596,11 +596,11 @@ export class BackgroundGrant {
                 title: details.title || 'ScriptCat',
                 message: details.text,
                 iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
-                type: details.progress === undefined ? 'basic' : 'progress',
-                buttons: details.buttons,
+                type: (isFirefox() || details.progress === undefined) ? 'basic' : 'progress',
             };
             if (!isFirefox()) {
                 options.silent = details.silent;
+                options.buttons = details.buttons;
             }
 
             chrome.notifications.create(options, (notificationId) => {
@@ -640,6 +640,9 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction()
     protected GM_updateNotification(grant: Grant): Promise<any> {
         return new Promise(resolve => {
+            if (isFirefox()) {
+                return resolve(undefined);
+            }
             let id = grant.params[0];
             let details: GM_Types.NotificationDetails = grant.params[1];
             let options: chrome.notifications.NotificationOptions = {
@@ -647,11 +650,9 @@ export class BackgroundGrant {
                 message: details.text,
                 iconUrl: details.image,
                 type: details.progress === undefined ? 'basic' : 'progress',
-                progress: Math.round(details.progress || 0),
+                silent: details.silent,
+                progress: details.progress
             };
-            if (!isFirefox()) {
-                options.silent = details.silent;
-            }
             chrome.notifications.update(id, options);
             return resolve(undefined);
         });
