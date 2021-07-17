@@ -29,7 +29,15 @@
         <div class="text-subtitle-2" v-if="desctiption">
           脚本描述: {{ desctiption }}
         </div>
-        <div class="text-subtitle-2" style="word-wrap:break-word; word-break:break-all;">安装来源: {{ script.origin }}</div>
+        <div
+          class="text-subtitle-2"
+          style="max-height: 110px;overflow: hidden;"
+        >
+          安装来源:
+          <span style="word-wrap:break-word; word-break:break-all;">{{
+            script.origin
+          }}</span>
+        </div>
         <div class="control d-flex justify-start" style="margin-bottom: 10px">
           <v-btn @click="install" depressed small color="primary">
             {{ isupdate ? "更新脚本" : "安装脚本" }}

@@ -1,5 +1,5 @@
-import {ScriptContext} from "@App/apps/grant/frontend";
-import {ScriptCache, Script} from "@App/model/do/script";
+import { ScriptContext } from "@App/apps/grant/frontend";
+import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
@@ -23,6 +23,15 @@ export function buildWindow(): any {
     }
 }
 
+let special: any = {};
+
+Object.getOwnPropertyNames(window).forEach(val => {
+    let desc = Object.getOwnPropertyDescriptor(window, val);
+    if (desc && desc.writable) {
+        special[val] = desc.value;
+    }
+});
+
 //TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
     let proxy: any = new Proxy(context, {
@@ -40,6 +49,12 @@ export function buildThis(global: any, context: any) {
                 if (context[name]) {
                     return context[name];
                 }
+                if (special[name]) {
+                    if (typeof special[name] === 'function' && !special[name].prototype) {
+                        return special[name].bind(global);
+                    }
+                    return special[name];
+                }
                 if (global[name]) {
                     if (typeof global[name] === 'function' && !global[name].prototype) {
                         return global[name].bind(global);
@@ -54,11 +69,11 @@ export function buildThis(global: any, context: any) {
         },
         getOwnPropertyDescriptor(_, name) {
             let ret = Object.getOwnPropertyDescriptor(context, name)
-            ret = ret || global.hasOwnProperty(name) && Object.getOwnPropertyDescriptor(global, name);
             if (ret) {
                 return ret;
             }
-            return undefined;
+            ret = Object.getOwnPropertyDescriptor(global, name);
+            return ret;
         }
     });
     return proxy;

@@ -31,13 +31,13 @@
             v-for="(item, index) in items"
             :key="index"
             link
-            style="min-height:0"
+            style="min-height:0;max-width:210px;"
+            @click="item.handler"
           >
-            <v-list-item-icon style="margin:0;margin-right:8px">
+            <v-list-item-icon style="margin-right:8px">
               <v-icon v-text="item.icon" style="margin:0"></v-icon>
             </v-list-item-icon>
             <v-list-item-title
-              @click="item.handler"
               :class="{
                 'disabled-action-title': item.disabled === true,
                 'd-flex': true,
@@ -56,6 +56,7 @@
     <div class="sub-container">
       <ResizableEditor ref="resizableEditor" />
     </div>
+    <input type="file" id="fileInput" hidden accept=".js" />
   </div>
 </template>
 
@@ -112,6 +113,16 @@ export default class CloseButton extends Vue {
 
   async mounted() {
     this.initialEditor();
+    let fileInput = <HTMLInputElement>document.getElementById("fileInput");
+    fileInput!.addEventListener("change", () => {
+      var file = fileInput!.files![0];
+      var reader = new FileReader();
+      let _this = this;
+      reader.onload = function() {
+        _this.editor.setValue(<string>this.result);
+      };
+      reader.readAsText(file, "utf-8");
+    });
   }
 
   async initialEditor() {
@@ -159,6 +170,34 @@ export default class CloseButton extends Vue {
         },
         icon: "mdi-content-save",
         keys: "Ctrl+S",
+      },
+      {
+        action: "导入",
+        handler: () => {
+          document.getElementById("fileInput")!.click();
+        },
+        icon: "mdi-file-import",
+      },
+      {
+        action: "导出",
+        handler: () => {
+          this.$emit<ISaveScript>(EventType.SaveScript, {
+            currentCode: this.editor.getValue(),
+            debug: false,
+          });
+
+          const blob = new Blob([this.editor.getValue()], {
+            type: "text/javascript",
+          });
+          const link = document.createElement("a");
+          link.download = this.script.name + ".user.js";
+          link.style.display = "none";
+          link.href = URL.createObjectURL(blob);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        },
+        icon: "mdi-file-export",
       },
     ],
     操作: [
