@@ -76,9 +76,14 @@ declare function GM_registerMenuCommand(name: string, listener: Function, access
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
-declare function GM_openInTab(url: string, options: GM_Types.OpenTabOptions): void;
-declare function GM_openInTab(url: string, loadInBackground: boolean): void;
-declare function GM_openInTab(url: string): void;
+declare interface tab {
+    close()
+    onclose?: () => void
+}
+
+declare function GM_openInTab(url: string, options: GM_Types.OpenTabOptions): tab;
+declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
+declare function GM_openInTab(url: string): tab;
 
 declare function GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void>;
 

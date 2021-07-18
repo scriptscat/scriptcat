@@ -1,10 +1,10 @@
-import {ScriptCache} from "@App/model/do/script";
-import {Value} from "@App/model/do/value";
-import {addStyle} from "@App/pkg/frontend";
-import {randomInt, randomString} from "@App/pkg/utils";
-import {BrowserMsg} from "../msg-center/browser";
-import {AppEvent, ScriptValueChange} from "../msg-center/event";
-import {Grant} from "./interface";
+import { ScriptCache } from "@App/model/do/script";
+import { Value } from "@App/model/do/value";
+import { addStyle } from "@App/pkg/frontend";
+import { randomInt, randomString } from "@App/pkg/utils";
+import { BrowserMsg } from "../msg-center/browser";
+import { AppEvent, ScriptValueChange } from "../msg-center/event";
+import { Grant } from "./interface";
 
 type Callback = (grant: Grant) => void;
 type FrontendApi = any;
@@ -104,7 +104,7 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({depend: ['CAT_fetchBlob']})
+    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
     public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let param: GM_Types.XHRDetails = {
             method: details.method,
@@ -203,15 +203,15 @@ export class FrontendGrant implements ScriptContext {
         this.postRequest('GM_notification', [data], (grant: Grant) => {
             switch (grant.data.type) {
                 case 'click': {
-                    click && click.apply({id: grant.data.id}, [grant.data.id, grant.data.index])
+                    click && click.apply({ id: grant.data.id }, [grant.data.id, grant.data.index])
                     break;
                 }
                 case 'done': {
-                    done && done.apply({id: grant.data.id}, [grant.data.user, grant.data.id])
+                    done && done.apply({ id: grant.data.id }, [grant.data.user, grant.data.id])
                     break;
                 }
                 case 'create': {
-                    create && create.apply({id: grant.data.id}, [grant.data.id]);
+                    create && create.apply({ id: grant.data.id }, [grant.data.id]);
                 }
             }
         });
@@ -275,7 +275,7 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({depend: ['GM_setValue']})
+    @FrontendGrant.GMFunction({ depend: ['GM_setValue'] })
     public GM_deleteValue(name: string): void {
         GM_setValue(name, undefined);
     }
@@ -292,7 +292,7 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction()
     public GM_addValueChangeListener(name: string, listener: GM_Types.ValueChangeListener): number {
         let id = Math.random() * 10000000;
-        this.valueChangeListener.set(id, {name: name, listener: listener});
+        this.valueChangeListener.set(id, { name: name, listener: listener });
         return id;
     }
 
@@ -301,7 +301,7 @@ export class FrontendGrant implements ScriptContext {
         this.valueChangeListener.delete(listenerId);
     }
 
-    @FrontendGrant.GMFunction({sync: true, depend: ['GM_xmlhttpRequest']})
+    @FrontendGrant.GMFunction({ sync: true, depend: ['GM_xmlhttpRequest'] })
     public fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
         return new Promise(resolve => {
             details.onload = (xhr) => {
@@ -311,10 +311,10 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    public GM_openInTab(url: string, loadInBackground: boolean): void
-    public GM_openInTab(url: string, options: GM_Types.OpenTabOptions): void
-    @FrontendGrant.GMFunction()
-    public GM_openInTab(url: string): void {
+    public GM_openInTab(url: string, loadInBackground: boolean): tab
+    public GM_openInTab(url: string, options: GM_Types.OpenTabOptions): tab
+    @FrontendGrant.GMFunction({ depend: ["GM_closeInTab"] })
+    public GM_openInTab(url: string): tab {
         let option: GM_Types.OpenTabOptions = {};
         if (arguments.length == 1) {
             option.active = true;
@@ -325,7 +325,28 @@ export class FrontendGrant implements ScriptContext {
                 option = arguments[1];
             }
         }
-        this.postRequest('GM_openInTab', [url, option]);
+        let tabid: any;
+        let ret: tab = {
+            close: () => {
+                this.GM_closeInTab(tabid);
+            }
+        };
+        this.postRequest('GM_openInTab', [url, option], grant => {
+            switch (grant.data.type) {
+                case 'tabid':
+                    tabid = grant.data.tabId
+                    break;
+                case 'close':
+                    ret.onclose && ret.onclose();
+                    break;
+            }
+        });
+        return ret;
+    }
+
+    @FrontendGrant.GMFunction()
+    protected GM_closeInTab(tabId: any) {
+        this.postRequest('GM_closeInTab', [tabId]);
     }
 
     @FrontendGrant.GMFunction()
@@ -346,7 +367,7 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction()
     public GM_registerMenuCommand(name: string, listener: Function, accessKey?: string): number {
         let id = randomInt(1, 100000);
-        this.postRequest('GM_registerMenuCommand', [{name: name, accessKey: accessKey, id: id}], (grant: Grant) => {
+        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], (grant: Grant) => {
             listener();
         });
         return id;
@@ -354,7 +375,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_unregisterMenuCommand(id: number): void {
-        this.postRequest('GM_unregisterMenuCommand', [{id: id}]);
+        this.postRequest('GM_unregisterMenuCommand', [{ id: id }]);
     }
 }
 

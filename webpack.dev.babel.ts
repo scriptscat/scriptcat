@@ -6,8 +6,6 @@ const home = __dirname + "/src";
 
 export default merge(common, {
     entry: {
-        background: home + "/background.ts",
-        sandbox: home + "/sandbox.ts",
         options: home + "/options.tsx",
         popup: home + "/popup.ts",
         install: home + "/install.ts",

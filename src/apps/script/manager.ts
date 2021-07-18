@@ -367,7 +367,7 @@ export class ScriptManager {
             if (msg !== 'runScript') {
                 return;
             }
-            if (!detail.url) {
+            if (!detail.url || !detail.tab || detail.tab.id! <= 0) {
                 return;
             }
             let scripts = this.match.match(detail.url);

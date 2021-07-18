@@ -8,6 +8,8 @@ const home = __dirname + "/src";
 
 const config: Configuration = {
     entry: {
+        background: home + "/background.ts",
+        sandbox: home + "/sandbox.ts",
         content: home + "/content.ts",
         injected: home + "/injected.ts",
     },

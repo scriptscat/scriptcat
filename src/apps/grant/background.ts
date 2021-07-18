@@ -538,17 +538,43 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction()
+
+    protected static tabMap = new Map<number, Array<any>>();
+    @BackgroundGrant.GMFunction({
+        listener: () => {
+            chrome.tabs.onRemoved.addListener(tabId => {
+                let tab = BackgroundGrant.tabMap.get(tabId);
+                if (tab) {
+                    tab[0].data = { type: 'close' }
+                    tab[1].postMessage(tab[0]);
+                    BackgroundGrant.tabMap.delete(tabId);
+                }
+            })
+        }, alias: ["GM_closeInTab"]
+    })
     protected GM_openInTab(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             let param: GM_Types.OpenTabOptions = grant.params[1] || {};
             chrome.tabs.create({
                 url: grant.params[0],
                 active: param.active || false,
+            }, tab => {
+                grant.data = { type: 'tabid', tabId: tab.id };
+                resolve(grant);
+                BackgroundGrant.tabMap.set(tab.id!, [grant, post]);
             });
-            return resolve(undefined);
         });
     }
+
+    // 隐藏函数
+    @BackgroundGrant.GMFunction({ default: true })
+    protected GM_closeInTab(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise(resolve => {
+            chrome.tabs.remove(grant.params[0]);
+            resolve(undefined);
+        })
+    }
+
 
     @BackgroundGrant.GMFunction({
         listener: () => {
