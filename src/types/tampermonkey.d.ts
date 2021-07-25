@@ -79,6 +79,8 @@ declare function GM_unregisterMenuCommand(id: number): void;
 declare interface tab {
     close()
     onclose?: () => void
+    closed?: boolean
+    name?: string
 }
 
 declare function GM_openInTab(url: string, options: GM_Types.OpenTabOptions): tab;

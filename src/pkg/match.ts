@@ -46,7 +46,7 @@ export class Match<T> {
             re += u.path.replace(/\*/g, '.*?');
         }
         if (u.search) {
-            re += u.search.replace('*', '.+?');
+            re += u.search.replace(/([\?])/g, "\\$1").replace("*", '.*?');
         }
         return re.replace(/\//g, "\/") + '$';
     }

@@ -13,6 +13,7 @@ describe("UrlMatch", () => {
     url.add("*://*/test/param?*", "ok7")
     url.add("i.tampermonkey.net.cn/*", "ok8")
     url.add("*i.tampermonkey.net.cn/*", "ok9")
+    url.add("http://bbs.tampermonkey.net.cn/test?id=*", "ok10")
     it("match", () => {
         expect(url.match("https://www.baidu.com")).toEqual(["ok"]);
         expect(url.match("https://m.baidu.com")).toEqual(["ok"]);
@@ -34,12 +35,14 @@ describe("UrlMatch", () => {
         expect(url.match("https://bbs.tampermonkey.net.cn/")).toEqual(["ok6"]);
         expect(url.match("https://bbs.tampermonkey.net.cn/test/param?a=1&b=2")).
             toEqual(["ok6", "ok66", "ok7"]);
-        expect(url.match("https://www.baidu.com/test/param")).
+        expect(url.match("https://www.baidu.com/test/param?id=123")).
             toEqual(["ok7"]);
         expect(url.match("https://i.tampermonkey.net.cn/aa")).
             toEqual(["ok8", "ok9"]);
         expect(url.match("https://wwi.tampermonkey.net.cn/aa")).
             toEqual(["ok9"]);
+        expect(url.match("http://bbs.tampermonkey.net.cn/test?id=1234124")).
+            toEqual(["ok10"]);
     });
     it("delete", () => {
         url.del("ok5");

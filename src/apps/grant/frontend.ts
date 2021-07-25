@@ -329,15 +329,17 @@ export class FrontendGrant implements ScriptContext {
         let ret: tab = {
             close: () => {
                 this.GM_closeInTab(tabid);
-            }
+            },
         };
         this.postRequest('GM_openInTab', [url, option], grant => {
             switch (grant.data.type) {
                 case 'tabid':
                     tabid = grant.data.tabId
+                    ret.closed = false;
                     break;
                 case 'close':
                     ret.onclose && ret.onclose();
+                    ret.closed = true;
                     break;
             }
         });
