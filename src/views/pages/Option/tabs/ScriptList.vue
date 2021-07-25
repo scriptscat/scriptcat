@@ -73,26 +73,81 @@
       </template>
 
       <template v-slot:[`item.site`]="{ item }">
-        <span v-if="item.type === 1">
-          {{ item.site }}
-        </span>
-        <span v-else style="cursor: pointer" @click="showLog(item)">
-          <v-tooltip top>
-            <template v-slot:activator="{ on, attrs }">
-              <span v-bind="attrs" v-on="on">
-                {{
-                  $t("script.runStatus." + (item.runStatus || "complete"))
-                }}</span
-              >
-            </template>
-            <span v-if="item.type == 2 && item.metadata['crontab']">
-              定时脚本,下一次运行时间:{{
-                nextTime(item.metadata["crontab"][0])
-              }}
-            </span>
-            <span v-else> 后台脚本,会在扩展开启时自动执行 </span>
-          </v-tooltip>
-        </span>
+        <v-tooltip top>
+          <template v-slot:activator="{ on, attrs }">
+            <v-chip
+              v-bind="attrs"
+              v-on="on"
+              v-if="item.runStatus == 'running'"
+              class="ma-2"
+              color="primary"
+              outlined
+              label
+              small
+            >
+              <v-progress-circular
+                :width="2"
+                :size="15"
+                indeterminate
+                color="primary"
+                style="margin-right: 4px"
+              ></v-progress-circular>
+              {{ $t("script.runStatus.running") }}
+            </v-chip>
+            <v-chip
+              v-bind="attrs"
+              v-on="on"
+              v-else-if="item.runStatus == 'error'"
+              class="ma-2"
+              color="error"
+              outlined
+              label
+              small
+            >
+              <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
+              {{ $t("script.runStatus.error") }}
+            </v-chip>
+            <v-chip
+              v-bind="attrs"
+              v-on="on"
+              v-else-if="item.type != 1 && item.runStatus == 'complete'"
+              class="ma-2"
+              color="success"
+              outlined
+              label
+              small
+            >
+              <v-icon
+                left
+                v-text="icons.mdiClockTimeFourOutline"
+                small
+              ></v-icon>
+              {{ $t("script.runStatus.complete") }}
+            </v-chip>
+            <v-chip
+              v-bind="attrs"
+              v-on="on"
+              v-else-if="item.type == 1"
+              class="ma-2"
+              color="#5cbbf6"
+              outlined
+              label
+              small
+            >
+              <v-icon left small>mdi-application</v-icon>
+              页面脚本
+            </v-chip>
+          </template>
+          <span v-if="item.type == 2 && item.metadata['crontab']">
+            定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
+          </span>
+          <span v-else-if="item.type == 3">
+            后台脚本,会在扩展开启时自动执行
+          </span>
+          <span v-else-if="item.type == 1">
+            前台页面脚本,会在指定的页面上运行
+          </span>
+        </v-tooltip>
       </template>
 
       <template v-slot:[`item.feature`]="{ item }">
@@ -351,11 +406,12 @@ import eventBus from "@App/views/EventBus";
 import { Page, AllPage, nextTime } from "@App/pkg/utils";
 import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
-import { AppEvent, ScriptValueChange } from "@App/apps/msg-center/event";
-import { CronTime } from "cron";
+import { ScriptValueChange } from "@App/apps/msg-center/event";
 import EventType from "../EventType";
 import { ScriptController } from "@App/apps/script/controller";
 import { Log } from "@App/model/do/logger";
+
+import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -374,6 +430,11 @@ export default class ScriptList extends Vue {
   scriptController: ScriptController = new ScriptController();
   protected scripts: Script[] = [];
   selected: Script[] = [];
+
+  icons = {
+    mdiClockTimeFourOutline: mdiClockTimeFourOutline,
+    mdiAlertCircleOutline: mdiAlertCircleOutline,
+  };
 
   multipleAction: typeof multipleActionTypes[number] = "删除";
   multipleFilter = null;
