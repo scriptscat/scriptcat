@@ -7,6 +7,7 @@ build/scriptcat/src/*.css
 
 *.zip
 *.crx
+*.pem
 manifest_firefox.json
 manifest_chrome.json
 scriptcat_firefox

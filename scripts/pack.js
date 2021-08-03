@@ -1,6 +1,7 @@
 const fs = require("fs");
-var AdmZip = require("adm-zip");
-var pjson = require('../package.json');
+const AdmZip = require("adm-zip");
+const pjson = require('../package.json');
+const ChromeExtension = require('crx');
 const { execSync } = require("child_process");
 
 // 处理manifest version
@@ -51,7 +52,7 @@ delete jsonFirefox['debugger'];
 // jsonFirefox['content_security_policy'] = "script-src 'self' 'unsafe-eval'; object-src 'self'";
 fs.writeFileSync("./build/manifest_firefox.json", JSON.stringify(jsonFirefox));
 
-delete jsonChrome['content_security_policy'];
+// delete jsonChrome['content_security_policy'];
 fs.writeFileSync("./build/manifest_chrome.json", JSON.stringify(jsonChrome));
 
 let chrome = new AdmZip();
@@ -69,3 +70,13 @@ firefox.addLocalFolder("./build/scriptcat", ".", (filename) => {
 
 chrome.writeZip("./build/scriptcat.zip");
 firefox.writeZip("./build/scriptcat_firefox.zip");
+// 处理crx
+const crx = new ChromeExtension({
+    privateKey: fs.readFileSync('./build/scriptcat.pem')
+});
+
+crx.load('./build/scriptcat').then((crx) => crx.pack()).then((crxBuffer) => {
+    fs.writeFileSync('./build/scriptcat.crx', crxBuffer);
+}).catch((err) => {
+    console.error(err);
+});

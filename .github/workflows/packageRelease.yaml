@@ -28,6 +28,8 @@ jobs:
 
     - name: Package with Node
       run: |
+        echo "$CHROME_PEM" > ./build/cxmooc-tools.pem
+        chmod 600 ./build/cxmooc-tools.pem
         npm ci  
         npm test
         npm run pack
@@ -55,3 +57,14 @@ jobs:
         asset_path: ./build/scriptcat.zip
         asset_name: scriptcat.zip
         asset_content_type: application/zip
+
+    - name: Upload Release Asset crx
+      id: upload-release-asset-crx
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/scriptcat.crx
+        asset_name: scriptcat.crx
+        asset_content_type: application/octet-stream
