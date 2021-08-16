@@ -5,7 +5,6 @@
 // @description  try to take over the world!
 // @author       You
 // @crontab      * * once * *
-// @console log
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {

@@ -5,7 +5,6 @@
 // @description  try to take over the world!
 // @author       You
 // @background
-// @console log
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {

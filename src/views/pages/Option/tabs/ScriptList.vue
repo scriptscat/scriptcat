@@ -188,9 +188,7 @@
             max-width="600"
           >
             <template v-slot:activator="{ on, attrs }">
-              <v-icon small @click="settingItem(item)" v-bind="attrs" v-on="on">
-                mdi-settings
-              </v-icon>
+              <v-icon small v-bind="attrs" v-on="on"> mdi-settings </v-icon>
             </template>
             <template v-slot:default="dialog">
               <v-card>
@@ -310,6 +308,7 @@
           >
             mdi-stop
           </v-icon>
+          <BgCloud :script="item" />
         </span>
       </template>
 
@@ -413,6 +412,8 @@ import { Log } from "@App/model/do/logger";
 
 import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
 
+import BgCloud from "@components/BgCloud.vue";
+
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
@@ -425,7 +426,9 @@ const multipleActionTypes = [
   "删除",
 ] as const;
 
-@Component({})
+@Component({
+  components: { BgCloud },
+})
 export default class ScriptList extends Vue {
   scriptController: ScriptController = new ScriptController();
   protected scripts: Script[] = [];
@@ -708,8 +711,6 @@ export default class ScriptList extends Vue {
     this.editedItem = Object.assign({}, item);
     this.dialogDelete = true;
   }
-
-  settingItem(item: any) {}
 
   async deleteItemConfirm() {
     await this.scriptController.uninstall(this.editedItem.id);

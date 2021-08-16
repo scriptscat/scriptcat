@@ -189,7 +189,7 @@ declare namespace GM_Types {
     type Listener<OBJ> = (event: OBJ) => any;
 
     interface XHRDetails {
-        method?: "GET" | "HEAD" | "POST"
+        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE"
         url: string
         headers?: { [key: string]: string }
         data?: string
@@ -211,6 +211,7 @@ declare namespace GM_Types {
         onprogress?: Listener<XHRProgress>,
         onreadystatechange?: Listener<XHRResponse>,
         ontimeout?: Function,
+        //TODO
         onabort?: Function,
         onerror?: Function
     }
