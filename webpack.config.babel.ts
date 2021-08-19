@@ -12,10 +12,6 @@ const home = __dirname + "/src";
 
 const config: Configuration = {
     entry: {
-        background: home + "/background.ts",
-        sandbox: home + "/sandbox.ts",
-        content: home + "/content.ts",
-        injected: home + "/injected.ts",
         options: home + "/options.tsx",
         popup: home + "/popup.ts",
         install: home + "/install.ts",
@@ -183,7 +179,7 @@ const config: Configuration = {
                 ],
             },
             {
-                test: /\.ttf$/,
+                test: /\.(ttf|eot|svg|woff|woff2)$/,
                 use: ["file-loader"],
             },
         ],

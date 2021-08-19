@@ -39,6 +39,7 @@
         "@babel/preset-env": "^7.13.10",
         "@babel/preset-typescript": "^7.13.0",
         "@babel/register": "^7.13.8",
+        "@mdi/font": "^5.9.55",
         "@mdi/js": "^5.9.55",
         "@types/chrome": "0.0.127",
         "@types/cron": "^1.7.2",

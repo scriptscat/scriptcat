@@ -3,6 +3,7 @@ import { en } from './en';
 import VueI18n from 'vue-i18n';
 import Vuetify from "vuetify";
 import Vue from "vue";
+// import '@mdi/font/css/materialdesignicons.css' 
 
 Vue.use(VueI18n);
 Vue.use(Vuetify);
