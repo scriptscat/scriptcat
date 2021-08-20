@@ -75,68 +75,75 @@
       <template v-slot:[`item.site`]="{ item }">
         <v-tooltip top>
           <template v-slot:activator="{ on, attrs }">
-            <v-chip
-              v-bind="attrs"
-              v-on="on"
-              v-if="item.runStatus == 'running'"
-              class="ma-2"
-              color="primary"
-              outlined
-              label
-              small
-            >
-              <v-progress-circular
-                :width="2"
-                :size="15"
-                indeterminate
-                color="primary"
-                style="margin-right: 4px"
-              ></v-progress-circular>
-              {{ $t("script.runStatus.running") }}
-            </v-chip>
-            <v-chip
-              v-bind="attrs"
-              v-on="on"
-              v-else-if="item.runStatus == 'error'"
-              class="ma-2"
-              color="error"
-              outlined
-              label
-              small
-            >
-              <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
-              {{ $t("script.runStatus.error") }}
-            </v-chip>
-            <v-chip
-              v-bind="attrs"
-              v-on="on"
-              v-else-if="item.type != 1 && item.runStatus == 'complete'"
-              class="ma-2"
-              color="success"
-              outlined
-              label
-              small
-            >
-              <v-icon
-                left
-                v-text="icons.mdiClockTimeFourOutline"
+            <div v-if="item.type == 1">
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                class="ma-2"
+                color="#5cbbf6"
+                outlined
+                label
                 small
-              ></v-icon>
-              {{ $t("script.runStatus.complete") }}
-            </v-chip>
-            <v-chip
-              v-bind="attrs"
-              v-on="on"
-              v-else-if="item.type == 1"
-              class="ma-2"
-              color="#5cbbf6"
-              outlined
-              label
-              small
-            >
-              <v-icon left small>mdi-application</v-icon>
-              页面脚本
-            </v-chip>
+              >
+                <v-icon left small>mdi-application</v-icon>
+                页面脚本
+              </v-chip>
+            </div>
+            <div v-else @click="showLog(item)" class="site">
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                v-if="item.runStatus == 'running'"
+                class="ma-2"
+                color="primary"
+                outlined
+                label
+                small
+              >
+                <v-progress-circular
+                  :width="2"
+                  :size="15"
+                  indeterminate
+                  color="primary"
+                  style="margin-right: 4px"
+                ></v-progress-circular>
+                {{ $t("script.runStatus.running") }}
+              </v-chip>
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                v-else-if="item.runStatus == 'error'"
+                class="ma-2"
+                color="error"
+                outlined
+                label
+                small
+              >
+                <v-icon
+                  left
+                  v-text="icons.mdiAlertCircleOutline"
+                  small
+                ></v-icon>
+                {{ $t("script.runStatus.error") }}
+              </v-chip>
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                v-else-if="item.type != 1 && item.runStatus == 'complete'"
+                class="ma-2"
+                color="success"
+                outlined
+                label
+                small
+              >
+                <v-icon
+                  left
+                  v-text="icons.mdiClockTimeFourOutline"
+                  small
+                ></v-icon>
+                {{ $t("script.runStatus.complete") }}
+              </v-chip>
+            </div>
           </template>
           <span v-if="item.type == 2 && item.metadata['crontab']">
             定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
@@ -308,7 +315,7 @@
           >
             mdi-stop
           </v-icon>
-          <BgCloud :script="item" />
+          <BgCloud v-if="item.type !== 1" :script="item" />
         </span>
       </template>
 
@@ -758,5 +765,9 @@ export default class ScriptList extends Vue {
 
 .action-buttons .v-icon {
   margin-right: 5px;
+}
+
+.site > .v-chip {
+  cursor: pointer;
 }
 </style>

@@ -1,13 +1,7 @@
 <template>
-  <v-dialog
-    v-if="script.type !== 1"
-    transition="dialog-bottom-transition"
-    max-width="600"
-  >
+  <v-dialog transition="dialog-bottom-transition" max-width="600">
     <template v-slot:activator="{ on, attrs }">
-      <v-icon small @click="popup()" v-bind="attrs" v-on="on">
-        mdi-cloud-upload
-      </v-icon>
+      <v-icon small v-bind="attrs" v-on="on"> mdi-cloud-upload </v-icon>
     </template>
     <template v-slot:default="dialog">
       <v-card>
@@ -34,16 +28,26 @@
           ></v-select>
 
           <v-textarea
+            label="值导出表达式"
+            rows="2"
+            row-height="2"
+            :value="exportValue"
+          ></v-textarea>
+
+          <v-textarea
             label="Cookie导出表达式"
             rows="2"
             row-height="2"
+            :value="exportCookie"
           ></v-textarea>
 
           <div v-if="dest == 'local'"></div>
           <div v-else-if="dest == 'remote'"></div>
         </div>
         <v-card-actions class="justify-end">
-          <v-btn text color="success">{{ btnText[dest] || "上传" }}</v-btn>
+          <v-btn text color="success" @click="submit">{{
+            btnText[dest] || "提交"
+          }}</v-btn>
         </v-card-actions>
       </v-card>
     </template>
@@ -53,13 +57,16 @@
 <script lang="ts">
 import { Script } from "@App/model/do/script";
 import { Component, Prop, Vue } from "vue-property-decorator";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 @Component({})
 export default class ResizableEditor extends Vue {
   @Prop()
   script!: Script;
 
-  popup() {}
+  exportCookie: string = "";
+  exportValue: string = "";
 
   dest: string = "local";
   dests = [
@@ -68,5 +75,41 @@ export default class ResizableEditor extends Vue {
     // { key: "self", value: "自建服务器" },
   ];
   btnText = { local: "导出" };
+
+  mounted() {
+    this.script.metadata["exportcookie"] &&
+      this.script.metadata["exportcookie"].forEach((val) => {
+        this.exportCookie += val + "\n";
+      });
+    this.script.metadata["exportvalue"] &&
+      this.script.metadata["exportvalue"].forEach((val) => {
+        this.exportValue += val + "\n";
+      });
+  }
+
+  submit() {
+    switch (this.dest) {
+      case "local":
+        this.local();
+        break;
+    }
+  }
+
+  local() {
+    let zip = this.pack();
+    zip.generateAsync({ type: "blob" }).then((content) => {
+      saveAs(content, this.script.name + ".zip");
+    });
+  }
+
+  pack() {
+    let zip = new JSZip();
+    zip.file("userScript.js", this.script.code);
+    let params = this.exportCookie.split(";");
+
+    // zip.file("cookie.json");
+    // zip.file("value.json");
+    return zip;
+  }
 }
 </script>
