@@ -515,7 +515,13 @@ export class BackgroundGrant {
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
             // url或者域名不能为空,且必须有name
-            if ((!detail.url && !detail.domain) || !detail.name) {
+            if (detail.url) {
+                detail.url = detail.url.trim();
+            }
+            if (detail.domain) {
+                detail.domain = detail.domain.trim();
+            }
+            if ((!detail.url && !detail.domain) || !detail.name.trim()) {
                 return resolve(undefined);
             }
             switch (param[0]) {

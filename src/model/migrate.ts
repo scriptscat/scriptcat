@@ -38,4 +38,7 @@ export function migrate() {
             script.sort = 0;
         });
     });
+    db.version(11).stores({
+        export: "++id,&uuid,scriptId"
+    });
 }

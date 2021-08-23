@@ -15,9 +15,10 @@
           </v-toolbar-items>
         </v-toolbar>
         <div style="padding: 10px; box-sizing: border-box">
+          <v-input :v-model="exportConfig.uuid" disabled> </v-input>
           <v-select
             label="上传至"
-            v-model="dest"
+            v-model="exportConfig.dest"
             :items="dests"
             item-text="value"
             item-value="key"
@@ -28,25 +29,37 @@
           ></v-select>
 
           <v-textarea
+            v-model="exportConfig.exportValue"
             label="值导出表达式"
             rows="2"
             row-height="2"
-            :value="exportValue"
+            hide-details
           ></v-textarea>
-
+          <v-checkbox
+            v-model="exportConfig.overwriteValue"
+            label="导入时覆盖原值"
+            color="success"
+            hide-details
+          ></v-checkbox>
           <v-textarea
+            v-model="exportConfig.exportCookie"
             label="Cookie导出表达式"
             rows="2"
             row-height="2"
-            :value="exportCookie"
+            hide-details
           ></v-textarea>
-
-          <div v-if="dest == 'local'"></div>
-          <div v-else-if="dest == 'remote'"></div>
+          <v-checkbox
+            v-model="exportConfig.overwriteCookie"
+            label="导入时覆盖原Cookie"
+            color="success"
+            hide-details
+          ></v-checkbox>
+          <div v-if="exportConfig.dest == 'local'"></div>
+          <div v-else-if="exportConfig.dest == 'remote'"></div>
         </div>
         <v-card-actions class="justify-end">
           <v-btn text color="success" @click="submit">{{
-            btnText[dest] || "提交"
+            btnText[exportConfig.dest] || "提交"
           }}</v-btn>
         </v-card-actions>
       </v-card>
@@ -59,57 +72,164 @@ import { Script } from "@App/model/do/script";
 import { Component, Prop, Vue } from "vue-property-decorator";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-
+import { ValueModel } from "@App/model/value";
+import { ExportModel } from "@App/model/export";
+import { Value } from "@App/model/do/value";
+import { Export, EXPORT_DEST_LOCAL } from "@App/model/do/export";
+import { v4 as uuidv4 } from "uuid";
 @Component({})
 export default class ResizableEditor extends Vue {
   @Prop()
   script!: Script;
+  exportConfig: Export = {
+    id: 0,
+    uuid: "",
+    scriptId: 0,
+    dest: 1,
+    overwriteValue: false,
+    overwriteCookie: false,
+    exportCookie: "",
+    exportValue: "",
+  };
 
-  exportCookie: string = "";
-  exportValue: string = "";
+  exportModel = new ExportModel();
+  valueModel = new ValueModel();
 
-  dest: string = "local";
   dests = [
-    { key: "local", value: "本地" },
+    { key: EXPORT_DEST_LOCAL, value: "本地" },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
   ];
-  btnText = { local: "导出" };
 
-  mounted() {
-    this.script.metadata["exportcookie"] &&
-      this.script.metadata["exportcookie"].forEach((val) => {
-        this.exportCookie += val + "\n";
-      });
-    this.script.metadata["exportvalue"] &&
-      this.script.metadata["exportvalue"].forEach((val) => {
-        this.exportValue += val + "\n";
-      });
+  btnText = { 1: "导出" };
+
+  async mounted() {
+    let e = await this.exportModel.findOne({
+      scriptId: this.script.id,
+      dest: this.exportConfig.dest,
+    });
+    if (e) {
+      this.exportConfig = e;
+    } else {
+      let exportCookie = "";
+      this.script.metadata["exportcookie"] &&
+        this.script.metadata["exportcookie"].forEach((val) => {
+          exportCookie += val + "\n";
+        });
+      let exportValue = "";
+      this.script.metadata["exportvalue"] &&
+        this.script.metadata["exportvalue"].forEach((val) => {
+          exportValue += val + "\n";
+        });
+
+      this.exportConfig = {
+        id: 0,
+        uuid: uuidv4(),
+        scriptId: this.script.id,
+        dest: this.exportConfig.dest,
+        overwriteValue: false,
+        overwriteCookie: false,
+        exportCookie: exportCookie,
+        exportValue: exportValue,
+      };
+      this.exportModel.save(this.exportConfig);
+    }
   }
 
   submit() {
-    switch (this.dest) {
-      case "local":
+    switch (this.exportConfig.dest) {
+      case EXPORT_DEST_LOCAL:
         this.local();
         break;
     }
   }
 
-  local() {
-    let zip = this.pack();
+  async local() {
+    let zip = await this.pack();
+    this.exportModel.save(this.exportConfig);
     zip.generateAsync({ type: "blob" }).then((content) => {
       saveAs(content, this.script.name + ".zip");
     });
   }
 
-  pack() {
-    let zip = new JSZip();
-    zip.file("userScript.js", this.script.code);
-    let params = this.exportCookie.split(";");
+  pack(): Promise<JSZip> {
+    return new Promise(async (resolve) => {
+      let zip = new JSZip();
+      zip.file("userScript.js", this.script.code);
+      let lines = this.exportConfig.exportCookie.split("\n");
+      let cookies: chrome.cookies.Cookie[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        let val = lines[0];
+        let detail: any = {};
+        val.split(";").forEach((param) => {
+          let s = param.split("=");
+          if (s.length != 2) {
+            return;
+          }
+          detail[s[0]] = s[1].trim();
+        });
+        if (!detail.url && !detail.domain) {
+          continue;
+        }
+        cookies.push(...(await this.getCookie(detail)));
+      }
+      cookies.length > 0 && zip.file("cookie.json", JSON.stringify(cookies));
 
-    // zip.file("cookie.json");
-    // zip.file("value.json");
-    return zip;
+      lines = this.exportConfig.exportValue.split("\n");
+      let values: Value[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        let val = lines[0];
+        let keys = val.split(",");
+        for (let n = 0; n < keys.length; n++) {
+          let value = await this.getValue(keys[n]);
+          if (value) {
+            values.push(value);
+          }
+        }
+      }
+      zip.file("value.json", JSON.stringify(values));
+      zip.file(
+        "config.json",
+        JSON.stringify({
+          uuid: this.exportConfig.uuid,
+          overwrite: {
+            value: this.exportConfig.overwriteValue,
+            cookie: this.exportConfig.overwriteCookie,
+          },
+        })
+      );
+      resolve(zip);
+    });
+  }
+
+  getCookie(detail: any): Promise<chrome.cookies.Cookie[]> {
+    return new Promise((resolve) => {
+      chrome.cookies.getAll(detail, (cookies) => {
+        resolve(cookies);
+      });
+    });
+  }
+
+  getValue(key: any): Promise<any> {
+    return new Promise(async (resolve) => {
+      let model: Value | undefined;
+      if (this.script.namespace) {
+        model = await this.valueModel.findOne({
+          namespace: this.script.namespace,
+          key: key,
+        });
+      } else {
+        model = await this.valueModel.findOne({
+          scriptId: this.script,
+          key: key,
+        });
+      }
+      if (model) {
+        resolve(model);
+      } else {
+        resolve(undefined);
+      }
+    });
   }
 }
 </script>

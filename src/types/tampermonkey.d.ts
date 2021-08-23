@@ -133,7 +133,7 @@ declare namespace GM_Types {
     type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
 
     interface CookieDetails {
-        url: string
+        url?: string
         name: string
         value?: string
         domain?: string
