@@ -77,6 +77,7 @@ import { ExportModel } from "@App/model/export";
 import { Value } from "@App/model/do/value";
 import { Export, EXPORT_DEST_LOCAL } from "@App/model/do/export";
 import { v4 as uuidv4 } from "uuid";
+import { ExtVersion } from "@App/apps/config";
 @Component({})
 export default class ResizableEditor extends Vue {
   @Prop()
@@ -157,7 +158,8 @@ export default class ResizableEditor extends Vue {
       let zip = new JSZip();
       zip.file("userScript.js", this.script.code);
       let lines = this.exportConfig.exportCookie.split("\n");
-      let cookies: chrome.cookies.Cookie[] = [];
+      let cookies: { [key: string]: chrome.cookies.Cookie[] } = {};
+      let cookie = false;
       for (let i = 0; i < lines.length; i++) {
         let val = lines[0];
         let detail: any = {};
@@ -171,9 +173,15 @@ export default class ResizableEditor extends Vue {
         if (!detail.url && !detail.domain) {
           continue;
         }
-        cookies.push(...(await this.getCookie(detail)));
+        cookie = true;
+        if (detail.url) {
+          let u = new URL(detail.url);
+          cookies[u.host] = await this.getCookie(detail);
+        } else {
+          cookies[detail.domain] = await this.getCookie(detail);
+        }
       }
-      cookies.length > 0 && zip.file("cookie.json", JSON.stringify(cookies));
+      cookie && zip.file("cookie.json", JSON.stringify(cookies));
 
       lines = this.exportConfig.exportValue.split("\n");
       let values: Value[] = [];
@@ -191,6 +199,7 @@ export default class ResizableEditor extends Vue {
       zip.file(
         "config.json",
         JSON.stringify({
+          version: ExtVersion,
           uuid: this.exportConfig.uuid,
           overwrite: {
             value: this.exportConfig.overwriteValue,

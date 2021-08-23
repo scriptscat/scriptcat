@@ -315,7 +315,7 @@
           >
             mdi-stop
           </v-icon>
-          <BgCloud v-if="item.type !== 1" :script="item" />
+          <BgCloud v-if="item.type !== 1 && item.metadata['cloudcat']" :script="item" />
         </span>
       </template>
 
