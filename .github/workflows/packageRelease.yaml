@@ -27,9 +27,11 @@ jobs:
           ${{ runner.OS }}-
 
     - name: Package with Node
+      env:
+        CHROME_PEM: ${{ secrets.CHROME_PEM }}
       run: |
-        echo "$CHROME_PEM" > ./build/cxmooc-tools.pem
-        chmod 600 ./build/cxmooc-tools.pem
+        echo "$CHROME_PEM" > ./build/scriptcat.pem
+        chmod 600 ./build/scriptcat.pem
         npm ci  
         npm test
         npm run pack
