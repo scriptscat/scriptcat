@@ -119,11 +119,7 @@
                 label
                 small
               >
-                <v-icon
-                  left
-                  v-text="icons.mdiAlertCircleOutline"
-                  small
-                ></v-icon>
+                <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
                 {{ $t("script.runStatus.error") }}
               </v-chip>
               <v-chip
@@ -136,11 +132,7 @@
                 label
                 small
               >
-                <v-icon
-                  left
-                  v-text="icons.mdiClockTimeFourOutline"
-                  small
-                ></v-icon>
+                <v-icon left v-text="icons.mdiClockTimeFourOutline" small></v-icon>
                 {{ $t("script.runStatus.complete") }}
               </v-chip>
             </div>
@@ -148,12 +140,8 @@
           <span v-if="item.type == 2 && item.metadata['crontab']">
             定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
           </span>
-          <span v-else-if="item.type == 3">
-            后台脚本,会在扩展开启时自动执行
-          </span>
-          <span v-else-if="item.type == 1">
-            前台页面脚本,会在指定的页面上运行
-          </span>
+          <span v-else-if="item.type == 3"> 后台脚本,会在扩展开启时自动执行 </span>
+          <span v-else-if="item.type == 1"> 前台页面脚本,会在指定的页面上运行 </span>
         </v-tooltip>
       </template>
 
@@ -177,9 +165,7 @@
           indeterminate
           color="primary"
         ></v-progress-circular>
-        <span v-else-if="item.updatetime === -2" style="color: #ff6565"
-          >有更新</span
-        >
+        <span v-else-if="item.updatetime === -2" style="color: #ff6565">有更新</span>
         <span v-else style="cursor: pointer" @click="checkUpdate(item)">
           {{ mapTimeStampToHumanized(item.updatetime) }}</span
         >
@@ -324,28 +310,19 @@
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
-        <v-card-title
-          class="headline"
-          :style="{ display: 'grid', placeItems: 'center' }"
-        >
+        <v-card-title class="headline" :style="{ display: 'grid', placeItems: 'center' }">
           你确定要删除该脚本吗？
         </v-card-title>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="blue darken-1" text @click="closeDelete">取消</v-btn>
-          <v-btn color="blue darken-1" text @click="deleteItemConfirm">
-            确定
-          </v-btn>
+          <v-btn color="blue darken-1" text @click="deleteItemConfirm"> 确定 </v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog
-      v-model="showlog"
-      transition="dialog-bottom-transition"
-      max-width="600"
-    >
+    <v-dialog v-model="showlog" transition="dialog-bottom-transition" max-width="600">
       <template v-slot:default="dialog">
         <v-card>
           <v-toolbar color="primary" dark>
@@ -373,17 +350,13 @@
                   width="1"
                   color="primary"
                 ></v-progress-circular>
-                <span style="color: #1976d2; margin-left: 4px"
-                  >等待日志...</span
-                >
+                <span style="color: #1976d2; margin-left: 4px">等待日志...</span>
               </div>
             </div>
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions class="justify-end">
-            <v-btn text color="error" @click="clearLog(logScript)"
-              >清空日志</v-btn
-            >
+            <v-btn text color="error" @click="clearLog(logScript)">清空日志</v-btn>
           </v-card-actions>
         </v-card>
       </template>
@@ -409,7 +382,8 @@ import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ListenGmLog, ScriptRunStatusChange } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
-import { Page, AllPage, nextTime } from "@App/pkg/utils";
+import { Page, AllPage } from "@App/pkg/utils";
+import { nextTime } from "@App/views/pages/utils";
 import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
 import { ScriptValueChange } from "@App/apps/msg-center/event";
@@ -424,14 +398,7 @@ import BgCloud from "@components/BgCloud.vue";
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
-const multipleActionTypes = [
-  "启用",
-  "禁用",
-  "导出",
-  "更新",
-  "重置",
-  "删除",
-] as const;
+const multipleActionTypes = ["启用", "禁用", "导出", "更新", "重置", "删除"] as const;
 
 @Component({
   components: { BgCloud },
@@ -451,14 +418,7 @@ export default class ScriptList extends Vue {
   filterText = "";
 
   multipleActionTypes = multipleActionTypes;
-  multipleFilterTypes = [
-    "自动",
-    "@name",
-    "@namespace",
-    "@author",
-    "@grant",
-    "@include",
-  ];
+  multipleFilterTypes = ["自动", "@name", "@namespace", "@author", "@grant", "@include"];
 
   rules = [];
 
@@ -516,12 +476,10 @@ export default class ScriptList extends Vue {
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptController
-      .scriptList(undefined, new AllPage())
-      .then(async (result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
+    this.scriptController.scriptList(undefined, new AllPage()).then(async (result) => {
+      this.scripts = result;
+      this.handleScriptConfig(this.scripts);
+    });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
@@ -536,12 +494,10 @@ export default class ScriptList extends Vue {
     eventBus.$on(EventType.UpdateScriptList, () => {
       console.log("on UpdateScriptList");
 
-      this.scriptController
-        .scriptList(undefined, new AllPage())
-        .then((result) => {
-          this.scripts = result;
-          this.handleScriptConfig(this.scripts);
-        });
+      this.scriptController.scriptList(undefined, new AllPage()).then((result) => {
+        this.scripts = result;
+        this.handleScriptConfig(this.scripts);
+      });
     });
 
     MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {

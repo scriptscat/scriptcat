@@ -9,6 +9,8 @@ import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
 import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL } from "./model/do/script";
 import { MapCache } from "./pkg/storage/cache/cache";
+import { get } from "./pkg/utils";
+import { Server } from "./apps/config";
 
 migrate();
 
@@ -65,6 +67,30 @@ setInterval(() => {
             });
         });
 }, 60000);
+
+// 十分钟检查一次扩展更新
+get(Server + "api/v1/system/version", (str) => {
+    chrome.storage.local.get(['oldNotice'], items => {
+        let resp = JSON.parse(str);
+        if (resp.data.notice !== items['oldNotice']) {
+            chrome.storage.local.set({
+                notice: resp.data.notice
+            });
+        }
+    });
+});
+setInterval(() => {
+    get(Server + "api/v1/system/version", (str) => {
+        chrome.storage.local.get(['oldNotice'], items => {
+            let resp = JSON.parse(str);
+            if (resp.data.notice !== items['oldNotice']) {
+                chrome.storage.local.set({
+                    notice: resp.data.notice
+                });
+            }
+        });
+    });
+}, 600000)
 
 
 process.env.NODE_ENV === "production" && chrome.runtime.onInstalled.addListener((details) => {

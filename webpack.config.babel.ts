@@ -12,6 +12,8 @@ const home = __dirname + "/src";
 
 const config: Configuration = {
     entry: {
+        background: home + "/background.ts",
+        sandbox: home + "/sandbox.ts",
         options: home + "/options.tsx",
         popup: home + "/popup.ts",
         install: home + "/install.ts",

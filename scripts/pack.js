@@ -47,8 +47,8 @@ let jsonFirefox = JSON.parse(jsonStr);
 let jsonChrome = JSON.parse(jsonStr);
 
 delete jsonFirefox['sandbox'];
-delete jsonFirefox['background'];
-delete jsonFirefox['debugger'];
+// delete jsonFirefox['background'];
+// delete jsonFirefox['debugger'];
 // jsonFirefox['content_security_policy'] = "script-src 'self' 'unsafe-eval'; object-src 'self'";
 fs.writeFileSync("./build/manifest_firefox.json", JSON.stringify(jsonFirefox));
 

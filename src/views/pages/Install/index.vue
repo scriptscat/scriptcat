@@ -18,7 +18,7 @@
             hide-details
             flat
             @change="changeStatus(script)"
-            style="display:inline-block"
+            style="display: inline-block"
             label="开启脚本"
           >
           </v-switch>
@@ -26,15 +26,10 @@
         <div class="text-subtitle-2" v-if="script.metadata['author']">
           作者: {{ script.metadata["author"][0] }}
         </div>
-        <div class="text-subtitle-2" v-if="desctiption">
-          脚本描述: {{ desctiption }}
-        </div>
-        <div
-          class="text-subtitle-2"
-          style="max-height: 110px;overflow: hidden;"
-        >
+        <div class="text-subtitle-2" v-if="desctiption">脚本描述: {{ desctiption }}</div>
+        <div class="text-subtitle-2" style="max-height: 110px; overflow: hidden">
           安装来源:
-          <span style="word-wrap:break-word; word-break:break-all;">{{
+          <span style="word-wrap: break-word; word-break: break-all">{{
             script.origin
           }}</span>
         </div>
@@ -61,10 +56,7 @@
           <span class="text-subtitle-1 d-flex"
             ><span class="justify-start" style="flex: 1" v-if="version"
               >安装版本:{{ version }}</span
-            ><span
-              class="justify-start"
-              style="flex: 1"
-              v-if="isupdate && oldVersion"
+            ><span class="justify-start" style="flex: 1" v-if="isupdate && oldVersion"
               >当前版本:{{ oldVersion }}</span
             ></span
           >
@@ -93,7 +85,7 @@
             {{ item }}
           </span>
         </div>
-        <div v-if="isCookie" style="margin-top:6px">
+        <div v-if="isCookie" style="margin-top: 6px">
           <span class="text-subtitle-1" style="color: red">
             请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
           </span>
@@ -139,7 +131,7 @@ import {
 import { ScriptController } from "@App/apps/script/controller";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { RequestInstallInfo } from "@App/apps/msg-center/event";
-import { nextTime } from "@App/pkg/utils";
+import { nextTime } from "@App/views/pages/utils";
 
 @Component({})
 export default class Index extends Vue {
@@ -200,8 +192,7 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
-      this.oldVersion =
-        oldscript.metadata["version"] && oldscript.metadata["version"][0];
+      this.oldVersion = oldscript.metadata["version"] && oldscript.metadata["version"][0];
       document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {

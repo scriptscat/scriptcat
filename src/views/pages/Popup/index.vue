@@ -13,6 +13,22 @@
         <v-icon>mdi-home</v-icon>
       </v-btn>
 
+      <v-badge
+        v-if="oldNotice != notice"
+        bottom
+        color="#ffc03e"
+        dot
+        offset-x="10"
+        offset-y="20"
+      >
+        <v-btn icon @click="showNotice">
+          <v-icon>mdi-message</v-icon>
+        </v-btn>
+      </v-badge>
+      <v-btn v-else icon @click="showNotice">
+        <v-icon>mdi-message</v-icon>
+      </v-btn>
+
       <v-menu bottom left>
         <template v-slot:activator="{ on, attrs }">
           <v-btn dark icon v-bind="attrs" v-on="on">
@@ -39,10 +55,15 @@
         </v-list>
       </v-menu>
     </v-app-bar>
-    <v-main
-      class="content"
-      style="max-height: 500px; overflow-y: scroll; padding: 6px"
-    >
+    <v-main class="content" style="max-height: 500px; overflow-y: scroll; padding: 6px">
+      <v-card
+        id="notice"
+        v-show="isShowNotice"
+        style="position: absolute; z-index: 1000; width: 100%"
+      >
+        <v-card-title>通知</v-card-title>
+        <v-card-text v-html="notice"> </v-card-text>
+      </v-card>
       <v-expansion-panels v-model="panel" multiple>
         <v-expansion-panel>
           <v-expansion-panel-header>当前页运行脚本</v-expansion-panel-header>
@@ -143,42 +164,66 @@ export default class Popup extends Vue {
     },
   ];
 
-  created() {
-    chrome.tabs.query(
-      { active: true, lastFocusedWindow: true },
-      async (tabs) => {
-        MsgCenter.sendMessage(
-          RequestTabRunScript,
-          {
-            tabId: tabs[0].id,
-            url: tabs[0].url,
-          },
-          (val) => {
-            this.scripts = val.run;
-            this.menu = val.runMenu || {};
-            this.bgMenu = val.bgMenu || {};
-            // 将有菜单的后台脚本,放到运行脚本中
-            this.scriptConrtoller
-              .scriptList((where) => {
-                return where
-                  .where("type")
-                  .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
-              })
-              .then((result) => {
-                this.bgScripts = result;
-                let map = new Map();
-                result.forEach((val) => {
-                  map.set(val.id, val);
-                });
-                for (const id in this.bgMenu) {
-                  this.scripts.push(map.get(parseInt(id)));
-                  this.menu[id] = this.bgMenu[id];
-                }
-              });
-          }
-        );
+  notice = "";
+  oldNotice = "";
+  isShowNotice = false;
+
+  showNotice() {
+    this.isShowNotice = true;
+    this.oldNotice = this.notice;
+    chrome.storage.local.set({
+      oldNotice: this.notice,
+    });
+
+    let target = <HTMLElement>document.querySelector("#notice");
+    let h = (e: any) => {
+      if (target != e.target && !target.contains(e.target)) {
+        this.isShowNotice = false;
+        document.body.removeEventListener("click", h);
       }
-    );
+    };
+    setTimeout(() => {
+      document.body.addEventListener("click", h);
+    }, 0);
+  }
+
+  created() {
+    chrome.storage.local.get(["notice", "oldNotice"], (items) => {
+      this.notice = items["notice"];
+      this.oldNotice = items["oldNotice"];
+    });
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
+      MsgCenter.sendMessage(
+        RequestTabRunScript,
+        {
+          tabId: tabs[0].id,
+          url: tabs[0].url,
+        },
+        (val) => {
+          this.scripts = val.run;
+          this.menu = val.runMenu || {};
+          this.bgMenu = val.bgMenu || {};
+          // 将有菜单的后台脚本,放到运行脚本中
+          this.scriptConrtoller
+            .scriptList((where) => {
+              return where
+                .where("type")
+                .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
+            })
+            .then((result) => {
+              this.bgScripts = result;
+              let map = new Map();
+              result.forEach((val) => {
+                map.set(val.id, val);
+              });
+              for (const id in this.bgMenu) {
+                this.scripts.push(map.get(parseInt(id)));
+                this.menu[id] = this.bgMenu[id];
+              }
+            });
+        }
+      );
+    });
   }
 }
 </script>
