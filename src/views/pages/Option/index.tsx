@@ -28,6 +28,7 @@ export default class App extends Vue {
     allTabs: ITabItem[] = [];
 
     created() {
+        eventBus.$on<ICreateScript>(EventType.NewScript, this.handleCreateScript);
         eventBus.$on<INewScript>(EventType.NewScript, this.handleNewScript);
         eventBus.$on<IEditScript>(EventType.EditScript, this.handleEditScript);
         eventBus.$on<IChangeTitle>(EventType.ChangeTitle, this.handleChangeTitle);
@@ -140,6 +141,7 @@ export default class App extends Vue {
             {
                 tabKey: CONFIG_LIST_INDEX,
                 title: "设置",
+                message: "开发中,敬请期待",
                 content: <Config></Config>,
                 closable: false,
                 keepAlive: false,
@@ -194,6 +196,11 @@ export default class App extends Vue {
         this.$nextTick(() => {
             this.activeTab(scriptTabIndex);
         });
+    }
+
+    // 创建新脚本进行编辑
+    handleCreateScript() {
+        this.activeTab(this.allTabs.length - 1);
     }
 
     /** 在原PlusTab中保存了脚本时触发 */
@@ -260,8 +267,6 @@ export default class App extends Vue {
         return (
             <VApp>
                 <v-app-bar color="#1296DB" dense dark>
-                    <v-app-bar-nav-icon></v-app-bar-nav-icon>
-
                     <v-toolbar-title>ScriptCat</v-toolbar-title>
                     <v-spacer></v-spacer>
                 </v-app-bar>

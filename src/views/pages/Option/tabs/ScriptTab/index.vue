@@ -163,16 +163,14 @@ export default class ScriptTab extends Vue {
 
   async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
-    let [
-      newScript,
-      oldScript,
-    ] = await this.scriptController.prepareScriptByCode(
-      currentCode,
-      this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
-    );
+    let [newScript, oldScript] =
+      await this.scriptController.prepareScriptByCode(
+        currentCode,
+        this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
+      );
 
     if (newScript == undefined) {
-      alert("脚本格式错误");
+      alert(oldScript);
       return;
     }
 

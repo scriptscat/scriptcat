@@ -145,7 +145,7 @@ export default class Popup extends Vue {
     {
       title: "获取脚本",
       icon: mdiMagnify,
-      route: "https://bbs.tampermonkey.net.cn/forum-2-1.html",
+      route: "https://scriptcat.org/",
     },
     {
       title: "Bug/问题反馈",

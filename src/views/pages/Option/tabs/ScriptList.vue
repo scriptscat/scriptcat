@@ -119,7 +119,11 @@
                 label
                 small
               >
-                <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
+                <v-icon
+                  left
+                  v-text="icons.mdiAlertCircleOutline"
+                  small
+                ></v-icon>
                 {{ $t("script.runStatus.error") }}
               </v-chip>
               <v-chip
@@ -132,7 +136,11 @@
                 label
                 small
               >
-                <v-icon left v-text="icons.mdiClockTimeFourOutline" small></v-icon>
+                <v-icon
+                  left
+                  v-text="icons.mdiClockTimeFourOutline"
+                  small
+                ></v-icon>
                 {{ $t("script.runStatus.complete") }}
               </v-chip>
             </div>
@@ -140,8 +148,12 @@
           <span v-if="item.type == 2 && item.metadata['crontab']">
             定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
           </span>
-          <span v-else-if="item.type == 3"> 后台脚本,会在扩展开启时自动执行 </span>
-          <span v-else-if="item.type == 1"> 前台页面脚本,会在指定的页面上运行 </span>
+          <span v-else-if="item.type == 3">
+            后台脚本,会在扩展开启时自动执行
+          </span>
+          <span v-else-if="item.type == 1">
+            前台页面脚本,会在指定的页面上运行
+          </span>
         </v-tooltip>
       </template>
 
@@ -154,7 +166,75 @@
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
-        {{ mapSiteToSiteIcon(item.origin) }}
+        <v-tooltip bottom v-if="item.metadata['homepage']">
+          <template v-slot:activator="{ on, attrs }">
+            <v-icon
+              dense
+              @click="gotoLink(item.metadata['homepage'][0])"
+              v-bind="attrs"
+              v-on="on"
+            >
+              mdi-home
+            </v-icon>
+          </template>
+          <span>脚本主页</span>
+        </v-tooltip>
+
+        <v-tooltip bottom v-if="item.metadata['homepageurl']">
+          <template v-slot:activator="{ on, attrs }">
+            <v-icon
+              dense
+              @click="gotoLink(item.metadata['homepageurl'][0])"
+              v-bind="attrs"
+              v-on="on"
+            >
+              mdi-home
+            </v-icon>
+          </template>
+          <span>脚本主页</span>
+        </v-tooltip>
+
+        <v-tooltip bottom v-if="item.metadata['website']">
+          <template v-slot:activator="{ on, attrs }">
+            <v-icon
+              dense
+              @click="gotoLink(item.metadata['website'][0])"
+              v-bind="attrs"
+              v-on="on"
+            >
+              mdi-home
+            </v-icon>
+          </template>
+          <span>脚本站点</span>
+        </v-tooltip>
+
+        <v-tooltip bottom v-if="item.metadata['source']">
+          <template v-slot:activator="{ on, attrs }">
+            <v-icon
+              dense
+              @click="gotoLink(item.metadata['source'][0])"
+              v-bind="attrs"
+              v-on="on"
+            >
+              mdi-code-tags
+            </v-icon>
+          </template>
+          <span>脚本源码</span>
+        </v-tooltip>
+
+        <v-tooltip bottom v-if="item.metadata['supporturl']">
+          <template v-slot:activator="{ on, attrs }">
+            <v-icon
+              dense
+              @click="gotoLink(item.metadata['supporturl'][0])"
+              v-bind="attrs"
+              v-on="on"
+            >
+              mdi-bug
+            </v-icon>
+          </template>
+          <span>BUG反馈/脚本支持站点</span>
+        </v-tooltip>
       </template>
 
       <template v-slot:[`item.updatetime`]="{ item }">
@@ -165,7 +245,9 @@
           indeterminate
           color="primary"
         ></v-progress-circular>
-        <span v-else-if="item.updatetime === -2" style="color: #ff6565">有更新</span>
+        <span v-else-if="item.updatetime === -2" style="color: #ff6565"
+          >有更新</span
+        >
         <span v-else style="cursor: pointer" @click="checkUpdate(item)">
           {{ mapTimeStampToHumanized(item.updatetime) }}</span
         >
@@ -301,7 +383,10 @@
           >
             mdi-stop
           </v-icon>
-          <BgCloud v-if="item.type !== 1 && item.metadata['cloudcat']" :script="item" />
+          <BgCloud
+            v-if="item.type !== 1 && item.metadata['cloudcat']"
+            :script="item"
+          />
         </span>
       </template>
 
@@ -310,19 +395,28 @@
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
-        <v-card-title class="headline" :style="{ display: 'grid', placeItems: 'center' }">
+        <v-card-title
+          class="headline"
+          :style="{ display: 'grid', placeItems: 'center' }"
+        >
           你确定要删除该脚本吗？
         </v-card-title>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="blue darken-1" text @click="closeDelete">取消</v-btn>
-          <v-btn color="blue darken-1" text @click="deleteItemConfirm"> 确定 </v-btn>
+          <v-btn color="blue darken-1" text @click="deleteItemConfirm">
+            确定
+          </v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showlog" transition="dialog-bottom-transition" max-width="600">
+    <v-dialog
+      v-model="showlog"
+      transition="dialog-bottom-transition"
+      max-width="600"
+    >
       <template v-slot:default="dialog">
         <v-card>
           <v-toolbar color="primary" dark>
@@ -350,13 +444,17 @@
                   width="1"
                   color="primary"
                 ></v-progress-circular>
-                <span style="color: #1976d2; margin-left: 4px">等待日志...</span>
+                <span style="color: #1976d2; margin-left: 4px"
+                  >等待日志...</span
+                >
               </div>
             </div>
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions class="justify-end">
-            <v-btn text color="error" @click="clearLog(logScript)">清空日志</v-btn>
+            <v-btn text color="error" @click="clearLog(logScript)"
+              >清空日志</v-btn
+            >
           </v-card-actions>
         </v-card>
       </template>
@@ -365,6 +463,16 @@
     <span v-if="scripts.length" class="v-text" style="padding: 10px"
       >总脚本数量: {{ scripts.length }}</span
     >
+
+    <v-btn
+      style="position: absolute; right: 20px; bottom: 20px"
+      color="#1296db"
+      fab
+      dark
+      @click="newScript"
+    >
+      <v-icon>mdi-plus</v-icon>
+    </v-btn>
   </div>
 </template>
 
@@ -398,7 +506,14 @@ import BgCloud from "@components/BgCloud.vue";
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
-const multipleActionTypes = ["启用", "禁用", "导出", "更新", "重置", "删除"] as const;
+const multipleActionTypes = [
+  "启用",
+  "禁用",
+  "导出",
+  "更新",
+  "重置",
+  "删除",
+] as const;
 
 @Component({
   components: { BgCloud },
@@ -418,7 +533,14 @@ export default class ScriptList extends Vue {
   filterText = "";
 
   multipleActionTypes = multipleActionTypes;
-  multipleFilterTypes = ["自动", "@name", "@namespace", "@author", "@grant", "@include"];
+  multipleFilterTypes = [
+    "自动",
+    "@name",
+    "@namespace",
+    "@author",
+    "@grant",
+    "@include",
+  ];
 
   rules = [];
 
@@ -476,10 +598,12 @@ export default class ScriptList extends Vue {
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptController.scriptList(undefined, new AllPage()).then(async (result) => {
-      this.scripts = result;
-      this.handleScriptConfig(this.scripts);
-    });
+    this.scriptController
+      .scriptList(undefined, new AllPage())
+      .then(async (result) => {
+        this.scripts = result;
+        this.handleScriptConfig(this.scripts);
+      });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
@@ -494,10 +618,12 @@ export default class ScriptList extends Vue {
     eventBus.$on(EventType.UpdateScriptList, () => {
       console.log("on UpdateScriptList");
 
-      this.scriptController.scriptList(undefined, new AllPage()).then((result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
+      this.scriptController
+        .scriptList(undefined, new AllPage())
+        .then((result) => {
+          this.scripts = result;
+          this.handleScriptConfig(this.scripts);
+        });
     });
 
     MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {
@@ -708,6 +834,14 @@ export default class ScriptList extends Vue {
 
   formatTime(time: Date) {
     return dayjs(time).format("MM-DD HH:mm:ss");
+  }
+
+  gotoLink(link: string) {
+    window.open(link, "_blank");
+  }
+
+  newScript() {
+    eventBus.$emit<INewScript>(EventType.NewScript, { scriptId: 0 });
   }
 }
 </script>

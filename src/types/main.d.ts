@@ -12,6 +12,7 @@ interface ITabItem {
     lazy?: boolean;
     keepAlive?: boolean;
     scriptId?: number;
+    message?: string,
     beforeChange?: (tabPane: TabPane) => Promise<boolean>;
     beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
 }
@@ -25,6 +26,11 @@ interface IChangeTitle {
 
 interface IEditScript {
     scriptId: number;
+}
+
+
+interface ICreateScript{
+    
 }
 
 interface INewScript {

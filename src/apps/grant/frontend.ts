@@ -267,12 +267,16 @@ export class FrontendGrant implements ScriptContext {
     private valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
 
     ValueChange = (name: string, value: Value): void => {
-        this.script.value![name] = value;
         this.valueChangeListener.forEach(val => {
             if (val.name === name) {
-                val.listener(name, this.script.value, value.value, this.script.value === value.value);
+                let old = this.script.value && this.script.value[name] && this.script.value[name].value;
+                val.listener(name, old, value.value, this.script.value === value.value);
             }
         });
+        if (!this.script.value) {
+            this.script.value = {};
+        }
+        this.script.value[name] = value;
     }
 
     @FrontendGrant.GMFunction({ depend: ['GM_setValue'] })

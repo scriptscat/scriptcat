@@ -12,6 +12,7 @@ import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
 import { Log } from '@App/model/do/logger';
 import { VTabItem } from 'vuetify/lib';
+import { nextTime } from '@App/views/pages/utils';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -117,18 +118,21 @@ export class ScriptController {
         });
     }
 
-    public prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | undefined]> {
+    public prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | string | undefined]> {
         return new Promise(async resolve => {
             let metadata = parseMetadata(code);
             if (metadata == null) {
-                return resolve([undefined, undefined]);
+                return resolve([undefined, 'MetaData错误']);
             }
             if (metadata["name"] == undefined) {
-                return resolve([undefined, undefined]);
+                return resolve([undefined, '脚本名不能为空']);
             }
             let type = SCRIPT_TYPE_NORMAL;
             if (metadata["crontab"] != undefined) {
                 type = SCRIPT_TYPE_CRONTAB;
+                if (nextTime(metadata['crontab'][0]) == '错误的定时表达式') {
+                    return resolve([undefined, '错误的定时表达式']);
+                }
             } else if (metadata["background"] != undefined) {
                 type = SCRIPT_TYPE_BACKGROUND;
             }
@@ -163,7 +167,7 @@ export class ScriptController {
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
             if (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL)) {
-                old = await this.scriptModel.findByName(script.name);
+                old = await this.scriptModel.findOne({ name: script.name, namespace: script.namespace });
             }
             if (old) {
                 copyTime(script, old);

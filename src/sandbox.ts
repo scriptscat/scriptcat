@@ -1,13 +1,14 @@
-import {CronJob} from "cron";
-import {buildThis, compileScript, createContext} from "@App/pkg/sandbox";
-import {SandboxContext} from "./apps/grant/frontend";
-import {SendLogger} from "./pkg/utils";
-import {App, InitApp} from "./apps/app";
-import {MapCache} from "./pkg/storage/cache/cache";
-import {ConsoleLogger} from "./apps/logger/logger";
-import {AppEvent, ScriptValueChange} from "./apps/msg-center/event";
-import {LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR} from "./model/do/logger";
-import {Script, ScriptCache, SCRIPT_TYPE_CRONTAB} from "./model/do/script";
+import { CronJob } from "cron";
+import { buildThis, compileScript, createContext } from "@App/pkg/sandbox";
+import { SandboxContext } from "./apps/grant/frontend";
+import { SendLogger } from "./pkg/utils";
+import { App, InitApp } from "./apps/app";
+import { MapCache } from "./pkg/storage/cache/cache";
+import { ConsoleLogger } from "./apps/logger/logger";
+import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
+import { LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR } from "./model/do/logger";
+import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/do/script";
+import { nextTime } from "./views/pages/utils";
 
 InitApp({
     Log: new ConsoleLogger(),
@@ -90,7 +91,7 @@ function start(script: ScriptCache): any {
         let context = createSandboxContext(script);
         App.Cache.set("script:" + script.id, context);
         execScript(script, compileScript(script), context, "run");
-        return top.postMessage({action: "start", data: ""}, "*");
+        return top.postMessage({ action: "start", data: "" }, "*");
     }
 }
 
@@ -116,6 +117,10 @@ function runCrontab(script: ScriptCache) {
             val = val.replace(/once/g, "*");
         }
         //TODO:优化once的逻辑，不必每分钟都判断一次
+        // 校验表达式
+        if (nextTime(val) == '错误的定时表达式') {
+            return;
+        }
         let cron = new CronJob(
             val,
             () => {
@@ -168,14 +173,14 @@ function runCrontab(script: ScriptCache) {
         list.push(cron);
     });
     cronjobMap.set(script.id, list);
-    return top.postMessage({action: "start", data: ""}, "*");
+    return top.postMessage({ action: "start", data: "" }, "*");
 }
 
 async function exec(script: ScriptCache, isdebug: boolean) {
     let context = createSandboxContext(script);
     App.Cache.set("script:" + (isdebug ? "debug:" : "") + script.id, context);
     execScript(script, compileScript(script), context, isdebug ? "debug" : "run");
-    return top.postMessage({action: "exec", data: ""}, "*");
+    return top.postMessage({ action: "exec", data: "" }, "*");
 }
 
 async function disable(script: Script) {
@@ -186,17 +191,17 @@ async function disable(script: Script) {
         context.destruct();
     }
     if (script.type != SCRIPT_TYPE_CRONTAB) {
-        return top.postMessage({action: "disable"}, "*");
+        return top.postMessage({ action: "disable" }, "*");
     }
     let list = cronjobMap.get(script.id);
     if (!list) {
-        return top.postMessage({action: "disable"}, "*");
+        return top.postMessage({ action: "disable" }, "*");
     }
     list.forEach((val) => {
         val.stop();
     });
     cronjobMap.delete(script.id);
-    return top.postMessage({action: "disable"}, "*");
+    return top.postMessage({ action: "disable" }, "*");
 }
 
 async function stop(script: Script, isdebug: boolean) {
@@ -210,7 +215,7 @@ async function stop(script: Script, isdebug: boolean) {
             context.destruct();
         }
     }
-    return top.postMessage({action: "stop"}, "*");
+    return top.postMessage({ action: "stop" }, "*");
 }
 
 function getWeek(date: Date) {
@@ -246,4 +251,4 @@ window.addEventListener("message", (event) => {
         }
     }
 });
-top.postMessage({action: "load"}, "*");
+top.postMessage({ action: "load" }, "*");

@@ -8,7 +8,7 @@
 
     <template v-else>
       <v-expansion-panel
-        v-for="script in scripts"
+        v-for="(script, index) in scripts"
         :key="script.id"
         :style="{
           backgroundColor: getStatusBoolean(script) ? undefined : '#EEEEEE',
@@ -96,6 +96,14 @@
                   <v-list-item-title v-text="`编辑`"></v-list-item-title>
                 </v-list-item-content>
               </v-list-item>
+              <v-list-item @click="deleteScript(index, script)">
+                <v-list-item-icon>
+                  <v-icon>mdi-delete</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title v-text="`删除`"></v-list-item-title>
+                </v-list-item-content>
+              </v-list-item>
             </v-list-item-group>
           </v-list>
         </v-expansion-panel-content>
@@ -178,6 +186,11 @@ export default class ScriptList extends Vue {
   menuClick(item: any) {
     MsgCenter.connect(TabMenuClick, item);
     window.close();
+  }
+
+  deleteScript(index: number, item: Script) {
+    this.scriptController.uninstall(item.id);
+    this.scripts.splice(index, 1);
   }
 }
 </script>

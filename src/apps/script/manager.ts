@@ -15,6 +15,7 @@ import { Background } from "./background";
 import { copyTime, loadScriptByUrl, parseMetadata } from "./utils";
 import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
+import { nextTime } from "@App/views/pages/utils";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -184,12 +185,7 @@ export class ScriptManager {
     public scriptInstall(script: Script): Promise<number> {
         return new Promise(async resolve => {
             // 加载资源
-            for (let i = 0; i < script.metadata['require']?.length; i++) {
-                await this.resource.addResource(script.metadata['require'][i], script.id)
-            }
-            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                await this.resource.addResource(script.metadata['require-css'][i], script.id)
-            }
+            this.loadResouce(script);
             await this.scriptModel.save(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.enableScript(script);
@@ -205,12 +201,7 @@ export class ScriptManager {
                 return resolve(false);
             }
             // 加载资源
-            for (let i = 0; i < script.metadata['require']?.length; i++) {
-                await this.resource.addResource(script.metadata['require'][i], script.id)
-            }
-            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                await this.resource.addResource(script.metadata['require-css'][i], script.id)
-            }
+            this.loadResouce(script);
             copyTime(script, oldScript);
             script.updatetime = new Date().getTime();
             if (script.status == SCRIPT_STATUS_ENABLE) {
@@ -220,6 +211,15 @@ export class ScriptManager {
             await this.scriptModel.save(script);
             return resolve(true);
         });
+    }
+
+    public loadResouce(script: Script) {
+        for (let i = 0; i < script.metadata['require']?.length; i++) {
+            this.resource.addResource(script.metadata['require'][i], script.id)
+        }
+        for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+            this.resource.addResource(script.metadata['require-css'][i], script.id)
+        }
     }
 
     public scriptUninstall(scriptId: number): Promise<boolean> {

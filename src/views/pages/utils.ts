@@ -13,7 +13,12 @@ export function nextTime(crontab: string): string {
             oncePos++;
         }
     }
-    let cron = new CronTime(crontab.replaceAll("once", "*"));
+    let cron;
+    try {
+        cron = new CronTime(crontab.replaceAll("once", "*"));
+    } catch (e) {
+        return "错误的定时表达式";
+    }
     if (oncePos) {
         switch (oncePos) {
             case 1: //每分钟

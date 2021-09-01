@@ -26,8 +26,13 @@
         <div class="text-subtitle-2" v-if="script.metadata['author']">
           作者: {{ script.metadata["author"][0] }}
         </div>
-        <div class="text-subtitle-2" v-if="desctiption">脚本描述: {{ desctiption }}</div>
-        <div class="text-subtitle-2" style="max-height: 110px; overflow: hidden">
+        <div class="text-subtitle-2" v-if="desctiption">
+          脚本描述: {{ desctiption }}
+        </div>
+        <div
+          class="text-subtitle-2"
+          style="max-height: 110px; overflow: hidden"
+        >
           安装来源:
           <span style="word-wrap: break-word; word-break: break-all">{{
             script.origin
@@ -56,7 +61,10 @@
           <span class="text-subtitle-1 d-flex"
             ><span class="justify-start" style="flex: 1" v-if="version"
               >安装版本:{{ version }}</span
-            ><span class="justify-start" style="flex: 1" v-if="isupdate && oldVersion"
+            ><span
+              class="justify-start"
+              style="flex: 1"
+              v-if="isupdate && oldVersion"
               >当前版本:{{ oldVersion }}</span
             ></span
           >
@@ -168,6 +176,7 @@ export default class Index extends Vue {
       info.url
     );
     if (script == undefined) {
+      alert(<string>oldscript);
       return;
     }
     this.script = script;
@@ -175,7 +184,7 @@ export default class Index extends Vue {
     if (edit == undefined) {
       return;
     }
-    if (oldscript) {
+    if (typeof oldscript == "object") {
       this.diff = editor.createDiffEditor(edit, {
         enableSplitViewResizing: false,
         renderSideBySide: false,
@@ -192,7 +201,8 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
-      this.oldVersion = oldscript.metadata["version"] && oldscript.metadata["version"][0];
+      this.oldVersion =
+        oldscript.metadata["version"] && oldscript.metadata["version"][0];
       document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {
