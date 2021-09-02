@@ -175,6 +175,7 @@ declare namespace GM_Types {
         response?: any,
         responseText?: string,
         responseXML?: Document | null
+        responseType?: "arraybuffer" | "blob" | "json"
     }
 
     interface XHRProgress extends XHRResponse {

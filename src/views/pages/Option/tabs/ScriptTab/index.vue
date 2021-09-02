@@ -19,11 +19,7 @@
       </TabPane>
 
       <TabPane title="META">
-        <META
-          :script="script"
-          :metaBuffer="metaBuffer"
-          @update-meta="handleUpdateMeta"
-        />
+        <META :script="script" :metaBuffer="metaBuffer" @update-meta="handleUpdateMeta" />
       </TabPane>
 
       <TabPane title="设置">
@@ -42,8 +38,7 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component, Watch, Prop } from "vue-property-decorator";
-import { editor, KeyMod, KeyCode } from "monaco-editor";
+import { Vue, Component, Prop } from "vue-property-decorator";
 
 import { ScriptManager } from "@App/apps/script/manager";
 import {
@@ -52,8 +47,6 @@ import {
   SCRIPT_ORIGIN_LOCAL,
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
-import { Background } from "@App/apps/script/background";
-import crontabTpl from "@App/template/crontab.tpl";
 
 import eventBus from "@views/EventBus";
 import { Tab, TabPane } from "@App/views/components/Tab";
@@ -62,7 +55,7 @@ import META from "./META.vue";
 import Editor from "./Editor.vue";
 import Resource from "./Resource.vue";
 import Storage from "./Storage.vue";
-import { sleep, get } from "@App/pkg/utils";
+import { get } from "@App/pkg/utils";
 import EventType from "../../EventType";
 import { languages } from "monaco-editor";
 import { scriptModule } from "../../store/script";
@@ -163,11 +156,10 @@ export default class ScriptTab extends Vue {
 
   async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
-    let [newScript, oldScript] =
-      await this.scriptController.prepareScriptByCode(
-        currentCode,
-        this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
-      );
+    let [newScript, oldScript] = await this.scriptController.prepareScriptByCode(
+      currentCode,
+      this.script.origin || SCRIPT_ORIGIN_LOCAL + "://" + new Date().getTime()
+    );
 
     if (newScript == undefined) {
       alert(oldScript);
@@ -196,7 +188,19 @@ export default class ScriptTab extends Vue {
     // 保存成功后
 
     console.log("脚本保存成功");
-    scriptModule.showSnackbar("脚本保存成功");
+    if (debug) {
+      scriptModule.showSnackbar(
+        "脚本准备进入调试模式执行,请按F12打开开发者工具进行调试."
+      );
+      // 后台脚本才能调试
+      let scriptCache = await this.scriptController.buildScriptCache(this.script);
+      sandbox.postMessage(
+        { action: "exec", data: scriptCache, value: scriptCache.value, isdebug: true },
+        "*"
+      );
+    } else {
+      scriptModule.showSnackbar("脚本保存成功");
+    }
     await this.handleInitialSctipt({} as any);
 
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
@@ -204,11 +208,6 @@ export default class ScriptTab extends Vue {
       initial: this.scriptId ? undefined : true,
       scriptId: this.scriptId,
     });
-
-    // 后台脚本才可以调用
-    if (debug) {
-      this.scriptController.exec(this.script.id, true);
-    }
 
     this.$refs.editor.hasUnsavedChange = false;
 

@@ -54,7 +54,7 @@ export function isFirefox() {
 }
 
 export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = "", scriptId?: number) {
-    top.postMessage(
+    top!.postMessage(
         {
             action: Logger,
             data: {
@@ -95,7 +95,6 @@ export function get(url: string, success: (resp: string) => void) {
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
-                console.log(this, xmlhttp);
                 success && success(this.responseText);
             } else {
                 (<any>xmlhttp).errorCallback && (<any>xmlhttp).errorCallback(this);

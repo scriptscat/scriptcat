@@ -56,3 +56,6 @@ ScriptCat
 * [Edge商店](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 * [FireFox商店](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 
+#### 交流
+
+[Telegram](https://t.me/scriptscat)

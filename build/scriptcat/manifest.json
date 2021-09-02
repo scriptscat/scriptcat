@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "ScriptCat",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "description": "脚本猫,一个用户脚本的框架,可编写脚本每天帮你自动处理事务.",
     "background": {
         "page": "background.html"

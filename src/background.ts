@@ -19,10 +19,20 @@ InitApp({
     Cache: new MapCache(),
 });
 
+chrome.contextMenus.create({
+    id: 'script-cat',
+    title: "ScriptCat",
+    contexts: ['all'],
+    onclick: () => {
+        console.log('exec script');
+    },
+});
+
 let scripts = new ScriptManager();
 let grant = BackgroundGrant.SingleInstance(
     scripts,
     new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
+    false
 );
 scripts.listenEvent();
 scripts.listen();
