@@ -5,13 +5,10 @@ import { Page } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyTime } from "./utils";
-import axios from 'axios';
 import { ScriptUrlInfo } from '../msg-center/structs';
-import { App } from '../app';
 import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
 import { Log } from '@App/model/do/logger';
-import { VTabItem } from 'vuetify/lib';
 import { nextTime } from '@App/views/pages/utils';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理

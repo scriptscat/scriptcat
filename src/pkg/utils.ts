@@ -95,7 +95,6 @@ export function get(url: string, success: (resp: string) => void) {
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
-                console.log(this, xmlhttp);
                 success && success(this.responseText);
             } else {
                 (<any>xmlhttp).errorCallback && (<any>xmlhttp).errorCallback(this);

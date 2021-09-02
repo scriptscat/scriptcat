@@ -201,6 +201,7 @@ export class ScriptManager {
                 return resolve(false);
             }
             // 加载资源
+            App.Cache.del('script:' + script.id);
             this.loadResouce(script);
             copyTime(script, oldScript);
             script.updatetime = new Date().getTime();
@@ -233,6 +234,7 @@ export class ScriptManager {
             }
             await this.scriptModel.delete(script.id);
             //TODO:释放资源
+            App.Cache.del('script:' + script.id);
             script.metadata["require"]?.forEach((val: string) => {
                 this.resource.deleteResource(val, script!.id);
             });

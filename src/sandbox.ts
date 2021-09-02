@@ -33,7 +33,20 @@ async function execScript(
         script.lastruntime = new Date().getTime();
         context.CAT_setLastRuntime(script.lastruntime);
         SendLogger(LOGGER_LEVEL_INFO, type, "exec script id: " + script.id, script.name, script.id);
-        let execRet = func(buildThis(window, context));
+        let execRet;
+        try {
+            execRet = func(buildThis(window, context));
+        } catch (error) {
+            let msg = "exec script id: " + script.id + " time: " + (new Date().getTime() - (script.lastruntime || 0)).toString() + "ms"
+            if (error) {
+                msg += " error: " + error;
+            }
+            SendLogger(LOGGER_LEVEL_ERROR, type, msg, script.name, script.id);
+            script.delayruntime = 0;
+            context.CAT_setRunError(error, script.delayruntime);
+            resolve(true);
+            return
+        }
         if (execRet instanceof Promise) {
             execRet
                 .then((result: any) => {
@@ -70,11 +83,7 @@ async function execScript(
                 "ms",
                 script.name, script.id
             );
-            //30s后标记完成并清理资源
-            setTimeout(() => {
-                context.CAT_runComplete();
-            }, 30 * 1000);
-            resolve(true);
+            context.CAT_runComplete();
         }
     });
 }

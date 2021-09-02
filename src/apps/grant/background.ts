@@ -11,6 +11,7 @@ import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
 import { Permission } from "@App/model/do/permission";
 import { Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
+import { execMethod } from "./utils";
 
 class postMessage implements IPostMessage {
 
@@ -154,15 +155,16 @@ export class BackgroundGrant {
             }
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 let _this: BackgroundGrant = <BackgroundGrant>this;
-                return new Promise(async resolve => {
+                return new Promise(async (resolve, reject) => {
                     let script = await App.Cache.getOrSet('script:' + grant.id, () => {
                         return _this.scriptMgr.getScript(grant.id)
                     });
                     if (!script) {
-                        return resolve(undefined);
+                        return reject('permission denied');
                     }
                     App.Log.Debug("script", "call function: " + propertyName, script.name);
                     let metaGrant = script.metadata["grant"] || [];
+                    // TODO: 优化效率
                     if (!permission.default) {
                         let flag = false;
                         for (let i = 0; i < metaGrant.length; i++) {
@@ -183,7 +185,7 @@ export class BackgroundGrant {
                             }
                         }
                         if (!flag) {
-                            return resolve(undefined);
+                            return reject('permission denied');
                         }
                     }
 
@@ -191,12 +193,17 @@ export class BackgroundGrant {
                     // 判断是否只能后台环境调用
                     if (permission.background) {
                         if (grant.tabId) {
-                            return resolve(undefined);
+                            return reject('background method');
                         }
                     }
 
                     if (permission.confirm) {
-                        let confirmParam = await permission.confirm(grant, script);
+                        let confirmParam;
+                        try {
+                            confirmParam = await permission.confirm(grant, script);
+                        } catch (e) {
+                            return reject(e);
+                        }
                         if (typeof confirmParam == "object") {
                             let confirm = <ConfirmParam>confirmParam;
                             let cacheKey = "permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission;
@@ -213,10 +220,9 @@ export class BackgroundGrant {
                             });
                             if (ret) {
                                 if (ret.allow) {
-                                    return resolve(await old.apply(this, [grant, post, script]));
+                                    return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                                 } else {
-                                    //TODO:执行拒绝的提示
-                                    return resolve(undefined);
+                                    return reject('permission not allowed');
                                 }
                             }
                             //弹出页面确认
@@ -261,22 +267,20 @@ export class BackgroundGrant {
                                     _this.permissionModel.save(ret);
                                 }
                                 if (param.allow) {
-                                    return resolve(await old.apply(this, [grant, post, script]));
-                                } else {
-                                    return resolve(undefined);
+                                    return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                                 }
+                                return reject('permission not allowed');
                             }
                             MsgCenter.listener(PermissionConfirm + uuid, listener);
 
                             chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
+                        } else if (confirmParam === true) {
+                            return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                         } else {
-                            if (confirmParam === true) {
-                                return resolve(await old.apply(this, [grant, post, script]));
-                            }
-                            return resolve(undefined);
+                            return reject('permission not allowed');
                         }
                     } else {
-                        return resolve(await old.apply(this, [grant, post, script]));
+                        return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                     }
                 });
             }
@@ -316,14 +320,16 @@ export class BackgroundGrant {
 
     protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
         let respond: GM_Types.XHRResponse = {
+            finalUrl: config.url,
             readyState: <any>xhr.readyState,
             status: xhr.status,
             statusText: xhr.statusText,
             responseHeaders: xhr.getAllResponseHeaders(),
+            responseType: config.responseType,
         };
         if (xhr.readyState === 4) {
             let contentType = xhr.getResponseHeader("Content-Type");
-            if (!config.responseType && contentType && contentType.indexOf("application/json") !== -1) {
+            if ((!config.responseType && contentType && contentType.indexOf("application/json") !== -1) || config.responseType == 'json') {
                 respond.response = JSON.parse(xhr.responseText);
             } else {
                 if (!respond.response && (config.responseType == "arraybuffer" || config.responseType == "blob")) {
@@ -341,7 +347,6 @@ export class BackgroundGrant {
             }
             if (config.responseType != "arraybuffer" && config.responseType != "blob") {
                 respond.responseText = xhr.responseText;
-                respond.responseXML = xhr.responseXML || null;
             }
         }
         return respond;
@@ -380,10 +385,10 @@ export class BackgroundGrant {
         alias: ['GM.fetch'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             if (grant.params.length <= 0) {
                 //错误
-                return resolve(undefined);
+                return reject('param is null');
             }
             let config = <GM_Types.XHRDetails>grant.params[0];
 
@@ -468,29 +473,30 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         background: true,
         confirm: (grant: Grant, script: Script) => {
-            return new Promise(resolve => {
+            return new Promise((resolve, reject) => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
                 if ((!detail.url && !detail.domain) || !detail.name) {
-                    return resolve(false);
+                    return reject('there must be one of url or domain, and name must exist');
                 }
                 let url: any = {};
                 if (detail.url) {
                     url = new URL(detail.url);
-                    let flag = false;
-                    if (script.metadata["connect"]) {
-                        let connect = script.metadata["connect"];
-                        for (let i = 0; i < connect.length; i++) {
-                            if (url.hostname.endsWith(connect[i])) {
-                                flag = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!flag) {
-                        return resolve(false);
-                    }
                 } else {
                     url.host = detail.domain;
+                    url.hostname = detail.domain;
+                }
+                let flag = false;
+                if (script.metadata["connect"]) {
+                    let connect = script.metadata["connect"];
+                    for (let i = 0; i < connect.length; i++) {
+                        if (url.hostname.endsWith(connect[i])) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                }
+                if (!flag) {
+                    return reject('hostname must be in the definition of connect');
                 }
                 let ret: ConfirmParam = {
                     permission: 'cookie',
@@ -508,10 +514,10 @@ export class BackgroundGrant {
         }
     })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             let param = grant.params;
             if (param.length != 2) {
-                return resolve(undefined);
+                return reject('there must be two parameters');
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
             // url或者域名不能为空,且必须有name
@@ -522,7 +528,7 @@ export class BackgroundGrant {
                 detail.domain = detail.domain.trim();
             }
             if ((!detail.url && !detail.domain) || !detail.name.trim()) {
-                return resolve(undefined);
+                return reject('there must be one of url or domain, and name must exist');
             }
             switch (param[0]) {
                 case 'list': {
@@ -618,10 +624,10 @@ export class BackgroundGrant {
         }
     })
     protected GM_notification(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             let params = grant.params;
             if (params.length == 0) {
-                return resolve(undefined);
+                return reject('param is null');
             }
             let details: GM_Types.NotificationDetails = params[0];
             let options: chrome.notifications.NotificationOptions = {
@@ -671,9 +677,9 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction()
     protected GM_updateNotification(grant: Grant): Promise<any> {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             if (isFirefox()) {
-                return resolve(undefined);
+                return reject('firefox does not support this method');
             }
             let id = grant.params[0];
             let details: GM_Types.NotificationDetails = grant.params[1];
@@ -716,9 +722,9 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction({ default: true })
     protected GM_log(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise(resolve => {
-            if (!grant.params[0]) {
-                return resolve(undefined);
+        return new Promise((resolve, reject) => {
+            if (grant.params.length == 0) {
+                return reject('param is null');
             }
             App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name, grant.id);
             AppEvent.trigger(ListenGmLog, { level: grant.params[1] ?? LOGGER_LEVEL_INFO, scriptId: grant.id, message: grant.params[0] });
