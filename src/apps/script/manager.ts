@@ -1,12 +1,11 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, ListenCallback } from "@App/apps/msg-center/event";
-import { AllPage, dealScript, get, Page, randomString } from "@App/pkg/utils";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog } from "@App/apps/msg-center/event";
+import { dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
-import { compileScriptCode } from "@App/pkg/sandbox";
 import { Resource } from "@App/model/do/resource";
 import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
@@ -15,13 +14,14 @@ import { Background } from "./background";
 import { copyTime, loadScriptByUrl, parseMetadata } from "./utils";
 import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
-import { nextTime } from "@App/views/pages/utils";
+import { ScriptController } from "./controller";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
 
     protected scriptModel = new ScriptModel();
     protected background = new Background();
+    protected controller = new ScriptController();
 
     protected match = new UrlMatch<ScriptCache>();
 
@@ -271,7 +271,7 @@ export class ScriptManager {
                 return resolve(false);
             }
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                await this.background.execScript(await this.buildScriptCache(script), msg.isdebug);
+                await this.background.execScript(await this.controller.buildScriptCache(script), msg.isdebug);
                 resolve(true);
             } else {
                 resolve(false);
@@ -295,35 +295,6 @@ export class ScriptManager {
         });
     }
 
-    // 第一次获取后在内存中维护
-    public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
-        if (script.namespace) {
-            return App.Cache.getOrSet("value:namespace:" + script.namespace, () => {
-                return new Promise(async resolve => {
-                    let list = <Value[]>await this.valueModel.list((table) => {
-                        return table.where({ namespace: script.namespace });
-                    }, new AllPage());
-                    let ret: { [key: string]: Value } = {};
-                    list.forEach(val => {
-                        ret[val.key] = val;
-                    });
-                    resolve(ret);
-                });
-            });
-        }
-        return App.Cache.getOrSet("value:" + script.id, () => {
-            return new Promise(async resolve => {
-                let list = <Value[]>await this.valueModel.list((table) => {
-                    return table.where({ scriptId: script.id });
-                }, new AllPage());
-                let ret: { [key: string]: Value } = {};
-                list.forEach(val => {
-                    ret[val.key] = val;
-                });
-                resolve(ret);
-            });
-        });
-    }
 
     public listenScriptMath() {
         AppEvent.listener(ScriptStatusChange, async (script: Script) => {
@@ -331,7 +302,7 @@ export class ScriptManager {
                 return;
             }
             this.match.del(script);
-            let cache = await this.buildScriptCache(script);
+            let cache = await this.controller.buildScriptCache(script);
             cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
                 cache.code + `\n}`);
             script.metadata['match']?.forEach(val => {
@@ -347,7 +318,7 @@ export class ScriptManager {
         let scriptFlag = randomString(8);
         this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
             items.forEach(async script => {
-                let cache = await this.buildScriptCache(script);
+                let cache = await this.controller.buildScriptCache(script);
                 cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
                     cache.code + `\n}`);
                 script.metadata['match']?.forEach(val => {
@@ -509,50 +480,10 @@ export class ScriptManager {
         })
     }
 
-    public buildScriptCache(script: Script): Promise<ScriptCache> {
-        return new Promise(async resolve => {
-            let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
-            ret.value = await this.getScriptValue(ret);
-
-            ret.resource = await this.getResource(ret);
-
-            ret.flag = randomString(16);
-            ret.code = compileScriptCode(ret);
-
-            ret.grantMap = {};
-            ret.metadata['grant']?.forEach((val: string) => {
-                ret.grantMap![val] = 'ok';
-            });
-
-            resolve(ret);
-        });
-    }
-
-    public getResource(script: Script): Promise<{ [key: string]: Resource }> {
-        return new Promise(async resolve => {
-            let ret: { [key: string]: Resource } = {};
-            for (let i = 0; i < script.metadata['require']?.length; i++) {
-                let res = await this.resource.getResource(script.metadata['require'][i]);
-                if (res) {
-                    ret[script.metadata['require'][i]] = res;
-                }
-            }
-            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                let res = await this.resource.getResource(script.metadata['require-css'][i]);
-                if (res) {
-                    ret[script.metadata['require-css'][i]] = res;
-                }
-            }
-            //TODO: 支持@resource
-
-            resolve(ret);
-        });
-    }
-
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                let ret = await this.background.enableScript(await this.buildScriptCache(script));
+                let ret = await this.background.enableScript(await this.controller.buildScriptCache(script));
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;

@@ -450,7 +450,7 @@ export class SandboxContext extends FrontendGrant {
                 callback(grant);
             });
         }
-        top.postMessage(grant, '*');
+        top!.postMessage(grant, '*');
     }
 
     public CAT_setLastRuntime = (time: number) => {

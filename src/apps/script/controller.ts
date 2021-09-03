@@ -1,7 +1,7 @@
 import { v5 as uuidv5 } from 'uuid';
-import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL } from "@App/model/do/script";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
-import { Page } from "@App/pkg/utils";
+import { AllPage, Page, randomString } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyTime } from "./utils";
@@ -10,12 +10,21 @@ import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
 import { Log } from '@App/model/do/logger';
 import { nextTime } from '@App/views/pages/utils';
+import { Value } from '@App/model/do/value';
+import { ValueModel } from '@App/model/value';
+import { App } from '../app';
+import { Resource } from '@App/model/do/resource';
+import { ResourceManager } from '../resource';
+import { compileScriptCode } from '@App/pkg/sandbox';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
 
     protected scriptModel = new ScriptModel();
     protected logModel = new LoggerModel();
+    protected valueModel = new ValueModel();
+    
+    protected resource = new ResourceManager();
 
     public update(script: Script): Promise<number> {
         return new Promise(resolve => {
@@ -187,5 +196,76 @@ export class ScriptController {
 
     public clearLog(scriptId: number) {
         return this.logModel.delete({ scriptId: scriptId, origin: "GM_log" });
+    }
+
+
+    // 第一次获取后在内存中维护
+    public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
+        if (script.namespace) {
+            return App.Cache.getOrSet("value:namespace:" + script.namespace, () => {
+                return new Promise(async resolve => {
+                    let list = <Value[]>await this.valueModel.list((table) => {
+                        return table.where({ namespace: script.namespace });
+                    }, new AllPage());
+                    let ret: { [key: string]: Value } = {};
+                    list.forEach(val => {
+                        ret[val.key] = val;
+                    });
+                    resolve(ret);
+                });
+            });
+        }
+        return App.Cache.getOrSet("value:" + script.id, () => {
+            return new Promise(async resolve => {
+                let list = <Value[]>await this.valueModel.list((table) => {
+                    return table.where({ scriptId: script.id });
+                }, new AllPage());
+                let ret: { [key: string]: Value } = {};
+                list.forEach(val => {
+                    ret[val.key] = val;
+                });
+                resolve(ret);
+            });
+        });
+    }
+
+    public getResource(script: Script): Promise<{ [key: string]: Resource }> {
+        return new Promise(async resolve => {
+            let ret: { [key: string]: Resource } = {};
+            for (let i = 0; i < script.metadata['require']?.length; i++) {
+                let res = await this.resource.getResource(script.metadata['require'][i]);
+                if (res) {
+                    ret[script.metadata['require'][i]] = res;
+                }
+            }
+            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                let res = await this.resource.getResource(script.metadata['require-css'][i]);
+                if (res) {
+                    ret[script.metadata['require-css'][i]] = res;
+                }
+            }
+            //TODO: 支持@resource
+
+            resolve(ret);
+        });
+    }
+
+    public buildScriptCache(script: Script): Promise<ScriptCache> {
+        return new Promise(async resolve => {
+            let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
+            ret.value = await this.getScriptValue(ret);
+
+            ret.resource = await this.getResource(ret);
+
+            ret.flag = randomString(16);
+            ret.code = compileScriptCode(ret);
+
+            ret.grantMap = {};
+            ret.metadata['grant']?.forEach((val: string) => {
+                ret.grantMap![val] = 'ok';
+            });
+
+            resolve(ret);
+        });
     }
 }

@@ -6,11 +6,7 @@
     }"
   >
     <div style="padding-left: 6px; background: #e0e0e0">
-      <v-menu
-        v-for="[title, items] in Object.entries(menu)"
-        :key="title"
-        offset-y
-      >
+      <v-menu v-for="[title, items] in Object.entries(menu)" :key="title" offset-y>
         <template v-slot:activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
@@ -31,23 +27,25 @@
             v-for="(item, index) in items"
             :key="index"
             link
-            style="min-height:0;max-width:210px;"
+            style="min-height: 0; max-width: 210px"
             @click="item.handler"
           >
-            <v-list-item-icon style="margin-right:8px">
-              <v-icon v-text="item.icon" style="margin:0"></v-icon>
-            </v-list-item-icon>
-            <v-list-item-title
-              :class="{
-                'disabled-action-title': item.disabled === true,
-                'd-flex': true,
-                'justify-space-between': true,
-              }"
-              style="width:300px;"
-            >
-              <span>{{ item.action }} </span>
-              <span v-if="item.keys">{{ item.keys }}</span>
-            </v-list-item-title>
+            <div v-if="item.show !== false" style="display: flex">
+              <v-list-item-icon style="margin-right: 8px">
+                <v-icon v-text="item.icon" style="margin: 0"></v-icon>
+              </v-list-item-icon>
+              <v-list-item-title
+                :class="{
+                  'disabled-action-title': item.disabled === true,
+                  'd-flex': true,
+                  'justify-space-between': true,
+                }"
+                style="width: 300px"
+              >
+                <span>{{ item.action }} </span>
+                <span v-if="item.keys">{{ item.keys }}</span>
+              </v-list-item-title>
+            </div>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -69,11 +67,13 @@ import ResizableEditor from "@components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
 import { scriptModule } from "../../store/script";
 import eventBus from "@App/views/EventBus";
+import { createSandboxContext } from "@App/pkg/sandbox";
 
 interface IEditorMenu {
   [title: string]: {
     action: string;
     handler: Function;
+    show?: boolean;
     disabled?: boolean;
     icon?: any;
     keys?: string;
@@ -118,7 +118,7 @@ export default class CloseButton extends Vue {
       var file = fileInput!.files![0];
       var reader = new FileReader();
       let _this = this;
-      reader.onload = function() {
+      reader.onload = function () {
         _this.editor.setValue(<string>this.result);
       };
       reader.readAsText(file, "utf-8");
@@ -203,10 +203,8 @@ export default class CloseButton extends Vue {
     操作: [
       {
         action: "调试",
+        show: this.script.type !== SCRIPT_TYPE_NORMAL,
         handler: () => {
-          if (this.script.type == SCRIPT_TYPE_NORMAL) {
-            return alert("仅后台脚本能进行调试");
-          }
           this.$emit<ISaveScript>(EventType.SaveScript, {
             currentCode: this.editor.getValue(),
             debug: true,

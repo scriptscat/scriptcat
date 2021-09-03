@@ -29,8 +29,8 @@ interface IEditScript {
 }
 
 
-interface ICreateScript{
-    
+interface ICreateScript {
+
 }
 
 interface INewScript {
@@ -75,3 +75,5 @@ declare module chrome {
         }
     }
 }
+
+declare var top: Window;

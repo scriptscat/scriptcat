@@ -502,6 +502,7 @@ import { Log } from "@App/model/do/logger";
 import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
 
 import BgCloud from "@components/BgCloud.vue";
+import { App } from "@App/apps/app";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -616,8 +617,6 @@ export default class ScriptList extends Vue {
 
     // MsgCenter.listener(ScriptUpdate, () => {
     eventBus.$on(EventType.UpdateScriptList, () => {
-      console.log("on UpdateScriptList");
-
       this.scriptController
         .scriptList(undefined, new AllPage())
         .then((result) => {

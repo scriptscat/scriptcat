@@ -23,6 +23,7 @@ let scripts = new ScriptManager();
 let grant = BackgroundGrant.SingleInstance(
     scripts,
     new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
+    false
 );
 scripts.listenEvent();
 scripts.listen();

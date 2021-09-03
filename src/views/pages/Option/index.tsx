@@ -1,3 +1,6 @@
+import { BackgroundGrant } from "@App/apps/grant/background";
+import { grantListener } from "@App/apps/grant/content";
+import { ScriptManager } from "@App/apps/script/manager";
 import { Tab, TabPane } from "@components/Tab";
 import eventBus from "@views/EventBus";
 import { Component, Vue } from "vue-property-decorator";
@@ -5,6 +8,7 @@ import { VApp, VIcon } from "vuetify/lib";
 
 import EventType from "./EventType";
 import Snackbar from "./Snackbar.vue";
+import { scriptModule } from "./store/script";
 import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
@@ -161,6 +165,29 @@ export default class App extends Vue {
                 this.activeTab(this.allTabs.length - 1);
             }
         });
+        // deubg用的bg
+        let grant = BackgroundGrant.SingleInstance(
+            new ScriptManager(),
+            new grantListener(sandbox.window),
+            true
+        );
+        grant.listenScriptGrant();
+        // 监听调试返回消息
+        window.addEventListener('message', event => {
+            if (event.data.action != "exec respond") {
+                return;
+            }
+            if (event.data.data == "success") {
+                scriptModule.showSnackbar(
+                    "脚本执行完成" + (event.data.result ? " 执行结果:" + event.data.result : "")
+                );
+            } else {
+                scriptModule.showSnackbar(
+                    "脚本执行失败" + (event.data.error ? " 执行结果:" + event.data.error : "")
+                );
+            }
+        });
+
     }
 
     activeTab(index: number) {

@@ -1,4 +1,4 @@
-import { ScriptContext } from "@App/apps/grant/frontend";
+import { SandboxContext, ScriptContext } from "@App/apps/grant/frontend";
 import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
@@ -12,7 +12,7 @@ export function compileScriptCode(script: ScriptCache): string {
     return 'with (context) return (()=>{\n' + code + '\n})()'
 }
 
-export function compileScript(script: ScriptCache) {
+export function compileScript(script: ScriptCache): Function {
     return new Function('context', script.code);
 }
 
@@ -95,6 +95,11 @@ function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
     }
 }
 
+export function createSandboxContext(script: ScriptCache): SandboxContext {
+    let context: SandboxContext = new SandboxContext(script);
+    return <SandboxContext>createContext(context, script);
+}
+
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
     if (script.metadata["grant"]) {
         context["GM"] = context;
@@ -107,28 +112,6 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
                 context[value] = apiVal?.api;
             }
             setDepend(context, apiVal);
-        });
-    }
-    if (script.metadata["console"]) {
-        context["console"] = {};
-        let logMap = new Map();
-        let log = (level: GM_Types.LOGGER_LEVEL) => {
-            return (...data: any[]) => {
-                let msg = "";
-                data.forEach(val => {
-                    msg = msg + val + " ";
-                });
-                msg = msg.trimEnd();
-                console[level](...data);
-                context.GM_log(msg, level);
-            }
-        }
-        logMap.set("info", log("info")).set("log", log("info")).set("warn", log("warn")).set("error", log("error"));
-        script.metadata["console"].forEach(val => {
-            let strs = val.split(" ");
-            strs.forEach(val => {
-                context["console"][val] = logMap.get(val);
-            })
         });
     }
     context['GM_info'] = {

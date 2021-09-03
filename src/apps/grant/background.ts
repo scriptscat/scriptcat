@@ -49,10 +49,12 @@ export class BackgroundGrant {
     protected permissionModel: PermissionModel = new PermissionModel();
     protected valueModel = new ValueModel();
     protected rand = uuidv4();
+    protected isdebug = false;
 
-    private constructor(scriptMgr: ScriptManager, listener: IGrantListener) {
+    private constructor(scriptMgr: ScriptManager, listener: IGrantListener, isdebug: boolean) {
         this.listener = listener;
         this.scriptMgr = scriptMgr;
+        this.isdebug = isdebug;
         //处理xhrcookie的问题,firefox不支持
         try {
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
@@ -128,9 +130,9 @@ export class BackgroundGrant {
     }
 
     // 单实例
-    public static SingleInstance(scriptMgr: ScriptManager, listener: IGrantListener): BackgroundGrant {
+    public static SingleInstance(scriptMgr: ScriptManager, listener: IGrantListener, isdebug: boolean): BackgroundGrant {
         if (!BackgroundGrant._singleInstance) {
-            BackgroundGrant._singleInstance = new BackgroundGrant(scriptMgr, listener);
+            BackgroundGrant._singleInstance = new BackgroundGrant(scriptMgr, listener, isdebug);
         }
         return BackgroundGrant._singleInstance;
     }
@@ -197,7 +199,7 @@ export class BackgroundGrant {
                         }
                     }
 
-                    if (permission.confirm) {
+                    if (!_this.isdebug && permission.confirm) {
                         let confirmParam;
                         try {
                             confirmParam = await permission.confirm(grant, script);
