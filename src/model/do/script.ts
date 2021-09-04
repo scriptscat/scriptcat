@@ -61,6 +61,7 @@ export interface Script {
     origin: string
     //script checkupdate meta url
     checkupdate_url: string
+    download_url: string
     //script metadata
     metadata: Metadata;
     // user config

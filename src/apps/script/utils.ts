@@ -72,7 +72,7 @@ export function loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined>
             let ret = {
                 url: url,
                 code: response.data,
-                uuid: uuid
+                uuid: uuid,
             };
             return ret;
         }).then((val) => {

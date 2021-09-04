@@ -15,6 +15,7 @@ import { copyTime, loadScriptByUrl, parseMetadata } from "./utils";
 import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
+import { v5 as uuidv5 } from "uuid";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -608,10 +609,10 @@ export class ScriptManager {
                     App.Log.Warn("check update", "script:" + script!.id + " error: metadata format", script!.name);
                     return false;
                 }
-                if (script!.metadata['version'] == undefined) {
+                if (!script!.metadata['version']) {
                     script!.metadata['version'] = ["v0.0.0"];
                 }
-                if (meta['version'] == undefined) {
+                if (!meta['version']) {
                     return false;
                 }
                 var regexp = /[0-9]*/g
@@ -635,8 +636,10 @@ export class ScriptManager {
                 return false;
             }).then(async (val) => {
                 if (val) {
-                    let info = await loadScriptByUrl(script!.origin);
+                    let info = await loadScriptByUrl(script!.download_url || script!.origin);
                     if (info) {
+                        info.url = script!.origin;
+                        info.uuid = uuidv5(info.url, uuidv5.URL)
                         App.Cache.set("install:info:" + info.uuid, info);
                         chrome.tabs.create({
                             url: 'install.html?uuid=' + info.uuid

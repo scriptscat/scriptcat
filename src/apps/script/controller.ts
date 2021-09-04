@@ -23,7 +23,7 @@ export class ScriptController {
     protected scriptModel = new ScriptModel();
     protected logModel = new LoggerModel();
     protected valueModel = new ValueModel();
-    
+
     protected resource = new ResourceManager();
 
     public update(script: Script): Promise<number> {
@@ -145,12 +145,18 @@ export class ScriptController {
             let urlSplit: string[];
             let domain = '';
             let checkupdate_url = '';
+            let download_url = '';
+            if (metadata['updateurl'] && metadata['downloadurl']) {
+                checkupdate_url = metadata['updateurl'][0];
+                download_url = metadata['downloadurl'][0];
+            } else {
+                checkupdate_url = url.replace("user.js", "meta.js");
+            }
             if (url.indexOf('/') !== -1) {
                 urlSplit = url.split('/');
                 if (urlSplit[2]) {
                     domain = urlSplit[2];
                 }
-                checkupdate_url = url.replace("user.js", "meta.js");
             }
             let script: Script = {
                 id: 0,
@@ -162,6 +168,7 @@ export class ScriptController {
                 origin_domain: domain,
                 origin: url,
                 checkupdate_url: checkupdate_url,
+                download_url: download_url,
                 config: parseUserConfig(code),
                 metadata: metadata,
                 sort: 0,
