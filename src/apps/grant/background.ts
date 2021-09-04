@@ -331,7 +331,7 @@ export class BackgroundGrant {
         };
         if (xhr.readyState === 4) {
             let contentType = xhr.getResponseHeader("Content-Type");
-            if ((!config.responseType && contentType && contentType.indexOf("application/json") !== -1) || config.responseType == 'json') {
+            if ((!config.responseType && contentType && contentType.indexOf("application/json") !== -1)) {
                 respond.response = JSON.parse(xhr.responseText);
             } else {
                 if (!respond.response && (config.responseType == "arraybuffer" || config.responseType == "blob")) {
@@ -347,8 +347,10 @@ export class BackgroundGrant {
                     respond.response = xhr.response;
                 }
             }
-            if (config.responseType != "arraybuffer" && config.responseType != "blob") {
+            try {
                 respond.responseText = xhr.responseText;
+            } catch (e) {
+
             }
         }
         return respond;
