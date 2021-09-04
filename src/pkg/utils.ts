@@ -54,7 +54,7 @@ export function isFirefox() {
 }
 
 export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = "", scriptId?: number) {
-    top.postMessage(
+    top!.postMessage(
         {
             action: Logger,
             data: {

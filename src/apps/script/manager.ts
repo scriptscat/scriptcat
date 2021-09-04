@@ -30,17 +30,6 @@ export class ScriptManager {
 
     protected resource = new ResourceManager();
 
-    constructor() {
-        chrome.contextMenus.create({
-            id: 'script-cat',
-            title: "ScriptCat",
-            contexts: ['all'],
-            onclick: () => {
-                console.log('exec script');
-            },
-        });
-    }
-
     protected changePort = new Map<any, chrome.runtime.Port>();
     public listenEvent() {
         // 监听值修改事件,并发送给全局
