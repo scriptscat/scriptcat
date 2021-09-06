@@ -53,7 +53,7 @@
     </q-popover>-->
     <ul class="entries">
       <li>
-        <a class="entry" href="/options.html" target="_blank">主页</a>
+        <a class="entry" href="/options.html" target="_blank">管理面板</a>
       </li>
       <li>
         <a class="entry" href="/options.html#/?target=initial" target="_blank">新增脚本</a>
