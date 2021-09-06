@@ -742,8 +742,8 @@ export class BackgroundGrant {
         return new Promise(async resolve => {
             let [key, value] = grant.params;
             let model: Value | undefined;
-            if (script?.namespace) {
-                model = await this.valueModel.findOne({ namespace: script.namespace, key: key });
+            if (script?.metadata['storagename']) {
+                model = await this.valueModel.findOne({ storageName: script.metadata['storagename'][0], key: key });
             } else {
                 model = await this.valueModel.findOne({ scriptId: script?.id, key: key });
             }
@@ -751,7 +751,7 @@ export class BackgroundGrant {
                 model = {
                     id: 0,
                     scriptId: script?.id || 0,
-                    namespace: script?.namespace || '',
+                    storageName: (script?.metadata['storagename'] && script?.metadata['storagename'][0]) || '',
                     key: key,
                     value: value,
                     createtime: new Date().getTime()

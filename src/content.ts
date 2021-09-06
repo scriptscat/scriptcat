@@ -25,7 +25,7 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
     });
     MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
         browserMsg.send(ScriptValueChange, msg);
-    })
+    });
     chrome.runtime.onMessage.addListener((event) => {
         switch (event.action) {
             case ScriptExec:

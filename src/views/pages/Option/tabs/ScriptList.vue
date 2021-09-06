@@ -689,8 +689,8 @@ export default class ScriptList extends Vue {
               group[key].type = "text";
             }
             let where: any = { key: gkey + "." + key };
-            if (val.namespace) {
-              where["namespace"] = val.namespace;
+            if (val.metadata["storagename"]) {
+              where["storageName"] = val.metadata["storagename"][0];
             } else {
               where["scriptId"] = val.id;
             }
@@ -733,7 +733,10 @@ export default class ScriptList extends Vue {
         model = {
           id: 0,
           scriptId: script?.id || 0,
-          namespace: script?.namespace || "",
+          storageName:
+            (script?.metadata["storage"] &&
+              script?.metadata["storagename"][0]) ||
+            "",
           key: key,
           value: item.value,
           createtime: new Date().getTime(),

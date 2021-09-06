@@ -16,7 +16,7 @@ browserMsg.listen("scripts", (msg) => {
             if (!val.value) {
                 val.value = {};
             }
-            if ((val.namespace && val.namespace == msg.namespace) || val.id == msg.id) {
+            if ((val.metadata['storagename'] && val.metadata['storagename'][0] == msg.storageName) || val.id == msg.id) {
                 val.context && val.context.ValueChange && val.context.ValueChange(msg.key, msg);
             }
         })

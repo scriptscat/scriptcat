@@ -30,18 +30,18 @@ export class ScriptManager {
 
     protected resource = new ResourceManager();
 
-    protected changePort = new Map<any, chrome.runtime.Port>();
+    protected changePort = new Map<any, chrome.runtime.Port[]>();
     public listenEvent() {
         // 监听值修改事件,并发送给全局
         AppEvent.listener(ScriptValueChange, async (model: Value) => {
             let vals: { [key: string]: Value } = {};
             let key = '';
-            if (model.namespace) {
-                vals = await App.Cache.get("value:namespace:" + model.namespace);
-                key = "value:namespace:" + model.namespace;
+            if (model.storageName) {
+                key = "value:storagename:" + model.storageName;
+                vals = await App.Cache.get(key);
             } else {
-                vals = await App.Cache.get("value:" + model.scriptId);
-                key = "value:" + model.namespace;
+                key = "value:" + model.scriptId;
+                vals = await App.Cache.get(key);
             }
             if (!vals) {
                 vals = {};
@@ -49,17 +49,26 @@ export class ScriptManager {
             }
             vals[model.key] = model;
             this.changePort.forEach(val => {
-                val.postMessage(model);
+                val.forEach(val => {
+                    val.postMessage(model);
+                })
             })
             // 监听值修改事件,并发送给沙盒环境
             sandbox.postMessage({ action: ScriptValueChange, value: model }, '*');
         });
         MsgCenter.listener(ScriptValueChange, (msg, port) => {
             if (typeof msg == 'string') {
-                this.changePort.set(port.sender?.tab?.id, port);
-                port.onDisconnect.addListener(() => {
-                    this.changePort.delete(port.sender?.tab?.id);
-                })
+                let ports = this.changePort.get(port.sender?.tab?.id);
+                if (!ports) {
+                    ports = [];
+                    ports.push(port);
+                }
+                this.changePort.set(port.sender?.tab?.id, ports);
+                if (!port.sender?.frameId) {
+                    port.onDisconnect.addListener(() => {
+                        this.changePort.delete(port.sender?.tab?.id);
+                    });
+                }
             } else {
                 AppEvent.trigger(ScriptValueChange, msg);
             }
@@ -364,10 +373,15 @@ export class ScriptManager {
                 return;
             }
             // 角标和脚本
-            chrome.browserAction.setBadgeText({
-                text: filter.length.toString(),
+            chrome.browserAction.getBadgeText({
                 tabId: detail.tab?.id,
+            }, res => {
+                chrome.browserAction.setBadgeText({
+                    text: (filter.length + (parseInt(res) || 0)).toString(),
+                    tabId: detail.tab?.id,
+                });
             });
+
             chrome.browserAction.setBadgeBackgroundColor({
                 color: [255, 0, 0, 255],
                 tabId: detail.tab?.id,

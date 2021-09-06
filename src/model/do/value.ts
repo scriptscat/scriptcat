@@ -2,7 +2,7 @@
 export interface Value {
     id: number
     scriptId: number
-    namespace?: string
+    storageName?: string
     key: string
     value: any
     createtime: number

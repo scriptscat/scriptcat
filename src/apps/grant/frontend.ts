@@ -250,7 +250,7 @@ export class FrontendGrant implements ScriptContext {
             ret = {
                 id: 0,
                 scriptId: this.script.id,
-                namespace: this.script.namespace,
+                storageName: (this.script?.metadata['storagename'] && this.script?.metadata['storagename'][0]) || '',
                 key: name,
                 value: value,
                 createtime: new Date().getTime()
@@ -401,7 +401,7 @@ export class SandboxContext extends FrontendGrant {
         if (!this.script.value) {
             this.script.value = {};
         }
-        if (this.script.namespace && this.script.namespace == msg.namespace) {
+        if (this.script.metadata['storagename'] && this.script.metadata['storagename'][0] == msg.storageName) {
             this.ValueChange(msg.key, msg);
         } else if (this.script.id == msg.scriptId) {
             this.ValueChange(msg.key, msg);

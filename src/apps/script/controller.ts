@@ -208,11 +208,11 @@ export class ScriptController {
 
     // 第一次获取后在内存中维护
     public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
-        if (script.namespace) {
-            return App.Cache.getOrSet("value:namespace:" + script.namespace, () => {
+        if (script.metadata['storagename']) {
+            return App.Cache.getOrSet("value:storagename:" + script.metadata['storagename'][0], () => {
                 return new Promise(async resolve => {
                     let list = <Value[]>await this.valueModel.list((table) => {
-                        return table.where({ namespace: script.namespace });
+                        return table.where({ storageName: script.metadata['storagename'][0] });
                     }, new AllPage());
                     let ret: { [key: string]: Value } = {};
                     list.forEach(val => {

@@ -222,9 +222,9 @@ export default class ResizableEditor extends Vue {
   getValue(key: any): Promise<any> {
     return new Promise(async (resolve) => {
       let model: Value | undefined;
-      if (this.script.namespace) {
+      if (this.script.metadata["storagename"]) {
         model = await this.valueModel.findOne({
-          namespace: this.script.namespace,
+          storageName: this.script.metadata["storagename"][0],
           key: key,
         });
       } else {

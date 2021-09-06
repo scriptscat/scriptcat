@@ -41,4 +41,16 @@ export function migrate() {
     db.version(11).stores({
         export: "++id,&uuid,scriptId"
     });
+
+    db.version(12).stores({
+        value: "++id,scriptId,storageName,key,createtime",
+    }).upgrade(tx => {
+        tx.table('value').toCollection().modify(value => {
+            if (value.namespace) {
+                value.storageName = value.namespace;
+                delete value.namespace;
+            }
+        });
+    });
+
 }
