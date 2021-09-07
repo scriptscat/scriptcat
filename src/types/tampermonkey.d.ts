@@ -103,7 +103,9 @@ declare function GM_updateNotification(id: string, details: GM_Types.Notificatio
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
 
-declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[], error: any) => void): void;
+declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[], error: any | undefined) => void): void;
+// 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
+declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, error: any | undefined) => void): void;
 
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
@@ -128,7 +130,8 @@ declare namespace CAT_Types {
 
 declare namespace GM_Types {
 
-    type CookieAction = "list" | "delete" | "set";
+    // store为获取隐身窗口之类的cookie
+    type CookieAction = "list" | "delete" | "set" | 'store';
 
     type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
 
@@ -140,6 +143,7 @@ declare namespace GM_Types {
         path?: string
         secure?: boolean
         session?: boolean
+        storeId?: string;
         httpOnly?: boolean
         expirationDate?: number
     }
@@ -157,8 +161,8 @@ declare namespace GM_Types {
         secure: boolean;
     }
 
-
-    type ValueChangeListener = (name: string, oldValue: any, newValue: any, remote: boolean) => any;
+    // tabid是只有后台脚本监听才有的参数
+    type ValueChangeListener = (name: string, oldValue: any, newValue: any, remote: boolean, tabid?: number) => any;
 
     interface OpenTabOptions {
         active?: boolean,

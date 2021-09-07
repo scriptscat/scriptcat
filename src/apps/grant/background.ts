@@ -475,6 +475,35 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({
+        background: true
+    })
+    protected GM_getCookieStore(grant: Grant, post: IPostMessage): Promise<any> {
+        return new Promise((resolve) => {
+            let reject = (msg: string) => {
+                grant.data = { type: 'error', error: msg };
+                post.postMessage(grant);
+                resolve(undefined);
+            }
+            let tabid = grant.params[0];
+            if (!tabid) {
+                return reject('tabis is null');
+            }
+            chrome.cookies.getAllCookieStores(s => {
+                for (let i = 0; i < s.length; i++) {
+                    for (let n = 0; n < s[i].tabIds.length; n++) {
+                        if (s[i].tabIds[n] == tabid) {
+                            grant.data = { type: 'done', data: s[i].id };
+                            post.postMessage(grant);
+                            return resolve(undefined);
+                        }
+                    }
+                }
+                reject('not found');
+            });
+        });
+    }
+
+    @BackgroundGrant.GMFunction({
         background: true,
         confirm: (grant: Grant, script: Script) => {
             return new Promise((resolve, reject) => {
@@ -518,10 +547,26 @@ export class BackgroundGrant {
         }
     })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
+            let reject = (msg: string) => {
+                grant.data = { type: 'error', error: msg };
+                post.postMessage(grant);
+                resolve(undefined);
+            }
             let param = grant.params;
             if (param.length != 2) {
                 return reject('there must be two parameters');
+            }
+            if (param[0] == 'store') {
+                chrome.cookies.getAllCookieStores(res => {
+                    let data: any[] = [];
+                    res.forEach(val => {
+                        data.push({ storeId: val.id });
+                    });
+                    grant.data = { type: 'done', data: data };
+                    post.postMessage(grant);
+                });
+                return;
             }
             let detail = <GM_Types.CookieDetails>grant.params[1];
             // url或者域名不能为空,且必须有name
@@ -543,11 +588,49 @@ export class BackgroundGrant {
                         secure: detail.secure,
                         session: detail.session,
                         url: detail.url,
+                        storeId: detail.storeId,
                     }, (cookies) => {
                         grant.data = { type: 'done', data: cookies };
                         post.postMessage(grant);
                     });
                     break;
+                }
+                case 'delete': {
+                    if (!detail.url) {
+                        return reject('delete operation must have url and name');
+                    }
+                    chrome.cookies.remove({
+                        name: detail.name,
+                        url: detail.url,
+                        storeId: detail.storeId,
+                    }, () => {
+                        grant.data = { type: 'done', data: [] };
+                        post.postMessage(grant);
+                    });
+                    break;
+                }
+                case 'set': {
+                    if (!detail.url) {
+                        return reject('set operation must have url and name');
+                    }
+                    chrome.cookies.set({
+                        url: detail.url,
+                        name: detail.name,
+                        domain: detail.url,
+                        value: detail.value,
+                        expirationDate: detail.expirationDate,
+                        path: detail.path,
+                        httpOnly: detail.httpOnly,
+                        secure: detail.secure,
+                        storeId: detail.storeId,
+                    }, () => {
+                        grant.data = { type: 'done', data: [] };
+                        post.postMessage(grant);
+                    });
+                    break;
+                }
+                default: {
+                    return reject('action can only be: get, set, delete, store');
                 }
             }
             return resolve(undefined);
@@ -762,12 +845,12 @@ export class BackgroundGrant {
 
             if (value === undefined) {
                 this.valueModel.delete(model!.id);
-                AppEvent.trigger(ScriptValueChange, model);
+                AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
                 return resolve(undefined);
             }
 
             this.valueModel.save(model);
-            AppEvent.trigger(ScriptValueChange, model);
+            AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
             resolve(undefined);
         })
     }

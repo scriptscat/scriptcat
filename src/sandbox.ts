@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { buildThis, compileScript, createContext, createSandboxContext } from "@App/pkg/sandbox";
+import { buildThis, compileScript, createSandboxContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
 import { App, InitApp } from "./apps/app";
@@ -9,7 +9,6 @@ import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
 import { LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR } from "./model/do/logger";
 import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/do/script";
 import { nextTime } from "./views/pages/utils";
-import { debug } from "webpack";
 
 InitApp({
     Log: new ConsoleLogger(),
@@ -256,9 +255,13 @@ window.addEventListener("message", (event) => {
             stop(event.data.data, event.data.isdebug);
             break;
         }
+        case "load": {
+            top!.postMessage({ action: "load" }, "*");
+            break;
+        }
         case ScriptValueChange: {
             AppEvent.trigger(ScriptValueChange, event.data.value);
+            break;
         }
     }
 });
-top!.postMessage({ action: "load" }, "*");

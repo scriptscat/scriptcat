@@ -46,7 +46,13 @@ window.addEventListener("message", (event) => {
     App.Log.Logger(data.level, data.origin, data.message, data.title, data.scriptId);
 });
 
+let timer = setInterval(() => {
+    sandbox.postMessage({ action: 'load' }, '*');
+}, 1000);
+window.addEventListener("message", sandboxLoad);
 function sandboxLoad(event: MessageEvent) {
+    clearInterval(timer);
+    window.removeEventListener("message", sandboxLoad);
     if (event.origin != "null" && event.origin != App.ExtensionId) {
         return;
     }
@@ -54,14 +60,11 @@ function sandboxLoad(event: MessageEvent) {
         return;
     }
     scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
-        items.forEach((value: Script) => {
-            scripts.enableScript(value);
+        items.forEach((script: Script) => {
+            scripts.enableScript(script);
         });
     });
-    window.removeEventListener("message", sandboxLoad);
 }
-
-window.addEventListener("message", sandboxLoad);
 
 // 检查更新
 setInterval(() => {

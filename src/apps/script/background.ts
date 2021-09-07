@@ -1,7 +1,4 @@
 import { ScriptCache, Script } from "@App/model/do/script";
-import { Value } from "@App/model/do/value";
-import { CronJob } from "cron";
-import { AppEvent, ScriptValueChange } from "../msg-center/event";
 
 //后台脚本
 export class Background {

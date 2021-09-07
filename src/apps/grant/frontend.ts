@@ -264,7 +264,7 @@ export class FrontendGrant implements ScriptContext {
         this.postRequest('GM_setValue', [name, value]);
     }
 
-    private valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
+    protected valueChangeListener = new Map<number, { name: string, listener: GM_Types.ValueChangeListener }>();
 
     ValueChange = (name: string, value: Value): void => {
         this.valueChangeListener.forEach(val => {
@@ -396,15 +396,28 @@ export class SandboxContext extends FrontendGrant {
         AppEvent.listener(ScriptValueChange, this.valueChange);
     }
 
-
-    public valueChange = (msg: Value) => {
+    ValueChange = (name: string, value: Value, tabid?: number): void => {
+        this.valueChangeListener.forEach(val => {
+            if (val.name === name) {
+                let old = this.script.value && this.script.value[name] && this.script.value[name].value;
+                val.listener(name, old, value.value, this.script.value === value.value, tabid);
+            }
+        });
         if (!this.script.value) {
             this.script.value = {};
         }
-        if (this.script.metadata['storagename'] && this.script.metadata['storagename'][0] == msg.storageName) {
-            this.ValueChange(msg.key, msg);
-        } else if (this.script.id == msg.scriptId) {
-            this.ValueChange(msg.key, msg);
+        this.script.value[name] = value;
+    }
+
+    public valueChange = (msg: any) => {
+        let { model, tabid } = msg;
+        if (!this.script.value) {
+            this.script.value = {};
+        }
+        if (this.script.metadata['storagename'] && this.script.metadata['storagename'][0] == model.storageName) {
+            this.ValueChange(model.key, model, tabid);
+        } else if (this.script.id == model.scriptId) {
+            this.ValueChange(model.key, model, tabid);
         }
     }
 
@@ -476,6 +489,23 @@ export class SandboxContext extends FrontendGrant {
             switch (grant.data.type) {
                 case 'done':
                     done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
+                    break;
+                case 'error':
+                    done && done([], grant.data.error);
+                    break;
+            }
+        });
+    }
+
+    @FrontendGrant.GMFunction()
+    protected GM_getCookieStore(tabid: number, done: (storeId: number, error: any | undefined) => void): void {
+        this.postRequest('GM_getCookieStore', [tabid], (grant: Grant) => {
+            switch (grant.data.type) {
+                case 'done':
+                    done && done(grant.data.data, undefined);
+                    break;
+                case 'error':
+                    done && done(0, grant.data.error);
                     break;
             }
         });

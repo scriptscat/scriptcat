@@ -33,7 +33,8 @@ export class ScriptManager {
     protected changePort = new Map<any, chrome.runtime.Port[]>();
     public listenEvent() {
         // 监听值修改事件,并发送给全局
-        AppEvent.listener(ScriptValueChange, async (model: Value) => {
+        AppEvent.listener(ScriptValueChange, async (msg: any) => {
+            let { model, tabid } = msg;
             let vals: { [key: string]: Value } = {};
             let key = '';
             if (model.storageName) {
@@ -54,7 +55,7 @@ export class ScriptManager {
                 })
             })
             // 监听值修改事件,并发送给沙盒环境
-            sandbox.postMessage({ action: ScriptValueChange, value: model }, '*');
+            sandbox.postMessage({ action: ScriptValueChange, value: msg }, '*');
         });
         MsgCenter.listener(ScriptValueChange, (msg, port) => {
             if (typeof msg == 'string') {
