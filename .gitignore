@@ -1,4 +1,5 @@
 node_modules
+build/report/
 build/scriptcat/src/*.js
 build/scriptcat/**.html
 build/scriptcat/src/*.txt

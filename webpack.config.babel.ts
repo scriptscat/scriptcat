@@ -1,11 +1,13 @@
 import path from "path";
-
+const chalk = require('chalk')
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import htmlWebpackPlugin from "html-webpack-plugin";
 import MiniCssExtractPlugin from "mini-css-extract-plugin";
 import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
 import vueLoaderPlugin from "vue-loader/lib/plugin";
+
 import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
@@ -24,6 +26,7 @@ const config: Configuration = {
     output: {
         path: __dirname + "/build/scriptcat/src",
         filename: "[name].js",
+        clean: true,
     },
     plugins: [
         new htmlWebpackPlugin({
@@ -93,11 +96,14 @@ const config: Configuration = {
         }),
         new MiniCssExtractPlugin({
             linkType: false,
-            filename: "[name].[hash].css",
-            chunkFilename: "[name].[hash].chunk.css",
+            filename: "[name].[chunkhash:8].css",
+            chunkFilename: "[name].[chunkhash:8].chunk.css",
         }),
         new vueLoaderPlugin(),
         new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
+        new ProgressBarPlugin({
+            format: `  :msg [:bar] ${chalk.green.bold(':percent')} (:elapsed s)`
+        })
     ],
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],

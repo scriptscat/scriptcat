@@ -1,9 +1,10 @@
 import "reflect-metadata";
+import "vuetify/dist/vuetify.min.css";
 import Vue from "vue";
 import { languages } from "monaco-editor";
 import Vuetify from "vuetify";
 
-import "vuetify/dist/vuetify.min.css";
+
 
 import App from "@App/views/pages/Install/index.vue";
 // @ts-ignore
