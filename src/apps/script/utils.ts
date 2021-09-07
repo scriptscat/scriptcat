@@ -83,7 +83,7 @@ export function loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined>
     });
 }
 
-export function copyTime(script: Script, old: Script) {
+export function copyScript(script: Script, old: Script) {
     script.id = old.id;
     script.createtime = old.createtime;
     script.status = old.status;
@@ -92,4 +92,8 @@ export function copyTime(script: Script, old: Script) {
     script.delayruntime = old.delayruntime;
     script.error = old.error;
     script.sort = old.sort;
+    script.selfMetadata = old.selfMetadata;
+    for (let key in script.selfMetadata) {
+        script.metadata[key] = script.metadata[key];
+    }
 }

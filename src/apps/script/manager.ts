@@ -11,7 +11,7 @@ import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIP
 import { Value } from "@App/model/do/value";
 import { ScriptModel } from "@App/model/script";
 import { Background } from "./background";
-import { copyTime, loadScriptByUrl, parseMetadata } from "./utils";
+import { copyScript, loadScriptByUrl, parseMetadata } from "./utils";
 import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
@@ -203,7 +203,7 @@ export class ScriptManager {
             // 加载资源
             App.Cache.del('script:' + script.id);
             this.loadResouce(script);
-            copyTime(script, oldScript);
+            copyScript(script, oldScript);
             script.updatetime = new Date().getTime();
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.disableScript(script);
@@ -349,7 +349,7 @@ export class ScriptManager {
                 if (script.status !== SCRIPT_STATUS_ENABLE) {
                     return;
                 }
-                if (script.metadata['@noframes']) {
+                if (script.metadata['noframes']) {
                     if (detail.frameId != 0) {
                         return;
                     }

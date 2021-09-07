@@ -1,3 +1,4 @@
+import { Script } from "@App/model/do/script";
 import { App } from "../app";
 import { IGrantListener, IPostMessage } from "./interface";
 
@@ -23,4 +24,12 @@ export function execMethod(propertyName: string, name: string, resolve: (arg0: a
         App.Log.Error("script", "call function error: " + propertyName, name);
         reject(e);
     });
+}
+
+export function getIcon(script: Script): string {
+    return (script.metadata['icon'] && script.metadata['icon'][0])
+        || (script.metadata['iconurl'] && script.metadata['iconurl'][0])
+        || (script.metadata['defaulticon'] && script.metadata['defaulticon'][0])
+        || (script.metadata['icon64'] && script.metadata['icon64'][0])
+        || (script.metadata['icon64url'] && script.metadata['icon64url'][0]);
 }

@@ -64,6 +64,7 @@ export interface Script {
     download_url: string
     //script metadata
     metadata: Metadata;
+    selfMetadata: Metadata;
     // user config
     config?: UserConfig;
     //script type. 1:normal 2:crontab

@@ -4,7 +4,7 @@ import { ScriptModel } from "@App/model/script";
 import { AllPage, Page, randomString } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
-import { parseMetadata, parseUserConfig, copyTime } from "./utils";
+import { parseMetadata, parseUserConfig, copyScript } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
 import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
@@ -171,6 +171,7 @@ export class ScriptController {
                 download_url: download_url,
                 config: parseUserConfig(code),
                 metadata: metadata,
+                selfMetadata: {},
                 sort: 0,
                 type: type,
                 status: SCRIPT_STATUS_PREPARE,
@@ -183,7 +184,7 @@ export class ScriptController {
                 old = await this.scriptModel.findOne({ name: script.name, namespace: script.namespace });
             }
             if (old) {
-                copyTime(script, old);
+                copyScript(script, old);
             } else {
                 // 前台脚本默认开启
                 if (script.type == SCRIPT_TYPE_NORMAL) {

@@ -11,7 +11,7 @@ import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
 import { Permission } from "@App/model/do/permission";
 import { Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
-import { execMethod } from "./utils";
+import { execMethod, getIcon } from "./utils";
 
 class postMessage implements IPostMessage {
 
@@ -710,7 +710,7 @@ export class BackgroundGrant {
             });
         }
     })
-    protected GM_notification(grant: Grant, post: IPostMessage): Promise<any> {
+    protected GM_notification(grant: Grant, post: IPostMessage, script: Script): Promise<any> {
         return new Promise((resolve, reject) => {
             let params = grant.params;
             if (params.length == 0) {
@@ -720,7 +720,7 @@ export class BackgroundGrant {
             let options: chrome.notifications.NotificationOptions = {
                 title: details.title || 'ScriptCat',
                 message: details.text,
-                iconUrl: details.image || chrome.runtime.getURL("assets/logo.png"),
+                iconUrl: details.image || getIcon(script) || chrome.runtime.getURL("assets/logo.png"),
                 type: (isFirefox() || details.progress === undefined) ? 'basic' : 'progress',
             };
             if (!isFirefox()) {
