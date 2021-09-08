@@ -38,26 +38,26 @@ export default class App extends Vue {
         eventBus.$on<IChangeTitle>(EventType.ChangeTitle, this.handleChangeTitle);
     }
 
-    generatePlusTab() {
-        const tabKey = Math.random();
+    // generatePlusTab() {
+    //     const tabKey = Math.random();
 
-        return {
-            tabKey,
-            icon: <VIcon dense>mdi-plus</VIcon>,
-            content: (
-                <div
-                    style={{
-                        display: "flex",
-                        height: "100%",
-                    }}
-                >
-                    <ScriptTab tabKey={tabKey} />
-                </div>
-            ),
-            closable: false,
-            keepAlive: false,
-        };
-    }
+    //     return {
+    //         tabKey,
+    //         icon: <VIcon dense>mdi-plus</VIcon>,
+    //         content: (
+    //             <div
+    //                 style={{
+    //                     display: "flex",
+    //                     height: "100%",
+    //                 }}
+    //             >
+    //                 <ScriptTab tabKey={tabKey} />
+    //             </div>
+    //         ),
+    //         closable: false,
+    //         keepAlive: false,
+    //     };
+    // }
 
     generateScriptTab(scriptId: number): ITabItem {
         const tabKey = Math.random();
@@ -150,7 +150,7 @@ export default class App extends Vue {
                 closable: false,
                 keepAlive: false,
             },
-            this.generatePlusTab(),
+            // this.generatePlusTab(),
         );
 
         // 外部跳转
@@ -231,22 +231,46 @@ export default class App extends Vue {
     }
 
     /** 在原PlusTab中保存了脚本时触发 */
-    handleNewScript({ scriptId }: INewScript) {
+    handleNewScript({ scriptId, tabKey }: INewScript) {
         console.log("handleNewScript");
 
-        // 如果在新建脚本tab中保存了脚本，那么将这个脚本移到一个新的tab中，
+        // 需要知道是哪一个tab触发了保存事件，因为可能同时打开了多个“新建脚本”
+        const scriptTabIndex = this.allTabs.findIndex((tab) => tab.tabKey == tabKey);
+
+        console.log({
+            scriptTabIndex,
+        });
+
         this.updateTab({
-            index: this.allTabs.length - 1,
+            // -1时，说明目前并没有打开“新建脚本”，只有固定的3个基础页面，需要新开，即initial
+            index: scriptTabIndex === -1 ? this.allTabs.length : scriptTabIndex,
             newTab: this.generateScriptTab(scriptId),
         });
 
+        this.$nextTick(() => {
+            if (scriptTabIndex === -1) {
+                this.activeTab(this.allTabs.length - 1);
+            } else {
+                this.$nextTick(() => {
+                    // 这种写法很不好，不过能用
+                    // 这么写的原因，对应components/Tab/Tab.tsx中的onTabsChange，两个tick
+                    this.activeTab(scriptTabIndex);
+                });
+            }
+        });
+
         // 并还原新建脚本这个tab为加号
-        this.allTabs.push(this.generatePlusTab());
+        // this.allTabs.push(this.generatePlusTab());
     }
 
-    handleChangeTitle({ title, scriptId, initial }: IChangeTitle) {
+    handleChangeTitle({ title, scriptId, initial, tabKey }: IChangeTitle) {
         if (initial) {
-            const newScriptIndex = this.allTabs.length - 1;
+            // const newScriptIndex = this.allTabs.length - 1;
+            const newScriptIndex = this.allTabs.findIndex((tab) => tab.tabKey == tabKey);
+
+            console.log({
+                newScriptIndex,
+            });
 
             const newScriptTab = { ...this.allTabs[newScriptIndex] };
 
@@ -280,14 +304,14 @@ export default class App extends Vue {
     handleTabRemove(index: number) {
         this.activeTab(0);
 
-        if (index === this.allTabs.length - 1) {
-            this.updateTab({
-                index,
-                newTab: this.generatePlusTab(),
-            });
-        } else {
-            this.allTabs.splice(index, 1);
-        }
+        // if (index === this.allTabs.length - 1) {
+        //     this.updateTab({
+        //         index,
+        //         newTab: this.generatePlusTab(),
+        //     });
+        // } else {
+        this.allTabs.splice(index, 1);
+        // }
     }
 
     render() {

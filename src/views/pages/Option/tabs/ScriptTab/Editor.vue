@@ -92,6 +92,7 @@ export default class CloseButton extends Vue {
     return this.$refs.resizableEditor.editor;
   }
 
+  @Prop() tabKey!: number | string;
   @Prop() scriptId!: number;
   @Prop() script!: Script;
 
@@ -136,9 +137,10 @@ export default class CloseButton extends Vue {
           // });
 
           eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
-            title: `* ${this.script.name}`,
+            title: `* ${this.script.name ?? "新建脚本"}`,
             initial: this.scriptId ? undefined : true,
             scriptId: this.scriptId,
+            tabKey: this.tabKey,
           });
 
           this.hasUnsavedChange = true;

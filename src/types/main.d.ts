@@ -12,7 +12,7 @@ interface ITabItem {
     lazy?: boolean;
     keepAlive?: boolean;
     scriptId?: number;
-    message?: string,
+    message?: string;
     beforeChange?: (tabPane: TabPane) => Promise<boolean>;
     beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
 }
@@ -22,6 +22,7 @@ interface IChangeTitle {
     /** 是否是在新建脚本 */
     initial?: boolean;
     scriptId?: number;
+    tabKey: string | number;
 }
 
 interface IEditScript {
@@ -35,6 +36,7 @@ interface ICreateScript {
 
 interface INewScript {
     scriptId: number;
+    tabKey: string | number;
 }
 
 interface IUpdateMeta {

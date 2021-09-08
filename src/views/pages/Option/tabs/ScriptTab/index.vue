@@ -10,6 +10,7 @@
       <TabPane title="编辑器" :keepAlive="true">
         <Editor
           ref="editor"
+          :tabKey="tabKey"
           :script="script"
           :scriptId="scriptId"
           :onMetaChange="onMetaChange"
@@ -102,6 +103,7 @@ export default class ScriptTab extends Vue {
       eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
         title: "新建脚本",
         initial: true,
+        tabKey: this.tabKey,
       });
       // scriptModule.changeTitle({});
 
@@ -128,6 +130,7 @@ export default class ScriptTab extends Vue {
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: script.name,
       scriptId: this.scriptId,
+      tabKey: this.tabKey,
     });
 
     this.hasInitial = true;
@@ -207,6 +210,7 @@ export default class ScriptTab extends Vue {
       title: `${this.script.name}`,
       initial: this.scriptId ? undefined : true,
       scriptId: this.scriptId,
+      tabKey: this.tabKey,
     });
 
     this.$refs.editor.hasUnsavedChange = false;
@@ -217,6 +221,7 @@ export default class ScriptTab extends Vue {
       // 简单来说，就是id需要从IndexedDB中获取
       eventBus.$emit<INewScript>(EventType.NewScript, {
         scriptId: newScript.id,
+        tabKey: this.tabKey,
       });
     }
 
