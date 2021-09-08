@@ -1,6 +1,7 @@
 import merge from "webpack-merge";
 import commonConfig from "./webpack.config.babel";
 import TerserPlugin from "terser-webpack-plugin";
+import { BundleAnalyzerPlugin } from "webpack-bundle-analyzer";
 import { Configuration } from "webpack";
 
 // 减小扩展包大小
@@ -34,6 +35,13 @@ const localConfig: Configuration = {
             },
         },
     },
+    plugins: [
+        new BundleAnalyzerPlugin({
+            analyzerMode: "static",
+            openAnalyzer: false,
+            reportFilename: "../../report/bundle-analyzer.html",
+        }),
+    ],
 };
 
 export default merge(commonConfig, localConfig);
