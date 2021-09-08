@@ -492,7 +492,7 @@
       color="#1296db"
       fab
       dark
-      @click="newScript"
+      @click="newScript()"
     >
       <v-icon>mdi-plus</v-icon>
     </v-btn>
@@ -653,6 +653,7 @@ export default class ScriptList extends Vue {
         });
     });
 
+    // todo 监听脚本列表更新，自动同步最新(比如新建)
     // MsgCenter.listener(ScriptUpdate, () => {
     eventBus.$on(EventType.UpdateScriptList, () => {
       this.scriptController
@@ -881,7 +882,7 @@ export default class ScriptList extends Vue {
   }
 
   newScript() {
-    eventBus.$emit<INewScript>(EventType.NewScript, { scriptId: 0 });
+    eventBus.$emit<INewScript>(EventType.NewScript, {} as any);
   }
 
   copyLink(item: Script) {
