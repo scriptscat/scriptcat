@@ -63,7 +63,10 @@ export default class App extends Vue {
     //     };
     // }
 
-    generateScriptTab(scriptId: number): ITabItem {
+    generateScriptTab(
+        scriptId: number,
+        template: "normal" | "crontab" | "background" = "crontab",
+    ): ITabItem {
         const tabKey = Math.random();
 
         return {
@@ -77,7 +80,7 @@ export default class App extends Vue {
                         height: "100%",
                     }}
                 >
-                    <ScriptTab tabKey={tabKey} scriptId={scriptId} />
+                    <ScriptTab tabKey={tabKey} scriptId={scriptId} template={template} />
                 </div>
             ),
             closable: true,
@@ -226,8 +229,7 @@ export default class App extends Vue {
         let scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
         // 如果不存在，则新建
         if (scriptTabIndex === -1) {
-            // 保留最后为PLUS，所以新添加的tab是倒数第二个
-            scriptTabIndex = this.allTabs.length - 1;
+            scriptTabIndex = this.allTabs.length;
 
             this.appendTab({
                 index: scriptTabIndex,
@@ -247,7 +249,7 @@ export default class App extends Vue {
     }
 
     /** 在原PlusTab中保存了脚本时触发 */
-    handleNewScript({ scriptId, tabKey }: INewScript) {
+    handleNewScript({ scriptId, tabKey, template }: INewScript) {
         console.log("handleNewScript");
 
         // 需要知道是哪一个tab触发了保存事件，因为可能同时打开了多个“新建脚本”
@@ -260,7 +262,7 @@ export default class App extends Vue {
         this.updateTab({
             // -1时，说明目前并没有打开“新建脚本”，只有固定的3个基础页面，需要新开，即initial
             index: scriptTabIndex === -1 ? this.allTabs.length : scriptTabIndex,
-            newTab: this.generateScriptTab(scriptId),
+            newTab: this.generateScriptTab(scriptId, template),
         });
 
         this.$nextTick(() => {

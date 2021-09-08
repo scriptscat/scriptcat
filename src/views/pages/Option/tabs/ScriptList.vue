@@ -487,15 +487,94 @@
       >总脚本数量: {{ scripts.length }}</span
     >
 
-    <v-btn
-      style="position: absolute; right: 20px; bottom: 20px"
-      color="#1296db"
-      fab
-      dark
-      @click="newScript()"
+    <v-speed-dial
+      v-model="fab"
+      right
+      bottom
+      direction="top"
+      transition="slide-y-reverse-transition"
+      open-on-hover
+      :style="{
+        position: 'absolute',
+      }"
     >
-      <v-icon>mdi-plus</v-icon>
-    </v-btn>
+      <!-- right: '20px',
+        bottom: '20px', -->
+      <template v-slot:activator>
+        <v-btn v-model="fab" color="blue darken-2" dark fab>
+          <v-icon v-if="fab"> mdi-close </v-icon>
+          <v-icon v-else> mdi-plus </v-icon>
+        </v-btn>
+      </template>
+
+      <v-tooltip left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            v-on="on"
+            fab
+            dark
+            small
+            color="#1296db"
+            @click="newScript('normal')"
+          >
+            <v-icon>mdi-file-document-outline</v-icon>
+          </v-btn>
+        </template>
+        <span>普通脚本</span>
+      </v-tooltip>
+
+      <v-tooltip left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            v-on="on"
+            fab
+            dark
+            small
+            color="#1296db"
+            @click="newScript('background')"
+          >
+            <v-icon>mdi-console</v-icon>
+          </v-btn>
+        </template>
+        <span>后台脚本</span>
+      </v-tooltip>
+
+      <v-tooltip left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            v-on="on"
+            fab
+            dark
+            small
+            color="#1296db"
+            @click="newScript('crontab')"
+          >
+            <v-icon>mdi-alarm</v-icon>
+          </v-btn>
+        </template>
+        <span>定时脚本</span>
+      </v-tooltip>
+
+      <v-tooltip left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            v-on="on"
+            fab
+            dark
+            small
+            color="#1296db"
+            @click="newScript('background')"
+          >
+            <v-icon>mdi-open-in-new</v-icon>
+          </v-btn>
+        </template>
+        <span>链接导入</span>
+      </v-tooltip>
+    </v-speed-dial>
   </div>
 </template>
 
@@ -623,6 +702,9 @@ export default class ScriptList extends Vue {
   };
 
   configTab = {};
+
+  // fab开启与关闭时，显示不同的图标
+  fab = false;
 
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
@@ -881,8 +963,8 @@ export default class ScriptList extends Vue {
     window.open(link, "_blank");
   }
 
-  newScript() {
-    eventBus.$emit<INewScript>(EventType.NewScript, {} as any);
+  newScript(template: "normal" | "crontab" | "background" = "crontab") {
+    eventBus.$emit<INewScript>(EventType.NewScript, { template } as any);
   }
 
   copyLink(item: Script) {

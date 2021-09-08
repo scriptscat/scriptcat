@@ -13,6 +13,7 @@
           :tabKey="tabKey"
           :script="script"
           :scriptId="scriptId"
+          :template="template"
           :onMetaChange="onMetaChange"
           @initial-script="handleInitialSctipt"
           @save-script="handleSaveScript"
@@ -89,6 +90,8 @@ export default class ScriptTab extends Vue {
   @Prop() tabKey!: number | string;
   @Prop() scriptId!: number;
   script: Script = <Script>{};
+
+  @Prop() template!: "normal" | "crontab" | "background";
 
   hasInitial = false;
   onMetaChange = false;

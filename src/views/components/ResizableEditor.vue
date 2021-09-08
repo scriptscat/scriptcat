@@ -26,13 +26,16 @@ import { Component, Prop, Vue } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 
 import { sleep } from "@App/pkg/utils";
+import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
+import backgroundTpl from "@App/template/background.tpl";
 
 @Component({})
 export default class ResizableEditor extends Vue {
   @Prop({ default: "javascript" }) language!: string;
-  // todo 可以选择默认模板
-  @Prop({ default: crontabTpl }) template!: string;
+  // 可以选择默认模板
+  @Prop() template!: "normal" | "crontab" | "background";
+  // @Prop({ default: "crontab" }) template!: "normal" | "crontab" | "background";
 
   // 页面上存在多个editor实例时，contentKeyService会报错
   uniqueEditorId = `container${String(Math.random()).slice(2)}`;
@@ -72,6 +75,22 @@ export default class ResizableEditor extends Vue {
       return;
     }
 
+    let template: typeof crontabTpl;
+
+    switch (this.template) {
+      case "normal":
+        template = normalTpl;
+        break;
+
+      case "crontab":
+        template = crontabTpl;
+        break;
+
+      case "background":
+        template = backgroundTpl;
+        break;
+    }
+
     this.editor = editor.create(edit, {
       language: this.language,
       folding: true,
@@ -79,7 +98,7 @@ export default class ResizableEditor extends Vue {
       automaticLayout: true,
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
-      value: this.template,
+      value: template,
     });
 
     this.$nextTick(() => {
