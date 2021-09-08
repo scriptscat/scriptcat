@@ -5,6 +5,8 @@ build/scriptcat/**.html
 build/scriptcat/src/*.txt
 build/scriptcat/src/*.ttf
 build/scriptcat/src/*.css
+build/scriptcat/src/*.svg
+build/scriptcat/src/*.woff
 
 *.zip
 *.crx

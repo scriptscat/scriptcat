@@ -126,6 +126,11 @@ const config: Configuration = {
                 exclude: /node_modules/,
             },
             {
+                test: /\.vue$/,
+                use: "vue-loader",
+                include: /node_modules[\\\/]@qvant[\\\/]qui/,
+            },
+            {
                 test: /\.d\.ts$/,
                 use: [
                     {
