@@ -52,7 +52,7 @@
     </div>
 
     <div class="sub-container">
-      <ResizableEditor ref="resizableEditor" />
+      <ResizableEditor ref="resizableEditor" :template="template" />
     </div>
     <input type="file" id="fileInput" hidden accept=".js" />
   </div>
@@ -95,6 +95,7 @@ export default class CloseButton extends Vue {
   @Prop() tabKey!: number | string;
   @Prop() scriptId!: number;
   @Prop() script!: Script;
+  @Prop() template!: "normal" | "crontab" | "background";
 
   @Prop() onMetaChange!: boolean;
   hasInitial = false;

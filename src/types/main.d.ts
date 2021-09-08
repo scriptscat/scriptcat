@@ -15,6 +15,7 @@ interface ITabItem {
     message?: string;
     beforeChange?: (tabPane: TabPane) => Promise<boolean>;
     beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
+    template?: "normal" | "crontab" | "background";
 }
 
 interface IChangeTitle {
@@ -37,6 +38,7 @@ interface ICreateScript {
 interface INewScript {
     scriptId: number;
     tabKey: string | number;
+    template?: "normal" | "crontab" | "background";
 }
 
 interface IUpdateMeta {
