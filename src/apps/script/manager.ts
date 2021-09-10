@@ -205,11 +205,11 @@ export class ScriptManager {
             this.loadResouce(script);
             copyScript(script, oldScript);
             script.updatetime = new Date().getTime();
+            await this.scriptModel.save(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.disableScript(script);
                 await this.enableScript(script);
             }
-            await this.scriptModel.save(script);
             return resolve(true);
         });
     }

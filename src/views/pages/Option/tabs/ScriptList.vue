@@ -503,6 +503,7 @@ import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
 
 import BgCloud from "@components/BgCloud.vue";
 import { App } from "@App/apps/app";
+import { mode } from "crypto-js";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -713,14 +714,14 @@ export default class ScriptList extends Vue {
       let item = script.config![name][itemKey];
       let key = name + "." + itemKey;
       let model: Value | undefined;
-      if (script?.namespace) {
+      if (script.metadata["storagename"]) {
         model = await this.valueModel.findOne({
-          namespace: script.namespace,
+          storageName: script.metadata["storagename"][0],
           key: key,
         });
       } else {
         model = await this.valueModel.findOne({
-          scriptId: script?.id,
+          scriptId: script.id,
           key: key,
         });
       }
@@ -732,10 +733,10 @@ export default class ScriptList extends Vue {
       } else {
         model = {
           id: 0,
-          scriptId: script?.id || 0,
+          scriptId: script.id,
           storageName:
-            (script?.metadata["storage"] &&
-              script?.metadata["storagename"][0]) ||
+            (script.metadata["storagename"] &&
+              script.metadata["storagename"][0]) ||
             "",
           key: key,
           value: item.value,
@@ -743,7 +744,7 @@ export default class ScriptList extends Vue {
         };
       }
       this.valueModel.save(model);
-      MsgCenter.connect(ScriptValueChange, model);
+      MsgCenter.connect(ScriptValueChange, { model: model, tabid: undefined });
     }
     success();
   }

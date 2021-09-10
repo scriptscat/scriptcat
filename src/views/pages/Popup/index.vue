@@ -55,7 +55,10 @@
         </v-list>
       </v-menu>
     </v-app-bar>
-    <v-main class="content" style="max-height: 500px; overflow-y: scroll; padding: 6px">
+    <v-main
+      class="content"
+      style="max-height: 500px; overflow-y: scroll; padding: 6px"
+    >
       <v-card
         id="notice"
         v-show="isShowNotice"
@@ -85,7 +88,20 @@
         <span class="v-text d-flex" style="color: #fff"
           >当前版本: {{ version }} {{ isdebug ? "debug" : "" }}</span
         >
-        <span class="v-text d-flex" style="color: #fff">已是最新版本</span>
+        <span
+          v-if="version == remoteVersion"
+          class="v-text d-flex"
+          style="color: #fff"
+          >已是最新版本</span
+        >
+        <a
+          v-else
+          class="v-text d-flex"
+          style="color: #e3ff00; text-decoration: none"
+          href="https://github.com/scriptscat/scriptcat/releases"
+          target="_blank"
+          >有新的版本</a
+        >
       </div>
     </v-footer>
   </v-app>
@@ -132,6 +148,7 @@ export default class Popup extends Vue {
   tabs = null;
 
   version = ExtVersion;
+  remoteVersion = "";
   isdebug = process.env.NODE_ENV == "development";
 
   panel = [0];
@@ -188,42 +205,46 @@ export default class Popup extends Vue {
   }
 
   created() {
-    chrome.storage.local.get(["notice", "oldNotice"], (items) => {
+    chrome.storage.local.get(["notice", "oldNotice", "version"], (items) => {
       this.notice = items["notice"];
       this.oldNotice = items["oldNotice"];
+      this.remoteVersion = items["version"];
     });
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, async (tabs) => {
-      MsgCenter.sendMessage(
-        RequestTabRunScript,
-        {
-          tabId: tabs[0].id,
-          url: tabs[0].url,
-        },
-        (val) => {
-          this.scripts = val.run;
-          this.menu = val.runMenu || {};
-          this.bgMenu = val.bgMenu || {};
-          // 将有菜单的后台脚本,放到运行脚本中
-          this.scriptConrtoller
-            .scriptList((where) => {
-              return where
-                .where("type")
-                .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
-            })
-            .then((result) => {
-              this.bgScripts = result;
-              let map = new Map();
-              result.forEach((val) => {
-                map.set(val.id, val);
+    chrome.tabs.query(
+      { active: true, lastFocusedWindow: true },
+      async (tabs) => {
+        MsgCenter.sendMessage(
+          RequestTabRunScript,
+          {
+            tabId: tabs[0].id,
+            url: tabs[0].url,
+          },
+          (val) => {
+            this.scripts = val.run;
+            this.menu = val.runMenu || {};
+            this.bgMenu = val.bgMenu || {};
+            // 将有菜单的后台脚本,放到运行脚本中
+            this.scriptConrtoller
+              .scriptList((where) => {
+                return where
+                  .where("type")
+                  .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
+              })
+              .then((result) => {
+                this.bgScripts = result;
+                let map = new Map();
+                result.forEach((val) => {
+                  map.set(val.id, val);
+                });
+                for (const id in this.bgMenu) {
+                  this.scripts.push(map.get(parseInt(id)));
+                  this.menu[id] = this.bgMenu[id];
+                }
               });
-              for (const id in this.bgMenu) {
-                this.scripts.push(map.get(parseInt(id)));
-                this.menu[id] = this.bgMenu[id];
-              }
-            });
-        }
-      );
-    });
+          }
+        );
+      }
+    );
   }
 }
 </script>

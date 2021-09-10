@@ -1,6 +1,7 @@
 node_modules
 build/report/
 build/scriptcat/src/*.js
+build/scriptcat/src/*
 build/scriptcat/**.html
 build/scriptcat/src/*.txt
 build/scriptcat/src/*.ttf

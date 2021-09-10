@@ -87,9 +87,12 @@ get(Server + "api/v1/system/version", (str) => {
         let resp = JSON.parse(str);
         if (resp.data.notice !== items['oldNotice']) {
             chrome.storage.local.set({
-                notice: resp.data.notice
+                notice: resp.data.notice,
             });
         }
+        chrome.storage.local.set({
+            version: resp.data.version,
+        });
     });
 });
 setInterval(() => {
@@ -101,6 +104,9 @@ setInterval(() => {
                     notice: resp.data.notice
                 });
             }
+            chrome.storage.local.set({
+                version: resp.data.version,
+            });
         });
     });
 }, 600000)

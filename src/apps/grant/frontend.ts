@@ -77,10 +77,10 @@ export class FrontendGrant implements ScriptContext {
         };
         if (callback) {
             this.request.set(grant.request, (grant: Grant) => {
+                callback(grant);
                 if (grant.error) {
                     throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
                 }
-                callback(grant);
             });
         }
         this.browserMsg.send("grant", grant);
@@ -138,6 +138,10 @@ export class FrontendGrant implements ScriptContext {
         }
 
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
+            if (grant.error) {
+                details.onerror && details.onerror(grant.errorMsg);
+                return;
+            }
             switch (grant.data.type) {
                 case 'load':
                     details.onload && details.onload(grant.data.data);
@@ -457,10 +461,10 @@ export class SandboxContext extends FrontendGrant {
         };
         if (callback) {
             this.request.set(grant.request, (grant: Grant) => {
+                callback(grant);
                 if (grant.error) {
                     throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
                 }
-                callback(grant);
             });
         }
         top!.postMessage(grant, '*');
