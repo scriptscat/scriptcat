@@ -25,12 +25,12 @@ export class ScriptModel extends Model<Script> {
         return this.findOne({ uuid: uuid });
     }
 
-    public findByUUIDAndSubscribeId(uuid: string, subId: number) {
-        return this.findOne({ subscribeId: subId, uuid: uuid });
+    public findByUUIDAndSubscribeUrl(uuid: string, suburl: string) {
+        return this.findOne({ subscribeId: suburl, uuid: uuid });
     }
 
-    public findByOriginAndSubscribeId(origin: string, subId: number) {
-        return this.findOne({ subscribeId: subId, origin: origin });
+    public findByOriginAndSubscribeUrl(origin: string, suburl: string) {
+        return this.findOne({ subscribeUrl: suburl, origin: origin });
     }
 }
 

@@ -18,6 +18,9 @@ import { v5 as uuidv5 } from "uuid";
 import { Subscribe } from "@App/model/do/subscribe";
 import { SubscribeModel } from "@App/model/subscribe";
 import { Server } from "../config";
+import { SyncModel } from "@App/model/sync";
+import { time } from "cron";
+import { Sync, SyncAction, SyncData } from "@App/model/do/sync";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -30,6 +33,7 @@ export class ScriptManager {
     protected match = new UrlMatch<ScriptCache>();
 
     protected valueModel = new ValueModel();
+    protected syncModel = new SyncModel();
 
     protected resource = new ResourceManager();
 
@@ -219,7 +223,7 @@ export class ScriptManager {
                 for (let key in old.scripts) {
                     if (!sub.scripts[key]) {
                         // 老的存在,新的不存在,删除
-                        let script = await this.scriptModel.findByUUIDAndSubscribeId(old.scripts[key].uuid, sub.id);
+                        let script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
                         if (script) {
                             deleteScript.push(script.name);
                             this.scriptUninstall(script.id);
@@ -232,7 +236,7 @@ export class ScriptManager {
             let error = [];
             for (let i = 0; i < addScript.length; i++) {
                 let url = addScript[i];
-                let script = await this.scriptModel.findByOriginAndSubscribeId(url, sub.id);
+                let script = await this.scriptModel.findByUUIDAndSubscribeUrl(url, sub.url);
                 let oldscript;
                 if (!script) {
                     try {
@@ -286,13 +290,6 @@ export class ScriptManager {
         });
     }
 
-    public syncScriptTask(uuid: string, action: string) {
-        // 设置同步任务
-        let value: any = {};
-        value["sync_script_task_" + uuid] = { uuid, action, actiontime: new Date().getTime() };
-        chrome.storage.local.set(value);
-    }
-
     public scriptInstall(script: Script): Promise<number> {
         return new Promise(async resolve => {
             // 加载资源
@@ -302,7 +299,7 @@ export class ScriptManager {
                 await this.enableScript(script);
             }
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "install");
+            this.syncScriptTask(script.uuid, "update");
             return resolve(script.id);
         });
     }
@@ -325,7 +322,7 @@ export class ScriptManager {
             }
             await this.scriptModel.save(script);
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "reinstall");
+            this.syncScriptTask(script.uuid, "update");
             return resolve(true);
         });
     }
@@ -358,7 +355,7 @@ export class ScriptManager {
                 this.resource.deleteResource(val, script!.id);
             });
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "uninstall");
+            this.syncScriptTask(script.uuid, "delete");
             return resolve(true);
         });
     }
@@ -378,6 +375,8 @@ export class ScriptManager {
             } else {
                 await this.disableScript(script);
             }
+            // 设置同步任务
+            this.syncScriptTask(script.uuid, "update");
             return resolve(true);
         });
     }
@@ -412,7 +411,6 @@ export class ScriptManager {
             }
         });
     }
-
 
     public listenScriptMath() {
         AppEvent.listener(ScriptStatusChange, async (script: Script) => {
@@ -807,18 +805,80 @@ export class ScriptManager {
         });
     }
 
+    public syncScriptTask(uuid: string, action: SyncAction, script?: Script) {
+        // 设置同步任务
+        chrome.storage.local.get(['currentUser', 'currentDevice'], async (items) => {
+            if (!items['currentUser'] || !items['currentDevice']) {
+                return;
+            }
+            let sync = await this.syncModel.findByKey(uuid);
+            let data: SyncData = {
+                action: action,
+                actiontime: new Date().getTime(),
+                uuid: uuid,
+            };
+            if (action == "update") {
+                data.script = {
+                    name: script!.name,
+                    uuid: script!.uuid,
+                    code: script!.code,
+                    meta_json: JSON.stringify(script!.metadata),
+                    self_meta: JSON.stringify(script!.selfMetadata),
+                    origin: script!.origin,
+                    sort: script!.sort,
+                    subscribe_url: script!.subscribeUrl,
+                    type: script!.type,
+                    enable: script!.status == SCRIPT_STATUS_ENABLE ? 1 : 0,
+                    createtime: script!.createtime,
+                    updatetime: script!.updatetime,
+                };
+            }
+            if (!sync) {
+                sync = {
+                    id: 0,
+                    key: uuid,
+                    user: items['currentUser'],
+                    device: items['currentDevice'],
+                    type: 'script',
+                    data: data,
+                    createtime: new Date().getTime(),
+                };
+            } else {
+                sync.data = data
+            }
+            this.syncModel.save(sync);
+        });
+    }
+
     public sync() {
         // 同步脚本
-        chrome.storage.local.get(items => {
-            for (const key in items) {
-                if (key.startsWith('sync_script_task_')) {
-                    
-                }
+        chrome.storage.local.get(['currentUser', 'currentDevice', 'currentScriptSyncVersion'], async items => {
+            if (!items['currentUser'] || !items['currentDevice']) {
+                return;
             }
-        })
-        post(Server + "api/v1/sync/script", "", true, () => {
+            let list = <Sync[]>await this.syncModel.list(this.syncModel.table.where({ user: items['currentUser'], device: items['currentDevice'], type: "script" }));
+            let map = new Map<string, Sync>();
+            for (const key in list) {
+                map.set(list[key].key, list[key]);
+            }
+            get(Server + "api/v1/sync/" + items['currentDevice'] + '/script/pull/' + (items['currentScriptSyncVersion'] || 0), (respText) => {
+                let json = JSON.parse(respText);
+                if (json.code !== 0) {
+                    App.Log.Error("system", json.msg, "同步失败");
+                    return
+                }
+                let data = <SyncData[]>json.data.pull;
+                for (const key in data) {
+                    if (map.has(data[key].uuid!)) {
+                        // 存在
+                        
+                    }else{
+                        // 不存在
+                    }
+                }
+            });
 
         });
-
     }
+
 }

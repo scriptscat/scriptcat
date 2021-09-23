@@ -106,7 +106,7 @@ export function copyScript(script: Script, old: Script) {
     for (let key in script.selfMetadata) {
         script.metadata[key] = script.metadata[key];
     }
-    script.subscribeId = old.subscribeId;
+    script.subscribeUrl = old.subscribeUrl;
 }
 
 export function copySubscribe(sub: Subscribe, old: Subscribe) {

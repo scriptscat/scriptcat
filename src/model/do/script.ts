@@ -79,7 +79,7 @@ export interface Script {
     //script error info
     error?: string;
     //script install timestamp
-    createtime?: number;
+    createtime: number;
     //script update timestamp
     updatetime?: number;
     //last check update timestamp

@@ -223,6 +223,7 @@ export class ScriptController {
                 type: type,
                 status: SCRIPT_STATUS_DISABLE,
                 runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+                createtime: new Date().getTime(),
                 updatetime: new Date().getTime(),
                 checktime: 0,
             };
