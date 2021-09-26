@@ -14,6 +14,13 @@ export class ScriptModel extends Model<Script> {
         return this.findOne({ name: name });
     }
 
+    public findByNameAndNamespace(name: string, namespace?: string) {
+        if (namespace) {
+            return this.findOne({ name: name, namespace: namespace });
+        }
+        return this.findOne({ name: name });
+    }
+
     public findByUUID(uuid: string) {
         return this.findOne({ uuid: uuid });
     }

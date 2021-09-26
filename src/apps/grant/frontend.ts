@@ -10,7 +10,6 @@ type Callback = (grant: Grant) => void;
 type FrontendApi = any;
 
 interface DescriptionParam {
-    sync?: boolean
     depend?: string[]
     listener?: () => void
 }
@@ -24,6 +23,7 @@ export interface ScriptContext {
     [key: string]: any
 
     ValueChange(name: string, value: Value): void
+    GM_info(): any;
 }
 
 export class FrontendGrant implements ScriptContext {
@@ -51,14 +51,33 @@ export class FrontendGrant implements ScriptContext {
             descriptor: PropertyDescriptor
         ) {
             let key = propertyName;
-            if (param.sync) {
-                key = 'GM.' + key;
-            }
             param.listener && param.listener();
             FrontendGrant.apis.set(key, {
                 api: descriptor.value,
                 param: param
             });
+            // 兼容GM.*
+            let dot = key.replace('_', '.');
+            if (dot != key) {
+                FrontendGrant.apis.set(dot, {
+                    api: descriptor.value,
+                    param: param
+                });
+            }
+        }
+    }
+
+    public GM_info() {
+        return {
+            version: this.script.metadata['version'] && this.script.metadata['version'][0],
+            scriptWillUpdate: false,
+            scriptHandler: "ScriptCat",
+            scriptUpdateURL: this.script.origin,
+            scriptSource: this.script.code,
+            script: {
+                name: this.script.name,
+                namespace: this.script.namespace,
+            }
         }
     }
 
@@ -307,16 +326,6 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction()
     public GM_removeValueChangeListener(listenerId: number): void {
         this.valueChangeListener.delete(listenerId);
-    }
-
-    @FrontendGrant.GMFunction({ sync: true, depend: ['GM_xmlhttpRequest'] })
-    public fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse> {
-        return new Promise(resolve => {
-            details.onload = (xhr) => {
-                resolve(xhr);
-            }
-            this.GM_xmlhttpRequest(details);
-        });
     }
 
     public GM_openInTab(url: string, loadInBackground: boolean): tab

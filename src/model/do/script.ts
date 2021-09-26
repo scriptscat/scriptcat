@@ -14,7 +14,7 @@ export type SCRIPT_STATUS = 1 | 2 | 3 | 4;
 export const SCRIPT_STATUS_ENABLE: SCRIPT_STATUS = 1;
 export const SCRIPT_STATUS_DISABLE: SCRIPT_STATUS = 2;
 export const SCRIPT_STATUS_ERROR: SCRIPT_STATUS = 3;
-export const SCRIPT_STATUS_PREPARE: SCRIPT_STATUS = 4;
+export const SCRIPT_STATUS_DELETE: SCRIPT_STATUS = 4;
 
 export type SCRIPT_RUN_STATUS = 'running' | 'complete' | 'error' | 'retry';
 export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = 'running';
@@ -54,9 +54,9 @@ export interface Script {
     name: string;
     //script code
     code: string;
-    namespace: string
-    author: string
-    origin_domain: string
+    namespace?: string;
+    author?: string;
+    origin_domain: string;
     //script origin
     origin: string
     //script checkupdate meta url

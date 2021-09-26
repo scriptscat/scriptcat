@@ -6,8 +6,7 @@ import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
 import { ResourceManager } from "../resource";
-import { Resource } from "@App/model/do/resource";
-import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR } from "@App/model/do/script";
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, SCRIPT_STATUS_DELETE } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { ScriptModel } from "@App/model/script";
 import { Background } from "./background";
@@ -230,7 +229,7 @@ export class ScriptManager {
                 return resolve(false);
             }
             if (script.status == SCRIPT_STATUS_ENABLE) {
-                await this.disableScript(script);
+                await this.disableScript(script, true);
             }
             await this.scriptModel.delete(script.id);
             //TODO:释放资源
@@ -302,6 +301,9 @@ export class ScriptManager {
                 return;
             }
             this.match.del(script);
+            if (script.status == SCRIPT_STATUS_DELETE) {
+                return;
+            }
             let cache = await this.controller.buildScriptCache(script);
             cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
                 cache.code + `\n}`);
@@ -520,9 +522,13 @@ export class ScriptManager {
         });
     }
 
-    public disableScript(script: Script): Promise<void> {
+    public disableScript(script: Script, isuninstall?: boolean): Promise<void> {
         return new Promise(async resolve => {
-            script.status = SCRIPT_STATUS_DISABLE;
+            if (isuninstall) {
+                script.status = SCRIPT_STATUS_DELETE;
+            } else {
+                script.status = SCRIPT_STATUS_DISABLE;
+            }
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
                 await this.background.disableScript(script);
             } else {
@@ -646,7 +652,8 @@ export class ScriptManager {
                         info.uuid = uuidv5(info.url, uuidv5.URL)
                         App.Cache.set("install:info:" + info.uuid, info);
                         chrome.tabs.create({
-                            url: 'install.html?uuid=' + info.uuid
+                            url: 'install.html?uuid=' + info.uuid,
+                            active: false,
                         });
                     }
                 }

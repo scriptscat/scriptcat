@@ -23,12 +23,30 @@ export function buildWindow(): any {
     }
 }
 
-let special: any = {};
+let special: any = {
+    "addEventListener": window.addEventListener,
+    "removeEventListener": window.removeEventListener,
+    "dispatchEvent": window.dispatchEvent,
+};
 
-Object.getOwnPropertyNames(window).forEach(val => {
-    let desc = Object.getOwnPropertyDescriptor(window, val);
-    if (desc && desc.writable) {
-        special[val] = desc.value;
+// 复制原有的,防止被前端网页复写
+let descs = Object.getOwnPropertyDescriptors(window);
+for (const key in descs) {
+    let desc = descs[key];
+    if (desc && desc.writable && !special[key]) {
+        special[key] = desc.value;
+    }
+}
+
+// 处理有多层结构的(先只对特殊的做处理)
+['console'].forEach(obj => {
+    let descs = Object.getOwnPropertyDescriptors((<any>window)[obj]);
+    special[obj] = {};// 清零
+    for (const key in descs) {
+        let desc = descs[key];
+        if (desc && desc.writable) {
+            special[obj][key] = desc.value;
+        }
     }
 });
 
@@ -84,6 +102,9 @@ function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
         for (let i = 0; i < apiVal?.param.depend.length; i++) {
             let value = apiVal.param.depend[i];
             let dependApi = context.getApi(value);
+            if (!dependApi) {
+                return;
+            }
             if (value.startsWith("GM.")) {
                 let [_, t] = value.split(".");
                 context["GM"][t] = dependApi?.api;
@@ -105,6 +126,9 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
         context["GM"] = context;
         script.metadata["grant"].forEach((value: any) => {
             let apiVal = context.getApi(value);
+            if (!apiVal) {
+                return;
+            }
             if (value.startsWith("GM.")) {
                 let [_, t] = value.split(".");
                 context["GM"][t] = apiVal?.api;
@@ -114,10 +138,7 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
             setDepend(context, apiVal);
         });
     }
-    context['GM_info'] = {
-        scriptHandler: "ScriptCat",
-        version: script.metadata['version'] && script.metadata['version'][0],
-    };
+    context['GM_info'] = context.GM_info();
 
     // 去除原型链
     return Object.assign({}, context);

@@ -1,5 +1,5 @@
 import { v5 as uuidv5 } from 'uuid';
-import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_PREPARE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { AllPage, Page, randomString } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
@@ -174,7 +174,7 @@ export class ScriptController {
                 selfMetadata: {},
                 sort: 0,
                 type: type,
-                status: SCRIPT_STATUS_PREPARE,
+                status: SCRIPT_STATUS_DISABLE,
                 runStatus: SCRIPT_RUN_STATUS_COMPLETE,
                 updatetime: new Date().getTime(),
                 checktime: 0,
