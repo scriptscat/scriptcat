@@ -53,7 +53,7 @@ export function migrate() {
     });
     db.version(13).stores({
         subscribe: "++id,&url,createtime,updatetime,checktime",
-        scripts: "++id,&uuid,namespace,author,origin_domain,subscribeUrl,type,sort,status,runStatus,createtime,updatetime,checktime",
+        scripts: "++id,&uuid,name,namespace,author,origin_domain,subscribeUrl,type,sort,status,runStatus,createtime,updatetime,checktime",
         sync: "++id,&key,[user+device+type],data,createtime",
     });
 }

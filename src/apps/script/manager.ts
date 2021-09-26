@@ -236,7 +236,7 @@ export class ScriptManager {
             let error = [];
             for (let i = 0; i < addScript.length; i++) {
                 let url = addScript[i];
-                let script = await this.scriptModel.findByUUIDAndSubscribeUrl(url, sub.url);
+                let script = await this.scriptModel.findByOriginAndSubscribeUrl(url, sub.url);
                 let oldscript;
                 if (!script) {
                     try {
@@ -251,7 +251,7 @@ export class ScriptManager {
                     }
                 }
                 if (script!.subscribeUrl && script!.subscribeUrl != sub.url) {
-                    App.Log.Error("subscribe", script!.name + '已被' + script!.subscribeUrl + "订阅", sub.name + " 订阅冲突");
+                    App.Log.Warn("subscribe", script!.name + '已被\"' + script!.subscribeUrl + "\"订阅", sub.name + " 订阅冲突");
                     continue;
                 }
                 if (oldscript == undefined) {
@@ -315,12 +315,12 @@ export class ScriptManager {
             this.loadResouce(script);
             copyScript(script, oldScript);
             script.updatetime = new Date().getTime();
-            await this.scriptModel.save(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.disableScript(script);
                 await this.enableScript(script);
+            } else {
+                await this.scriptModel.save(script);
             }
-            await this.scriptModel.save(script);
             // 设置同步任务
             this.syncScriptTask(script.uuid, "update");
             return resolve(true);
@@ -414,6 +414,7 @@ export class ScriptManager {
 
     public listenScriptMath() {
         AppEvent.listener(ScriptStatusChange, async (script: Script) => {
+            console.log(script);
             if (script && script.type !== SCRIPT_TYPE_NORMAL) {
                 return;
             }
@@ -871,8 +872,8 @@ export class ScriptManager {
                 for (const key in data) {
                     if (map.has(data[key].uuid!)) {
                         // 存在
-                        
-                    }else{
+
+                    } else {
                         // 不存在
                     }
                 }
