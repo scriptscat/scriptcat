@@ -41,7 +41,6 @@ export function migrate() {
     db.version(11).stores({
         export: "++id,&uuid,scriptId"
     });
-
     db.version(12).stores({
         value: "++id,scriptId,storageName,key,createtime",
     }).upgrade(tx => {
@@ -52,5 +51,8 @@ export function migrate() {
             }
         });
     });
-
+    db.version(13).stores({
+        subscribe: "++id,&url,createtime,updatetime,checktime",
+        scripts: "++id,&uuid,namespace,author,origin_domain,subscribeId,type,sort,status,runStatus,createtime,updatetime,checktime",
+    });
 }

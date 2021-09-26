@@ -24,5 +24,9 @@ export class ScriptModel extends Model<Script> {
     public findByUUID(uuid: string) {
         return this.findOne({ uuid: uuid });
     }
+
+    public findByOriginAndSubscribeId(origin: string, subId: number) {
+        return this.findOne({ subscribeId: subId, origin: origin });
+    }
 }
 

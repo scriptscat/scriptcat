@@ -1,10 +1,10 @@
 import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
-import { AllPage, Page, randomString } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo } from "../msg-center/event";
+import { AllPage, get, Page, randomString } from "@App/pkg/utils";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
-import { parseMetadata, parseUserConfig, copyScript } from "./utils";
+import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
 import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
@@ -16,11 +16,14 @@ import { App } from '../app';
 import { Resource } from '@App/model/do/resource';
 import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox';
+import { SubscribeModel } from '@App/model/subscribe';
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
 
     protected scriptModel = new ScriptModel();
+    protected subscribeModel = new SubscribeModel();
     protected logModel = new LoggerModel();
     protected valueModel = new ValueModel();
 
@@ -124,11 +127,55 @@ export class ScriptController {
         });
     }
 
+    public prepareSubscribeByCode(code: string, url: string): Promise<[Subscribe | undefined, Subscribe | string | undefined]> {
+        return new Promise(async resolve => {
+            let metadata = parseMetadata(code);
+            if (metadata == null) {
+                return resolve([undefined, 'MetaData信息错误']);
+            }
+            if (metadata["name"] == undefined) {
+                return resolve([undefined, '订阅名称不能为空']);
+            }
+            if (!metadata["scripturl"]) {
+                return resolve([undefined, '没有脚本,订阅个寂寞']);
+            }
+            let subscribe: Subscribe = {
+                id: 0,
+                name: metadata["name"][0],
+                code: code,
+                scripts: {},
+                author: metadata['author'] && metadata['author'][0],
+                url: url,
+                metadata: metadata,
+                status: SUBSCRIBE_STATUS_ENABLE,
+                updatetime: new Date().getTime(),
+                checktime: 0,
+            };
+            let old = await this.subscribeModel.findByUrl(subscribe.url);
+            if (old) {
+                copySubscribe(subscribe, old);
+            } else {
+                subscribe.checktime = new Date().getTime();
+            }
+            return resolve([subscribe, old]);
+        });
+    }
+
+    public prepareScriptByUrl(url: string): Promise<[Script | undefined, Script | string | undefined]> {
+        return new Promise(async (resolve, reject) => {
+            get(url, async (resp) => {
+                resolve(await this.prepareScriptByCode(resp, url))
+            }, () => {
+                reject();
+            });
+        });
+    }
+
     public prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | string | undefined]> {
         return new Promise(async resolve => {
             let metadata = parseMetadata(code);
             if (metadata == null) {
-                return resolve([undefined, 'MetaData错误']);
+                return resolve([undefined, 'MetaData信息错误']);
             }
             if (metadata["name"] == undefined) {
                 return resolve([undefined, '脚本名不能为空']);
@@ -181,7 +228,7 @@ export class ScriptController {
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
             if (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL)) {
-                old = await this.scriptModel.findOne({ name: script.name, namespace: script.namespace });
+                old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);
             }
             if (old) {
                 copyScript(script, old);
@@ -276,4 +323,33 @@ export class ScriptController {
             resolve(ret);
         });
     }
+
+
+    public subscribe(sub: Subscribe): Promise<number> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(SubscribeUpdate, sub, resp => {
+                sub.id = resp;
+                resolve(sub.id);
+            });
+        })
+    }
+
+    public unsubscribe(subId: number): Promise<boolean> {
+        return new Promise(resolve => {
+
+        })
+    }
+
+    public enableSubscribe(subId: number): Promise<boolean> {
+        return new Promise(resolve => {
+
+        })
+    }
+
+    public diableSubscribe(subId: number): Promise<boolean> {
+        return new Promise(resolve => {
+
+        })
+    }
+
 }

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate } from "@App/apps/msg-center/event";
 import { dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -15,11 +15,15 @@ import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
 import { v5 as uuidv5 } from "uuid";
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
+import { SubscribeModel } from "@App/model/subscribe";
+import { messages } from "i18n/i18n";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
 
     protected scriptModel = new ScriptModel();
+    protected subscribeModel = new SubscribeModel();
     protected background = new Background();
     protected controller = new ScriptController();
 
@@ -88,6 +92,8 @@ export class ScriptManager {
         this.listenerMessage(ScriptCheckUpdate, this.scriptCheckUpdate);
         this.listenerMessage(RequestConfirmInfo, this.requestConfirmInfo);
 
+        this.listenerMessage(SubscribeUpdate, this.subscribe)
+
         // 监听事件,并转发
         this.listenerProxy(ListenGmLog);
 
@@ -112,7 +118,10 @@ export class ScriptManager {
                 return { redirectUrl: "javascript:void 0" };
             },
             {
-                urls: ["*://*/*.user.js", "*://*/*.user.js?*", chrome.runtime.getURL("/") + '*.user.js'],
+                urls: [
+                    "*://*/*.user.js", chrome.runtime.getURL("/") + '*.user.js',
+                    "https://*/*.user.sub.js",
+                ],
                 types: ["main_frame"],
             },
             ["blocking"],
@@ -121,7 +130,7 @@ export class ScriptManager {
 
     public async installScript(tabid: number, url: string) {
         let info = await loadScriptByUrl(url);
-        if (info != undefined) {
+        if (info) {
             App.Cache.set("install:info:" + info.uuid, info);
             chrome.tabs.create({
                 url: "install.html?uuid=" + info.uuid,
@@ -178,6 +187,108 @@ export class ScriptManager {
         return new Promise(resolve => {
             let info = App.Cache.get("install:info:" + uuid);
             resolve(info);
+        });
+    }
+
+    public subscribe(sub: Subscribe): Promise<number> {
+        return new Promise(async resolve => {
+            // 异步处理订阅
+            let old = await this.subscribeModel.findByUrl(sub.url);
+            await this.subscribeModel.save(sub);
+            this.subscribeUpdate(sub, old);
+            return resolve(sub.id);
+        });
+    }
+
+    public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined): Promise<number> {
+        return new Promise(async resolve => {
+            // 异步处理订阅
+            let deleteScript = [];
+            let addScript: string[] = [];
+            let addScriptName = [];
+            if (old) {
+                // 存在老订阅,与新订阅比较scripts找出要删除或者新增的脚本
+                sub.metadata['scripturl'].forEach(val => {
+                    if (!old?.scripts[val]) {
+                        // 老的不存在,新的存在,新增
+                        addScript.push(val);
+                    } else {
+                        sub.scripts[val] = old.scripts[val];
+                    }
+                })
+                for (let key in old.scripts) {
+                    if (!sub.scripts[key]) {
+                        // 老的存在,新的不存在,删除
+                        let script = await this.scriptModel.findById(old.scripts[key].scriptId);
+                        if (script) {
+                            deleteScript.push(script.name);
+                        }
+                    }
+                }
+            } else {
+                addScript = sub.metadata['scripturl'];
+            }
+            // 处理脚本安装
+            for (let i = 0; i < deleteScript.length; i++) {
+                let script = await this.scriptModel.findByOriginAndSubscribeId(deleteScript[i], sub.id);
+                if (script) {
+                    this.scriptUninstall(script.id);
+                }
+            }
+            let error = [];
+            for (let i = 0; i < addScript.length; i++) {
+                let url = addScript[i];
+                let script = await this.scriptModel.findByOriginAndSubscribeId(url, sub.id);
+                let oldscript;
+                if (!script) {
+                    try {
+                        [script, oldscript] = await this.controller.prepareScriptByUrl(url);
+                        if (!script) {
+                            App.Log.Error("subscribe", url + ":" + oldscript, sub.name + " 订阅脚本安装失败")
+                            error.push(url);
+                            continue;
+                        }
+                    } catch (e) {
+                        error.push(url);
+                    }
+                }
+                if (script!.subscribeId && script!.subscribeId != sub.id) {
+                    App.Log.Error("subscribe", script!.name + '已被' + script!.subscribeId + "订阅", sub.name + " 订阅冲突");
+                    continue;
+                }
+                if (oldscript == undefined) {
+                    script!.subscribeId = sub.id;
+                    script!.status = SCRIPT_STATUS_ENABLE;
+                    script!.id = await this.scriptInstall(script!);
+                    addScriptName.push(script!.name);
+                }
+                sub.scripts[url] = {
+                    scriptId: script!.id,
+                    url: url,
+                };
+            }
+            let msg = '';
+            if (addScriptName.length) {
+                msg += "新增脚本:" + addScriptName.join(',') + "\n";
+            }
+            if (deleteScript.length) {
+                msg += "删除脚本:" + deleteScript.join(',') + "\n";
+            }
+            if (error.length) {
+                msg += "安装失败脚本:" + error.join(',');
+            }
+            if (!msg) {
+                return;
+            }
+            chrome.notifications.create({
+                type: "basic",
+                title: sub.name + " 订阅更新成功",
+                message: msg,
+                iconUrl: chrome.runtime.getURL("assets/logo.png")
+            });
+            await this.subscribeModel.save(sub);
+            App.Log.Info("subscribe", msg, sub.name + " 订阅更新成功")
+            return resolve(sub.id);
         });
     }
 

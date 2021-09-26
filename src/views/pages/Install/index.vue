@@ -19,7 +19,7 @@
             flat
             @change="changeStatus(script)"
             style="display: inline-block"
-            label="开启脚本"
+            :label="`开启` + (issub ? '订阅更新' : '脚本')"
           >
           </v-switch>
         </div>
@@ -27,20 +27,17 @@
           作者: {{ script.metadata["author"][0] }}
         </div>
         <div class="text-subtitle-2" v-if="desctiption">
-          脚本描述: {{ desctiption }}
+          {{ label }}描述: {{ desctiption }}
         </div>
-        <div
-          class="text-subtitle-2"
-          style="max-height: 110px; overflow: hidden"
-        >
-          安装来源:
+        <div class="text-subtitle-2" style="max-height: 110px; overflow: hidden">
+          {{ issub ? "订阅地址:" : "脚本来源:" }}
           <span style="word-wrap: break-word; word-break: break-all">{{
-            script.origin
+            script.origin || script.url
           }}</span>
         </div>
         <div class="control d-flex justify-start" style="margin-bottom: 10px">
           <v-btn @click="install" depressed small color="primary">
-            {{ isupdate ? "更新脚本" : "安装脚本" }}
+            {{ isupdate ? "更新" + label : issub ? "订阅" : "安装脚本" }}
           </v-btn>
           <v-btn
             @click="window.close()"
@@ -60,38 +57,29 @@
         <div>
           <span class="text-subtitle-1 d-flex"
             ><span class="justify-start" style="flex: 1" v-if="version"
-              >安装版本:{{ version }}</span
-            ><span
-              class="justify-start"
-              style="flex: 1"
-              v-if="isupdate && oldVersion"
+              >{{ label }}版本:{{ version }}</span
+            ><span class="justify-start" style="flex: 1" v-if="isupdate && oldVersion"
               >当前版本:{{ oldVersion }}</span
             ></span
           >
         </div>
         <div v-if="match.length">
-          <span class="text-subtitle-1">脚本将在以下网站中运行:</span>
-          <div
-            v-for="item in match"
-            :key="item"
-            class="text-subtitle-2"
-            style="margin-right: 4px"
-          >
-            {{ item }}
+          <span class="text-subtitle-1" v-if="issub">本订阅将会安装以下脚本:</span>
+          <span class="text-subtitle-1" v-else>脚本将在以下网站中运行:</span>
+          <div class="text-subtitle-2 match">
+            <p v-for="item in match" :key="item">{{ item }}</p>
           </div>
         </div>
-        <div v-if="connect.length">
-          <span class="text-subtitle-1" style="color: #ff9900"
-            >脚本将获得以下地址的完整访问权限:</span
+        <div v-if="connect.length" style="color: #ff9000">
+          <span v-if="issub" class="text-subtitle-1"
+            >订阅系列脚本将获得以下地址的完整访问权限:</span
           >
-          <span
-            v-for="item in connect"
-            :key="item"
-            class="text-subtitle-2"
-            style="margin-right: 4px; color: #ff9900"
-          >
-            {{ item }}
-          </span>
+          <span v-else class="text-subtitle-1">脚本将获得以下地址的完整访问权限:</span>
+          <div class="text-subtitle-2 match">
+            <p v-for="item in connect" :key="item">
+              {{ item }}
+            </p>
+          </div>
         </div>
         <div v-if="isCookie" style="margin-top: 6px">
           <span class="text-subtitle-1" style="color: red">
@@ -140,13 +128,14 @@ import { ScriptController } from "@App/apps/script/controller";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { RequestInstallInfo } from "@App/apps/msg-center/event";
 import { nextTime } from "@App/views/pages/utils";
+import { Subscribe } from "@App/model/do/subscribe";
 
 @Component({})
 export default class Index extends Vue {
   protected editor!: editor.IStandaloneCodeEditor;
   protected diff!: editor.IStandaloneDiffEditor;
   public scriptController: ScriptController = new ScriptController();
-  public script: Script = <Script>{ metadata: {} };
+  public script: Script | Subscribe = <Script>{ metadata: {} };
   public version: string = "";
   public oldVersion: string = "";
   public connect: string[] = [];
@@ -154,6 +143,8 @@ export default class Index extends Vue {
   public isCookie: boolean = false;
   public isupdate: boolean = false;
   public desctiption = "";
+  protected label = "脚本";
+  protected issub = false;
 
   nextTime = nextTime;
 
@@ -170,7 +161,71 @@ export default class Index extends Vue {
     });
   }
 
-  async load(info: ScriptUrlInfo) {
+  load(info: ScriptUrlInfo) {
+    if (info.issub) {
+      this.userSubscribe(info);
+      this.label = "订阅";
+      this.issub = true;
+    } else {
+      this.userScript(info);
+    }
+  }
+
+  async userSubscribe(info: ScriptUrlInfo) {
+    let [sub, oldsub] = await this.scriptController.prepareSubscribeByCode(
+      info.code,
+      info.url
+    );
+    if (sub == undefined) {
+      alert(<string>oldsub);
+      return;
+    }
+    this.script = sub;
+    let edit = document.getElementById("container");
+    if (edit == undefined) {
+      return;
+    }
+    if (typeof oldsub == "object") {
+      this.diff = editor.createDiffEditor(edit, {
+        enableSplitViewResizing: false,
+        renderSideBySide: false,
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: true,
+        diffWordWrap: "off",
+      });
+      this.diff.setModel({
+        original: editor.createModel(oldsub.code, "javascript"),
+        modified: editor.createModel(this.script.code, "javascript"),
+      });
+      this.isupdate = true;
+      this.oldVersion = oldsub.metadata["version"] && oldsub.metadata["version"][0];
+      document.title = "更新订阅 - " + this.script.name + " - ScriptCat ";
+    } else {
+      this.editor = editor.create(edit, {
+        language: "javascript",
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: true,
+      });
+      this.editor.setValue(this.script.code);
+      document.title = "安装订阅 - " + this.script.name + " - ScriptCat ";
+    }
+    if (this.script.metadata["description"]) {
+      this.desctiption = this.script.metadata["description"][0];
+    }
+    this.version = this.script.metadata["version"] && this.script.metadata["version"][0];
+    this.connect = this.script.metadata["connect"] || [];
+    this.match = this.script.metadata["scripturl"] || [];
+  }
+
+  async userScript(info: ScriptUrlInfo) {
     let [script, oldscript] = await this.scriptController.prepareScriptByCode(
       info.code,
       info.url
@@ -201,8 +256,7 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
-      this.oldVersion =
-        oldscript.metadata["version"] && oldscript.metadata["version"][0];
+      this.oldVersion = oldscript.metadata["version"] && oldscript.metadata["version"][0];
       document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {
@@ -227,30 +281,30 @@ export default class Index extends Vue {
         this.isCookie = true;
       }
     });
-    let i = 0;
+
     this.script.metadata["match"]?.forEach((val) => {
-      if (this.match.length < 5) {
-        this.match.push(val);
-      }
-      i++;
+      this.match.push(val);
     });
+
     this.script.metadata["include"]?.forEach((val) => {
-      if (this.match.length < 5) {
-        this.match.push(val);
-      }
-      i++;
+      this.match.push(val);
     });
-    if (i > 5) {
-      this.match.push("...");
-    }
   }
 
   public async install() {
-    if (!this.script) {
+    if (!this.script || !this.script.name) {
       return;
     }
-    let id: number;
-    id = await this.scriptController.update(this.script);
+    if (this.issub) {
+      let id = await this.scriptController.subscribe(<Subscribe>this.script);
+      if (id) {
+        window.close();
+      } else {
+        alert("订阅失败!");
+      }
+      return;
+    }
+    let id = await this.scriptController.update(<Script>this.script);
     if (id) {
       window.close();
     } else {
@@ -279,5 +333,11 @@ export default class Index extends Vue {
   border: 0;
   width: 100%;
   height: 100%;
+}
+
+.match p {
+  margin-bottom: 0px;
+  max-height: 80px;
+  overflow-y: auto;
 }
 </style>

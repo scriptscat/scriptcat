@@ -9,6 +9,11 @@ export const ScriptUninstall: string = "script-uninstall";
 export const ScriptStatusChange: string = "script-status-change";
 export const ScriptRunStatusChange: string = "script-run-status-change";
 export const ScriptCheckUpdate = "script-check-update";
+
+export const SubscribeUpdate: string = "subscribe-update";
+export const Unsubscribe: string = "unsubscribe";
+export const SubscribeStatusChange: string = "subscribe-status-change";
+
 export const RequestInstallInfo: string = "request-install-info";
 export const RequestConfirmInfo: string = "request-confirm-info";
 export const RequestTabRunScript: string = "request-tab-run-script";

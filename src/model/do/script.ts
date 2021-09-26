@@ -58,13 +58,14 @@ export interface Script {
     author?: string;
     origin_domain: string;
     //script origin
-    origin: string
+    origin: string;
     //script checkupdate meta url
-    checkupdate_url: string
-    download_url: string
+    checkupdate_url: string;
+    download_url: string;
     //script metadata
     metadata: Metadata;
     selfMetadata: Metadata;
+    subscribeId?: number;
     // user config
     config?: UserConfig;
     //script type. 1:normal 2:crontab

@@ -3,13 +3,19 @@ import YAML from 'yaml';
 import { Script, UserConfig, Metadata } from "@App/model/do/script";
 import axios from "axios";
 import { ScriptUrlInfo } from "../msg-center/structs";
-import { App } from "../app";
+import { Subscribe } from "@App/model/do/subscribe";
 
 export function parseMetadata(code: string): Metadata | null {
+    let issub = false;
     let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;
     let header = regex.exec(code)
     if (!header) {
-        return null;
+        regex = /\/\/\s*==UserSubscribe==([\s\S]+?)\/\/\s*==\/UserSubscribe==/m;
+        header = regex.exec(code)
+        if (!header) {
+            return null;
+        }
+        issub = true
     }
     regex = /\/\/\s*@([\S]+)((.+?)$|$)/gm;
     let ret: Metadata = {};
@@ -25,6 +31,9 @@ export function parseMetadata(code: string): Metadata | null {
     }
     if (ret['name'] == undefined) {
         return null;
+    }
+    if (issub) {
+        ret['usersubscribe'] = [];
     }
     return ret;
 }
@@ -73,10 +82,12 @@ export function loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined>
                 url: url,
                 code: response.data,
                 uuid: uuid,
+                issub: false,
             };
-            return ret;
-        }).then((val) => {
-            resolve(val);
+            if (ok["usersubscribe"]) {
+                ret.issub = true;
+            }
+            resolve(ret);
         }).catch((e) => {
             resolve(undefined);
         });
@@ -95,4 +106,13 @@ export function copyScript(script: Script, old: Script) {
     for (let key in script.selfMetadata) {
         script.metadata[key] = script.metadata[key];
     }
+    script.subscribeId = old.subscribeId;
+}
+
+export function copySubscribe(sub: Subscribe, old: Subscribe) {
+    sub.id = old.id;
+    sub.createtime = old.createtime;
+    sub.status = old.status;
+    sub.checktime = old.checktime;
+    sub.error = old.error;
 }
