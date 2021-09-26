@@ -65,7 +65,7 @@ export interface Script {
     //script metadata
     metadata: Metadata;
     selfMetadata: Metadata;
-    subscribeId?: number;
+    subscribeUrl?: string;
     // user config
     config?: UserConfig;
     //script type. 1:normal 2:crontab

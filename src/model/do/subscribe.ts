@@ -8,7 +8,7 @@ export const SUBSCRIBE_STATUS_ENABLE: SUBSCRIBE_STATUS = 1;
 export const SUBSCRIBE_STATUS_DISABLE: SUBSCRIBE_STATUS = 2;
 
 export interface SubscribeScript {
-	scriptId: number;
+	uuid: string;
 	url: string;
 };
 

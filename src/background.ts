@@ -11,6 +11,7 @@ import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL } from "./model/do/scr
 import { MapCache } from "./pkg/storage/cache/cache";
 import { get } from "./pkg/utils";
 import { Server } from "./apps/config";
+import { Subscribe } from "./model/do/subscribe";
 
 migrate();
 
@@ -68,17 +69,27 @@ function sandboxLoad(event: MessageEvent) {
 
 // 检查更新
 setInterval(() => {
-    scripts
-        .scriptList((table: Dexie.Table) => {
-            return table
-                .where("checktime")
-                .belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
-        })
-        .then((items) => {
-            items.forEach((value: Script) => {
-                scripts.scriptCheckUpdate(value.id);
-            });
+
+    scripts.scriptList((table: Dexie.Table) => {
+        return table
+            .where("checktime")
+            .belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
+    }).then((items) => {
+        items.forEach((value: Script) => {
+            scripts.scriptCheckUpdate(value.id);
         });
+    });
+
+    scripts.subscribeList((table: Dexie.Table) => {
+        return table
+            .where("checktime")
+            .belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
+    }).then((items) => {
+        items.forEach((value: Subscribe) => {
+            scripts.subscribeCheckUpdate(value.id);
+        });
+    });
+
 }, 60000);
 
 // 十分钟检查一次扩展更新
@@ -110,7 +121,10 @@ setInterval(() => {
         });
     });
 }, 600000)
-
+// 半小时同步一次数据
+setInterval(() => {
+    scripts.sync();
+}, 1800000);
 
 process.env.NODE_ENV === "production" && chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason == "install") {

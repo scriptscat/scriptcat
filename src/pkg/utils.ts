@@ -98,7 +98,6 @@ export function get(url: string, success: (resp: string) => void, error?: () => 
             if (this.status == 200) {
                 success && success(this.responseText);
             } else {
-                (<any>xmlhttp).errorCallback && (<any>xmlhttp).errorCallback(this);
                 error && error();
             }
         }
@@ -113,7 +112,7 @@ export function get(url: string, success: (resp: string) => void, error?: () => 
  * @param {*} data
  * @param {*} json
  */
-export function post(url: string, data: any, json = true, success: Function) {
+export function post(url: string, data: any, json = true, success: (resp: string) => void, error?: () => void) {
     let xmlhttp = createRequest();
     xmlhttp.open("POST", url, true);
     if (json) {
@@ -121,16 +120,16 @@ export function post(url: string, data: any, json = true, success: Function) {
     } else {
         xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     }
+    xmlhttp.onerror = () => error && error();
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
                 success && success(this.responseText);
             } else {
-                (<any>xmlhttp).errorCallback && (<any>xmlhttp).errorCallback(this);
+                error && error();
             }
         }
     };
-
     xmlhttp.send(data);
     return xmlhttp;
 }

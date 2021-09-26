@@ -1,7 +1,7 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
 import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate } from "@App/apps/msg-center/event";
-import { dealScript, get, Page, randomString } from "@App/pkg/utils";
+import { dealScript, get, Page, post, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
@@ -15,9 +15,9 @@ import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
 import { v5 as uuidv5 } from "uuid";
-import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
+import { Subscribe } from "@App/model/do/subscribe";
 import { SubscribeModel } from "@App/model/subscribe";
-import { messages } from "i18n/i18n";
+import { Server } from "../config";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -219,21 +219,15 @@ export class ScriptManager {
                 for (let key in old.scripts) {
                     if (!sub.scripts[key]) {
                         // 老的存在,新的不存在,删除
-                        let script = await this.scriptModel.findById(old.scripts[key].scriptId);
+                        let script = await this.scriptModel.findByUUIDAndSubscribeId(old.scripts[key].uuid, sub.id);
                         if (script) {
                             deleteScript.push(script.name);
+                            this.scriptUninstall(script.id);
                         }
                     }
                 }
             } else {
                 addScript = sub.metadata['scripturl'];
-            }
-            // 处理脚本安装
-            for (let i = 0; i < deleteScript.length; i++) {
-                let script = await this.scriptModel.findByOriginAndSubscribeId(deleteScript[i], sub.id);
-                if (script) {
-                    this.scriptUninstall(script.id);
-                }
             }
             let error = [];
             for (let i = 0; i < addScript.length; i++) {
@@ -252,18 +246,18 @@ export class ScriptManager {
                         error.push(url);
                     }
                 }
-                if (script!.subscribeId && script!.subscribeId != sub.id) {
-                    App.Log.Error("subscribe", script!.name + '已被' + script!.subscribeId + "订阅", sub.name + " 订阅冲突");
+                if (script!.subscribeUrl && script!.subscribeUrl != sub.url) {
+                    App.Log.Error("subscribe", script!.name + '已被' + script!.subscribeUrl + "订阅", sub.name + " 订阅冲突");
                     continue;
                 }
                 if (oldscript == undefined) {
-                    script!.subscribeId = sub.id;
+                    script!.subscribeUrl = sub.url;
                     script!.status = SCRIPT_STATUS_ENABLE;
                     script!.id = await this.scriptInstall(script!);
                     addScriptName.push(script!.name);
                 }
                 sub.scripts[url] = {
-                    scriptId: script!.id,
+                    uuid: script!.uuid,
                     url: url,
                 };
             }
@@ -292,6 +286,13 @@ export class ScriptManager {
         });
     }
 
+    public syncScriptTask(uuid: string, action: string) {
+        // 设置同步任务
+        let value: any = {};
+        value["sync_script_task_" + uuid] = { uuid, action, actiontime: new Date().getTime() };
+        chrome.storage.local.set(value);
+    }
+
     public scriptInstall(script: Script): Promise<number> {
         return new Promise(async resolve => {
             // 加载资源
@@ -300,6 +301,8 @@ export class ScriptManager {
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.enableScript(script);
             }
+            // 设置同步任务
+            this.syncScriptTask(script.uuid, "install");
             return resolve(script.id);
         });
     }
@@ -320,6 +323,9 @@ export class ScriptManager {
                 await this.disableScript(script);
                 await this.enableScript(script);
             }
+            await this.scriptModel.save(script);
+            // 设置同步任务
+            this.syncScriptTask(script.uuid, "reinstall");
             return resolve(true);
         });
     }
@@ -351,6 +357,8 @@ export class ScriptManager {
             script.metadata["require-css"]?.forEach((val: string) => {
                 this.resource.deleteResource(val, script!.id);
             });
+            // 设置同步任务
+            this.syncScriptTask(script.uuid, "uninstall");
             return resolve(true);
         });
     }
@@ -669,6 +677,20 @@ export class ScriptManager {
         });
     }
 
+    public subscribeList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Subscribe>> {
+        return new Promise(async resolve => {
+            page = page || new Page(1, 20);
+            if (equalityCriterias == undefined) {
+                resolve(await this.subscribeModel.list(page));
+            } else if (typeof equalityCriterias == 'function') {
+                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table), page));
+                resolve(ret);
+            } else {
+                resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias), page));
+            }
+        });
+    }
+
     public getScript(id: number): Promise<Script | undefined> {
         return this.scriptModel.findById(id);
     }
@@ -775,5 +797,28 @@ export class ScriptManager {
             });
 
         })
+    }
+
+    public subscribeCheckUpdate(subscribeId: number): Promise<boolean> {
+        return new Promise(async resolve => {
+
+
+            return '';
+        });
+    }
+
+    public sync() {
+        // 同步脚本
+        chrome.storage.local.get(items => {
+            for (const key in items) {
+                if (key.startsWith('sync_script_task_')) {
+                    
+                }
+            }
+        })
+        post(Server + "api/v1/sync/script", "", true, () => {
+
+        });
+
     }
 }
