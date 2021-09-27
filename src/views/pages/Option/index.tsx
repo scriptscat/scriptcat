@@ -8,11 +8,14 @@ import { VApp, VIcon } from "vuetify/lib";
 
 import EventType from "./EventType";
 import Snackbar from "./Snackbar.vue";
+import UserMenu from "@App/views/components/UserMenu.vue";
 import { scriptModule } from "./store/script";
 import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
 import ScriptTab from "./tabs/ScriptTab/index.vue";
+import Subscribe from "./tabs/Subscribe.vue";
+import { userModule } from "./store/user";
 
 interface IExternalAction {
     target?: "editor";
@@ -20,8 +23,9 @@ interface IExternalAction {
 }
 
 const SCRIPT_LIST_INDEX = 0;
-const LOGGER_INDEX = 1;
-const CONFIG_LIST_INDEX = 2;
+const SUBSCRIBE_LIST_INDEX = 1;
+const LOGGER_INDEX = 2;
+const CONFIG_LIST_INDEX = 3;
 
 @Component({})
 export default class App extends Vue {
@@ -136,6 +140,13 @@ export default class App extends Vue {
                 lazy: false,
             },
             {
+                tabKey: SUBSCRIBE_LIST_INDEX,
+                title: "订阅列表",
+                content: <Subscribe></Subscribe>,
+                closable: false,
+                lazy: false,
+            },
+            {
                 tabKey: LOGGER_INDEX,
                 title: "运行日志",
                 content: <Logger></Logger>,
@@ -145,7 +156,6 @@ export default class App extends Vue {
             {
                 tabKey: CONFIG_LIST_INDEX,
                 title: "设置",
-                message: "开发中,敬请期待",
                 content: <Config></Config>,
                 closable: false,
                 keepAlive: false,
@@ -188,6 +198,12 @@ export default class App extends Vue {
             }
         });
 
+        // 用户登录
+        chrome.storage.local.get(['currentUser', 'userinfo'], items => {
+            if (items['currentUser']) {
+                userModule.setUserinfo(items['userinfo']);
+            }
+        });
     }
 
     activeTab(index: number) {
@@ -290,12 +306,18 @@ export default class App extends Vue {
         }
     }
 
+    user = {
+        username: "未登录",
+        islogin: false
+    };
+
     render() {
         return (
             <VApp>
                 <v-app-bar color="#1296DB" dense dark>
                     <v-toolbar-title>ScriptCat</v-toolbar-title>
                     <v-spacer></v-spacer>
+                    <UserMenu />
                 </v-app-bar>
                 <div
                     style={{

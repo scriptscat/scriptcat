@@ -31,6 +31,12 @@ export const ScriptValueChange: string = "script-value-change";
 
 export type ListenCallback = (msg: any) => void;
 
+export const UserLogin: string = "user-login";
+export const UserLogout: string = "user-logout";
+
+export const SyncTaskEvent: string = "sync-task-event";
+export const TriggerSync: string = 'trigger-sync';
+
 // 单页面内的消息
 export class AppEvent {
     public static eventMap = new Map<string, Map<any, any>>();

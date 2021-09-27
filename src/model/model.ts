@@ -62,6 +62,10 @@ export abstract class Model<T> {
         return this.table.get(id);
     }
 
+    public clear() {
+        return this.table.clear();
+    }
+
     public async delete(id: number | { [key: string]: any }) {
         if (typeof id == 'number') {
             return this.table.delete(id);

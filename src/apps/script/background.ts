@@ -19,7 +19,7 @@ export class Background {
 
     public disableScript(script: Script): Promise<void> {
         return new Promise(async resolve => {
-            sandbox.postMessage({ action: 'disable', data: script}, '*');
+            sandbox.postMessage({ action: 'disable', data: script }, '*');
             function listener(event: MessageEvent) {
                 if (event.data.action != "disable") {
                     return;

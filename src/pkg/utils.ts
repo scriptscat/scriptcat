@@ -1,3 +1,4 @@
+import { App } from "@App/apps/app";
 import { Logger } from "@App/apps/msg-center/event";
 import { LOGGER_LEVEL } from "@App/model/do/logger";
 
@@ -107,6 +108,29 @@ export function get(url: string, success: (resp: string) => void, error?: () => 
 }
 
 /**
+ * get请求
+ * @param {*} url
+ */
+export function getJson(url: string, success: (resp: any) => void, error?: () => void) {
+    let xmlhttp = createRequest();
+    xmlhttp.open("GET", url, true);
+    xmlhttp.onerror = () => error && error();
+    xmlhttp.responseType = 'json';
+    xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                success && success(this.response);
+            } else {
+                error && error();
+            }
+        }
+    };
+    xmlhttp.send();
+    return xmlhttp;
+}
+
+
+/**
  * post请求
  * @param {*} url
  * @param {*} data
@@ -135,6 +159,30 @@ export function post(url: string, data: any, json = true, success: (resp: string
 }
 
 /**
+ * post请求
+ * @param {*} url
+ * @param {*} data
+ * @param {*} json
+ */
+export function postJson(url: string, data: any, success: (resp: any) => void, error?: () => void) {
+    let xmlhttp = createRequest();
+    xmlhttp.open("POST", url, true);
+    xmlhttp.setRequestHeader("Content-Type", "application/json");
+    xmlhttp.onerror = () => error && error();
+    xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                success && success(this.response);
+            } else {
+                error && error();
+            }
+        }
+    };
+    xmlhttp.send(JSON.stringify(data));
+    return xmlhttp;
+}
+
+/**
  * 创建http请求
  */
 function createRequest(): XMLHttpRequest {
@@ -151,4 +199,14 @@ export function randomInt(min: number, max: number) {
     min = Math.ceil(min);
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function InfoNotification(title: string, msg: string) {
+    chrome.notifications.create({
+        type: "basic",
+        title: title,
+        message: msg,
+        iconUrl: chrome.runtime.getURL("assets/logo.png")
+    });
+    App.Log.Info("system", msg, title);
 }

@@ -171,7 +171,7 @@ export class ScriptController {
         });
     }
 
-    public prepareScriptByCode(code: string, url: string): Promise<[Script | undefined, Script | string | undefined]> {
+    public prepareScriptByCode(code: string, url: string, uuid?: string): Promise<[Script | undefined, Script | string | undefined]> {
         return new Promise(async resolve => {
             let metadata = parseMetadata(code);
             if (metadata == null) {
@@ -207,7 +207,7 @@ export class ScriptController {
             }
             let script: Script = {
                 id: 0,
-                uuid: uuidv5(url, uuidv5.URL),
+                uuid: uuid || uuidv5(url, uuidv5.URL),
                 name: metadata["name"][0],
                 code: code,
                 author: metadata['author'] && metadata['author'][0],
@@ -228,7 +228,7 @@ export class ScriptController {
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
-            if (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL)) {
+            if (uuid == undefined && (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL))) {
                 old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);
             }
             if (old) {
@@ -301,7 +301,6 @@ export class ScriptController {
                 }
             }
             //TODO: 支持@resource
-
             resolve(ret);
         });
     }

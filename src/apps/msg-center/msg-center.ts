@@ -28,7 +28,6 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
 // 在扩展页面之间的消息传递
 export class MsgCenter {
 
-    // 应该只有bg页面才能使用
     public static listener(topic: string, callback: ListenCallback) {
         let val = topicMap.get(topic);
         if (!val) {
@@ -57,7 +56,6 @@ export class MsgCenter {
         }
     }
 
-    // 只有除bg页以外的页面使用
     public static connect(topic: string, msg?: any): onRecv {
         let port = chrome.runtime.connect({
             name: topic,

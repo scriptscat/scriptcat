@@ -13,7 +13,6 @@ export interface SyncScript {
 	sort: number;
 	subscribe_url?: string
 	type: number;
-	enable: number;
 	createtime: number;
 	updatetime?: number;
 }

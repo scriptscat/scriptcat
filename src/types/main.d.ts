@@ -12,7 +12,6 @@ interface ITabItem {
     lazy?: boolean;
     keepAlive?: boolean;
     scriptId?: number;
-    message?: string,
     beforeChange?: (tabPane: TabPane) => Promise<boolean>;
     beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
 }
@@ -77,3 +76,9 @@ declare module chrome {
 }
 
 declare var top: Window;
+
+interface Userinfo {
+    id: number;
+    username: string;
+    avatar?: string;
+}

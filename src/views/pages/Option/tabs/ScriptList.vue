@@ -487,7 +487,11 @@ import {
   SCRIPT_STATUS_DISABLE,
 } from "@App/model/do/script";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ListenGmLog, ScriptRunStatusChange } from "@App/apps/msg-center/event";
+import {
+  ListenGmLog,
+  ScriptRunStatusChange,
+  SyncTaskEvent,
+} from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
 import { Page, AllPage } from "@App/pkg/utils";
@@ -614,6 +618,16 @@ export default class ScriptList extends Vue {
           break;
         }
       }
+    });
+
+    MsgCenter.listener(SyncTaskEvent, () => {
+      // 同步完成,刷新页面
+      this.scriptController
+        .scriptList(undefined, new AllPage())
+        .then(async (result) => {
+          this.scripts = result;
+          this.handleScriptConfig(this.scripts);
+        });
     });
 
     // MsgCenter.listener(ScriptUpdate, () => {

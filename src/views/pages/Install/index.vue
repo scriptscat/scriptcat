@@ -29,14 +29,24 @@
         <div class="text-subtitle-2" v-if="desctiption">
           {{ label }}描述: {{ desctiption }}
         </div>
-        <div class="text-subtitle-2" style="max-height: 110px; overflow: hidden">
+        <div
+          class="text-subtitle-2"
+          style="max-height: 110px; overflow: hidden"
+        >
           {{ issub ? "订阅地址:" : "脚本来源:" }}
           <span style="word-wrap: break-word; word-break: break-all">{{
             script.origin || script.url
           }}</span>
         </div>
         <div class="control d-flex justify-start" style="margin-bottom: 10px">
-          <v-btn @click="install" depressed small color="primary">
+          <v-btn
+            @click="install"
+            :loading="installLoading"
+            :disabled="installLoading"
+            depressed
+            small
+            color="primary"
+          >
             {{ isupdate ? "更新" + label : issub ? "订阅" : "安装脚本" }}
           </v-btn>
           <v-btn
@@ -58,13 +68,18 @@
           <span class="text-subtitle-1 d-flex"
             ><span class="justify-start" style="flex: 1" v-if="version"
               >{{ label }}版本:{{ version }}</span
-            ><span class="justify-start" style="flex: 1" v-if="isupdate && oldVersion"
+            ><span
+              class="justify-start"
+              style="flex: 1"
+              v-if="isupdate && oldVersion"
               >当前版本:{{ oldVersion }}</span
             ></span
           >
         </div>
         <div v-if="match.length">
-          <span class="text-subtitle-1" v-if="issub">本订阅将会安装以下脚本:</span>
+          <span class="text-subtitle-1" v-if="issub"
+            >本订阅将会安装以下脚本:</span
+          >
           <span class="text-subtitle-1" v-else>脚本将在以下网站中运行:</span>
           <div class="text-subtitle-2 match">
             <p v-for="item in match" :key="item">{{ item }}</p>
@@ -74,7 +89,9 @@
           <span v-if="issub" class="text-subtitle-1"
             >订阅系列脚本将获得以下地址的完整访问权限:</span
           >
-          <span v-else class="text-subtitle-1">脚本将获得以下地址的完整访问权限:</span>
+          <span v-else class="text-subtitle-1"
+            >脚本将获得以下地址的完整访问权限:</span
+          >
           <div class="text-subtitle-2 match">
             <p v-for="item in connect" :key="item">
               {{ item }}
@@ -202,7 +219,8 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
-      this.oldVersion = oldsub.metadata["version"] && oldsub.metadata["version"][0];
+      this.oldVersion =
+        oldsub.metadata["version"] && oldsub.metadata["version"][0];
       document.title = "更新订阅 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {
@@ -220,7 +238,8 @@ export default class Index extends Vue {
     if (this.script.metadata["description"]) {
       this.desctiption = this.script.metadata["description"][0];
     }
-    this.version = this.script.metadata["version"] && this.script.metadata["version"][0];
+    this.version =
+      this.script.metadata["version"] && this.script.metadata["version"][0];
     this.connect = this.script.metadata["connect"] || [];
     this.match = this.script.metadata["scripturl"] || [];
   }
@@ -256,7 +275,8 @@ export default class Index extends Vue {
         modified: editor.createModel(this.script.code, "javascript"),
       });
       this.isupdate = true;
-      this.oldVersion = oldscript.metadata["version"] && oldscript.metadata["version"][0];
+      this.oldVersion =
+        oldscript.metadata["version"] && oldscript.metadata["version"][0];
       document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
     } else {
       this.editor = editor.create(edit, {
@@ -291,10 +311,13 @@ export default class Index extends Vue {
     });
   }
 
+  installLoading = false;
+
   public async install() {
     if (!this.script || !this.script.name) {
       return;
     }
+    this.installLoading = true;
     if (this.issub) {
       let id = await this.scriptController.subscribe(<Subscribe>this.script);
       if (id) {

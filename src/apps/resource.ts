@@ -1,6 +1,5 @@
 import { Resource } from "@App/model/do/resource";
 import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
-import { SystemConfig } from "@App/pkg/config";
 import axios from "axios";
 import crypto from "crypto-js";
 import { App } from "./app";
@@ -49,19 +48,20 @@ export class ResourceManager {
                 });
             });
             if (resource) {
-                let newresource: Resource | undefined;
-                if ((resource.updatetime || 0) < new Date().getTime() - SystemConfig.check_update_cycle * 1000) {
-                    newresource = await this.loadByUrl(u.url);
-                    if (newresource) {
-                        newresource.id = resource.id;
-                        resource = newresource;
-                        resource.updatetime = new Date().getTime();
-                        if (!await this.model.save(resource)) {
-                            return resolve(undefined);
+                if ((resource.updatetime || 0) < new Date().getTime() - 30 * 3600 * 1000) {
+                    // 资源更新使用异步
+                    this.loadByUrl(u.url).then(async newresource => {
+                        if (newresource) {
+                            newresource.id = resource!.id;
+                            resource = newresource;
+                            resource.updatetime = new Date().getTime();
+                            if (!await this.model.save(resource)) {
+                                return resolve(undefined);
+                            }
+                            App.Log.Info("resource", u.url, "update");
+                            await App.Cache.set('resource:' + u.url, resource);
                         }
-                        App.Log.Info("resource", u.url, "update");
-                        await App.Cache.set('resource:' + u.url, resource);
-                    }
+                    });
                 }
                 // 校验hash
                 if (u.hash) {

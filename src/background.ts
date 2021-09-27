@@ -12,6 +12,7 @@ import { MapCache } from "./pkg/storage/cache/cache";
 import { get } from "./pkg/utils";
 import { Server } from "./apps/config";
 import { Subscribe } from "./model/do/subscribe";
+import { UserManager } from "./apps/user/manager";
 
 migrate();
 
@@ -30,6 +31,7 @@ chrome.contextMenus.create({
 });
 
 let scripts = new ScriptManager();
+let user = new UserManager();
 let grant = BackgroundGrant.SingleInstance(
     scripts,
     new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
@@ -38,6 +40,9 @@ let grant = BackgroundGrant.SingleInstance(
 scripts.listenEvent();
 scripts.listen();
 scripts.listenScriptMath();
+
+user.listenEvent();
+
 grant.listenScriptGrant();
 window.addEventListener("message", (event) => {
     if (event.data.action != Logger) {
@@ -123,7 +128,7 @@ setInterval(() => {
 }, 600000)
 // 半小时同步一次数据
 setInterval(() => {
-    scripts.sync();
+    user.sync();
 }, 1800000);
 
 process.env.NODE_ENV === "production" && chrome.runtime.onInstalled.addListener((details) => {

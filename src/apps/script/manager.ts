@@ -20,7 +20,7 @@ import { SubscribeModel } from "@App/model/subscribe";
 import { Server } from "../config";
 import { SyncModel } from "@App/model/sync";
 import { time } from "cron";
-import { Sync, SyncAction, SyncData } from "@App/model/do/sync";
+import { Sync, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -293,13 +293,13 @@ export class ScriptManager {
     public scriptInstall(script: Script): Promise<number> {
         return new Promise(async resolve => {
             // 加载资源
-            this.loadResouce(script);
             await this.scriptModel.save(script);
+            await this.loadResouce(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.enableScript(script);
             }
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "update");
+            this.syncScriptTask(script.uuid, "update", script);
             return resolve(script.id);
         });
     }
@@ -312,9 +312,9 @@ export class ScriptManager {
             }
             // 加载资源
             App.Cache.del('script:' + script.id);
-            this.loadResouce(script);
             copyScript(script, oldScript);
             script.updatetime = new Date().getTime();
+            await this.loadResouce(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.disableScript(script);
                 await this.enableScript(script);
@@ -322,18 +322,21 @@ export class ScriptManager {
                 await this.scriptModel.save(script);
             }
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "update");
+            this.syncScriptTask(script.uuid, "update", script);
             return resolve(true);
         });
     }
 
-    public loadResouce(script: Script) {
-        for (let i = 0; i < script.metadata['require']?.length; i++) {
-            this.resource.addResource(script.metadata['require'][i], script.id)
-        }
-        for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-            this.resource.addResource(script.metadata['require-css'][i], script.id)
-        }
+    public async loadResouce(script: Script) {
+        return new Promise(async resolve => {
+            for (let i = 0; i < script.metadata['require']?.length; i++) {
+                await this.resource.addResource(script.metadata['require'][i], script.id);
+            }
+            for (let i = 0; i < script.metadata['require-css']?.length; i++) {
+                await this.resource.addResource(script.metadata['require-css'][i], script.id);
+            }
+            resolve(1);
+        });
     }
 
     public scriptUninstall(scriptId: number): Promise<boolean> {
@@ -375,8 +378,6 @@ export class ScriptManager {
             } else {
                 await this.disableScript(script);
             }
-            // 设置同步任务
-            this.syncScriptTask(script.uuid, "update");
             return resolve(true);
         });
     }
@@ -414,7 +415,6 @@ export class ScriptManager {
 
     public listenScriptMath() {
         AppEvent.listener(ScriptStatusChange, async (script: Script) => {
-            console.log(script);
             if (script && script.type !== SCRIPT_TYPE_NORMAL) {
                 return;
             }
@@ -806,79 +806,85 @@ export class ScriptManager {
         });
     }
 
-    public syncScriptTask(uuid: string, action: SyncAction, script?: Script) {
-        // 设置同步任务
-        chrome.storage.local.get(['currentUser', 'currentDevice'], async (items) => {
-            if (!items['currentUser'] || !items['currentDevice']) {
-                return;
+    public syncToScript(sync: SyncScript): Promise<Script | string> {
+        return new Promise(async resolve => {
+            let [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
+            if (script == undefined) {
+                App.Log.Error("system", sync.uuid! + ' ' + old, "脚本同步失败");
+                return resolve(<string>old);
             }
-            let sync = await this.syncModel.findByKey(uuid);
-            let data: SyncData = {
-                action: action,
-                actiontime: new Date().getTime(),
-                uuid: uuid,
-            };
-            if (action == "update") {
-                data.script = {
-                    name: script!.name,
-                    uuid: script!.uuid,
-                    code: script!.code,
-                    meta_json: JSON.stringify(script!.metadata),
-                    self_meta: JSON.stringify(script!.selfMetadata),
-                    origin: script!.origin,
-                    sort: script!.sort,
-                    subscribe_url: script!.subscribeUrl,
-                    type: script!.type,
-                    enable: script!.status == SCRIPT_STATUS_ENABLE ? 1 : 0,
-                    createtime: script!.createtime,
-                    updatetime: script!.updatetime,
-                };
-            }
-            if (!sync) {
-                sync = {
-                    id: 0,
-                    key: uuid,
-                    user: items['currentUser'],
-                    device: items['currentDevice'],
-                    type: 'script',
-                    data: data,
-                    createtime: new Date().getTime(),
-                };
+            script.sort = sync.sort;
+            script.selfMetadata = JSON.parse(sync.self_meta);
+            script.createtime = sync.createtime;
+            script.updatetime = sync.updatetime;
+            script.subscribeUrl = sync.subscribe_url
+            if (script.id) {
+                // 存在reinstall
+                App.Cache.del('script:' + script.id);
+                await this.loadResouce(script);
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.disableScript(script);
+                    await this.enableScript(script);
+                } else {
+                    await this.scriptModel.save(script);
+                }
             } else {
-                sync.data = data
+                // 不存在install
+                await this.scriptModel.save(script);
+                await this.loadResouce(script);
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.enableScript(script);
+                }
             }
-            this.syncModel.save(sync);
+            return resolve(script);
         });
     }
 
-    public sync() {
-        // 同步脚本
-        chrome.storage.local.get(['currentUser', 'currentDevice', 'currentScriptSyncVersion'], async items => {
-            if (!items['currentUser'] || !items['currentDevice']) {
-                return;
-            }
-            let list = <Sync[]>await this.syncModel.list(this.syncModel.table.where({ user: items['currentUser'], device: items['currentDevice'], type: "script" }));
-            let map = new Map<string, Sync>();
-            for (const key in list) {
-                map.set(list[key].key, list[key]);
-            }
-            get(Server + "api/v1/sync/" + items['currentDevice'] + '/script/pull/' + (items['currentScriptSyncVersion'] || 0), (respText) => {
-                let json = JSON.parse(respText);
-                if (json.code !== 0) {
-                    App.Log.Error("system", json.msg, "同步失败");
-                    return
+    public syncScriptTask(uuid: string, action: SyncAction, script?: Script): Promise<any> {
+        return new Promise(resolve => {
+            // 设置同步任务
+            chrome.storage.local.get(['currentUser', 'currentDevice'], async (items) => {
+                if (!items['currentUser'] || !items['currentDevice']) {
+                    return resolve(1);
                 }
-                let data = <SyncData[]>json.data.pull;
-                for (const key in data) {
-                    if (map.has(data[key].uuid!)) {
-                        // 存在
-
-                    } else {
-                        // 不存在
-                    }
+                let sync = await this.syncModel.findByKey(uuid);
+                let data: SyncData = {
+                    action: action,
+                    actiontime: new Date().getTime(),
+                    uuid: uuid,
+                };
+                if (action == "update") {
+                    data.script = {
+                        name: script!.name,
+                        uuid: script!.uuid,
+                        code: script!.code,
+                        meta_json: JSON.stringify(script!.metadata),
+                        self_meta: JSON.stringify(script!.selfMetadata),
+                        origin: script!.origin,
+                        sort: script!.sort,
+                        subscribe_url: script!.subscribeUrl,
+                        type: script!.type,
+                        createtime: script!.createtime,
+                        updatetime: script!.updatetime,
+                    };
                 }
+                if (!sync) {
+                    sync = {
+                        id: 0,
+                        key: uuid,
+                        user: items['currentUser'],
+                        device: items['currentDevice'],
+                        type: 'script',
+                        data: data,
+                        createtime: new Date().getTime(),
+                    };
+                } else {
+                    sync.data = data
+                    sync.createtime = new Date().getTime();
+                }
+                await this.syncModel.save(sync);
+                return resolve(1);
             });
-
         });
     }
 
