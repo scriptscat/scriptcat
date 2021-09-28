@@ -51,7 +51,7 @@ export default class Snackbar extends Vue {
   }
 
   login() {
-    let loginWindow = window.open(Server + "user/login");
+    let loginWindow = window.open(Server + "user/login?redirect=scriptcat");
     let t = setInterval(() => {
       if (loginWindow?.closed) {
         clearInterval(t);

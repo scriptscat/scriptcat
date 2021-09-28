@@ -14,7 +14,7 @@ import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
 import ScriptList from "./tabs/ScriptList.vue";
 import ScriptTab from "./tabs/ScriptTab/index.vue";
-import Subscribe from "./tabs/Subscribe.vue";
+import SubscribeList from "./tabs/SubscribeList.vue";
 import { userModule } from "./store/user";
 
 interface IExternalAction {
@@ -142,7 +142,7 @@ export default class App extends Vue {
             {
                 tabKey: SUBSCRIBE_LIST_INDEX,
                 title: "订阅列表",
-                content: <Subscribe></Subscribe>,
+                content: <SubscribeList></SubscribeList>,
                 closable: false,
                 lazy: false,
             },

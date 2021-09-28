@@ -2,7 +2,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { AllPage, get, Page, randomString } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate } from "../msg-center/event";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
@@ -17,7 +17,7 @@ import { Resource } from '@App/model/do/resource';
 import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox';
 import { SubscribeModel } from '@App/model/subscribe';
-import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -93,6 +93,20 @@ export class ScriptController {
         });
     }
 
+    public subscribeList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Subscribe>> {
+        return new Promise(async resolve => {
+            page = page || new Page(1, 20);
+            if (equalityCriterias == undefined) {
+                resolve(await this.subscribeModel.list(page));
+            } else if (typeof equalityCriterias == 'function') {
+                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table), page));
+                resolve(ret);
+            } else {
+                resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias), page));
+            }
+        });
+    }
+
     public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Script>> {
         return new Promise(async resolve => {
             page = page || new Page(1, 20);
@@ -148,6 +162,7 @@ export class ScriptController {
                 url: url,
                 metadata: metadata,
                 status: SUBSCRIBE_STATUS_ENABLE,
+                createtime: new Date().getTime(),
                 updatetime: new Date().getTime(),
                 checktime: 0,
             };
@@ -336,19 +351,37 @@ export class ScriptController {
 
     public unsubscribe(subId: number): Promise<boolean> {
         return new Promise(resolve => {
+            MsgCenter.sendMessage(Unsubscribe, subId, resp => {
+                resolve(resp);
+            });
+        })
+    }
 
+    public checkSubscribe(subId: number): Promise<boolean> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(SubscribeCheckUpdate, subId, resp => {
+                resolve(resp);
+            });
         })
     }
 
     public enableSubscribe(subId: number): Promise<boolean> {
-        return new Promise(resolve => {
-
+        return new Promise(async resolve => {
+            if (await this.subscribeModel.update(subId, { status: SUBSCRIBE_STATUS_ENABLE })) {
+                resolve(true);
+            } else {
+                resolve(false);
+            }
         })
     }
 
     public diableSubscribe(subId: number): Promise<boolean> {
-        return new Promise(resolve => {
-
+        return new Promise(async resolve => {
+            if (await this.subscribeModel.update(subId, { status: SUBSCRIBE_STATUS_DISABLE })) {
+                resolve(true);
+            } else {
+                resolve(false);
+            }
         })
     }
 

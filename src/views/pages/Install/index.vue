@@ -50,7 +50,7 @@
             {{ isupdate ? "更新" + label : issub ? "订阅" : "安装脚本" }}
           </v-btn>
           <v-btn
-            @click="window.close()"
+            @click="closeWindow()"
             style="margin-left: 10px"
             depressed
             small
@@ -86,8 +86,8 @@
           </div>
         </div>
         <div v-if="connect.length" style="color: #ff9000">
-          <span v-if="issub" class="text-subtitle-1"
-            >订阅系列脚本将获得以下地址的完整访问权限:</span
+          <span v-if="issub" class="text-subtitle-1" style="color: red"
+            >订阅系列脚本将获得以下地址的完整访问权限,请注意检查且确认!!!</span
           >
           <span v-else class="text-subtitle-1"
             >脚本将获得以下地址的完整访问权限:</span
@@ -345,6 +345,10 @@ export default class Index extends Vue {
     } else {
       item.status = SCRIPT_STATUS_ENABLE;
     }
+  }
+
+  closeWindow() {
+    window.close();
   }
 }
 </script>

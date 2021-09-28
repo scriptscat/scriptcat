@@ -7,11 +7,11 @@ import { SystemConfig } from "./pkg/config";
 import { App, InitApp } from "./apps/app";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
-import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL } from "./model/do/script";
+import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_DISABLE } from "./model/do/script";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { get } from "./pkg/utils";
 import { Server } from "./apps/config";
-import { Subscribe } from "./model/do/subscribe";
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "./model/do/subscribe";
 import { UserManager } from "./apps/user/manager";
 
 migrate();
@@ -75,12 +75,19 @@ function sandboxLoad(event: MessageEvent) {
 // 检查更新
 setInterval(() => {
 
+    if (SystemConfig.check_script_update_cycle === 0) {
+        return;
+    }
+
     scripts.scriptList((table: Dexie.Table) => {
         return table
             .where("checktime")
-            .belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
+            .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
     }).then((items) => {
         items.forEach((value: Script) => {
+            if (!SystemConfig.update_disable_script && value.status == SCRIPT_STATUS_DISABLE) {
+                return;
+            }
             scripts.scriptCheckUpdate(value.id);
         });
     });
@@ -88,29 +95,18 @@ setInterval(() => {
     scripts.subscribeList((table: Dexie.Table) => {
         return table
             .where("checktime")
-            .belowOrEqual(new Date().getTime() - SystemConfig.check_update_cycle * 1000);
+            .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
     }).then((items) => {
         items.forEach((value: Subscribe) => {
-            scripts.subscribeCheckUpdate(value.id);
+            if (value.status == SUBSCRIBE_STATUS_ENABLE) {
+                scripts.subscribeCheckUpdate(value.id);
+            }
         });
     });
 
 }, 60000);
 
 // 十分钟检查一次扩展更新
-get(Server + "api/v1/system/version", (str) => {
-    chrome.storage.local.get(['oldNotice'], items => {
-        let resp = JSON.parse(str);
-        if (resp.data.notice !== items['oldNotice']) {
-            chrome.storage.local.set({
-                notice: resp.data.notice,
-            });
-        }
-        chrome.storage.local.set({
-            version: resp.data.version,
-        });
-    });
-});
 setInterval(() => {
     get(Server + "api/v1/system/version", (str) => {
         chrome.storage.local.get(['oldNotice'], items => {
@@ -125,10 +121,12 @@ setInterval(() => {
             });
         });
     });
-}, 600000)
+}, 600000);
 // 半小时同步一次数据
 setInterval(() => {
-    user.sync();
+    if (SystemConfig.enable_auto_sync) {
+        user.sync();
+    }
 }, 1800000);
 
 process.env.NODE_ENV === "production" && chrome.runtime.onInstalled.addListener((details) => {

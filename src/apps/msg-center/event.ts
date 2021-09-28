@@ -12,6 +12,7 @@ export const ScriptCheckUpdate = "script-check-update";
 
 export const SubscribeUpdate: string = "subscribe-update";
 export const Unsubscribe: string = "unsubscribe";
+export const SubscribeCheckUpdate: string = 'subscribe-check-update';
 export const SubscribeStatusChange: string = "subscribe-status-change";
 
 export const RequestInstallInfo: string = "request-install-info";

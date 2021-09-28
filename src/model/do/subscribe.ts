@@ -22,7 +22,7 @@ export interface Subscribe {
 	metadata: Metadata;
 	status: SUBSCRIBE_STATUS;
 	error?: string;
-	createtime?: number;
+	createtime: number;
 	updatetime?: number;
 	checktime: number;
 }

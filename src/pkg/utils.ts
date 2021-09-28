@@ -169,6 +169,7 @@ export function postJson(url: string, data: any, success: (resp: any) => void, e
     xmlhttp.open("POST", url, true);
     xmlhttp.setRequestHeader("Content-Type", "application/json");
     xmlhttp.onerror = () => error && error();
+    xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
@@ -181,6 +182,32 @@ export function postJson(url: string, data: any, success: (resp: any) => void, e
     xmlhttp.send(JSON.stringify(data));
     return xmlhttp;
 }
+
+/**
+ * put请求
+ * @param {*} url
+ * @param {*} data
+ * @param {*} json
+ */
+export function putJson(url: string, data: any, success: (resp: any) => void, error?: () => void) {
+    let xmlhttp = createRequest();
+    xmlhttp.open("PUT", url, true);
+    xmlhttp.setRequestHeader("Content-Type", "application/json");
+    xmlhttp.onerror = () => error && error();
+    xmlhttp.responseType = 'json';
+    xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                success && success(this.response);
+            } else {
+                error && error();
+            }
+        }
+    };
+    xmlhttp.send(JSON.stringify(data));
+    return xmlhttp;
+}
+
 
 /**
  * 创建http请求

@@ -17,6 +17,16 @@ export interface SyncScript {
 	updatetime?: number;
 }
 
+export interface SycnSubscribe {
+	name: string;
+	url: string;
+	code: string;
+	meta_json: string;
+	scripts: string;
+	createtime: number;
+	updatetime?: number;
+}
+
 export interface SyncData {
 	action: SyncAction;
 	actiontime: number;
@@ -24,6 +34,7 @@ export interface SyncData {
 	url?: string;
 	msg?: string;
 	script?: SyncScript;
+	subscribe?: SycnSubscribe;
 }
 
 export interface Sync {

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, SyncTaskEvent } from "@App/apps/msg-center/event";
 import { dealScript, get, Page, post, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -15,12 +15,12 @@ import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
 import { v5 as uuidv5 } from "uuid";
-import { Subscribe } from "@App/model/do/subscribe";
+import { Metadata, Subscribe } from "@App/model/do/subscribe";
 import { SubscribeModel } from "@App/model/subscribe";
 import { Server } from "../config";
 import { SyncModel } from "@App/model/sync";
 import { time } from "cron";
-import { Sync, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
+import { SycnSubscribe, Sync, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -96,7 +96,9 @@ export class ScriptManager {
         this.listenerMessage(ScriptCheckUpdate, this.scriptCheckUpdate);
         this.listenerMessage(RequestConfirmInfo, this.requestConfirmInfo);
 
-        this.listenerMessage(SubscribeUpdate, this.subscribe)
+        this.listenerMessage(SubscribeUpdate, this.subscribe);
+        this.listenerMessage(Unsubscribe, this.unsubscribe);
+        this.listenerMessage(SubscribeCheckUpdate, this.subscribeCheckUpdate);
 
         // 监听事件,并转发
         this.listenerProxy(ListenGmLog);
@@ -200,7 +202,108 @@ export class ScriptManager {
             let old = await this.subscribeModel.findByUrl(sub.url);
             await this.subscribeModel.save(sub);
             this.subscribeUpdate(sub, old);
+            this.syncSubscribeTask(sub.url, "update", sub);
             return resolve(sub.id);
+        });
+    }
+
+    // 检查订阅规则是否改变,是否能够静默更新
+    public checkSubscribeRule(oldSub: Subscribe, newSub: Subscribe): boolean {
+        return oldSub.metadata['connect'] == newSub.metadata['connect'];
+    }
+
+    public unsubscribe(id: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            let sub = await this.subscribeModel.findById(id);
+            if (!sub) {
+                return resolve(false);
+            }
+            // 删除相关联脚本
+            for (const key in sub.scripts) {
+                let script = await this.scriptModel.findByUUID(sub.scripts[key].uuid);
+                if (script && script.subscribeUrl == sub.url) {
+                    this.scriptUninstall(script.id);
+                }
+            }
+            await this.subscribeModel.delete(id);
+            this.syncSubscribeTask(sub.url, "delete", sub);
+            return resolve(true);
+        });
+    }
+
+    public subscribeCheckUpdate(subscribeId: number): Promise<boolean> {
+        return new Promise(async resolve => {
+            let sub = await this.subscribeModel.findById(subscribeId);
+            if (!sub) {
+                return resolve(false);
+            }
+            this.subscribeModel.table.update(sub.id, { checktime: new Date().getTime() });
+            axios.get(sub.url, {
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            }).then((response): string | null => {
+                if (response.status != 200) {
+                    App.Log.Warn("check subscribe", "subscribe:" + sub!.id + " error: respond:" + response.statusText, sub!.name);
+                    return null;
+                }
+                let metadata = parseMetadata(response.data);
+                if (metadata == null) {
+                    App.Log.Error('check subscribe', 'MetaData信息错误', sub!.name);
+                    return null;
+                }
+                if (!sub!.metadata['version']) {
+                    sub!.metadata['version'] = ["v0.0.0"];
+                }
+                if (!metadata['version']) {
+                    return null;
+                }
+                var regexp = /[0-9]+/g
+                var oldVersion = sub!.metadata['version'][0].match(regexp);
+                if (!oldVersion) {
+                    oldVersion = ["0", "0", "0"];
+                }
+                var Version = metadata['version'][0].match(regexp);
+                if (!Version) {
+                    App.Log.Warn("check subscribe", "订阅脚本version格式错误:" + sub!.id, sub!.name);
+                    return null;
+                }
+                for (let i = 0; i < Version.length; i++) {
+                    if (oldVersion[i] == undefined) {
+                        return response.data;
+                    }
+                    if (Version[i] > oldVersion[i]) {
+                        return response.data;
+                    }
+                }
+                return null;
+            }).then(async (val: string | null) => {
+                // TODO: 解析了不知道多少次,有时间优化
+                if (val) {
+                    let [newSub, oldSub] = await this.controller.prepareSubscribeByCode(val, sub!.url);
+                    if (newSub) {
+                        // 规则通过静默更新,未通过打开窗口
+                        if (this.checkSubscribeRule(<Subscribe>oldSub, newSub)) {
+                            this.subscribeUpdate(newSub, <Subscribe>oldSub);
+                        } else {
+                            let info = await loadScriptByUrl(sub!.url);
+                            if (info) {
+                                App.Cache.set("install:info:" + info.uuid, info);
+                                chrome.tabs.create({
+                                    url: 'install.html?uuid=' + info.uuid,
+                                    active: false,
+                                });
+                            }
+                        }
+                    }
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            }).catch((e) => {
+                App.Log.Warn("check subscribe", "subscribe:" + sub!.id + " error: " + e, sub!.name);
+                resolve(false);
+            });
         });
     }
 
@@ -741,7 +844,11 @@ export class ScriptManager {
                 return resolve(false);
             }
             this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });
-            axios.get(script.checkupdate_url).then((response): boolean => {
+            axios.get(script.checkupdate_url, {
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            }).then((response): boolean => {
                 if (response.status != 200) {
                     App.Log.Warn("check update", "script:" + script!.id + " error: respond:" + response.statusText, script!.name);
                     return false;
@@ -752,12 +859,12 @@ export class ScriptManager {
                     return false;
                 }
                 if (!script!.metadata['version']) {
-                    script!.metadata['version'] = ["v0.0.0"];
+                    script!.metadata['version'] = ["0.0.0"];
                 }
                 if (!meta['version']) {
                     return false;
                 }
-                var regexp = /[0-9]*/g
+                var regexp = /[0-9]+/g
                 var oldVersion = script!.metadata['version'][0].match(regexp);
                 if (!oldVersion) {
                     oldVersion = ["0", "0", "0"];
@@ -798,20 +905,16 @@ export class ScriptManager {
         })
     }
 
-    public subscribeCheckUpdate(subscribeId: number): Promise<boolean> {
-        return new Promise(async resolve => {
-
-
-            return '';
-        });
-    }
-
     public syncToScript(sync: SyncScript): Promise<Script | string> {
         return new Promise(async resolve => {
             let [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
             if (script == undefined) {
                 App.Log.Error("system", sync.uuid! + ' ' + old, "脚本同步失败");
                 return resolve(<string>old);
+            }
+            if (old) {
+                script.status = (<Script>old).status;
+                script.runStatus = (<Script>old).runStatus;
             }
             script.sort = sync.sort;
             script.selfMetadata = JSON.parse(sync.self_meta);
@@ -885,6 +988,69 @@ export class ScriptManager {
                 await this.syncModel.save(sync);
                 return resolve(1);
             });
+        });
+    }
+
+    public syncSubscribeTask(url: string, action: SyncAction, subscribe?: Subscribe): Promise<any> {
+        return new Promise(resolve => {
+            // 设置同步任务
+            chrome.storage.local.get(['currentUser', 'currentDevice'], async (items) => {
+                if (!items['currentUser'] || !items['currentDevice']) {
+                    return resolve(1);
+                }
+                let sync = await this.syncModel.findByKey(url);
+                let data: SyncData = {
+                    action: action,
+                    actiontime: new Date().getTime(),
+                    url: url,
+                };
+                if (action == "update") {
+                    data.subscribe = {
+                        name: subscribe!.name,
+                        url: subscribe!.url,
+                        code: subscribe!.code,
+                        meta_json: JSON.stringify(subscribe!.metadata),
+                        scripts: JSON.stringify(subscribe!.scripts),
+                        createtime: subscribe!.createtime,
+                        updatetime: subscribe!.updatetime,
+                    };
+                }
+                if (!sync) {
+                    sync = {
+                        id: 0,
+                        key: url,
+                        user: items['currentUser'],
+                        device: items['currentDevice'],
+                        type: 'subscribe',
+                        data: data,
+                        createtime: new Date().getTime(),
+                    };
+                } else {
+                    sync.data = data
+                    sync.createtime = new Date().getTime();
+                }
+                await this.syncModel.save(sync);
+                return resolve(1);
+            });
+        });
+    }
+
+    public syncToSubscribe(sync: SycnSubscribe): Promise<Subscribe | string> {
+        return new Promise(async resolve => {
+            let [subscribe, old] = await this.controller.prepareSubscribeByCode(sync.code, sync.url);
+            if (subscribe == undefined) {
+                App.Log.Error("system", sync.url! + ' ' + old, "脚本同步失败");
+                return resolve(<string>old);
+            }
+            if (old) {
+                subscribe.status = (<Subscribe>old).status;
+            }
+            subscribe.scripts = JSON.parse(sync.scripts);
+            subscribe.createtime = sync.createtime;
+            subscribe.updatetime = sync.updatetime;
+            // 订阅直接save即可,不需要安装等操作
+            await this.subscribeModel.save(subscribe);
+            return resolve(subscribe);
         });
     }
 

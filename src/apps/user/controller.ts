@@ -1,4 +1,4 @@
-import { UserLogin, UserLogout } from "../msg-center/event";
+import { TriggerSync, UserLogin, UserLogout } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 
 export class UserController {
@@ -17,5 +17,14 @@ export class UserController {
                 resolve(1);
             });
         })
+    }
+
+    public sync(): Promise<string> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(TriggerSync, undefined, resp => {
+                resolve(resp);
+            });
+        })
+
     }
 }

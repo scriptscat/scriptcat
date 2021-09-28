@@ -4,7 +4,7 @@ export class ChromeStorage implements Storage {
     private prefix: string;
     private storage: chrome.storage.StorageArea;
     constructor(prefix: string) {
-        this.prefix = prefix;
+        this.prefix = prefix + '_';
         this.storage = chrome.storage.sync;
     }
 
@@ -45,12 +45,12 @@ export class ChromeStorage implements Storage {
         return new Promise((resolve) => {
             let ret: { [key: string]: any } = {};
             let prefix = this.buildKey('');
-            this.storage.get({}, (items) => {
-                items.forEach((value: any, key: string) => {
+            this.storage.get((items) => {
+                for (const key in items) {
                     if (key.indexOf(prefix) == 0) {
-                        ret[key] = value;
+                        ret[key.substring(prefix.length)] = items[key];
                     }
-                });
+                }
                 resolve(ret);
             });
         });

@@ -3,7 +3,7 @@ import { ScriptModel } from "@App/model/script";
 import { SubscribeModel } from "@App/model/subscribe";
 import { SyncModel } from "@App/model/sync";
 import { ValueModel } from "@App/model/value";
-import { get, getJson, InfoNotification, postJson } from "@App/pkg/utils";
+import { get, getJson, InfoNotification, postJson, putJson } from "@App/pkg/utils";
 import { KeyCode } from "monaco-editor";
 import { App } from "../app";
 import { Server } from "../config";
@@ -55,10 +55,9 @@ export class UserManager {
         });
     }
 
-    public triggerSync(): Promise<any> {
-        return new Promise(resolve => {
-            this.sync();
-            resolve(1);
+    public triggerSync(): Promise<string> {
+        return new Promise(async resolve => {
+            resolve(await this.sync());
         });
     }
 
@@ -82,14 +81,15 @@ export class UserManager {
 
     public logoutEvent(): Promise<any> {
         return new Promise(resolve => {
-            chrome.storage.local.remove(['currentUser', 'currentDevice', 'currentScriptSyncVersion'], () => {
+            chrome.storage.local.remove(['currentUser', 'currentDevice', 'currentScriptSyncVersion', 'currentSubscribeSyncVersion'], () => {
                 return resolve('ok');
             });
         })
     }
 
+    //NOTE:script和subscribe代码大量重复,以后优化
     public firstSync() {
-        chrome.storage.local.get(['currentUser', 'currentDevice', 'currentScriptSyncVersion'], async items => {
+        chrome.storage.local.get(['currentUser', 'currentDevice'], async items => {
             if (!items['currentUser']) {
                 return;
             }
@@ -97,7 +97,7 @@ export class UserManager {
             getJson(Server + "api/v1/sync/" + items['currentDevice'] + '/script/pull/0', async (resp) => {
                 if (resp.code !== 0) {
                     App.Log.Error("system", resp.msg + ',重启后重试', "设备同步拉取失败");
-                    chrome.storage.local.remove(['currentDevice', 'currentScriptSyncVersion']);
+                    chrome.storage.local.remove(['currentDevice']);
                     return
                 }
                 let data = <SyncData[]>resp.data.pull || [];
@@ -112,23 +112,76 @@ export class UserManager {
                     }
                     map.set(v.uuid!, 1);
                 }
-                // 查询未同步的脚本
-                this.scriptManager.scriptList(undefined).then(async list => {
-                    let syncNum = 0;
-                    for (const i in list) {
-                        let item = list[i];
-                        if (!map.has(item.uuid)) {
-                            // push
-                            await this.scriptManager.syncScriptTask(item.uuid, "update", item);
-                            syncNum++;
+                chrome.storage.local.set({
+                    currentScriptSyncVersion: resp.data.version
+                }, () => {
+                    // 查询未同步的脚本
+                    this.scriptManager.scriptList(undefined).then(async list => {
+                        let syncNum = 0;
+                        for (const i in list) {
+                            let item = list[i];
+                            if (!map.has(item.uuid)) {
+                                // push
+                                await this.scriptManager.syncScriptTask(item.uuid, "update", item);
+                                syncNum++;
+                            }
                         }
+                        InfoNotification('首次数据同步成功', `成功拉取${data.length}个脚本,有${syncNum}个脚本将自动同步`);
+                        if (syncNum > 0) {
+                            this.syncScript();
+                        } else {
+                            MsgCenter.connect(SyncTaskEvent, 'pull');
+                        }
+                    });
+                })
+            }, () => {
+                App.Log.Error("system", '网络错误,重启后重试', "设备同步拉取失败");
+                chrome.storage.local.remove(['currentDevice']);
+            });
+
+            getJson(Server + "api/v1/sync/" + items['currentDevice'] + '/subscribe/pull/0', async (resp) => {
+                if (resp.code !== 0) {
+                    App.Log.Error("system", resp.msg + ',重启后重试', "设备同步拉取失败");
+                    chrome.storage.local.remove(['currentDevice']);
+                    return
+                }
+                let data = <SyncData[]>resp.data.pull || [];
+                // 订阅安装
+                let map = new Map<string, number>();
+                for (const index in data) {
+                    let v = data[index];
+                    let newsub = await this.scriptManager.syncToSubscribe(v.subscribe!);
+                    if (typeof newsub == "string") {
+                        App.Log.Error("system", v.url! + ' ' + newsub, "订阅同步失败");
+                        continue;
                     }
-                    InfoNotification('首次数据同步成功', `成功拉取${data.length}个脚本,有${syncNum}个脚本将自动同步`);
-                    this.sync();
+                    map.set(v.url!, 1);
+                }
+                chrome.storage.local.set({
+                    currentSubscribeSyncVersion: resp.data.version
+                }, () => {
+                    // 查询未同步的订阅
+                    this.scriptManager.subscribeList(undefined).then(async list => {
+                        let syncNum = 0;
+                        for (const i in list) {
+                            let item = list[i];
+                            if (!map.has(item.url)) {
+                                // push
+                                await this.scriptManager.syncSubscribeTask(item.url, "update", item);
+                                syncNum++;
+                            }
+                        }
+                        InfoNotification('首次数据同步成功', `成功拉取${data.length}个订阅,有${syncNum}个订阅将自动同步`);
+                        if (syncNum > 0) {
+                            this.syncSubscribe();
+                        } else {
+                            MsgCenter.connect(SyncTaskEvent, 'pull');
+                        }
+                    });
                 });
             }, () => {
                 App.Log.Error("system", '网络错误,重启后重试', "设备同步拉取失败");
-                chrome.storage.local.remove(['currentDevice', 'currentScriptSyncVersion']);
+                chrome.storage.local.remove(['currentDevice']);
             });
         });
     }
@@ -141,7 +194,6 @@ export class UserManager {
             }
             chrome.storage.local.set({
                 currentDevice: resp.data[0].id,
-                currentScriptSyncVersion: resp.data[0].sync_version.script
             }, async () => {
                 this.firstSync();
             });
@@ -151,6 +203,16 @@ export class UserManager {
     }
 
     public sync(): Promise<string> {
+        return new Promise(async resolve => {
+            let ret = await this.syncScript();
+            if (ret != '同步成功') {
+                return resolve(ret);
+            }
+            resolve(await this.syncSubscribe());
+        });
+    }
+
+    public syncScript(): Promise<string> {
         return new Promise(resolve => {
             // 同步脚本
             chrome.storage.local.get(['currentUser', 'currentDevice', 'currentScriptSyncVersion'], async items => {
@@ -179,12 +241,13 @@ export class UserManager {
                     let flag = false;
                     for (const key in data) {
                         if (localMap.has(data[key].uuid!)) {
+                            let localKey = data[key].uuid!;
                             // pull与本地的冲突,比对时间
-                            if (localMap.get(key)!.createtime < data[key].actiontime) {
+                            if (localMap.get(localKey)!.createtime < data[key].actiontime) {
                                 // 本地时间小于远端时间,删除覆盖本地记录
                                 await this.scriptManager.syncToScript(data[key].script!);
-                                localMap.delete(key);
-                                await this.syncModel.delete(localMap.get(key)!.id);
+                                localMap.delete(localKey);
+                                await this.syncModel.delete(localMap.get(localKey)!.id);
                                 flag = true;
                             }
                             // 本地比远端大,不做处理,等待push
@@ -196,6 +259,10 @@ export class UserManager {
                     if (flag) {
                         MsgCenter.connect(SyncTaskEvent, 'pull');
                     }
+                    if (localMap.size <= 0) {
+                        resolve("同步成功");
+                        return;
+                    }
                     chrome.storage.local.set({
                         currentScriptSyncVersion: items['currentScriptSyncVersion']
                     }, () => {
@@ -204,7 +271,7 @@ export class UserManager {
                         localMap.forEach(val => {
                             push.push(val.data);
                         });
-                        postJson(Server + 'api/v1/sync/' + items['currentDevice'] + '/script/push/' + (items['currentScriptSyncVersion'] || 0), push, async (resp) => {
+                        putJson(Server + 'api/v1/sync/' + items['currentDevice'] + '/script/push/' + (items['currentScriptSyncVersion'] || 0), push, async (resp) => {
                             if (resp.code !== 0) {
                                 resolve("同步失败:" + resp.msg);
                                 App.Log.Error('system', resp.msg + ',数据push失败', '同步失败');
@@ -223,7 +290,109 @@ export class UserManager {
                             if (success || error) {
                                 App.Log.Info('system', `${success}个脚本同步成功,${error}个脚本同步失败`, '同步成功');
                             }
-                            resolve("同步成功");
+                            items['currentScriptSyncVersion'] = resp.data.version;
+                            chrome.storage.local.set({
+                                currentScriptSyncVersion: items['currentScriptSyncVersion']
+                            }, () => {
+                                resolve("同步成功");
+                            });
+                        }, () => {
+                            resolve("同步失败:网络错误,数据push失败");
+                            App.Log.Error('system', '网络错误,数据push失败', '同步失败');
+                        });
+                    });
+                }, () => {
+                    resolve("同步失败:网络错误,数据pull失败");
+                    App.Log.Error('system', '网络错误,数据pull失败', '同步失败');
+                });
+            });
+        });
+    }
+
+    public syncSubscribe(): Promise<string> {
+        return new Promise(resolve => {
+            // 同步订阅
+            chrome.storage.local.get(['currentUser', 'currentDevice', 'currentSubscribeSyncVersion'], async items => {
+                if (!items['currentUser']) {
+                    resolve('未登录账号或者未选择设备');
+                    return;
+                }
+                if (!items['currentDevice']) {
+                    resolve('未选择设备');
+                    return;
+                }
+                let syncList = <Sync[]>await this.syncModel.list(this.syncModel.table.where({ user: items['currentUser'], device: items['currentDevice'], type: "subscribe" }));
+                let localMap = new Map<string, Sync>();
+                for (const key in syncList) {
+                    localMap.set(syncList[key].key, syncList[key]);
+                }
+                // pull与本地合并并检查变更中是否有pull
+                getJson(Server + "api/v1/sync/" + items['currentDevice'] + '/subscribe/pull/' + (items['currentSubscribeSyncVersion'] || 0), async (resp) => {
+                    if (resp.code !== 0) {
+                        App.Log.Error("system", resp.msg, "同步失败");
+                        resolve("同步失败:" + resp.msg);
+                        return
+                    }
+                    let data = <SyncData[]>resp.data.pull || [];
+                    items['currentSubscribeSyncVersion'] = resp.data.version;
+                    let flag = false;
+                    for (const key in data) {
+                        if (localMap.has(data[key].url!)) {
+                            let localKey = data[key].url!;
+                            // pull与本地的冲突,比对时间
+                            if (localMap.get(localKey)!.createtime < data[key].actiontime) {
+                                // 本地时间小于远端时间,删除覆盖本地记录
+                                await this.scriptManager.syncToScript(data[key].script!);
+                                localMap.delete(localKey);
+                                await this.syncModel.delete(localMap.get(localKey)!.id);
+                                flag = true;
+                            }
+                            // 本地比远端大,不做处理,等待push
+                            continue;
+                        }
+                        // 同步到本地
+                        this.scriptManager.syncToScript(data[key].script!);
+                    }
+                    if (flag) {
+                        MsgCenter.connect(SyncTaskEvent, 'pull');
+                    }
+                    if (localMap.size <= 0) {
+                        resolve("同步成功");
+                        return;
+                    }
+                    chrome.storage.local.set({
+                        currentSubscribeSyncVersion: items['currentSubscribeSyncVersion']
+                    }, () => {
+                        // push数据
+                        let push: SyncData[] = [];
+                        localMap.forEach(val => {
+                            push.push(val.data);
+                        });
+                        putJson(Server + 'api/v1/sync/' + items['currentDevice'] + '/subscribe/push/' + (items['currentSubscribeSyncVersion'] || 0), push, async (resp) => {
+                            if (resp.code !== 0) {
+                                resolve("同步失败:" + resp.msg);
+                                App.Log.Error('system', resp.msg + ',数据push失败', '同步失败');
+                                return;
+                            }
+                            let success = 0, error = 0;
+                            for (const index in <SyncData[]>resp.data) {
+                                let item = resp.data[index];
+                                if (item.action == 'ok') {
+                                    await this.syncModel.delete(localMap.get(push[index].url!)!.id);
+                                    success++;
+                                } else {
+                                    error++;
+                                }
+                            }
+                            if (success || error) {
+                                App.Log.Info('system', `${success}个脚本同步成功,${error}个脚本同步失败`, '同步成功');
+                            }
+                            items['currentSubscribeSyncVersion'] = resp.data.version;
+                            chrome.storage.local.set({
+                                currentSubscribeSyncVersion: items['currentSubscribeSyncVersion']
+                            }, () => {
+                                resolve("同步成功");
+                            });
                         }, () => {
                             resolve("同步失败:网络错误,数据push失败");
                             App.Log.Error('system', '网络错误,数据push失败', '同步失败');

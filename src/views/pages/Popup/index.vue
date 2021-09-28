@@ -89,7 +89,7 @@
           >当前版本: {{ version }} {{ isdebug ? "debug" : "" }}</span
         >
         <span
-          v-if="version == remoteVersion"
+          v-if="remoteVersion == '' || version == remoteVersion"
           class="v-text d-flex"
           style="color: #fff"
           >已是最新版本</span
@@ -208,6 +208,9 @@ export default class Popup extends Vue {
     chrome.storage.local.get(["notice", "oldNotice", "version"], (items) => {
       this.notice = items["notice"];
       this.oldNotice = items["oldNotice"];
+      if (this.notice === "") {
+        this.notice = this.oldNotice;
+      }
       this.remoteVersion = items["version"];
     });
     chrome.tabs.query(
