@@ -15,18 +15,22 @@ import { migrate } from "./model/migrate";
 import store from "@Option/store";
 import { DBLogger } from "./apps/logger/logger";
 import { MapCache } from "./pkg/storage/cache/cache";
-import { InitApp } from "./apps/app";
+import { ENV_FRONTEND, InitApp } from "./apps/app";
+import { SystemConfig } from "./pkg/config";
 
 migrate();
 
 InitApp({
     Log: new DBLogger(),
     Cache: new MapCache(),
+    Environment: ENV_FRONTEND,
 });
+
+SystemConfig.init();
 
 // @ts-ignore
 self.MonacoEnvironment = {
-    getWorkerUrl: function(moduleId: any, label: any) {
+    getWorkerUrl: function (moduleId: any, label: any) {
         if (label === "typescript" || label === "javascript") {
             return "./src/ts.worker.js";
         }

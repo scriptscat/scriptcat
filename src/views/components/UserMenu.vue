@@ -2,8 +2,9 @@
   <v-menu bottom min-width="200px" rounded offset-y>
     <template v-slot:activator="{ on }">
       <v-btn icon x-large v-on="on">
-        <v-avatar dark>
-          <v-icon dark> mdi-account-circle </v-icon>
+        <v-avatar dark size="36">
+          <v-icon dark v-if="!user.avatar"> mdi-account-circle </v-icon>
+          <img v-else :src="server + user.avatar" :alt="user.username" />
         </v-avatar>
       </v-btn>
     </template>
@@ -11,7 +12,8 @@
       <v-list-item-content class="justify-center">
         <div class="mx-auto text-center">
           <v-avatar color="#1296db" dark>
-            <v-icon dark> mdi-account-circle </v-icon>
+            <v-icon dark v-if="!user.avatar"> mdi-account-circle </v-icon>
+            <img v-else :src="server + user.avatar" :alt="user.username" />
           </v-avatar>
           <h3 style="margin-top: 10px">{{ user.username }}</h3>
           <div v-if="user.islogin">
@@ -37,6 +39,7 @@ import { UserController } from "@App/apps/user/controller";
 @Component({})
 export default class Snackbar extends Vue {
   user = userModule.userinfo;
+  server = Server.substring(0, Server.length - 1);
 
   userController = new UserController();
 

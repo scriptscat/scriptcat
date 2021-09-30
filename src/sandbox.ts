@@ -2,7 +2,7 @@ import { CronJob } from "cron";
 import { buildThis, compileScript, createSandboxContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils";
-import { App, InitApp } from "./apps/app";
+import { App, ENV_FRONTEND, InitApp } from "./apps/app";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { ConsoleLogger } from "./apps/logger/logger";
 import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
@@ -13,8 +13,9 @@ import { nextTime } from "./views/pages/utils";
 InitApp({
     Log: new ConsoleLogger(),
     Cache: new MapCache(),
-    Environment: "frontend",
+    Environment: ENV_FRONTEND,
 });
+
 
 let cronjobMap = new Map<number, Array<CronJob>>();
 

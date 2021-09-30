@@ -1,6 +1,10 @@
+import { App, ENV_BACKGROUND, ENV_FRONTEND } from "@App/apps/app";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { Storage } from "@App/pkg/storage/storage"
 import { ChromeStorage } from "./storage/chrome";
 
+export const SYSTEM_CONFIG_CHANGE = "system_config_change";
+//NOTE: 可以抽象set接口
 export class SystemConfig {
 
     public static cache = new Map<string, any>();
@@ -12,6 +16,38 @@ export class SystemConfig {
         for (const key in list) {
             this.cache.set(key, list[key]);
         }
+        // 监听设置变化
+        if (App.Environment === ENV_BACKGROUND) {
+            MsgCenter.listenerMessage(SYSTEM_CONFIG_CHANGE, (body) => {
+                this.set(body.key, body.val);
+                this.set('changetime', new Date().getTime());
+            });
+        }
+    }
+
+    public static set(key: string, val: any) {
+        this.cache.set(key, val);
+        if (App.Environment === ENV_FRONTEND) {
+            MsgCenter.sendMessage(SYSTEM_CONFIG_CHANGE, { key: key, val: val });
+        } else {
+            this.storage.set(key, val);
+        }
+    }
+
+    public static list() {
+        let ret: { [key: string]: any } = {};
+        this.cache.forEach((val, key) => {
+            ret[key] = val;
+        });
+        return ret;
+    }
+
+    public static get changetime() {
+        return this.cache.get('changetime') || 0;
+    }
+
+    public static set changetime(n: number) {
+        this.set('changetime', 0);
     }
 
     // 检查更新周期,单位为秒
@@ -20,8 +56,7 @@ export class SystemConfig {
     }
 
     public static set check_script_update_cycle(n: number) {
-        this.storage.set("check_script_update_cycle", n);
-        this.cache.set("check_script_update_cycle", n);
+        this.set("check_script_update_cycle", n);
     }
 
     public static get enable_auto_sync(): boolean {
@@ -32,8 +67,7 @@ export class SystemConfig {
     }
 
     public static set enable_auto_sync(enable: boolean) {
-        this.storage.set("enable_auto_sync", enable);
-        this.cache.set("enable_auto_sync", enable);
+        this.set("enable_auto_sync", enable);
     }
 
     public static get update_disable_script(): boolean {
@@ -41,12 +75,9 @@ export class SystemConfig {
     }
 
     public static set update_disable_script(enable: boolean) {
-        this.storage.set("update_disable_script", enable);
-        this.cache.set("update_disable_script", enable);
+        this.set("update_disable_script", enable);
     }
 
 }
 
 SystemConfig.storage = new ChromeStorage("system");
-// 初始化值
-SystemConfig.init();

@@ -11,7 +11,7 @@ import App from "@App/views/pages/Install/index.vue";
 import dts from "@App/types/tampermonkey.d.ts";
 import { migrate } from "./model/migrate";
 
-import { InitApp } from "./apps/app";
+import { ENV_FRONTEND, InitApp } from "./apps/app";
 import { DBLogger } from "./apps/logger/logger";
 import { SystemCache } from "./pkg/storage/cache/system-cache";
 
@@ -20,6 +20,7 @@ migrate();
 InitApp({
     Log: new DBLogger(),
     Cache: new SystemCache(),
+    Environment: ENV_FRONTEND,
 });
 
 Vue.use(Vuetify);

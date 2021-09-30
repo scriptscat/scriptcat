@@ -136,19 +136,16 @@ export function getJson(url: string, success: (resp: any) => void, error?: () =>
  * @param {*} data
  * @param {*} json
  */
-export function post(url: string, data: any, json = true, success: (resp: string) => void, error?: () => void) {
+export function post(url: string, data: string, success: (resp: string) => void, error?: () => void) {
     let xmlhttp = createRequest();
     xmlhttp.open("POST", url, true);
-    if (json) {
-        xmlhttp.setRequestHeader("Content-Type", "application/json");
-    } else {
-        xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    }
+    xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xmlhttp.onerror = () => error && error();
+    xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
-                success && success(this.responseText);
+                success && success(this.response);
             } else {
                 error && error();
             }
@@ -182,6 +179,32 @@ export function postJson(url: string, data: any, success: (resp: any) => void, e
     xmlhttp.send(JSON.stringify(data));
     return xmlhttp;
 }
+
+/**
+ * put请求
+ * @param {*} url
+ * @param {*} data
+ * @param {*} json
+ */
+export function put(url: string, data: string, success: (resp: any) => void, error?: () => void) {
+    let xmlhttp = createRequest();
+    xmlhttp.open("PUT", url, true);
+    xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xmlhttp.onerror = () => error && error();
+    xmlhttp.responseType = 'json';
+    xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4) {
+            if (this.status == 200) {
+                success && success(this.response);
+            } else {
+                error && error();
+            }
+        }
+    };
+    xmlhttp.send(data);
+    return xmlhttp;
+}
+
 
 /**
  * put请求

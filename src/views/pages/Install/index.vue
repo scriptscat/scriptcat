@@ -1,8 +1,6 @@
 <template>
   <v-app>
     <v-app-bar color="#1296DB" dense dark>
-      <v-app-bar-nav-icon></v-app-bar-nav-icon>
-
       <v-toolbar-title>ScriptCat</v-toolbar-title>
       <v-spacer></v-spacer>
     </v-app-bar>

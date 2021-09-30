@@ -1,7 +1,7 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, SyncTaskEvent } from "@App/apps/msg-center/event";
-import { dealScript, get, Page, post, randomString } from "@App/pkg/utils";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate } from "@App/apps/msg-center/event";
+import { dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
@@ -15,12 +15,10 @@ import { ScriptUrlInfo } from "../msg-center/structs";
 import { ConfirmParam } from "../grant/interface";
 import { ScriptController } from "./controller";
 import { v5 as uuidv5 } from "uuid";
-import { Metadata, Subscribe } from "@App/model/do/subscribe";
+import { Subscribe } from "@App/model/do/subscribe";
 import { SubscribeModel } from "@App/model/subscribe";
-import { Server } from "../config";
 import { SyncModel } from "@App/model/sync";
-import { time } from "cron";
-import { SycnSubscribe, Sync, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
+import { SycnSubscribe, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {

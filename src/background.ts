@@ -4,7 +4,7 @@ import { grantListener } from "@App/apps/grant/content";
 import { MultiGrantListener } from "@App/apps/grant/utils";
 import { Logger } from "./apps/msg-center/event";
 import { SystemConfig } from "./pkg/config";
-import { App, InitApp } from "./apps/app";
+import { App, ENV_BACKGROUND, InitApp } from "./apps/app";
 import { DBLogger } from "./apps/logger/logger";
 import { migrate } from "./model/migrate";
 import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_DISABLE } from "./model/do/script";
@@ -19,7 +19,10 @@ migrate();
 InitApp({
     Log: new DBLogger(),
     Cache: new MapCache(),
+    Environment: ENV_BACKGROUND,
 });
+
+SystemConfig.init();
 
 chrome.contextMenus.create({
     id: 'script-cat',
@@ -106,7 +109,20 @@ setInterval(() => {
 
 }, 60000);
 
-// 十分钟检查一次扩展更新
+get(Server + "api/v1/system/version", (str) => {
+    chrome.storage.local.get(['oldNotice'], items => {
+        let resp = JSON.parse(str);
+        if (resp.data.notice !== items['oldNotice']) {
+            chrome.storage.local.set({
+                notice: resp.data.notice
+            });
+        }
+        chrome.storage.local.set({
+            version: resp.data.version,
+        });
+    });
+});
+// 半小时同步一次数据和检查更新
 setInterval(() => {
     get(Server + "api/v1/system/version", (str) => {
         chrome.storage.local.get(['oldNotice'], items => {
@@ -121,9 +137,6 @@ setInterval(() => {
             });
         });
     });
-}, 600000);
-// 半小时同步一次数据
-setInterval(() => {
     if (SystemConfig.enable_auto_sync) {
         user.sync();
     }
