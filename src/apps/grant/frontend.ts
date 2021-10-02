@@ -499,12 +499,12 @@ export class SandboxContext extends FrontendGrant {
     @FrontendGrant.GMFunction()
     public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) {
         this.postRequest('GM_cookie', [action, details], (grant: Grant) => {
+            if (grant.error) {
+                return done && done([], grant.errorMsg);
+            }
             switch (grant.data.type) {
                 case 'done':
                     done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
-                    break;
-                case 'error':
-                    done && done([], grant.data.error);
                     break;
             }
         });
@@ -513,12 +513,12 @@ export class SandboxContext extends FrontendGrant {
     @FrontendGrant.GMFunction()
     protected GM_getCookieStore(tabid: number, done: (storeId: number, error: any | undefined) => void): void {
         this.postRequest('GM_getCookieStore', [tabid], (grant: Grant) => {
+            if (grant.error) {
+                return done && done(0, grant.errorMsg);
+            }
             switch (grant.data.type) {
                 case 'done':
                     done && done(grant.data.data, undefined);
-                    break;
-                case 'error':
-                    done && done(0, grant.data.error);
                     break;
             }
         });

@@ -77,7 +77,6 @@
           <img
             :src="'https://' + val + '/favicon.ico'"
             :alt="val"
-            onerror="/assets/logo.png"
             height="16"
             width="16"
           />
@@ -89,6 +88,29 @@
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
+        <div @click="copyLink(item)">
+          <v-tooltip top>
+            <template v-slot:activator="{ on, attrs }">
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                class="ma-2"
+                color="primary"
+                style="cursor: pointer"
+                outlined
+                label
+                small
+              >
+                <v-icon left small>mdi-link</v-icon>
+                订阅地址
+              </v-chip>
+            </template>
+            <span>{{ item.url }} (点击复制)</span>
+          </v-tooltip>
+        </div>
+      </template>
+
+      <template v-slot:[`item.home`]="{ item }">
         <v-tooltip bottom v-if="item.metadata['homepage']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
@@ -210,6 +232,7 @@
 </template>
 
 <script lang="ts">
+import { BackgroundGrant } from "@App/apps/grant/background";
 import { SyncTaskEvent } from "@App/apps/msg-center/event";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { ScriptController } from "@App/apps/script/controller";
@@ -221,6 +244,7 @@ import {
 import { AllPage } from "@App/pkg/utils";
 import dayjs from "dayjs";
 import { Vue, Component } from "vue-property-decorator";
+import { scriptModule } from "../store/script";
 
 //TODO: 与脚本列表差不多,可以优化,使用同一个组件
 @Component({})
@@ -241,7 +265,8 @@ export default class SubscribeList extends Vue {
     { text: "名称", value: "name" },
     { text: "版本", value: "version" },
     { text: "权限", value: "site" },
-    { text: "主页", value: "origin" },
+    { text: "来源", value: "origin" },
+    { text: "主页", value: "home" },
     { text: "排序", value: "sort", align: "center" },
     { text: "最后更新", value: "updatetime", width: 100, align: "center" },
     { text: "操作", value: "actions", sortable: false },
@@ -318,7 +343,7 @@ export default class SubscribeList extends Vue {
       }
     }
   }
-  
+
   async checkUpdate(item: Subscribe) {
     let old = item.updatetime;
     item.updatetime = -1;
@@ -330,5 +355,13 @@ export default class SubscribeList extends Vue {
     }
   }
 
+  copyLink(item: Subscribe) {
+    let msg = "订阅链接:" + item.url;
+    BackgroundGrant.clipboardData = {
+      data: msg,
+    };
+    document.execCommand("copy", false, <any>null);
+    scriptModule.showSnackbar("复制成功");
+  }
 }
 </script>

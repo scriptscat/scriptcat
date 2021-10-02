@@ -323,6 +323,14 @@ export class ScriptController {
     public buildScriptCache(script: Script): Promise<ScriptCache> {
         return new Promise(async resolve => {
             let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
+
+            // 自定义配置
+            for (const key in ret.metadata) {
+                if (ret.selfMetadata[key]) {
+                    ret.metadata[key] = ret.selfMetadata[key];
+                }
+            }
+
             ret.value = await this.getScriptValue(ret);
 
             ret.resource = await this.getResource(ret);
@@ -331,6 +339,7 @@ export class ScriptController {
             ret.code = compileScriptCode(ret);
 
             ret.grantMap = {};
+
             ret.metadata['grant']?.forEach((val: string) => {
                 ret.grantMap![val] = 'ok';
             });

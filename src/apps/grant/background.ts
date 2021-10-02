@@ -478,12 +478,7 @@ export class BackgroundGrant {
         background: true
     })
     protected GM_getCookieStore(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise((resolve) => {
-            let reject = (msg: string) => {
-                grant.data = { type: 'error', error: msg };
-                post.postMessage(grant);
-                resolve(undefined);
-            }
+        return new Promise((resolve, reject) => {
             let tabid = grant.params[0];
             if (!tabid) {
                 return reject('tabis is null');
@@ -547,12 +542,7 @@ export class BackgroundGrant {
         }
     })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise((resolve) => {
-            let reject = (msg: string) => {
-                grant.data = { type: 'error', error: msg };
-                post.postMessage(grant);
-                resolve(undefined);
-            }
+        return new Promise((resolve, reject) => {
             let param = grant.params;
             if (param.length != 2) {
                 return reject('there must be two parameters');
@@ -960,7 +950,7 @@ export class BackgroundGrant {
     }
 
     protected static textarea: HTMLElement = document.createElement('textarea');
-    protected static clipboardData: any;
+    public static clipboardData: any;
     @BackgroundGrant.GMFunction({
         listener: () => {
             document.body.appendChild(BackgroundGrant.textarea);

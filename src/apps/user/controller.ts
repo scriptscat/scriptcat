@@ -1,3 +1,5 @@
+import { get } from "@App/pkg/utils";
+import { Server } from "../config";
 import { TriggerSync, UserLogin, UserLogout } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 
@@ -13,6 +15,7 @@ export class UserController {
 
     public logout(): Promise<any> {
         return new Promise(resolve => {
+            get(Server + "api/v1/account/logout");
             MsgCenter.sendMessage(UserLogout, undefined, resp => {
                 resolve(1);
             });

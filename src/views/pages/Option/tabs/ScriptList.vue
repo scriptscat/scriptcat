@@ -157,15 +157,38 @@
         </v-tooltip>
       </template>
 
-      <template v-slot:[`item.feature`]="{ item }">
-        {{ item.metadata.grant && item.metadata.grant[0] }}
-      </template>
-
       <template v-slot:[`item.sort`]="">
         <v-icon small style="cursor: pointer"> mdi-menu </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
+        <div @click="copyLink(item)">
+          <v-tooltip top>
+            <template v-slot:activator="{ on, attrs }">
+              <v-chip
+                v-bind="attrs"
+                v-on="on"
+                class="ma-2"
+                :color="item.subscribeUrl?'orange':'primary'"
+                style="cursor: pointer"
+                outlined
+                label
+                small
+              >
+                <div v-if="item.subscribeUrl">
+                  <v-icon left small>mdi-rss</v-icon>订阅安装
+                </div>
+                <div v-else><v-icon left small>mdi-link</v-icon>用户安装</div>
+              </v-chip>
+            </template>
+            <p v-if="item.subscribeUrl">订阅链接:{{ item.subscribeUrl }}</p>
+            <p>脚本链接:{{ item.origin }}</p>
+            <p>(点击复制)</p>
+          </v-tooltip>
+        </div>
+      </template>
+
+      <template v-slot:[`item.home`]="{ item }">
         <v-tooltip bottom v-if="item.metadata['homepage']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
@@ -506,8 +529,8 @@ import { Log } from "@App/model/do/logger";
 import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
 
 import BgCloud from "@components/BgCloud.vue";
-import { App } from "@App/apps/app";
-import { mode } from "crypto-js";
+import { BackgroundGrant } from "@App/apps/grant/background";
+import { scriptModule } from "../store/script";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -582,8 +605,8 @@ export default class ScriptList extends Vue {
     { text: "名称", value: "name" },
     { text: "版本", value: "version" },
     { text: "应用至/运行状态", value: "site" },
-    { text: "特性", value: "feature" },
-    { text: "主页", value: "origin" },
+    { text: "来源", value: "origin" },
+    { text: "主页", value: "home" },
     { text: "排序", value: "sort", align: "center" },
     { text: "最后更新", value: "updatetime", width: 100, align: "center" },
     { text: "操作", value: "actions", sortable: false },
@@ -859,6 +882,19 @@ export default class ScriptList extends Vue {
 
   newScript() {
     eventBus.$emit<INewScript>(EventType.NewScript, { scriptId: 0 });
+  }
+
+  copyLink(item: Script) {
+    let msg = "";
+    if (item.subscribeUrl) {
+      msg = "订阅链接:" + item.subscribeUrl + "\n";
+    }
+    msg += "脚本来源:" + item.origin;
+    BackgroundGrant.clipboardData = {
+      data: msg,
+    };
+    document.execCommand("copy", false, <any>null);
+    scriptModule.showSnackbar("复制成功");
   }
 }
 </script>

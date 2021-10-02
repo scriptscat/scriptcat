@@ -207,7 +207,22 @@ export class ScriptManager {
 
     // 检查订阅规则是否改变,是否能够静默更新
     public checkSubscribeRule(oldSub: Subscribe, newSub: Subscribe): boolean {
-        return oldSub.metadata['connect'] == newSub.metadata['connect'];
+        //判断connect是否改变
+        let oldConnect = new Map();
+        let newConnect = new Map();
+        oldSub.metadata['connect'] && oldSub.metadata['connect'].forEach(val => {
+            oldConnect.set(val, 1);
+        });
+        newSub.metadata['connect'] && newSub.metadata['connect'].forEach(val => {
+            newConnect.set(val, 1);
+        });
+        // 老的里面没有新的就需要用户确认了
+        for (const key in newConnect) {
+            if (!oldConnect.has(key)) {
+                return false
+            }
+        }
+        return true;
     }
 
     public unsubscribe(id: number): Promise<boolean> {
@@ -270,7 +285,7 @@ export class ScriptManager {
                     if (oldVersion[i] == undefined) {
                         return response.data;
                     }
-                    if (Version[i] > oldVersion[i]) {
+                    if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
                         return response.data;
                     }
                 }
@@ -282,7 +297,7 @@ export class ScriptManager {
                     if (newSub) {
                         // 规则通过静默更新,未通过打开窗口
                         if (this.checkSubscribeRule(<Subscribe>oldSub, newSub)) {
-                            this.subscribeUpdate(newSub, <Subscribe>oldSub);
+                            this.subscribeUpdate(newSub, <Subscribe>oldSub, true);
                         } else {
                             let info = await loadScriptByUrl(sub!.url);
                             if (info) {
@@ -305,7 +320,7 @@ export class ScriptManager {
         });
     }
 
-    public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined): Promise<number> {
+    public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined, changeRule?: boolean): Promise<number> {
         return new Promise(async resolve => {
             // 异步处理订阅
             let deleteScript = [];
@@ -322,12 +337,16 @@ export class ScriptManager {
                     }
                 })
                 for (let key in old.scripts) {
-                    if (!sub.scripts[key]) {
-                        // 老的存在,新的不存在,删除
-                        let script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
-                        if (script) {
+                    let script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
+                    if (script) {
+                        if (!sub.scripts[key]) {
+                            // 老的存在,新的不存在,删除
                             deleteScript.push(script.name);
                             this.scriptUninstall(script.id);
+                        } else if (changeRule) {
+                            // 修改已有的connect,可能要考虑一下手动修改了connect的情况
+                            script.selfMetadata['connect'] = sub.metadata['connect'];
+                            this.scriptReinstall(script);
                         }
                     }
                 }
@@ -355,6 +374,7 @@ export class ScriptManager {
                     App.Log.Warn("subscribe", script!.name + '已被\"' + script!.subscribeUrl + "\"订阅", sub.name + " 订阅冲突");
                     continue;
                 }
+                script!.selfMetadata['connect'] = sub.metadata['connect'];
                 if (oldscript == undefined) {
                     script!.subscribeUrl = sub.url;
                     script!.status = SCRIPT_STATUS_ENABLE;
@@ -376,6 +396,7 @@ export class ScriptManager {
             if (error.length) {
                 msg += "安装失败脚本:" + error.join(',');
             }
+            await this.subscribeModel.save(sub);
             if (!msg) {
                 return;
             }
@@ -385,7 +406,6 @@ export class ScriptManager {
                 message: msg,
                 iconUrl: chrome.runtime.getURL("assets/logo.png")
             });
-            await this.subscribeModel.save(sub);
             App.Log.Info("subscribe", msg, sub.name + " 订阅更新成功")
             return resolve(sub.id);
         });
@@ -417,7 +437,7 @@ export class ScriptManager {
             script.updatetime = new Date().getTime();
             await this.loadResouce(script);
             if (script.status == SCRIPT_STATUS_ENABLE) {
-                await this.disableScript(script);
+                await this.disableScript(oldScript);
                 await this.enableScript(script);
             } else {
                 await this.scriptModel.save(script);
@@ -876,7 +896,7 @@ export class ScriptManager {
                     if (oldVersion[i] == undefined) {
                         return true;
                     }
-                    if (Version[i] > oldVersion[i]) {
+                    if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
                         return true;
                     }
                 }
@@ -924,7 +944,7 @@ export class ScriptManager {
                 App.Cache.del('script:' + script.id);
                 await this.loadResouce(script);
                 if (script.status == SCRIPT_STATUS_ENABLE) {
-                    await this.disableScript(script);
+                    await this.disableScript(<Script>old || script);
                     await this.enableScript(script);
                 } else {
                     await this.scriptModel.save(script);
@@ -1037,7 +1057,7 @@ export class ScriptManager {
         return new Promise(async resolve => {
             let [subscribe, old] = await this.controller.prepareSubscribeByCode(sync.code, sync.url);
             if (subscribe == undefined) {
-                App.Log.Error("system", sync.url! + ' ' + old, "脚本同步失败");
+                App.Log.Error("system", sync.url! + ' ' + old, "订阅同步失败");
                 return resolve(<string>old);
             }
             if (old) {
