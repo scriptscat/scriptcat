@@ -558,7 +558,7 @@
         <span>定时脚本</span>
       </v-tooltip>
 
-      <v-tooltip left>
+      <!-- <v-tooltip left>
         <template v-slot:activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
@@ -573,7 +573,7 @@
           </v-btn>
         </template>
         <span>链接导入</span>
-      </v-tooltip>
+      </v-tooltip> -->
     </v-speed-dial>
   </div>
 </template>
