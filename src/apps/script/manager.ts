@@ -935,7 +935,7 @@ export class ScriptManager {
                 script.runStatus = (<Script>old).runStatus;
             }
             script.sort = sync.sort;
-            script.selfMetadata = JSON.parse(sync.self_meta);
+            script.selfMetadata = JSON.parse(sync.self_meta) || {};
             script.createtime = sync.createtime;
             script.updatetime = sync.updatetime;
             script.subscribeUrl = sync.subscribe_url

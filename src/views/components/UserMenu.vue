@@ -18,6 +18,8 @@
           <h3 style="margin-top: 10px">{{ user.username }}</h3>
           <div v-if="user.islogin">
             <v-divider class="my-3"></v-divider>
+            <v-btn depressed rounded text @click="userInfo">个人设置</v-btn>
+            <v-divider class="my-3"></v-divider>
             <v-btn depressed rounded text @click="logout">注销</v-btn>
           </div>
           <div v-else>
@@ -67,5 +69,10 @@ export default class Snackbar extends Vue {
   logout() {
     userModule.logout();
   }
+
+  userInfo() {
+    window.open(Server + "account/settings");
+  }
+
 }
 </script>
