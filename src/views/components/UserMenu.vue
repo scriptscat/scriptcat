@@ -59,7 +59,7 @@ export default class Snackbar extends Vue {
       if (loginWindow?.closed) {
         clearInterval(t);
         //检测登录
-        userModule.checkUserinfo();
+        userModule.login();
       }
     }, 1000);
   }

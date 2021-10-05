@@ -175,7 +175,7 @@ export default class App extends Vue {
                 this.handleEditScript({ scriptId: parseInt(query.id as string) });
             } else if (query?.target === "initial") {
                 // 新建脚本
-                this.activeTab(this.allTabs.length - 1);
+                eventBus.$emit<INewScript>(EventType.NewScript, { template: 'normal' } as any);
             }
         });
         // deubg用的bg
@@ -202,11 +202,7 @@ export default class App extends Vue {
         });
 
         // 用户登录
-        chrome.storage.local.get(['currentUser', 'userinfo'], items => {
-            if (items['currentUser']) {
-                userModule.setUserinfo(items['userinfo']);
-            }
-        });
+        userModule.checkUserinfo();
     }
 
     activeTab(index: number) {

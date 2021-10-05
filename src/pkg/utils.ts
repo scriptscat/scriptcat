@@ -90,16 +90,16 @@ export function dealSymbol(source: string): string {
  * get请求
  * @param {*} url
  */
-export function get(url: string, success?: (resp: string) => void, error?: () => void) {
+export function get(url: string, success?: (resp: string) => void, error?: (resp: XMLHttpRequest) => void) {
     let xmlhttp = createRequest();
     xmlhttp.open("GET", url, true);
-    xmlhttp.onerror = () => error && error();
+    xmlhttp.onerror = () => error && error(xmlhttp);
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
                 success && success(this.responseText);
             } else {
-                error && error();
+                error && error(this);
             }
         }
     };

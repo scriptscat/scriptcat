@@ -22,11 +22,19 @@ class UserModule extends VuexModule {
 
     @Mutation
     checkUserinfo() {
-        get(Server + "api/v1/user", (resp) => {
-            let json = JSON.parse(resp);
-            if (json.code == 0) {
-                json.data.islogin = true;
-                this.userinfo = json.data;
+        chrome.storage.local.get(['currentUser', 'userinfo'], items => {
+            if (items['currentUser']) {
+                get(Server + "api/v1/user", (resp) => {
+                    let json = JSON.parse(resp);
+                    if (json.code == 0) {
+                        json.data.islogin = true;
+                        this.userinfo = json.data;
+                    }
+                }, (xhr) => {
+                    if (xhr.status == 403) {
+                        this.userinfo = { islogin: false, username: '未登录' };
+                    }
+                });
             }
         });
     }
@@ -34,6 +42,17 @@ class UserModule extends VuexModule {
     @Mutation
     setUserinfo(userinfo: any) {
         this.userinfo = userinfo;
+    }
+
+    @Mutation
+    login() {
+        get(Server + "api/v1/user", (resp) => {
+            let json = JSON.parse(resp);
+            if (json.code == 0) {
+                json.data.islogin = true;
+                this.userinfo = json.data;
+            }
+        });
     }
 
     @Mutation
