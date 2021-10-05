@@ -85,6 +85,13 @@ export function buildThis(global: any, context: any) {
         has(_, name) {
             return name == 'undefined' || context[name] || global.hasOwnProperty(name);
         },
+        set(_, name: string, val) {
+            if (name.startsWith('on')) {
+                global[name] = val;
+                return true;
+            }
+            return false;
+        },
         getOwnPropertyDescriptor(_, name) {
             let ret = Object.getOwnPropertyDescriptor(context, name)
             if (ret) {

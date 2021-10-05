@@ -32,9 +32,16 @@
           style="max-height: 110px; overflow: hidden"
         >
           {{ issub ? "订阅地址:" : "脚本来源:" }}
-          <span style="word-wrap: break-word; word-break: break-all">{{
-            script.origin || script.url
-          }}</span>
+          <span
+            style="
+              word-wrap: break-word;
+              word-break: break-all;
+              max-height: 66px;
+              display: block;
+              overflow-y: auto;
+            "
+            >{{ script.origin || script.url }}</span
+          >
         </div>
         <div class="control d-flex justify-start" style="margin-bottom: 10px">
           <v-btn
@@ -360,9 +367,12 @@ export default class Index extends Vue {
   height: 100%;
 }
 
+.match {
+  max-height: 100px;
+  overflow-y: auto;
+}
+
 .match p {
   margin-bottom: 0px;
-  max-height: 80px;
-  overflow-y: auto;
 }
 </style>
