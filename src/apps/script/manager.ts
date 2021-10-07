@@ -683,6 +683,12 @@ export class ScriptManager {
                 if (!scriptMenu) {
                     scriptMenu = new Array();
                 }
+                //name去重
+                for (let i = 0; i < scriptMenu.length; i++) {
+                    if (scriptMenu[i].name == param.name) {
+                        return;
+                    }
+                }
                 scriptMenu.push(param);
                 tabMenus[param.scriptId] = scriptMenu;
                 runMenu.set(param.tabId, tabMenus);
@@ -690,6 +696,11 @@ export class ScriptManager {
                 let scriptMenu = bgMenu[param.scriptId];
                 if (!scriptMenu) {
                     scriptMenu = new Array();
+                }
+                for (let i = 0; i < scriptMenu.length; i++) {
+                    if (scriptMenu[i].name == param.name) {
+                        return;
+                    }
                 }
                 scriptMenu.push(param);
                 bgMenu[param.scriptId] = scriptMenu;

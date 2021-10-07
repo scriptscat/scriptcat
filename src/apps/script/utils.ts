@@ -107,6 +107,7 @@ export function copyScript(script: Script, old: Script) {
         script.metadata[key] = script.metadata[key];
     }
     script.subscribeUrl = old.subscribeUrl;
+    script.status = old.status;
 }
 
 export function copySubscribe(sub: Subscribe, old: Subscribe) {
