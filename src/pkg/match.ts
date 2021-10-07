@@ -39,6 +39,10 @@ export class Match<T> {
                 break;
         }
         u.host = u.host.replace('*', '.*?');
+        if (u.host.endsWith('tld')) {
+            // 处理顶域
+            u.host = u.host.substr(0, u.host.length - 3) + '.*?';
+        }
         let re: string = `^${u.scheme}://${u.host}`;
         if (u.path == '/') {
             re += '[/]?';

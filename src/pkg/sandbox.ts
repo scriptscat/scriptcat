@@ -86,11 +86,11 @@ export function buildThis(global: any, context: any) {
             return name == 'undefined' || context[name] || global.hasOwnProperty(name);
         },
         set(_, name: string, val) {
-            if (global[name] === undefined) {
-                context[name] = val;
+            if (global[name] === null) {
+                global[name] = val;
                 return true;
             }
-            global[name] = val;
+            context[name] = val;
             return true;
         },
         getOwnPropertyDescriptor(_, name) {
