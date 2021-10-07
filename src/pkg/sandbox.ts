@@ -3,12 +3,14 @@ import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
+    let require = '';
     script.metadata['require'] && script.metadata['require'].forEach((val) => {
         let res = script.resource[val];
         if (res) {
-            code = res.content + "\n" + code;
+            require = require + "\n" + res.content;
         }
     });
+    code = require + code;
     return 'with (context) return (()=>{\n' + code + '\n})()'
 }
 
@@ -23,35 +25,42 @@ export function buildWindow(): any {
     }
 }
 
-let special: any = {
+let writables: any = {
     "addEventListener": global.addEventListener,
     "removeEventListener": global.removeEventListener,
     "dispatchEvent": global.dispatchEvent,
 };
 
+// 记录初始的
+export let init = new Map<string, boolean>();
+
 // 复制原有的,防止被前端网页复写
 let descs = Object.getOwnPropertyDescriptors(global);
 for (const key in descs) {
     let desc = descs[key];
-    if (desc && desc.writable && !special[key]) {
-        special[key] = desc.value;
+    if (desc && desc.writable && !writables[key]) {
+        writables[key] = desc.value;
+    } else {
+        init.set(key, true);
     }
 }
+
 
 // 处理有多层结构的(先只对特殊的做处理)
 ['console'].forEach(obj => {
     let descs = Object.getOwnPropertyDescriptors((<any>global)[obj]);
-    special[obj] = {};// 清零
+    writables[obj] = {};// 清零
     for (const key in descs) {
         let desc = descs[key];
         if (desc && desc.writable) {
-            special[obj][key] = desc.value;
+            writables[obj][key] = desc.value;
         }
     }
 });
 
 //TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
+    let special = Object.assign({}, writables);
     let proxy: any = new Proxy(context, {
         defineProperty(_, name, desc) {
             return Object.defineProperty(context, name, desc);
@@ -67,14 +76,15 @@ export function buildThis(global: any, context: any) {
                 if (context[name]) {
                     return context[name];
                 }
-                if (special[name]) {
+                if (special[name] !== undefined) {
                     if (typeof special[name] === 'function' && !special[name].prototype) {
                         return special[name].bind(global);
                     }
                     return special[name];
                 }
-                if (global[name]) {
+                if (global[name] !== undefined) {
                     if (typeof global[name] === 'function' && !global[name].prototype) {
+                        console.log('b', name, global[name]);
                         return global[name].bind(global);
                     }
                     return global[name];
@@ -86,7 +96,16 @@ export function buildThis(global: any, context: any) {
             return name == 'undefined' || context[name] || global.hasOwnProperty(name);
         },
         set(_, name: string, val) {
-            if (global[name] === null) {
+            if (special[name]) {
+                special[name] = val;
+                return true;
+            }
+            if (init.has(name)) {
+                let des = Object.getOwnPropertyDescriptor(global, name);
+                // 只读的return
+                if (des && des.get && !des.set && des.configurable) {
+                    return true;
+                }
                 global[name] = val;
                 return true;
             }

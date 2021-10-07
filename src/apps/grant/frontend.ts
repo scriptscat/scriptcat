@@ -69,7 +69,6 @@ export class FrontendGrant implements ScriptContext {
 
     public GM_info() {
         return {
-            version: this.script.metadata['version'] && this.script.metadata['version'][0],
             scriptWillUpdate: false,
             scriptHandler: "ScriptCat",
             scriptUpdateURL: this.script.origin,
@@ -77,6 +76,7 @@ export class FrontendGrant implements ScriptContext {
             script: {
                 name: this.script.name,
                 namespace: this.script.namespace,
+                version: this.script.metadata['version'] && this.script.metadata['version'][0],
             }
         }
     }
@@ -273,7 +273,7 @@ export class FrontendGrant implements ScriptContext {
             ret = {
                 id: 0,
                 scriptId: this.script.id,
-                storageName: (this.script?.metadata['storagename'] && this.script?.metadata['storagename'][0]) || '',
+                storageName: (this.script.metadata['storagename'] && this.script.metadata['storagename'][0]) || '',
                 key: name,
                 value: value,
                 createtime: new Date().getTime()

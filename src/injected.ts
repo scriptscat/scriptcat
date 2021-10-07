@@ -8,6 +8,22 @@ import { Value } from "./model/do/value";
 import { addStyle } from "./pkg/frontend";
 import { buildThis, createContext } from "./pkg/sandbox";
 
+// 参考了tm的实现
+function waitBody(callback: () => void) {
+    if (document.body) {
+        return callback();
+    }
+    let listen = function () {
+        document.removeEventListener('load', listen, false);
+        document.removeEventListener('DOMNodeInserted', listen, false);
+        document.removeEventListener('DOMContentLoaded', listen, false);
+        waitBody(callback);
+    };
+    document.addEventListener('load', listen, false);
+    document.addEventListener('DOMNodeInserted', listen, false);
+    document.addEventListener('DOMContentLoaded', listen, false);
+};
+
 let browserMsg = new BrowserMsg(ScriptFlag, false);
 browserMsg.listen("scripts", (msg) => {
     let scripts: ScriptCache[] = msg;
@@ -43,7 +59,27 @@ browserMsg.listen("scripts", (msg) => {
             context = buildThis(window, context);
             script.context = context;
         }
-        if (script.metadata['run-at'] && script.metadata['run-at'][0] === 'document-menu') {
+        if (script.metadata['run-at'] && (script.metadata['run-at'][0] === 'document-menu' || script.metadata['run-at'][0] === 'document-body')) {
+            if (script.metadata['run-at'][0] === 'document-body') {
+                waitBody(() => {
+                    if ((<any>window)[script.flag!]) {
+                        (<any>window)[script.flag!].apply(context, [context]);
+                    }
+                    Object.defineProperty(window, script.flag!, {
+                        get: () => { return undefined; },
+                        set: (val) => {
+                            val.apply(context, [context]);
+                        }
+                    });
+                    // 注入css
+                    script.metadata['require-css']?.forEach(val => {
+                        let res = script.resource![val];
+                        if (res) {
+                            addStyle(res.content);
+                        }
+                    });
+                });
+            }
             return;
         }
         if ((<any>window)[script.flag!]) {

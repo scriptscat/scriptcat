@@ -1,9 +1,10 @@
-import { buildThis } from "@App/pkg/sandbox";
+import { buildThis, init } from "@App/pkg/sandbox";
 
 
 describe("sandbox", () => {
 	let context: any = {};
-	let global: any = { onload: null };
+	let global: any = { gbok: 'gbok', onload: null };
+	init.set('onload', true);
 	let _this = buildThis(global, context);
 
 	it("set contenxt", () => {
@@ -29,6 +30,10 @@ describe("sandbox", () => {
 		expect(_this['okk']).toEqual("ok2");
 		expect(context['okk']).toEqual("ok2");
 		expect(global['okk']).toEqual(undefined);
+	})
+
+	it("访问global的对象", () => {
+		expect(_this['gbok']).toEqual('gbok');
 	})
 
 });

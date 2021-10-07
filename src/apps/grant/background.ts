@@ -332,7 +332,10 @@ export class BackgroundGrant {
         if (xhr.readyState === 4) {
             let contentType = xhr.getResponseHeader("Content-Type");
             if ((!config.responseType && contentType && contentType.indexOf("application/json") !== -1)) {
-                respond.response = JSON.parse(xhr.responseText);
+                try {
+                    respond.response = JSON.parse(xhr.responseText);
+                } catch (e) {
+                }
             } else {
                 if (!respond.response && (config.responseType == "arraybuffer" || config.responseType == "blob")) {
                     if (xhr.response instanceof ArrayBuffer) {
