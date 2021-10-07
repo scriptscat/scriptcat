@@ -20,5 +20,16 @@ describe("sandbox", () => {
 		expect(global['onload']).toEqual('ok');
 	})
 
+	it("update", () => {
+		_this['okk'] = 'ok';
+		expect(_this['okk']).toEqual("ok");
+		expect(context['okk']).toEqual("ok");
+		expect(global['okk']).toEqual(undefined);
+		_this['okk'] = 'ok2';
+		expect(_this['okk']).toEqual("ok2");
+		expect(context['okk']).toEqual("ok2");
+		expect(global['okk']).toEqual(undefined);
+	})
+
 });
 

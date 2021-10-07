@@ -545,7 +545,7 @@ export class ScriptManager {
             if (script && script.type !== SCRIPT_TYPE_NORMAL) {
                 return;
             }
-            this.match.del(script);
+            this.match.del(<ScriptCache>script);
             if (script.status == SCRIPT_STATUS_DELETE) {
                 return;
             }

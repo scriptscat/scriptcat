@@ -3,8 +3,8 @@ import { ScriptCache, Script } from "@App/model/do/script";
 
 export function compileScriptCode(script: ScriptCache): string {
     let code = script.code;
-    script.metadata['require']?.forEach((val) => {
-        let res = script.resource![val];
+    script.metadata['require'] && script.metadata['require'].forEach((val) => {
+        let res = script.resource[val];
         if (res) {
             code = res.content + "\n" + code;
         }
@@ -106,8 +106,8 @@ export function buildThis(global: any, context: any) {
 }
 
 function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
-    if (apiVal?.param.depend) {
-        for (let i = 0; i < apiVal?.param.depend.length; i++) {
+    if (apiVal.param.depend) {
+        for (let i = 0; i < apiVal.param.depend.length; i++) {
             let value = apiVal.param.depend[i];
             let dependApi = context.getApi(value);
             if (!dependApi) {
@@ -115,9 +115,9 @@ function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
             }
             if (value.startsWith("GM.")) {
                 let [_, t] = value.split(".");
-                context["GM"][t] = dependApi?.api;
+                context["GM"][t] = dependApi.api;
             } else {
-                context[value] = dependApi?.api;
+                context[value] = dependApi.api;
             }
             setDepend(context, dependApi);
         }
@@ -139,9 +139,9 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
             }
             if (value.startsWith("GM.")) {
                 let [_, t] = value.split(".");
-                context["GM"][t] = apiVal?.api;
+                context["GM"][t] = apiVal.api;
             } else {
-                context[value] = apiVal?.api;
+                context[value] = apiVal.api;
             }
             setDepend(context, apiVal);
         });
