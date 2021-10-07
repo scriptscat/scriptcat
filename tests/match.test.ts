@@ -55,10 +55,15 @@ describe("UrlMatch", () => {
         expect(url.match("http://example.org/foo/bar.html")).toEqual([]);
         expect(url.match("http://test.baidu.com/")).toEqual(["ok"]);
     })
-    it("tld 顶域测试",()=>{
+    it("tld 顶域测试", () => {
         url.add("*://*.test-tld.tld/", "ok9");
         expect(url.match("https://www.test-tld.com")).toEqual(["ok9"]);
         expect(url.match("https://www.test-tld.org.cn")).toEqual(["ok9"]);
+    })
+
+    it("错误的", () => {
+        url.add("*://*.twitter.com/*", "ok10");
+        expect(url.match("https://twitter.com/trump_chinese")).toEqual(["ok10"]);
     })
 });
 

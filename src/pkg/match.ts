@@ -39,8 +39,12 @@ export class Match<T> {
                 break;
         }
         u.host = u.host.replace('*', '.*?');
+        // 处理 *.开头
+        if (u.host.startsWith(".*?.")) {
+            u.host = "(.*?\.?)" + u.host.substr(4);
+        }
+        // 处理顶域
         if (u.host.endsWith('tld')) {
-            // 处理顶域
             u.host = u.host.substr(0, u.host.length - 3) + '.*?';
         }
         let re: string = `^${u.scheme}://${u.host}`;
