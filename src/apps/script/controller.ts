@@ -300,22 +300,46 @@ export class ScriptController {
         });
     }
 
-    public getResource(script: Script): Promise<{ [key: string]: Resource }> {
+    public getResource(id: number, url: string): Promise<Resource | undefined> {
+        return new Promise(async resolve => {
+            let res = await this.resource.getResource(url);
+            if (res) {
+                return resolve(res);
+            } else {
+                res = await this.resource.addResource(url, id);
+                if (res) {
+                    return resolve(res);
+                }
+            }
+            resolve(undefined);
+        });
+    }
+
+    public getResources(script: Script): Promise<{ [key: string]: Resource }> {
         return new Promise(async resolve => {
             let ret: { [key: string]: Resource } = {};
             for (let i = 0; i < script.metadata['require']?.length; i++) {
-                let res = await this.resource.getResource(script.metadata['require'][i]);
+                let res = await this.getResource(script.id, script.metadata['require'][i]);
                 if (res) {
                     ret[script.metadata['require'][i]] = res;
                 }
             }
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                let res = await this.resource.getResource(script.metadata['require-css'][i]);
+                let res = await this.getResource(script.id, script.metadata['require-css'][i]);
                 if (res) {
                     ret[script.metadata['require-css'][i]] = res;
                 }
             }
-            //TODO: 支持@resource
+
+            for (let i = 0; i < script.metadata['resource']?.length; i++) {
+                let split = script.metadata['resource'][i].split(/\s+/);
+                if (split.length == 2) {
+                    let res = await this.getResource(script.id, split[1]);
+                    if (res) {
+                        ret[split[0]] = res;
+                    }
+                }
+            }
             resolve(ret);
         });
     }
@@ -333,7 +357,7 @@ export class ScriptController {
 
             ret.value = await this.getScriptValue(ret);
 
-            ret.resource = await this.getResource(ret);
+            ret.resource = await this.getResources(ret);
 
             ret.flag = randomString(16);
             ret.code = compileScriptCode(ret);

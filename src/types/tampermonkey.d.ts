@@ -68,9 +68,9 @@ declare function GM_getValue(name: string, defaultValue?: any): any;
 
 declare function GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): any;
 
-declare function GM_getResourceText(name: string): string;
+declare function GM_getResourceText(name: string): string | undefined;
 
-declare function GM_getResourceURL(name: string): string;
+declare function GM_getResourceURL(name: string): string | undefined;
 
 declare function GM_registerMenuCommand(name: string, listener: Function, accessKey?: string): number;
 

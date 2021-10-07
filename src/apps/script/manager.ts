@@ -456,6 +456,12 @@ export class ScriptManager {
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
                 await this.resource.addResource(script.metadata['require-css'][i], script.id);
             }
+            for (let i = 0; i < script.metadata['resource']?.length; i++) {
+                let split = script.metadata['resource'][i].split(/\s+/);
+                if (split.length === 2) {
+                    await this.resource.addResource(split[1], script.id);
+                }
+            }
             resolve(1);
         });
     }

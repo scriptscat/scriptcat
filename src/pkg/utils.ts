@@ -260,3 +260,11 @@ export function InfoNotification(title: string, msg: string) {
     });
     App.Log.Info("system", msg, title);
 }
+
+export function blobToBase64(blob: Blob): Promise<string | null> {
+    return new Promise((resolve, _) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(<string | null>reader.result);
+        reader.readAsDataURL(blob);
+    });
+}

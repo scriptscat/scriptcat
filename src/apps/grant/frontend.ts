@@ -379,7 +379,7 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    public GM_addStyle(css: string): HTMLElement {
+    public GM_addStyle(css: string): any {
         return addStyle(css);
     }
 
@@ -396,6 +396,31 @@ export class FrontendGrant implements ScriptContext {
     public GM_unregisterMenuCommand(id: number): void {
         this.postRequest('GM_unregisterMenuCommand', [{ id: id }]);
     }
+
+    @FrontendGrant.GMFunction()
+    public GM_getResourceText(name: string): string | undefined {
+        if (!this.script.resource) {
+            return undefined;
+        }
+        let r = this.script.resource[name];
+        if (r) {
+            return r.content;
+        }
+        return undefined;
+    }
+
+    @FrontendGrant.GMFunction()
+    public GM_getResourceURL(name: string): string | undefined {
+        if (!this.script.resource) {
+            return undefined;
+        }
+        let r = this.script.resource[name];
+        if (r) {
+            return r.base64;
+        }
+        return undefined;
+    }
+
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

@@ -19,18 +19,18 @@ export function compileScript(script: ScriptCache): Function {
 
 export function buildWindow(): any {
     return {
-        localStorage: window.localStorage,
+        localStorage: global.localStorage,
     }
 }
 
 let special: any = {
-    "addEventListener": window.addEventListener,
-    "removeEventListener": window.removeEventListener,
-    "dispatchEvent": window.dispatchEvent,
+    "addEventListener": global.addEventListener,
+    "removeEventListener": global.removeEventListener,
+    "dispatchEvent": global.dispatchEvent,
 };
 
 // 复制原有的,防止被前端网页复写
-let descs = Object.getOwnPropertyDescriptors(window);
+let descs = Object.getOwnPropertyDescriptors(global);
 for (const key in descs) {
     let desc = descs[key];
     if (desc && desc.writable && !special[key]) {
@@ -40,7 +40,7 @@ for (const key in descs) {
 
 // 处理有多层结构的(先只对特殊的做处理)
 ['console'].forEach(obj => {
-    let descs = Object.getOwnPropertyDescriptors((<any>window)[obj]);
+    let descs = Object.getOwnPropertyDescriptors((<any>global)[obj]);
     special[obj] = {};// 清零
     for (const key in descs) {
         let desc = descs[key];
@@ -86,11 +86,12 @@ export function buildThis(global: any, context: any) {
             return name == 'undefined' || context[name] || global.hasOwnProperty(name);
         },
         set(_, name: string, val) {
-            if (name.startsWith('on')) {
-                global[name] = val;
+            if (global[name] === undefined) {
+                context[name] = val;
                 return true;
             }
-            return false;
+            global[name] = val;
+            return true;
         },
         getOwnPropertyDescriptor(_, name) {
             let ret = Object.getOwnPropertyDescriptor(context, name)

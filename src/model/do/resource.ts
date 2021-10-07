@@ -2,7 +2,9 @@ export interface Resource {
     id: number
     url: string
     content: string
-    hash: ResourceHash,
+    base64?: string
+    hash: ResourceHash
+    contentType?: string
     createtime?: number
     updatetime?: number
 }

@@ -1,5 +1,6 @@
 import { Resource } from "@App/model/do/resource";
 import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
+import { blobToBase64 } from "@App/pkg/utils";
 import axios from "axios";
 import crypto from "crypto-js";
 import { App } from "./app";
@@ -9,32 +10,33 @@ export class ResourceManager {
     public model = new ResourceModel();
     public linkModel = new ResourceLinkModel();
 
-    public addResource(url: string, scriptId: number): Promise<boolean> {
+    public addResource(url: string, scriptId: number): Promise<Resource | undefined> {
         return new Promise(async resolve => {
             let u = this.parseUrl(url);
             let result = await this.getResource(u.url);
             if (!result) {
                 let resource = await this.loadByUrl(u.url);
                 if (!resource) {
-                    return resolve(false);
+                    return resolve(undefined);
                 }
                 resource.createtime = new Date().getTime();
                 resource.updatetime = new Date().getTime();
                 await App.Cache.set('resource:' + u.url, resource);
                 if (await this.model.save(resource)) {
+                    result = resource;
                     App.Log.Info("resource", u.url, "add");
                 }
             }
 
             let link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
             if (link) {
-                return resolve(true);
+                return resolve(result);
             }
             let ret = await this.linkModel.save({ id: 0, url: u.url, scriptId: scriptId, createtime: new Date().getTime() });
             if (ret) {
-                return resolve(true);
+                return resolve(undefined);
             }
-            return resolve(false);
+            return resolve(result);
         });
     }
 
@@ -101,25 +103,30 @@ export class ResourceManager {
     public loadByUrl(url: string): Promise<Resource | undefined> {
         return new Promise(async resolve => {
             let u = this.parseUrl(url);
-            axios.get(u.url).then(async response => {
+            axios.get(u.url, {
+                responseType: "blob"
+            }).then(async response => {
                 if (response.status != 200) {
                     return resolve(undefined);
                 }
-                let text = response.data;
                 let resource: Resource = {
                     id: 0,
-                    url: u.url, content: text,
+                    url: u.url, content: '',
+                    contentType: (response.headers['content-type'] || '').split(';')[0],
                     hash: {
-                        md5: crypto.MD5(text).toString(),
-                        sha1: crypto.SHA1(text).toString(),
-                        sha256: crypto.SHA256(text).toString(),
-                        sha384: crypto.SHA384(text).toString(),
-                        sha512: crypto.SHA512(text).toString(),
+                        md5: crypto.MD5(response.data).toString(),
+                        sha1: crypto.SHA1(response.data).toString(),
+                        sha256: crypto.SHA256(response.data).toString(),
+                        sha384: crypto.SHA384(response.data).toString(),
+                        sha512: crypto.SHA512(response.data).toString(),
                     }
                 };
+                resource.content = await (<Blob>response.data).text();
+                resource.base64 = await blobToBase64(<Blob>response.data) || '';
                 App.Log.Info("resource", u.url, "load");
                 return resolve(resource);
-            }).catch(() => {
+            }).catch((e) => {
+                console.log(url, 'error', e);
                 return resolve(undefined);
             });
         });
