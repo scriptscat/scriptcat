@@ -105,15 +105,18 @@ export class UserManager {
                 }
                 let data = <SyncData[]>resp.data.pull || [];
                 // 脚本安装
-                let map = new Map<string, number>();
+                let map = new Map<string, SyncData>();
                 for (const index in data) {
                     let v = data[index];
-                    let newscript = await this.scriptManager.syncToScript(v.script!);
-                    if (typeof newscript == "string") {
-                        App.Log.Error("system", v.uuid! + ' ' + newscript, "脚本同步失败");
-                        continue;
+                    // 首次登录只处理更新的
+                    if (v.action == "update") {
+                        let newscript = await this.scriptManager.syncToScript(v);
+                        if (typeof newscript == "string") {
+                            App.Log.Error("system", v.uuid! + ' ' + newscript, "脚本同步失败");
+                            continue;
+                        }
+                        map.set(v.uuid!, v);
                     }
-                    map.set(v.uuid!, 1);
                 }
                 chrome.storage.local.set({
                     currentScriptSyncVersion: resp.data.version
@@ -150,15 +153,19 @@ export class UserManager {
                 }
                 let data = <SyncData[]>resp.data.pull || [];
                 // 订阅安装
-                let map = new Map<string, number>();
+                let map = new Map<string, SyncData>();
                 for (const index in data) {
                     let v = data[index];
-                    let newsub = await this.scriptManager.syncToSubscribe(v.subscribe!);
-                    if (typeof newsub == "string") {
-                        App.Log.Error("system", v.url! + ' ' + newsub, "订阅同步失败");
+                    // 首次登录同步只处理更新的
+                    if (v.action === "update") {
+                        let newsub = await this.scriptManager.syncToSubscribe(v);
+                        if (typeof newsub == "string") {
+                            App.Log.Error("system", v.url! + ' ' + newsub, "订阅同步失败");
+                            continue;
+                        }
+                        map.set(v.url!, v);
                         continue;
                     }
-                    map.set(v.url!, 1);
                 }
                 chrome.storage.local.set({
                     currentSubscribeSyncVersion: resp.data.version
@@ -300,7 +307,7 @@ export class UserManager {
                             // pull与本地的冲突,比对时间
                             if (localMap.get(localKey)!.createtime < data[key].actiontime) {
                                 // 本地时间小于远端时间,删除覆盖本地记录
-                                await this.scriptManager.syncToScript(data[key].script!);
+                                await this.scriptManager.syncToScript(data[key]);
                                 localMap.delete(localKey);
                                 await this.syncModel.delete(localMap.get(localKey)!.id);
                                 flag = true;
@@ -309,7 +316,7 @@ export class UserManager {
                             continue;
                         }
                         // 同步到本地
-                        this.scriptManager.syncToScript(data[key].script!);
+                        this.scriptManager.syncToScript(data[key]);
                     }
                     if (flag) {
                         MsgCenter.connect(SyncTaskEvent, 'pull');
@@ -390,25 +397,22 @@ export class UserManager {
                     }
                     let data = <SyncData[]>resp.data.pull || [];
                     items['currentSubscribeSyncVersion'] = resp.data.version;
-                    let flag = false;
                     for (const key in data) {
                         if (localMap.has(data[key].url!)) {
                             let localKey = data[key].url!;
                             // pull与本地的冲突,比对时间
                             if (localMap.get(localKey)!.createtime < data[key].actiontime) {
-                                // 本地时间小于远端时间,删除覆盖本地记录
-                                await this.scriptManager.syncToScript(data[key].script!);
+                                // 本地时间小于远端时间,删除覆盖本地记录,不push
                                 localMap.delete(localKey);
                                 await this.syncModel.delete(localMap.get(localKey)!.id);
-                                flag = true;
+                                await this.scriptManager.syncToSubscribe(data[key]);
                             }
                             // 本地比远端大,不做处理,等待push
                             continue;
                         }
-                        // 同步到本地
-                        this.scriptManager.syncToScript(data[key].script!);
+                        await this.scriptManager.syncToSubscribe(data[key]);
                     }
-                    if (flag) {
+                    if (data.length) {
                         MsgCenter.connect(SyncTaskEvent, 'pull');
                     }
                     if (localMap.size <= 0) {
