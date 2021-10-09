@@ -12,6 +12,7 @@ import { Permission } from "@App/model/do/permission";
 import { Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { execMethod, getIcon } from "./utils";
+import { Tab } from "@App/views/components/Tab";
 
 class postMessage implements IPostMessage {
 
@@ -227,18 +228,31 @@ export class BackgroundGrant {
                                     return reject('permission not allowed');
                                 }
                             }
+                            confirm.uuid = uuidv4();
+                            // 一个脚本只打开一个权限确定窗口,话说js中这个list是像是传递的指针,我后面直接操作list即可
+                            let list = <Array<ConfirmParam> | undefined>await App.Cache.get("confirm:window:" + confirm.permission + ":list:" + script.id);
+                            let open = false;
+                            if (list !== undefined) {
+                                list.push(confirm);
+                            } else {
+                                open = true;
+                                list = [confirm];
+                                App.Cache.set("confirm:window:" + confirm.permission + ":list:" + script.id, list);
+                            }
                             //弹出页面确认
-                            let uuid = uuidv4();
-                            App.Cache.set("confirm:info:" + uuid, confirm);
 
-                            let timeout = setTimeout(() => {
-                                App.Cache.del("confirm:info:" + uuid);
-                                MsgCenter.removeListener(PermissionConfirm + uuid, listener);
-                            }, 30000);
+                            // 处理下一个
+                            let next = () => {
+                                // 一个打开确定,一群不打开只监听消息
+                                let confirm = list!.pop();
+                                if (confirm) {
+                                    App.Cache.set("confirm:info:" + confirm.uuid, confirm);
+                                    chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + confirm.uuid) });
+                                }
+                            }
                             let listener = async (param: any) => {
-                                clearTimeout(timeout);
-                                App.Cache.del("confirm:info:" + uuid);
-                                MsgCenter.removeListener(PermissionConfirm + uuid, listener);
+                                App.Cache.del("confirm:info:" + confirm.uuid);
+                                MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
                                 ret = {
                                     id: 0,
                                     scriptId: script?.id || 0,//愚蠢的自动提示。。。
@@ -252,13 +266,23 @@ export class BackgroundGrant {
                                     case 4:
                                     case 2: {
                                         ret.permissionValue = '*';
+                                        // 处理掉全部list
+                                        let item: ConfirmParam | undefined;
+                                        while (item = list?.pop()) {
+                                            App.Cache.del("confirm:info:" + confirm!.uuid);
+                                            MsgCenter.removeListenerAll(PermissionConfirm + confirm!.uuid);
+                                        }
                                         break;
                                     }
                                     case 5:
                                     case 3: {
                                         ret.permissionValue = confirm?.permissionValue || '';
+                                        next();
                                         break;
                                     }
+                                    default:
+                                        next();
+                                        break;
                                 }
                                 //临时 放入缓存
                                 if (param.type >= 2) {
@@ -273,9 +297,8 @@ export class BackgroundGrant {
                                 }
                                 return reject('permission not allowed');
                             }
-                            MsgCenter.listener(PermissionConfirm + uuid, listener);
-
-                            chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + uuid) });
+                            MsgCenter.listener(PermissionConfirm + confirm.uuid, listener);
+                            open && next();
                         } else if (confirmParam === true) {
                             return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                         } else {

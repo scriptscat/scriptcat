@@ -56,6 +56,13 @@ export class MsgCenter {
         }
     }
 
+    public static removeListenerAll(topic: string) {
+        let val = topicMap.get(topic);
+        if (val) {
+            topicMap.delete(topic);
+        }
+    }
+
     public static connect(topic: string, msg?: any): onRecv {
         let port = chrome.runtime.connect({
             name: topic,

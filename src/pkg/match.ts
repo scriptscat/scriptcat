@@ -38,7 +38,7 @@ export class Match<T> {
                 u.scheme = 'http[s]';
                 break;
         }
-        u.host = u.host.replace('*', '.*?');
+        u.host = u.host.replace(/\*/g, '.*?');
         // 处理 *.开头
         if (u.host.startsWith(".*?.")) {
             u.host = "(.*?\.?)" + u.host.substr(4);

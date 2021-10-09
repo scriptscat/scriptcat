@@ -65,5 +65,10 @@ describe("UrlMatch", () => {
         url.add("*://*.twitter.com/*", "ok10");
         expect(url.match("https://twitter.com/trump_chinese")).toEqual(["ok10"]);
     })
+
+    it("多*",()=>{
+        url.add("*://*.google*/search*","ok11");
+        expect(url.match("https://www.google.com.hk/search?q=%E6%88%91&oq=%E6%88%91&aqs=edge.0.69i59j0i512l5j69i61l3.1416j0j4&sourceid=chrome&ie=UTF-8")).toEqual(["ok11"]);
+    })
 });
 

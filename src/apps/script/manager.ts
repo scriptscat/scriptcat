@@ -199,8 +199,7 @@ export class ScriptManager {
             // 异步处理订阅
             let old = await this.subscribeModel.findByUrl(sub.url);
             await this.subscribeModel.save(sub);
-            this.subscribeUpdate(sub, old);
-            this.syncSubscribeTask(sub.url, "update", sub);
+            this.subscribeUpdate(sub, old, true);
             return resolve(sub.id);
         });
     }
@@ -299,7 +298,7 @@ export class ScriptManager {
                     if (newSub) {
                         // 规则通过静默更新,未通过打开窗口
                         if (this.checkSubscribeRule(<Subscribe>oldSub, newSub)) {
-                            this.subscribeUpdate(newSub, <Subscribe>oldSub, true);
+                            this.subscribeUpdate(newSub, <Subscribe>oldSub);
                         } else {
                             let info = await loadScriptByUrl(sub!.url);
                             if (info) {
@@ -399,6 +398,7 @@ export class ScriptManager {
                 msg += "安装失败脚本:" + error.join(',');
             }
             await this.subscribeModel.save(sub);
+            this.syncSubscribeTask(sub.url, "update", sub);
             if (!msg) {
                 return;
             }

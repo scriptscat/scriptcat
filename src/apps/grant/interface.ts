@@ -41,6 +41,8 @@ export interface ConfirmParam {
     wildcard?: boolean
     // 权限内容
     permissionContent?: string
+    // 确定uuid
+    uuid?: string
 }
 
 export interface PermissionParam {
