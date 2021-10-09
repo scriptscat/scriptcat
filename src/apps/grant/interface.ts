@@ -4,8 +4,8 @@ export interface Grant {
     value: string
     params: any[]
     request: string
-    id: number
-    name: string
+    id: number // 脚本id
+    name: string // 脚本名
     data?: any
     error?: string
     errorMsg?: string

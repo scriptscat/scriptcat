@@ -53,9 +53,7 @@ browserMsg.listen("scripts", (msg) => {
         } else {
             context = new FrontendGrant(script, browserMsg);
             context = createContext(context, script);
-            if (script.grantMap!['unsafeWindow']) {
-                context['unsafeWindow'] = window;
-            }
+            context['unsafeWindow'] = window;
             context = buildThis(window, context);
             script.context = context;
         }

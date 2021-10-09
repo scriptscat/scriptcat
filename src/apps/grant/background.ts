@@ -489,7 +489,11 @@ export class BackgroundGrant {
                         break;
                     }
                 }
-                xhr.setRequestHeader(key, val);
+                try {
+                    xhr.setRequestHeader(key, val);
+                } catch (e) {
+                    App.Log.Debug("gmxhr", (e as Error).message, grant.name, grant.id);
+                }
             }
             if (config.timeout) {
                 xhr.timeout = config.timeout;
