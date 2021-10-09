@@ -232,15 +232,19 @@ export class BackgroundGrant {
                             // 一个脚本只打开一个权限确定窗口,话说js中这个list是像是传递的指针,我后面直接操作list即可
                             let list = <Array<ConfirmParam> | undefined>await App.Cache.get("confirm:window:" + confirm.permission + ":list:" + script.id);
                             let open = false;
-                            if (list !== undefined) {
+                            if (list) {
                                 list.push(confirm);
                             } else {
                                 open = true;
                                 list = [confirm];
                                 App.Cache.set("confirm:window:" + confirm.permission + ":list:" + script.id, list);
+                                // 超时清理数据
+                                setTimeout(() => {
+                                    App.Cache.del("confirm:info:" + confirm!.uuid);
+                                    MsgCenter.removeListenerAll(PermissionConfirm + confirm!.uuid);
+                                    next();
+                                }, 300000);
                             }
-                            //弹出页面确认
-
                             // 处理下一个
                             let next = () => {
                                 // 一个打开确定,一群不打开只监听消息
@@ -255,8 +259,8 @@ export class BackgroundGrant {
                                 MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
                                 ret = {
                                     id: 0,
-                                    scriptId: script?.id || 0,//愚蠢的自动提示。。。
-                                    permission: confirm?.permission || '',
+                                    scriptId: script.id,
+                                    permission: confirm.permission || '',
                                     permissionValue: '',
                                     allow: param.allow,
                                     createtime: new Date().getTime(),
@@ -266,17 +270,11 @@ export class BackgroundGrant {
                                     case 4:
                                     case 2: {
                                         ret.permissionValue = '*';
-                                        // 处理掉全部list
-                                        let item: ConfirmParam | undefined;
-                                        while (item = list?.pop()) {
-                                            App.Cache.del("confirm:info:" + confirm!.uuid);
-                                            MsgCenter.removeListenerAll(PermissionConfirm + confirm!.uuid);
-                                        }
                                         break;
                                     }
                                     case 5:
                                     case 3: {
-                                        ret.permissionValue = confirm?.permissionValue || '';
+                                        ret.permissionValue = confirm.permissionValue || '';
                                         next();
                                         break;
                                     }
@@ -290,7 +288,17 @@ export class BackgroundGrant {
                                 }
                                 //总是 放入数据库
                                 if (param.type >= 4) {
-                                    _this.permissionModel.save(ret);
+                                    let oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
+                                    if (!oldConfirm) {
+                                        _this.permissionModel.save(ret);
+                                    }
+                                }
+                                if (ret.permissionValue == "*") {
+                                    // 如果是通配,处理掉全部list
+                                    let item: ConfirmParam | undefined;
+                                    while (item = list?.pop()) {
+                                        MsgCenter.trigger(PermissionConfirm + item.uuid, param);
+                                    }
                                 }
                                 if (param.allow) {
                                     return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);

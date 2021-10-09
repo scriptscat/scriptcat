@@ -46,6 +46,13 @@ export class MsgCenter {
         });
     }
 
+    public static trigger(topic: string, msg?: any) {
+        let val = topicMap.get(topic);
+        val && val.forEach(func => {
+            func(msg, <any>{})
+        });
+    }
+
     public static removeListener(topic: string, callback: ListenCallback) {
         let val = topicMap.get(topic);
         if (val) {
