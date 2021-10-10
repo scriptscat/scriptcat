@@ -476,6 +476,9 @@ export class ScriptManager {
             }
             if (script.status == SCRIPT_STATUS_ENABLE) {
                 await this.disableScript(script, true);
+            } else {
+                script.status = SCRIPT_STATUS_DELETE;
+                AppEvent.trigger(ScriptStatusChange, script);
             }
             await this.scriptModel.delete(script.id);
             //TODO:释放资源

@@ -70,7 +70,7 @@ export function buildThis(global: any, context: any) {
                 case 'window':
                 case 'global':
                 case 'globalThis':
-                    return proxy;
+                    return special[name] || proxy;
             }
             if (name !== 'undefined' && name !== Symbol.unscopables) {
                 if (context[name]) {
@@ -96,6 +96,13 @@ export function buildThis(global: any, context: any) {
             return name == 'undefined' || context[name] || global.hasOwnProperty(name);
         },
         set(_, name: string, val) {
+            switch (name) {
+                case 'window':
+                case 'global':
+                case 'globalThis':
+                    special[name] = val;
+                    return true;
+            }
             if (special[name]) {
                 special[name] = val;
                 return true;
