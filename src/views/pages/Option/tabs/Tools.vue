@@ -1,40 +1,24 @@
 <template>
-  <v-expansion-panels v-model="panel" multiple focusable>
+  <div>
     <input
       id="import-file"
       type="file"
       @change="importFileChange"
       style="display: none"
     />
-    <v-expansion-panel v-for="(val, key) in configs" :key="key">
-      <v-expansion-panel-header
-        style="min-height: auto; font-size: 16px; font-weight: bold"
-        >{{ key }}</v-expansion-panel-header
-      >
-      <v-expansion-panel-content>
-        <div v-for="(val, key) in val.items" class="config-item" :key="key">
-          <div v-if="val.type == 'button'">
-            <v-btn
-              :color="val.color"
-              @click="val.click"
-              :loading="val.loading"
-              style="color: #fff"
-              small
-              >{{ val.title }}</v-btn
-            >
-          </div>
-        </div>
-      </v-expansion-panel-content>
-    </v-expansion-panel>
-  </v-expansion-panels>
+    <Panels :configs="configs" />
+  </div>
 </template>
 
 <script lang="ts">
 import { ScriptController } from "@App/apps/script/controller";
-import { files } from "jszip";
 import { Vue, Component } from "vue-property-decorator";
+import Panels from "@App/views/components/Panels.vue";
+import { db } from "@App/model/model";
 
-@Component({})
+@Component({
+  components: { Panels },
+})
 export default class Tools extends Vue {
   scriptCtrl = new ScriptController();
 
@@ -86,23 +70,3 @@ export default class Tools extends Vue {
   created() {}
 }
 </script>
-
-<style scoped>
-.config-item {
-  margin-top: 10px;
-  font-size: 14px;
-}
-
-.config-item .config-select {
-  margin-top: 20px;
-}
-
-.config-item .config-title {
-  display: inline-block;
-  width: 200px;
-}
-
-.config-item .config-content {
-  display: inline-block;
-}
-</style>
