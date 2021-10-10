@@ -15,7 +15,7 @@ export function nextTime(crontab: string): string {
     }
     let cron;
     try {
-        cron = new CronTime(crontab.replaceAll("once", "*"));
+        cron = new CronTime(crontab.replace(/once/g, "*"));
     } catch (e) {
         return "错误的定时表达式";
     }
