@@ -20,6 +20,7 @@ const config: Configuration = {
         popup: home + "/popup.ts",
         install: home + "/install.ts",
         confirm: home + "/confirm.ts",
+        import: home + "/import.ts",
         "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
         "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
     },
@@ -88,6 +89,16 @@ const config: Configuration = {
                 removeComments: true,
             },
             chunks: ["confirm"],
+        }),
+        new htmlWebpackPlugin({
+            filename: __dirname + "/build/scriptcat/import.html",
+            template: __dirname + "/public/import.html",
+            inject: "head",
+            title: "数据导入 - ScriptCat",
+            minify: {
+                removeComments: true,
+            },
+            chunks: ["import"],
         }),
         new MonacoLocalesPlugin({
             languages: ["es", "zh-cn"],

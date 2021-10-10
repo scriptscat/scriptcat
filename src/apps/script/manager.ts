@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow } from "@App/apps/msg-center/event";
 import { dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -18,7 +18,9 @@ import { v5 as uuidv5 } from "uuid";
 import { Subscribe } from "@App/model/do/subscribe";
 import { SubscribeModel } from "@App/model/subscribe";
 import { SyncModel } from "@App/model/sync";
-import { SycnSubscribe, SyncAction, SyncData, SyncScript } from "@App/model/do/sync";
+import { SyncAction, SyncData } from "@App/model/do/sync";
+import { File } from "@App/model/do/back";
+import { v4 as uuidv4 } from "uuid";
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager {
@@ -97,6 +99,9 @@ export class ScriptManager {
         this.listenerMessage(SubscribeUpdate, this.subscribe);
         this.listenerMessage(Unsubscribe, (body) => { return this.unsubscribe(body, false) });
         this.listenerMessage(SubscribeCheckUpdate, this.subscribeCheckUpdate);
+
+        this.listenerMessage(OpenImportFileWindow, this.openImportFileWindow)
+        this.listenerMessage(ImportFile, this.importFile)
 
         // 监听事件,并转发
         this.listenerProxy(ListenGmLog);
@@ -191,6 +196,27 @@ export class ScriptManager {
         return new Promise(resolve => {
             let info = App.Cache.get("install:info:" + uuid);
             resolve(info);
+        });
+    }
+
+    public openImportFileWindow(file: File): Promise<any> {
+        return new Promise(resolve => {
+            // 打开导入窗口
+            let uuid = uuidv4()
+            App.Cache.set("import:info:" + uuid, file);
+            chrome.tabs.create({
+                url: 'import.html?uuid=' + uuid,
+                active: true,
+            });
+            resolve(true);
+        });
+    }
+
+    public importFile(file: File): Promise<any> {
+        return new Promise(resolve => {
+
+
+            resolve(true);
         });
     }
 

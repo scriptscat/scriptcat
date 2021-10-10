@@ -2,7 +2,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { AllPage, get, Page, randomString } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate } from "../msg-center/event";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
@@ -18,6 +18,7 @@ import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox';
 import { SubscribeModel } from '@App/model/subscribe';
 import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { File } from '@App/model/do/back';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -418,4 +419,22 @@ export class ScriptController {
         })
     }
 
+    public parseBackFile(str: string): { data?: File, err?: string } {
+        let data = <File>JSON.parse(str);
+        if (!data.created_by) {
+            return { err: "错误的格式" };
+        }
+        if (!data.scripts) {
+            return { err: "脚本为空" }
+        }
+        return { data: data };
+    }
+
+    public openImportFileWindow(file: File): Promise<any> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(OpenImportFileWindow, file, (resp) => {
+                resolve(resp);
+            });
+        });
+    }
 }
