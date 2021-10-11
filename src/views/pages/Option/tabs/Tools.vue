@@ -14,7 +14,6 @@
 import { ScriptController } from "@App/apps/script/controller";
 import { Vue, Component } from "vue-property-decorator";
 import Panels from "@App/views/components/Panels.vue";
-import { db } from "@App/model/model";
 
 @Component({
   components: { Panels },
@@ -66,7 +65,5 @@ export default class Tools extends Vue {
     let importFile = <HTMLInputElement>document.getElementById("import-file")!;
     importFile.click();
   }
-
-  created() {}
 }
 </script>

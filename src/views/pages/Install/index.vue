@@ -147,8 +147,6 @@ import {
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
 import { ScriptController } from "@App/apps/script/controller";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { RequestInstallInfo } from "@App/apps/msg-center/event";
 import { nextTime } from "@App/views/pages/utils";
 import { Subscribe } from "@App/model/do/subscribe";
 
@@ -170,17 +168,13 @@ export default class Index extends Vue {
 
   nextTime = nextTime;
 
-  mounted() {
+  async mounted() {
     let url = new URL(location.href);
     let uuid = url.searchParams.get("uuid");
     if (!uuid) {
       return;
     }
-    MsgCenter.sendMessage(RequestInstallInfo, uuid, (resp) => {
-      if (resp) {
-        this.load(resp);
-      }
-    });
+    this.load(await this.scriptController.getInstallInfo(uuid));
   }
 
   load(info: ScriptUrlInfo) {

@@ -1,9 +1,16 @@
 // 使用tampermonkey的备份模式
 
+import { Metadata, Script as InstallScript, SCRIPT_TYPE } from "./script";
+
 export interface File {
 	created_by: string
 	version: string
 	scripts: Script[];
+	settings: Settings
+}
+
+export interface Settings {
+
 }
 
 export interface Script {
@@ -12,17 +19,30 @@ export interface Script {
 	storage: Storage
 	enabled: boolean
 	position: number
-	file_url: string
+	uuid: string
+	file_url?: string
 	// base64形式的代码
 	source: string
+	requires: Require[]
+	// 需要解析resource获得
+	metadata?: Metadata
+	old?: InstallScript
+	error?: string
+	background?: boolean
 }
 
 export interface Options {
 
 }
 
+export interface Require {
+	meta: { name: string, url: string, ts: number, mimetype: string }
+	// base64形式的代码
+	source: string
+}
+
 export interface Storage {
 	data: { [key: string]: string }
-	ts:number
+	ts: number
 }
 

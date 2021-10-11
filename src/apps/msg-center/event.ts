@@ -40,6 +40,7 @@ export const TriggerSync: string = 'trigger-sync';
 
 export const OpenImportFileWindow: string = "open-import-file-window";
 export const ImportFile: string = "import-file";
+export const RequestImportFile: string = "request-import-file";
 
 // 单页面内的消息
 export class AppEvent {

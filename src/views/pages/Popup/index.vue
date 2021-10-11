@@ -1,7 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar color="#1296DB" dense dark>
-
+    <v-app-bar color="#1296DB" dense dark app>
       <v-toolbar-title>ScriptCat</v-toolbar-title>
 
       <v-spacer></v-spacer>
@@ -54,33 +53,32 @@
         </v-list>
       </v-menu>
     </v-app-bar>
-    <v-main
-      class="content"
-      style="max-height: 500px; overflow-y: scroll; padding: 6px"
-    >
-      <v-card
-        id="notice"
-        v-show="isShowNotice"
-        style="position: absolute; z-index: 1000; width: 100%"
-      >
-        <v-card-title>通知</v-card-title>
-        <v-card-text v-html="notice"> </v-card-text>
-      </v-card>
-      <v-expansion-panels v-model="panel" multiple>
-        <v-expansion-panel>
-          <v-expansion-panel-header>当前页运行脚本</v-expansion-panel-header>
-          <v-expansion-panel-content>
-            <ScriptList v-model="scripts" :menu="menu" />
-          </v-expansion-panel-content>
-        </v-expansion-panel>
+    <v-main>
+      <v-container>
+        <v-card
+          id="notice"
+          v-show="isShowNotice"
+          style="position: absolute; z-index: 1000; width: 100%"
+        >
+          <v-card-title>通知</v-card-title>
+          <v-card-text v-html="notice"> </v-card-text>
+        </v-card>
+        <v-expansion-panels v-model="panel" multiple>
+          <v-expansion-panel>
+            <v-expansion-panel-header>当前页运行脚本</v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <ScriptList v-model="scripts" :menu="menu" />
+            </v-expansion-panel-content>
+          </v-expansion-panel>
 
-        <v-expansion-panel>
-          <v-expansion-panel-header>后台脚本</v-expansion-panel-header>
-          <v-expansion-panel-content>
-            <ScriptList v-model="bgScripts" :menu="bgMenu" />
-          </v-expansion-panel-content>
-        </v-expansion-panel>
-      </v-expansion-panels>
+          <v-expansion-panel>
+            <v-expansion-panel-header>后台脚本</v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <ScriptList v-model="bgScripts" :menu="bgMenu" />
+            </v-expansion-panel-content>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </v-container>
     </v-main>
     <v-footer color="#1296DB" dense>
       <div class="d-flex justify-space-between" style="width: 100%">
@@ -257,10 +255,4 @@ export default class Popup extends Vue {
   padding-left: 16px;
 }
 
-.content::-webkit-scrollbar {
-  display: none;
-}
-.content {
-  scrollbar-width: none;
-}
 </style>

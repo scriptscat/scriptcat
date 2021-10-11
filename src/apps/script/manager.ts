@@ -1,6 +1,6 @@
 import axios from "axios";
 import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow } from "@App/apps/msg-center/event";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile } from "@App/apps/msg-center/event";
 import { dealScript, get, Page, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
@@ -102,6 +102,7 @@ export class ScriptManager {
 
         this.listenerMessage(OpenImportFileWindow, this.openImportFileWindow)
         this.listenerMessage(ImportFile, this.importFile)
+        this.listenerMessage(RequestImportFile, this.requestImportFile)
 
         // 监听事件,并转发
         this.listenerProxy(ListenGmLog);
@@ -217,6 +218,13 @@ export class ScriptManager {
 
 
             resolve(true);
+        });
+    }
+
+    public requestImportFile(uuid: string): Promise<File> {
+        return new Promise(resolve => {
+            let file = App.Cache.get("import:info:" + uuid);
+            resolve(file);
         });
     }
 

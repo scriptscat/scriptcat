@@ -2,7 +2,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { AllPage, get, Page, randomString } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow } from "../msg-center/event";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
@@ -129,6 +129,14 @@ export class ScriptController {
     public getInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestInstallInfo, uuid, resp => {
+                resolve(resp);
+            });
+        });
+    }
+
+    public getImportFile(uuid: string): Promise<File> {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(RequestImportFile, uuid, resp => {
                 resolve(resp);
             });
         });
