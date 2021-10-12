@@ -50,6 +50,7 @@ delete jsonFirefox['sandbox'];
 // delete jsonFirefox['background'];
 // delete jsonFirefox['debugger'];
 // jsonFirefox['content_security_policy'] = "script-src 'self' 'unsafe-eval'; object-src 'self'";
+jsonFirefox['browser_specific_settings'] = { 'gecko': { 'strict_min_version': '91.1.0' } };
 fs.writeFileSync("./build/manifest_firefox.json", JSON.stringify(jsonFirefox));
 
 // delete jsonChrome['content_security_policy'];
