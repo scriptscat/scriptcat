@@ -57,8 +57,17 @@ export default class Snackbar extends Vue {
 
   login() {
     let loginWindow = window.open(Server + "user/login?redirect=scriptcat");
+    if (!loginWindow) {
+      return;
+    }
     let t = setInterval(() => {
-      if (loginWindow?.closed) {
+      try {
+        if (loginWindow!.closed) {
+          clearInterval(t);
+          //检测登录
+          userModule.login();
+        }
+      } catch (e) {
         clearInterval(t);
         //检测登录
         userModule.login();
@@ -73,6 +82,5 @@ export default class Snackbar extends Vue {
   userInfo() {
     window.open(Server + "account/settings");
   }
-
 }
 </script>
