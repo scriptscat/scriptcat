@@ -1,5 +1,5 @@
 import { v5 as uuidv5 } from 'uuid';
-import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, SCRIPT_ORIGIN_LOCAL, ScriptCache } from "@App/model/do/script";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
 import { AllPage, get, Page, randomString } from "@App/pkg/utils";
 import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile } from "../msg-center/event";
@@ -216,7 +216,7 @@ export class ScriptController {
             let urlSplit: string[];
             let domain = '';
             let checkupdate_url = '';
-            let download_url = '';
+            let download_url = url;
             if (metadata['updateurl'] && metadata['downloadurl']) {
                 checkupdate_url = metadata['updateurl'][0];
                 download_url = metadata['downloadurl'][0];
@@ -252,7 +252,7 @@ export class ScriptController {
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
-            if (uuid == undefined && (!old && !script.origin.startsWith(SCRIPT_ORIGIN_LOCAL))) {
+            if (uuid == undefined && (!old && script.origin)) {
                 old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);
             }
             if (old) {

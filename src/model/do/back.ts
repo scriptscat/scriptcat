@@ -26,6 +26,7 @@ export interface Script {
 	requires: Require[]
 	// 需要解析resource获得
 	metadata?: Metadata
+	script?: InstallScript
 	old?: InstallScript
 	error?: string
 	background?: boolean

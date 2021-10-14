@@ -14,6 +14,8 @@
 import { ScriptController } from "@App/apps/script/controller";
 import { Vue, Component } from "vue-property-decorator";
 import Panels from "@App/views/components/Panels.vue";
+import { saveAs } from "file-saver";
+import { File } from "@App/model/do/back";
 
 @Component({
   components: { Panels },
@@ -31,7 +33,7 @@ export default class Tools extends Vue {
           title: "导出文件",
           describe: "导出备份文件",
           color: "accent",
-          click(val: any) {},
+          click: this.clickExportFile,
         },
         {
           type: "button",
@@ -65,5 +67,22 @@ export default class Tools extends Vue {
     let importFile = <HTMLInputElement>document.getElementById("import-file")!;
     importFile.click();
   }
+
+  clickExportFile() {
+    let file: File = {
+      created_by: "ScriptCat",
+      version: "1",
+      scripts: [],
+      settings: {},
+    };
+    let nowTime = new Date();
+    saveAs(
+      JSON.stringify(file),
+      "scriptcat-backup" +
+        `${nowTime.getFullYear()}-${nowTime.getMonth()}-${nowTime.getDate()} ${nowTime.getHours()}-${nowTime.getMinutes()}-${nowTime.getSeconds()}` +
+        ".json"
+    );
+  }
+
 }
 </script>

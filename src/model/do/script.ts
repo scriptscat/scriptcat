@@ -22,9 +22,6 @@ export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = 'complete';
 export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = 'error';
 export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = 'retry';
 
-
-export const SCRIPT_ORIGIN_LOCAL = 'local';
-
 export type Metadata = { [key: string]: string[] };
 
 export type ConfigType = 'text' | 'boolean' | 'select' | 'number';

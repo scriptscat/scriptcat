@@ -43,28 +43,8 @@ export class ResourceManager {
     public getResource(url: string): Promise<Resource | undefined> {
         return new Promise(async resolve => {
             let u = this.parseUrl(url);
-            let resource: Resource | undefined = await App.Cache.getOrSet('resource:' + u.url, () => {
-                return new Promise(async resolve => {
-                    let resource = await this.model.findOne({ url: u.url });
-                    resolve(resource);
-                });
-            });
+            let resource = await this.model.findOne({ url: u.url });
             if (resource) {
-                if ((resource.updatetime || 0) < new Date().getTime() - 30 * 3600 * 1000) {
-                    // 资源更新使用异步
-                    this.loadByUrl(u.url).then(async newresource => {
-                        if (newresource) {
-                            newresource.id = resource!.id;
-                            resource = newresource;
-                            resource.updatetime = new Date().getTime();
-                            if (!await this.model.save(resource)) {
-                                return resolve(undefined);
-                            }
-                            App.Log.Info("resource", u.url, "update");
-                            await App.Cache.set('resource:' + u.url, resource);
-                        }
-                    });
-                }
                 // 校验hash
                 if (u.hash) {
                     if ((u.hash['md5'] && u.hash['md5'] != resource.hash.md5) ||
@@ -147,5 +127,23 @@ export class ResourceManager {
             hash[kv[0]] = kv[1].toLocaleLowerCase();
         });
         return { url: urls[0], hash: hash };
+    }
+
+    public parseContent(url: string, content: string, contentType: string): Resource {
+        let u = this.parseUrl(url);
+        let resource: Resource = {
+            id: 0,
+            url: u.url, content: content,
+            contentType: contentType,
+            hash: {
+                md5: crypto.MD5(content).toString(),
+                sha1: crypto.SHA1(content).toString(),
+                sha256: crypto.SHA256(content).toString(),
+                sha384: crypto.SHA384(content).toString(),
+                sha512: crypto.SHA512(content).toString(),
+            }
+        };
+        resource.base64 = btoa(encodeURI(content));
+        return resource;
     }
 }

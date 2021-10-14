@@ -916,7 +916,7 @@ export class ScriptManager {
             if (!script) {
                 return resolve(false);
             }
-            if (script.checkupdate_url == undefined) {
+            if (!script.checkupdate_url) {
                 return resolve(false);
             }
             this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });

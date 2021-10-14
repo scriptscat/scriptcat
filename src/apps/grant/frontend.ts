@@ -71,7 +71,7 @@ export class FrontendGrant implements ScriptContext {
         return {
             scriptWillUpdate: false,
             scriptHandler: "ScriptCat",
-            scriptUpdateURL: this.script.origin,
+            scriptUpdateURL: this.script.checkupdate_url,
             scriptSource: this.script.code,
             script: {
                 name: this.script.name,
