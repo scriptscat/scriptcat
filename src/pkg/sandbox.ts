@@ -61,6 +61,8 @@ for (const key in descs) {
 //TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
     let special = Object.assign({}, writables);
+    // 后台脚本要不要考虑不能使用eval?
+    let _this: any = { eval: global.eval };
     let proxy: any = new Proxy(context, {
         defineProperty(_, name, desc) {
             return Object.defineProperty(context, name, desc);
@@ -75,6 +77,9 @@ export function buildThis(global: any, context: any) {
             if (name !== 'undefined' && name !== Symbol.unscopables) {
                 if (context[name]) {
                     return context[name];
+                }
+                if (_this[name]) {
+                    return _this[name];
                 }
                 if (special[name] !== undefined) {
                     if (typeof special[name] === 'function' && !special[name].prototype) {
