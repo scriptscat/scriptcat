@@ -15,6 +15,7 @@
               color="secondary"
               @change="selectAll"
               style="margin-top: 0; margin-right: 10px"
+              hide-details
             ></v-checkbox>
             <v-btn
               @click="importFile"
@@ -35,6 +36,9 @@
             >
               关闭
             </v-btn>
+          </div>
+          <div class="text-subtitle-2">
+            导入数量: {{ num }}/{{ selected.length }}
           </div>
         </div>
         <div class="script-list">
@@ -111,7 +115,7 @@ import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
-import { base64ToStr } from "@App/pkg/utils";
+import { base64ToStr, waitGroup } from "@App/pkg/utils";
 import { Component, Vue } from "vue-property-decorator";
 
 @Component({})
@@ -122,6 +126,7 @@ export default class Index extends Vue {
   resourceMgr = new ResourceManager();
   importLoading = false;
   file: File = <File>(<unknown>{ scripts: [] });
+  num: number = 0;
 
   async mounted() {
     let url = new URL(location.href);
@@ -145,6 +150,9 @@ export default class Index extends Vue {
         script.error = <string>oldScript;
         continue;
       }
+      if (oldScript) {
+        script.enabled = oldScript.status == SCRIPT_STATUS_ENABLE;
+      }
       script.metadata = newScript?.metadata;
       script.old = oldScript;
       script.script = newScript;
@@ -157,61 +165,94 @@ export default class Index extends Vue {
 
   importResource(resources: Resource[]): Promise<boolean> {
     return new Promise(async (resolve) => {
+      let wait = new waitGroup(() => {
+        resolve(true);
+      });
+      wait.add(resources.length);
       for (let i = 0; i < resources.length; i++) {
-        let require = resources[i];
-        let old = await this.resourceMgr.getResource(require.meta.url);
-        let resource = this.resourceMgr.parseContent(
-          require.meta.url,
-          base64ToStr(require.source),
-          require.meta.mimetype
-        );
-        if (old) {
-          resource.id = old.id;
-        }
-        await this.resourceMgr.model.save(resource);
+        let handle = async () => {
+          let require = resources[i];
+          let old = await this.resourceMgr.getResource(require.meta.url);
+          let resource = this.resourceMgr.parseContent(
+            require.meta.url,
+            base64ToStr(require.source),
+            require.meta.mimetype
+          );
+          if (old) {
+            resource.id = old.id;
+            if (resource.hash.sha512 == old.hash.sha512) {
+              wait.done();
+              return;
+            }
+          }
+          await this.resourceMgr.model.save(resource);
+          wait.done();
+        };
+        handle();
       }
       resolve(true);
     });
   }
 
-  async importFile() {
+  importFile() {
     this.importLoading = true;
+    let _this = this;
+    this.num = 0;
+    let wait = new waitGroup(() => {
+      _this.importLoading = false;
+    });
+    wait.add(this.selected.length);
     for (let i = 0; i < this.selected.length; i++) {
       let val = this.selected[i];
       let scriptInfo = this.file.scripts[val];
       if (scriptInfo.error) {
+        wait.done();
         continue;
       }
-      let script = scriptInfo.script!;
-      script.status = scriptInfo.enabled
-        ? SCRIPT_STATUS_ENABLE
-        : SCRIPT_STATUS_DISABLE;
-      // 如果有资源 先导入资源
-      if (scriptInfo.requires) {
-        await this.importResource(scriptInfo.requires);
-      }
-      if (scriptInfo.resources) {
-        await this.importResource(scriptInfo.resources);
-      }
-      if (scriptInfo.requires_css) {
-        await this.importResource(scriptInfo.requires_css);
-      }
-      await this.scriptCtrl.update(script);
-      // 导入value数据
-      if (scriptInfo.storage) {
-        for (const key in scriptInfo.storage.data) {
-          let val = this.parseValue(scriptInfo.storage.data[key]);
-          await this.scriptCtrl.updateValue(
-            key,
-            val,
-            script.id,
-            script.metadata["storagename"] && script.metadata["storagename"][0]
-          );
+      let t1 = new Date().getTime();
+      // 并发处理,缩短io时间
+      let handle = async () => {
+        let script = scriptInfo.script!;
+        script.status = scriptInfo.enabled
+          ? SCRIPT_STATUS_ENABLE
+          : SCRIPT_STATUS_DISABLE;
+        // 如果有资源 先导入资源
+        if (scriptInfo.requires) {
+          await this.importResource(scriptInfo.requires);
         }
-      }
+        if (scriptInfo.resources) {
+          await this.importResource(scriptInfo.resources);
+        }
+        if (scriptInfo.requires_css) {
+          await this.importResource(scriptInfo.requires_css);
+        }
+        await this.scriptCtrl.notWaitUpdate(script);
+        // 导入value数据
+        if (scriptInfo.storage) {
+          let subWait = new waitGroup(() => {
+            this.num += 1;
+            wait.done();
+            console.log(i, new Date().getTime() - t1);
+          });
+          subWait.add(Object.keys(scriptInfo.storage.data).length);
+          for (const key in scriptInfo.storage.data) {
+            let importValue = async () => {
+              let val = this.parseValue(scriptInfo.storage.data[key]);
+              await this.scriptCtrl.updateValue(
+                key,
+                val,
+                script.id,
+                script.metadata["storagename"] &&
+                  script.metadata["storagename"][0]
+              );
+              subWait.done();
+            };
+            importValue();
+          }
+        }
+      };
+      handle();
     }
-    this.importLoading = false;
-    window.close();
   }
 
   parseValue(str: string): any {

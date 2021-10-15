@@ -275,3 +275,27 @@ export function strToBase64(str: string): string {
             return String.fromCharCode(parseInt('0x' + p1, 16));
         }));
 }
+
+export class waitGroup {
+
+    num = 0;
+    callback: () => void;
+
+    constructor(callback: () => void) {
+        this.callback = callback;
+    }
+
+    done() {
+        this.num--;
+        if (this.num == 0) {
+            this.callback();
+        }
+    }
+
+    add(val: number) {
+        this.num += val;
+        if (this.num == 0) {
+            this.callback();
+        }
+    }
+}

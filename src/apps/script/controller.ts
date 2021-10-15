@@ -45,6 +45,20 @@ export class ScriptController {
         });
     }
 
+    // 用于加快导入速度,不等待后端处理
+    public notWaitUpdate(script: Script): Promise<number> {
+        return new Promise(async resolve => {
+            if (script.id) {
+                resolve(script.id);
+                MsgCenter.sendMessage(ScriptReinstall, script);
+            } else {
+                await this.scriptModel.save(script);
+                resolve(script.id);
+                MsgCenter.sendMessage(ScriptInstall, script);
+            }
+        });
+    }
+
     public uninstall(scriptId: number): Promise<boolean> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(ScriptUninstall, scriptId, resp => {
