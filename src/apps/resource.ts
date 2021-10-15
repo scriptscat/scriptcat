@@ -1,6 +1,6 @@
 import { Resource } from "@App/model/do/resource";
 import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
-import { blobToBase64 } from "@App/pkg/utils";
+import { blobToBase64, strToBase64 } from "@App/pkg/utils";
 import axios from "axios";
 import crypto from "crypto-js";
 import { App } from "./app";
@@ -99,7 +99,8 @@ export class ResourceManager {
                         sha256: crypto.SHA256(response.data).toString(),
                         sha384: crypto.SHA384(response.data).toString(),
                         sha512: crypto.SHA512(response.data).toString(),
-                    }
+                    },
+                    base64: '',
                 };
                 resource.content = await (<Blob>response.data).text();
                 resource.base64 = await blobToBase64(<Blob>response.data) || '';
@@ -141,9 +142,10 @@ export class ResourceManager {
                 sha256: crypto.SHA256(content).toString(),
                 sha384: crypto.SHA384(content).toString(),
                 sha512: crypto.SHA512(content).toString(),
-            }
+            },
+            base64: '',
         };
-        resource.base64 = btoa(encodeURI(content));
+        resource.base64 = "data:" + contentType + ";base64," + strToBase64(content);
         return resource;
     }
 }

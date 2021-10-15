@@ -15,9 +15,6 @@ export abstract class Model<T> {
             query = query(this.table);
         }
         if (!page) {
-            page = new Page(1, 20);
-        }
-        if (page.page() == 0 && page.count() == 0) {
             return query.toArray();
         }
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());

@@ -23,7 +23,9 @@ export interface Script {
 	file_url?: string
 	// base64形式的代码
 	source: string
-	requires: Require[]
+	requires: Resource[]
+	requires_css: Resource[]
+	resources: Resource[]
 	// 需要解析resource获得
 	metadata?: Metadata
 	script?: InstallScript
@@ -36,7 +38,7 @@ export interface Options {
 
 }
 
-export interface Require {
+export interface Resource {
 	meta: { name: string, url: string, ts: number, mimetype: string }
 	// base64形式的代码
 	source: string

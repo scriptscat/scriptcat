@@ -41,8 +41,9 @@
           <div v-else-if="val.type == 'button'">
             <v-btn
               :color="val.color"
-              @click="val.click"
+              @click="val.click(val)"
               :loading="val.loading"
+              :disabled="val.disabled"
               style="color: #fff"
               small
               >{{ val.title }}</v-btn

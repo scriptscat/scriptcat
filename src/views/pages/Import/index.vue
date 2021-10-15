@@ -106,12 +106,13 @@
 <script lang="ts">
 import { ResourceManager } from "@App/apps/resource";
 import { ScriptController } from "@App/apps/script/controller";
-import { File } from "@App/model/do/back";
+import { File, Resource } from "@App/model/do/back";
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
-import { Vue, Component } from "vue-property-decorator";
+import { base64ToStr } from "@App/pkg/utils";
+import { Component, Vue } from "vue-property-decorator";
 
 @Component({})
 export default class Index extends Vue {
@@ -134,7 +135,7 @@ export default class Index extends Vue {
   async load(file: File) {
     for (let i = 0; i < file.scripts.length; i++) {
       let script = file.scripts[i];
-      let code = decodeURIComponent(escape(atob(script.source)));
+      let code = base64ToStr(script.source);
       let [newScript, oldScript] = await this.scriptCtrl.prepareScriptByCode(
         code,
         script.file_url || "",
@@ -154,35 +155,78 @@ export default class Index extends Vue {
     this.selectAll();
   }
 
+  importResource(resources: Resource[]): Promise<boolean> {
+    return new Promise(async (resolve) => {
+      for (let i = 0; i < resources.length; i++) {
+        let require = resources[i];
+        let old = await this.resourceMgr.getResource(require.meta.url);
+        let resource = this.resourceMgr.parseContent(
+          require.meta.url,
+          base64ToStr(require.source),
+          require.meta.mimetype
+        );
+        if (old) {
+          resource.id = old.id;
+        }
+        await this.resourceMgr.model.save(resource);
+      }
+      resolve(true);
+    });
+  }
+
   async importFile() {
     this.importLoading = true;
     for (let i = 0; i < this.selected.length; i++) {
       let val = this.selected[i];
       let scriptInfo = this.file.scripts[val];
+      if (scriptInfo.error) {
+        continue;
+      }
       let script = scriptInfo.script!;
       script.status = scriptInfo.enabled
         ? SCRIPT_STATUS_ENABLE
         : SCRIPT_STATUS_DISABLE;
       // 如果有资源 先导入资源
       if (scriptInfo.requires) {
-        for (let i = 0; i < scriptInfo.requires.length; i++) {
-          let require = scriptInfo.requires[i];
-          let old = await this.resourceMgr.getResource(require.meta.url);
-          let resource = this.resourceMgr.parseContent(
-            require.meta.url,
-            decodeURIComponent(escape(atob(require.source))),
-            require.meta.mimetype
-          );
-          if (old) {
-            resource.id = old.id;
-          }
-          await this.resourceMgr.model.save(resource);
-        }
+        await this.importResource(scriptInfo.requires);
+      }
+      if (scriptInfo.resources) {
+        await this.importResource(scriptInfo.resources);
+      }
+      if (scriptInfo.requires_css) {
+        await this.importResource(scriptInfo.requires_css);
       }
       await this.scriptCtrl.update(script);
+      // 导入value数据
+      if (scriptInfo.storage) {
+        for (const key in scriptInfo.storage.data) {
+          let val = this.parseValue(scriptInfo.storage.data[key]);
+          await this.scriptCtrl.updateValue(
+            key,
+            val,
+            script.id,
+            script.metadata["storagename"] && script.metadata["storagename"][0]
+          );
+        }
+      }
     }
     this.importLoading = false;
     window.close();
+  }
+
+  parseValue(str: string): any {
+    let t = str[0];
+    let s = str.substring(1);
+    switch (t) {
+      case "s":
+        return s;
+      case "b":
+        return s == "true";
+      case "n":
+        return parseFloat(s);
+      default:
+        return JSON.parse(s);
+    }
   }
 
   closeWindow() {

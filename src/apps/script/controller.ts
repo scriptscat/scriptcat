@@ -1,8 +1,8 @@
 import { v5 as uuidv5 } from 'uuid';
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, ScriptCache } from "@App/model/do/script";
 import { ScriptModel } from "@App/model/script";
-import { AllPage, get, Page, randomString } from "@App/pkg/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile } from "../msg-center/event";
+import { get, Page, randomString } from "@App/pkg/utils";
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptValueChange } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
 import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
 import { ScriptUrlInfo } from '../msg-center/structs';
@@ -108,16 +108,15 @@ export class ScriptController {
         });
     }
 
-    public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Script>> {
+    public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined): Promise<Array<Script>> {
         return new Promise(async resolve => {
-            page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
-                resolve(await this.scriptModel.list(page));
+                resolve(await this.scriptModel.list(this.scriptModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table), page));
+                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
                 resolve(ret);
             } else {
-                resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias), page));
+                resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias)));
             }
         });
     }
@@ -271,7 +270,7 @@ export class ScriptController {
     public getScriptLog(scriptId: number, page?: Page): Promise<Log[]> {
         return this.logModel.list(query => {
             return query.where({ scriptId: scriptId, origin: "GM_log" });
-        }, page);
+        });
     }
 
     public clearLog(scriptId: number) {
@@ -286,7 +285,7 @@ export class ScriptController {
                 return new Promise(async resolve => {
                     let list = <Value[]>await this.valueModel.list((table) => {
                         return table.where({ storageName: script.metadata['storagename'][0] });
-                    }, new AllPage());
+                    });
                     let ret: { [key: string]: Value } = {};
                     list.forEach(val => {
                         ret[val.key] = val;
@@ -299,13 +298,48 @@ export class ScriptController {
             return new Promise(async resolve => {
                 let list = <Value[]>await this.valueModel.list((table) => {
                     return table.where({ scriptId: script.id });
-                }, new AllPage());
+                });
                 let ret: { [key: string]: Value } = {};
                 list.forEach(val => {
                     ret[val.key] = val;
                 });
                 resolve(ret);
             });
+        });
+    }
+
+    public updateValue(key: string, value: any, scriptId: number, storageName?: string): Promise<Value | undefined> {
+        return new Promise(async resolve => {
+            let model: Value | undefined;
+            if (storageName) {
+                model = await this.valueModel.findOne({
+                    storageName: storageName,
+                    key: key,
+                });
+            } else {
+                model = await this.valueModel.findOne({
+                    scriptId: scriptId,
+                    key: key,
+                });
+            }
+            if (model) {
+                if (model.value == value) {
+                    return resolve(model);
+                }
+                model.value = value;
+            } else {
+                model = {
+                    id: 0,
+                    scriptId: scriptId,
+                    storageName: storageName,
+                    key: key,
+                    value: value,
+                    createtime: new Date().getTime(),
+                };
+            }
+            await this.valueModel.save(model);
+            MsgCenter.connect(ScriptValueChange, { model: model, tabid: undefined });
+            resolve(model);
         });
     }
 
@@ -330,12 +364,14 @@ export class ScriptController {
             for (let i = 0; i < script.metadata['require']?.length; i++) {
                 let res = await this.getResource(script.id, script.metadata['require'][i]);
                 if (res) {
+                    res.type = "require";
                     ret[script.metadata['require'][i]] = res;
                 }
             }
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
                 let res = await this.getResource(script.id, script.metadata['require-css'][i]);
                 if (res) {
+                    res.type = "require-css";
                     ret[script.metadata['require-css'][i]] = res;
                 }
             }
@@ -345,6 +381,7 @@ export class ScriptController {
                 if (split.length == 2) {
                     let res = await this.getResource(script.id, split[1]);
                     if (res) {
+                        res.type = "resource";
                         ret[split[0]] = res;
                     }
                 }

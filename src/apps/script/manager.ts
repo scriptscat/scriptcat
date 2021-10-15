@@ -841,30 +841,28 @@ export class ScriptManager {
         });
     }
 
-    public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Script>> {
+    public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined): Promise<Array<Script>> {
         return new Promise(async resolve => {
-            page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
-                resolve(await this.scriptModel.list(page));
+                resolve(await this.scriptModel.list(this.scriptModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table), page));
+                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
                 resolve(ret);
             } else {
-                resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias), page));
+                resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias)));
             }
         });
     }
 
-    public subscribeList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Subscribe>> {
+    public subscribeList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined): Promise<Array<Subscribe>> {
         return new Promise(async resolve => {
-            page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
-                resolve(await this.subscribeModel.list(page));
+                resolve(await this.subscribeModel.list(this.subscribeModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table), page));
+                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table)));
                 resolve(ret);
             } else {
-                resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias), page));
+                resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias)));
             }
         });
     }

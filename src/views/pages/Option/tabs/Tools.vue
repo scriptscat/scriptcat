@@ -15,13 +15,15 @@ import { ScriptController } from "@App/apps/script/controller";
 import { Vue, Component } from "vue-property-decorator";
 import Panels from "@App/views/components/Panels.vue";
 import { saveAs } from "file-saver";
-import { File } from "@App/model/do/back";
+import { File, Resource, Script } from "@App/model/do/back";
+import { SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
+import { strToBase64 } from "@App/pkg/utils";
 
 @Component({
   components: { Panels },
 })
 export default class Tools extends Vue {
-  scriptCtrl = new ScriptController();
+  scriptCtl = new ScriptController();
 
   panel = [0, 1, 2, 3];
 
@@ -33,6 +35,8 @@ export default class Tools extends Vue {
           title: "导出文件",
           describe: "导出备份文件",
           color: "accent",
+          loading: false,
+          disabled: false,
           click: this.clickExportFile,
         },
         {
@@ -54,11 +58,11 @@ export default class Tools extends Vue {
     const reader = new FileReader();
     reader.onload = () => {
       // 处理导入文件
-      let { data, err } = this.scriptCtrl.parseBackFile(<string>reader.result);
+      let { data, err } = this.scriptCtl.parseBackFile(<string>reader.result);
       if (err) {
         return alert(err);
       }
-      this.scriptCtrl.openImportFileWindow(data!);
+      this.scriptCtl.openImportFileWindow(data!);
     };
     reader.readAsText(file);
   }
@@ -68,21 +72,112 @@ export default class Tools extends Vue {
     importFile.click();
   }
 
-  clickExportFile() {
+  async clickExportFile(val: any) {
+    val.loading = true;
+    val.disabled = true;
+    let scripts: Script[] = [];
+    let nowTime = new Date();
     let file: File = {
       created_by: "ScriptCat",
       version: "1",
-      scripts: [],
+      scripts: scripts,
       settings: {},
     };
-    let nowTime = new Date();
+    let list = await this.scriptCtl.scriptList(undefined);
+    for (let i = 0; i < list.length; i++) {
+      let script = list[i];
+      let storage: { [key: string]: string } = {};
+      let requires: Resource[] = [];
+      let resources: Resource[] = [];
+      let requires_css: Resource[] = [];
+
+      // value导出
+      let values = await this.scriptCtl.getScriptValue(script);
+      for (const key in values) {
+        let value = values[key];
+        storage[key] = this.toValueStr(value.value);
+      }
+
+      // resource导出
+      let resourcesList = await this.scriptCtl.getResources(script);
+      for (let key in resourcesList) {
+        let resource = resourcesList[key];
+        let val = {
+          meta: {
+            name: this.getUrlName(resource.url),
+            url: resource.url,
+            ts: resource.createtime || nowTime.getTime(),
+            mimetype: resource.contentType || "",
+          },
+          source: resource.base64.substring(
+            resource.base64.indexOf("base64,") + 7
+          ),
+        };
+        switch (resource.type) {
+          case "require":
+            requires.push(val);
+            break;
+          case "resource":
+            resources.push(val);
+            break;
+          case "require-css":
+            requires_css.push(val);
+            break;
+        }
+      }
+
+      scripts.push({
+        name: script.name,
+        options: {},
+        storage: {
+          data: storage,
+          ts: nowTime.getTime(),
+        },
+        enabled: script.status == SCRIPT_STATUS_ENABLE,
+        position: script.sort,
+        uuid: script.uuid,
+        file_url: script.origin,
+        source: strToBase64(script.code),
+        requires: requires,
+        requires_css: requires_css,
+        resources: resources,
+      });
+    }
+
     saveAs(
-      JSON.stringify(file),
-      "scriptcat-backup" +
+      new Blob([JSON.stringify(file)]),
+      "scriptcat-backup " +
         `${nowTime.getFullYear()}-${nowTime.getMonth()}-${nowTime.getDate()} ${nowTime.getHours()}-${nowTime.getMinutes()}-${nowTime.getSeconds()}` +
         ".json"
     );
+
+    val.loading = false;
+    val.disabled = false;
   }
 
+  getUrlName(url: string): string {
+    let t = url.indexOf("?");
+    if (t !== -1) {
+      url = url.substring(0, t);
+    }
+    t = url.lastIndexOf("/");
+    if (t !== -1) {
+      url = url.substring(t + 1);
+    }
+    return url;
+  }
+
+  toValueStr(val: any): string {
+    switch (typeof val) {
+      case "string":
+        return "s" + val;
+      case "number":
+        return "n" + val;
+      case "boolean":
+        return "b" + (val ? "true" : "false");
+      default:
+        return "o" + JSON.stringify(val);
+    }
+  }
 }
 </script>

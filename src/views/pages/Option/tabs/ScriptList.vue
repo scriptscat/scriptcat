@@ -169,7 +169,7 @@
                 v-bind="attrs"
                 v-on="on"
                 class="ma-2"
-                :color="item.subscribeUrl?'orange':'primary'"
+                :color="item.subscribeUrl ? 'orange' : 'primary'"
                 style="cursor: pointer"
                 outlined
                 label
@@ -596,7 +596,7 @@ import {
 } from "@App/apps/msg-center/event";
 
 import eventBus from "@App/views/EventBus";
-import { Page, AllPage } from "@App/pkg/utils";
+import { Page } from "@App/pkg/utils";
 import { nextTime } from "@App/views/pages/utils";
 import { ValueModel } from "@App/model/value";
 import { Value } from "@App/model/do/value";
@@ -709,12 +709,10 @@ export default class ScriptList extends Vue {
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptController
-      .scriptList(undefined, new AllPage())
-      .then(async (result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
+    this.scriptController.scriptList(undefined).then(async (result) => {
+      this.scripts = result;
+      this.handleScriptConfig(this.scripts);
+    });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
@@ -727,23 +725,19 @@ export default class ScriptList extends Vue {
 
     MsgCenter.listener(SyncTaskEvent, () => {
       // 同步完成,刷新页面
-      this.scriptController
-        .scriptList(undefined, new AllPage())
-        .then(async (result) => {
-          this.scripts = result;
-          this.handleScriptConfig(this.scripts);
-        });
+      this.scriptController.scriptList(undefined).then(async (result) => {
+        this.scripts = result;
+        this.handleScriptConfig(this.scripts);
+      });
     });
 
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // MsgCenter.listener(ScriptUpdate, () => {
     eventBus.$on(EventType.UpdateScriptList, () => {
-      this.scriptController
-        .scriptList(undefined, new AllPage())
-        .then((result) => {
-          this.scripts = result;
-          this.handleScriptConfig(this.scripts);
-        });
+      this.scriptController.scriptList(undefined).then((result) => {
+        this.scripts = result;
+        this.handleScriptConfig(this.scripts);
+      });
     });
 
     MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {
@@ -765,6 +759,7 @@ export default class ScriptList extends Vue {
     });
   }
 
+  //TODO: 优化用valueCtrl
   protected valueModel = new ValueModel();
   showlog = false;
   logs: Log[] = [];
