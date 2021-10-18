@@ -537,12 +537,11 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({
-        background: true,
         confirm: (grant: Grant, script: Script) => {
             return new Promise((resolve, reject) => {
                 let detail = <GM_Types.CookieDetails>grant.params[1];
-                if ((!detail.url && !detail.domain) || !detail.name) {
-                    return reject('there must be one of url or domain, and name must exist');
+                if ((!detail.url && !detail.domain)) {
+                    return reject('there must be one of url or domain');
                 }
                 let url: any = {};
                 if (detail.url) {
@@ -604,8 +603,8 @@ export class BackgroundGrant {
             if (detail.domain) {
                 detail.domain = detail.domain.trim();
             }
-            if ((!detail.url && !detail.domain) || !detail.name.trim()) {
-                return reject('there must be one of url or domain, and name must exist');
+            if ((!detail.url && !detail.domain)) {
+                return reject('there must be one of url or domain');
             }
             switch (param[0]) {
                 case 'list': {
@@ -639,12 +638,12 @@ export class BackgroundGrant {
                 }
                 case 'set': {
                     if (!detail.url) {
-                        return reject('set operation must have url and name');
+                        return reject('set operation must have url or domain, and the name must exist');
                     }
                     chrome.cookies.set({
                         url: detail.url,
                         name: detail.name,
-                        domain: detail.url,
+                        domain: detail.domain,
                         value: detail.value,
                         expirationDate: detail.expirationDate,
                         path: detail.path,

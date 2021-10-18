@@ -161,6 +161,8 @@ export function createSandboxContext(script: ScriptCache): SandboxContext {
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
+    context['postRequest'] = context.postRequest;
+    context['script'] = context.script;
     if (script.metadata["grant"]) {
         context["GM"] = context;
         script.metadata["grant"].forEach((value: any) => {

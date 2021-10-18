@@ -22,7 +22,7 @@ export interface FrontenApiValue {
 export interface ScriptContext {
     [key: string]: any
 
-    ValueChange(name: string, value: Value): void
+    ValueChange(name: string, value: Value): void;
     GM_info(): any;
 }
 
@@ -42,6 +42,15 @@ export class FrontendGrant implements ScriptContext {
         if (browserMsg) {
             this.licenseMsg();
         }
+        // 处理GM_cookie.list等操作
+        let action = (action: string) => {
+            return (details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) => {
+                this.GM_cookie(action, details, done);
+            }
+        }
+        (<any>FrontendGrant.prototype.GM_cookie)['list'] = action('list');
+        (<any>FrontendGrant.prototype.GM_cookie)['delete'] = action('delete');
+        (<any>FrontendGrant.prototype.GM_cookie)['set'] = action('set');
     }
 
     public static GMFunction(param: DescriptionParam = {}) {
@@ -421,6 +430,36 @@ export class FrontendGrant implements ScriptContext {
         return undefined;
     }
 
+    @FrontendGrant.GMFunction()
+    public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) {
+        if (!details.url && !details.domain) {
+            details.url = window.location.href;
+        }
+        this.postRequest('GM_cookie', [action, details], (grant: Grant) => {
+            if (grant.error) {
+                return done && done([], grant.errorMsg);
+            }
+            switch (grant.data.type) {
+                case 'done':
+                    done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
+                    break;
+            }
+        });
+    }
+
+    @FrontendGrant.GMFunction()
+    protected GM_getCookieStore(tabid: number, done: (storeId: number, error: any | undefined) => void): void {
+        this.postRequest('GM_getCookieStore', [tabid], (grant: Grant) => {
+            if (grant.error) {
+                return done && done(0, grant.errorMsg);
+            }
+            switch (grant.data.type) {
+                case 'done':
+                    done && done(grant.data.data, undefined);
+                    break;
+            }
+        });
+    }
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void
@@ -519,34 +558,6 @@ export class SandboxContext extends FrontendGrant {
     public CAT_runComplete = () => {
         this.end();
         this.postRequest('CAT_runComplete', []);
-    }
-
-    @FrontendGrant.GMFunction()
-    public GM_cookie(action: string, details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) {
-        this.postRequest('GM_cookie', [action, details], (grant: Grant) => {
-            if (grant.error) {
-                return done && done([], grant.errorMsg);
-            }
-            switch (grant.data.type) {
-                case 'done':
-                    done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
-                    break;
-            }
-        });
-    }
-
-    @FrontendGrant.GMFunction()
-    protected GM_getCookieStore(tabid: number, done: (storeId: number, error: any | undefined) => void): void {
-        this.postRequest('GM_getCookieStore', [tabid], (grant: Grant) => {
-            if (grant.error) {
-                return done && done(0, grant.errorMsg);
-            }
-            switch (grant.data.type) {
-                case 'done':
-                    done && done(grant.data.data, undefined);
-                    break;
-            }
-        });
     }
 
     @FrontendGrant.GMFunction()
