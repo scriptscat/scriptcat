@@ -54,7 +54,7 @@ export class Match<T> {
             re += u.path.replace(/\*/g, '.*?');
         }
         if (u.search) {
-            re += u.search.replace(/([\?])/g, "\\$1").replace("*", '.*?');
+            re += u.search.replace(/([\?])/g, "\\$1").replace(/\*/g, '.*?');
         }
         return re.replace(/\//g, "\/") + '$';
     }
@@ -80,9 +80,13 @@ export class Match<T> {
         }
         ret = [];
         this.rule.forEach((val, key) => {
-            let re = new RegExp(key);
-            if (re.test(url)) {
-                ret!.push(...val);
+            try {
+                let re = new RegExp(key);
+                if (re.test(url)) {
+                    ret!.push(...val);
+                }
+            } catch (_) {
+
             }
         });
         this.cache.set(url, ret);
