@@ -32,12 +32,6 @@ export class Page {
     }
 }
 
-export class AllPage extends Page {
-    constructor() {
-        super(0, 0);
-    }
-}
-
 export function randomString(e: number) {
     e = e || 32;
     var t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz",
@@ -267,4 +261,41 @@ export function blobToBase64(blob: Blob): Promise<string | null> {
         reader.onloadend = () => resolve(<string | null>reader.result);
         reader.readAsDataURL(blob);
     });
+}
+
+export function base64ToStr(base64: string): string {
+    return decodeURIComponent(atob(base64).split('').map(function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+}
+
+export function strToBase64(str: string): string {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+        (match, p1) => {
+            return String.fromCharCode(parseInt('0x' + p1, 16));
+        }));
+}
+
+export class waitGroup {
+
+    num = 0;
+    callback: () => void;
+
+    constructor(callback: () => void) {
+        this.callback = callback;
+    }
+
+    done() {
+        this.num--;
+        if (this.num === 0) {
+            this.callback();
+        }
+    }
+
+    add(val: number) {
+        this.num += val;
+        if (this.num === 0) {
+            this.callback();
+        }
+    }
 }

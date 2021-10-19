@@ -241,7 +241,6 @@ import {
   SUBSCRIBE_STATUS_DISABLE,
   SUBSCRIBE_STATUS_ENABLE,
 } from "@App/model/do/subscribe";
-import { AllPage } from "@App/pkg/utils";
 import dayjs from "dayjs";
 import { Vue, Component } from "vue-property-decorator";
 import { scriptModule } from "../store/script";
@@ -285,19 +284,15 @@ export default class SubscribeList extends Vue {
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptController
-      .subscribeList(undefined, new AllPage())
-      .then(async (result) => {
-        this.subscribes = result;
-      });
+    this.scriptController.subscribeList(undefined).then(async (result) => {
+      this.subscribes = result;
+    });
 
     MsgCenter.listener(SyncTaskEvent, (msg) => {
       // 同步完成,刷新页面
-      this.scriptController
-        .subscribeList(undefined, new AllPage())
-        .then(async (result) => {
-          this.subscribes = result;
-        });
+      this.scriptController.subscribeList(undefined).then(async (result) => {
+        this.subscribes = result;
+      });
     });
   }
 

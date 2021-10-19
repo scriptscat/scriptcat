@@ -1,9 +1,12 @@
+export type ResourceType = "require" | "require-css" | "resource";
+
 export interface Resource {
     id: number
     url: string
     content: string
-    base64?: string
+    base64: string
     hash: ResourceHash
+    type?: ResourceType
     contentType?: string
     createtime?: number
     updatetime?: number

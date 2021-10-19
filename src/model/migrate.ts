@@ -56,4 +56,7 @@ export function migrate() {
         scripts: "++id,&uuid,name,namespace,author,origin_domain,subscribeUrl,type,sort,status,runStatus,createtime,updatetime,checktime",
         sync: "++id,&key,[user+device+type],createtime",
     });
+    db.version(14).stores({
+        value: "++id,[scriptId+key],[storageName+key]",
+    });
 }

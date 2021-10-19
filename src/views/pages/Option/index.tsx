@@ -4,14 +4,14 @@ import { ScriptManager } from "@App/apps/script/manager";
 import { Tab, TabPane } from "@components/Tab";
 import eventBus from "@views/EventBus";
 import { Component, Vue } from "vue-property-decorator";
-import { VApp, VIcon } from "vuetify/lib";
-
+import { VApp } from "vuetify/lib";
 import EventType from "./EventType";
 import Snackbar from "./Snackbar.vue";
 import UserMenu from "@App/views/components/UserMenu.vue";
 import { scriptModule } from "./store/script";
 import Config from "./tabs/Config.vue";
 import Logger from "./tabs/Logger.vue";
+import Tools from "./tabs/Tools.vue";
 import ScriptList from "./tabs/ScriptList.vue";
 import ScriptTab from "./tabs/ScriptTab/index.vue";
 import SubscribeList from "./tabs/SubscribeList.vue";
@@ -25,7 +25,8 @@ interface IExternalAction {
 const SCRIPT_LIST_INDEX = 0;
 const SUBSCRIBE_LIST_INDEX = 1;
 const LOGGER_INDEX = 2;
-const CONFIG_LIST_INDEX = 3;
+const TOOLS_INDEX = 3;
+const CONFIG_LIST_INDEX = 4;
 
 @Component({})
 export default class App extends Vue {
@@ -153,6 +154,13 @@ export default class App extends Vue {
                 tabKey: LOGGER_INDEX,
                 title: "运行日志",
                 content: <Logger></Logger>,
+                closable: false,
+                keepAlive: false,
+            },
+            {
+                tabKey: TOOLS_INDEX,
+                title: "系统工具",
+                content: <Tools></Tools>,
                 closable: false,
                 keepAlive: false,
             },

@@ -79,7 +79,7 @@ import { Export, EXPORT_DEST_LOCAL } from "@App/model/do/export";
 import { v4 as uuidv4 } from "uuid";
 import { ExtVersion } from "@App/apps/config";
 @Component({})
-export default class ResizableEditor extends Vue {
+export default class BgCloud extends Vue {
   @Prop()
   script!: Script;
   exportConfig: Export = {

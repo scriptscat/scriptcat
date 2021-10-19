@@ -15,9 +15,6 @@ export abstract class Model<T> {
             query = query(this.table);
         }
         if (!page) {
-            page = new Page(1, 20);
-        }
-        if (page.page() == 0 && page.count() == 0) {
             return query.toArray();
         }
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());
@@ -39,21 +36,25 @@ export abstract class Model<T> {
     }
 
     public async save(val: T): Promise<T | undefined> {
-        return new Promise(async resolve => {
-            let id = <number>(<any>val).id;
-            if (!id) {
-                delete (<any>val).id;
-                let key = await this.table.add(val);
-                if (key) {
-                    (<any>val).id = key;
-                    return resolve(val);
+        return new Promise(async (resolve, reject) => {
+            try {
+                let id = <number>(<any>val).id;
+                if (!id) {
+                    delete (<any>val).id;
+                    let key = await this.table.add(val);
+                    if (key) {
+                        (<any>val).id = key;
+                        return resolve(val);
+                    }
+                    return resolve(undefined);
                 }
-                return resolve(undefined);
-            }
-            if (await this.table.update(id, val)) {
-                resolve(val);
-            } else {
-                resolve(undefined);
+                if (await this.table.update(id, val)) {
+                    resolve(val);
+                } else {
+                    resolve(undefined);
+                }
+            } catch (e) {
+                reject(e);
             }
         });
     }
