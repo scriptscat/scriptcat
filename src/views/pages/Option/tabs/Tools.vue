@@ -15,9 +15,10 @@ import { ScriptController } from "@App/apps/script/controller";
 import { Vue, Component } from "vue-property-decorator";
 import Panels from "@App/views/components/Panels.vue";
 import { saveAs } from "file-saver";
-import { File, Resource, Script } from "@App/model/do/back";
+import { File, Resource, Script, Subscribe } from "@App/model/do/back";
 import { SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
 import { strToBase64 } from "@App/pkg/utils";
+import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
 
 @Component({
   components: { Panels },
@@ -76,11 +77,13 @@ export default class Tools extends Vue {
     val.loading = true;
     val.disabled = true;
     let scripts: Script[] = [];
+    let subscribes: Subscribe[] = [];
     let nowTime = new Date();
     let file: File = {
       created_by: "ScriptCat",
       version: "1",
       scripts: scripts,
+      subscribes: subscribes,
       settings: {},
     };
     let list = await this.scriptCtl.scriptList(undefined);
@@ -141,6 +144,22 @@ export default class Tools extends Vue {
         requires: requires,
         requires_css: requires_css,
         resources: resources,
+        self_metadata: script.selfMetadata,
+        subscribe_url: script.subscribeUrl,
+      });
+    }
+
+    // 处理订阅脚本
+    let subList = await this.scriptCtl.subscribeList(undefined);
+    for (let i = 0; i < subList.length; i++) {
+      let subscribe = subList[i];
+
+      subscribes.push({
+        name: subscribe.name,
+        url: subscribe.url,
+        enabled: subscribe.status === SUBSCRIBE_STATUS_ENABLE,
+        source: strToBase64(subscribe.code),
+        scripts: subscribe.scripts,
       });
     }
 

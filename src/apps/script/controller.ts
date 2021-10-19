@@ -23,12 +23,12 @@ import { File } from '@App/model/do/back';
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
 
-    protected scriptModel = new ScriptModel();
-    protected subscribeModel = new SubscribeModel();
-    protected logModel = new LoggerModel();
-    protected valueModel = new ValueModel();
+    public scriptModel = new ScriptModel();
+    public subscribeModel = new SubscribeModel();
+    public logModel = new LoggerModel();
+    public valueModel = new ValueModel();
 
-    protected resource = new ResourceManager();
+    public resource = new ResourceManager();
 
     public update(script: Script): Promise<number> {
         return new Promise(resolve => {

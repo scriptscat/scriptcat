@@ -1,11 +1,13 @@
 // 使用tampermonkey的备份模式
 
-import { Metadata, Script as InstallScript, SCRIPT_TYPE } from "./script";
+import { Metadata, Script as InstallScript } from "./script";
+import { SubscribeScript, Subscribe as InstallSubscribe } from "./subscribe";
 
 export interface File {
 	created_by: string
 	version: string
 	scripts: Script[];
+	subscribes?: Subscribe[];
 	settings: Settings
 }
 
@@ -26,12 +28,28 @@ export interface Script {
 	requires: Resource[]
 	requires_css: Resource[]
 	resources: Resource[]
-	// 需要解析resource获得
+	self_metadata: Metadata
+	subscribe_url?: string
+	// 需要解析source获得
 	metadata?: Metadata
 	script?: InstallScript
 	old?: InstallScript
 	error?: string
 	background?: boolean
+}
+
+export interface Subscribe {
+	name: string
+	url: string
+	enabled: boolean
+	// base64
+	source: string
+	scripts: { [key: string]: SubscribeScript };
+	// 解析source获得
+	metadata?: Metadata
+	subscribe?: InstallSubscribe
+	old?: InstallSubscribe
+	error?: string
 }
 
 export interface Options {

@@ -287,14 +287,14 @@ export class waitGroup {
 
     done() {
         this.num--;
-        if (this.num == 0) {
+        if (this.num === 0) {
             this.callback();
         }
     }
 
     add(val: number) {
         this.num += val;
-        if (this.num == 0) {
+        if (this.num === 0) {
             this.callback();
         }
     }

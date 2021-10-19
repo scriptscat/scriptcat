@@ -8,15 +8,7 @@
       <div style="padding: 10px">
         <div class="description">
           <div class="text-h6">来源管理器: {{ file.created_by }}</div>
-          <div class="control d-flex justify-start" style="margin-bottom: 10px">
-            <v-checkbox
-              v-model="isSelectAll"
-              label="全选"
-              color="secondary"
-              @change="selectAll"
-              style="margin-top: 0; margin-right: 10px"
-              hide-details
-            ></v-checkbox>
+          <div class="control d-flex justify-start" style="margin: 10px 0">
             <v-btn
               @click="importFile"
               :loading="importLoading"
@@ -37,14 +29,28 @@
               关闭
             </v-btn>
           </div>
-          <div class="text-subtitle-2">
-            导入数量: {{ num }}/{{ selected.length }}
-          </div>
         </div>
         <div class="script-list">
+          <div
+            class="control d-flex justify-start align-center"
+            style="margin: 10px 0"
+          >
+            <div class="subtitle-2">请选择你要导入的脚本:</div>
+            <v-checkbox
+              v-model="isSelectAllScript"
+              label="全选"
+              color="secondary"
+              @change="selectAll"
+              style="margin: 0 10px; padding: 0"
+              hide-details
+            ></v-checkbox>
+            <div class="text-subtitle-2">
+              脚本导入进度: {{ scriptNum }}/{{ selectedScript.length }}
+            </div>
+          </div>
           <v-list two-line>
             <v-list-item-group
-              v-model="selected"
+              v-model="selectedScript"
               multiple
               active-class="blue--text"
             >
@@ -81,7 +87,7 @@
                   </v-list-item-content>
                   <v-list-item-action>
                     <v-list-item-action-text>
-                      开启脚本
+                      {{ item.enabled ? "开启脚本" : "关闭脚本" }}
                     </v-list-item-action-text>
                     <v-switch v-model="item.enabled" @click.stop></v-switch>
                   </v-list-item-action>
@@ -102,6 +108,81 @@
             </v-list-item-group>
           </v-list>
         </div>
+
+        <div
+          v-if="file.subscribes"
+          class="script-list"
+          style="border-top: 1px dashed"
+        >
+          <div
+            class="control d-flex justify-start align-center"
+            style="margin: 10px 0"
+          >
+            <div class="subtitle-2">请选择你要导入的订阅:</div>
+            <v-checkbox
+              v-model="isSelectAllScript"
+              label="全选"
+              color="secondary"
+              @change="selectAllSubscribe"
+              style="margin: 0 10px; padding: 0"
+              hide-details
+            ></v-checkbox>
+            <div class="text-subtitle-2">
+              订阅导入进度: {{ subscribeNum }}/{{ selectedSubscribe.length }}
+            </div>
+          </div>
+          <v-list two-line>
+            <v-list-item-group
+              v-model="selectedScript"
+              multiple
+              active-class="orange--text"
+            >
+              <template v-for="(item, index) in file.subscribes">
+                <v-list-item :key="'item' + index" v-if="!item.error">
+                  <v-list-item-content>
+                    <v-list-item-title v-text="item.name"></v-list-item-title>
+                    <v-list-item-subtitle
+                      v-if="item.metadata['author']"
+                      v-text="'作者: ' + item.metadata['author'][0]"
+                    ></v-list-item-subtitle>
+                    <v-list-item-subtitle
+                      v-if="item.metadata['description']"
+                      v-text="'描述: ' + item.metadata['description'][0]"
+                    ></v-list-item-subtitle>
+                    <v-list-item-subtitle
+                      v-if="item.url"
+                      v-text="'来源: ' + item.url"
+                    ></v-list-item-subtitle>
+                    <v-list-item-subtitle
+                      >操作:
+                      {{
+                        item.old ? "更新订阅" : "安装订阅"
+                      }}</v-list-item-subtitle
+                    >
+                  </v-list-item-content>
+                  <v-list-item-action>
+                    <v-list-item-action-text>
+                      {{ item.enabled ? "开启订阅" : "关闭订阅" }}
+                    </v-list-item-action-text>
+                    <v-switch v-model="item.enabled" @click.stop></v-switch>
+                  </v-list-item-action>
+                </v-list-item>
+                <v-list-item v-else :key="'item' + index">
+                  <v-list-item-content class="red--text">
+                    <v-list-item-title v-text="item.name"> </v-list-item-title>
+                    <v-list-item-subtitle
+                      v-text="'订阅错误,解析失败' + item.error"
+                    ></v-list-item-subtitle>
+                  </v-list-item-content>
+                </v-list-item>
+                <v-divider
+                  v-if="index < file.subscribes.length - 1"
+                  :key="index"
+                ></v-divider>
+              </template>
+            </v-list-item-group>
+          </v-list>
+        </div>
       </div>
     </v-main>
   </v-app>
@@ -115,18 +196,24 @@ import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
+import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
 import { base64ToStr, waitGroup } from "@App/pkg/utils";
 import { Component, Vue } from "vue-property-decorator";
 
 @Component({})
 export default class Index extends Vue {
-  isSelectAll = true;
-  selected: number[] = [];
+  isSelectAllScript = true;
+  selectedScript: number[] = [];
+  scriptNum: number = 0;
+
+  isSelectAllSubscribe = true;
+  selectedSubscribe: number[] = [];
+  subscribeNum: number = 0;
+
   scriptCtrl = new ScriptController();
   resourceMgr = new ResourceManager();
   importLoading = false;
   file: File = <File>(<unknown>{ scripts: [] });
-  num: number = 0;
 
   async mounted() {
     let url = new URL(location.href);
@@ -153,14 +240,41 @@ export default class Index extends Vue {
       if (oldScript) {
         script.enabled = oldScript.status == SCRIPT_STATUS_ENABLE;
       }
+      // 如果不是scriptcat管理器,处理option变成selfMetadata
+      if (file.created_by !== "ScriptCat") {
+        // TODO: 以后处理啦
+      }
+      newScript!.selfMetadata = script.self_metadata;
+      newScript!.subscribeUrl = script.subscribe_url;
       script.metadata = newScript?.metadata;
       script.old = oldScript;
       script.script = newScript;
       script.background = newScript?.type !== 1;
     }
-    file.scripts[0].background = true;
+    if (file.subscribes) {
+      for (let i = 0; i < file.subscribes.length; i++) {
+        let subscribe = file.subscribes[i];
+        let code = base64ToStr(subscribe.source);
+        let [newSub, oldSub] = await this.scriptCtrl.prepareSubscribeByCode(
+          code,
+          subscribe.url
+        );
+        if (typeof oldSub === "string") {
+          subscribe.error = <string>oldSub;
+          continue;
+        }
+        if (oldSub) {
+          subscribe.enabled = oldSub.status == SUBSCRIBE_STATUS_ENABLE;
+        }
+        newSub!.scripts = subscribe.scripts;
+        subscribe.metadata = newSub?.metadata;
+        subscribe.subscribe = newSub;
+        subscribe.old = oldSub;
+      }
+    }
     this.file = file;
     this.selectAll();
+    this.selectAllSubscribe();
   }
 
   importResource(resources: Resource[]): Promise<boolean> {
@@ -185,31 +299,46 @@ export default class Index extends Vue {
               return;
             }
           }
-          await this.resourceMgr.model.save(resource);
-          wait.done();
+          // 因为并发原因,可能会导致url重复,直接忽略错误
+          this.resourceMgr.model
+            .save(resource)
+            .then(() => {
+              wait.done();
+            })
+            .catch(() => {
+              wait.done();
+            });
         };
         handle();
       }
-      resolve(true);
     });
   }
 
-  importFile() {
+  async importFile() {
     this.importLoading = true;
     let _this = this;
-    this.num = 0;
+    this.scriptNum = 0;
+    this.subscribeNum = 0;
     let wait = new waitGroup(() => {
       _this.importLoading = false;
+      if (this.scriptNum !== this.selectedScript.length) {
+        return alert("有脚本导入失败");
+      }
+      if (this.subscribeNum !== this.selectedSubscribe.length) {
+        return alert("有订阅导入失败");
+      }
+      this.closeWindow();
     });
-    wait.add(this.selected.length);
-    for (let i = 0; i < this.selected.length; i++) {
-      let val = this.selected[i];
+    wait.add(this.selectedScript.length);
+    wait.add(this.selectedSubscribe.length);
+    for (let i = 0; i < this.selectedScript.length; i++) {
+      let val = this.selectedScript[i];
       let scriptInfo = this.file.scripts[val];
       if (scriptInfo.error) {
+        this.scriptNum += 1;
         wait.done();
         continue;
       }
-      let t1 = new Date().getTime();
       // 并发处理,缩短io时间
       let handle = async () => {
         let script = scriptInfo.script!;
@@ -230,9 +359,8 @@ export default class Index extends Vue {
         // 导入value数据
         if (scriptInfo.storage) {
           let subWait = new waitGroup(() => {
-            this.num += 1;
+            this.scriptNum += 1;
             wait.done();
-            console.log(i, new Date().getTime() - t1);
           });
           subWait.add(Object.keys(scriptInfo.storage.data).length);
           for (const key in scriptInfo.storage.data) {
@@ -251,7 +379,29 @@ export default class Index extends Vue {
           }
         }
       };
-      handle();
+      try {
+        handle();
+      } catch (e) {
+        console.log(e, scriptInfo);
+        wait.done();
+      }
+    }
+    for (let i = 0; i < this.selectedSubscribe.length; i++) {
+      let val = this.selectedSubscribe[i];
+      let subscribeInfo = this.file.subscribes![val];
+      if (subscribeInfo.error) {
+        this.subscribeNum += 1;
+        wait.done();
+        continue;
+      }
+      try {
+        await this.scriptCtrl.subscribeModel.save(subscribeInfo.subscribe!);
+        this.subscribeNum += 1;
+        wait.done();
+      } catch (e) {
+        console.log(e, subscribeInfo);
+        wait.done();
+      }
     }
   }
 
@@ -275,11 +425,20 @@ export default class Index extends Vue {
   }
 
   selectAll() {
-    this.selected = [];
-    if (this.isSelectAll) {
+    this.selectedScript = [];
+    if (this.isSelectAllScript) {
       this.file.scripts.forEach((_, index) => {
-        this.selected.push(index);
+        this.selectedScript.push(index);
       });
+    }
+  }
+
+  selectAllSubscribe() {
+    if (this.isSelectAllSubscribe) {
+      this.file.subscribes &&
+        this.file.subscribes.forEach((_, index) => {
+          this.selectedSubscribe.push(index);
+        });
     }
   }
 }
