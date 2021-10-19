@@ -78,6 +78,13 @@ export class SystemConfig {
         this.set("update_disable_script", enable);
     }
 
+    public static get vscode_url(): string {
+        return this.cache.get('vscode_url') || 'ws://localhost:8642';
+    }
+
+    public static set vscode_url(val: string) {
+        this.set("vscode_url", val);
+    }
 }
 
 SystemConfig.storage = new ChromeStorage("system");

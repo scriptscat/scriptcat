@@ -13,6 +13,7 @@ import { get } from "./pkg/utils";
 import { Server } from "./apps/config";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "./model/do/subscribe";
 import { UserManager } from "./apps/user/manager";
+import { ToolsManager } from "./apps/tools/manager";
 
 migrate();
 
@@ -35,6 +36,7 @@ chrome.contextMenus.create({
 
 let scripts = new ScriptManager();
 let user = new UserManager();
+let tools = new ToolsManager(scripts);
 let grant = BackgroundGrant.SingleInstance(
     scripts,
     new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
@@ -45,6 +47,8 @@ scripts.listen();
 scripts.listenScriptMath();
 
 user.listenEvent();
+
+tools.listenEvent();
 
 grant.listenScriptGrant();
 window.addEventListener("message", (event) => {

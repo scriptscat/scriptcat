@@ -50,7 +50,12 @@
             >
           </div>
           <div v-else-if="val.type == 'text'">
-            {{ val.content }}
+            <v-text-field
+              v-model="val.value"
+              @blur="val.change(val)"
+              :label="val.title"
+              :hint="val.describe"
+            ></v-text-field>
           </div>
         </div>
       </v-expansion-panel-content>
@@ -61,6 +66,26 @@
 
 <script lang="ts">
 import { Vue, Component, Prop } from "vue-property-decorator";
+
+export interface ConfigItem {
+  type: "text" | "button" | "check" | "select";
+  title: string;
+  describe?: string;
+  color?: string;
+  loading?: boolean;
+  disabled?: boolean;
+  click?: any;
+  value?: any;
+  change?: any;
+}
+
+export interface ConfigGroup {
+  items: ConfigItem[];
+}
+
+export interface PanelConfigs {
+  [key: string]: ConfigGroup;
+}
 
 @Component({})
 export default class Panels extends Vue {

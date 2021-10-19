@@ -13,22 +13,28 @@
 <script lang="ts">
 import { ScriptController } from "@App/apps/script/controller";
 import { Vue, Component } from "vue-property-decorator";
-import Panels from "@App/views/components/Panels.vue";
+import Panels, {
+  ConfigItem,
+  PanelConfigs,
+} from "@App/views/components/Panels.vue";
 import { saveAs } from "file-saver";
 import { File, Resource, Script, Subscribe } from "@App/model/do/back";
 import { SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
 import { strToBase64 } from "@App/pkg/utils";
 import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
+import { ToolsController } from "@App/apps/tools/controller";
+import { SystemConfig } from "@App/pkg/config";
 
 @Component({
   components: { Panels },
 })
 export default class Tools extends Vue {
   scriptCtl = new ScriptController();
+  toolsCtrl = new ToolsController();
 
   panel = [0, 1, 2, 3];
 
-  configs = {
+  configs: PanelConfigs = {
     备份: {
       items: [
         {
@@ -46,6 +52,27 @@ export default class Tools extends Vue {
           describe: "导入备份文件",
           color: "blue-grey",
           click: this.clickImportFile,
+        },
+      ],
+    },
+    开发调试: {
+      items: [
+        {
+          type: "text",
+          title: "VSCode地址",
+          describe: "连接地址,默认一般为: ws://localhost:8642",
+          value: SystemConfig.vscode_url,
+          loading: false,
+          disabled: false,
+          change(val: ConfigItem) {
+            SystemConfig.vscode_url = val.value;
+          },
+        },
+        {
+          type: "button",
+          title: "连接",
+          color: "blue-grey",
+          click: this.connectVScode,
         },
       ],
     },
@@ -197,6 +224,21 @@ export default class Tools extends Vue {
       default:
         return "o" + JSON.stringify(val);
     }
+  }
+
+  async connectVScode(val: ConfigItem) {
+    val.loading = true;
+    val.disabled = true;
+    let ret = await this.toolsCtrl.connectVScode(
+      this.configs.开发调试.items[0].value!
+    );
+    if (typeof ret === "string") {
+      alert(ret);
+    } else {
+      alert("连接成功");
+    }
+    val.loading = false;
+    val.disabled = false;
   }
 }
 </script>
