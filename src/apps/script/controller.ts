@@ -284,7 +284,7 @@ export class ScriptController {
     public getScriptLog(scriptId: number, page?: Page): Promise<Log[]> {
         return this.logModel.list(query => {
             return query.where({ scriptId: scriptId, origin: "GM_log" });
-        });
+        }, page);
     }
 
     public clearLog(scriptId: number) {

@@ -459,7 +459,11 @@
               {{ log.level }} {{ formatTime(log.createtime) }} -
               <div v-html="log.message" style="display: inline"></div>
             </div>
-            <div class="d-flex justify-center" style="padding: 4px">
+            <div
+              v-if="logScript.runStatus == 'running'"
+              class="d-flex justify-center"
+              style="padding: 4px"
+            >
               <div>
                 <v-progress-circular
                   indeterminate
@@ -771,11 +775,7 @@ export default class ScriptList extends Vue {
     this.logScript = item;
     this.logs = [];
     this.showlog = true;
-    this.logs = await this.scriptController.getScriptLog(
-      item.id,
-      new Page(1, 20, "desc")
-    );
-    this.logs = this.logs.reverse();
+    this.logs = await this.scriptController.getScriptLog(item.id);
     setTimeout(() => {
       let el = document.querySelector("#log-show");
       if (el) {
