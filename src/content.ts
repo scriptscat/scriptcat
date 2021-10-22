@@ -1,6 +1,7 @@
+import { ExternalWhitelist } from "./apps/config";
 import { Grant } from "./apps/grant/interface";
 import { BrowserMsg } from "./apps/msg-center/browser";
-import { ScriptExec, ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
+import { ExternalMessage, ScriptExec, ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
 import { MsgCenter } from "./apps/msg-center/msg-center";
 import { ScriptCache } from "./model/do/script";
 
@@ -18,6 +19,7 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
                 browserMsg.send(msg.flag!, msg);
                 break;
             default:
+                // NOTE: 好像没处理释放问题
                 MsgCenter.connect(ScriptGrant, msg).addListener((msg: Grant, port: chrome.runtime.Port) => {
                     browserMsg.send(msg.flag!, msg);
                 });
@@ -25,6 +27,11 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
     });
     MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
         browserMsg.send(ScriptValueChange, msg);
+    });
+    browserMsg.listen(ExternalMessage, msg => {
+        MsgCenter.connect(ExternalMessage, msg).addListener((msg, port) => {
+            browserMsg.send(ExternalMessage, msg);
+        });
     });
     chrome.runtime.onMessage.addListener((event) => {
         switch (event.action) {

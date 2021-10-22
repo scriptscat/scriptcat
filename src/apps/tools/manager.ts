@@ -1,5 +1,6 @@
 import { Manager } from "@App/pkg/apps/manager";
-import { ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event";
+import { ExternalWhitelist } from "../config";
+import { ExternalMessage, ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event";
 import { ScriptController } from "../script/controller";
 import { ScriptManager } from "../script/manager";
 
@@ -18,6 +19,29 @@ export class ToolsManager extends Manager {
 	public listenEvent() {
 		this.listenerMessage(ToolsConnectVSCode, this.connectVSCode);
 		this.listenerMessage(ToolsDisconnecttVSCode, this.connectVSCode);
+
+		this.listenerMessage(ExternalMessage, this.externalMessage);
+	}
+
+	public externalMessage(body: any, sendResponse: (response?: any) => void, sender?: chrome.runtime.MessageSender) {
+		return new Promise(async resolve => {
+			// 对外接口白名单
+			let u = new URL(sender?.url!);
+			for (let i = 0; i < ExternalWhitelist.length; i++) {
+				if (u.host.endsWith(ExternalWhitelist[i])) {
+					switch (body.action) {
+						case "isInstalled":
+							let script = await this.scriptController.scriptModel.findByNameAndNamespace(body.params.name, body.params.namespace);
+							if (script) {
+								resolve({ action: 'isInstalled', data: { installed: true, version: script.metadata['version'] && script.metadata['version'][0] } });
+							} else {
+								resolve({ action: 'isInstalled', data: { installed: false } });
+							}
+					}
+					return;
+				}
+			}
+		});
 	}
 
 	public connectVSCode(url: string) {

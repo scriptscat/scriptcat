@@ -40,7 +40,7 @@ export class FrontendGrant implements ScriptContext {
         this.script = script;
         this.browserMsg = browserMsg!;
         if (browserMsg) {
-            this.licenseMsg();
+            this.listenMsg();
         }
         // 处理GM_cookie.list等操作
         let action = (action: string) => {
@@ -114,7 +114,7 @@ export class FrontendGrant implements ScriptContext {
         this.browserMsg.send("grant", grant);
     }
 
-    public licenseMsg = () => {
+    public listenMsg = () => {
         this.browserMsg.listen(this.script.flag!, (grant: Grant) => {
             let callback = this.request.get(grant.request);
             if (callback) {

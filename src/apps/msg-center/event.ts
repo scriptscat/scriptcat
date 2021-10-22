@@ -45,6 +45,8 @@ export const RequestImportFile: string = "request-import-file";
 export const ToolsConnectVSCode = "tools-connect-vscode";
 export const ToolsDisconnecttVSCode = "tools-disconnect-vscode";
 
+export const ExternalMessage = 'external.message';
+
 // 单页面内的消息
 export class AppEvent {
     public static eventMap = new Map<string, Map<any, any>>();

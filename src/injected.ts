@@ -1,8 +1,9 @@
 // splitChunks对injected可能会有问题
 
+import { ExternalWhitelist } from "./apps/config";
 import { FrontendGrant, ScriptContext } from "./apps/grant/frontend";
 import { BrowserMsg } from "./apps/msg-center/browser";
-import { ScriptExec, ScriptValueChange } from "./apps/msg-center/event";
+import { ExternalMessage, ScriptExec, ScriptValueChange } from "./apps/msg-center/event";
 import { ScriptCache } from "./model/do/script";
 import { Value } from "./model/do/value";
 import { addStyle } from "./pkg/frontend";
@@ -99,3 +100,29 @@ browserMsg.listen("scripts", (msg) => {
     });
 
 });
+
+
+// 对外接口白名单
+for (let i = 0; i < ExternalWhitelist.length; i++) {
+    if (window.location.host.endsWith(ExternalWhitelist[i])) {
+        // 注入
+        let isInstalledCallback: any;
+        (<any>window).external = window.external || {};
+        browserMsg.listen(ExternalMessage, (msg) => {
+            switch (msg.action) {
+                case "isInstalled":
+                    isInstalledCallback(msg.data);
+                    break;
+            }
+        });
+        (<any>window.external).Scriptcat = {
+            isInstalled(name: string, namespace: string, callback: any) {
+                isInstalledCallback = callback;
+                browserMsg.send(ExternalMessage, { 'action': 'isInstalled', 'params': { name, namespace } });
+            }
+        };
+        (<any>window.external).Tampermonkey = (<any>window.external).Scriptcat;
+        break;
+    }
+
+}
