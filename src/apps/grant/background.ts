@@ -992,9 +992,13 @@ export class BackgroundGrant {
         listener: () => {
             document.body.appendChild(BackgroundGrant.textarea);
             document.addEventListener('copy', (e: ClipboardEvent) => {
+                if (!BackgroundGrant.clipboardData) {
+                    return;
+                }
                 e.preventDefault();
                 let { type, data } = BackgroundGrant.clipboardData;
                 (<any>e).clipboardData.setData(type || 'text/plain', data);
+                BackgroundGrant.clipboardData = undefined;
             })
         }
     })
