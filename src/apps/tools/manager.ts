@@ -3,7 +3,6 @@ import { ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event"
 import { ScriptController } from "../script/controller";
 import { ScriptManager } from "../script/manager";
 
-
 export class ToolsManager extends Manager {
 
 	protected scriptManager: ScriptManager;
@@ -43,7 +42,7 @@ export class ToolsManager extends Manager {
 				switch (data.action) {
 					case 'onchange': {
 						let code = data.data.script;
-						let [newScript, oldScript] = await this.scriptController.prepareScriptByCode(code, "");
+						let [newScript, oldScript] = await this.scriptController.prepareScriptByCode(code, data.data.uri);
 						if (typeof oldScript === "string") {
 							return;
 						}
