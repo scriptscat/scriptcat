@@ -32,7 +32,7 @@ export class ToolsManager extends Manager {
 				return resolve(e.message);
 			}
 			this.wsc.addEventListener('open', (ev) => {
-				this.wsc!.send('Hello Server!');
+				this.wsc!.send('{"action":"hello"}');
 				resolve(true);
 			});
 
