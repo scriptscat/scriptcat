@@ -6,9 +6,14 @@ export class Manager {
 		MsgCenter.listenerMessage(topic, async (body, send, sender) => {
 			let ret = <any>callback.call(this, body, send, sender)
 			if (ret instanceof Promise) {
-				ret = await ret;
+				ret.then((ret) => {
+					send(ret);
+				}).catch(ret => {
+					send(ret);
+				})
+			} else {
+				send(ret);
 			}
-			send(ret);
 		});
 	}
 

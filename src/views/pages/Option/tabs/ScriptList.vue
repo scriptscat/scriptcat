@@ -562,7 +562,7 @@
         <span>定时脚本</span>
       </v-tooltip>
 
-      <!-- <v-tooltip left>
+      <v-tooltip left>
         <template v-slot:activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
@@ -571,13 +571,13 @@
             dark
             small
             color="#1296db"
-            @click="newScript('background')"
+            @click="linkInstall()"
           >
-            <v-icon>mdi-open-in-new</v-icon>
+            <v-icon>mdi-link</v-icon>
           </v-btn>
         </template>
         <span>链接导入</span>
-      </v-tooltip> -->
+      </v-tooltip>
     </v-speed-dial>
   </div>
 </template>
@@ -595,6 +595,7 @@ import {
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import {
   ListenGmLog,
+  ScriptInstallByURL,
   ScriptRunStatusChange,
   SyncTaskEvent,
 } from "@App/apps/msg-center/event";
@@ -973,6 +974,14 @@ export default class ScriptList extends Vue {
     };
     document.execCommand("copy", false, <any>null);
     scriptModule.showSnackbar("复制成功");
+  }
+
+  linkInstall() {
+    let url = prompt("请填写脚本url", "");
+    if (!url) {
+      return;
+    }
+    MsgCenter.sendMessage(ScriptInstallByURL, url);
   }
 }
 </script>

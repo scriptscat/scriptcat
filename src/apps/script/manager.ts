@@ -1,7 +1,7 @@
 import axios from "axios";
-import { MessageCallback, MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile } from "@App/apps/msg-center/event";
-import { dealScript, get, Page, randomString } from "@App/pkg/utils";
+import { MsgCenter } from "@App/apps/msg-center/msg-center";
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from "@App/apps/msg-center/event";
+import { dealScript, get, randomString } from "@App/pkg/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";
@@ -21,9 +21,10 @@ import { SyncModel } from "@App/model/sync";
 import { SyncAction, SyncData } from "@App/model/do/sync";
 import { File } from "@App/model/do/back";
 import { v4 as uuidv4 } from "uuid";
+import { Manager } from "@App/pkg/apps/manager";
 
 // 脚本管理器,收到控制器消息进行实际的操作
-export class ScriptManager {
+export class ScriptManager extends Manager {
 
     protected scriptModel = new ScriptModel();
     protected subscribeModel = new SubscribeModel();
@@ -86,6 +87,7 @@ export class ScriptManager {
     public listen() {
 
         // 消息监听处理
+        this.listenerMessage(ScriptInstallByURL, this.installScriptByURL);
         this.listenerMessage(ScriptInstall, this.scriptInstall)
         this.listenerMessage(ScriptReinstall, this.scriptReinstall)
         this.listenerMessage(ScriptUninstall, (body) => { return this.scriptUninstall(body, false) })
@@ -124,7 +126,11 @@ export class ScriptManager {
                 if (hash.indexOf("bypass=true") != -1) {
                     return;
                 }
-                this.installScript(req.tabId, req.url);
+                this.installScriptByURL(req.url).catch(() => {
+                    chrome.tabs.update(req.tabId, {
+                        url: req.url + "#bypass=true",
+                    });
+                });
                 return { redirectUrl: "javascript:void 0" };
             },
             {
@@ -138,18 +144,19 @@ export class ScriptManager {
         );
     }
 
-    public async installScript(tabid: number, url: string) {
-        let info = await loadScriptByUrl(url);
-        if (info) {
-            App.Cache.set("install:info:" + info.uuid, info);
-            chrome.tabs.create({
-                url: "install.html?uuid=" + info.uuid,
-            });
-        } else {
-            chrome.tabs.update(tabid, {
-                url: url + "#bypass=true",
-            });
-        }
+    public async installScriptByURL(url: string) {
+        return new Promise(async (resolve, reject) => {
+            let info = await loadScriptByUrl(url);
+            if (info) {
+                App.Cache.set("install:info:" + info.uuid, info);
+                chrome.tabs.create({
+                    url: "install.html?uuid=" + info.uuid,
+                });
+                resolve(true);
+            } else {
+                reject(false);
+            }
+        });
     }
 
     // 监听来自AppEvent的事件和连接来自其它地方的长链接,转发AppEvent的事件
@@ -174,16 +181,6 @@ export class ScriptManager {
                 val.postMessage(msg);
             });
         })
-    }
-
-    public listenerMessage(topic: string, callback: MessageCallback) {
-        MsgCenter.listenerMessage(topic, async (body, send, sender) => {
-            let ret = <any>callback.call(this, body, send, sender)
-            if (ret instanceof Promise) {
-                ret = await ret;
-            }
-            send(ret);
-        });
     }
 
     public requestConfirmInfo(uuid: string): Promise<ConfirmParam> {

@@ -3,6 +3,7 @@ export const PermissionConfirm: string = "permission-confirm";
 
 export const ScriptExec: string = "script-exec";
 export const ScriptStop: string = "script-stop";
+export const ScriptInstallByURL: string = "script-install-by-url";
 export const ScriptInstall: string = "script-install";
 export const ScriptReinstall: string = "script-reinstall";
 export const ScriptUninstall: string = "script-uninstall";
