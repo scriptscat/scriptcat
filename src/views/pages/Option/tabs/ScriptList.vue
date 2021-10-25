@@ -1,12 +1,11 @@
 <template>
   <div>
     <v-data-table
+      id="script-list"
       :headers="headers"
       :items="scripts"
       sort-by="sort"
       :items-per-page="1000"
-      :sort-desc="true"
-      class="elevation-1"
       v-model="selected"
       :single-select="false"
       show-select
@@ -158,7 +157,7 @@
       </template>
 
       <template v-slot:[`item.sort`]="">
-        <v-icon small style="cursor: pointer"> mdi-menu </v-icon>
+        <v-icon small class="handle" style="cursor: move"> mdi-menu </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -616,6 +615,8 @@ import BgCloud from "@components/BgCloud.vue";
 import { BackgroundGrant } from "@App/apps/grant/background";
 import { scriptModule } from "../store/script";
 
+import Sortable from "sortablejs";
+
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
 
@@ -688,9 +689,9 @@ export default class ScriptList extends Vue {
     { text: "开启", value: "status" },
     { text: "名称", value: "name" },
     { text: "版本", value: "version" },
-    { text: "应用至/运行状态", value: "site" },
-    { text: "来源", value: "origin" },
-    { text: "主页", value: "home" },
+    { text: "应用至/运行状态", value: "site", sortable: false },
+    { text: "来源", value: "origin", sortable: false },
+    { text: "主页", value: "home", sortable: false },
     { text: "排序", value: "sort", align: "center" },
     { text: "最后更新", value: "updatetime", width: 100, align: "center" },
     { text: "操作", value: "actions", sortable: false },
@@ -711,13 +712,72 @@ export default class ScriptList extends Vue {
   // fab开启与关闭时，显示不同的图标
   fab = false;
 
+  scriptlist(result: Script[]) {
+    // 校对排序位置
+    for (let i = 0; i < result.length; i++) {
+      if (result[i].sort !== i) {
+        this.scriptController.scriptModel.update(result[i].id, {
+          sort: i,
+        });
+        result[i].sort = i;
+      }
+    }
+    this.scripts = result;
+    this.handleScriptConfig(this.scripts);
+  }
+
   created() {
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
-    this.scriptController.scriptList(undefined).then(async (result) => {
-      this.scripts = result;
-      this.handleScriptConfig(this.scripts);
-    });
+    this.scriptController
+      .scriptList((table) => {
+        return table.orderBy("sort");
+      })
+      .then(async (result) => {
+        this.scriptlist(result);
+        this.$nextTick(() => {
+          Sortable.create(
+            <HTMLElement>document.querySelector("#script-list table tbody")!,
+            {
+              handle: ".handle",
+              animation: 150,
+              onEnd: (ev) => {
+                console.log(ev);
+                // 修改中间部分索引
+                let start = 0,
+                  end = 0,
+                  add = 0,
+                  scripts = this.scripts,
+                  tmp: Script = scripts[ev.oldIndex!],
+                  index = ev.newIndex!;
+                start = ev.oldIndex!;
+                end = ev.newIndex!;
+                if (ev.oldIndex! > ev.newIndex!) {
+                  // 选中前移,范围后移
+                  add = -1;
+                } else {
+                  // 选中后移,范围前移
+                  add = 1;
+                }
+                for (let i = start; i - end !== 0; i += add) {
+                  scripts[i] = scripts[i + add];
+                  scripts[i].sort = i;
+                  // 修改排序
+                  this.scriptController.scriptModel.update(scripts[i].id, {
+                    sort: i,
+                  });
+                }
+                tmp.sort = index;
+                scripts[index] = tmp;
+                this.scriptController.scriptModel.update(tmp.id, {
+                  sort: index,
+                });
+                this.scripts = scripts;
+              },
+            }
+          );
+        });
+      });
     // 监听script状态变更
     MsgCenter.listener(ScriptRunStatusChange, (param) => {
       for (let i = 0; i < this.scripts.length; i++) {
@@ -730,19 +790,25 @@ export default class ScriptList extends Vue {
 
     MsgCenter.listener(SyncTaskEvent, () => {
       // 同步完成,刷新页面
-      this.scriptController.scriptList(undefined).then(async (result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
+      this.scriptController
+        .scriptList((table) => {
+          return table.orderBy("sort");
+        })
+        .then(async (result) => {
+          this.scriptlist(result);
+        });
     });
 
     // todo 监听脚本列表更新，自动同步最新(比如新建)
     // MsgCenter.listener(ScriptUpdate, () => {
     eventBus.$on(EventType.UpdateScriptList, () => {
-      this.scriptController.scriptList(undefined).then((result) => {
-        this.scripts = result;
-        this.handleScriptConfig(this.scripts);
-      });
+      this.scriptController
+        .scriptList((table) => {
+          return table.orderBy("sort");
+        })
+        .then((result) => {
+          this.scriptlist(result);
+        });
     });
 
     MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {

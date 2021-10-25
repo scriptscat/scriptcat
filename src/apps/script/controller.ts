@@ -256,7 +256,7 @@ export class ScriptController {
                 config: parseUserConfig(code),
                 metadata: metadata,
                 selfMetadata: {},
-                sort: 0,
+                sort: -1,
                 type: type,
                 status: SCRIPT_STATUS_DISABLE,
                 runStatus: SCRIPT_RUN_STATUS_COMPLETE,
@@ -265,7 +265,7 @@ export class ScriptController {
                 checktime: 0,
             };
             let old = await this.scriptModel.findByUUID(script.uuid);
-            if (uuid == undefined && (!old && script.origin)) {
+            if (!old && uuid == undefined) {
                 old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);
             }
             if (old) {
