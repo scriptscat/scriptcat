@@ -264,6 +264,7 @@ export class ScriptController {
                 updatetime: new Date().getTime(),
                 checktime: 0,
             };
+            console.log(script);
             let old = await this.scriptModel.findByUUID(script.uuid);
             if (!old && uuid == undefined) {
                 old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);

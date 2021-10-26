@@ -166,7 +166,7 @@ export default class ScriptTab extends Vue {
       await this.scriptController.prepareScriptByCode(
         currentCode,
         this.script.origin || "",
-        this.script.origin ? undefined : uuidv4()
+        this.script.uuid ? this.script.uuid : uuidv4()
       );
 
     if (newScript == undefined) {
