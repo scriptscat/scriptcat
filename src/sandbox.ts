@@ -1,7 +1,7 @@
 import { CronJob } from "cron";
 import { buildThis, compileScript, createSandboxContext } from "@App/pkg/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
-import { SendLogger } from "./pkg/utils";
+import { SendLogger } from "./pkg/utils/utils";
 import { App, ENV_FRONTEND, InitApp } from "./apps/app";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { ConsoleLogger } from "./apps/logger/logger";

@@ -1,5 +1,5 @@
-import Dexie, { PromiseExtended } from "dexie";
-import { Page } from "../pkg/utils";
+import Dexie from "dexie";
+import { Page } from "../pkg/utils/utils";
 
 export let db = new Dexie("ScriptCat");
 

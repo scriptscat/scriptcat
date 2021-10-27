@@ -1,7 +1,7 @@
 import { ScriptCache } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { addStyle } from "@App/pkg/frontend";
-import { randomInt, randomString } from "@App/pkg/utils";
+import { randomInt, randomString } from "@App/pkg/utils/utils";
 import { BrowserMsg } from "../msg-center/browser";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { Grant } from "./interface";

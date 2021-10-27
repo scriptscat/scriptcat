@@ -1,9 +1,6 @@
 import "reflect-metadata";
 import "vuetify/dist/vuetify.min.css";
 
-// @ts-ignore
-import dts from "@App/types/tampermonkey.d.ts";
-import { languages } from "monaco-editor";
 import Vue from "vue";
 import Component from "vue-class-component";
 import VueRouter, { RouteConfig } from "vue-router";
@@ -17,6 +14,7 @@ import { DBLogger } from "./apps/logger/logger";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { ENV_FRONTEND, InitApp } from "./apps/app";
 import { SystemConfig } from "./pkg/config";
+import { registerEditorPrompt } from "./pkg/utils/editor";
 
 migrate();
 
@@ -28,17 +26,7 @@ InitApp({
 
 SystemConfig.init();
 
-// @ts-ignore
-self.MonacoEnvironment = {
-    getWorkerUrl: function (moduleId: any, label: any) {
-        if (label === "typescript" || label === "javascript") {
-            return "./src/ts.worker.js";
-        }
-        return "./src/editor.worker.js";
-    },
-};
-
-languages.typescript.javascriptDefaults.addExtraLib(dts, "tampermonkey.d.ts");
+registerEditorPrompt();
 
 Vue.use(VuetifyDialogPromise);
 Vue.use(VueRouter);

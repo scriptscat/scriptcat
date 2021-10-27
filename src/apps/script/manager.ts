@@ -1,7 +1,7 @@
 import axios from "axios";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
 import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from "@App/apps/msg-center/event";
-import { dealScript, get, randomString } from "@App/pkg/utils";
+import { dealScript, get, randomString } from "@App/pkg/utils/utils";
 import { App } from "../app";
 import { UrlMatch } from "@App/pkg/match";
 import { ValueModel } from "@App/model/value";

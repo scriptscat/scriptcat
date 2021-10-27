@@ -1,6 +1,6 @@
 import { SystemCacheEvent } from "@App/apps/msg-center/event";
 import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { randomString } from "@App/pkg/utils";
+import { randomString } from "@App/pkg/utils/utils";
 import { CHANGE_EVENT } from "../storage";
 import { MapCache, ICache } from "./cache";
 

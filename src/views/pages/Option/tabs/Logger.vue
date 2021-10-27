@@ -57,7 +57,7 @@ import {
   LOGGER_LEVEL_INFO,
   LOGGER_LEVEL_WARN,
 } from "@App/model/do/logger";
-import { Page } from "@App/pkg/utils";
+import { Page } from "@App/pkg/utils/utils";
 import { Vue, Component, Watch } from "vue-property-decorator";
 
 import dayjs from "dayjs";

@@ -56,7 +56,7 @@ import META from "./META.vue";
 import Editor from "./Editor.vue";
 import Resource from "./Resource.vue";
 import Storage from "./Storage.vue";
-import { get } from "@App/pkg/utils";
+import { get } from "@App/pkg/utils/utils";
 import EventType from "../../EventType";
 import { languages } from "monaco-editor";
 import { scriptModule } from "../../store/script";

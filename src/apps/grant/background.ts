@@ -1,5 +1,5 @@
 import { PermissionModel } from "@App/model/permission";
-import { isFirefox } from "@App/pkg/utils";
+import { isFirefox } from "@App/pkg/utils/utils";
 import { App } from "../app";
 import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";

@@ -20,7 +20,7 @@ import Panels, {
 import { saveAs } from "file-saver";
 import { File, Resource, Script, Subscribe } from "@App/model/do/back";
 import { SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
-import { strToBase64 } from "@App/pkg/utils";
+import { strToBase64 } from "@App/pkg/utils/utils";
 import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
 import { ToolsController } from "@App/apps/tools/controller";
 import { SystemConfig } from "@App/pkg/config";

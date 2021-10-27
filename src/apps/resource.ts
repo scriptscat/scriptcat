@@ -1,6 +1,6 @@
 import { Resource } from "@App/model/do/resource";
 import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
-import { blobToBase64, strToBase64 } from "@App/pkg/utils";
+import { blobToBase64, strToBase64 } from "@App/pkg/utils/utils";
 import axios from "axios";
 import crypto from "crypto-js";
 import { App } from "./app";

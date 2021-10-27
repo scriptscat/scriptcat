@@ -25,7 +25,7 @@
 import { Component, Prop, Vue } from "vue-property-decorator";
 import { editor } from "monaco-editor";
 
-import { sleep } from "@App/pkg/utils";
+import { sleep } from "@App/pkg/utils/utils";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
 import backgroundTpl from "@App/template/background.tpl";

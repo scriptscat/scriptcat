@@ -110,10 +110,6 @@ declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, erro
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
 declare function CAT_click(x: number, y: number): void;
-// 同步函数
-declare namespace GM {
-    declare function fetch(details: GM_Types.XHRDetails): Promise<GM_Types.XHRResponse>;
-}
 
 declare namespace CAT_Types {
     interface ProxyRule {
@@ -197,7 +193,7 @@ declare namespace GM_Types {
         method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE"
         url: string
         headers?: { [key: string]: string }
-        data?: string
+        data?: any
         cookie?: string
         binary?: boolean
         timeout?: number

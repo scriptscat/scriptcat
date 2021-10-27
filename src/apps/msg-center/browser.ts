@@ -1,7 +1,7 @@
 
 // 前端用通信
 
-import { randomString } from "@App/pkg/utils";
+import { randomString } from "@App/pkg/utils/utils";
 
 export type ListenMsg = (msg: any) => void;
 

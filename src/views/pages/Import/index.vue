@@ -197,7 +197,7 @@ import {
   SCRIPT_STATUS_ENABLE,
 } from "@App/model/do/script";
 import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
-import { base64ToStr, waitGroup } from "@App/pkg/utils";
+import { base64ToStr, waitGroup } from "@App/pkg/utils/utils";
 import { Component, Vue } from "vue-property-decorator";
 
 @Component({})

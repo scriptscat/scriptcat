@@ -1,4 +1,4 @@
-import { get } from "@App/pkg/utils";
+import { get } from "@App/pkg/utils/utils";
 import { Server } from "../config";
 import { TriggerSync, UserLogin, UserLogout } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";

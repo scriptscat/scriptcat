@@ -1,5 +1,5 @@
 import { Server } from "@App/apps/config";
-import { get } from "@App/pkg/utils";
+import { get } from "@App/pkg/utils/utils";
 import {
     Action,
     Module,
