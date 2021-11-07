@@ -126,6 +126,26 @@ export class BackgroundGrant {
             }, {
                 urls: ["<all_urls>"],
             }, ["blocking", "requestHeaders", "extraHeaders"]);
+            let responseHeader: { [key: string]: boolean } = { "set-cookie": true };
+            chrome.webRequest.onHeadersReceived.addListener((details) => {
+                if (details.initiator && chrome.extension.getURL("").startsWith(details.initiator)) {
+                    details.responseHeaders?.forEach(val => {
+                        if (responseHeader[val.name]) {
+                            details.responseHeaders?.push({
+                                name: "x-cat-" + this.rand + "-" + val.name,
+                                value: val.value,
+                                binaryValue: val.binaryValue,
+                            });
+                        }
+                    });
+                    console.log(details.responseHeaders);
+                    return {
+                        responseHeaders: details.responseHeaders
+                    }
+                }
+            }, {
+                urls: ["<all_urls>"],
+            }, ["blocking", "responseHeaders", "extraHeaders"]);
         } catch (e) {
         }
     }
@@ -350,41 +370,38 @@ export class BackgroundGrant {
 
     }
 
-
     protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
+        let removeXCat = new RegExp("x-cat-" + this.rand + "-", "g");
+        console.log(xhr.getAllResponseHeaders().replace(removeXCat, ""), removeXCat);
         let respond: GM_Types.XHRResponse = {
             finalUrl: config.url,
             readyState: <any>xhr.readyState,
             status: xhr.status,
             statusText: xhr.statusText,
-            responseHeaders: xhr.getAllResponseHeaders(),
+            responseHeaders: xhr.getAllResponseHeaders().replace(removeXCat, ""),
             responseType: config.responseType,
         };
         if (xhr.readyState === 4) {
-            let contentType = xhr.getResponseHeader("Content-Type");
-            if ((!config.responseType && contentType && contentType.indexOf("application/json") !== -1)) {
+            if (config.responseType == "arraybuffer" || config.responseType == "blob") {
+                if (xhr.response instanceof ArrayBuffer) {
+                    respond.response = URL.createObjectURL(new Blob([xhr.response]));
+                } else {
+                    respond.response = URL.createObjectURL(xhr.response);
+                }
+                setTimeout(() => {
+                    URL.revokeObjectURL(respond.response);
+                }, 60e3)
+            } else if (config.responseType == "json") {
                 try {
-                    respond.response = JSON.parse(xhr.responseText);
+                    respond.response = JSON.parse(xhr.response);
                 } catch (e) {
                 }
             } else {
-                if (!respond.response && (config.responseType == "arraybuffer" || config.responseType == "blob")) {
-                    if (xhr.response instanceof ArrayBuffer) {
-                        respond.response = URL.createObjectURL(new Blob([xhr.response]));
-                    } else {
-                        respond.response = URL.createObjectURL(xhr.response);
-                    }
-                    setTimeout(() => {
-                        URL.revokeObjectURL(respond.response);
-                    }, 60e3)
-                } else {
-                    respond.response = xhr.response;
-                }
+                respond.response = xhr.response;
             }
             try {
                 respond.responseText = xhr.responseText;
             } catch (e) {
-
             }
         }
         return respond;
@@ -432,7 +449,6 @@ export class BackgroundGrant {
 
             let xhr = new XMLHttpRequest();
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
-            xhr.responseType = config.responseType || '';
             config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
 
             let _this = this;
@@ -502,7 +518,7 @@ export class BackgroundGrant {
                 xhr.setRequestHeader("X-Cat-" + this.rand + "-Cookie", config.cookie);
             }
             if (config.anonymous) {
-                xhr.setRequestHeader("X-Cat-" + this.rand + "-Anonymous", "true")
+                xhr.setRequestHeader("X-Cat-" + this.rand + "-Anonymous", "true");
             }
             if (config.overrideMimeType) {
                 xhr.overrideMimeType(config.overrideMimeType);
