@@ -214,8 +214,8 @@ export default class Index extends Vue {
         diffWordWrap: "off",
       });
       this.diff.setModel({
-        original: editor.createModel(oldsub.code, "javascript"),
-        modified: editor.createModel(this.script.code, "javascript"),
+        original: editor.createModel(this.script.code, "javascript"),
+        modified: editor.createModel(oldsub.code, "javascript"),
       });
       this.isupdate = true;
       this.oldVersion =

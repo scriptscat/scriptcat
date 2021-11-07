@@ -138,7 +138,6 @@ export class BackgroundGrant {
                             });
                         }
                     });
-                    console.log(details.responseHeaders);
                     return {
                         responseHeaders: details.responseHeaders
                     }
@@ -372,7 +371,6 @@ export class BackgroundGrant {
 
     protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
         let removeXCat = new RegExp("x-cat-" + this.rand + "-", "g");
-        console.log(xhr.getAllResponseHeaders().replace(removeXCat, ""), removeXCat);
         let respond: GM_Types.XHRResponse = {
             finalUrl: config.url,
             readyState: <any>xhr.readyState,
