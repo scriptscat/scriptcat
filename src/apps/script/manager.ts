@@ -135,8 +135,7 @@ export class ScriptManager extends Manager {
             },
             {
                 urls: [
-                    "*://*/*.user.js", chrome.runtime.getURL("/") + '*.user.js',
-                    "https://*/*.user.sub.js",
+                    "*://*/*.user.js", "https://*/*.user.sub.js", "https://*/*.user.bg.js",
                 ],
                 types: ["main_frame"],
             },
