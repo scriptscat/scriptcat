@@ -96,8 +96,8 @@ declare function GM_getTab(callback: (obj: object) => any): void;
 declare function GM_saveTab(obj: object): void;
 declare function GM_getTabs(callback: (objs: { [key: number]: object }) => any): void;
 
-declare function GM_notification(details: GM_Types.NotificationDetails, ondone: GM_Types.NotificationOnDone): void;
-declare function GM_notification(text: string, title: string, image: string, onclick: GM_Types.NotificationOnClick): void;
+declare function GM_notification(details: GM_Types.NotificationDetails, ondone?: GM_Types.NotificationOnDone): void;
+declare function GM_notification(text: string, title: string, image: string, onclick?: GM_Types.NotificationOnClick): void;
 declare function GM_closeNotification(id: string): void;
 declare function GM_updateNotification(id: string, details: GM_Types.NotificationDetails): void;
 
@@ -190,7 +190,7 @@ declare namespace GM_Types {
     type Listener<OBJ> = (event: OBJ) => any;
 
     interface XHRDetails {
-        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE"
+        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS"
         url: string
         headers?: { [key: string]: string }
         data?: any
