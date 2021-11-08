@@ -1,5 +1,5 @@
 import { CronJob } from "cron";
-import { buildThis, compileScript, createSandboxContext } from "@App/pkg/sandbox";
+import { buildThis } from "@App/pkg/sandbox/sandbox";
 import { SandboxContext } from "./apps/grant/frontend";
 import { SendLogger } from "./pkg/utils/utils";
 import { App, ENV_FRONTEND, InitApp } from "./apps/app";
@@ -9,6 +9,7 @@ import { AppEvent, ScriptValueChange } from "./apps/msg-center/event";
 import { LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR } from "./model/do/logger";
 import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from "./model/do/script";
 import { nextTime } from "./views/pages/utils";
+import { compileScript, createSandboxContext } from "./pkg/sandbox/compile";
 
 InitApp({
     Log: new ConsoleLogger(),

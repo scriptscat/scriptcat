@@ -7,7 +7,8 @@ import { ExternalMessage, ScriptExec, ScriptValueChange } from "./apps/msg-cente
 import { ScriptCache } from "./model/do/script";
 import { Value } from "./model/do/value";
 import { addStyle } from "./pkg/frontend";
-import { buildThis, createContext } from "./pkg/sandbox";
+import { createContext } from "./pkg/sandbox/compile";
+import { buildThis } from "./pkg/sandbox/sandbox";
 
 // 参考了tm的实现
 function waitBody(callback: () => void) {

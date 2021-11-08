@@ -6,7 +6,11 @@
     }"
   >
     <div style="padding-left: 6px; background: #e0e0e0">
-      <v-menu v-for="[title, items] in Object.entries(menu)" :key="title" offset-y>
+      <v-menu
+        v-for="[title, items] in Object.entries(menu)"
+        :key="title"
+        offset-y
+      >
         <template v-slot:activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
@@ -65,9 +69,7 @@ import { Script, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
 
 import ResizableEditor from "@components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
-import { scriptModule } from "../../store/script";
 import eventBus from "@App/views/EventBus";
-import { createSandboxContext } from "@App/pkg/sandbox";
 
 interface IEditorMenu {
   [title: string]: {

@@ -15,7 +15,7 @@ import { ValueModel } from '@App/model/value';
 import { App } from '../app';
 import { Resource } from '@App/model/do/resource';
 import { ResourceManager } from '../resource';
-import { compileScriptCode } from '@App/pkg/sandbox';
+import { compileScriptCode } from '@App/pkg/sandbox/compile';
 import { SubscribeModel } from '@App/model/subscribe';
 import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
 import { File } from '@App/model/do/back';
