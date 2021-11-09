@@ -132,7 +132,7 @@ export class UserManager {
                                 syncNum++;
                             }
                         }
-                        InfoNotification('首次数据同步成功', `成功拉取${data.length}个脚本,有${syncNum}个脚本将自动同步`);
+                        InfoNotification('首次数据同步成功', `成功拉取${map.size}个脚本,有${syncNum}个脚本将自动同步`);
                         if (syncNum > 0) {
                             this.syncScript();
                         } else {
@@ -181,7 +181,7 @@ export class UserManager {
                                 syncNum++;
                             }
                         }
-                        InfoNotification('首次数据同步成功', `成功拉取${data.length}个订阅,有${syncNum}个订阅将自动同步`);
+                        InfoNotification('首次数据同步成功', `成功拉取${map.size}个订阅,有${syncNum}个订阅将自动同步`);
                         if (syncNum > 0) {
                             this.syncSubscribe();
                         } else {
