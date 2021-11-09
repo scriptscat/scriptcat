@@ -254,5 +254,4 @@ export default class Popup extends Vue {
   padding: 0px;
   padding-left: 16px;
 }
-
 </style>

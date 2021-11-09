@@ -723,6 +723,7 @@ export class ScriptManager extends Manager {
                 //name去重
                 for (let i = 0; i < scriptMenu.length; i++) {
                     if (scriptMenu[i].name == param.name) {
+                        scriptMenu[i] = param;
                         return;
                     }
                 }
@@ -736,6 +737,7 @@ export class ScriptManager extends Manager {
                 }
                 for (let i = 0; i < scriptMenu.length; i++) {
                     if (scriptMenu[i].name == param.name) {
+                        scriptMenu[i] = param;
                         return;
                     }
                 }
@@ -765,11 +767,11 @@ export class ScriptManager extends Manager {
             AppEvent.trigger(TabRemove, tabId);
         });
         chrome.tabs.onUpdated.addListener((tabId, info) => {
-            if (info.status != "loading") {
+            if (info.status === undefined || info.status == "unloaded") {
+                runMenu.delete(tabId);
+                AppEvent.trigger(TabRemove, tabId);
                 return;
             }
-            runMenu.delete(tabId);
-            AppEvent.trigger(TabRemove, tabId);
         });
         this.listenerMessage(RequestTabRunScript, (val) => {
             return {
