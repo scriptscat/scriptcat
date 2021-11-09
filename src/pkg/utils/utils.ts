@@ -262,6 +262,18 @@ export function blobToBase64(blob: Blob): Promise<string | null> {
     });
 }
 
+export function base64ToBlob(dataURI: string) {
+    var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    var byteString = atob(dataURI.split(',')[1]);
+    var arrayBuffer = new ArrayBuffer(byteString.length);
+    var intArray = new Uint8Array(arrayBuffer);
+
+    for (var i = 0; i < byteString.length; i++) {
+        intArray[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([intArray], { type: mimeString });
+}
+
 export function base64ToStr(base64: string): string {
     return decodeURIComponent(atob(base64).split('').map(function (c) {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);

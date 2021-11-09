@@ -1,7 +1,7 @@
 import { ScriptCache } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { addStyle } from "@App/pkg/frontend";
-import { randomInt, randomString } from "@App/pkg/utils/utils";
+import { blobToBase64, randomInt, randomString } from "@App/pkg/utils/utils";
 import { BrowserMsg } from "../msg-center/browser";
 import { AppEvent, ScriptValueChange } from "../msg-center/event";
 import { Grant } from "./interface";
@@ -133,7 +133,7 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
-    public GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
+    public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let param: GM_Types.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
@@ -150,6 +150,35 @@ export class FrontendGrant implements ScriptContext {
         };
         if (details.nocache) {
             param.headers!["Cache-Control"] = 'no-cache';
+        }
+        if (param.data instanceof FormData) {
+            (<any>param).dataType = "FormData";
+            let data = [];
+            let keys: { [key: string]: boolean } = {};
+            param.data.forEach((val, key) => {
+                keys[key] = true;
+            });
+            for (const key in keys) {
+                let values = param.data.getAll(key);
+                for (let i = 0; i < values.length; i++) {
+                    let val = values[i];
+                    if (val instanceof File) {
+                        data.push({
+                            key: key,
+                            type: "file",
+                            val: await blobToBase64(val),
+                            filename: val.name
+                        });
+                    } else {
+                        data.push({
+                            key: key,
+                            type: "text",
+                            val: val
+                        });
+                    }
+                }
+            }
+            param.data = data;
         }
 
         if (details.onload && (details.responseType == "arraybuffer" || details.responseType == "blob")) {

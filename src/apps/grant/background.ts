@@ -1,5 +1,5 @@
 import { PermissionModel } from "@App/model/permission";
-import { isFirefox } from "@App/pkg/utils/utils";
+import { base64ToBlob, isFirefox } from "@App/pkg/utils/utils";
 import { App } from "../app";
 import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
 import { MsgCenter } from "../msg-center/msg-center";
@@ -520,6 +520,18 @@ export class BackgroundGrant {
             }
             if (config.overrideMimeType) {
                 xhr.overrideMimeType(config.overrideMimeType);
+            }
+            if ((<any>config).dataType && (<any>config).dataType == "FormData") {
+                let data = new FormData();
+                for (const key in config.data) {
+                    let val = config.data[key];
+                    if (val.type == "file") {
+                        data.append(val.key, base64ToBlob(val.val), val.filename);
+                    } else {
+                        data.append(val.key, val.val);
+                    }
+                }
+                config.data = data;
             }
             xhr.send(config.data);
             return resolve(undefined);
