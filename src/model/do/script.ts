@@ -24,7 +24,7 @@ export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = 'retry';
 
 export type Metadata = { [key: string]: string[] };
 
-export type ConfigType = 'text' | 'boolean' | 'select' | 'number';
+export type ConfigType = 'text' | 'checkbox' | 'select' | 'mult-select' | 'number';
 
 export interface Config {
     [key: string]: any
@@ -32,6 +32,8 @@ export interface Config {
     description: string
     default?: any
     type?: ConfigType
+    bind?: string
+    values?: any[]
 }
 
 export type UserConfig = { [key: string]: { [key: string]: Config } };

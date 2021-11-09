@@ -350,7 +350,7 @@
                           hide-details
                           v-model="item.value"
                           color="success"
-                          v-else-if="item.type === 'boolean'"
+                          v-else-if="item.type === 'checkbox'"
                           style="margin-top: 0; margin-bottom: 12px; padding: 0"
                         >
                           <template v-slot:label>
@@ -370,6 +370,16 @@
                           :suffix="item.unit"
                           :label="item.title"
                           :hint="item.description"
+                        >
+                        </v-select>
+                        <v-select
+                          v-model="item.value"
+                          v-else-if="item.type === 'mult-select'"
+                          :items="item.values"
+                          :suffix="item.unit"
+                          :label="item.title"
+                          :hint="item.description"
+                          chips
                         >
                         </v-select>
                       </div>
@@ -862,21 +872,41 @@ export default class ScriptList extends Vue {
         for (const gkey in val.config) {
           let group = val.config[gkey];
           for (const key in group) {
-            if (typeof group[key].default == "boolean") {
-              group[key].type = "boolean";
-            } else if (group[key].values) {
-              group[key].type = "select";
-            } else if (typeof group[key].default == "number") {
-              group[key].type = "number";
-            } else {
-              group[key].type = "text";
+            if (!group[key].type) {
+              if (typeof group[key].default == "boolean") {
+                group[key].type = "checkbox";
+              } else if (group[key].values) {
+                group[key].type = "select";
+                if (typeof group[key].values == "object") {
+                  group[key].type = "mult-select";
+                }
+              } else if (typeof group[key].default == "number") {
+                group[key].type = "number";
+              } else {
+                group[key].type = "text";
+              }
             }
-            let where: any = { key: gkey + "." + key };
+            let where: any = {};
             if (val.metadata["storagename"]) {
               where["storageName"] = val.metadata["storagename"][0];
             } else {
               where["scriptId"] = val.id;
             }
+            // 动态values
+            if (group[key].bind) {
+              where.key = group[key].bind!.substr(1);
+              console.log(where);
+              this.valueModel
+                .findOne(where)
+                .then((val) => {
+                  // 读取value
+                  console.log(val);
+                  if (val) {
+                    group[key].values = val.value;
+                  }
+                });
+            }
+            where.key = gkey + "." + key;
             this.valueModel.findOne(where).then((val) => {
               // 读取value
               if (val) {
