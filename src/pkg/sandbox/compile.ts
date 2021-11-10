@@ -11,7 +11,9 @@ export function compileScriptCode(script: ScriptCache): string {
 		}
 	});
 	code = require + code;
-	return 'with (context) return (()=>{\n' + code + '\n})()'
+	return 'with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
+		code + '\n//# sourceURL=' + chrome.runtime.getURL('/' + encodeURI(script.name) + '.user.js') +
+		'\n})(context)'
 }
 
 export function compileScript(script: ScriptCache): Function {

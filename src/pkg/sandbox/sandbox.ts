@@ -1,5 +1,3 @@
-import { SandboxContext, ScriptContext } from "@App/apps/grant/frontend";
-import { ScriptCache, Script } from "@App/model/do/script";
 
 export function buildWindow(): any {
     return {
@@ -7,7 +5,7 @@ export function buildWindow(): any {
     }
 }
 
-let sandboxGlobal: any = {
+let writables: any = {
     "addEventListener": global.addEventListener,
     "removeEventListener": global.removeEventListener,
     "dispatchEvent": global.dispatchEvent,
@@ -20,32 +18,29 @@ export let init = new Map<string, boolean>();
 let descs = Object.getOwnPropertyDescriptors(global);
 for (const key in descs) {
     let desc = descs[key];
-    if (desc && desc.writable && !sandboxGlobal[key]) {
-        sandboxGlobal[key] = desc.value;
+    if (desc && desc.writable && !writables[key]) {
+        writables[key] = desc.value;
     } else {
         init.set(key, true);
-        try {
-            sandboxGlobal[key] = (<any>global)[key];
-        } catch (e) {
-        }
     }
 }
+
 
 // 处理有多层结构的(先只对特殊的做处理)
 ['console'].forEach(obj => {
     let descs = Object.getOwnPropertyDescriptors((<any>global)[obj]);
-    sandboxGlobal[obj] = {};// 清零
+    writables[obj] = {};// 清零
     for (const key in descs) {
         let desc = descs[key];
         if (desc && desc.writable) {
-            sandboxGlobal[obj][key] = desc.value;
+            writables[obj][key] = desc.value;
         }
     }
 });
 
 //TODO:做一些恶意操作拦截等
 export function buildThis(global: any, context: any) {
-    let special = Object.assign({}, sandboxGlobal);
+    let special = Object.assign({}, writables);
     // 后台脚本要不要考虑不能使用eval?
     let _this: any = { eval: global.eval };
     let proxy: any = new Proxy(context, {
@@ -57,7 +52,7 @@ export function buildThis(global: any, context: any) {
                 case 'window':
                 case 'global':
                 case 'globalThis':
-                    return _this[name] || proxy;
+                    return special[name] || proxy;
             }
             if (name !== 'undefined' && name !== Symbol.unscopables) {
                 if (context[name]) {
@@ -72,8 +67,9 @@ export function buildThis(global: any, context: any) {
                     }
                     return special[name];
                 }
-                if (init.has(<string>name)) {
+                if (global[name] !== undefined) {
                     if (typeof global[name] === 'function' && !global[name].prototype) {
+                        console.log('b', name, global[name]);
                         return global[name].bind(global);
                     }
                     return global[name];
@@ -82,7 +78,6 @@ export function buildThis(global: any, context: any) {
             return undefined;
         },
         has(_, name) {
-            // 全返回true,走get里面,如果返回false,不会进入get,会跑出沙盒取变量
             return true;
         },
         set(_, name: string, val) {
@@ -90,7 +85,7 @@ export function buildThis(global: any, context: any) {
                 case 'window':
                 case 'global':
                 case 'globalThis':
-                    _this[name] = val;
+                    special[name] = val;
                     return true;
             }
             if (special[name]) {
@@ -114,7 +109,7 @@ export function buildThis(global: any, context: any) {
             if (ret) {
                 return ret;
             }
-            ret = Object.getOwnPropertyDescriptor(sandboxGlobal, name);
+            ret = Object.getOwnPropertyDescriptor(global, name);
             return ret;
         }
     });

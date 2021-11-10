@@ -587,8 +587,7 @@ export class ScriptManager extends Manager {
                 return;
             }
             let cache = await this.controller.buildScriptCache(script);
-            cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
-                cache.code + `\n}`);
+            cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + `\n}`);
             script.metadata['match']?.forEach(val => {
                 this.match.add(val, cache);
             });
@@ -603,8 +602,7 @@ export class ScriptManager extends Manager {
         this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
             items.forEach(async script => {
                 let cache = await this.controller.buildScriptCache(script);
-                cache.code = dealScript(chrome.runtime.getURL('/' + cache.name + '.user.js#uuid=' + cache.uuid), `window['${cache.flag}']=function(context){\n` +
-                    cache.code + `\n}`);
+                cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + `\n}`);
                 script.metadata['match']?.forEach(val => {
                     this.match.add(val, cache);
                 });
@@ -618,7 +616,7 @@ export class ScriptManager extends Manager {
         });
         let injectedSource = '';
         get(chrome.runtime.getURL('src/injected.js'), (source: string) => {
-            injectedSource = dealScript(chrome.runtime.getURL('src/injected.js'), `(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`);
+            injectedSource = dealScript(`(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`);
         });
         chrome.runtime.onMessage.addListener((msg, detail, send) => {
             if (msg !== 'runScript') {

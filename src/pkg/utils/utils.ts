@@ -67,8 +67,7 @@ export function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function dealScript(url: string, source: string): string {
-    source = "//# sourceURL=" + url + "\n" + source;
+export function dealScript( source: string): string {
     return dealSymbol(source);
 }
 
