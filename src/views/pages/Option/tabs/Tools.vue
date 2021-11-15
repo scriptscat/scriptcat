@@ -60,12 +60,22 @@ export default class Tools extends Vue {
         {
           type: "text",
           title: "VSCode地址",
-          describe: "连接地址,默认一般为: ws://localhost:8642,需要在vscode扩展商店中安装'scriptcat-vscode'配合食用",
+          describe:
+            "连接地址,默认一般为: ws://localhost:8642,需要在vscode扩展商店中安装'scriptcat-vscode'配合食用",
           value: SystemConfig.vscode_url,
           loading: false,
           disabled: false,
           change(val: ConfigItem) {
             SystemConfig.vscode_url = val.value;
+          },
+        },
+        {
+          type: "check",
+          title: "自动连接vscode服务",
+          describe: "启动时自动连接到vscode扩展服务,断开连接后也会自动重连",
+          value: SystemConfig.vscode_reconnect,
+          change(val: any) {
+            SystemConfig.vscode_reconnect = val.value;
           },
         },
         {

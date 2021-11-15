@@ -1,4 +1,5 @@
 import { Manager } from "@App/pkg/apps/manager";
+import { SystemConfig } from "@App/pkg/config";
 import { ExternalWhitelist } from "../config";
 import { ExternalMessage, ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event";
 import { ScriptController } from "../script/controller";
@@ -17,6 +18,13 @@ export class ToolsManager extends Manager {
 	}
 
 	public listenEvent() {
+		// 每30秒检测一次自动连接vscode
+		setInterval(() => {
+			if (SystemConfig.vscode_reconnect && !this.wsc) {
+				this.connectVSCode(SystemConfig.vscode_url);
+			}
+		}, 3e4);
+
 		this.listenerMessage(ToolsConnectVSCode, this.connectVSCode);
 		this.listenerMessage(ToolsDisconnecttVSCode, this.connectVSCode);
 
@@ -82,6 +90,7 @@ export class ToolsManager extends Manager {
 
 			this.wsc.addEventListener('error', (ev) => {
 				resolve('ws服务连接失败');
+				this.wsc = undefined;
 			});
 		});
 	}

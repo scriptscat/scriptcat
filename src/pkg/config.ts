@@ -85,6 +85,14 @@ export class SystemConfig {
     public static set vscode_url(val: string) {
         this.set("vscode_url", val);
     }
+
+    public static get vscode_reconnect(): boolean {
+        return this.cache.get("vscode_reconnect") || false;
+    }
+
+    public static set vscode_reconnect(val: boolean) {
+        this.set("vscode_reconnect", val);
+    }
 }
 
 SystemConfig.storage = new ChromeStorage("system");
