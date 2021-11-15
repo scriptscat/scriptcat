@@ -372,7 +372,7 @@ export class BackgroundGrant {
     protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
         let removeXCat = new RegExp("x-cat-" + this.rand + "-", "g");
         let respond: GM_Types.XHRResponse = {
-            finalUrl: config.url,
+            finalUrl: xhr.responseURL || config.url,
             readyState: <any>xhr.readyState,
             status: xhr.status,
             statusText: xhr.statusText,
