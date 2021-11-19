@@ -42,7 +42,7 @@ for (const key in descs) {
 export function buildThis(global: any, context: any) {
     let special = Object.assign({}, writables);
     // 后台脚本要不要考虑不能使用eval?
-    let _this: any = { eval: global.eval };
+    let _this: any = {};
     let proxy: any = new Proxy(context, {
         defineProperty(_, name, desc) {
             return Object.defineProperty(context, name, desc);
@@ -113,5 +113,6 @@ export function buildThis(global: any, context: any) {
             return ret;
         }
     });
+    _this.eval = global.eval.bind(proxy);
     return proxy;
 }
