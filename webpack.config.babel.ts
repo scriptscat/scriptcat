@@ -7,7 +7,7 @@ import htmlWebpackPlugin from "html-webpack-plugin";
 import MiniCssExtractPlugin from "mini-css-extract-plugin";
 import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
 import vueLoaderPlugin from "vue-loader/lib/plugin";
-
+const ESLintPlugin = require('eslint-webpack-plugin');
 import { Configuration } from "webpack";
 
 const home = __dirname + "/src";
@@ -114,7 +114,8 @@ const config: Configuration = {
         new CleanWebpackPlugin({ cleanStaleWebpackAssets: false }),
         new ProgressBarPlugin({
             format: `  :msg [:bar] ${chalk.green.bold(':percent')} (:elapsed s)`
-        })
+        }),
+        new ESLintPlugin(),
     ],
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],

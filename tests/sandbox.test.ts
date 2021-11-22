@@ -3,7 +3,7 @@ import { buildThis, init } from "@App/pkg/sandbox/sandbox";
 
 describe("sandbox", () => {
 	let context: any = {};
-	let global: any = { gbok: 'gbok', onload: null };
+	let global: any = { gbok: 'gbok', onload: null, eval: () => { } };
 	init.set('onload', true);
 	init.set('gbok', true);
 	let _this = buildThis(global, context);
