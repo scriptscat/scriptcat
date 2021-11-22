@@ -380,7 +380,6 @@ export class BackgroundGrant {
             responseType: config.responseType,
         };
         if (xhr.readyState === 4) {
-            console.log(xhr);
             if (config.responseType == "arraybuffer" || config.responseType == "blob") {
                 if (xhr.response instanceof ArrayBuffer) {
                     respond.response = URL.createObjectURL(new Blob([xhr.response]));
@@ -390,9 +389,9 @@ export class BackgroundGrant {
                 setTimeout(() => {
                     URL.revokeObjectURL(respond.response);
                 }, 60e3)
-            } else {
+            } else if (config.responseType == "json") {
                 try {
-                    respond.response = xhr.response;
+                    respond.response = JSON.parse(xhr.responseText);
                 } catch (e) {
                 }
             }
@@ -447,7 +446,9 @@ export class BackgroundGrant {
             let xhr = new XMLHttpRequest();
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
             config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
-            xhr.responseType = config.responseType || '';
+            if (config.responseType != "json") {
+                xhr.responseType = config.responseType || '';
+            }
             let _this = this;
 
             function deal(event: string) {
