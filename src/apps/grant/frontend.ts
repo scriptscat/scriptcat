@@ -134,10 +134,11 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
     public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
+        let u = new URL(details.url, window.location.href);
         let param: GM_Types.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
-            url: details.url,
+            url: u.href,
             headers: details.headers || {},
             data: details.data,
             cookie: details.cookie,
