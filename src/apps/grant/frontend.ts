@@ -343,7 +343,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction({ depend: ['GM_setValue'] })
     public GM_deleteValue(name: string): void {
-        GM_setValue(name, undefined);
+        this.GM_setValue(name, undefined);
     }
 
     @FrontendGrant.GMFunction()
