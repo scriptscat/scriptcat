@@ -28,12 +28,16 @@ export class BrowserMsg {
     }
 
     public send(topic: string, msg: any) {
-        let detail = {
+        let detail = Object.assign({}, {
             topic: topic,
             msg: msg,
-        };
+        });
         if ((<any>global).cloneInto) {
-            detail = (<any>global).cloneInto(detail, document.defaultView);
+            try {
+                detail = (<any>global).cloneInto(detail, document.defaultView);
+            } catch (e) {
+                console.log(e);
+            }
         }
         let ev = new CustomEvent(this.id + (this.content ? 'fd' : 'ct'), {
             detail: detail,

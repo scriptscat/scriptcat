@@ -12,7 +12,6 @@ import { Permission } from "@App/model/do/permission";
 import { Script } from "@App/model/do/script";
 import { Value } from "@App/model/do/value";
 import { execMethod, getIcon } from "./utils";
-import { Tab } from "@App/views/components/Tab";
 
 class postMessage implements IPostMessage {
 
@@ -531,9 +530,10 @@ export class BackgroundGrant {
                         data.append(val.key, val.val);
                     }
                 }
-                config.data = data;
+                xhr.send(data);
+            } else {
+                xhr.send(config.data);
             }
-            xhr.send(config.data);
             return resolve(undefined);
         });
     }
