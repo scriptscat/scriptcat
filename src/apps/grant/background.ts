@@ -64,7 +64,8 @@ export class BackgroundGrant {
                 let requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 let unsafeHeader: { [key: string]: string } = {};
                 data.requestHeaders?.forEach((val, key) => {
-                    switch (val.name.toLowerCase()) {
+                    let lowerCase = val.name.toLowerCase();
+                    switch (lowerCase) {
                         case "x-cat-" + this.rand + "-cookie": {
                             setCookie = val.value || '';
                             break;
@@ -79,7 +80,7 @@ export class BackgroundGrant {
                         case "x-cat-" + this.rand + "-origin":
                         case "x-cat-" + this.rand + "-accept-encoding":
                         case "x-cat-" + this.rand + "-connection": {
-                            unsafeHeader[val.name.substr(("x-cat-" + this.rand).length + 1)] = val.value || '';
+                            unsafeHeader[lowerCase.substr(this.rand.length + 7)] = val.value || '';
                             break;
                         }
                         case "cookie": {
@@ -90,8 +91,10 @@ export class BackgroundGrant {
                         case "host":
                         case "origin":
                         case "referer":
+                        case "accept-encoding":
+                        case "connection":
                             {
-                                unsafeHeader[val.name] = unsafeHeader[val.name] || val.value || '';
+                                unsafeHeader[lowerCase] = unsafeHeader[lowerCase] || val.value || '';
                                 break
                             }
                         default: {
