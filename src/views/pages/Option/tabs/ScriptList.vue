@@ -508,7 +508,8 @@
       transition="slide-y-reverse-transition"
       open-on-hover
       :style="{
-        position: 'absolute',
+        position: 'fixed',
+        right: '40px',
       }"
     >
       <!-- right: '20px',
@@ -896,15 +897,13 @@ export default class ScriptList extends Vue {
             if (group[key].bind) {
               where.key = group[key].bind!.substr(1);
               console.log(where);
-              this.valueModel
-                .findOne(where)
-                .then((val) => {
-                  // 读取value
-                  console.log(val);
-                  if (val) {
-                    group[key].values = val.value;
-                  }
-                });
+              this.valueModel.findOne(where).then((val) => {
+                // 读取value
+                console.log(val);
+                if (val) {
+                  group[key].values = val.value;
+                }
+              });
             }
             where.key = gkey + "." + key;
             this.valueModel.findOne(where).then((val) => {
