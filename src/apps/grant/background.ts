@@ -61,6 +61,8 @@ export class BackgroundGrant {
                 let setCookie = '';
                 let cookie = '';
                 let anonymous = false;
+                let origin = '';
+                let isScriptcat = false;
                 let requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 let unsafeHeader: { [key: string]: string } = {};
                 data.requestHeaders?.forEach((val, key) => {
@@ -72,6 +74,10 @@ export class BackgroundGrant {
                         }
                         case "x-cat-" + this.rand + "-anonymous": {
                             anonymous = true;
+                            break;
+                        }
+                        case "x-cat-" + this.rand + "-scriptcat": {
+                            isScriptcat = true;
                             break;
                         }
                         case "x-cat-" + this.rand + "-host":
@@ -87,9 +93,12 @@ export class BackgroundGrant {
                             cookie = val.value || '';
                             break;
                         }
+                        case "origin": {
+                            origin = val.value || '';
+                            break;
+                        }
                         case "user-agent":
                         case "host":
-                        case "origin":
                         case "referer":
                         case "accept-encoding":
                         case "connection":
@@ -102,6 +111,10 @@ export class BackgroundGrant {
                         }
                     }
                 });
+                // 不是脚本管理器,加上origin
+                if (!isScriptcat && origin) {
+                    unsafeHeader['Origin'] = origin;
+                }
                 if (anonymous) {
                     cookie = '';
                 }
@@ -491,6 +504,7 @@ export class BackgroundGrant {
                 grant.data = { type: 'ontimeout', data: "" };
                 post.postMessage(grant);
             }
+            xhr.setRequestHeader("X-Cat-" + this.rand + "-Scriptcat", "true");
             for (let key in config.headers) {
                 const val = config.headers[key];
                 // 处理unsafe的header

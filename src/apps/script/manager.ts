@@ -765,7 +765,7 @@ export class ScriptManager extends Manager {
             AppEvent.trigger(TabRemove, tabId);
         });
         chrome.tabs.onUpdated.addListener((tabId, info) => {
-            if (info.status === undefined || info.status == "unloaded") {
+            if (info.status == "unloaded") {
                 runMenu.delete(tabId);
                 AppEvent.trigger(TabRemove, tabId);
                 return;

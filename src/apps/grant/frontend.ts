@@ -135,6 +135,14 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
     public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         let u = new URL(details.url, window.location.href);
+        if (details.headers) {
+            for (const key in details.headers) {
+                if (key.toLowerCase() == 'cookie') {
+                    details.cookie = details.cookie || details.headers[key];
+                    delete details.headers[key];
+                }
+            }
+        }
         let param: GM_Types.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
