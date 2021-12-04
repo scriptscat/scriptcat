@@ -18,24 +18,24 @@ console.log(window.scrollX, window.scrollY);
 console.log(addEventListener);
 
 let uia = (function () {
-	console.log('123');
-	return {
-		tip: () => {
-			console.log('aqwe');
-		}
-	}
+    console.log('123');
+    return {
+        tip: () => {
+            console.log('aqwe');
+        }
+    }
 })()
 
 uia.tip();
 
 function evalTest() {
-	console.log('okk');
+    console.log('okk');
 }
 
 setTimeout(() => {
-	console.log('okk2', window.scrollX, window.scrollY);
-	window.scrollY = 633;
-	console.log('okk2', window.scrollX, window.scrollY);
+    console.log('okk2', window.scrollX, window.scrollY);
+    window.scrollY = 633;
+    console.log('okk2', window.scrollX, window.scrollY);
 }, 1000)
 
 let f = eval('()=>{evalTest()}');
@@ -44,5 +44,16 @@ console.log(this);
 eval('console.log(this)');
 
 window.onload = () => {
-	console.log('onload');
+    console.log('onload1');
 }
+
+window.onload = () => {
+    console.log('onload2');
+}
+
+globalThis.a = 1;
+
+global.a = 2;
+
+console.log(globalThis.a == 2, globalThis.a, global.a);
+

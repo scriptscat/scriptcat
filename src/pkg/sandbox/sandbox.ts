@@ -52,7 +52,7 @@ export function buildThis(global: any, context: any) {
                 case 'window':
                 case 'global':
                 case 'globalThis':
-                    return special[name] || proxy;
+                    return special['global'] || proxy;
             }
             if (name !== 'undefined' && name !== Symbol.unscopables) {
                 if (context[name]) {
@@ -85,7 +85,7 @@ export function buildThis(global: any, context: any) {
                 case 'window':
                 case 'global':
                 case 'globalThis':
-                    special[name] = val;
+                    special['global'] = val;
                     return true;
             }
             if (special[name]) {
