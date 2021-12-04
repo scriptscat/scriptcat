@@ -67,7 +67,7 @@
               <template v-if="script.runStatus === 'complete'">
                 <v-list-item @click="scriptController.exec(script.id, false)">
                   <v-list-item-icon>
-                    <v-icon>mdi-play</v-icon>
+                    <v-icon>{{ icons.mdiPlay }}</v-icon>
                   </v-list-item-icon>
                   <v-list-item-content>
                     <v-list-item-title v-text="`运行一次`"></v-list-item-title>
@@ -78,7 +78,7 @@
               <template v-else>
                 <v-list-item @click="scriptController.stop(script.id, false)">
                   <v-list-item-icon>
-                    <v-icon>mdi-stop</v-icon>
+                    <v-icon>{{ icons.mdiStop }}</v-icon>
                   </v-list-item-icon>
                   <v-list-item-content>
                     <v-list-item-title v-text="`停止`"></v-list-item-title>
@@ -90,7 +90,7 @@
             <v-list-item-group multiple>
               <v-list-item @click="navigateToEditor(script)">
                 <v-list-item-icon>
-                  <v-icon>mdi-pencil</v-icon>
+                  <v-icon>{{ icons.mdiPencil }}</v-icon>
                 </v-list-item-icon>
                 <v-list-item-content>
                   <v-list-item-title v-text="`编辑`"></v-list-item-title>
@@ -98,7 +98,7 @@
               </v-list-item>
               <v-list-item @click="deleteScript(index, script)">
                 <v-list-item-icon>
-                  <v-icon>mdi-delete</v-icon>
+                  <v-icon>{{ icons.mdiDelete }}</v-icon>
                 </v-list-item-icon>
                 <v-list-item-content>
                   <v-list-item-title v-text="`删除`"></v-list-item-title>
@@ -124,11 +124,14 @@ import {
   ScriptRunStatusChange,
   TabMenuClick,
 } from "@App/apps/msg-center/event";
+import { mdiDelete, mdiPlay, mdiStop, mdiPencil } from "@mdi/js";
 import { mdiCogOutline } from "@mdi/js";
 import { ScriptController } from "@App/apps/script/controller";
 
 @Component({})
 export default class ScriptList extends Vue {
+  icons = { mdiDelete, mdiPlay, mdiStop, mdiPencil };
+
   scriptController: ScriptController = new ScriptController();
 
   //TODO: 检测菜单快捷键

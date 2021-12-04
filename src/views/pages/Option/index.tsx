@@ -48,7 +48,7 @@ export default class App extends Vue {
 
     //     return {
     //         tabKey,
-    //         icon: <VIcon dense>mdi-plus</VIcon>,
+    //         icon: <VIcon dense>mdiPlus</VIcon>,
     //         content: (
     //             <div
     //                 style={{

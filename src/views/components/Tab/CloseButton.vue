@@ -1,13 +1,16 @@
 <template>
-  <v-icon @click.stop="onClick" small>mdi-close</v-icon>
+  <v-icon @click.stop="onClick" small>{{ icons.mdiClose }}</v-icon>
 </template>
 
 <script lang="ts">
 import { Component, Prop, Vue } from "vue-property-decorator";
 import TabPane from "./TabPane";
+import { mdiClose } from "@mdi/js";
 
 @Component({})
 export default class CloseButton extends Vue {
+  icons = { mdiClose };
+
   @Prop() tab!: TabPane;
   @Prop() index!: number;
 

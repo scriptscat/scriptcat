@@ -8,7 +8,7 @@
       <!-- <v-switch color="#E1F5FE" hide-details></v-switch> -->
 
       <v-btn icon href="/options.html" target="_blank">
-        <v-icon>mdi-home</v-icon>
+        <v-icon>{{ icons.mdiHome }}</v-icon>
       </v-btn>
 
       <v-badge
@@ -20,17 +20,17 @@
         offset-y="20"
       >
         <v-btn icon @click="showNotice">
-          <v-icon>mdi-message</v-icon>
+          <v-icon>{{ icons.mdiMessage }}</v-icon>
         </v-btn>
       </v-badge>
       <v-btn v-else icon @click="showNotice">
-        <v-icon>mdi-message</v-icon>
+        <v-icon>{{ icons.mdiMessage }}</v-icon>
       </v-btn>
 
       <v-menu bottom left>
         <template v-slot:activator="{ on, attrs }">
           <v-btn dark icon v-bind="attrs" v-on="on">
-            <v-icon>mdi-dots-vertical</v-icon>
+            <v-icon>{{ icons.mdiDotsVertical }}</v-icon>
           </v-btn>
         </template>
 
@@ -114,6 +114,9 @@ import {
 } from "@App/model/do/script";
 import ScriptList from "./ScriptList.vue";
 import {
+  mdiHome,
+  mdiMessage,
+  mdiDotsVertical,
   mdiGithub,
   mdiMagnify,
   mdiPlus,
@@ -133,6 +136,8 @@ import { ExtVersion } from "@App/apps/config";
   },
 })
 export default class Popup extends Vue {
+  icons = { mdiHome, mdiMessage, mdiDotsVertical };
+
   scriptConrtoller: ScriptController = new ScriptController();
   protected scripts: Array<Script> = [];
   protected bgScripts: Array<Script> = [];

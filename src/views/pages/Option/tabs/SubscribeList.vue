@@ -84,7 +84,7 @@
       </template>
 
       <template v-slot:[`item.sort`]="">
-        <v-icon small style="cursor: pointer"> mdi-menu </v-icon>
+        <v-icon small style="cursor: pointer"> {{ icons.mdiMenu }} </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -101,7 +101,7 @@
                 label
                 small
               >
-                <v-icon left small>mdi-link</v-icon>
+                <v-icon left small>{{ icons.mdiLink }}</v-icon>
                 订阅地址
               </v-chip>
             </template>
@@ -119,7 +119,7 @@
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHome }}
             </v-icon>
           </template>
           <span>订阅主页</span>
@@ -133,7 +133,7 @@
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHome }}
             </v-icon>
           </template>
           <span>订阅主页</span>
@@ -147,7 +147,7 @@
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHome }}
             </v-icon>
           </template>
           <span>订阅站点</span>
@@ -161,7 +161,7 @@
               v-bind="attrs"
               v-on="on"
             >
-              mdi-code-tags
+              {{ icons.mdiCodeTags }}
             </v-icon>
           </template>
           <span>订阅元数据</span>
@@ -175,7 +175,7 @@
               v-bind="attrs"
               v-on="on"
             >
-              mdi-bug
+              {{ icons.mdiBug }}
             </v-icon>
           </template>
           <span>BUG反馈/支持站点</span>
@@ -200,7 +200,9 @@
 
       <template v-slot:[`item.actions`]="{ item }">
         <span class="action-buttons">
-          <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
+          <v-icon small @click="deleteItem(item)">
+            {{ icons.mdiDelete }}
+          </v-icon>
         </span>
       </template>
       <template v-slot:no-data> 啊哦，还没有订阅过呢 </template>
@@ -241,6 +243,8 @@ import {
   SUBSCRIBE_STATUS_DISABLE,
   SUBSCRIBE_STATUS_ENABLE,
 } from "@App/model/do/subscribe";
+
+import { mdiHome, mdiCodeTags, mdiBug, mdiDelete, mdiLink } from "@mdi/js";
 import dayjs from "dayjs";
 import { Vue, Component } from "vue-property-decorator";
 import { scriptModule } from "../store/script";
@@ -248,6 +252,7 @@ import { scriptModule } from "../store/script";
 //TODO: 与脚本列表差不多,可以优化,使用同一个组件
 @Component({})
 export default class SubscribeList extends Vue {
+  icons = { mdiHome, mdiLink, mdiCodeTags, mdiBug, mdiDelete };
   scriptController: ScriptController = new ScriptController();
 
   subscribes: Subscribe[] = [];

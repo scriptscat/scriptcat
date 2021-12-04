@@ -1,7 +1,9 @@
 <template>
   <v-dialog transition="dialog-bottom-transition" max-width="600">
     <template v-slot:activator="{ on, attrs }">
-      <v-icon small v-bind="attrs" v-on="on"> mdi-cloud-upload </v-icon>
+      <v-icon small v-bind="attrs" v-on="on"
+        >{{ icons.mdiCloudUpload }}
+      </v-icon>
     </template>
     <template v-slot:default="dialog">
       <v-card>
@@ -10,7 +12,7 @@
           <v-spacer></v-spacer>
           <v-toolbar-items>
             <v-btn icon dark @click="dialog.value = false" right>
-              <v-icon>mdi-close</v-icon>
+              <v-icon>{{ icons.mdiClose }}</v-icon>
             </v-btn>
           </v-toolbar-items>
         </v-toolbar>
@@ -77,9 +79,12 @@ import { ExportModel } from "@App/model/export";
 import { Value } from "@App/model/do/value";
 import { Export, EXPORT_DEST_LOCAL } from "@App/model/do/export";
 import { v4 as uuidv4 } from "uuid";
+import { mdiCloudUpload, mdiClose } from "@mdi/js";
 import { ExtVersion } from "@App/apps/config";
 @Component({})
 export default class BgCloud extends Vue {
+  icons = { mdiCloudUpload, mdiClose };
+
   @Prop()
   script!: Script;
   exportConfig: Export = {

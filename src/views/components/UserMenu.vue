@@ -3,7 +3,9 @@
     <template v-slot:activator="{ on }">
       <v-btn icon x-large v-on="on">
         <v-avatar dark size="36">
-          <v-icon dark v-if="!user.avatar"> mdi-account-circle </v-icon>
+          <v-icon dark v-if="!user.avatar">
+            {{ icons.mdiAccountCircle }}
+          </v-icon>
           <img v-else :src="server + user.avatar" :alt="user.username" />
         </v-avatar>
       </v-btn>
@@ -12,7 +14,9 @@
       <v-list-item-content class="justify-center">
         <div class="mx-auto text-center">
           <v-avatar color="#1296db" dark>
-            <v-icon dark v-if="!user.avatar"> mdi-account-circle </v-icon>
+            <v-icon dark v-if="!user.avatar">{{
+              icons.mdiAccountCircle
+            }}</v-icon>
             <img v-else :src="server + user.avatar" :alt="user.username" />
           </v-avatar>
           <h3 style="margin-top: 10px">{{ user.username }}</h3>
@@ -37,9 +41,11 @@ import { Server } from "@App/apps/config";
 import { Vue, Component, Watch } from "vue-property-decorator";
 import { userModule } from "@App/views/pages/Option/store/user";
 import { UserController } from "@App/apps/user/controller";
+import { mdiAccountCircle } from "@mdi/js";
 
 @Component({})
 export default class Snackbar extends Vue {
+  icons = { mdiAccountCircle };
   user = userModule.userinfo;
   server = Server.substring(0, Server.length - 1);
 

@@ -147,7 +147,7 @@
                 <v-list-item-action @click.stop>
                   <v-btn icon @click.stop.prevent="edit(index, item)">
                     <v-icon>{{
-                      editing !== item ? "mdi-pencil" : "mdi-check"
+                      editing !== item ? icons.mdiPencil : icons.mdiCheck
                     }}</v-icon>
                   </v-btn>
                 </v-list-item-action>
@@ -177,7 +177,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-
+import { mdiCheck, mdiPencil } from "@mdi/js";
 import { Script } from "@App/model/do/script";
 
 const COLORS = ["green", "purple", "indigo", "cyan", "teal", "orange"];
@@ -211,6 +211,7 @@ const GRANT = [
 
 @Component({})
 export default class CloseButton extends Vue {
+  icons = { mdiCheck, mdiPencil };
   @Prop() script!: Script;
 
   valid = false;

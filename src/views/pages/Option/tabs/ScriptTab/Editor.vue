@@ -66,7 +66,7 @@
 import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { KeyMod, KeyCode, languages } from "monaco-editor";
 import { Script, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
-
+import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from "@mdi/js";
 import ResizableEditor from "@components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
 import eventBus from "@App/views/EventBus";
@@ -173,7 +173,7 @@ export default class CloseButton extends Vue {
             debug: false,
           });
         },
-        icon: "mdi-content-save",
+        icon: mdiContentSave,
         keys: "Ctrl+S",
       },
       {
@@ -181,7 +181,7 @@ export default class CloseButton extends Vue {
         handler: () => {
           document.getElementById("fileInput")!.click();
         },
-        icon: "mdi-file-import",
+        icon: mdiFileImport,
       },
       {
         action: "导出",
@@ -202,7 +202,7 @@ export default class CloseButton extends Vue {
           link.click();
           document.body.removeChild(link);
         },
-        icon: "mdi-file-export",
+        icon: mdiFileExport,
       },
     ],
     操作: [
@@ -215,7 +215,7 @@ export default class CloseButton extends Vue {
             debug: true,
           });
         },
-        icon: "mdi-bug",
+        icon: mdiBug,
         keys: "",
       },
     ],

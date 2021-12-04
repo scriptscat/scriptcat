@@ -84,7 +84,7 @@
                 label
                 small
               >
-                <v-icon left small>mdi-application</v-icon>
+                <v-icon left small>{{ icons.mdiApplication }}</v-icon>
                 页面脚本
               </v-chip>
             </div>
@@ -157,7 +157,9 @@
       </template>
 
       <template v-slot:[`item.sort`]="">
-        <v-icon small class="handle" style="cursor: move"> mdi-menu </v-icon>
+        <v-icon small class="handle" style="cursor: move">
+          {{ icons.mdiMenu }}
+        </v-icon>
       </template>
 
       <template v-slot:[`item.origin`]="{ item }">
@@ -175,9 +177,13 @@
                 small
               >
                 <div v-if="item.subscribeUrl">
-                  <v-icon left small>mdi-rss</v-icon>订阅安装
+                  <v-icon left small>{{ icons.mdiRss }}</v-icon
+                  >订阅安装
                 </div>
-                <div v-else><v-icon left small>mdi-link</v-icon>用户安装</div>
+                <div v-else>
+                  <v-icon left small>{{ icons.mdiLink }}</v-icon
+                  >用户安装
+                </div>
               </v-chip>
             </template>
             <p v-if="item.subscribeUrl">订阅链接:{{ item.subscribeUrl }}</p>
@@ -191,12 +197,13 @@
         <v-tooltip bottom v-if="item.metadata['homepage']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
+              small
               dense
               @click="gotoLink(item.metadata['homepage'][0])"
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHome }}
             </v-icon>
           </template>
           <span>脚本主页</span>
@@ -205,12 +212,13 @@
         <v-tooltip bottom v-if="item.metadata['homepageurl']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
+              small
               dense
               @click="gotoLink(item.metadata['homepageurl'][0])"
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHome }}
             </v-icon>
           </template>
           <span>脚本主页</span>
@@ -219,12 +227,13 @@
         <v-tooltip bottom v-if="item.metadata['website']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
+              small
               dense
               @click="gotoLink(item.metadata['website'][0])"
               v-bind="attrs"
               v-on="on"
             >
-              mdi-home
+              {{ icons.mdiHomee }}
             </v-icon>
           </template>
           <span>脚本站点</span>
@@ -233,12 +242,12 @@
         <v-tooltip bottom v-if="item.metadata['source']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
-              dense
+              small
               @click="gotoLink(item.metadata['source'][0])"
               v-bind="attrs"
               v-on="on"
             >
-              mdi-code-tags
+              {{ icons.mdiCodeTag }}
             </v-icon>
           </template>
           <span>脚本源码</span>
@@ -247,12 +256,12 @@
         <v-tooltip bottom v-if="item.metadata['supporturl']">
           <template v-slot:activator="{ on, attrs }">
             <v-icon
-              dense
+              small
               @click="gotoLink(item.metadata['supporturl'][0])"
               v-bind="attrs"
               v-on="on"
             >
-              mdi-bug
+              {{ icons.mdiBug }}
             </v-icon>
           </template>
           <span>BUG反馈/脚本支持站点</span>
@@ -277,15 +286,21 @@
 
       <template v-slot:[`item.actions`]="{ item }">
         <span class="action-buttons">
-          <v-icon small @click="editItem(item)"> mdi-pencil </v-icon>
-          <v-icon small @click="deleteItem(item)"> mdi-delete </v-icon>
+          <v-icon small @click="editItem(item)">
+            {{ icons.mdiPencil }}
+          </v-icon>
+          <v-icon small @click="deleteItem(item)">
+            {{ icons.mdiDelete }}
+          </v-icon>
           <v-dialog
             v-if="item.config"
             transition="dialog-bottom-transition"
             max-width="600"
           >
             <template v-slot:activator="{ on, attrs }">
-              <v-icon small v-bind="attrs" v-on="on"> mdi-settings </v-icon>
+              <v-icon small v-bind="attrs" v-on="on">
+                {{ icons.mdiCog }}
+              </v-icon>
             </template>
             <template v-slot:default="dialog">
               <v-card>
@@ -294,7 +309,7 @@
                   <v-spacer></v-spacer>
                   <v-toolbar-items>
                     <v-btn icon dark @click="dialog.value = false" right>
-                      <v-icon>mdi-close</v-icon>
+                      <v-icon>{{ icons.mdiClose }}</v-icon>
                     </v-btn>
                   </v-toolbar-items>
                 </v-toolbar>
@@ -402,19 +417,17 @@
             </template>
           </v-dialog>
           <v-icon
+            small
             v-if="item.type !== 1 && item.runStatus != 'running'"
-            dense
             @click="execScript(item)"
+            >{{ icons.mdiPlay }}</v-icon
           >
-            mdi-play
-          </v-icon>
           <v-icon
+            small
             v-else-if="item.type !== 1 && item.runStatus == 'running'"
-            dense
             @click="stopScript(item)"
+            >{{ icons.mdiStop }}</v-icon
           >
-            mdi-stop
-          </v-icon>
           <BgCloud
             v-if="item.type !== 1 && item.metadata['cloudcat']"
             :script="item"
@@ -456,7 +469,7 @@
             <v-spacer></v-spacer>
             <v-toolbar-items>
               <v-btn icon dark @click="dialog.value = false" right>
-                <v-icon>mdi-close</v-icon>
+                <v-icon>{{ icons.mdiClose }}</v-icon>
               </v-btn>
             </v-toolbar-items>
           </v-toolbar>
@@ -516,8 +529,8 @@
         bottom: '20px', -->
       <template v-slot:activator>
         <v-btn v-model="fab" color="blue darken-2" dark fab>
-          <v-icon v-if="fab"> mdi-close </v-icon>
-          <v-icon v-else> mdi-plus </v-icon>
+          <v-icon v-if="fab"> {{ icons.mdiClose }}</v-icon>
+          <v-icon v-else> {{ icons.mdiPlus }} </v-icon>
         </v-btn>
       </template>
 
@@ -532,7 +545,7 @@
             color="#1296db"
             @click="newScript('normal')"
           >
-            <v-icon>mdi-file-document-outline</v-icon>
+            <v-icon>{{ icons.mdiFileDocumentOutline }}</v-icon>
           </v-btn>
         </template>
         <span>普通脚本</span>
@@ -549,7 +562,7 @@
             color="#1296db"
             @click="newScript('background')"
           >
-            <v-icon>mdi-console</v-icon>
+            <v-icon>{{ icons.mdiConsole }}</v-icon>
           </v-btn>
         </template>
         <span>后台脚本</span>
@@ -566,7 +579,7 @@
             color="#1296db"
             @click="newScript('crontab')"
           >
-            <v-icon>mdi-alarm</v-icon>
+            <v-icon>{{ icons.mdiAlarm }}</v-icon>
           </v-btn>
         </template>
         <span>定时脚本</span>
@@ -583,7 +596,7 @@
             color="#1296db"
             @click="linkInstall()"
           >
-            <v-icon>mdi-link</v-icon>
+            <v-icon>{{ icons.mdiLink }}</v-icon>
           </v-btn>
         </template>
         <span>链接导入</span>
@@ -620,7 +633,28 @@ import EventType from "../EventType";
 import { ScriptController } from "@App/apps/script/controller";
 import { Log } from "@App/model/do/logger";
 
-import { mdiClockTimeFourOutline, mdiAlertCircleOutline } from "@mdi/js";
+import {
+  mdiApplication,
+  mdiRss,
+  mdiMenu,
+  mdiLink,
+  mdiHome,
+  mdiClockTimeFourOutline,
+  mdiAlertCircleOutline,
+  mdiCodeTags,
+  mdiBug,
+  mdiPencil,
+  mdiCog,
+  mdiClose,
+  mdiPlay,
+  mdiStop,
+  mdiPlus,
+  mdiFile,
+  mdiConsole,
+  mdiAlarm,
+  mdiFileDocumentOutline,
+  mdiDelete,
+} from "@mdi/js";
 
 import BgCloud from "@components/BgCloud.vue";
 import { BackgroundGrant } from "@App/apps/grant/background";
@@ -649,8 +683,26 @@ export default class ScriptList extends Vue {
   selected: Script[] = [];
 
   icons = {
-    mdiClockTimeFourOutline: mdiClockTimeFourOutline,
-    mdiAlertCircleOutline: mdiAlertCircleOutline,
+    mdiApplication,
+    mdiRss,
+    mdiMenu,
+    mdiLink,
+    mdiHome,
+    mdiClockTimeFourOutline,
+    mdiAlertCircleOutline,
+    mdiCodeTags,
+    mdiBug,
+    mdiPencil,
+    mdiCog,
+    mdiClose,
+    mdiPlay,
+    mdiStop,
+    mdiPlus,
+    mdiFile,
+    mdiConsole,
+    mdiAlarm,
+    mdiFileDocumentOutline,
+    mdiDelete,
   };
 
   multipleAction: typeof multipleActionTypes[number] = "删除";
