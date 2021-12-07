@@ -14,9 +14,9 @@ str = fs.readFileSync("./src/apps/config.ts").toString();
 str = str.replace(/ExtVersion = "(.*?)";/, 'ExtVersion = "' + pjson.version + '";');
 fs.writeFileSync("./src/apps/config.ts", str);
 
-execSync("npm run build");
+execSync("npm run build", { stdio: 'inherit' });
 
-execSync("npm run build-no-split");
+execSync("npm run build-no-split", { stdio: 'inherit' });
 
 // 处理 ts.worker.js 和 editor.worker.js
 let list = fs.readdirSync("./build/scriptcat/src");
