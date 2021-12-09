@@ -24,4 +24,8 @@ export const i18n = new VueI18n({
     messages: messages,
 });
 
-export const vuetify = new Vuetify({});
+export const vuetify = new Vuetify({
+    icons: {
+        iconfont: 'mdiSvg',
+    }
+});
