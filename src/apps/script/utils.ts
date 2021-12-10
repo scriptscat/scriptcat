@@ -96,6 +96,7 @@ export function loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined>
 
 export function copyScript(script: Script, old: Script) {
     script.id = old.id;
+    script.uuid = old.uuid;
     script.createtime = old.createtime;
     script.checktime = old.checktime;
     script.lastruntime = old.lastruntime;

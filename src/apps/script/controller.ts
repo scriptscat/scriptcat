@@ -264,10 +264,16 @@ export class ScriptController {
                 updatetime: new Date().getTime(),
                 checktime: 0,
             };
-            let old = await this.scriptModel.findByUUID(script.uuid);
-            if (!old && uuid == undefined) {
+            let old;
+            if (uuid != undefined) {
+                old = await this.scriptModel.findByUUID(uuid);
+            } else {
                 old = await this.scriptModel.findByNameAndNamespace(script.name, script.namespace);
+                if (!old) {
+                    old = await this.scriptModel.findByUUID(script.uuid);
+                }
             }
+
             if (old) {
                 copyScript(script, old);
             } else {
