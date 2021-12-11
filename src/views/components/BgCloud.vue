@@ -89,13 +89,13 @@ export default class BgCloud extends Vue {
   script!: Script;
   exportConfig: Export = {
     id: 0,
-    uuid: "",
+    uuid: '',
     scriptId: 0,
     dest: 1,
     overwriteValue: false,
     overwriteCookie: false,
-    exportCookie: "",
-    exportValue: "",
+    exportCookie: '',
+    exportValue: '',
   };
 
   exportModel = new ExportModel();
@@ -107,7 +107,7 @@ export default class BgCloud extends Vue {
     // { key: "self", value: "自建服务器" },
   ];
 
-  btnText = { 1: "导出" };
+  btnText = { 1: '导出' };
 
   async mounted() {
     let e = await this.exportModel.findOne({
@@ -117,15 +117,15 @@ export default class BgCloud extends Vue {
     if (e) {
       this.exportConfig = e;
     } else {
-      let exportCookie = "";
-      this.script.metadata["exportcookie"] &&
-        this.script.metadata["exportcookie"].forEach((val) => {
-          exportCookie += val + "\n";
+      let exportCookie = '';
+      this.script.metadata['exportcookie'] &&
+        this.script.metadata['exportcookie'].forEach((val) => {
+          exportCookie += val + '\n';
         });
-      let exportValue = "";
-      this.script.metadata["exportvalue"] &&
-        this.script.metadata["exportvalue"].forEach((val) => {
-          exportValue += val + "\n";
+      let exportValue = '';
+      this.script.metadata['exportvalue'] &&
+        this.script.metadata['exportvalue'].forEach((val) => {
+          exportValue += val + '\n';
         });
 
       this.exportConfig = {
@@ -153,23 +153,23 @@ export default class BgCloud extends Vue {
   async local() {
     let zip = await this.pack();
     this.exportModel.save(this.exportConfig);
-    zip.generateAsync({ type: "blob" }).then((content) => {
-      saveAs(content, this.script.name + ".zip");
+    zip.generateAsync({ type: 'blob' }).then((content) => {
+      saveAs(content, this.script.name + '.zip');
     });
   }
 
   pack(): Promise<JSZip> {
     return new Promise(async (resolve) => {
       let zip = new JSZip();
-      zip.file("userScript.js", this.script.code);
-      let lines = this.exportConfig.exportCookie.split("\n");
+      zip.file('userScript.js', this.script.code);
+      let lines = this.exportConfig.exportCookie.split('\n');
       let cookies: { [key: string]: chrome.cookies.Cookie[] } = {};
       let cookie = false;
       for (let i = 0; i < lines.length; i++) {
         let val = lines[0];
         let detail: any = {};
-        val.split(";").forEach((param) => {
-          let s = param.split("=");
+        val.split(';').forEach((param) => {
+          let s = param.split('=');
           if (s.length != 2) {
             return;
           }
@@ -186,13 +186,13 @@ export default class BgCloud extends Vue {
           cookies[detail.domain] = await this.getCookie(detail);
         }
       }
-      cookie && zip.file("cookie.json", JSON.stringify(cookies));
+      cookie && zip.file('cookie.json', JSON.stringify(cookies));
 
-      lines = this.exportConfig.exportValue.split("\n");
+      lines = this.exportConfig.exportValue.split('\n');
       let values: Value[] = [];
       for (let i = 0; i < lines.length; i++) {
         let val = lines[0];
-        let keys = val.split(",");
+        let keys = val.split(',');
         for (let n = 0; n < keys.length; n++) {
           let value = await this.getValue(keys[n]);
           if (value) {
@@ -200,9 +200,9 @@ export default class BgCloud extends Vue {
           }
         }
       }
-      zip.file("value.json", JSON.stringify(values));
+      zip.file('value.json', JSON.stringify(values));
       zip.file(
-        "config.json",
+        'config.json',
         JSON.stringify({
           version: ExtVersion,
           uuid: this.exportConfig.uuid,
@@ -227,9 +227,9 @@ export default class BgCloud extends Vue {
   getValue(key: any): Promise<any> {
     return new Promise(async (resolve) => {
       let model: Value | undefined;
-      if (this.script.metadata["storagename"]) {
+      if (this.script.metadata['storagename']) {
         model = await this.valueModel.findOne({
-          storageName: this.script.metadata["storagename"][0],
+          storageName: this.script.metadata['storagename'][0],
           key: key,
         });
       } else {

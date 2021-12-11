@@ -22,10 +22,10 @@
             "@App/*": [
                 "src/*"
             ],
-            "@views/*": [
+            "@Views/*": [
                 "src/views/*"
             ],
-            "@components/*": [
+            "@Components/*": [
                 "src/views/components/*"
             ],
             "@Option/*": [
@@ -48,6 +48,7 @@
     "include": [
         "src/**/*.ts",
         "src/**/*.tsx",
+        "src/**/*.vue",
         "./tests/*.test.ts"
     ]
 }
