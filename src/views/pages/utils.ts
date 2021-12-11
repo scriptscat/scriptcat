@@ -45,3 +45,44 @@ export function nextTime(crontab: string): string {
         return cron.sendAt().format("YYYY-MM-DD HH:mm:ss");
     }
 }
+
+export function toStorageValueStr(val: any): string {
+    switch (typeof val) {
+        case "string":
+            return "s" + val;
+        case "number":
+            return "n" + val;
+        case "boolean":
+            return "b" + (val ? "true" : "false");
+        default:
+            try {
+                return "o" + JSON.stringify(val);
+            } catch (e) {
+                return "";
+            }
+    }
+}
+
+export function parseStorageValue(str: string): any {
+    if (str === '') {
+        return undefined;
+    }
+    let t = str[0];
+    let s = str.substring(1);
+    switch (t) {
+        case "b":
+            return s == "true";
+        case "n":
+            return parseFloat(s);
+        case 'o':
+            try {
+                return JSON.parse(s);
+            } catch (e) {
+                return str;
+            }
+        case 's':
+            return s;
+        default:
+            return str;
+    }
+}

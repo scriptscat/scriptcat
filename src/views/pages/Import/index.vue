@@ -199,6 +199,7 @@ import {
 import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
 import { base64ToStr, waitGroup } from "@App/pkg/utils/utils";
 import { Component, Vue } from "vue-property-decorator";
+import { parseStorageValue } from "../utils";
 
 @Component({})
 export default class Index extends Vue {
@@ -365,7 +366,7 @@ export default class Index extends Vue {
           subWait.add(Object.keys(scriptInfo.storage.data).length);
           for (const key in scriptInfo.storage.data) {
             let importValue = async () => {
-              let val = this.parseValue(scriptInfo.storage.data[key]);
+              let val = parseStorageValue(scriptInfo.storage.data[key]);
               await this.scriptCtrl.updateValue(
                 key,
                 val,
@@ -402,21 +403,6 @@ export default class Index extends Vue {
         console.log(e, subscribeInfo);
         wait.done();
       }
-    }
-  }
-
-  parseValue(str: string): any {
-    let t = str[0];
-    let s = str.substring(1);
-    switch (t) {
-      case "s":
-        return s;
-      case "b":
-        return s == "true";
-      case "n":
-        return parseFloat(s);
-      default:
-        return JSON.parse(s);
     }
   }
 

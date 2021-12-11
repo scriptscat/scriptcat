@@ -300,31 +300,58 @@ export class ScriptController {
 
     // 第一次获取后在内存中维护
     public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
-        if (script.metadata['storagename']) {
-            return App.Cache.getOrSet("value:storagename:" + script.metadata['storagename'][0], () => {
-                return new Promise(async resolve => {
-                    let list = <Value[]>await this.valueModel.list((table) => {
-                        return table.where({ storageName: script.metadata['storagename'][0] });
-                    });
-                    let ret: { [key: string]: Value } = {};
-                    list.forEach(val => {
-                        ret[val.key] = val;
-                    });
-                    resolve(ret);
-                });
-            });
-        }
-        return App.Cache.getOrSet("value:" + script.id, () => {
-            return new Promise(async resolve => {
+        return App.Cache.getOrSet("value:storagename:" + script.metadata['storagename'][0], () => {
+            return this.getValues(script);
+        });
+    }
+
+    public async getValues(script: Script): Promise<{ [key: string]: Value }> {
+        return new Promise(async resolve => {
+            if (script.metadata['storagename']) {
                 let list = <Value[]>await this.valueModel.list((table) => {
-                    return table.where({ scriptId: script.id });
+                    return table.where({ storageName: script.metadata['storagename'][0] });
                 });
                 let ret: { [key: string]: Value } = {};
                 list.forEach(val => {
                     ret[val.key] = val;
                 });
-                resolve(ret);
+                return resolve(ret);
+            }
+            let list = <Value[]>await this.valueModel.list((table) => {
+                return table.where({ scriptId: script.id });
             });
+            let ret: { [key: string]: Value } = {};
+            list.forEach(val => {
+                ret[val.key] = val;
+            });
+            resolve(ret);
+        });
+    }
+
+    public saveValue(script: Script, key: string, val: any): Promise<Value | undefined> {
+        return this.updateValue(key, val, script.id, (script.metadata['storagename'] && script.metadata['storagename'][0] || undefined));
+    }
+
+    public deleteValue(script: Script, key: string): Promise<void> {
+        return new Promise(async resolve => {
+            let model: Value | undefined;
+            let storageName = script.metadata['storagename'] && script.metadata['storagename'][0];
+            if (storageName) {
+                model = await this.valueModel.findOne({
+                    storageName: storageName,
+                    key: key,
+                });
+            } else {
+                model = await this.valueModel.findOne({
+                    scriptId: script.id,
+                    key: key,
+                });
+            }
+            if (model) {
+                this.valueModel.delete(model!.id);
+                MsgCenter.connect(ScriptValueChange, { model: model, tabid: undefined });
+            }
+            resolve(undefined);
         });
     }
 

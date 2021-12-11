@@ -29,15 +29,15 @@
       </TabPane>
 
       <TabPane title="设置">
-        <Config />
+        <Config :script="script" />
       </TabPane>
 
       <TabPane title="存储">
-        <Storage />
+        <Storage :script="script" />
       </TabPane>
 
       <TabPane title="资源">
-        <Resource />
+        <Resource :script="script" />
       </TabPane>
     </Tab>
   </div>
@@ -162,12 +162,14 @@ export default class ScriptTab extends Vue {
 
   async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
-    let [newScript, oldScript] =
-      await this.scriptController.prepareScriptByCode(
-        currentCode,
-        this.script.origin || "",
-        this.script.uuid ? this.script.uuid : uuidv4()
-      );
+    let [
+      newScript,
+      oldScript,
+    ] = await this.scriptController.prepareScriptByCode(
+      currentCode,
+      this.script.origin || "",
+      this.script.uuid ? this.script.uuid : uuidv4()
+    );
 
     if (newScript == undefined) {
       alert(oldScript);

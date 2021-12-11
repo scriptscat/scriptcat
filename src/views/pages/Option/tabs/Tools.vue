@@ -24,6 +24,7 @@ import { strToBase64 } from "@App/pkg/utils/utils";
 import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
 import { ToolsController } from "@App/apps/tools/controller";
 import { SystemConfig } from "@App/pkg/config";
+import { toStorageValueStr } from "../../utils";
 
 @Component({
   components: { Panels },
@@ -135,7 +136,7 @@ export default class Tools extends Vue {
       let values = await this.scriptCtl.getScriptValue(script);
       for (const key in values) {
         let value = values[key];
-        storage[key] = this.toValueStr(value.value);
+        storage[key] = toStorageValueStr(value.value);
       }
 
       // resource导出
@@ -221,19 +222,6 @@ export default class Tools extends Vue {
       url = url.substring(t + 1);
     }
     return url;
-  }
-
-  toValueStr(val: any): string {
-    switch (typeof val) {
-      case "string":
-        return "s" + val;
-      case "number":
-        return "n" + val;
-      case "boolean":
-        return "b" + (val ? "true" : "false");
-      default:
-        return "o" + JSON.stringify(val);
-    }
   }
 
   async connectVScode(val: ConfigItem) {
