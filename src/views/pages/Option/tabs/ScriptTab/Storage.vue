@@ -9,6 +9,24 @@
         hide-details
       ></v-text-field>
       <v-spacer></v-spacer>
+      <v-btn
+        color="blue-grey"
+        dark
+        class="mb-2"
+        @click="reload"
+        style="margin-right: 10px"
+      >
+        重新加载
+      </v-btn>
+      <v-btn
+        color="error"
+        dark
+        class="mb-2"
+        @click="clearAll"
+        style="margin-right: 10px"
+      >
+        清空
+      </v-btn>
       <v-dialog v-model="dialog" max-width="500px">
         <template v-slot:activator="{ on, attrs }">
           <v-btn color="primary" dark class="mb-2" v-bind="attrs" v-on="on">
@@ -40,8 +58,8 @@
 
           <v-card-actions>
             <v-spacer></v-spacer>
-            <v-btn color="blue darken-1" text @click="close"> 取消 </v-btn>
-            <v-btn color="blue darken-1" text @click="save"> 保存 </v-btn>
+            <v-btn color="blue darken-1" text @click="close"> 取消</v-btn>
+            <v-btn color="blue darken-1" text @click="save"> 保存</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -62,7 +80,7 @@
             {{
               (script.metadata["storagename"] &&
                 script.metadata["storagename"][0]) ||
-                "匿名空间"
+              "匿名空间"
             }}
           </p>
           <v-spacer></v-spacer>
@@ -72,11 +90,11 @@
               <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn color="blue darken-1" text @click="closeDelete"
-                  >取消</v-btn
-                >
+                  >取消
+                </v-btn>
                 <v-btn color="blue darken-1" text @click="deleteItemConfirm"
-                  >确定</v-btn
-                >
+                  >确定
+                </v-btn>
                 <v-spacer></v-spacer>
               </v-card-actions>
             </v-card>
@@ -94,7 +112,7 @@
           {{ icons.mdiDelete }}
         </v-icon>
       </template>
-      <template v-slot:no-data> 没有储存数据 </template>
+      <template v-slot:no-data> 没有储存数据</template>
     </v-data-table>
     <v-card-subtitle>
       值的第一个字符表示该值的类型,在编辑值时请也按照此规则进行编辑,否则默认识别为文本.
@@ -104,12 +122,12 @@
 </template>
 
 <script lang="ts">
-import { ScriptController } from "@App/apps/script/controller";
-import { Script } from "@App/model/do/script";
-import { Value } from "@App/model/do/value";
-import { parseStorageValue, toStorageValueStr } from "@App/views/pages/utils";
-import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-import { mdiMagnify, mdiPencil, mdiDelete } from "@mdi/js";
+import { ScriptController } from '@App/apps/script/controller';
+import { Script } from '@App/model/do/script';
+import { Value } from '@App/model/do/value';
+import { parseStorageValue, toStorageValueStr } from '@App/views/pages/utils';
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
+import { mdiMagnify, mdiPencil, mdiDelete } from '@mdi/js';
 
 @Component({})
 export default class CloseButton extends Vue {
@@ -119,17 +137,16 @@ export default class CloseButton extends Vue {
     mdiDelete: mdiDelete,
   };
   scriptCtrl = new ScriptController();
-  values: Array<Value> = new Array();
+  values: Array<Value> = [];
   dialog = false;
   dialogDelete = false;
   editedIndex = -1;
-  editedItem = { key: "", value: "" };
+  editedItem = { key: '', value: '' };
 
   @Prop() script!: Script;
 
   async created() {
     let values = await this.scriptCtrl.getValues(this.script);
-    console.log(this.script, values);
     for (const key in values) {
       this.values.push(values[key]);
     }
@@ -137,22 +154,23 @@ export default class CloseButton extends Vue {
 
   data() {
     return {
-      search: "",
+      search: '',
       headers: [
-        { text: "储存键", value: "key" },
-        { text: "储存值", value: "value" },
-        { text: "操作", value: "actions" },
+        { text: '储存键', value: 'key' },
+        { text: '储存值', value: 'value' },
+        { text: '操作', value: 'actions' },
       ],
     };
   }
+
   toStorageValueStr = toStorageValueStr;
 
-  @Watch("dialog")
+  @Watch('dialog')
   watchDialog(val: any) {
     val || this.close();
   }
 
-  @Watch("dialogDelete")
+  @Watch('dialogDelete')
   watchDialogDelete(val: any) {
     val || this.closeDelete();
   }
@@ -160,7 +178,7 @@ export default class CloseButton extends Vue {
   close() {
     this.dialog = false;
     this.$nextTick(() => {
-      this.editedItem = { key: "", value: "" };
+      this.editedItem = { key: '', value: '' };
       this.editedIndex = -1;
     });
   }
@@ -168,7 +186,7 @@ export default class CloseButton extends Vue {
   closeDelete() {
     this.dialogDelete = false;
     this.$nextTick(() => {
-      this.editedItem = { key: "", value: "" };
+      this.editedItem = { key: '', value: '' };
       this.editedIndex = -1;
     });
   }
@@ -180,7 +198,7 @@ export default class CloseButton extends Vue {
       parseStorageValue(this.editedItem.value)
     );
     if (!value) {
-      alert("保存失败");
+      alert('保存失败');
       return;
     }
     if (this.editedIndex > -1) {
@@ -207,8 +225,23 @@ export default class CloseButton extends Vue {
 
   deleteItemConfirm() {
     this.values.splice(this.editedIndex, 1);
-    this.scriptCtrl.deleteValue(this.script, this.editedItem.key);
+    void this.scriptCtrl.deleteValue(this.script, this.editedItem.key);
     this.closeDelete();
+  }
+
+  async reload() {
+    this.values = [];
+    let values = await this.scriptCtrl.getValues(this.script);
+    for (const key in values) {
+      this.values.push(values[key]);
+    }
+  }
+
+  async clearAll() {
+    for (let i = 0; i < this.values.length; i++) {
+      await this.scriptCtrl.deleteValue(this.script, this.values[i].key);
+    }
+    void (await this.reload());
   }
 }
 </script>
