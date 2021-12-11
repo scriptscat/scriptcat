@@ -1,10 +1,10 @@
 import { v5 as uuidv5 } from 'uuid';
-import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, ScriptCache } from "@App/model/do/script";
-import { ScriptModel } from "@App/model/script";
-import { get, Page, randomString } from "@App/pkg/utils/utils";
-import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptValueChange } from "../msg-center/event";
-import { MsgCenter } from "../msg-center/msg-center";
-import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from "./utils";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, Script, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_NORMAL, ScriptCache } from '@App/model/do/script';
+import { ScriptModel } from '@App/model/script';
+import { get, Page, randomString } from '@App/pkg/utils/utils';
+import { ScriptExec, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptValueChange } from '../msg-center/event';
+import { MsgCenter } from '../msg-center/msg-center';
+import { parseMetadata, parseUserConfig, copyScript, copySubscribe } from './utils';
 import { ScriptUrlInfo } from '../msg-center/structs';
 import { ConfirmParam } from '../grant/interface';
 import { LoggerModel } from '@App/model/logger';
@@ -33,7 +33,7 @@ export class ScriptController {
     public update(script: Script): Promise<number> {
         return new Promise(resolve => {
             if (script.id) {
-                MsgCenter.sendMessage(ScriptReinstall, script, resp => {
+                MsgCenter.sendMessage(ScriptReinstall, script, () => {
                     resolve(script.id);
                 });
             } else {
@@ -47,6 +47,7 @@ export class ScriptController {
 
     // 用于加快导入速度,不等待后端处理
     public notWaitUpdate(script: Script): Promise<number> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (script.id) {
                 resolve(script.id);
@@ -61,7 +62,7 @@ export class ScriptController {
 
     public uninstall(scriptId: number): Promise<boolean> {
         return new Promise(resolve => {
-            MsgCenter.sendMessage(ScriptUninstall, scriptId, resp => {
+            MsgCenter.sendMessage(ScriptUninstall, scriptId, () => {
                 resolve(true);
             });
         });
@@ -69,7 +70,7 @@ export class ScriptController {
 
     public enable(scriptId: number): Promise<boolean> {
         return new Promise(resolve => {
-            MsgCenter.sendMessage(ScriptStatusChange, { scriptId: scriptId, status: SCRIPT_STATUS_ENABLE }, resp => {
+            MsgCenter.sendMessage(ScriptStatusChange, { scriptId: scriptId, status: SCRIPT_STATUS_ENABLE }, () => {
                 resolve(true);
             });
         });
@@ -77,23 +78,24 @@ export class ScriptController {
 
     public disable(scriptId: number): Promise<boolean> {
         return new Promise(resolve => {
-            MsgCenter.sendMessage(ScriptStatusChange, { scriptId: scriptId, status: SCRIPT_STATUS_DISABLE }, resp => {
+            MsgCenter.sendMessage(ScriptStatusChange, { scriptId: scriptId, status: SCRIPT_STATUS_DISABLE }, () => {
                 resolve(true);
             });
         });
     }
 
     public exec(scriptId: number, isdebug: boolean): Promise<boolean> {
-        return new Promise(async resolve => {
-            MsgCenter.sendMessage(ScriptExec, { scriptId: scriptId, isdebug: isdebug }, resp => {
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(ScriptExec, { scriptId: scriptId, isdebug: isdebug }, () => {
                 resolve(true);
             });
         });
     }
 
     public stop(scriptId: number, isdebug: boolean): Promise<boolean> {
-        return new Promise(async resolve => {
-            MsgCenter.sendMessage(ScriptStop, { scriptId: scriptId, isdebug: isdebug }, resp => {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        return new Promise(resolve => {
+            MsgCenter.sendMessage(ScriptStop, { scriptId: scriptId, isdebug: isdebug }, () => {
                 resolve(true);
             });
         });
@@ -101,20 +103,23 @@ export class ScriptController {
 
     // 检查更新
     public check(scriptId: number): Promise<boolean> {
-        return new Promise(async resolve => {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        return new Promise(resolve => {
             MsgCenter.sendMessage(ScriptCheckUpdate, scriptId, resp => {
-                resolve(resp);
+                resolve(<boolean>resp);
             });
         });
     }
 
     public subscribeList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined, page: Page | undefined = undefined): Promise<Array<Subscribe>> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             page = page || new Page(1, 20);
             if (equalityCriterias == undefined) {
                 resolve(await this.subscribeModel.list(page));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table), page));
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                const ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table), page));
                 resolve(ret);
             } else {
                 resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias), page));
@@ -123,11 +128,13 @@ export class ScriptController {
     }
 
     public scriptList(equalityCriterias: { [key: string]: any } | ((where: Dexie.Table) => Dexie.Collection) | undefined): Promise<Array<Script>> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (equalityCriterias == undefined) {
                 resolve(await this.scriptModel.list(this.scriptModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                const ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
                 resolve(ret);
             } else {
                 resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias)));
@@ -142,7 +149,7 @@ export class ScriptController {
     public getInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestInstallInfo, uuid, resp => {
-                resolve(resp);
+                resolve(<ScriptUrlInfo>resp);
             });
         });
     }
@@ -150,7 +157,7 @@ export class ScriptController {
     public getImportFile(uuid: string): Promise<File> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestImportFile, uuid, resp => {
-                resolve(resp);
+                resolve(<File>resp);
             });
         });
     }
@@ -158,26 +165,27 @@ export class ScriptController {
     public getConfirmInfo(uuid: string): Promise<ConfirmParam> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestConfirmInfo, uuid, resp => {
-                resolve(resp);
+                resolve(<ConfirmParam>resp);
             });
         });
     }
 
     public prepareSubscribeByCode(code: string, url: string): Promise<[Subscribe | undefined, Subscribe | string | undefined]> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
-            let metadata = parseMetadata(code);
+            const metadata = parseMetadata(code);
             if (metadata == null) {
                 return resolve([undefined, 'MetaData信息错误']);
             }
-            if (metadata["name"] == undefined) {
+            if (metadata['name'] == undefined) {
                 return resolve([undefined, '订阅名称不能为空']);
             }
-            if (!metadata["scripturl"]) {
+            if (!metadata['scripturl']) {
                 return resolve([undefined, '没有脚本,订阅个寂寞']);
             }
-            let subscribe: Subscribe = {
+            const subscribe: Subscribe = {
                 id: 0,
-                name: metadata["name"][0],
+                name: metadata['name'][0],
                 code: code,
                 scripts: {},
                 author: metadata['author'] && metadata['author'][0],
@@ -188,7 +196,7 @@ export class ScriptController {
                 updatetime: new Date().getTime(),
                 checktime: 0,
             };
-            let old = await this.subscribeModel.findByUrl(subscribe.url);
+            const old = await this.subscribeModel.findByUrl(subscribe.url);
             if (old) {
                 copySubscribe(subscribe, old);
             } else {
@@ -199,9 +207,12 @@ export class ScriptController {
     }
 
     public prepareScriptByUrl(url: string): Promise<[Script | undefined, Script | string | undefined]> {
-        return new Promise(async (resolve, reject) => {
-            get(url, async (resp) => {
-                resolve(await this.prepareScriptByCode(resp, url))
+        return new Promise((resolve, reject) => {
+            get(url, (resp) => {
+                const handler = async () => {
+                    resolve(await this.prepareScriptByCode(resp, url))
+                }
+                void handler();
             }, () => {
                 reject();
             });
@@ -209,21 +220,22 @@ export class ScriptController {
     }
 
     public prepareScriptByCode(code: string, url: string, uuid?: string): Promise<[Script | undefined, Script | string | undefined]> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
-            let metadata = parseMetadata(code);
+            const metadata = parseMetadata(code);
             if (metadata == null) {
                 return resolve([undefined, 'MetaData信息错误']);
             }
-            if (metadata["name"] == undefined) {
+            if (metadata['name'] == undefined) {
                 return resolve([undefined, '脚本名不能为空']);
             }
             let type = SCRIPT_TYPE_NORMAL;
-            if (metadata["crontab"] != undefined) {
+            if (metadata['crontab'] != undefined) {
                 type = SCRIPT_TYPE_CRONTAB;
                 if (nextTime(metadata['crontab'][0]) == '错误的定时表达式') {
                     return resolve([undefined, '错误的定时表达式']);
                 }
-            } else if (metadata["background"] != undefined) {
+            } else if (metadata['background'] != undefined) {
                 type = SCRIPT_TYPE_BACKGROUND;
             }
             let urlSplit: string[];
@@ -234,7 +246,7 @@ export class ScriptController {
                 checkupdate_url = metadata['updateurl'][0];
                 download_url = metadata['downloadurl'][0];
             } else {
-                checkupdate_url = url.replace("user.js", "meta.js");
+                checkupdate_url = url.replace('user.js', 'meta.js');
             }
             if (url.indexOf('/') !== -1) {
                 urlSplit = url.split('/');
@@ -242,10 +254,10 @@ export class ScriptController {
                     domain = urlSplit[2];
                 }
             }
-            let script: Script = {
+            const script: Script = {
                 id: 0,
                 uuid: uuid || uuidv5(url, uuidv5.URL),
-                name: metadata["name"][0],
+                name: metadata['name'][0],
                 code: code,
                 author: metadata['author'] && metadata['author'][0],
                 namespace: metadata['namespace'] && metadata['namespace'][0],
@@ -289,38 +301,46 @@ export class ScriptController {
 
     public getScriptLog(scriptId: number, page?: Page): Promise<Log[]> {
         return this.logModel.list(query => {
-            return query.where({ scriptId: scriptId, origin: "GM_log" });
+            return query.where({ scriptId: scriptId, origin: 'GM_log' });
         }, page);
     }
 
     public clearLog(scriptId: number) {
-        return this.logModel.delete({ scriptId: scriptId, origin: "GM_log" });
+        return this.logModel.delete({ scriptId: scriptId, origin: 'GM_log' });
     }
 
 
     // 第一次获取后在内存中维护
     public async getScriptValue(script: Script): Promise<{ [key: string]: Value }> {
-        return App.Cache.getOrSet("value:storagename:" + script.metadata['storagename'][0], () => {
+        if (script.metadata['storagename']) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return App.Cache.getOrSet('value:storagename:' + script.metadata['storagename'][0], () => {
+                return this.getValues(script);
+            });
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        return App.Cache.getOrSet('value:' + script.id.toString(), () => {
             return this.getValues(script);
         });
     }
 
     public async getValues(script: Script): Promise<{ [key: string]: Value }> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (script.metadata['storagename']) {
-                let list = <Value[]>await this.valueModel.list((table) => {
+                const list = <Value[]>await this.valueModel.list((table) => {
                     return table.where({ storageName: script.metadata['storagename'][0] });
                 });
-                let ret: { [key: string]: Value } = {};
+                const ret: { [key: string]: Value } = {};
                 list.forEach(val => {
                     ret[val.key] = val;
                 });
                 return resolve(ret);
             }
-            let list = <Value[]>await this.valueModel.list((table) => {
+            const list = <Value[]>await this.valueModel.list((table) => {
                 return table.where({ scriptId: script.id });
             });
-            let ret: { [key: string]: Value } = {};
+            const ret: { [key: string]: Value } = {};
             list.forEach(val => {
                 ret[val.key] = val;
             });
@@ -333,9 +353,10 @@ export class ScriptController {
     }
 
     public deleteValue(script: Script, key: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             let model: Value | undefined;
-            let storageName = script.metadata['storagename'] && script.metadata['storagename'][0];
+            const storageName = script.metadata['storagename'] && script.metadata['storagename'][0];
             if (storageName) {
                 model = await this.valueModel.findOne({
                     storageName: storageName,
@@ -348,7 +369,7 @@ export class ScriptController {
                 });
             }
             if (model) {
-                this.valueModel.delete(model!.id);
+                void this.valueModel.delete(model.id);
                 MsgCenter.connect(ScriptValueChange, { model: model, tabid: undefined });
             }
             resolve(undefined);
@@ -356,6 +377,7 @@ export class ScriptController {
     }
 
     public updateValue(key: string, value: any, scriptId: number, storageName?: string): Promise<Value | undefined> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             let model: Value | undefined;
             if (storageName) {
@@ -391,6 +413,7 @@ export class ScriptController {
     }
 
     public getResource(id: number, url: string): Promise<Resource | undefined> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             let res = await this.resource.getResource(url);
             if (res) {
@@ -406,29 +429,30 @@ export class ScriptController {
     }
 
     public getResources(script: Script): Promise<{ [key: string]: Resource }> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
-            let ret: { [key: string]: Resource } = {};
+            const ret: { [key: string]: Resource } = {};
             for (let i = 0; i < script.metadata['require']?.length; i++) {
-                let res = await this.getResource(script.id, script.metadata['require'][i]);
+                const res = await this.getResource(script.id, script.metadata['require'][i]);
                 if (res) {
-                    res.type = "require";
+                    res.type = 'require';
                     ret[script.metadata['require'][i]] = res;
                 }
             }
             for (let i = 0; i < script.metadata['require-css']?.length; i++) {
-                let res = await this.getResource(script.id, script.metadata['require-css'][i]);
+                const res = await this.getResource(script.id, script.metadata['require-css'][i]);
                 if (res) {
-                    res.type = "require-css";
+                    res.type = 'require-css';
                     ret[script.metadata['require-css'][i]] = res;
                 }
             }
 
             for (let i = 0; i < script.metadata['resource']?.length; i++) {
-                let split = script.metadata['resource'][i].split(/\s+/);
+                const split = script.metadata['resource'][i].split(/\s+/);
                 if (split.length == 2) {
-                    let res = await this.getResource(script.id, split[1]);
+                    const res = await this.getResource(script.id, split[1]);
                     if (res) {
-                        res.type = "resource";
+                        res.type = 'resource';
                         ret[split[0]] = res;
                     }
                 }
@@ -438,8 +462,9 @@ export class ScriptController {
     }
 
     public buildScriptCache(script: Script): Promise<ScriptCache> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
-            let ret: ScriptCache = <ScriptCache>Object.assign({}, script);
+            const ret: ScriptCache = <ScriptCache>Object.assign({}, script);
 
             // 自定义配置
             for (const key in ret.metadata) {
@@ -478,7 +503,7 @@ export class ScriptController {
     public unsubscribe(subId: number): Promise<boolean> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(Unsubscribe, subId, resp => {
-                resolve(resp);
+                resolve(<boolean>resp);
             });
         })
     }
@@ -486,12 +511,13 @@ export class ScriptController {
     public checkSubscribe(subId: number): Promise<boolean> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(SubscribeCheckUpdate, subId, resp => {
-                resolve(resp);
+                resolve(<boolean>resp);
             });
         })
     }
 
     public enableSubscribe(subId: number): Promise<boolean> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (await this.subscribeModel.update(subId, { status: SUBSCRIBE_STATUS_ENABLE })) {
                 resolve(true);
@@ -502,6 +528,7 @@ export class ScriptController {
     }
 
     public diableSubscribe(subId: number): Promise<boolean> {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (await this.subscribeModel.update(subId, { status: SUBSCRIBE_STATUS_DISABLE })) {
                 resolve(true);
@@ -512,12 +539,12 @@ export class ScriptController {
     }
 
     public parseBackFile(str: string): { data?: File, err?: string } {
-        let data = <File>JSON.parse(str);
+        const data = <File>JSON.parse(str);
         if (!data.created_by) {
-            return { err: "错误的格式" };
+            return { err: '错误的格式' };
         }
         if (!data.scripts) {
-            return { err: "脚本为空" }
+            return { err: '脚本为空' }
         }
         return { data: data };
     }

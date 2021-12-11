@@ -656,7 +656,7 @@ import {
   mdiDelete,
 } from "@mdi/js";
 
-import BgCloud from "@components/BgCloud.vue";
+import BgCloud from "@Components/BgCloud.vue";
 import { BackgroundGrant } from "@App/apps/grant/background";
 import { scriptModule } from "../store/script";
 

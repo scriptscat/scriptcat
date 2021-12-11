@@ -1,4 +1,4 @@
-import { ADD_CHANGE_EVENT, ChangeCallback, CHANGE_EVENT, DELETE_CHANGE_EVENT, Storage, UPDATE_CHANGE_EVENT } from "../storage";
+import { ADD_CHANGE_EVENT, ChangeCallback, CHANGE_EVENT, DELETE_CHANGE_EVENT, Storage, UPDATE_CHANGE_EVENT } from '../storage';
 
 export interface ICache extends Storage {
     get(key: string): Promise<any>
@@ -15,14 +15,16 @@ export class MapCache implements ICache {
             v(event, key, data, oldData);
         });
     }
+
     get(key: string): Promise<any> {
         return new Promise(resolve => {
             return resolve(this.map.get(key));
         });
     }
+
     set(key: string, val: any): Promise<any> {
         return new Promise(resolve => {
-            let old = this.map.get(key);
+            const old = this.map.get(key);
             this.map.set(key, val);
             if (old) {
                 this.trigger(UPDATE_CHANGE_EVENT, key, val, old);
@@ -32,9 +34,10 @@ export class MapCache implements ICache {
             resolve(undefined);
         });
     }
+
     del(key: string): Promise<any> {
         return new Promise(resolve => {
-            let old = this.map.get(key);
+            const old = this.map.get(key);
             if (!old) {
                 return resolve(undefined);
             }
@@ -43,29 +46,36 @@ export class MapCache implements ICache {
             resolve(undefined);
         });
     }
+
     getOrSet(key: string, set: () => Promise<any>): Promise<any> {
-        return new Promise(async resolve => {
-            let ret = await this.get(key);
-            if (!ret) {
-                ret = await set();
-                this.set(key, ret);
+        return new Promise( resolve => {
+            const handler =async()=> {
+                let ret = await this.get(key);
+                if (!ret) {
+                    ret = await set();
+                    await this.set(key, ret);
+                }
+                resolve(ret);
             }
-            return resolve(ret);
+            void handler();
         });
     }
-    remove(key: string): Promise<void> {
+
+    remove(key: string): Promise<any> {
         return this.del(key);
     }
+
     removeAll(): Promise<void> {
         return new Promise(resolve => {
             this.map.clear();
             resolve(undefined);
         });
     }
+
     keys(): Promise<{ [key: string]: any }> {
         return new Promise((resolve) => {
-            let ret: { [key: string]: any } = {};
-            this.map.forEach((v, k) => {
+            const ret: { [key: string]: any } = {};
+            this.map.forEach((v:any, k:string) => {
                 ret[k] = v;
             });
             resolve(ret);

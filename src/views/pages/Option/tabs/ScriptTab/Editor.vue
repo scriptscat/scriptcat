@@ -67,14 +67,14 @@ import { Component, Prop, Vue, Watch } from "vue-property-decorator";
 import { KeyMod, KeyCode, languages } from "monaco-editor";
 import { Script, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
 import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from "@mdi/js";
-import ResizableEditor from "@components/ResizableEditor.vue";
+import ResizableEditor from "@Components/ResizableEditor.vue";
 import EventType from "@Option/EventType";
 import eventBus from "@App/views/EventBus";
 
 interface IEditorMenu {
   [title: string]: {
     action: string;
-    handler: Function;
+    handler: () => void;
     show?: boolean;
     disabled?: boolean;
     icon?: any;
@@ -122,7 +122,7 @@ export default class CloseButton extends Vue {
       var file = fileInput!.files![0];
       var reader = new FileReader();
       let _this = this;
-      reader.onload = function () {
+      reader.onload = function() {
         _this.editor.setValue(<string>this.result);
       };
       reader.readAsText(file, "utf-8");

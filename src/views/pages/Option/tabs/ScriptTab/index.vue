@@ -49,7 +49,7 @@ import { Vue, Component, Prop } from "vue-property-decorator";
 import { ScriptManager } from "@App/apps/script/manager";
 import { Script, SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
 
-import eventBus from "@views/EventBus";
+import eventBus from "@Views/EventBus";
 import { Tab, TabPane } from "@App/views/components/Tab";
 import Config from "./Config.vue";
 import META from "./META.vue";

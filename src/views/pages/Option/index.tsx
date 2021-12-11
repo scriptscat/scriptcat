@@ -1,8 +1,8 @@
 import { BackgroundGrant } from "@App/apps/grant/background";
 import { grantListener } from "@App/apps/grant/content";
 import { ScriptManager } from "@App/apps/script/manager";
-import { Tab, TabPane } from "@components/Tab";
-import eventBus from "@views/EventBus";
+import { Tab, TabPane } from "@Components/Tab";
+import eventBus from "@Views/EventBus";
 import { Component, Vue } from "vue-property-decorator";
 import { VApp } from "vuetify/lib";
 import EventType from "./EventType";

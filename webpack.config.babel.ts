@@ -121,8 +121,8 @@ const config: Configuration = {
         extensions: [".ts", ".tsx", ".js", ".vue", ".d.ts", ".tpl"],
         alias: {
             "@App": path.resolve(__dirname, "src/"),
-            "@views": path.resolve(__dirname, "src/views"),
-            "@components": path.resolve(__dirname, "src/views/components"),
+            "@Views": path.resolve(__dirname, "src/views"),
+            "@Components": path.resolve(__dirname, "src/views/components"),
             "@Option": path.resolve(__dirname, "src/views/pages/Option"),
         },
         fallback: {
