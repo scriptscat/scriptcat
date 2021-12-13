@@ -1,17 +1,17 @@
-import { PermissionModel } from "@App/model/permission";
-import { base64ToBlob, isFirefox } from "@App/pkg/utils/utils";
-import { App } from "../app";
-import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from "../msg-center/event";
-import { MsgCenter } from "../msg-center/msg-center";
-import { ScriptManager } from "../script/manager";
-import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from "./interface";
-import { v4 as uuidv4 } from "uuid"
-import { ValueModel } from "@App/model/value";
-import { LOGGER_LEVEL_INFO } from "@App/model/do/logger";
-import { Permission } from "@App/model/do/permission";
-import { Script } from "@App/model/do/script";
-import { Value } from "@App/model/do/value";
-import { execMethod, getIcon } from "./utils";
+import { PermissionModel } from '@App/model/permission';
+import { base64ToBlob, isFirefox } from '@App/pkg/utils/utils';
+import { App } from '../app';
+import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from '../msg-center/event';
+import { MsgCenter } from '../msg-center/msg-center';
+import { ScriptManager } from '../script/manager';
+import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from './interface';
+import { v4 as uuidv4 } from 'uuid'
+import { ValueModel } from '@App/model/value';
+import { LOGGER_LEVEL_INFO } from '@App/model/do/logger';
+import { Permission } from '@App/model/do/permission';
+import { Script } from '@App/model/do/script';
+import { Value } from '@App/model/do/value';
+import { execMethod, getIcon } from './utils';
 
 class postMessage implements IPostMessage {
 
@@ -56,6 +56,9 @@ export class BackgroundGrant {
         this.scriptMgr = scriptMgr;
         this.isdebug = isdebug;
         //处理xhrcookie的问题,firefox不支持
+        if (this.isdebug) {
+            return;
+        }
         try {
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
                 let setCookie = '';
@@ -63,45 +66,45 @@ export class BackgroundGrant {
                 let anonymous = false;
                 let origin = '';
                 let isScriptcat = false;
-                let requestHeaders: chrome.webRequest.HttpHeader[] = [];
-                let unsafeHeader: { [key: string]: string } = {};
+                const requestHeaders: chrome.webRequest.HttpHeader[] = [];
+                const unsafeHeader: { [key: string]: string } = {};
                 data.requestHeaders?.forEach((val, key) => {
-                    let lowerCase = val.name.toLowerCase();
+                    const lowerCase = val.name.toLowerCase();
                     switch (lowerCase) {
-                        case "x-cat-" + this.rand + "-cookie": {
+                        case 'x-cat-' + this.rand + '-cookie': {
                             setCookie = val.value || '';
                             break;
                         }
-                        case "x-cat-" + this.rand + "-anonymous": {
+                        case 'x-cat-' + this.rand + '-anonymous': {
                             anonymous = true;
                             break;
                         }
-                        case "x-cat-" + this.rand + "-scriptcat": {
+                        case 'x-cat-' + this.rand + '-scriptcat': {
                             isScriptcat = true;
                             break;
                         }
-                        case "x-cat-" + this.rand + "-host":
-                        case "x-cat-" + this.rand + "-user-agent":
-                        case "x-cat-" + this.rand + "-referer":
-                        case "x-cat-" + this.rand + "-origin":
-                        case "x-cat-" + this.rand + "-accept-encoding":
-                        case "x-cat-" + this.rand + "-connection": {
+                        case 'x-cat-' + this.rand + '-host':
+                        case 'x-cat-' + this.rand + '-user-agent':
+                        case 'x-cat-' + this.rand + '-referer':
+                        case 'x-cat-' + this.rand + '-origin':
+                        case 'x-cat-' + this.rand + '-accept-encoding':
+                        case 'x-cat-' + this.rand + '-connection': {
                             unsafeHeader[lowerCase.substr(this.rand.length + 7)] = val.value || '';
                             break;
                         }
-                        case "cookie": {
+                        case 'cookie': {
                             cookie = val.value || '';
                             break;
                         }
-                        case "origin": {
+                        case 'origin': {
                             origin = val.value || '';
                             break;
                         }
-                        case "user-agent":
-                        case "host":
-                        case "referer":
-                        case "accept-encoding":
-                        case "connection":
+                        case 'user-agent':
+                        case 'host':
+                        case 'referer':
+                        case 'accept-encoding':
+                        case 'connection':
                             {
                                 unsafeHeader[lowerCase] = unsafeHeader[lowerCase] || val.value || '';
                                 break
@@ -139,15 +142,15 @@ export class BackgroundGrant {
                     requestHeaders: requestHeaders,
                 }
             }, {
-                urls: ["<all_urls>"],
-            }, ["blocking", "requestHeaders", "extraHeaders"]);
-            let responseHeader: { [key: string]: boolean } = { "set-cookie": true };
+                urls: ['<all_urls>'],
+            }, ['blocking', 'requestHeaders', 'extraHeaders']);
+            const responseHeader: { [key: string]: boolean } = { 'set-cookie': true };
             chrome.webRequest.onHeadersReceived.addListener((details) => {
-                if (details.initiator && chrome.extension.getURL("").startsWith(details.initiator)) {
+                if (details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) {
                     details.responseHeaders?.forEach(val => {
                         if (responseHeader[val.name]) {
                             details.responseHeaders?.push({
-                                name: "x-cat-" + this.rand + "-" + val.name,
+                                name: 'x-cat-' + this.rand + '-' + val.name,
                                 value: val.value,
                                 binaryValue: val.binaryValue,
                             });
@@ -158,8 +161,8 @@ export class BackgroundGrant {
                     }
                 }
             }, {
-                urls: ["<all_urls>"],
-            }, ["blocking", "responseHeaders", "extraHeaders"]);
+                urls: ['<all_urls>'],
+            }, ['blocking', 'responseHeaders', 'extraHeaders']);
         } catch (e) {
         }
     }
@@ -183,7 +186,7 @@ export class BackgroundGrant {
             propertyName: string,
             descriptor: PropertyDescriptor
         ) {
-            let old = descriptor.value;
+            const old = descriptor.value;
             if (permission.listener) {
                 permission.listener();
             }
@@ -191,16 +194,16 @@ export class BackgroundGrant {
                 BackgroundGrant.freedCallback.set(propertyName, permission.freed);
             }
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
-                let _this: BackgroundGrant = <BackgroundGrant>this;
+                const _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise(async (resolve, reject) => {
-                    let script = await App.Cache.getOrSet('script:' + grant.id, () => {
+                    const script = await App.Cache.getOrSet('script:' + grant.id, () => {
                         return _this.scriptMgr.getScript(grant.id)
                     });
                     if (!script) {
                         return reject('permission denied');
                     }
-                    App.Log.Debug("script", "call function: " + propertyName, script.name);
-                    let metaGrant = script.metadata["grant"] || [];
+                    App.Log.Debug('script', 'call function: ' + propertyName, script.name);
+                    const metaGrant = script.metadata['grant'] || [];
                     // TODO: 优化效率
                     if (!permission.default) {
                         let flag = false;
@@ -241,9 +244,9 @@ export class BackgroundGrant {
                         } catch (e) {
                             return reject(e);
                         }
-                        if (typeof confirmParam == "object") {
-                            let confirm = <ConfirmParam>confirmParam;
-                            let cacheKey = "permission:" + script.id + ":" + confirm.permissionValue + ":" + confirm.permission;
+                        if (typeof confirmParam == 'object') {
+                            const confirm = confirmParam;
+                            const cacheKey = 'permission:' + script.id + ':' + confirm.permissionValue + ':' + confirm.permission;
                             let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
                                 return new Promise(async resolve => {
                                     let ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: confirm?.permissionValue });
@@ -264,32 +267,32 @@ export class BackgroundGrant {
                             }
                             confirm.uuid = uuidv4();
                             // 一个脚本只打开一个权限确定窗口,话说js中这个list是像是传递的指针,我后面直接操作list即可
-                            let list = <Array<ConfirmParam> | undefined>await App.Cache.get("confirm:window:" + confirm.permission + ":list:" + script.id);
+                            let list = <Array<ConfirmParam> | undefined>await App.Cache.get('confirm:window:' + confirm.permission + ':list:' + script.id);
                             let open = false;
                             if (list) {
                                 list.push(confirm);
                             } else {
                                 open = true;
                                 list = [confirm];
-                                App.Cache.set("confirm:window:" + confirm.permission + ":list:" + script.id, list);
+                                App.Cache.set('confirm:window:' + confirm.permission + ':list:' + script.id, list);
                                 // 超时清理数据
                                 setTimeout(() => {
-                                    App.Cache.del("confirm:info:" + confirm!.uuid);
-                                    MsgCenter.removeListenerAll(PermissionConfirm + confirm!.uuid);
+                                    App.Cache.del('confirm:info:' + confirm.uuid);
+                                    MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
                                     next();
                                 }, 300000);
                             }
                             // 处理下一个
-                            let next = () => {
+                            const next = () => {
                                 // 一个打开确定,一群不打开只监听消息
-                                let confirm = list!.pop();
+                                const confirm = list!.pop();
                                 if (confirm) {
-                                    App.Cache.set("confirm:info:" + confirm.uuid, confirm);
-                                    chrome.tabs.create({ url: chrome.runtime.getURL("confirm.html?uuid=" + confirm.uuid) });
+                                    App.Cache.set('confirm:info:' + confirm.uuid, confirm);
+                                    chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + confirm.uuid) });
                                 }
                             }
-                            let listener = async (param: any) => {
-                                App.Cache.del("confirm:info:" + confirm.uuid);
+                            const listener = async (param: any) => {
+                                App.Cache.del('confirm:info:' + confirm.uuid);
                                 MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
                                 ret = {
                                     id: 0,
@@ -322,12 +325,12 @@ export class BackgroundGrant {
                                 }
                                 //总是 放入数据库
                                 if (param.type >= 4) {
-                                    let oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
+                                    const oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
                                     if (!oldConfirm) {
                                         _this.permissionModel.save(ret);
                                     }
                                 }
-                                if (ret.permissionValue == "*") {
+                                if (ret.permissionValue == '*') {
                                     // 如果是通配,处理掉全部list
                                     let item: ConfirmParam | undefined;
                                     while (item = list?.pop()) {
@@ -358,16 +361,16 @@ export class BackgroundGrant {
     public listenScriptGrant() {
         this.listener.listen((msg, postMessage) => {
             return new Promise(async resolve => {
-                let grant = <Grant>msg;
+                const grant = <Grant>msg;
                 if (!grant.value) {
                     return;
                 }
-                let api = BackgroundGrant.apis.get(grant.value);
+                const api = BackgroundGrant.apis.get(grant.value);
                 if (api == undefined) {
                     return resolve(undefined);
                 }
                 api.apply(this, [grant, postMessage]).then(result => {
-                    if (grant.value == "CAT_runComplete" || (grant.value == "CAT_setRunError" && grant.params[0])) {
+                    if (grant.value == 'CAT_runComplete' || (grant.value == 'CAT_setRunError' && grant.params[0])) {
                         //执行完毕,释放资源
                         BackgroundGrant.freedCallback.forEach(v => {
                             v(grant);
@@ -385,17 +388,17 @@ export class BackgroundGrant {
     }
 
     protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
-        let removeXCat = new RegExp("x-cat-" + this.rand + "-", "g");
-        let respond: GM_Types.XHRResponse = {
+        const removeXCat = new RegExp('x-cat-' + this.rand + '-', 'g');
+        const respond: GM_Types.XHRResponse = {
             finalUrl: xhr.responseURL || config.url,
             readyState: <any>xhr.readyState,
             status: xhr.status,
             statusText: xhr.statusText,
-            responseHeaders: xhr.getAllResponseHeaders().replace(removeXCat, ""),
+            responseHeaders: xhr.getAllResponseHeaders().replace(removeXCat, ''),
             responseType: config.responseType,
         };
         if (xhr.readyState === 4) {
-            if (config.responseType == "arraybuffer" || config.responseType == "blob") {
+            if (config.responseType == 'arraybuffer' || config.responseType == 'blob') {
                 if (xhr.response instanceof ArrayBuffer) {
                     respond.response = URL.createObjectURL(new Blob([xhr.response]));
                 } else {
@@ -404,9 +407,14 @@ export class BackgroundGrant {
                 setTimeout(() => {
                     URL.revokeObjectURL(respond.response);
                 }, 60e3)
-            } else if (config.responseType == "json") {
+            } else if (config.responseType == 'json') {
                 try {
                     respond.response = JSON.parse(xhr.responseText);
+                } catch (e) {
+                }
+            } else {
+                try {
+                    respond.response = xhr.response;
                 } catch (e) {
                 }
             }
@@ -422,24 +430,24 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
-                let config = <GM_Types.XHRDetails>grant.params[0];
-                let url = new URL(config.url);
-                if (script.metadata["connect"]) {
-                    let connect = script.metadata["connect"];
+                const config = <GM_Types.XHRDetails>grant.params[0];
+                const url = new URL(config.url);
+                if (script.metadata['connect']) {
+                    const connect = script.metadata['connect'];
                     for (let i = 0; i < connect.length; i++) {
                         if (url.hostname.endsWith(connect[i])) {
                             return resolve(true);
                         }
                     }
                 }
-                let ret: ConfirmParam = {
+                const ret: ConfirmParam = {
                     permission: 'cors',
                     permissionValue: url.host,
                     title: '脚本正在试图访问跨域资源',
                     metadata: {
-                        "脚本名称": script.name,
-                        "请求域名": url.host,
-                        "请求地址": config.url,
+                        '脚本名称': script.name,
+                        '请求域名': url.host,
+                        '请求地址': config.url,
                     },
                     describe: '请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项',
                     wildcard: true,
@@ -456,38 +464,38 @@ export class BackgroundGrant {
                 //错误
                 return reject('param is null');
             }
-            let config = <GM_Types.XHRDetails>grant.params[0];
+            const config = <GM_Types.XHRDetails>grant.params[0];
 
-            let xhr = new XMLHttpRequest();
+            const xhr = new XMLHttpRequest();
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
             config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
-            if (config.responseType != "json") {
+            if (config.responseType != 'json') {
                 xhr.responseType = config.responseType || '';
             }
-            let _this = this;
+            const _this = this;
 
             function deal(event: string) {
-                let respond = _this.dealXhr(config, xhr);
+                const respond = _this.dealXhr(config, xhr);
                 grant.data = { type: event, data: respond };
                 post.postMessage(grant);
             }
             xhr.onload = (event) => {
-                deal("load");
+                deal('load');
             }
             xhr.onloadstart = (event) => {
-                deal("onloadstart");
+                deal('onloadstart');
             }
             xhr.onloadend = (event) => {
-                deal("onloadstart");
+                deal('onloadstart');
             }
             xhr.onabort = (event) => {
-                deal("onabort");
+                deal('onabort');
             }
             xhr.onerror = (event) => {
-                deal("onerror");
+                deal('onerror');
             }
             xhr.onprogress = (event) => {
-                let respond: GM_Types.XHRProgress = {
+                const respond: GM_Types.XHRProgress = {
                     done: xhr.DONE,
                     lengthComputable: event.lengthComputable,
                     loaded: event.loaded,
@@ -498,50 +506,50 @@ export class BackgroundGrant {
                 post.postMessage(grant);
             }
             xhr.onreadystatechange = (event) => {
-                deal("onreadystatechange");
+                deal('onreadystatechange');
             }
             xhr.ontimeout = () => {
-                grant.data = { type: 'ontimeout', data: "" };
+                grant.data = { type: 'ontimeout', data: '' };
                 post.postMessage(grant);
             }
-            xhr.setRequestHeader("X-Cat-" + this.rand + "-Scriptcat", "true");
+            xhr.setRequestHeader('X-Cat-' + this.rand + '-Scriptcat', 'true');
             for (let key in config.headers) {
                 const val = config.headers[key];
                 // 处理unsafe的header
                 switch (key.toLowerCase()) {
-                    case "user-agent":
-                    case "host":
-                    case "origin":
-                    case "accept-encoding":
-                    case "connection":
-                    case "referer": {
-                        key = "X-Cat-" + this.rand + "-" + key;
+                    case 'user-agent':
+                    case 'host':
+                    case 'origin':
+                    case 'accept-encoding':
+                    case 'connection':
+                    case 'referer': {
+                        key = 'X-Cat-' + this.rand + '-' + key;
                         break;
                     }
                 }
                 try {
                     xhr.setRequestHeader(key, val);
                 } catch (e) {
-                    App.Log.Debug("gmxhr", (e as Error).message, grant.name, grant.id);
+                    App.Log.Debug('gmxhr', (e as Error).message, grant.name, grant.id);
                 }
             }
             if (config.timeout) {
                 xhr.timeout = config.timeout;
             }
             if (config.cookie) {
-                xhr.setRequestHeader("X-Cat-" + this.rand + "-Cookie", config.cookie);
+                xhr.setRequestHeader('X-Cat-' + this.rand + '-Cookie', config.cookie);
             }
             if (config.anonymous) {
-                xhr.setRequestHeader("X-Cat-" + this.rand + "-Anonymous", "true");
+                xhr.setRequestHeader('X-Cat-' + this.rand + '-Anonymous', 'true');
             }
             if (config.overrideMimeType) {
                 xhr.overrideMimeType(config.overrideMimeType);
             }
-            if ((<any>config).dataType && (<any>config).dataType == "FormData") {
-                let data = new FormData();
+            if ((<any>config).dataType && (<any>config).dataType == 'FormData') {
+                const data = new FormData();
                 for (const key in config.data) {
-                    let val = config.data[key];
-                    if (val.type == "file") {
+                    const val = config.data[key];
+                    if (val.type == 'file') {
                         data.append(val.key, base64ToBlob(val.val), val.filename);
                     } else {
                         data.append(val.key, val.val);
@@ -560,7 +568,7 @@ export class BackgroundGrant {
     })
     protected GM_getCookieStore(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise((resolve, reject) => {
-            let tabid = grant.params[0];
+            const tabid = grant.params[0];
             if (!tabid) {
                 return reject('tabis is null');
             }
@@ -582,7 +590,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
             return new Promise((resolve, reject) => {
-                let detail = <GM_Types.CookieDetails>grant.params[1];
+                const detail = <GM_Types.CookieDetails>grant.params[1];
                 if ((!detail.url && !detail.domain)) {
                     return reject('there must be one of url or domain');
                 }
@@ -594,8 +602,8 @@ export class BackgroundGrant {
                     url.hostname = detail.domain;
                 }
                 let flag = false;
-                if (script.metadata["connect"]) {
-                    let connect = script.metadata["connect"];
+                if (script.metadata['connect']) {
+                    const connect = script.metadata['connect'];
                     for (let i = 0; i < connect.length; i++) {
                         if (url.hostname.endsWith(connect[i])) {
                             flag = true;
@@ -606,13 +614,13 @@ export class BackgroundGrant {
                 if (!flag) {
                     return reject('hostname must be in the definition of connect');
                 }
-                let ret: ConfirmParam = {
+                const ret: ConfirmParam = {
                     permission: 'cookie',
                     permissionValue: url.host,
                     title: '脚本正在试图访问网站cookie内容',
                     metadata: {
-                        "脚本名称": script.name,
-                        "请求域名": url.host,
+                        '脚本名称': script.name,
+                        '请求域名': url.host,
                     },
                     describe: '请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.',
                     permissionContent: 'Cookie域',
@@ -623,13 +631,13 @@ export class BackgroundGrant {
     })
     protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise((resolve, reject) => {
-            let param = grant.params;
+            const param = grant.params;
             if (param.length != 2) {
                 return reject('there must be two parameters');
             }
             if (param[0] == 'store') {
                 chrome.cookies.getAllCookieStores(res => {
-                    let data: any[] = [];
+                    const data: any[] = [];
                     res.forEach(val => {
                         data.push({ storeId: val.id });
                     });
@@ -638,7 +646,7 @@ export class BackgroundGrant {
                 });
                 return;
             }
-            let detail = <GM_Types.CookieDetails>grant.params[1];
+            const detail = <GM_Types.CookieDetails>grant.params[1];
             // url或者域名不能为空,且必须有name
             if (detail.url) {
                 detail.url = detail.url.trim();
@@ -712,18 +720,18 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         listener: () => {
             chrome.tabs.onRemoved.addListener(tabId => {
-                let tab = BackgroundGrant.tabMap.get(tabId);
+                const tab = BackgroundGrant.tabMap.get(tabId);
                 if (tab) {
                     tab[0].data = { type: 'close' }
                     tab[1].postMessage(tab[0]);
                     BackgroundGrant.tabMap.delete(tabId);
                 }
             })
-        }, alias: ["GM_closeInTab"]
+        }, alias: ['GM_closeInTab']
     })
     protected GM_openInTab(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            let param: GM_Types.OpenTabOptions = grant.params[1] || {};
+            const param: GM_Types.OpenTabOptions = grant.params[1] || {};
             chrome.tabs.create({
                 url: grant.params[0],
                 active: param.active || false,
@@ -748,49 +756,49 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         listener: () => {
             chrome.notifications.onClosed.addListener(async (id, user) => {
-                let ret = await App.Cache.get("GM_notification:" + id);
+                const ret = await App.Cache.get('GM_notification:' + id);
                 if (ret) {
-                    let [grant, post] = ret;
+                    const [grant, post] = ret;
                     grant.data = { type: 'done', id: id, user: user };
                     post.postMessage(grant);
-                    App.Cache.del("GM_notification:" + id);
+                    App.Cache.del('GM_notification:' + id);
                 }
             });
             chrome.notifications.onClicked.addListener(async (id) => {
-                let ret = await App.Cache.get("GM_notification:" + id);
+                const ret = await App.Cache.get('GM_notification:' + id);
                 if (ret) {
-                    let [grant, post] = ret;
+                    const [grant, post] = ret;
                     grant.data = { type: 'click', id: id, index: undefined };
                     post.postMessage(grant);
                     grant.data = { type: 'done', id: id, user: true };
                     post.postMessage(grant);
-                    App.Cache.del("GM_notification:" + id);
+                    App.Cache.del('GM_notification:' + id);
                 }
             });
             chrome.notifications.onButtonClicked.addListener(async (id, buttonIndex) => {
-                let ret = await App.Cache.get("GM_notification:" + id);
+                const ret = await App.Cache.get('GM_notification:' + id);
                 if (ret) {
-                    let [grant, post] = ret;
+                    const [grant, post] = ret;
                     grant.data = { type: 'click', id: id, index: buttonIndex };
                     post.postMessage(grant);
                     grant.data = { type: 'done', id: id, user: true };
                     post.postMessage(grant);
-                    App.Cache.del("GM_notification:" + id);
+                    App.Cache.del('GM_notification:' + id);
                 }
             });
         }
     })
     protected GM_notification(grant: Grant, post: IPostMessage, script: Script): Promise<any> {
         return new Promise((resolve, reject) => {
-            let params = grant.params;
+            const params = grant.params;
             if (params.length == 0) {
                 return reject('param is null');
             }
-            let details: GM_Types.NotificationDetails = params[0];
-            let options: chrome.notifications.NotificationOptions = {
+            const details: GM_Types.NotificationDetails = params[0];
+            const options: chrome.notifications.NotificationOptions = {
                 title: details.title || 'ScriptCat',
                 message: details.text,
-                iconUrl: details.image || getIcon(script) || chrome.runtime.getURL("assets/logo.png"),
+                iconUrl: details.image || getIcon(script) || chrome.runtime.getURL('assets/logo.png'),
                 type: (isFirefox() || details.progress === undefined) ? 'basic' : 'progress',
             };
             if (!isFirefox()) {
@@ -799,7 +807,7 @@ export class BackgroundGrant {
             }
 
             chrome.notifications.create(options, (notificationId) => {
-                App.Cache.set("GM_notification:" + notificationId, [grant, post]);
+                App.Cache.set('GM_notification:' + notificationId, [grant, post]);
                 grant.data = { type: 'create', id: notificationId };
                 post.postMessage(grant);
                 if (details.timeout) {
@@ -807,7 +815,7 @@ export class BackgroundGrant {
                         chrome.notifications.clear(notificationId);
                         grant.data = { type: 'done', id: notificationId, user: false };
                         post.postMessage(grant);
-                        App.Cache.del("GM_notification:" + notificationId);
+                        App.Cache.del('GM_notification:' + notificationId);
                     }, details.timeout);
                 }
             });
@@ -820,12 +828,12 @@ export class BackgroundGrant {
         return new Promise(async resolve => {
             chrome.notifications.clear(grant.params[0]);
 
-            let ret = await App.Cache.get("GM_notification:" + grant.params[0]);
+            const ret = await App.Cache.get('GM_notification:' + grant.params[0]);
             if (ret) {
-                let [grant, post] = ret;
+                const [grant, post] = ret;
                 grant.data = { type: 'done', id: grant.params[0], user: false };
                 post.postMessage(grant);
-                App.Cache.del("GM_notification:" + grant.params[0]);
+                App.Cache.del('GM_notification:' + grant.params[0]);
             }
 
             return resolve(undefined);
@@ -838,9 +846,9 @@ export class BackgroundGrant {
             if (isFirefox()) {
                 return reject('firefox does not support this method');
             }
-            let id = grant.params[0];
-            let details: GM_Types.NotificationDetails = grant.params[1];
-            let options: chrome.notifications.NotificationOptions = {
+            const id = grant.params[0];
+            const details: GM_Types.NotificationDetails = grant.params[1];
+            const options: chrome.notifications.NotificationOptions = {
                 title: details.title,
                 message: details.text,
                 iconUrl: details.image,
@@ -893,7 +901,7 @@ export class BackgroundGrant {
     protected GM_setValue(grant: Grant, post: IPostMessage, script?: Script): Promise<any> {
         //getValue直接从缓存中返回了,无需编写
         return new Promise(async resolve => {
-            let [key, value] = grant.params;
+            const [key, value] = grant.params;
             let model: Value | undefined;
             if (script?.metadata['storagename']) {
                 model = await this.valueModel.findOne({ storageName: script.metadata['storagename'][0], key: key });
@@ -914,7 +922,7 @@ export class BackgroundGrant {
             }
 
             if (value === undefined) {
-                this.valueModel.delete(model!.id);
+                this.valueModel.delete(model.id);
                 AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
                 return resolve(undefined);
             }
@@ -945,7 +953,7 @@ export class BackgroundGrant {
                             regex = regex.replace('*', '(?:^|.*?)')
                         }
                         regex = regex.replace(/\//g, '\\/');
-                        ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` + (val.proxyServer.port ? ':' + val.proxyServer.port : '') + `"}\n`;
+                        ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` + (val.proxyServer.port ? ':' + val.proxyServer.port : '') + '"}\n';
                     });
                 });
             }
@@ -977,7 +985,7 @@ export class BackgroundGrant {
     protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.proxyRule.set(grant.id, grant.params[0]);
-            App.Log.Debug("background", "enable proxy", grant.name);
+            App.Log.Debug('background', 'enable proxy', grant.name);
             chrome.proxy.settings.set({
                 value: {
                     mode: 'pac_script',
@@ -1001,8 +1009,8 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction()
     public CAT_click(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            let target = { tabId: (<chrome.runtime.MessageSender>post.sender()).tab?.id };
-            let param = grant.params;
+            const target = { tabId: (<chrome.runtime.MessageSender>post.sender()).tab?.id };
+            const param = grant.params;
             chrome.debugger.getTargets(result => {
                 let flag = false;
                 for (let i = 0; i < result.length; i++) {
@@ -1012,14 +1020,14 @@ export class BackgroundGrant {
                     }
                 }
                 if (flag) {
-                    chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
-                        chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                    chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
+                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
                         });
                     });
                 } else {
                     chrome.debugger.attach(target, '1.2', () => {
-                        chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
-                            chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: param[0], y: param[1], button: "left", clickCount: 1 }, (result) => {
+                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
+                            chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
                             });
                         });
                     });
@@ -1039,7 +1047,7 @@ export class BackgroundGrant {
                     return;
                 }
                 e.preventDefault();
-                let { type, data } = BackgroundGrant.clipboardData;
+                const { type, data } = BackgroundGrant.clipboardData;
                 (<any>e).clipboardData.setData(type || 'text/plain', data);
                 BackgroundGrant.clipboardData = undefined;
             })
@@ -1067,7 +1075,7 @@ export class BackgroundGrant {
             MsgCenter.listener(TabMenuClick, (msg) => {
                 let scriptMenu: Map<number, any> | undefined;
                 if (msg.tabId) {
-                    let tabMenu = BackgroundGrant.menu.get(msg.tabId);
+                    const tabMenu = BackgroundGrant.menu.get(msg.tabId);
                     if (!tabMenu) {
                         return;
                     }
@@ -1078,9 +1086,9 @@ export class BackgroundGrant {
                 if (!scriptMenu) {
                     return;
                 }
-                let menu = scriptMenu.get(msg.id);
+                const menu = scriptMenu.get(msg.id);
                 if (menu) {
-                    menu.grant.data = { action: "click" };
+                    menu.grant.data = { action: 'click' };
                     menu.post.postMessage(menu.grant);
                 }
             });
@@ -1092,7 +1100,7 @@ export class BackgroundGrant {
             let scriptMenu: Map<number, any> | undefined;
             if (grant.tabId) {
                 grant.params[0].tabId = grant.tabId;
-                AppEvent.trigger("GM_registerMenuCommand", { type: 'frontend', param: grant.params[0] })
+                AppEvent.trigger('GM_registerMenuCommand', { type: 'frontend', param: grant.params[0] })
                 let tabMenu = BackgroundGrant.menu.get(grant.tabId);
                 if (!tabMenu) {
                     tabMenu = new Map();
@@ -1104,7 +1112,7 @@ export class BackgroundGrant {
                 tabMenu.set(grant.id, scriptMenu);
                 BackgroundGrant.menu.set(grant.tabId, tabMenu);
             } else {
-                AppEvent.trigger("GM_registerMenuCommand", { type: 'backend', param: grant.params[0] })
+                AppEvent.trigger('GM_registerMenuCommand', { type: 'backend', param: grant.params[0] })
                 scriptMenu = BackgroundGrant.bgMenu.get(grant.id);
                 if (!scriptMenu) {
                     scriptMenu = new Map();
@@ -1126,11 +1134,11 @@ export class BackgroundGrant {
             grant.params[0].scriptId = grant.id;
             if (grant.tabId) {
                 grant.params[0].tabId = grant.tabId;
-                AppEvent.trigger("GM_unregisterMenuCommand", { type: 'frontend', param: grant.params[0] });
+                AppEvent.trigger('GM_unregisterMenuCommand', { type: 'frontend', param: grant.params[0] });
                 // 清理交给removetab事件,直接清理tab下所有的
             } else {
-                AppEvent.trigger("GM_unregisterMenuCommand", { type: 'backend', param: grant.params[0] })
-                let scriptMenu = BackgroundGrant.bgMenu.get(grant.id);
+                AppEvent.trigger('GM_unregisterMenuCommand', { type: 'backend', param: grant.params[0] })
+                const scriptMenu = BackgroundGrant.bgMenu.get(grant.id);
                 if (scriptMenu) {
                     scriptMenu.delete(grant.params[0]);
                 }
