@@ -87,3 +87,23 @@ interface Userinfo {
     username: string;
     avatar?: string;
 }
+
+declare namespace GMSend {
+    interface XHRDetails {
+        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS"
+        url: string
+        headers?: { [key: string]: string }
+        data?: string | Array
+        cookie?: string
+        binary?: boolean
+        timeout?: number
+        context?: CONTEXT_TYPE
+        responseType?: "arraybuffer" | "blob" | "json"
+        overrideMimeType?: string,
+        anonymous?: boolean,
+        fetch?: boolean,
+        user?: string,
+        password?: string,
+        nocache?: boolean
+    }
+}

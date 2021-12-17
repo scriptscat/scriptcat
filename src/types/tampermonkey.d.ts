@@ -193,7 +193,7 @@ declare namespace GM_Types {
         method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS"
         url: string
         headers?: { [key: string]: string }
-        data?: any
+        data?: string | FormData 
         cookie?: string
         binary?: boolean
         timeout?: number

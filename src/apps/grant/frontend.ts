@@ -143,7 +143,7 @@ export class FrontendGrant implements ScriptContext {
                 }
             }
         }
-        let param: GM_Types.XHRDetails = {
+        let param: GMSend.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
             url: u.href,
@@ -313,6 +313,10 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_setValue(name: string, value: any): void {
+        // 对object的value进行一次转化
+        if (typeof value === "object") {
+            value = JSON.parse(JSON.stringify(value));
+        }
         let ret = this.script.value![name];
         if (ret) {
             ret.value = value;

@@ -464,7 +464,7 @@ export class BackgroundGrant {
                 //错误
                 return reject('param is null');
             }
-            const config = <GM_Types.XHRDetails>grant.params[0];
+            const config = <GMSend.XHRDetails>grant.params[0];
 
             const xhr = new XMLHttpRequest();
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
