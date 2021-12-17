@@ -10,10 +10,11 @@ import { migrate } from "./model/migrate";
 import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_DISABLE } from "./model/do/script";
 import { MapCache } from "./pkg/storage/cache/cache";
 import { get } from "./pkg/utils/utils";
-import { Server } from "./apps/config";
+import { ExtVersion, Server } from "./apps/config";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "./model/do/subscribe";
 import { UserManager } from "./apps/user/manager";
 import { ToolsManager } from "./apps/tools/manager";
+import { config } from "vue/types/umd";
 
 migrate();
 
@@ -146,10 +147,13 @@ setInterval(() => {
     }
 }, 1800000);
 
-process.env.NODE_ENV === "production" && chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason == "install") {
         chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
     } else if (details.reason == "update") {
-        chrome.tabs.create({ url: "https://docs.scriptcat.org/change/" });
+        // 中版本的更新才打开新窗口
+        if (details.previousVersion?.substring(0, details.previousVersion.lastIndexOf('.')) != ExtVersion.substring(0, ExtVersion.lastIndexOf('.'))) {
+            chrome.tabs.create({ url: "https://docs.scriptcat.org/change/" });
+        }
     }
 });
