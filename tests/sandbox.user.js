@@ -11,6 +11,7 @@
 // @resource xml https://bbs.tampermonkey.net.cn/sitemap.xml
 // @grant GM_getResourceText
 // @grant GM_getResourceURL
+// @grant GM_cookie
 // ==/UserScript==
 
 console.log(window.scrollX, window.scrollY);
@@ -57,3 +58,6 @@ global.a = 2;
 
 console.log(globalThis.a == 2, globalThis.a, global.a);
 
+GM_cookie('store', {}, function () {
+    console.log(arguments);
+});

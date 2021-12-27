@@ -205,7 +205,7 @@ export class FrontendGrant implements ScriptContext {
 
         this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
             if (grant.error) {
-                details.onerror && details.onerror(grant.errorMsg);
+                details.onerror && details.onerror(grant.errorMsg || '');
                 return;
             }
             switch (grant.data.type) {
@@ -228,7 +228,7 @@ export class FrontendGrant implements ScriptContext {
                     details.ontimeout && details.ontimeout();
                     break;
                 case 'onerror':
-                    details.onerror && details.onerror();
+                    details.onerror && details.onerror('');
                     break;
                 case 'onabort':
                     details.onabort && details.onabort();
@@ -298,7 +298,7 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    public GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): void {
+    public GM_log(message: string, level?: GM_Types.LoggerLevel): void {
         this.postRequest('GM_log', [message, level]);
     }
 

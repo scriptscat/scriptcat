@@ -11,20 +11,20 @@
 </template>
 
 <script lang="ts">
-import { ScriptController } from "@App/apps/script/controller";
-import { Vue, Component } from "vue-property-decorator";
+import { ScriptController } from '@App/apps/script/controller';
+import { Vue, Component } from 'vue-property-decorator';
 import Panels, {
   ConfigItem,
   PanelConfigs,
-} from "@App/views/components/Panels.vue";
-import { saveAs } from "file-saver";
-import { File, Resource, Script, Subscribe } from "@App/model/do/back";
-import { SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
-import { strToBase64 } from "@App/pkg/utils/utils";
-import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
-import { ToolsController } from "@App/apps/tools/controller";
-import { SystemConfig } from "@App/pkg/config";
-import { toStorageValueStr } from "../../utils";
+} from '@App/views/components/Panels.vue';
+import { saveAs } from 'file-saver';
+import { File, Resource, Script, Subscribe } from '@App/model/do/back';
+import { SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
+import { strToBase64 } from '@App/pkg/utils/utils';
+import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { ToolsController } from '@App/apps/tools/controller';
+import { SystemConfig } from '@App/pkg/config';
+import { toStorageValueStr } from '../../utils';
 
 @Component({
   components: { Panels },
@@ -39,19 +39,19 @@ export default class Tools extends Vue {
     备份: {
       items: [
         {
-          type: "button",
-          title: "导出文件",
-          describe: "导出备份文件",
-          color: "accent",
+          type: 'button',
+          title: '导出文件',
+          describe: '导出备份文件',
+          color: 'accent',
           loading: false,
           disabled: false,
           click: this.clickExportFile,
         },
         {
-          type: "button",
-          title: "导入文件",
-          describe: "导入备份文件",
-          color: "blue-grey",
+          type: 'button',
+          title: '导入文件',
+          describe: '导入备份文件',
+          color: 'blue-grey',
           click: this.clickImportFile,
         },
       ],
@@ -59,8 +59,8 @@ export default class Tools extends Vue {
     开发调试: {
       items: [
         {
-          type: "text",
-          title: "VSCode地址",
+          type: 'text',
+          title: 'VSCode地址',
           describe:
             "连接地址,默认一般为: ws://localhost:8642,需要在vscode扩展商店中安装'scriptcat-vscode'配合食用",
           value: SystemConfig.vscode_url,
@@ -71,18 +71,18 @@ export default class Tools extends Vue {
           },
         },
         {
-          type: "check",
-          title: "自动连接vscode服务",
-          describe: "启动时自动连接到vscode扩展服务,断开连接后也会自动重连",
+          type: 'check',
+          title: '自动连接vscode服务',
+          describe: '启动时自动连接到vscode扩展服务,断开连接后也会自动重连',
           value: SystemConfig.vscode_reconnect,
           change(val: any) {
             SystemConfig.vscode_reconnect = val.value;
           },
         },
         {
-          type: "button",
-          title: "连接",
-          color: "blue-grey",
+          type: 'button',
+          title: '连接',
+          color: 'blue-grey',
           click: this.connectVScode,
         },
       ],
@@ -107,7 +107,7 @@ export default class Tools extends Vue {
   }
 
   clickImportFile() {
-    let importFile = <HTMLInputElement>document.getElementById("import-file")!;
+    let importFile = <HTMLInputElement>document.getElementById('import-file')!;
     importFile.click();
   }
 
@@ -118,8 +118,8 @@ export default class Tools extends Vue {
     let subscribes: Subscribe[] = [];
     let nowTime = new Date();
     let file: File = {
-      created_by: "ScriptCat",
-      version: "1",
+      created_by: 'ScriptCat',
+      version: '1',
       scripts: scripts,
       subscribes: subscribes,
       settings: {},
@@ -148,20 +148,20 @@ export default class Tools extends Vue {
             name: this.getUrlName(resource.url),
             url: resource.url,
             ts: resource.createtime || nowTime.getTime(),
-            mimetype: resource.contentType || "",
+            mimetype: resource.contentType || '',
           },
           source: resource.base64.substring(
-            resource.base64.indexOf("base64,") + 7
+            resource.base64.indexOf('base64,') + 7
           ),
         };
         switch (resource.type) {
-          case "require":
+          case 'require':
             requires.push(val);
             break;
-          case "resource":
+          case 'resource':
             resources.push(val);
             break;
-          case "require-css":
+          case 'require-css':
             requires_css.push(val);
             break;
         }
@@ -203,9 +203,9 @@ export default class Tools extends Vue {
 
     saveAs(
       new Blob([JSON.stringify(file)]),
-      "scriptcat-backup " +
+      'scriptcat-backup ' +
         `${nowTime.getFullYear()}-${nowTime.getMonth()}-${nowTime.getDate()} ${nowTime.getHours()}-${nowTime.getMinutes()}-${nowTime.getSeconds()}` +
-        ".json"
+        '.json'
     );
 
     val.loading = false;
@@ -213,11 +213,11 @@ export default class Tools extends Vue {
   }
 
   getUrlName(url: string): string {
-    let t = url.indexOf("?");
+    let t = url.indexOf('?');
     if (t !== -1) {
       url = url.substring(0, t);
     }
-    t = url.lastIndexOf("/");
+    t = url.lastIndexOf('/');
     if (t !== -1) {
       url = url.substring(t + 1);
     }
@@ -230,10 +230,10 @@ export default class Tools extends Vue {
     let ret = await this.toolsCtrl.connectVScode(
       this.configs.开发调试.items[0].value!
     );
-    if (typeof ret === "string") {
+    if (typeof ret === 'string') {
       alert(ret);
     } else {
-      alert("连接成功");
+      alert('连接成功');
     }
     val.loading = false;
     val.disabled = false;

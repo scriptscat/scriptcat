@@ -510,7 +510,7 @@ export class ScriptController {
             ret.grantMap = {};
 
             ret.metadata['grant']?.forEach((val: string) => {
-                ret.grantMap![val] = 'ok';
+                ret.grantMap[val] = 'ok';
             });
 
             resolve(ret);

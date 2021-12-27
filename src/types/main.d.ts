@@ -1,7 +1,7 @@
 declare let sandbox: any;
 
-declare module "@App/tampermonkey.d.ts";
-declare module "*.tpl";
+declare module '@App/tampermonkey.d.ts';
+declare module '*.tpl';
 
 interface ITabItem {
     tabKey: string | number;
@@ -15,7 +15,7 @@ interface ITabItem {
     message?: string;
     beforeChange?: (tabPane: TabPane) => Promise<boolean>;
     beforeRemove?: (tabPane: TabPane) => Promise<boolean>;
-    template?: "normal" | "crontab" | "background";
+    template?: 'normal' | 'crontab' | 'background';
 }
 
 interface IChangeTitle {
@@ -32,13 +32,13 @@ interface IEditScript {
 
 
 interface ICreateScript {
-
+    //
 }
 
 interface INewScript {
     scriptId: number;
     tabKey: string | number;
-    template?: "normal" | "crontab" | "background";
+    template?: 'normal' | 'crontab' | 'background';
 }
 
 interface IUpdateMeta {
@@ -62,8 +62,8 @@ interface ICodeChange {
 
 declare const ScriptFlag;
 
-declare module chrome {
-    declare module clipboard {
+declare namespace chrome {
+    declare namespace clipboard {
         declare function setImageData(
             imageData: ArrayBuffer,
             type: ImageType,
@@ -71,8 +71,8 @@ declare module chrome {
             callback: function,
         );
 
-        type DataItemType = "textPlain" | "textHtml";
-        type ImageType = "png" | "jpeg";
+        type DataItemType = 'textPlain' | 'textHtml';
+        type ImageType = 'png' | 'jpeg';
         declare interface AdditionalDataItem {
             data: string;
             type: DataItemType;
@@ -80,7 +80,7 @@ declare module chrome {
     }
 }
 
-declare var top: Window;
+declare const top: Window;
 
 interface Userinfo {
     id: number;
@@ -90,20 +90,29 @@ interface Userinfo {
 
 declare namespace GMSend {
     interface XHRDetails {
-        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS"
+        method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
         url: string
         headers?: { [key: string]: string }
-        data?: string | Array
+        data?: string | Array<XHRFormData>
         cookie?: string
         binary?: boolean
         timeout?: number
         context?: CONTEXT_TYPE
-        responseType?: "arraybuffer" | "blob" | "json"
+        responseType?: 'arraybuffer' | 'blob' | 'json'
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,
         user?: string,
         password?: string,
         nocache?: boolean
+        dataType?: 'FormData'
+    }
+
+    interface XHRFormData {
+        type?: 'file'
+        key: string
+        val: string
+        filename?: string
     }
 }
+

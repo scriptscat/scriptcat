@@ -1,17 +1,17 @@
 
 //@copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
-declare var unsafeWindow: Window;
+declare const unsafeWindow: Window;
 
-declare var GM_info: {
+declare const GM_info: {
     version: string,
     scriptWillUpdate: boolean,
-    scriptHandler: "ScriptCat",
+    scriptHandler: 'ScriptCat',
     scriptUpdateURL?: string,
     scriptSource: string,
     scriptMetaStr?: string,
     isIncognito: boolean,
-    downloadMode: "native" | "disabled" | "browser",
+    downloadMode: 'native' | 'disabled' | 'browser',
     script: {
         author?: string,
         description?: string,
@@ -25,7 +25,7 @@ declare var GM_info: {
         name: string,
         namespace?: string,
         position: number,
-        "run-at": string,
+        'run-at': string,
         resources: string[],
         unwrap: boolean,
         version: string,
@@ -66,13 +66,13 @@ declare function GM_setValue(name: string, value: any): void;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
-declare function GM_log(message: string, level?: GM_Types.LOGGER_LEVEL): any;
+declare function GM_log(message: string, level?: GM_Types.LoggerLevel): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
 declare function GM_getResourceURL(name: string): string | undefined;
 
-declare function GM_registerMenuCommand(name: string, listener: Function, accessKey?: string): number;
+declare function GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
@@ -103,6 +103,7 @@ declare function GM_updateNotification(id: string, details: GM_Types.Notificatio
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string, minetype?: string }): void;
 
+// name和domain不能都为空
 declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.CookieDetails, ondone: (cookie: GM_Types.Cookie[], error: any | undefined) => void): void;
 // 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
 declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, error: any | undefined) => void): void;
@@ -116,7 +117,7 @@ declare namespace CAT_Types {
         proxyServer: ProxyServer
         matchUrl: string[]
     }
-    type ProxyScheme = "http" | "https" | "quic" | "socks4" | "socks5";
+    type ProxyScheme = 'http' | 'https' | 'quic' | 'socks4' | 'socks5';
     interface ProxyServer {
         scheme?: ProxyScheme
         host: string
@@ -127,13 +128,13 @@ declare namespace CAT_Types {
 declare namespace GM_Types {
 
     // store为获取隐身窗口之类的cookie
-    type CookieAction = "list" | "delete" | "set" | 'store';
+    type CookieAction = 'list' | 'delete' | 'set' | 'store';
 
-    type LOGGER_LEVEL = 'debug' | 'info' | 'warn' | 'error';
+    type LoggerLevel = 'debug' | 'info' | 'warn' | 'error';
 
     interface CookieDetails {
         url?: string
-        name: string
+        name?: string
         value?: string
         domain?: string
         path?: string
@@ -142,6 +143,8 @@ declare namespace GM_Types {
         storeId?: string;
         httpOnly?: boolean
         expirationDate?: number
+        // store用
+        tabId?: number
     }
 
     interface Cookie {
@@ -175,7 +178,7 @@ declare namespace GM_Types {
         response?: any,
         responseText?: string,
         responseXML?: Document | null
-        responseType?: "arraybuffer" | "blob" | "json"
+        responseType?: 'arraybuffer' | 'blob' | 'json'
     }
 
     interface XHRProgress extends XHRResponse {
@@ -190,15 +193,15 @@ declare namespace GM_Types {
     type Listener<OBJ> = (event: OBJ) => any;
 
     interface XHRDetails {
-        method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS"
+        method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
         url: string
         headers?: { [key: string]: string }
-        data?: string | FormData 
+        data?: string | FormData
         cookie?: string
         binary?: boolean
         timeout?: number
         context?: CONTEXT_TYPE
-        responseType?: "arraybuffer" | "blob" | "json"
+        responseType?: 'arraybuffer' | 'blob' | 'json'
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,
@@ -211,10 +214,10 @@ declare namespace GM_Types {
         onloadend?: Listener<XHRResponse>,
         onprogress?: Listener<XHRProgress>,
         onreadystatechange?: Listener<XHRResponse>,
-        ontimeout?: Function,
+        ontimeout?: () => void,
         //TODO
-        onabort?: Function,
-        onerror?: Function
+        onabort?: () => void,
+        onerror?: (err: string) => void,
     }
 
     interface AbortHandle<RETURN_TYPE> {
@@ -222,7 +225,7 @@ declare namespace GM_Types {
     }
 
     interface DownloadError {
-        error: "not_enabled" | "not_whitelisted" | "not_permitted" | "not_supported" | "not_succeeded",
+        error: 'not_enabled' | 'not_whitelisted' | 'not_permitted' | 'not_supported' | 'not_succeeded',
         details?: string
     }
 

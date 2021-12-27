@@ -39,7 +39,7 @@ export interface Config {
 export type UserConfig = { [key: string]: { [key: string]: Config } };
 
 export interface ScriptCache extends Script {
-    grantMap?: { [key: string]: string }
+    grantMap: { [key: string]: string }
     value: { [key: string]: Value }
     flag?: string
     resource: { [key: string]: Resource }

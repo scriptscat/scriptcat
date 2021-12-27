@@ -68,7 +68,7 @@ export class BackgroundGrant {
                 let isScriptcat = false;
                 const requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 const unsafeHeader: { [key: string]: string } = {};
-                data.requestHeaders?.forEach((val, key) => {
+                data.requestHeaders?.forEach((val) => {
                     const lowerCase = val.name.toLowerCase();
                     switch (lowerCase) {
                         case 'x-cat-' + this.rand + '-cookie': {
@@ -387,7 +387,7 @@ export class BackgroundGrant {
 
     }
 
-    protected dealXhr(config: GM_Types.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
+    protected dealXhr(config: GMSend.XHRDetails, xhr: XMLHttpRequest): GM_Types.XHRResponse {
         const removeXCat = new RegExp('x-cat-' + this.rand + '-', 'g');
         const respond: GM_Types.XHRResponse = {
             finalUrl: xhr.responseURL || config.url,
@@ -405,7 +405,7 @@ export class BackgroundGrant {
                     respond.response = URL.createObjectURL(xhr.response);
                 }
                 setTimeout(() => {
-                    URL.revokeObjectURL(respond.response);
+                    URL.revokeObjectURL(<string>respond.response);
                 }, 60e3)
             } else if (config.responseType == 'json') {
                 try {
@@ -472,26 +472,25 @@ export class BackgroundGrant {
             if (config.responseType != 'json') {
                 xhr.responseType = config.responseType || '';
             }
-            const _this = this;
 
-            function deal(event: string) {
-                const respond = _this.dealXhr(config, xhr);
+            const deal = (event: string) => {
+                const respond = this.dealXhr(config, xhr);
                 grant.data = { type: event, data: respond };
                 post.postMessage(grant);
             }
-            xhr.onload = (event) => {
+            xhr.onload = () => {
                 deal('load');
             }
-            xhr.onloadstart = (event) => {
+            xhr.onloadstart = () => {
                 deal('onloadstart');
             }
-            xhr.onloadend = (event) => {
+            xhr.onloadend = () => {
                 deal('onloadstart');
             }
-            xhr.onabort = (event) => {
+            xhr.onabort = () => {
                 deal('onabort');
             }
-            xhr.onerror = (event) => {
+            xhr.onerror = () => {
                 deal('onerror');
             }
             xhr.onprogress = (event) => {
@@ -505,7 +504,7 @@ export class BackgroundGrant {
                 grant.data = { type: 'onprogress', data: respond };
                 post.postMessage(grant);
             }
-            xhr.onreadystatechange = (event) => {
+            xhr.onreadystatechange = () => {
                 deal('onreadystatechange');
             }
             xhr.ontimeout = () => {
@@ -545,61 +544,41 @@ export class BackgroundGrant {
             if (config.overrideMimeType) {
                 xhr.overrideMimeType(config.overrideMimeType);
             }
-            if ((<any>config).dataType && (<any>config).dataType == 'FormData') {
+            if (config.dataType == 'FormData') {
                 const data = new FormData();
-                for (const key in config.data) {
-                    const val = config.data[key];
-                    if (val.type == 'file') {
-                        data.append(val.key, base64ToBlob(val.val), val.filename);
-                    } else {
-                        data.append(val.key, val.val);
-                    }
+                if (config.data && config.data instanceof Array) {
+                    config.data.forEach((val: GMSend.XHRFormData) => {
+                        if (val.type == 'file') {
+                            data.append(val.key, base64ToBlob(val.val), val.filename);
+                        } else {
+                            data.append(val.key, val.val);
+                        }
+                    });
+                    xhr.send(data);
                 }
-                xhr.send(data);
             } else {
-                xhr.send(config.data);
+                xhr.send(<string>config.data);
             }
             return resolve(undefined);
         });
     }
 
     @BackgroundGrant.GMFunction({
-        background: true
-    })
-    protected GM_getCookieStore(grant: Grant, post: IPostMessage): Promise<any> {
-        return new Promise((resolve, reject) => {
-            const tabid = grant.params[0];
-            if (!tabid) {
-                return reject('tabis is null');
-            }
-            chrome.cookies.getAllCookieStores(s => {
-                for (let i = 0; i < s.length; i++) {
-                    for (let n = 0; n < s[i].tabIds.length; n++) {
-                        if (s[i].tabIds[n] == tabid) {
-                            grant.data = { type: 'done', data: s[i].id };
-                            post.postMessage(grant);
-                            return resolve(undefined);
-                        }
-                    }
-                }
-                reject('not found');
-            });
-        });
-    }
-
-    @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
             return new Promise((resolve, reject) => {
+                if (grant.params[0] == 'store') {
+                    resolve(true);
+                }
                 const detail = <GM_Types.CookieDetails>grant.params[1];
                 if ((!detail.url && !detail.domain)) {
                     return reject('there must be one of url or domain');
                 }
-                let url: any = {};
+                let url: URL = <URL>{};
                 if (detail.url) {
                     url = new URL(detail.url);
                 } else {
-                    url.host = detail.domain;
-                    url.hostname = detail.domain;
+                    url.host = detail.domain || '';
+                    url.hostname = detail.domain || '';
                 }
                 let flag = false;
                 if (script.metadata['connect']) {
@@ -635,19 +614,28 @@ export class BackgroundGrant {
             if (param.length != 2) {
                 return reject('there must be two parameters');
             }
+            const detail = <GM_Types.CookieDetails>grant.params[1];
             if (param[0] == 'store') {
                 chrome.cookies.getAllCookieStores(res => {
                     const data: any[] = [];
                     res.forEach(val => {
-                        data.push({ storeId: val.id });
+                        if (detail.tabId) {
+                            for (let n = 0; n < val.tabIds.length; n++) {
+                                if (val.tabIds[n] == detail.tabId) {
+                                    data.push({ storeId: val.id });
+                                    break;
+                                }
+                            }
+                        } else {
+                            data.push({ storeId: val.id });
+                        }
                     });
                     grant.data = { type: 'done', data: data };
                     post.postMessage(grant);
                 });
                 return;
             }
-            const detail = <GM_Types.CookieDetails>grant.params[1];
-            // url或者域名不能为空,且必须有name
+            // url或者域名不能为空
             if (detail.url) {
                 detail.url = detail.url.trim();
             }
@@ -674,7 +662,7 @@ export class BackgroundGrant {
                     break;
                 }
                 case 'delete': {
-                    if (!detail.url) {
+                    if (!detail.url || !detail.name) {
                         return reject('delete operation must have url and name');
                     }
                     chrome.cookies.remove({
@@ -688,7 +676,7 @@ export class BackgroundGrant {
                     break;
                 }
                 case 'set': {
-                    if (!detail.url) {
+                    if (!detail.url || !detail.name) {
                         return reject('set operation must have url or domain, and the name must exist');
                     }
                     chrome.cookies.set({
