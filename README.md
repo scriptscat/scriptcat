@@ -65,4 +65,5 @@ ScriptCat
 
 #### 交流
 
-[Telegram](https://t.me/scriptscat)
+* [Telegram](https://t.me/scriptscat)
+* [QQ群887697472](https://jq.qq.com/?_wv=1027&k=3qXMfJ92)
