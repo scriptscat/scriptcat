@@ -1,13 +1,14 @@
-import { SandboxContext, ScriptContext } from "@App/apps/grant/frontend";
-import { ScriptCache, Script } from "@App/model/do/script";
+import { FrontenApiValue, SandboxContext, ScriptContext } from '@App/apps/grant/frontend';
+import { ScriptCache, Script } from '@App/model/do/script';
 
+// 编译脚本代码字符串
 export function compileScriptCode(script: ScriptCache): string {
 	let code = script.code;
 	let require = '';
 	script.metadata['require'] && script.metadata['require'].forEach((val) => {
-		let res = script.resource[val];
+		const res = script.resource[val];
 		if (res) {
-			require = require + "\n" + res.content;
+			require = require + '\n' + res.content;
 		}
 	});
 	code = require + code;
@@ -16,49 +17,52 @@ export function compileScriptCode(script: ScriptCache): string {
 		'\n})(context)'
 }
 
-export function compileScript(script: ScriptCache): Function {
+// 编译成脚本方法
+export function compileScript(script: ScriptCache): any {
 	return new Function('context', script.code);
 }
 
-function setDepend(context: ScriptContext, apiVal: { [key: string]: any }) {
+// 设置api依赖
+function setDepend(context: ScriptContext, apiVal: FrontenApiValue) {
 	if (apiVal.param.depend) {
 		for (let i = 0; i < apiVal.param.depend.length; i++) {
-			let value = apiVal.param.depend[i];
-			let dependApi = context.getApi(value);
+			const value = apiVal.param.depend[i];
+			const dependApi = context.getApi(value);
 			if (!dependApi) {
 				return;
 			}
-			if (value.startsWith("GM.")) {
-				let [_, t] = value.split(".");
-				context["GM"][t] = dependApi.api;
+			if (value.startsWith('GM.')) {
+				const [_, t] = value.split('.');
+				(<{ [key: string]: any }>context['GM'])[t] = dependApi.api.bind(context);
 			} else {
-				context[value] = dependApi.api;
+				context[value] = dependApi.api.bind(context);
 			}
 			setDepend(context, dependApi);
 		}
 	}
 }
 
+// 创建沙盒
 export function createSandboxContext(script: ScriptCache): SandboxContext {
-	let context: SandboxContext = new SandboxContext(script);
+	const context: SandboxContext = new SandboxContext(script);
 	return <SandboxContext>createContext(context, script);
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
 	context['postRequest'] = context.postRequest;
 	context['script'] = context.script;
-	if (script.metadata["grant"]) {
-		context["GM"] = context;
-		script.metadata["grant"].forEach((value: any) => {
-			let apiVal = context.getApi(value);
+	if (script.metadata['grant']) {
+		context['GM'] = context;
+		script.metadata['grant'].forEach((value: string) => {
+			const apiVal = context.getApi(value);
 			if (!apiVal) {
 				return;
 			}
-			if (value.startsWith("GM.")) {
-				let [_, t] = value.split(".");
-				context["GM"][t] = apiVal.api;
+			if (value.startsWith('GM.')) {
+				const [_, t] = value.split('.');
+				(<{ [key: string]: any }>context['GM'])[t] = apiVal.api.bind(context);
 			} else {
-				context[value] = apiVal.api;
+				context[value] = apiVal.api.bind(context);
 			}
 			setDepend(context, apiVal);
 		});
