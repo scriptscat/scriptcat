@@ -10,7 +10,6 @@
       :single-select="false"
       show-select
       hide-default-footer
-      multi-sort
     >
       <template v-slot:top>
         <template v-if="selected.length">
@@ -118,11 +117,7 @@
                 label
                 small
               >
-                <v-icon
-                  left
-                  v-text="icons.mdiAlertCircleOutline"
-                  small
-                ></v-icon>
+                <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
                 {{ $t("script.runStatus.error") }}
               </v-chip>
               <v-chip
@@ -135,11 +130,7 @@
                 label
                 small
               >
-                <v-icon
-                  left
-                  v-text="icons.mdiClockTimeFourOutline"
-                  small
-                ></v-icon>
+                <v-icon left v-text="icons.mdiClockTimeFourOutline" small></v-icon>
                 {{ $t("script.runStatus.complete") }}
               </v-chip>
             </div>
@@ -147,12 +138,8 @@
           <span v-if="item.type == 2 && item.metadata['crontab']">
             定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
           </span>
-          <span v-else-if="item.type == 3">
-            后台脚本,会在扩展开启时自动执行
-          </span>
-          <span v-else-if="item.type == 1">
-            前台页面脚本,会在指定的页面上运行
-          </span>
+          <span v-else-if="item.type == 3"> 后台脚本,会在扩展开启时自动执行 </span>
+          <span v-else-if="item.type == 1"> 前台页面脚本,会在指定的页面上运行 </span>
         </v-tooltip>
       </template>
 
@@ -276,9 +263,7 @@
           indeterminate
           color="primary"
         ></v-progress-circular>
-        <span v-else-if="item.updatetime === -2" style="color: #ff6565"
-          >有更新</span
-        >
+        <span v-else-if="item.updatetime === -2" style="color: #ff6565">有更新</span>
         <span v-else style="cursor: pointer" @click="checkUpdate(item)">
           {{ mapTimeStampToHumanized(item.updatetime) }}</span
         >
@@ -428,10 +413,7 @@
             @click="stopScript(item)"
             >{{ icons.mdiStop }}</v-icon
           >
-          <BgCloud
-            v-if="item.type !== 1 && item.metadata['cloudcat']"
-            :script="item"
-          />
+          <BgCloud v-if="item.type !== 1 && item.metadata['cloudcat']" :script="item" />
         </span>
       </template>
 
@@ -440,28 +422,19 @@
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
-        <v-card-title
-          class="headline"
-          :style="{ display: 'grid', placeItems: 'center' }"
-        >
+        <v-card-title class="headline" :style="{ display: 'grid', placeItems: 'center' }">
           你确定要删除该脚本吗？
         </v-card-title>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="blue darken-1" text @click="closeDelete">取消</v-btn>
-          <v-btn color="blue darken-1" text @click="deleteItemConfirm">
-            确定
-          </v-btn>
+          <v-btn color="blue darken-1" text @click="deleteItemConfirm"> 确定 </v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog
-      v-model="showlog"
-      transition="dialog-bottom-transition"
-      max-width="600"
-    >
+    <v-dialog v-model="showlog" transition="dialog-bottom-transition" max-width="600">
       <template v-slot:default="dialog">
         <v-card>
           <v-toolbar color="primary" dark>
@@ -493,17 +466,13 @@
                   width="1"
                   color="primary"
                 ></v-progress-circular>
-                <span style="color: #1976d2; margin-left: 4px"
-                  >等待日志...</span
-                >
+                <span style="color: #1976d2; margin-left: 4px">等待日志...</span>
               </div>
             </div>
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions class="justify-end">
-            <v-btn text color="error" @click="clearLog(logScript)"
-              >清空日志</v-btn
-            >
+            <v-btn text color="error" @click="clearLog(logScript)">清空日志</v-btn>
           </v-card-actions>
         </v-card>
       </template>
@@ -606,32 +575,31 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component, Watch } from "vue-property-decorator";
-import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { Vue, Component, Watch } from 'vue-property-decorator';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
-} from "@App/model/do/script";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
+} from '@App/model/do/script';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
 import {
   ListenGmLog,
   ScriptInstallByURL,
   ScriptRunStatusChange,
   SyncTaskEvent,
-} from "@App/apps/msg-center/event";
+} from '@App/apps/msg-center/event';
 
-import eventBus from "@App/views/EventBus";
-import { Page } from "@App/pkg/utils/utils";
-import { nextTime } from "@App/views/pages/utils";
-import { ValueModel } from "@App/model/value";
-import { Value } from "@App/model/do/value";
-import { ScriptValueChange } from "@App/apps/msg-center/event";
-import EventType from "../EventType";
-import { ScriptController } from "@App/apps/script/controller";
-import { Log } from "@App/model/do/logger";
+import eventBus from '@App/views/EventBus';
+import { nextTime } from '@App/views/pages/utils';
+import { ValueModel } from '@App/model/value';
+import { Value } from '@App/model/do/value';
+import { ScriptValueChange } from '@App/apps/msg-center/event';
+import EventType from '../EventType';
+import { ScriptController } from '@App/apps/script/controller';
+import { Log } from '@App/model/do/logger';
 
 import {
   mdiApplication,
@@ -654,25 +622,18 @@ import {
   mdiAlarm,
   mdiFileDocumentOutline,
   mdiDelete,
-} from "@mdi/js";
+} from '@mdi/js';
 
-import BgCloud from "@Components/BgCloud.vue";
-import { BackgroundGrant } from "@App/apps/grant/background";
-import { scriptModule } from "../store/script";
+import BgCloud from '@Components/BgCloud.vue';
+import { BackgroundGrant } from '@App/apps/grant/background';
+import { scriptModule } from '../store/script';
 
-import Sortable from "sortablejs";
+import Sortable from 'sortablejs';
 
-dayjs.locale("zh-cn");
+dayjs.locale('zh-cn');
 dayjs.extend(relativeTime);
 
-const multipleActionTypes = [
-  "启用",
-  "禁用",
-  "导出",
-  "更新",
-  "重置",
-  "删除",
-] as const;
+const multipleActionTypes = ['启用', '禁用', '导出', '更新', '重置', '删除'] as const;
 
 @Component({
   components: { BgCloud },
@@ -705,19 +666,12 @@ export default class ScriptList extends Vue {
     mdiDelete,
   };
 
-  multipleAction: typeof multipleActionTypes[number] = "删除";
+  multipleAction: typeof multipleActionTypes[number] = '删除';
   multipleFilter = null;
-  filterText = "";
+  filterText = '';
 
   multipleActionTypes = multipleActionTypes;
-  multipleFilterTypes = [
-    "自动",
-    "@name",
-    "@namespace",
-    "@author",
-    "@grant",
-    "@include",
-  ];
+  multipleFilterTypes = ['自动', '@name', '@namespace', '@author', '@grant', '@include'];
 
   rules = [];
 
@@ -727,12 +681,12 @@ export default class ScriptList extends Vue {
 
     // 执行操作
     switch (this.multipleAction) {
-      case "删除":
+      case '删除':
         for (const script of targets) {
           await this.scriptController.uninstall(script.id);
         }
 
-        alert("批量删除成功");
+        alert('批量删除成功');
 
         // 响应式scriptList
         eventBus.$emit(EventType.UpdateScriptList);
@@ -746,24 +700,24 @@ export default class ScriptList extends Vue {
   dialogDelete = false;
   headers = [
     {
-      text: "#",
-      value: "id",
+      text: '#',
+      value: 'id',
     },
-    { text: "开启", value: "status" },
-    { text: "名称", value: "name" },
-    { text: "版本", value: "version" },
-    { text: "应用至/运行状态", value: "site", sortable: false },
-    { text: "来源", value: "origin", sortable: false },
-    { text: "主页", value: "home", sortable: false },
-    { text: "排序", value: "sort", align: "center" },
-    { text: "最后更新", value: "updatetime", width: 100, align: "center" },
-    { text: "操作", value: "actions", sortable: false },
+    { text: '开启', value: 'status' },
+    { text: '名称', value: 'name' },
+    { text: '版本', value: 'version' },
+    { text: '应用至/运行状态', value: 'site', sortable: false },
+    { text: '来源', value: 'origin', sortable: false },
+    { text: '主页', value: 'home', sortable: false },
+    { text: '排序', value: 'sort', align: 'center' },
+    { text: '最后更新', value: 'updatetime', width: 100, align: 'center' },
+    { text: '操作', value: 'actions', sortable: false },
   ];
   desserts: any[] = [];
   editedIndex = -1;
   editedItem: any = {};
   defaultItem = {
-    name: "",
+    name: '',
     calories: 0,
     fat: 0,
     carbs: 0,
@@ -794,15 +748,15 @@ export default class ScriptList extends Vue {
     // todo 目前的排序，是当前页的排序，而不是所有脚本的排序，实现为所有脚本
     this.scriptController
       .scriptList((table) => {
-        return table.orderBy("sort");
+        return table.orderBy('sort');
       })
       .then(async (result) => {
         this.scriptlist(result);
         this.$nextTick(() => {
           Sortable.create(
-            <HTMLElement>document.querySelector("#script-list table tbody")!,
+            <HTMLElement>document.querySelector('#script-list table tbody')!,
             {
-              handle: ".handle",
+              handle: '.handle',
               animation: 150,
               onEnd: (ev) => {
                 console.log(ev);
@@ -855,7 +809,7 @@ export default class ScriptList extends Vue {
       // 同步完成,刷新页面
       this.scriptController
         .scriptList((table) => {
-          return table.orderBy("sort");
+          return table.orderBy('sort');
         })
         .then(async (result) => {
           this.scriptlist(result);
@@ -867,25 +821,25 @@ export default class ScriptList extends Vue {
     eventBus.$on(EventType.UpdateScriptList, () => {
       this.scriptController
         .scriptList((table) => {
-          return table.orderBy("sort");
+          return table.orderBy('sort');
         })
         .then((result) => {
           this.scriptlist(result);
         });
     });
 
-    MsgCenter.connect(ListenGmLog, "init").addListener((msg) => {
+    MsgCenter.connect(ListenGmLog, 'init').addListener((msg) => {
       if (this.logScript && msg.scriptId == this.logScript.id && this.showlog) {
         this.logs.push({
           id: 0,
           level: msg.level,
-          origin: "GM_log",
+          origin: 'GM_log',
           title: this.logScript.name,
           message: msg.message,
           scriptId: msg.scriptId,
           createtime: new Date().getTime(),
         });
-        let el = document.querySelector("#log-show");
+        let el = document.querySelector('#log-show');
         if (el) {
           el.scrollTop = el.scrollHeight;
         }
@@ -907,7 +861,7 @@ export default class ScriptList extends Vue {
     this.showlog = true;
     this.logs = await this.scriptController.getScriptLog(item.id);
     setTimeout(() => {
-      let el = document.querySelector("#log-show");
+      let el = document.querySelector('#log-show');
       if (el) {
         el.scrollTop = el.scrollHeight;
       }
@@ -926,24 +880,24 @@ export default class ScriptList extends Vue {
           let group = val.config[gkey];
           for (const key in group) {
             if (!group[key].type) {
-              if (typeof group[key].default == "boolean") {
-                group[key].type = "checkbox";
+              if (typeof group[key].default == 'boolean') {
+                group[key].type = 'checkbox';
               } else if (group[key].values) {
-                group[key].type = "select";
-                if (typeof group[key].values == "object") {
-                  group[key].type = "mult-select";
+                group[key].type = 'select';
+                if (typeof group[key].values == 'object') {
+                  group[key].type = 'mult-select';
                 }
-              } else if (typeof group[key].default == "number") {
-                group[key].type = "number";
+              } else if (typeof group[key].default == 'number') {
+                group[key].type = 'number';
               } else {
-                group[key].type = "text";
+                group[key].type = 'text';
               }
             }
             let where: any = {};
-            if (val.metadata["storagename"]) {
-              where["storageName"] = val.metadata["storagename"][0];
+            if (val.metadata['storagename']) {
+              where['storageName'] = val.metadata['storagename'][0];
             } else {
-              where["scriptId"] = val.id;
+              where['scriptId'] = val.id;
             }
             // 动态values
             if (group[key].bind) {
@@ -957,13 +911,13 @@ export default class ScriptList extends Vue {
                 }
               });
             }
-            where.key = gkey + "." + key;
+            where.key = gkey + '.' + key;
             this.valueModel.findOne(where).then((val) => {
               // 读取value
               if (val) {
                 group[key].value = val?.value;
               } else {
-                group[key].value = group[key].default || "";
+                group[key].value = group[key].default || '';
               }
             });
           }
@@ -975,11 +929,11 @@ export default class ScriptList extends Vue {
   async saveUserConfig(script: Script, name: string, success: () => {}) {
     for (const itemKey in script.config![name]) {
       let item = script.config![name][itemKey];
-      let key = name + "." + itemKey;
+      let key = name + '.' + itemKey;
       let model: Value | undefined;
-      if (script.metadata["storagename"]) {
+      if (script.metadata['storagename']) {
         model = await this.valueModel.findOne({
-          storageName: script.metadata["storagename"][0],
+          storageName: script.metadata['storagename'][0],
           key: key,
         });
       } else {
@@ -998,9 +952,7 @@ export default class ScriptList extends Vue {
           id: 0,
           scriptId: script.id,
           storageName:
-            (script.metadata["storagename"] &&
-              script.metadata["storagename"][0]) ||
-            "",
+            (script.metadata['storagename'] && script.metadata['storagename'][0]) || '',
           key: key,
           value: item.value,
           createtime: new Date().getTime(),
@@ -1053,7 +1005,7 @@ export default class ScriptList extends Vue {
   executeMutipleAction() {}
 
   editItem(item: Script) {
-    eventBus.$emit?.<IEditScript>("edit-script", { scriptId: item.id });
+    eventBus.$emit?.<IEditScript>('edit-script', { scriptId: item.id });
     // this.routeTo(`/edit/${item.id}`);
   }
 
@@ -1082,7 +1034,7 @@ export default class ScriptList extends Vue {
     });
   }
 
-  @Watch("dialogDelete")
+  @Watch('dialogDelete')
   onDialogDeleteChange(val: string, oldVal: string) {
     val || this.closeDelete();
   }
@@ -1099,32 +1051,32 @@ export default class ScriptList extends Vue {
   }
 
   formatTime(time: Date) {
-    return dayjs(time).format("MM-DD HH:mm:ss");
+    return dayjs(time).format('MM-DD HH:mm:ss');
   }
 
   gotoLink(link: string) {
-    window.open(link, "_blank");
+    window.open(link, '_blank');
   }
 
-  newScript(template: "normal" | "crontab" | "background" = "crontab") {
+  newScript(template: 'normal' | 'crontab' | 'background' = 'crontab') {
     eventBus.$emit<INewScript>(EventType.NewScript, { template } as any);
   }
 
   copyLink(item: Script) {
-    let msg = "";
+    let msg = '';
     if (item.subscribeUrl) {
-      msg = "订阅链接:" + item.subscribeUrl + "\n";
+      msg = '订阅链接:' + item.subscribeUrl + '\n';
     }
-    msg += "脚本来源:" + item.origin;
+    msg += '脚本来源:' + item.origin;
     BackgroundGrant.clipboardData = {
       data: msg,
     };
-    document.execCommand("copy", false, <any>null);
-    scriptModule.showSnackbar("复制成功");
+    document.execCommand('copy', false, <any>null);
+    scriptModule.showSnackbar('复制成功');
   }
 
   linkInstall() {
-    let url = prompt("请填写脚本url", "");
+    let url = prompt('请填写脚本url', '');
     if (!url) {
       return;
     }

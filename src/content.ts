@@ -1,39 +1,41 @@
-import { ExternalWhitelist } from "./apps/config";
-import { Grant } from "./apps/grant/interface";
-import { BrowserMsg } from "./apps/msg-center/browser";
-import { ExternalMessage, ScriptExec, ScriptGrant, ScriptValueChange } from "./apps/msg-center/event";
-import { MsgCenter } from "./apps/msg-center/msg-center";
-import { ScriptCache } from "./model/do/script";
+import { Grant } from './apps/grant/interface';
+import { FrontendMsg } from './apps/msg-center/browser';
+import { ExternalMessage, ScriptExec, ScriptGrant, ScriptValueChange } from './apps/msg-center/event';
+import { MsgCenter } from './apps/msg-center/msg-center';
+import { ScriptCache } from './model/do/script';
 
-chrome.runtime.sendMessage("runScript", (event: any) => {
-    let scripts = <ScriptCache[]>event.scripts;
-    let flag = event.flag;
-    let browserMsg = new BrowserMsg(flag, true);
+chrome.runtime.sendMessage('runScript', (event: unknown) => {
+    const { flag, scripts } = (<{ scripts: ScriptCache[], flag: string }>event);
+    const browserMsg = new FrontendMsg(flag, true);
 
     browserMsg.send('scripts', scripts);
-    browserMsg.listen('grant', async msg => {
-        switch (msg.value) {
-            case 'CAT_fetchBlob':
-                let resp = await (await fetch(msg.params[0])).blob();
-                msg.data = (<any>global).cloneInto ? (<any>global).cloneInto(resp, document.defaultView) : resp;
-                browserMsg.send(msg.flag!, msg);
-                break;
-            default:
-                // NOTE: 好像没处理释放问题
-                MsgCenter.connect(ScriptGrant, msg).addListener((msg: Grant, port: chrome.runtime.Port) => {
-                    browserMsg.send(msg.flag!, msg);
-                });
+    browserMsg.listen('grant', (msg: { value: string, params: any[], flag: string, data: any }) => {
+        const handler = async () => {
+            switch (msg.value) {
+                case 'CAT_fetchBlob':
+                    const resp = await (await fetch(<RequestInfo>msg.params[0])).blob();
+                    msg.data = (<{ cloneInto?: (detail: any, view: any) => any }><unknown>global).cloneInto ?
+                        (<{ cloneInto: (detail: any, view: any) => any }><unknown>global).cloneInto(resp, document.defaultView) : resp;
+                    browserMsg.send(msg.flag, msg);
+                    break;
+                default:
+                    // NOTE: 好像没处理释放问题
+                    MsgCenter.connect(ScriptGrant, msg).addListener((msg: Grant) => {
+                        browserMsg.send(msg.flag || '', msg);
+                    });
+            }
         }
+        void handler();
     });
     MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
         browserMsg.send(ScriptValueChange, msg);
     });
     browserMsg.listen(ExternalMessage, msg => {
-        MsgCenter.connect(ExternalMessage, msg).addListener((msg, port) => {
+        MsgCenter.connect(ExternalMessage, msg).addListener((msg) => {
             browserMsg.send(ExternalMessage, msg);
         });
     });
-    chrome.runtime.onMessage.addListener((event) => {
+    chrome.runtime.onMessage.addListener((event: { action: string, uuid: string }) => {
         switch (event.action) {
             case ScriptExec:
                 browserMsg.send(ScriptExec, event.uuid);
@@ -42,9 +44,12 @@ chrome.runtime.sendMessage("runScript", (event: any) => {
     });
 
     // 处理blob
-    browserMsg.listen("fetchBlob", async msg => {
-        let ret = await fetch(msg.url);
-        browserMsg.send("fetchBlob", { url: msg.url, id: msg.id, ret });
+    browserMsg.listen('fetchBlob', (msg: { url: string, id: string }) => {
+        const handler = async () => {
+            const ret = await fetch(msg.url);
+            browserMsg.send('fetchBlob', { url: msg.url, id: msg.id, ret });
+        }
+        void handler();
     })
 });
 

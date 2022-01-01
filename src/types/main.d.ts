@@ -60,7 +60,7 @@ interface ICodeChange {
     scriptId: number;
 }
 
-declare const ScriptFlag;
+declare const ScriptFlag: string;
 
 declare namespace chrome {
     declare namespace clipboard {
@@ -109,7 +109,7 @@ declare namespace GMSend {
     }
 
     interface XHRFormData {
-        type?: 'file'
+        type?: 'file' | 'text'
         key: string
         val: string
         filename?: string

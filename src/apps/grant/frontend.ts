@@ -1,13 +1,13 @@
-import { ScriptCache } from "@App/model/do/script";
-import { Value } from "@App/model/do/value";
-import { addStyle } from "@App/pkg/frontend";
-import { blobToBase64, randomInt, randomString } from "@App/pkg/utils/utils";
-import { BrowserMsg } from "../msg-center/browser";
-import { AppEvent, ScriptValueChange } from "../msg-center/event";
-import { Grant } from "./interface";
+import { ScriptCache } from '@App/model/do/script';
+import { Value } from '@App/model/do/value';
+import { addStyle } from '@App/pkg/frontend';
+import { blobToBase64, randomInt, randomString } from '@App/pkg/utils/utils';
+import { BrowserMsg, ListenMsg } from '../msg-center/browser';
+import { AppEvent, ScriptValueChange } from '../msg-center/event';
+import { Grant } from './interface';
 
 type Callback = (grant: Grant) => void;
-type FrontendApi = any;
+type FrontendApi = () => any;
 
 interface DescriptionParam {
     depend?: string[]
@@ -22,6 +22,7 @@ export interface FrontenApiValue {
 export interface ScriptContext {
     [key: string]: any
 
+    getApi(grant: string): FrontenApiValue | undefined;
     ValueChange(name: string, value: Value): void;
     GM_info(): any;
 }
@@ -36,21 +37,21 @@ export class FrontendGrant implements ScriptContext {
 
     public browserMsg: BrowserMsg;
 
-    constructor(script: ScriptCache, browserMsg: BrowserMsg | undefined) {
+    constructor(script: ScriptCache, browserMsg: BrowserMsg) {
         this.script = script;
-        this.browserMsg = browserMsg!;
+        this.browserMsg = browserMsg;
         if (browserMsg) {
             this.listenMsg();
         }
         // 处理GM_cookie.list等操作
-        let action = (action: string) => {
+        const action = (action: string) => {
             return (details: GM_Types.CookieDetails, done: (cookie: GM_Types.Cookie[] | any, error: any | undefined) => void) => {
                 this.GM_cookie(action, details, done);
             }
         }
-        (<any>FrontendGrant.prototype.GM_cookie)['list'] = action('list');
-        (<any>FrontendGrant.prototype.GM_cookie)['delete'] = action('delete');
-        (<any>FrontendGrant.prototype.GM_cookie)['set'] = action('set');
+        (<{ [key: string]: any }>FrontendGrant.prototype.GM_cookie)['list'] = action('list');
+        (<{ [key: string]: any }>FrontendGrant.prototype.GM_cookie)['delete'] = action('delete');
+        (<{ [key: string]: any }>FrontendGrant.prototype.GM_cookie)['set'] = action('set');
     }
 
     public static GMFunction(param: DescriptionParam = {}) {
@@ -59,14 +60,14 @@ export class FrontendGrant implements ScriptContext {
             propertyName: string,
             descriptor: PropertyDescriptor
         ) {
-            let key = propertyName;
+            const key = propertyName;
             param.listener && param.listener();
             FrontendGrant.apis.set(key, {
                 api: descriptor.value,
                 param: param
             });
             // 兼容GM.*
-            let dot = key.replace('_', '.');
+            const dot = key.replace('_', '.');
             if (dot != key) {
                 FrontendGrant.apis.set(dot, {
                     api: descriptor.value,
@@ -79,7 +80,7 @@ export class FrontendGrant implements ScriptContext {
     public GM_info() {
         return {
             scriptWillUpdate: false,
-            scriptHandler: "ScriptCat",
+            scriptHandler: 'ScriptCat',
             scriptUpdateURL: this.script.checkupdate_url,
             scriptSource: this.script.code,
             script: {
@@ -95,7 +96,7 @@ export class FrontendGrant implements ScriptContext {
     }
 
     public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
-        let grant: Grant = {
+        const grant: Grant = {
             id: this.script.id,
             name: this.script.name,
             value: value,
@@ -107,16 +108,16 @@ export class FrontendGrant implements ScriptContext {
             this.request.set(grant.request, (grant: Grant) => {
                 callback(grant);
                 if (grant.error) {
-                    throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
+                    throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + (grant.errorMsg || '');
                 }
             });
         }
-        this.browserMsg.send("grant", grant);
+        this.browserMsg.send('grant', grant);
     }
 
     public listenMsg = () => {
-        this.browserMsg.listen(this.script.flag!, (grant: Grant) => {
-            let callback = this.request.get(grant.request);
+        this.browserMsg.listen(this.script.flag, (grant: Grant) => {
+            const callback = this.request.get(grant.request);
             if (callback) {
                 callback(grant);
             }
@@ -127,14 +128,14 @@ export class FrontendGrant implements ScriptContext {
     public CAT_fetchBlob(url: string): Promise<Blob> {
         return new Promise(resolve => {
             this.postRequest('CAT_fetchBlob', [url], (grant: Grant) => {
-                resolve(grant.data);
+                resolve(<Blob>grant.data);
             });
         });
     }
 
     @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
     public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
-        let u = new URL(details.url, window.location.href);
+        const u = new URL(details.url, window.location.href);
         if (details.headers) {
             for (const key in details.headers) {
                 if (key.toLowerCase() == 'cookie') {
@@ -143,12 +144,11 @@ export class FrontendGrant implements ScriptContext {
                 }
             }
         }
-        let param: GMSend.XHRDetails = {
+        const param: GMSend.XHRDetails = {
             method: details.method,
             timeout: details.timeout,
             url: u.href,
-            headers: details.headers || {},
-            data: details.data,
+            headers: details.headers,
             cookie: details.cookie,
             context: details.context,
             responseType: details.responseType,
@@ -157,44 +157,51 @@ export class FrontendGrant implements ScriptContext {
             user: details.user,
             password: details.password
         };
-        if (details.nocache) {
-            param.headers!["Cache-Control"] = 'no-cache';
+        if (!param.headers) {
+            param.headers = {};
         }
-        if (param.data instanceof FormData) {
-            (<any>param).dataType = "FormData";
-            let data = [];
-            let keys: { [key: string]: boolean } = {};
-            param.data.forEach((val, key) => {
-                keys[key] = true;
-            });
-            for (const key in keys) {
-                let values = param.data.getAll(key);
-                for (let i = 0; i < values.length; i++) {
-                    let val = values[i];
-                    if (val instanceof File) {
-                        data.push({
-                            key: key,
-                            type: "file",
-                            val: await blobToBase64(val),
-                            filename: val.name
-                        });
-                    } else {
-                        data.push({
-                            key: key,
-                            type: "text",
-                            val: val
-                        });
+        if (details.nocache) {
+            param.headers['Cache-Control'] = 'no-cache';
+        }
+        if (details.data) {
+            if (details.data instanceof FormData) {
+                param.dataType = 'FormData';
+                const data: Array<GMSend.XHRFormData> = [];
+                const keys: { [key: string]: boolean } = {};
+                details.data.forEach((val, key) => {
+                    keys[key] = true;
+                });
+                for (const key in keys) {
+                    const values = details.data.getAll(key);
+                    for (let i = 0; i < values.length; i++) {
+                        const val = values[i];
+                        if (val instanceof File) {
+                            data.push({
+                                key: key,
+                                type: 'file',
+                                val: await blobToBase64(val) || '',
+                                filename: val.name
+                            });
+                        } else {
+                            data.push({
+                                key: key,
+                                type: 'text',
+                                val: val
+                            });
+                        }
                     }
                 }
+                param.data = data;
+            } else {
+                param.data = details.data;
             }
-            param.data = data;
         }
 
-        if (details.onload && (details.responseType == "arraybuffer" || details.responseType == "blob")) {
-            let old = details.onload;
+        if (details.onload && (details.responseType == 'arraybuffer' || details.responseType == 'blob')) {
+            const old = details.onload;
             details.onload = async (xhr) => {
-                let resp = await this.CAT_fetchBlob(xhr.response);
-                if (details.responseType == "arraybuffer") {
+                const resp = await this.CAT_fetchBlob(<string>xhr.response);
+                if (details.responseType == 'arraybuffer') {
                     xhr.response = await resp.arrayBuffer();
                 } else {
                     xhr.response = resp;
@@ -208,21 +215,22 @@ export class FrontendGrant implements ScriptContext {
                 details.onerror && details.onerror(grant.errorMsg || '');
                 return;
             }
-            switch (grant.data.type) {
+            const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data;
+            switch (data.type) {
                 case 'load':
-                    details.onload && details.onload(grant.data.data);
+                    details.onload && details.onload(data.data);
                     break;
                 case 'onloadend':
-                    details.onloadend && details.onloadend(grant.data.data);
+                    details.onloadend && details.onloadend(data.data);
                     break;
                 case 'onloadstart':
-                    details.onloadstart && details.onloadstart(grant.data.data);
+                    details.onloadstart && details.onloadstart(data.data);
                     break;
                 case 'onprogress':
-                    details.onprogress && details.onprogress(grant.data.data);
+                    details.onprogress && details.onprogress(<GM_Types.XHRProgress>data.data);
                     break;
                 case 'onreadystatechange':
-                    details.onreadystatechange && details.onreadystatechange(grant.data.data);
+                    details.onreadystatechange && details.onreadystatechange(data.data);
                     break;
                 case 'ontimeout':
                     details.ontimeout && details.ontimeout();
@@ -237,20 +245,20 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    public GM_notification(text: string, title: string, image: string, onclick: Function): void
+    public GM_notification(text: string, title: string, image: string, onclick?: GM_Types.NotificationOnClick): void
 
     @FrontendGrant.GMFunction()
-    public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: GM_Types.NotificationOnDone | string): void {
+    public GM_notification(detail: GM_Types.NotificationDetails | string, ondone: GM_Types.NotificationOnDone | string, image?: string, onclick?: GM_Types.NotificationOnClick): void {
         let data: GM_Types.NotificationDetails = {};
         if (typeof detail === 'string') {
             data.text = detail;
             switch (arguments.length) {
                 case 4:
-                    data.onclick = arguments[3];
+                    data.onclick = onclick;
                 case 3:
-                    data.image = arguments[2];
+                    data.image = image;
                 case 2:
-                    data.title = arguments[1];
+                    data.title = <string>ondone;
             }
         } else {
             data = detail;
@@ -271,17 +279,18 @@ export class FrontendGrant implements ScriptContext {
             delete data.oncreate;
         }
         this.postRequest('GM_notification', [data], (grant: Grant) => {
-            switch (grant.data.type) {
+            const data = <{ type: string, id: string, index: number, user: boolean }>grant.data;
+            switch (data.type) {
                 case 'click': {
-                    click && click.apply({ id: grant.data.id }, [grant.data.id, grant.data.index])
+                    click && click.apply({ id: data.id }, [data.id, data.index])
                     break;
                 }
                 case 'done': {
-                    done && done.apply({ id: grant.data.id }, [grant.data.user, grant.data.id])
+                    done && done.apply({ id: data.id }, [data.user, data.id])
                     break;
                 }
                 case 'create': {
-                    create && create.apply({ id: grant.data.id }, [grant.data.id]);
+                    create && create.apply({ id: data.id }, [data.id]);
                 }
             }
         });
@@ -304,7 +313,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_getValue(name: string, defaultValue?: any): any {
-        let ret = this.script.value![name];
+        const ret = this.script.value[name];
         if (ret) {
             return ret.value;
         }
@@ -314,10 +323,10 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction()
     public GM_setValue(name: string, value: any): void {
         // 对object的value进行一次转化
-        if (typeof value === "object") {
+        if (typeof value === 'object') {
             value = JSON.parse(JSON.stringify(value));
         }
-        let ret = this.script.value![name];
+        let ret = this.script.value[name];
         if (ret) {
             ret.value = value;
         } else {
@@ -331,9 +340,9 @@ export class FrontendGrant implements ScriptContext {
             };
         }
         if (value === undefined) {
-            delete this.script.value![name];
+            delete this.script.value[name];
         } else {
-            this.script.value![name] = ret;
+            this.script.value[name] = ret;
         }
         this.postRequest('GM_setValue', [name, value]);
     }
@@ -343,7 +352,7 @@ export class FrontendGrant implements ScriptContext {
     ValueChange = (name: string, value: Value): void => {
         this.valueChangeListener.forEach(val => {
             if (val.name === name) {
-                let old = this.script.value && this.script.value[name] && this.script.value[name].value;
+                const old = this.script.value && this.script.value[name] && this.script.value[name].value;
                 val.listener(name, old, value.value, this.script.value === value.value);
             }
         });
@@ -360,8 +369,8 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_listValues(): string[] {
-        let ret: string[] = [];
-        for (let key in this.script.value) {
+        const ret: string[] = [];
+        for (const key in this.script.value) {
             ret.push(key);
         }
         return ret;
@@ -369,7 +378,7 @@ export class FrontendGrant implements ScriptContext {
 
     @FrontendGrant.GMFunction()
     public GM_addValueChangeListener(name: string, listener: GM_Types.ValueChangeListener): number {
-        let id = Math.random() * 10000000;
+        const id = Math.random() * 10000000;
         this.valueChangeListener.set(id, { name: name, listener: listener });
         return id;
     }
@@ -381,28 +390,29 @@ export class FrontendGrant implements ScriptContext {
 
     public GM_openInTab(url: string, loadInBackground: boolean): tab
     public GM_openInTab(url: string, options: GM_Types.OpenTabOptions): tab
-    @FrontendGrant.GMFunction({ depend: ["GM_closeInTab"] })
-    public GM_openInTab(url: string): tab {
+    @FrontendGrant.GMFunction({ depend: ['GM_closeInTab'] })
+    public GM_openInTab(url: string, options?: GM_Types.OpenTabOptions | boolean): tab {
         let option: GM_Types.OpenTabOptions = {};
         if (arguments.length == 1) {
             option.active = true;
         } else {
-            if (typeof arguments[1] == 'boolean') {
-                option.active = !arguments[1];
+            if (typeof options == 'boolean') {
+                option.active = options;
             } else {
-                option = arguments[1];
+                option = <GM_Types.OpenTabOptions>options;
             }
         }
         let tabid: any;
-        let ret: tab = {
+        const ret: tab = {
             close: () => {
                 this.GM_closeInTab(tabid);
             },
         };
         this.postRequest('GM_openInTab', [url, option], grant => {
-            switch (grant.data.type) {
+            const data = <{ type: string, tabId: number }>grant.data;
+            switch (data.type) {
                 case 'tabid':
-                    tabid = grant.data.tabId
+                    tabid = data.tabId
                     ret.closed = false;
                     break;
                 case 'close':
@@ -435,9 +445,9 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    public GM_registerMenuCommand(name: string, listener: Function, accessKey?: string): number {
-        let id = randomInt(1, 100000);
-        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], (grant: Grant) => {
+    public GM_registerMenuCommand(name: string, listener: () => any, accessKey?: string): number {
+        const id = randomInt(1, 100000);
+        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], () => {
             listener();
         });
         return id;
@@ -453,7 +463,7 @@ export class FrontendGrant implements ScriptContext {
         if (!this.script.resource) {
             return undefined;
         }
-        let r = this.script.resource[name];
+        const r = this.script.resource[name];
         if (r) {
             return r.content;
         }
@@ -465,7 +475,7 @@ export class FrontendGrant implements ScriptContext {
         if (!this.script.resource) {
             return undefined;
         }
-        let r = this.script.resource[name];
+        const r = this.script.resource[name];
         if (r) {
             return r.base64;
         }
@@ -481,9 +491,10 @@ export class FrontendGrant implements ScriptContext {
             if (grant.error) {
                 return done && done([], grant.errorMsg);
             }
-            switch (grant.data.type) {
+            const data = <{ type: string, data: GM_Types.Cookie[] | any }>grant.data;
+            switch (data.type) {
                 case 'done':
-                    done && done(<GM_Types.Cookie[]>grant.data.data, undefined);
+                    done && done(data.data, undefined);
                     break;
             }
         });
@@ -495,9 +506,10 @@ export class FrontendGrant implements ScriptContext {
             if (grant.error) {
                 return done && done(0, grant.errorMsg);
             }
-            switch (grant.data.type) {
+            const data = <{ type: string, data: number }>grant.data;
+            switch (data.type) {
                 case 'done':
-                    done && done(grant.data.data, undefined);
+                    done && done(data.data, undefined);
                     break;
             }
         });
@@ -506,11 +518,23 @@ export class FrontendGrant implements ScriptContext {
 
 export type rejectCallback = (msg: string, delayrun: number) => void
 
+export class SandboxMsg implements BrowserMsg {
+
+    public send(topic: string, msg: any) {
+        top!.postMessage(msg, '*');
+    }
+
+    public listen(topic: string, callback: ListenMsg) {
+        console.log('未实现');
+    }
+
+}
+
 //ts会定义在prototype里,Proxy拦截的时候会有问题,所以function使用属性的方式定义(虽然可以处理,先这样)
 export class SandboxContext extends FrontendGrant {
 
     constructor(script: ScriptCache) {
-        super(script, undefined);
+        super(script, new SandboxMsg);
         // 监听Value Change
         AppEvent.listener(ScriptValueChange, this.valueChange);
     }
@@ -518,7 +542,7 @@ export class SandboxContext extends FrontendGrant {
     ValueChange = (name: string, value: Value, tabid?: number): void => {
         this.valueChangeListener.forEach(val => {
             if (val.name === name) {
-                let old = this.script.value && this.script.value[name] && this.script.value[name].value;
+                const old = this.script.value && this.script.value[name] && this.script.value[name].value;
                 val.listener(name, old, value.value, this.script.value === value.value, tabid);
             }
         });
@@ -529,7 +553,7 @@ export class SandboxContext extends FrontendGrant {
     }
 
     public valueChange = (msg: any) => {
-        let { model, tabid } = msg;
+        const { model, tabid } = <{ model: Value, tabid: number }>msg;
         if (!this.script.value) {
             this.script.value = {};
         }
@@ -556,44 +580,27 @@ export class SandboxContext extends FrontendGrant {
     }
 
     public message = (event: MessageEvent) => {
-        let grant = <Grant>event.data;
+        const grant = <Grant>event.data;
         if (!grant.request) {
             return;
         }
-        let callback = this.request.get(grant.request);
+        const callback = this.request.get(grant.request);
         if (callback) {
             callback(grant);
         }
     }
 
-    public postRequest = (value: string, params: any[], callback?: Callback | undefined) => {
-        let grant: Grant = {
-            id: this.script.id,
-            name: this.script.name,
-            value: value,
-            params: params,
-            request: randomString(32)
-        };
-        if (callback) {
-            this.request.set(grant.request, (grant: Grant) => {
-                callback(grant);
-                if (grant.error) {
-                    throw grant.name + ': ' + grant.value + ' ErrCode:' + grant.error + ' ErrMsg:' + grant.errorMsg;
-                }
-            });
-        }
-        top!.postMessage(grant, '*');
-    }
-
     public CAT_setLastRuntime = (time: number) => {
         this.begin();
         this.postRequest('CAT_setLastRuntime', [time], () => {
+            console.log('CAT_setLastRuntime');
         });
     }
 
     public CAT_setRunError = (error: string, time: number) => {
         this.end();
         this.postRequest('CAT_setRunError', [error, time], () => {
+            console.log('CAT_setRunError');
         });
     }
 
