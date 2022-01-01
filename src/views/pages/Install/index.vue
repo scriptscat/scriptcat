@@ -27,10 +27,7 @@
         <div class="text-subtitle-2" v-if="desctiption">
           {{ label }}描述: {{ desctiption }}
         </div>
-        <div
-          class="text-subtitle-2"
-          style="max-height: 110px; overflow: hidden"
-        >
+        <div class="text-subtitle-2" style="max-height: 110px; overflow: hidden">
           {{ issub ? "订阅地址:" : "脚本来源:" }}
           <span
             style="
@@ -43,7 +40,7 @@
             >{{ script.origin || script.url }}</span
           >
         </div>
-        <div class="control d-flex justify-start" style="margin-bottom: 10px">
+        <div class="control d-flex justify-end" style="margin-bottom: 10px">
           <v-btn
             @click="install"
             :loading="installLoading"
@@ -73,18 +70,13 @@
           <span class="text-subtitle-1 d-flex"
             ><span class="justify-start" style="flex: 1" v-if="version"
               >{{ label }}版本:{{ version }}</span
-            ><span
-              class="justify-start"
-              style="flex: 1"
-              v-if="isupdate && oldVersion"
+            ><span class="justify-start" style="flex: 1" v-if="isupdate && oldVersion"
               >当前版本:{{ oldVersion }}</span
             ></span
           >
         </div>
         <div v-if="match.length">
-          <span class="text-subtitle-1" v-if="issub"
-            >本订阅将会安装以下脚本:</span
-          >
+          <span class="text-subtitle-1" v-if="issub">本订阅将会安装以下脚本:</span>
           <span class="text-subtitle-1" v-else>脚本将在以下网站中运行:</span>
           <div class="text-subtitle-2 match">
             <p v-for="item in match" :key="item">{{ item }}</p>
@@ -94,9 +86,7 @@
           <span v-if="issub" class="text-subtitle-1" style="color: red"
             >订阅系列脚本将获得以下地址的完整访问权限,请注意检查且确认!!!</span
           >
-          <span v-else class="text-subtitle-1"
-            >脚本将获得以下地址的完整访问权限:</span
-          >
+          <span v-else class="text-subtitle-1">脚本将获得以下地址的完整访问权限:</span>
           <div class="text-subtitle-2 match">
             <p v-for="item in connect" :key="item">
               {{ item }}
@@ -138,17 +128,17 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
-import { editor } from "monaco-editor";
-import { ScriptUrlInfo } from "@App/apps/msg-center/structs";
+import { Vue, Component } from 'vue-property-decorator';
+import { editor } from 'monaco-editor';
+import { ScriptUrlInfo } from '@App/apps/msg-center/structs';
 import {
   Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-} from "@App/model/do/script";
-import { ScriptController } from "@App/apps/script/controller";
-import { nextTime } from "@App/views/pages/utils";
-import { Subscribe } from "@App/model/do/subscribe";
+} from '@App/model/do/script';
+import { ScriptController } from '@App/apps/script/controller';
+import { nextTime } from '@App/views/pages/utils';
+import { Subscribe } from '@App/model/do/subscribe';
 
 @Component({})
 export default class Index extends Vue {
@@ -156,21 +146,21 @@ export default class Index extends Vue {
   protected diff!: editor.IStandaloneDiffEditor;
   public scriptController: ScriptController = new ScriptController();
   public script: Script | Subscribe = <Script>{ metadata: {} };
-  public version: string = "";
-  public oldVersion: string = "";
+  public version = '';
+  public oldVersion = '';
   public connect: string[] = [];
   public match: string[] = [];
-  public isCookie: boolean = false;
-  public isupdate: boolean = false;
-  public desctiption = "";
-  protected label = "脚本";
+  public isCookie = false;
+  public isupdate = false;
+  public desctiption = '';
+  protected label = '脚本';
   protected issub = false;
 
   nextTime = nextTime;
 
   async mounted() {
     let url = new URL(location.href);
-    let uuid = url.searchParams.get("uuid");
+    let uuid = url.searchParams.get('uuid');
     if (!uuid) {
       return;
     }
@@ -179,11 +169,11 @@ export default class Index extends Vue {
 
   load(info: ScriptUrlInfo) {
     if (info.issub) {
-      this.userSubscribe(info);
-      this.label = "订阅";
+      void this.userSubscribe(info);
+      this.label = '订阅';
       this.issub = true;
     } else {
-      this.userScript(info);
+      void this.userScript(info);
     }
   }
 
@@ -197,50 +187,48 @@ export default class Index extends Vue {
       return;
     }
     this.script = sub;
-    let edit = document.getElementById("container");
+    let edit = document.getElementById('container');
     if (edit == undefined) {
       return;
     }
-    if (typeof oldsub == "object") {
+    if (typeof oldsub == 'object') {
       this.diff = editor.createDiffEditor(edit, {
         enableSplitViewResizing: false,
         renderSideBySide: false,
         folding: true,
-        foldingStrategy: "indentation",
+        foldingStrategy: 'indentation',
         automaticLayout: true,
         overviewRulerBorder: false,
         scrollBeyondLastLine: false,
         readOnly: true,
-        diffWordWrap: "off",
+        diffWordWrap: 'off',
       });
       this.diff.setModel({
-        original: editor.createModel(this.script.code, "javascript"),
-        modified: editor.createModel(oldsub.code, "javascript"),
+        original: editor.createModel(this.script.code, 'javascript'),
+        modified: editor.createModel(oldsub.code, 'javascript'),
       });
       this.isupdate = true;
-      this.oldVersion =
-        oldsub.metadata["version"] && oldsub.metadata["version"][0];
-      document.title = "更新订阅 - " + this.script.name + " - ScriptCat ";
+      this.oldVersion = oldsub.metadata['version'] && oldsub.metadata['version'][0];
+      document.title = '更新订阅 - ' + this.script.name + ' - ScriptCat ';
     } else {
       this.editor = editor.create(edit, {
-        language: "javascript",
+        language: 'javascript',
         folding: true,
-        foldingStrategy: "indentation",
+        foldingStrategy: 'indentation',
         automaticLayout: true,
         overviewRulerBorder: false,
         scrollBeyondLastLine: false,
         readOnly: true,
       });
       this.editor.setValue(this.script.code);
-      document.title = "安装订阅 - " + this.script.name + " - ScriptCat ";
+      document.title = '安装订阅 - ' + this.script.name + ' - ScriptCat ';
     }
-    if (this.script.metadata["description"]) {
-      this.desctiption = this.script.metadata["description"][0];
+    if (this.script.metadata['description']) {
+      this.desctiption = this.script.metadata['description'][0];
     }
-    this.version =
-      this.script.metadata["version"] && this.script.metadata["version"][0];
-    this.connect = this.script.metadata["connect"] || [];
-    this.match = this.script.metadata["scripturl"] || [];
+    this.version = this.script.metadata['version'] && this.script.metadata['version'][0];
+    this.connect = this.script.metadata['connect'] || [];
+    this.match = this.script.metadata['scripturl'] || [];
   }
 
   async userScript(info: ScriptUrlInfo) {
@@ -253,59 +241,58 @@ export default class Index extends Vue {
       return;
     }
     this.script = script;
-    let edit = document.getElementById("container");
+    let edit = document.getElementById('container');
     if (edit == undefined) {
       return;
     }
-    if (typeof oldscript == "object") {
+    if (typeof oldscript == 'object') {
       this.diff = editor.createDiffEditor(edit, {
         enableSplitViewResizing: false,
         renderSideBySide: false,
         folding: true,
-        foldingStrategy: "indentation",
+        foldingStrategy: 'indentation',
         automaticLayout: true,
         overviewRulerBorder: false,
         scrollBeyondLastLine: false,
         readOnly: true,
-        diffWordWrap: "off",
+        diffWordWrap: 'off',
       });
       this.diff.setModel({
-        original: editor.createModel(oldscript.code, "javascript"),
-        modified: editor.createModel(this.script.code, "javascript"),
+        original: editor.createModel(oldscript.code, 'javascript'),
+        modified: editor.createModel(this.script.code, 'javascript'),
       });
       this.isupdate = true;
-      this.oldVersion =
-        oldscript.metadata["version"] && oldscript.metadata["version"][0];
-      document.title = "更新脚本 - " + this.script.name + " - ScriptCat ";
+      this.oldVersion = oldscript.metadata['version'] && oldscript.metadata['version'][0];
+      document.title = '更新脚本 - ' + this.script.name + ' - ScriptCat ';
     } else {
       this.editor = editor.create(edit, {
-        language: "javascript",
+        language: 'javascript',
         folding: true,
-        foldingStrategy: "indentation",
+        foldingStrategy: 'indentation',
         automaticLayout: true,
         overviewRulerBorder: false,
         scrollBeyondLastLine: false,
         readOnly: true,
       });
       this.editor.setValue(this.script.code);
-      document.title = "安装脚本 - " + this.script.name + " - ScriptCat ";
+      document.title = '安装脚本 - ' + this.script.name + ' - ScriptCat ';
     }
-    if (this.script.metadata["description"]) {
-      this.desctiption = this.script.metadata["description"][0];
+    if (this.script.metadata['description']) {
+      this.desctiption = this.script.metadata['description'][0];
     }
-    this.version = script.metadata["version"] && script.metadata["version"][0];
-    this.connect = script.metadata["connect"] || [];
-    script.metadata["grant"]?.forEach((val) => {
-      if (val == "GM_cookie") {
+    this.version = script.metadata['version'] && script.metadata['version'][0];
+    this.connect = script.metadata['connect'] || [];
+    script.metadata['grant']?.forEach((val) => {
+      if (val == 'GM_cookie') {
         this.isCookie = true;
       }
     });
 
-    this.script.metadata["match"]?.forEach((val) => {
+    this.script.metadata['match']?.forEach((val) => {
       this.match.push(val);
     });
 
-    this.script.metadata["include"]?.forEach((val) => {
+    this.script.metadata['include']?.forEach((val) => {
       this.match.push(val);
     });
   }
@@ -322,7 +309,7 @@ export default class Index extends Vue {
       if (id) {
         window.close();
       } else {
-        alert("订阅失败!");
+        alert('订阅失败!');
       }
       return;
     }
@@ -330,7 +317,7 @@ export default class Index extends Vue {
     if (id) {
       window.close();
     } else {
-      alert("安装失败!");
+      alert('安装失败!');
     }
   }
 
@@ -338,7 +325,7 @@ export default class Index extends Vue {
     return item.status === SCRIPT_STATUS_ENABLE ? true : false;
   }
 
-  async changeStatus(item: Script) {
+  changeStatus(item: Script) {
     if (item.status === SCRIPT_STATUS_ENABLE) {
       item.status = SCRIPT_STATUS_DISABLE;
     } else {

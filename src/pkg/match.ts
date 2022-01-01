@@ -9,16 +9,19 @@ export class Match<T> {
             return {
                 scheme: match[1],
                 host: match[2],
-                path: match[4] || "/",
+                path: match[4] || '/',
                 search: match[5],
             };
+        }
+        if (url == 'http*') {
+            return { scheme: '*', host: '*', path: '', search: '' };
         }
         match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
         if (match) {
             return {
                 scheme: '*',
                 host: match[1],
-                path: match[3] || "/",
+                path: match[3] || '/',
                 search: match[4],
             };
         }
@@ -26,7 +29,7 @@ export class Match<T> {
     }
 
     protected compileRe(url: string): string {
-        let u = this.parseURL(url);
+        const u = this.parseURL(url);
         if (!u) {
             return '';
         }
@@ -40,27 +43,27 @@ export class Match<T> {
         }
         u.host = u.host.replace(/\*/g, '.*?');
         // 处理 *.开头
-        if (u.host.startsWith(".*?.")) {
-            u.host = "(.*?\.?)" + u.host.substr(4);
+        if (u.host.startsWith('.*?.')) {
+            u.host = '(.*?\.?)' + u.host.substr(4);
         }
         // 处理顶域
         if (u.host.endsWith('tld')) {
             u.host = u.host.substr(0, u.host.length - 3) + '.*?';
         }
-        let re: string = `^${u.scheme}://${u.host}`;
+        let re = `^${u.scheme}://${u.host}`;
         if (u.path == '/') {
             re += '[/]?';
         } else {
             re += u.path.replace(/\*/g, '.*?');
         }
         if (u.search) {
-            re += u.search.replace(/([\?])/g, "\\$1").replace(/\*/g, '.*?');
+            re += u.search.replace(/([\?])/g, '\\$1').replace(/\*/g, '.*?');
         }
-        return re.replace(/\//g, "\/") + '$';
+        return re.replace(/\//g, '\/') + '$';
     }
 
     public add(url: string, val: T) {
-        let re = this.compileRe(url);
+        const re = this.compileRe(url);
         if (!re) {
             return;
         }
@@ -70,7 +73,7 @@ export class Match<T> {
             this.rule.set(re, rule);
         }
         rule.push(val);
-        this.delCache(val);
+        this.delCache();
     }
 
     public match(url: string): T[] {
@@ -81,9 +84,9 @@ export class Match<T> {
         ret = [];
         this.rule.forEach((val, key) => {
             try {
-                let re = new RegExp(key);
+                const re = new RegExp(key);
                 if (re.test(url)) {
-                    ret!.push(...val);
+                    ret && ret.push(...val);
                 }
             } catch (_) {
 
@@ -95,15 +98,15 @@ export class Match<T> {
 
     protected getId(val: T): string {
         if (typeof val == 'object') {
-            return (<any>val).id;
+            return (<{ id: string }><unknown>val).id;
         }
         return <string><unknown>val;
     }
 
     public del(val: T) {
-        let id = this.getId(val);
+        const id = this.getId(val);
         this.rule.forEach((rule, key) => {
-            let tmp: T[] = [];
+            const tmp: T[] = [];
             rule.forEach(val => {
                 if (this.getId(val) != id) {
                     tmp.push(val);
@@ -115,10 +118,10 @@ export class Match<T> {
                 this.rule.delete(key);
             }
         });
-        this.delCache(val);
+        this.delCache();
     }
 
-    protected delCache(delVal: T) {
+    protected delCache() {
         this.cache.clear();
     }
 
@@ -134,19 +137,19 @@ export class UrlMatch<T> extends Match<T>{
     public match(url: string): T[] {
         let ret = super.match(url);
         // 排除
-        let includeMap = new Map();
+        const includeMap = new Map();
         ret.forEach(val => {
             includeMap.set(this.getId(val), val);
         })
-        let exclude = this.excludeMatch.match(url);
-        let excludeMap = new Map();
+        const exclude = this.excludeMatch.match(url);
+        const excludeMap = new Map();
         exclude.forEach(val => {
             excludeMap.set(this.getId(val), 1);
         })
         ret = [];
-        includeMap.forEach((val, key) => {
+        includeMap.forEach((val: T, key) => {
             if (!excludeMap.has(key)) {
-                ret!.push(val);
+                ret.push(val);
             }
         })
         this.cache.set(url, ret);
