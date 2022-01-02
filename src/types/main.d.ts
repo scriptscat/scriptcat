@@ -1,5 +1,11 @@
 declare let sandbox: any;
 
+type AnyMap = {
+    [key: string]: any
+}
+
+type EmptyFunction = () => void
+
 declare module '@App/tampermonkey.d.ts';
 declare module '*.tpl';
 

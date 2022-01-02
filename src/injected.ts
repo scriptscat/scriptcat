@@ -56,7 +56,7 @@ browserMsg.listen('scripts', (msg) => {
             context = new FrontendGrant(script, browserMsg);
             context = createContext(context, script);
             context['unsafeWindow'] = window;
-            context = buildThis(window, context);
+            context = <ScriptContext>buildThis(window, context);
             script.context = context;
         }
         if (script.metadata['run-at'] && (script.metadata['run-at'][0] === 'document-menu' || script.metadata['run-at'][0] === 'document-body')) {

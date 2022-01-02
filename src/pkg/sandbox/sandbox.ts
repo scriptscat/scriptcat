@@ -5,19 +5,19 @@ export function buildWindow(): any {
     }
 }
 
-let writables: any = {
-    "addEventListener": global.addEventListener,
-    "removeEventListener": global.removeEventListener,
-    "dispatchEvent": global.dispatchEvent,
+const writables: { [key: string]: any } = {
+    'addEventListener': global.addEventListener,
+    'removeEventListener': global.removeEventListener,
+    'dispatchEvent': global.dispatchEvent,
 };
 
 // 记录初始的
-export let init = new Map<string, boolean>();
+export const init = new Map<string, boolean>();
 
 // 复制原有的,防止被前端网页复写
-let descs = Object.getOwnPropertyDescriptors(global);
+const descs = Object.getOwnPropertyDescriptors(global);
 for (const key in descs) {
-    let desc = descs[key];
+    const desc = descs[key];
     if (desc && desc.writable && !writables[key]) {
         writables[key] = desc.value;
     } else {
@@ -27,51 +27,67 @@ for (const key in descs) {
 
 
 // 处理有多层结构的(先只对特殊的做处理)
-['console'].forEach(obj => {
-    let descs = Object.getOwnPropertyDescriptors((<any>global)[obj]);
+['console'].forEach((obj: string) => {
+    const descs = Object.getOwnPropertyDescriptors((<AnyMap><unknown>global)[obj]);
     writables[obj] = {};// 清零
     for (const key in descs) {
-        let desc = descs[key];
+        const desc = descs[key];
         if (desc && desc.writable) {
-            writables[obj][key] = desc.value;
+            (<AnyMap>writables[obj])[key] = desc.value;
         }
     }
 });
 
 //TODO:做一些恶意操作拦截等
-export function buildThis(global: any, context: any) {
-    let special = Object.assign({}, writables);
+export function buildThis(global: AnyMap, context: AnyMap) {
+    const special = <AnyMap>Object.assign({}, writables);
     // 后台脚本要不要考虑不能使用eval?
-    let _this: any = { eval: global.eval };
-    let proxy: any = new Proxy(context, {
+    const _this: AnyMap = { eval: global.eval };
+    const proxy: AnyMap = new Proxy(context, {
         defineProperty(_, name, desc) {
-            return Object.defineProperty(context, name, desc);
+            if (Object.defineProperty(context, name, desc)) {
+                return true;
+            }
+            return false;
         },
         get(_, name) {
             switch (name) {
                 case 'window':
+                case 'self':
                 case 'global':
                 case 'globalThis':
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return special['global'] || proxy;
+                case 'top':
+                case 'parent':
+                    if (global[name] == global.self) {
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+                        return special['global'] || proxy;
+                    }
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+                    return global.top;
             }
-            if (name !== 'undefined' && name !== Symbol.unscopables) {
+            if (typeof name == 'string' && name !== 'undefined') {
                 if (context[name]) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return context[name];
                 }
                 if (_this[name]) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return _this[name];
                 }
                 if (special[name] !== undefined) {
-                    if (typeof special[name] === 'function' && !special[name].prototype) {
-                        return special[name].bind(global);
+                    if (typeof special[name] === 'function' && !(<EmptyFunction>special[name]).prototype) {
+                        return (<EmptyFunction>special[name]).bind(global);
                     }
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return special[name];
                 }
-                if (global[name] !== undefined) {
-                    if (typeof global[name] === 'function' && !global[name].prototype) {
-                        console.log('b', name, global[name]);
-                        return global[name].bind(global);
+                if ((global)[name] !== undefined) {
+                    if (typeof (global)[name] === 'function' && !(<EmptyFunction>(global)[name]).prototype) {
+                        return (<EmptyFunction>global[name]).bind(global);
                     }
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return global[name];
                 }
             }
@@ -83,6 +99,7 @@ export function buildThis(global: any, context: any) {
         set(_, name: string, val) {
             switch (name) {
                 case 'window':
+                case 'self':
                 case 'global':
                 case 'globalThis':
                     special['global'] = val;
@@ -93,7 +110,7 @@ export function buildThis(global: any, context: any) {
                 return true;
             }
             if (init.has(name)) {
-                let des = Object.getOwnPropertyDescriptor(global, name);
+                const des = Object.getOwnPropertyDescriptor(global, name);
                 // 只读的return
                 if (des && des.get && !des.set && des.configurable) {
                     return true;
