@@ -200,7 +200,7 @@ declare namespace GM_Types {
         cookie?: string
         binary?: boolean
         timeout?: number
-        context?: CONTEXT_TYPE
+        context?: ContextType
         responseType?: 'arraybuffer' | 'blob' | 'json'
         overrideMimeType?: string,
         anonymous?: boolean,

@@ -514,6 +514,33 @@ export class FrontendGrant implements ScriptContext {
             }
         });
     }
+
+    @FrontendGrant.GMFunction()
+    protected GM_getTab(callback: (data: any) => void) {
+        this.postRequest('GM_getTab', [], (grant: Grant) => {
+            if (grant.error) {
+                throw new Error(grant.errorMsg);
+            }
+            callback(grant.data);
+        })
+    }
+
+    @FrontendGrant.GMFunction()
+    protected GM_saveTab(obj: object): void {
+        this.postRequest('GM_saveTab', [JSON.parse(JSON.stringify(obj))]);
+    }
+
+    @FrontendGrant.GMFunction()
+    protected GM_getTabs(callback:  (objs: { [key: number]: object }) => any): void {
+        this.postRequest('GM_getTabs', [], (grant: Grant) => {
+            if (grant.error) {
+                throw new Error(grant.errorMsg);
+            }
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            callback(grant.data);
+        })
+    }
+
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

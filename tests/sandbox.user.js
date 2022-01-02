@@ -12,6 +12,9 @@
 // @grant GM_getResourceText
 // @grant GM_getResourceURL
 // @grant GM_cookie
+// @grant GM_saveTab
+// @grant GM_getTabs
+// @grant GM_getTab
 // ==/UserScript==
 
 console.log(window.scrollX, window.scrollY);
@@ -61,3 +64,14 @@ console.log(globalThis.a == 2, globalThis.a, global.a);
 GM_cookie('store', {}, function () {
     console.log(arguments);
 });
+
+setTimeout(() => {
+    console.log(GM_getTab((e) => {
+        console.log(e)
+        e.op = '123';
+        GM_saveTab(e);
+    }));
+    GM_getTabs(e => {
+        console.log(e);
+    })
+}, 1000)

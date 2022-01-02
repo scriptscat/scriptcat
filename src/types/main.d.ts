@@ -1,4 +1,4 @@
-declare let sandbox: any;
+declare let sandbox: Window;
 
 type AnyMap = {
     [key: string]: any
@@ -122,3 +122,7 @@ declare namespace GMSend {
     }
 }
 
+interface IPermissionConfirm {
+    allow: boolean
+    type: number
+}

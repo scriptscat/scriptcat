@@ -1,20 +1,19 @@
-import { ScriptManager } from "@App/apps/script/manager";
-import { BackgroundGrant, grantListener as bgGrantListener } from "@App/apps/grant/background";
-import { grantListener } from "@App/apps/grant/content";
-import { MultiGrantListener } from "@App/apps/grant/utils";
-import { Logger } from "./apps/msg-center/event";
-import { SystemConfig } from "./pkg/config";
-import { App, ENV_BACKGROUND, InitApp } from "./apps/app";
-import { DBLogger } from "./apps/logger/logger";
-import { migrate } from "./model/migrate";
-import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_DISABLE } from "./model/do/script";
-import { MapCache } from "./pkg/storage/cache/cache";
-import { get } from "./pkg/utils/utils";
-import { ExtVersion, Server } from "./apps/config";
-import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "./model/do/subscribe";
-import { UserManager } from "./apps/user/manager";
-import { ToolsManager } from "./apps/tools/manager";
-import { config } from "vue/types/umd";
+import { ScriptManager } from '@App/apps/script/manager';
+import { BackgroundGrant, grantListener as bgGrantListener } from '@App/apps/grant/background';
+import { grantListener } from '@App/apps/grant/content';
+import { MultiGrantListener } from '@App/apps/grant/utils';
+import { Logger } from './apps/msg-center/event';
+import { SystemConfig } from './pkg/config';
+import { App, ENV_BACKGROUND, InitApp } from './apps/app';
+import { DBLogger } from './apps/logger/logger';
+import { migrate } from './model/migrate';
+import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_STATUS_DISABLE } from './model/do/script';
+import { MapCache } from './pkg/storage/cache/cache';
+import { get } from './pkg/utils/utils';
+import { ExtVersion, Server } from './apps/config';
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from './model/do/subscribe';
+import { UserManager } from './apps/user/manager';
+import { ToolsManager } from './apps/tools/manager';
 
 migrate();
 
@@ -24,23 +23,23 @@ InitApp({
     Environment: ENV_BACKGROUND,
 });
 
-SystemConfig.init();
+void SystemConfig.init();
 
 chrome.contextMenus.create({
     id: 'script-cat',
-    title: "ScriptCat",
+    title: 'ScriptCat',
     contexts: ['all'],
     onclick: () => {
         console.log('exec script');
     },
 });
 
-let scripts = new ScriptManager();
-let user = new UserManager();
-let tools = new ToolsManager(scripts);
-let grant = BackgroundGrant.SingleInstance(
+const scripts = new ScriptManager();
+const user = new UserManager();
+const tools = new ToolsManager(scripts);
+const grant = BackgroundGrant.SingleInstance(
     scripts,
-    new MultiGrantListener(new bgGrantListener(), new grantListener(<Window>sandbox.window)),
+    new MultiGrantListener(new bgGrantListener(), new grantListener(sandbox.window)),
     false
 );
 scripts.listenEvent();
@@ -52,25 +51,25 @@ user.listenEvent();
 tools.listenEvent();
 
 grant.listenScriptGrant();
-window.addEventListener("message", (event) => {
+window.addEventListener('message', (event) => {
     if (event.data.action != Logger) {
         return;
     }
-    let data = event.data.data;
+    const data = event.data.data;
     App.Log.Logger(data.level, data.origin, data.message, data.title, data.scriptId);
 });
 
-let timer = setInterval(() => {
+const timer = setInterval(() => {
     sandbox.postMessage({ action: 'load' }, '*');
 }, 1000);
-window.addEventListener("message", sandboxLoad);
+window.addEventListener('message', sandboxLoad);
 function sandboxLoad(event: MessageEvent) {
     clearInterval(timer);
-    window.removeEventListener("message", sandboxLoad);
-    if (event.origin != "null" && event.origin != App.ExtensionId) {
+    window.removeEventListener('message', sandboxLoad);
+    if (event.origin != 'null' && event.origin != App.ExtensionId) {
         return;
     }
-    if (event.data.action != "load") {
+    if (event.data.action != 'load') {
         return;
     }
     scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
@@ -89,7 +88,7 @@ setInterval(() => {
 
     scripts.scriptList((table: Dexie.Table) => {
         return table
-            .where("checktime")
+            .where('checktime')
             .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
     }).then((items) => {
         items.forEach((value: Script) => {
@@ -102,7 +101,7 @@ setInterval(() => {
 
     scripts.subscribeList((table: Dexie.Table) => {
         return table
-            .where("checktime")
+            .where('checktime')
             .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
     }).then((items) => {
         items.forEach((value: Subscribe) => {
@@ -114,9 +113,9 @@ setInterval(() => {
 
 }, 60000);
 
-get(Server + "api/v1/system/version", (str) => {
+get(Server + 'api/v1/system/version', (str) => {
     chrome.storage.local.get(['oldNotice'], items => {
-        let resp = JSON.parse(str);
+        const resp = JSON.parse(str);
         if (resp.data.notice !== items['oldNotice']) {
             chrome.storage.local.set({
                 notice: resp.data.notice
@@ -129,9 +128,9 @@ get(Server + "api/v1/system/version", (str) => {
 });
 // 半小时同步一次数据和检查更新
 setInterval(() => {
-    get(Server + "api/v1/system/version", (str) => {
+    get(Server + 'api/v1/system/version', (str) => {
         chrome.storage.local.get(['oldNotice'], items => {
-            let resp = JSON.parse(str);
+            const resp = JSON.parse(str);
             if (resp.data.notice !== items['oldNotice']) {
                 chrome.storage.local.set({
                     notice: resp.data.notice
@@ -148,12 +147,12 @@ setInterval(() => {
 }, 1800000);
 
 chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason == "install") {
-        chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
-    } else if (details.reason == "update") {
+    if (details.reason == 'install') {
+        chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
+    } else if (details.reason == 'update') {
         // 中版本的更新才打开新窗口
         if (details.previousVersion?.substring(0, details.previousVersion.lastIndexOf('.')) != ExtVersion.substring(0, ExtVersion.lastIndexOf('.'))) {
-            chrome.tabs.create({ url: "https://docs.scriptcat.org/change/" });
+            chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
         }
     }
 });

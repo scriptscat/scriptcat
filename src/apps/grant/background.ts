@@ -186,7 +186,7 @@ export class BackgroundGrant {
             propertyName: string,
             descriptor: PropertyDescriptor
         ) {
-            const old = descriptor.value;
+            const oldApi = <Api>descriptor.value;
             if (permission.listener) {
                 permission.listener();
             }
@@ -195,172 +195,178 @@ export class BackgroundGrant {
             }
             descriptor.value = function (grant: Grant, post: IPostMessage): Promise<any> {
                 const _this: BackgroundGrant = <BackgroundGrant>this;
-                return new Promise(async (resolve, reject) => {
-                    const script = await App.Cache.getOrSet('script:' + grant.id, () => {
-                        return _this.scriptMgr.getScript(grant.id)
-                    });
-                    if (!script) {
-                        return reject('permission denied');
-                    }
-                    App.Log.Debug('script', 'call function: ' + propertyName, script.name);
-                    const metaGrant = script.metadata['grant'] || [];
-                    // TODO: 优化效率
-                    if (!permission.default) {
-                        let flag = false;
-                        for (let i = 0; i < metaGrant.length; i++) {
-                            if (metaGrant[i] == propertyName) {
-                                flag = true;
-                                break;
-                            }
-                            if (permission.alias) {
-                                for (let n = 0; n < permission.alias.length; n++) {
-                                    if (permission.alias[n] == metaGrant[i]) {
-                                        flag = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (flag) {
-                                break;
-                            }
-                        }
-                        if (!flag) {
+                return new Promise((resolve, reject) => {
+                    const handler = async () => {
+                        const script = <Script | undefined>await App.Cache.getOrSet('script:' + grant.id.toString(), () => {
+                            return _this.scriptMgr.getScript(grant.id)
+                        });
+                        if (!script) {
                             return reject('permission denied');
                         }
-                    }
-
-                    grant.tabId = (<chrome.runtime.MessageSender>post.sender())?.tab?.id;
-                    // 判断是否只能后台环境调用
-                    if (permission.background) {
-                        if (grant.tabId) {
-                            return reject('background method');
-                        }
-                    }
-
-                    if (!_this.isdebug && permission.confirm) {
-                        let confirmParam;
-                        try {
-                            confirmParam = await permission.confirm(grant, script);
-                        } catch (e) {
-                            return reject(e);
-                        }
-                        if (typeof confirmParam == 'object') {
-                            const confirm = confirmParam;
-                            const cacheKey = 'permission:' + script.id + ':' + confirm.permissionValue + ':' + confirm.permission;
-                            let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
-                                return new Promise(async resolve => {
-                                    let ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: confirm?.permissionValue });
-                                    if (!ret) {
-                                        if (confirm?.wildcard) {
-                                            ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: '*' });
+                        App.Log.Debug('script', 'call function: ' + propertyName, script.name);
+                        const metaGrant = script.metadata['grant'] || [];
+                        // TODO: 优化效率
+                        if (!permission.default) {
+                            let flag = false;
+                            for (let i = 0; i < metaGrant.length; i++) {
+                                if (metaGrant[i] == propertyName) {
+                                    flag = true;
+                                    break;
+                                }
+                                if (permission.alias) {
+                                    for (let n = 0; n < permission.alias.length; n++) {
+                                        if (permission.alias[n] == metaGrant[i]) {
+                                            flag = true;
+                                            break;
                                         }
                                     }
-                                    return resolve(ret);
+                                }
+                                if (flag) {
+                                    break;
+                                }
+                            }
+                            if (!flag) {
+                                return reject('permission denied');
+                            }
+                        }
+
+                        grant.tabId = (<chrome.runtime.MessageSender>post.sender())?.tab?.id;
+                        // 判断是否只能后台环境调用
+                        if (permission.background) {
+                            if (grant.tabId) {
+                                return reject('background method');
+                            }
+                        }
+
+                        if (!_this.isdebug && permission.confirm) {
+                            let confirmParam;
+                            try {
+                                confirmParam = await permission.confirm(grant, script);
+                            } catch (e) {
+                                return reject(e);
+                            }
+                            if (typeof confirmParam == 'object') {
+                                const confirm = confirmParam;
+                                const cacheKey = 'permission:' + script.id.toString() + ':' + (confirm.permissionValue || '') + ':' + (confirm.permission || '');
+                                let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
+                                    return new Promise(resolve => {
+                                        const handler = async () => {
+                                            let ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: confirm?.permissionValue });
+                                            if (!ret) {
+                                                if (confirm?.wildcard) {
+                                                    ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: '*' });
+                                                }
+                                            }
+                                            return resolve(ret);
+                                        }
+                                        void handler();
+                                    });
                                 });
-                            });
-                            if (ret) {
-                                if (ret.allow) {
-                                    return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
+                                if (ret) {
+                                    if (ret.allow) {
+                                        return void execMethod(propertyName, script.name, resolve, reject, oldApi, this, grant, post, script);
+                                    } else {
+                                        return reject('permission not allowed');
+                                    }
+                                }
+                                confirm.uuid = uuidv4();
+                                // 一个脚本只打开一个权限确定窗口,话说js中这个list是像是传递的指针,我后面直接操作list即可
+                                let list = <Array<ConfirmParam>>await App.Cache.get('confirm:window:' + confirm.permission + ':list:' + script.id.toString());
+                                let open = false;
+                                if (list) {
+                                    list.push(confirm);
                                 } else {
+                                    open = true;
+                                    list = [confirm];
+                                    void App.Cache.set('confirm:window:' + confirm.permission + ':list:' + script.id.toString(), list);
+                                    // 超时清理数据
+                                    setTimeout(() => {
+                                        void App.Cache.del('confirm:info:' + confirm.uuid);
+                                        MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
+                                        next();
+                                    }, 300000);
+                                }
+                                // 处理下一个
+                                const next = () => {
+                                    // 一个打开确定,一群不打开只监听消息
+                                    const confirm = list.pop();
+                                    if (confirm) {
+                                        void App.Cache.set('confirm:info:' + confirm.uuid, confirm);
+                                        chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + confirm.uuid) });
+                                    }
+                                }
+                                const listener = async (param: IPermissionConfirm) => {
+                                    void App.Cache.del('confirm:info:' + confirm.uuid);
+                                    MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
+                                    ret = {
+                                        id: 0,
+                                        scriptId: script.id,
+                                        permission: confirm.permission || '',
+                                        permissionValue: '',
+                                        allow: param.allow,
+                                        createtime: new Date().getTime(),
+                                        updatetime: 0,
+                                    };
+                                    switch (param.type) {
+                                        case 4:
+                                        case 2: {
+                                            ret.permissionValue = '*';
+                                            break;
+                                        }
+                                        case 5:
+                                        case 3: {
+                                            ret.permissionValue = confirm.permissionValue || '';
+                                            next();
+                                            break;
+                                        }
+                                        default:
+                                            next();
+                                            break;
+                                    }
+                                    //临时 放入缓存
+                                    if (param.type >= 2) {
+                                        void App.Cache.set(cacheKey, ret);
+                                    }
+                                    //总是 放入数据库
+                                    if (param.type >= 4) {
+                                        const oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
+                                        if (!oldConfirm) {
+                                            void _this.permissionModel.save(ret);
+                                        }
+                                    }
+                                    if (ret.permissionValue == '*') {
+                                        // 如果是通配,处理掉全部list
+                                        let item: ConfirmParam | undefined;
+                                        while (item = list?.pop()) {
+                                            MsgCenter.trigger(PermissionConfirm + item.uuid, param);
+                                        }
+                                    }
+                                    if (param.allow) {
+                                        return void execMethod(propertyName, script.name, resolve, reject, oldApi, this, grant, post, script);
+                                    }
                                     return reject('permission not allowed');
                                 }
-                            }
-                            confirm.uuid = uuidv4();
-                            // 一个脚本只打开一个权限确定窗口,话说js中这个list是像是传递的指针,我后面直接操作list即可
-                            let list = <Array<ConfirmParam> | undefined>await App.Cache.get('confirm:window:' + confirm.permission + ':list:' + script.id);
-                            let open = false;
-                            if (list) {
-                                list.push(confirm);
+                                MsgCenter.listener(PermissionConfirm + confirm.uuid, listener);
+                                open && next();
+                            } else if (confirmParam === true) {
+                                return void execMethod(propertyName, script.name, resolve, reject, oldApi, this, grant, post, script);
                             } else {
-                                open = true;
-                                list = [confirm];
-                                App.Cache.set('confirm:window:' + confirm.permission + ':list:' + script.id, list);
-                                // 超时清理数据
-                                setTimeout(() => {
-                                    App.Cache.del('confirm:info:' + confirm.uuid);
-                                    MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
-                                    next();
-                                }, 300000);
-                            }
-                            // 处理下一个
-                            const next = () => {
-                                // 一个打开确定,一群不打开只监听消息
-                                const confirm = list!.pop();
-                                if (confirm) {
-                                    App.Cache.set('confirm:info:' + confirm.uuid, confirm);
-                                    chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + confirm.uuid) });
-                                }
-                            }
-                            const listener = async (param: any) => {
-                                App.Cache.del('confirm:info:' + confirm.uuid);
-                                MsgCenter.removeListenerAll(PermissionConfirm + confirm.uuid);
-                                ret = {
-                                    id: 0,
-                                    scriptId: script.id,
-                                    permission: confirm.permission || '',
-                                    permissionValue: '',
-                                    allow: param.allow,
-                                    createtime: new Date().getTime(),
-                                    updatetime: 0,
-                                };
-                                switch (param.type) {
-                                    case 4:
-                                    case 2: {
-                                        ret.permissionValue = '*';
-                                        break;
-                                    }
-                                    case 5:
-                                    case 3: {
-                                        ret.permissionValue = confirm.permissionValue || '';
-                                        next();
-                                        break;
-                                    }
-                                    default:
-                                        next();
-                                        break;
-                                }
-                                //临时 放入缓存
-                                if (param.type >= 2) {
-                                    App.Cache.set(cacheKey, ret);
-                                }
-                                //总是 放入数据库
-                                if (param.type >= 4) {
-                                    const oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
-                                    if (!oldConfirm) {
-                                        _this.permissionModel.save(ret);
-                                    }
-                                }
-                                if (ret.permissionValue == '*') {
-                                    // 如果是通配,处理掉全部list
-                                    let item: ConfirmParam | undefined;
-                                    while (item = list?.pop()) {
-                                        MsgCenter.trigger(PermissionConfirm + item.uuid, param);
-                                    }
-                                }
-                                if (param.allow) {
-                                    return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
-                                }
                                 return reject('permission not allowed');
                             }
-                            MsgCenter.listener(PermissionConfirm + confirm.uuid, listener);
-                            open && next();
-                        } else if (confirmParam === true) {
-                            return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                         } else {
-                            return reject('permission not allowed');
+                            return void execMethod(propertyName, script.name, resolve, reject, oldApi, this, grant, post, script);
                         }
-                    } else {
-                        return execMethod(propertyName, script.name, resolve, reject, old, this, [grant, post, script]);
                     }
+                    void handler();
                 });
             }
-            BackgroundGrant.apis.set(propertyName, descriptor.value);
+            BackgroundGrant.apis.set(propertyName, <Api>descriptor.value);
         };
     }
 
     public listenScriptGrant() {
         this.listener.listen((msg, postMessage) => {
-            return new Promise(async resolve => {
+            return new Promise(resolve => {
                 const grant = <Grant>msg;
                 if (!grant.value) {
                     return;
@@ -452,6 +458,7 @@ export class BackgroundGrant {
                     describe: '请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项',
                     wildcard: true,
                     permissionContent: '域名',
+                    uuid: ''
                 };
                 resolve(ret);
             });
@@ -603,6 +610,7 @@ export class BackgroundGrant {
                     },
                     describe: '请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.',
                     permissionContent: 'Cookie域',
+                    uuid: ''
                 };
                 resolve(ret);
             });
@@ -724,8 +732,7 @@ export class BackgroundGrant {
                 url: grant.params[0],
                 active: param.active || false,
             }, tab => {
-                grant.data = { type: 'tabid', tabId: tab.id };
-                resolve(grant);
+                resolve({ type: 'tabid', tabId: tab.id });
                 BackgroundGrant.tabMap.set(tab.id!, [grant, post]);
             });
         });
@@ -735,7 +742,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({ default: true })
     protected GM_closeInTab(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            chrome.tabs.remove(grant.params[0]);
+            chrome.tabs.remove(<number>grant.params[0]);
             resolve(undefined);
         })
     }
@@ -1132,6 +1139,69 @@ export class BackgroundGrant {
                 }
             }
             resolve(undefined);
+        });
+    }
+
+    public static tabDatas = new Map<number, Map<number, any>>();
+
+    @BackgroundGrant.GMFunction({
+        freed: (grant: Grant) => {
+            const datas = BackgroundGrant.tabDatas.get(grant.id);
+            if (!datas) {
+                return
+            }
+            if (grant.tabId) {
+                datas.delete(grant.tabId);
+            } else {
+                datas.delete(0);
+            }
+        }
+    })
+    public GM_getTab(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            if (!grant.tabId) {
+                // 对后台脚本的处理
+                grant.tabId = 0;
+            }
+            const datas = BackgroundGrant.tabDatas.get(grant.id);
+            if (!datas) {
+                grant.data = {};
+            } else {
+                grant.data = datas.get(grant.tabId) || {};
+            }
+            resolve(grant.data);
+        })
+    }
+
+    @BackgroundGrant.GMFunction()
+    public GM_saveTab(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            if (!grant.tabId) {
+                // 对后台脚本的处理
+                grant.tabId = 0;
+            }
+            let datas = BackgroundGrant.tabDatas.get(grant.id);
+            if (!datas) {
+                datas = new Map();
+                BackgroundGrant.tabDatas.set(grant.id, datas);
+            }
+            datas.set(grant.tabId, grant.params[0]);
+            resolve(undefined);
+        })
+    }
+
+    @BackgroundGrant.GMFunction()
+    public GM_getTabs(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            const datas = BackgroundGrant.tabDatas.get(grant.id);
+            if (!datas) {
+                return resolve({});
+            }
+            const ret: { [key: number]: any } = {};
+            datas.forEach((val, key) => {
+                ret[key] = val;
+            });
+            return resolve(ret);
         });
     }
 

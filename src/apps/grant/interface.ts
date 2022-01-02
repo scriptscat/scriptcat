@@ -14,7 +14,7 @@ export interface Grant {
 }
 
 export interface IPostMessage {
-    sender(): any
+    sender(): chrome.runtime.MessageSender | any
     postMessage(msg: any): void
 }
 
@@ -28,7 +28,7 @@ export interface IGrantListener {
 
 export interface ConfirmParam {
     // 权限名
-    permission?: string
+    permission: string
     // 权限值
     permissionValue?: string
     // 确认权限标题
@@ -42,7 +42,7 @@ export interface ConfirmParam {
     // 权限内容
     permissionContent?: string
     // 确定uuid
-    uuid?: string
+    uuid: string
 }
 
 export interface PermissionParam {
@@ -57,5 +57,6 @@ export interface PermissionParam {
     // 别名
     alias?: string[]
     // 执行完毕释放资源,后台脚本才有本事件
+    //TODO: 支持前端脚本的释放
     freed?: FreedCallback
 }

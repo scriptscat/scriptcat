@@ -1,6 +1,6 @@
-import { Script } from "@App/model/do/script";
-import { App } from "../app";
-import { IGrantListener, IPostMessage } from "./interface";
+import { Script } from '@App/model/do/script';
+import { App } from '../app';
+import { Api, Grant, IGrantListener, IPostMessage } from './interface';
 
 export class MultiGrantListener implements IGrantListener {
     public listeners: IGrantListener[] = [];
@@ -17,11 +17,13 @@ export class MultiGrantListener implements IGrantListener {
 
 }
 
-export function execMethod(propertyName: string, name: string, resolve: (arg0: any) => void, reject: (arg0: any) => void, method: { apply: (arg0: any, arg1: any) => Promise<any>; }, _this: any, params: any): any {
-    return method.apply(_this, params).then((result: any) => {
-        resolve(result);
+export function execMethod(propertyName: string, name: string, resolve: (arg0: any) => void, reject: (arg0: any) => void,
+    method: Api, _this: any, grant: Grant, post: IPostMessage, script: Script): any {
+    return method.apply(_this, [grant, post, script]).then((result: any) => {
+        grant.data = result;
+        resolve(grant);
     }).catch((e: any) => {
-        App.Log.Error("script", "call function error: " + propertyName, name);
+        App.Log.Error('script', 'call function error: ' + propertyName, name);
         reject(e);
     });
 }
