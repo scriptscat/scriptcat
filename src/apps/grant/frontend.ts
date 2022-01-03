@@ -215,7 +215,7 @@ export class FrontendGrant implements ScriptContext {
                 details.onerror && details.onerror(grant.errorMsg || '');
                 return;
             }
-            const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data;
+            const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data || {};
             switch (data.type) {
                 case 'load':
                     details.onload && details.onload(data.data);
@@ -279,7 +279,7 @@ export class FrontendGrant implements ScriptContext {
             delete data.oncreate;
         }
         this.postRequest('GM_notification', [data], (grant: Grant) => {
-            const data = <{ type: string, id: string, index: number, user: boolean }>grant.data;
+            const data = <{ type: string, id: string, index: number, user: boolean }>grant.data || {};
             switch (data.type) {
                 case 'click': {
                     click && click.apply({ id: data.id }, [data.id, data.index])
@@ -409,7 +409,7 @@ export class FrontendGrant implements ScriptContext {
             },
         };
         this.postRequest('GM_openInTab', [url, option], grant => {
-            const data = <{ type: string, tabId: number }>grant.data;
+            const data = <{ type: string, tabId: number }>grant.data || {};
             switch (data.type) {
                 case 'tabid':
                     tabid = data.tabId
@@ -448,8 +448,8 @@ export class FrontendGrant implements ScriptContext {
     public GM_registerMenuCommand(name: string, listener: () => any, accessKey?: string): number {
         const id = randomInt(1, 100000);
         this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], (grant: Grant) => {
-            const data = <{ action: string }>grant.data;
-            if (data && data.action == 'click') {
+            const data = <{ action: string }>grant.data || {};
+            if (data.action == 'click') {
                 listener();
             }
         });
@@ -494,7 +494,7 @@ export class FrontendGrant implements ScriptContext {
             if (grant.error) {
                 return done && done([], grant.errorMsg);
             }
-            const data = <{ type: string, data: GM_Types.Cookie[] | any }>grant.data;
+            const data = <{ type: string, data: GM_Types.Cookie[] | any }>grant.data || {};
             switch (data.type) {
                 case 'done':
                     done && done(data.data, undefined);
@@ -509,7 +509,7 @@ export class FrontendGrant implements ScriptContext {
             if (grant.error) {
                 return done && done(0, grant.errorMsg);
             }
-            const data = <{ type: string, data: number }>grant.data;
+            const data = <{ type: string, data: number }>grant.data || {};
             switch (data.type) {
                 case 'done':
                     done && done(data.data, undefined);

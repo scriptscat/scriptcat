@@ -1,7 +1,7 @@
 
-export type ListenCallback = (msg: any, port: chrome.runtime.Port) => any | Promise<any>;
+export type ListenCallback = (msg: any, port: chrome.runtime.Port) => Promise<any> | any;
 
-export type MessageCallback = (body: any, sendResponse: (response?: any) => void, sender?: chrome.runtime.MessageSender) => void;
+export type MessageCallback = (body: any, sendResponse: (response?: any) => void, sender?: chrome.runtime.MessageSender) => Promise<any> | any;
 
 const topicMap = new Map<string, Map<ListenCallback, ListenCallback>>();
 chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
@@ -49,7 +49,7 @@ export class MsgCenter {
     public static trigger(topic: string, msg?: any) {
         const val = topicMap.get(topic);
         val && val.forEach(func => {
-            func(msg, <any>{})
+            func(msg, <chrome.runtime.Port>{})
         });
     }
 
@@ -108,7 +108,7 @@ export class onRecv {
             const ret = this.callback(msg, port);
             if (ret) {
                 if (ret instanceof Promise) {
-                    ret.then(result => {
+                    void ret.then(result => {
                         port.postMessage(result);
                     });
                 } else {

@@ -1,7 +1,7 @@
 import { PermissionModel } from '@App/model/permission';
 import { base64ToBlob, isFirefox } from '@App/pkg/utils/utils';
 import { App } from '../app';
-import { AppEvent, ListenGmLog, PermissionConfirm, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from '../msg-center/event';
+import { AppEvent, ListenGmLog, PermissionConfirm, RequestBackgroundRandCode, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from '../msg-center/event';
 import { MsgCenter } from '../msg-center/msg-center';
 import { ScriptManager } from '../script/manager';
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from './interface';
@@ -57,8 +57,15 @@ export class BackgroundGrant {
         this.isdebug = isdebug;
         //处理xhrcookie的问题,firefox不支持
         if (this.isdebug) {
+            // 从bg获取rand码
+            MsgCenter.sendMessage(RequestBackgroundRandCode, undefined, (rand) => {
+                this.rand = rand;
+            });
             return;
         }
+        MsgCenter.listenerMessage(RequestBackgroundRandCode, (data, send) => {
+            send(this.rand);
+        });
         try {
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
                 let setCookie = '';
@@ -715,7 +722,6 @@ export class BackgroundGrant {
                     return reject('action can only be: get, set, delete, store');
                 }
             }
-            return resolve(undefined);
         });
     }
 
