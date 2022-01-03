@@ -54,7 +54,7 @@ export function buildThis(global: AnyMap, context: AnyMap) {
             switch (name) {
                 case 'window':
                 case 'self':
-                case 'global':
+                // case 'global':
                 case 'globalThis':
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                     return special['global'] || proxy;
@@ -100,7 +100,7 @@ export function buildThis(global: AnyMap, context: AnyMap) {
             switch (name) {
                 case 'window':
                 case 'self':
-                case 'global':
+                // case 'global':
                 case 'globalThis':
                     special['global'] = val;
                     return true;

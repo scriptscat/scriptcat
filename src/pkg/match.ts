@@ -134,7 +134,16 @@ export class UrlMatch<T> extends Match<T>{
         this.excludeMatch.add(url, val);
     }
 
+    public del(val: T): void {
+        super.del(val);
+        this.cache.clear();
+    }
+
     public match(url: string): T[] {
+        const cache = this.cache.get(url);
+        if (cache) {
+            return cache;
+        }
         let ret = super.match(url);
         // 排除
         const includeMap = new Map();

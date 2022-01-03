@@ -15,7 +15,19 @@
 // @grant GM_saveTab
 // @grant GM_getTabs
 // @grant GM_getTab
+// @grant GM_registerMenuCommand
 // ==/UserScript==
+
+GM_registerMenuCommand('test', () => {
+    console.log(123);
+})
+
+setTimeout(() => {
+
+    GM_registerMenuCommand('test', () => {
+        console.log(121231233);
+    })
+}, 1000);
 
 console.log(window.scrollX, window.scrollY);
 
@@ -57,9 +69,7 @@ window.onload = () => {
 
 globalThis.a = 1;
 
-global.a = 2;
-
-console.log(globalThis.a == 2, globalThis.a, global.a);
+console.log(globalThis.a == 2, globalThis.a);
 
 GM_cookie('store', {}, function () {
     console.log(arguments);

@@ -55,22 +55,22 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
-import { ConfirmParam } from "@App/apps/grant/interface";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { PermissionConfirm, ScriptGrant } from "@App/apps/msg-center/event";
-import { ScriptController } from "@App/apps/script/controller";
+import { Vue, Component } from 'vue-property-decorator';
+import { ConfirmParam } from '@App/apps/grant/interface';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { PermissionConfirm } from '@App/apps/msg-center/event';
+import { ScriptController } from '@App/apps/script/controller';
 @Component({})
 export default class Confirm extends Vue {
   scriptConrtoller: ScriptController = new ScriptController();
 
-  protected param: ConfirmParam = {};
-  protected timeout: number = 30;
-  protected uuid = "";
+  protected param: ConfirmParam = <ConfirmParam>{};
+  protected timeout = 30;
+  protected uuid = '';
   protected select = false;
   async mounted() {
     let url = new URL(location.href);
-    let uuid = url.searchParams.get("uuid");
+    let uuid = url.searchParams.get('uuid');
     if (!uuid) {
       return;
     }
@@ -84,7 +84,7 @@ export default class Confirm extends Vue {
       }
     }, 1000);
 
-    window.addEventListener("beforeunload", () => {
+    window.addEventListener('beforeunload', () => {
       if (!this.select) {
         this.ignore();
       }

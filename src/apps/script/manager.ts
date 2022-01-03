@@ -1,27 +1,27 @@
-import axios from "axios";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from "@App/apps/msg-center/event";
-import { dealScript, get, randomString } from "@App/pkg/utils/utils";
-import { App } from "../app";
-import { UrlMatch } from "@App/pkg/match";
-import { ValueModel } from "@App/model/value";
-import { ResourceManager } from "../resource";
-import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, SCRIPT_STATUS_DELETE } from "@App/model/do/script";
-import { Value } from "@App/model/do/value";
-import { ScriptModel } from "@App/model/script";
-import { Background } from "./background";
-import { copyScript, loadScriptByUrl, parseMetadata } from "./utils";
-import { ScriptUrlInfo } from "../msg-center/structs";
-import { ConfirmParam } from "../grant/interface";
-import { ScriptController } from "./controller";
-import { v5 as uuidv5 } from "uuid";
-import { Subscribe } from "@App/model/do/subscribe";
-import { SubscribeModel } from "@App/model/subscribe";
-import { SyncModel } from "@App/model/sync";
-import { SyncAction, SyncData } from "@App/model/do/sync";
-import { File } from "@App/model/do/back";
-import { v4 as uuidv4 } from "uuid";
-import { Manager } from "@App/pkg/apps/manager";
+import axios from 'axios';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from '@App/apps/msg-center/event';
+import { dealScript, get, randomString } from '@App/pkg/utils/utils';
+import { App } from '../app';
+import { UrlMatch } from '@App/pkg/match';
+import { ValueModel } from '@App/model/value';
+import { ResourceManager } from '../resource';
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, SCRIPT_STATUS_DELETE } from '@App/model/do/script';
+import { Value } from '@App/model/do/value';
+import { ScriptModel } from '@App/model/script';
+import { Background } from './background';
+import { copyScript, loadScriptByUrl, parseMetadata } from './utils';
+import { ScriptUrlInfo } from '../msg-center/structs';
+import { ConfirmParam } from '../grant/interface';
+import { ScriptController } from './controller';
+import { v5 as uuidv5 } from 'uuid';
+import { Subscribe } from '@App/model/do/subscribe';
+import { SubscribeModel } from '@App/model/subscribe';
+import { SyncModel } from '@App/model/sync';
+import { SyncAction, SyncData } from '@App/model/do/sync';
+import { File } from '@App/model/do/back';
+import { v4 as uuidv4 } from 'uuid';
+import { Manager } from '@App/pkg/apps/manager';
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager extends Manager {
@@ -42,14 +42,14 @@ export class ScriptManager extends Manager {
     public listenEvent() {
         // 监听值修改事件,并发送给全局
         AppEvent.listener(ScriptValueChange, async (msg: any) => {
-            let { model, tabid } = msg;
+            const { model, tabid } = msg;
             let vals: { [key: string]: Value } = {};
             let key = '';
             if (model.storageName) {
-                key = "value:storagename:" + model.storageName;
+                key = 'value:storagename:' + model.storageName;
                 vals = await App.Cache.get(key);
             } else {
-                key = "value:" + model.scriptId;
+                key = 'value:' + model.scriptId;
                 vals = await App.Cache.get(key);
             }
             if (!vals) {
@@ -116,40 +116,40 @@ export class ScriptManager extends Manager {
     public listenScriptInstall() {
         chrome.webRequest.onBeforeRequest.addListener(
             (req: chrome.webRequest.WebRequestBodyDetails) => {
-                if (req.method != "GET") {
+                if (req.method != 'GET') {
                     return;
                 }
-                let hash = req.url
-                    .split("#")
+                const hash = req.url
+                    .split('#')
                     .splice(1)
-                    .join("#");
-                if (hash.indexOf("bypass=true") != -1) {
+                    .join('#');
+                if (hash.indexOf('bypass=true') != -1) {
                     return;
                 }
                 this.installScriptByURL(req.url).catch(() => {
                     chrome.tabs.update(req.tabId, {
-                        url: req.url + "#bypass=true",
+                        url: req.url + '#bypass=true',
                     });
                 });
-                return { redirectUrl: "javascript:void 0" };
+                return { redirectUrl: 'javascript:void 0' };
             },
             {
                 urls: [
-                    "*://*/*.user.js", "https://*/*.user.sub.js", "https://*/*.user.bg.js",
+                    '*://*/*.user.js', 'https://*/*.user.sub.js', 'https://*/*.user.bg.js',
                 ],
-                types: ["main_frame"],
+                types: ['main_frame'],
             },
-            ["blocking"],
+            ['blocking'],
         );
     }
 
     public async installScriptByURL(url: string) {
         return new Promise(async (resolve, reject) => {
-            let info = await loadScriptByUrl(url);
+            const info = await loadScriptByUrl(url);
             if (info) {
-                App.Cache.set("install:info:" + info.uuid, info);
+                App.Cache.set('install:info:' + info.uuid, info);
                 chrome.tabs.create({
-                    url: "install.html?uuid=" + info.uuid,
+                    url: 'install.html?uuid=' + info.uuid,
                 });
                 resolve(true);
             } else {
@@ -161,9 +161,9 @@ export class ScriptManager extends Manager {
     // 监听来自AppEvent的事件和连接来自其它地方的长链接,转发AppEvent的事件
     public listenerProxy(topic: string, callback?: (msg: any) => any) {
         // 暂时只支持一个连接
-        let conns = new Map<string, chrome.runtime.Port>();
+        const conns = new Map<string, chrome.runtime.Port>();
         MsgCenter.listener(topic, (msg: any, port: chrome.runtime.Port) => {
-            let rand = randomString(8);
+            const rand = randomString(8);
             conns.set(rand, port);
             port.onDisconnect.addListener(() => {
                 conns.delete(rand);
@@ -184,14 +184,14 @@ export class ScriptManager extends Manager {
 
     public requestConfirmInfo(uuid: string): Promise<ConfirmParam> {
         return new Promise(resolve => {
-            let info = App.Cache.get("confirm:info:" + uuid);
+            const info = App.Cache.get('confirm:info:' + uuid);
             resolve(info);
         });
     }
 
     public requestInstallInfo(uuid: string): Promise<ScriptUrlInfo> {
         return new Promise(resolve => {
-            let info = App.Cache.get("install:info:" + uuid);
+            const info = App.Cache.get('install:info:' + uuid);
             resolve(info);
         });
     }
@@ -199,8 +199,8 @@ export class ScriptManager extends Manager {
     public openImportFileWindow(file: File): Promise<any> {
         return new Promise(resolve => {
             // 打开导入窗口
-            let uuid = uuidv4()
-            App.Cache.set("import:info:" + uuid, file);
+            const uuid = uuidv4()
+            App.Cache.set('import:info:' + uuid, file);
             chrome.tabs.create({
                 url: 'import.html?uuid=' + uuid,
                 active: true,
@@ -219,7 +219,7 @@ export class ScriptManager extends Manager {
 
     public requestImportFile(uuid: string): Promise<File> {
         return new Promise(resolve => {
-            let file = App.Cache.get("import:info:" + uuid);
+            const file = App.Cache.get('import:info:' + uuid);
             resolve(file);
         });
     }
@@ -227,7 +227,7 @@ export class ScriptManager extends Manager {
     public subscribe(sub: Subscribe): Promise<number> {
         return new Promise(async resolve => {
             // 异步处理订阅
-            let old = await this.subscribeModel.findByUrl(sub.url);
+            const old = await this.subscribeModel.findByUrl(sub.url);
             await this.subscribeModel.save(sub);
             this.subscribeUpdate(sub, old, true);
             return resolve(sub.id);
@@ -237,8 +237,8 @@ export class ScriptManager extends Manager {
     // 检查订阅规则是否改变,是否能够静默更新
     public checkSubscribeRule(oldSub: Subscribe, newSub: Subscribe): boolean {
         //判断connect是否改变
-        let oldConnect = new Map();
-        let newConnect = new Map();
+        const oldConnect = new Map();
+        const newConnect = new Map();
         oldSub.metadata['connect'] && oldSub.metadata['connect'].forEach(val => {
             oldConnect.set(val, 1);
         });
@@ -256,20 +256,20 @@ export class ScriptManager extends Manager {
 
     public unsubscribe(id: number, sync?: boolean): Promise<boolean> {
         return new Promise(async resolve => {
-            let sub = await this.subscribeModel.findById(id);
+            const sub = await this.subscribeModel.findById(id);
             if (!sub) {
                 return resolve(false);
             }
             // 删除相关联脚本
             for (const key in sub.scripts) {
-                let script = await this.scriptModel.findByUUID(sub.scripts[key].uuid);
+                const script = await this.scriptModel.findByUUID(sub.scripts[key].uuid);
                 if (script && script.subscribeUrl == sub.url) {
                     this.scriptUninstall(script.id, sync);
                 }
             }
             await this.subscribeModel.delete(id);
             if (!sync) {
-                this.syncSubscribeTask(sub.url, "delete", sub);
+                this.syncSubscribeTask(sub.url, 'delete', sub);
             }
             return resolve(true);
         });
@@ -277,7 +277,7 @@ export class ScriptManager extends Manager {
 
     public subscribeCheckUpdate(subscribeId: number): Promise<boolean> {
         return new Promise(async resolve => {
-            let sub = await this.subscribeModel.findById(subscribeId);
+            const sub = await this.subscribeModel.findById(subscribeId);
             if (!sub) {
                 return resolve(false);
             }
@@ -288,28 +288,28 @@ export class ScriptManager extends Manager {
                 }
             }).then((response): string | null => {
                 if (response.status != 200) {
-                    App.Log.Warn("check subscribe", "subscribe:" + sub!.id + " error: respond:" + response.statusText, sub!.name);
+                    App.Log.Warn('check subscribe', 'subscribe:' + sub.id + ' error: respond:' + response.statusText, sub.name);
                     return null;
                 }
-                let metadata = parseMetadata(response.data);
+                const metadata = parseMetadata(response.data);
                 if (metadata == null) {
-                    App.Log.Error('check subscribe', 'MetaData信息错误', sub!.name);
+                    App.Log.Error('check subscribe', 'MetaData信息错误', sub.name);
                     return null;
                 }
-                if (!sub!.metadata['version']) {
-                    sub!.metadata['version'] = ["v0.0.0"];
+                if (!sub.metadata['version']) {
+                    sub.metadata['version'] = ['v0.0.0'];
                 }
                 if (!metadata['version']) {
                     return null;
                 }
-                var regexp = /[0-9]+/g
-                var oldVersion = sub!.metadata['version'][0].match(regexp);
+                const regexp = /[0-9]+/g
+                let oldVersion = sub.metadata['version'][0].match(regexp);
                 if (!oldVersion) {
-                    oldVersion = ["0", "0", "0"];
+                    oldVersion = ['0', '0', '0'];
                 }
-                var Version = metadata['version'][0].match(regexp);
+                const Version = metadata['version'][0].match(regexp);
                 if (!Version) {
-                    App.Log.Warn("check subscribe", "订阅脚本version格式错误:" + sub!.id, sub!.name);
+                    App.Log.Warn('check subscribe', '订阅脚本version格式错误:' + sub.id, sub.name);
                     return null;
                 }
                 for (let i = 0; i < Version.length; i++) {
@@ -324,15 +324,15 @@ export class ScriptManager extends Manager {
             }).then(async (val: string | null) => {
                 // TODO: 解析了不知道多少次,有时间优化
                 if (val) {
-                    let [newSub, oldSub] = await this.controller.prepareSubscribeByCode(val, sub!.url);
+                    const [newSub, oldSub] = await this.controller.prepareSubscribeByCode(val, sub.url);
                     if (newSub) {
                         // 规则通过静默更新,未通过打开窗口
                         if (this.checkSubscribeRule(<Subscribe>oldSub, newSub)) {
                             this.subscribeUpdate(newSub, <Subscribe>oldSub);
                         } else {
-                            let info = await loadScriptByUrl(sub!.url);
+                            const info = await loadScriptByUrl(sub.url);
                             if (info) {
-                                App.Cache.set("install:info:" + info.uuid, info);
+                                App.Cache.set('install:info:' + info.uuid, info);
                                 chrome.tabs.create({
                                     url: 'install.html?uuid=' + info.uuid,
                                     active: false,
@@ -345,7 +345,7 @@ export class ScriptManager extends Manager {
                     resolve(false);
                 }
             }).catch((e) => {
-                App.Log.Warn("check subscribe", "subscribe:" + sub!.id + " error: " + e, sub!.name);
+                App.Log.Warn('check subscribe', 'subscribe:' + sub.id + ' error: ' + e, sub.name);
                 resolve(false);
             });
         });
@@ -354,9 +354,9 @@ export class ScriptManager extends Manager {
     public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined, changeRule?: boolean): Promise<number> {
         return new Promise(async resolve => {
             // 异步处理订阅
-            let deleteScript = [];
+            const deleteScript = [];
             let addScript: string[] = [];
-            let addScriptName = [];
+            const addScriptName = [];
             if (old) {
                 // 存在老订阅,与新订阅比较scripts找出要删除或者新增的脚本
                 sub.metadata['scripturl'].forEach(val => {
@@ -367,8 +367,8 @@ export class ScriptManager extends Manager {
                         sub.scripts[val] = old.scripts[val];
                     }
                 })
-                for (let key in old.scripts) {
-                    let script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
+                for (const key in old.scripts) {
+                    const script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
                     if (script) {
                         if (!sub.scripts[key]) {
                             // 老的存在,新的不存在,删除
@@ -384,16 +384,16 @@ export class ScriptManager extends Manager {
             } else {
                 addScript = sub.metadata['scripturl'];
             }
-            let error = [];
+            const error = [];
             for (let i = 0; i < addScript.length; i++) {
-                let url = addScript[i];
+                const url = addScript[i];
                 let script = await this.scriptModel.findByOriginAndSubscribeUrl(url, sub.url);
                 let oldscript;
                 if (!script) {
                     try {
                         [script, oldscript] = await this.controller.prepareScriptByUrl(url);
                         if (!script) {
-                            App.Log.Error("subscribe", url + ":" + oldscript, sub.name + " 订阅脚本安装失败")
+                            App.Log.Error('subscribe', url + ':' + oldscript, sub.name + ' 订阅脚本安装失败')
                             error.push(url);
                             continue;
                         }
@@ -402,7 +402,7 @@ export class ScriptManager extends Manager {
                     }
                 }
                 if (script!.subscribeUrl && script!.subscribeUrl != sub.url) {
-                    App.Log.Warn("subscribe", script!.name + '已被\"' + script!.subscribeUrl + "\"订阅", sub.name + " 订阅冲突");
+                    App.Log.Warn('subscribe', script!.name + '已被\"' + script!.subscribeUrl + '"订阅', sub.name + ' 订阅冲突');
                     continue;
                 }
                 script!.selfMetadata['connect'] = sub.metadata['connect'];
@@ -419,26 +419,26 @@ export class ScriptManager extends Manager {
             }
             let msg = '';
             if (addScriptName.length) {
-                msg += "新增脚本:" + addScriptName.join(',') + "\n";
+                msg += '新增脚本:' + addScriptName.join(',') + '\n';
             }
             if (deleteScript.length) {
-                msg += "删除脚本:" + deleteScript.join(',') + "\n";
+                msg += '删除脚本:' + deleteScript.join(',') + '\n';
             }
             if (error.length) {
-                msg += "安装失败脚本:" + error.join(',');
+                msg += '安装失败脚本:' + error.join(',');
             }
             await this.subscribeModel.save(sub);
-            this.syncSubscribeTask(sub.url, "update", sub);
+            this.syncSubscribeTask(sub.url, 'update', sub);
             if (!msg) {
                 return;
             }
             chrome.notifications.create({
-                type: "basic",
-                title: sub.name + " 订阅更新成功",
+                type: 'basic',
+                title: sub.name + ' 订阅更新成功',
                 message: msg,
-                iconUrl: chrome.runtime.getURL("assets/logo.png")
+                iconUrl: chrome.runtime.getURL('assets/logo.png')
             });
-            App.Log.Info("subscribe", msg, sub.name + " 订阅更新成功")
+            App.Log.Info('subscribe', msg, sub.name + ' 订阅更新成功')
             return resolve(sub.id);
         });
     }
@@ -452,14 +452,14 @@ export class ScriptManager extends Manager {
                 await this.enableScript(script);
             }
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "update", script);
+            this.syncScriptTask(script.uuid, 'update', script);
             return resolve(script.id);
         });
     }
 
     public scriptReinstall(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
-            let oldScript = await this.scriptModel.findById(script.id);
+            const oldScript = await this.scriptModel.findById(script.id);
             if (!oldScript) {
                 return resolve(false);
             }
@@ -475,7 +475,7 @@ export class ScriptManager extends Manager {
                 await this.scriptModel.save(script);
             }
             // 设置同步任务
-            this.syncScriptTask(script.uuid, "update", script);
+            this.syncScriptTask(script.uuid, 'update', script);
             return resolve(true);
         });
     }
@@ -489,7 +489,7 @@ export class ScriptManager extends Manager {
                 await this.resource.addResource(script.metadata['require-css'][i], script.id);
             }
             for (let i = 0; i < script.metadata['resource']?.length; i++) {
-                let split = script.metadata['resource'][i].split(/\s+/);
+                const split = script.metadata['resource'][i].split(/\s+/);
                 if (split.length === 2) {
                     await this.resource.addResource(split[1], script.id);
                 }
@@ -500,7 +500,7 @@ export class ScriptManager extends Manager {
 
     public scriptUninstall(scriptId: number, sync?: boolean): Promise<boolean> {
         return new Promise(async resolve => {
-            let script = await this.scriptModel.findById(scriptId);
+            const script = await this.scriptModel.findById(scriptId);
             if (!script) {
                 return resolve(false);
             }
@@ -513,15 +513,15 @@ export class ScriptManager extends Manager {
             await this.scriptModel.delete(script.id);
             //TODO:释放资源
             App.Cache.del('script:' + script.id);
-            script.metadata["require"]?.forEach((val: string) => {
-                this.resource.deleteResource(val, script!.id);
+            script.metadata['require']?.forEach((val: string) => {
+                this.resource.deleteResource(val, script.id);
             });
-            script.metadata["require-css"]?.forEach((val: string) => {
-                this.resource.deleteResource(val, script!.id);
+            script.metadata['require-css']?.forEach((val: string) => {
+                this.resource.deleteResource(val, script.id);
             });
             // 设置同步任务
             if (!sync) {
-                this.syncScriptTask(script.uuid, "delete");
+                this.syncScriptTask(script.uuid, 'delete');
             }
             return resolve(true);
         });
@@ -529,7 +529,7 @@ export class ScriptManager extends Manager {
 
     public scriptStatusChange(msg: any): Promise<boolean> {
         return new Promise(async resolve => {
-            let script = await this.scriptModel.findById(msg.scriptId);
+            const script = await this.scriptModel.findById(msg.scriptId);
             if (!script) {
                 return resolve(false);
             }
@@ -548,7 +548,7 @@ export class ScriptManager extends Manager {
 
     public execScript(msg: any): Promise<boolean> {
         return new Promise(async resolve => {
-            let script = await this.scriptModel.findById(msg.scriptId);
+            const script = await this.scriptModel.findById(msg.scriptId);
             if (!script) {
                 return resolve(false);
             }
@@ -563,7 +563,7 @@ export class ScriptManager extends Manager {
 
     public stopScript(msg: any): Promise<boolean> {
         return new Promise(async resolve => {
-            let script = await this.scriptModel.findById(msg.scriptId);
+            const script = await this.scriptModel.findById(msg.scriptId);
             if (!script) {
                 return resolve(false);
             }
@@ -578,31 +578,18 @@ export class ScriptManager extends Manager {
     }
 
     public listenScriptMath() {
-        AppEvent.listener(ScriptStatusChange, async (script: Script) => {
-            if (script && script.type !== SCRIPT_TYPE_NORMAL) {
-                return;
-            }
-            this.match.del(<ScriptCache>script);
-            if (script.status == SCRIPT_STATUS_DELETE) {
-                return;
-            }
-            let cache = await this.controller.buildScriptCache(script);
-            cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + `\n}`);
-            script.metadata['match']?.forEach(val => {
-                this.match.add(val, cache);
-            });
-            script.metadata['include']?.forEach(val => {
-                this.match.add(val, cache);
-            });
-            script.metadata['exclude']?.forEach(val => {
-                this.match.exclude(val, cache);
-            });
-        });
-        let scriptFlag = randomString(8);
-        this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
-            items.forEach(async script => {
-                let cache = await this.controller.buildScriptCache(script);
-                cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + `\n}`);
+        // 监听脚本改变 更新数据
+        AppEvent.listener(ScriptStatusChange, (script: Script) => {
+            const handler = async () => {
+                if (script && script.type !== SCRIPT_TYPE_NORMAL) {
+                    return;
+                }
+                this.match.del(<ScriptCache>script);
+                if (script.status == SCRIPT_STATUS_DELETE) {
+                    return;
+                }
+                const cache = await this.controller.buildScriptCache(script);
+                cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + '\n}');
                 script.metadata['match']?.forEach(val => {
                     this.match.add(val, cache);
                 });
@@ -612,22 +599,53 @@ export class ScriptManager extends Manager {
                 script.metadata['exclude']?.forEach(val => {
                     this.match.exclude(val, cache);
                 });
+            }
+            void handler();
+        });
+        // 初始化脚本数据
+        const scriptFlag = randomString(8);
+        void this.scriptList({ type: SCRIPT_TYPE_NORMAL }).then(items => {
+            items.forEach(script => {
+                const handler = async () => {
+                    const cache = await this.controller.buildScriptCache(script);
+                    cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + '\n}');
+                    script.metadata['match']?.forEach(val => {
+                        this.match.add(val, cache);
+                    });
+                    script.metadata['include']?.forEach(val => {
+                        this.match.add(val, cache);
+                    });
+                    script.metadata['exclude']?.forEach(val => {
+                        this.match.exclude(val, cache);
+                    });
+                }
+                void handler();
             });
         });
+        // 获取注入源码
         let injectedSource = '';
         get(chrome.runtime.getURL('src/injected.js'), (source: string) => {
             injectedSource = dealScript(`(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`);
         });
+        const runMatchScript = new Map<number, Map<number, ScriptCache>>();
+        // 收到前端消息注入脚本
         chrome.runtime.onMessage.addListener((msg, detail, send) => {
             if (msg !== 'runScript') {
                 return;
             }
-            if (!detail.url || !detail.tab || detail.tab.id! <= 0) {
+            if (!(detail.url && detail.tab && detail.tab.id)) {
                 return;
             }
-            let scripts = this.match.match(detail.url);
-            let filter: ScriptCache[] = [];
+            const scripts = this.match.match(detail.url);
+            const filter: ScriptCache[] = [];
+
+            let matchScript = runMatchScript.get(detail.tab.id);
+            if (!matchScript) {
+                matchScript = new Map();
+                runMatchScript.set(detail.tab.id, matchScript);
+            }
             scripts.forEach(script => {
+                matchScript!.set(script.id, script);
                 if (script.status !== SCRIPT_STATUS_ENABLE) {
                     return;
                 }
@@ -639,7 +657,7 @@ export class ScriptManager extends Manager {
                 filter.push(script);
             });
             // 注入框架
-            chrome.tabs.executeScript(detail.tab!.id!, {
+            chrome.tabs.executeScript(detail.tab.id, {
                 frameId: detail.frameId,
                 code: `(function(){
                     let temp = document.createElement('script');
@@ -649,8 +667,9 @@ export class ScriptManager extends Manager {
                     document.documentElement.appendChild(temp)
                     temp.remove();
                 }())`,
-                runAt: "document_start",
+                runAt: 'document_start',
             });
+            // 发送脚本
             send({ scripts: filter, flag: scriptFlag });
             if (!filter.length) {
                 return;
@@ -705,23 +724,22 @@ export class ScriptManager extends Manager {
                 });
             });
         });
-        let runMenu = new Map<number, { [key: number]: Array<any> }>();
-        let bgMenu: { [key: number]: Array<any> } = {};
-        AppEvent.listener("GM_registerMenuCommand", msg => {
-            let param = msg.param;
-            if (msg.type == "frontend") {
+        const runMenu = new Map<number, { [key: number]: Array<any> }>();
+        const bgMenu: { [key: number]: Array<any> } = {};
+        AppEvent.listener('GM_registerMenuCommand', msg => {
+            const param = msg.param;
+            if (msg.type == 'frontend') {
                 let tabMenus = runMenu.get(param.tabId);
                 if (!tabMenus) {
                     tabMenus = {};
                 }
                 let scriptMenu = tabMenus[param.scriptId];
                 if (!scriptMenu) {
-                    scriptMenu = new Array();
+                    scriptMenu = [];
                 }
                 //name去重
                 for (let i = 0; i < scriptMenu.length; i++) {
                     if (scriptMenu[i].name == param.name) {
-                        scriptMenu[i] = param;
                         return;
                     }
                 }
@@ -731,11 +749,10 @@ export class ScriptManager extends Manager {
             } else {
                 let scriptMenu = bgMenu[param.scriptId];
                 if (!scriptMenu) {
-                    scriptMenu = new Array();
+                    scriptMenu = [];
                 }
                 for (let i = 0; i < scriptMenu.length; i++) {
                     if (scriptMenu[i].name == param.name) {
-                        scriptMenu[i] = param;
                         return;
                     }
                 }
@@ -743,11 +760,11 @@ export class ScriptManager extends Manager {
                 bgMenu[param.scriptId] = scriptMenu;
             }
         });
-        AppEvent.listener("GM_unregisterMenuCommand", msg => {
-            let param = msg.param;
+        AppEvent.listener('GM_unregisterMenuCommand', msg => {
+            const param = msg.param;
             let scriptMenu: any[] = [];
-            if (msg.type == "frontend") {
-                let tabMenus = runMenu.get(param.tabId);
+            if (msg.type == 'frontend') {
+                const tabMenus = runMenu.get(param.tabId);
                 if (tabMenus) {
                     scriptMenu = tabMenus[param.scriptId];
                 }
@@ -760,20 +777,34 @@ export class ScriptManager extends Manager {
                 }
             }
         });
-        chrome.tabs.onRemoved.addListener(tabId => {
+        chrome.tabs.onRemoved.addListener((tabId, info) => {
+            runMatchScript.delete(tabId);
             runMenu.delete(tabId);
             AppEvent.trigger(TabRemove, tabId);
         });
         chrome.tabs.onUpdated.addListener((tabId, info) => {
-            if (info.status == "unloaded") {
+            if (info.status == 'loading' && !info.url) {
                 runMenu.delete(tabId);
                 AppEvent.trigger(TabRemove, tabId);
                 return;
             }
         });
-        this.listenerMessage(RequestTabRunScript, (val) => {
+        this.listenerMessage(RequestTabRunScript, (val: { url: string, tabId: number }) => {
+            const run = this.match.match(val.url);
+            const scripts = runMatchScript.get(val.tabId);
+            if (scripts) {
+                const tmp = new Map();
+                run.forEach(val => {
+                    tmp.set(val.id, 1);
+                });
+                scripts.forEach((val, key) => {
+                    if (!tmp.has(key)) {
+                        run.unshift(val);
+                    }
+                });
+            }
             return {
-                run: this.match.match(val.url),
+                run: run,
                 runMenu: runMenu.get(val.tabId),
                 bgMenu: bgMenu,
             }
@@ -783,7 +814,7 @@ export class ScriptManager extends Manager {
     public enableScript(script: Script): Promise<boolean> {
         return new Promise(async resolve => {
             if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                let ret = await this.background.enableScript(await this.controller.buildScriptCache(script));
+                const ret = await this.background.enableScript(await this.controller.buildScriptCache(script));
                 if (ret) {
                     script.error = ret;
                     script.status == SCRIPT_STATUS_ERROR;
@@ -797,12 +828,12 @@ export class ScriptManager extends Manager {
                     chrome.contextMenus.create({
                         id: script.uuid,
                         title: script.name,
-                        contexts: ["all"],
-                        parentId: "script-cat",
+                        contexts: ['all'],
+                        parentId: 'script-cat',
                         onclick: (info, tab) => {
                             // 通信发送
                             chrome.tabs.sendMessage(tab.id!, {
-                                "action": ScriptExec, "uuid": script.uuid,
+                                'action': ScriptExec, 'uuid': script.uuid,
                             });
                         },
                         documentUrlPatterns: script.metadata['match'],
@@ -842,7 +873,7 @@ export class ScriptManager extends Manager {
             if (equalityCriterias == undefined) {
                 resolve(await this.scriptModel.list(this.scriptModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
+                const ret = (await this.scriptModel.list(equalityCriterias(this.scriptModel.table)));
                 resolve(ret);
             } else {
                 resolve(await this.scriptModel.list(this.scriptModel.table.where(equalityCriterias)));
@@ -855,7 +886,7 @@ export class ScriptManager extends Manager {
             if (equalityCriterias == undefined) {
                 resolve(await this.subscribeModel.list(this.subscribeModel.table));
             } else if (typeof equalityCriterias == 'function') {
-                let ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table)));
+                const ret = (await this.subscribeModel.list(equalityCriterias(this.subscribeModel.table)));
                 resolve(ret);
             } else {
                 resolve(await this.subscribeModel.list(this.subscribeModel.table.where(equalityCriterias)));
@@ -897,7 +928,7 @@ export class ScriptManager extends Manager {
     // 设置脚本运行完成
     public setRunComplete(id: number): Promise<boolean> {
         return new Promise(async resolve => {
-            this.scriptModel.table.update(id, { error: "", runStatus: SCRIPT_RUN_STATUS_COMPLETE })
+            this.scriptModel.table.update(id, { error: '', runStatus: SCRIPT_RUN_STATUS_COMPLETE })
             MsgCenter.connect(ScriptRunStatusChange, [id, SCRIPT_RUN_STATUS_COMPLETE]);
             resolve(true);
         });
@@ -906,7 +937,7 @@ export class ScriptManager extends Manager {
     // 检查脚本更新
     public scriptCheckUpdate(scriptId: number): Promise<boolean> {
         return new Promise(async resolve => {
-            let script = await this.getScript(scriptId);
+            const script = await this.getScript(scriptId);
             if (!script) {
                 return resolve(false);
             }
@@ -920,28 +951,28 @@ export class ScriptManager extends Manager {
                 }
             }).then((response): boolean => {
                 if (response.status != 200) {
-                    App.Log.Warn("check update", "script:" + script!.id + " error: respond:" + response.statusText, script!.name);
+                    App.Log.Warn('check update', 'script:' + script.id + ' error: respond:' + response.statusText, script.name);
                     return false;
                 }
-                let meta = parseMetadata(response.data);
+                const meta = parseMetadata(response.data);
                 if (!meta) {
-                    App.Log.Warn("check update", "script:" + script!.id + " error: metadata format", script!.name);
+                    App.Log.Warn('check update', 'script:' + script.id + ' error: metadata format', script.name);
                     return false;
                 }
-                if (!script!.metadata['version']) {
-                    script!.metadata['version'] = ["0.0.0"];
+                if (!script.metadata['version']) {
+                    script.metadata['version'] = ['0.0.0'];
                 }
                 if (!meta['version']) {
                     return false;
                 }
-                var regexp = /[0-9]+/g
-                var oldVersion = script!.metadata['version'][0].match(regexp);
+                const regexp = /[0-9]+/g
+                let oldVersion = script.metadata['version'][0].match(regexp);
                 if (!oldVersion) {
-                    oldVersion = ["0", "0", "0"];
+                    oldVersion = ['0', '0', '0'];
                 }
-                var Version = meta['version'][0].match(regexp);
+                const Version = meta['version'][0].match(regexp);
                 if (!Version) {
-                    App.Log.Warn("check update", "script:" + script!.id + " error: version format", script!.name);
+                    App.Log.Warn('check update', 'script:' + script.id + ' error: version format', script.name);
                     return false;
                 }
                 for (let i = 0; i < Version.length; i++) {
@@ -955,11 +986,11 @@ export class ScriptManager extends Manager {
                 return false;
             }).then(async (val) => {
                 if (val) {
-                    let info = await loadScriptByUrl(script!.download_url || script!.origin);
+                    const info = await loadScriptByUrl(script.download_url || script.origin);
                     if (info) {
-                        info.url = script!.origin;
+                        info.url = script.origin;
                         info.uuid = uuidv5(info.url, uuidv5.URL)
-                        App.Cache.set("install:info:" + info.uuid, info);
+                        App.Cache.set('install:info:' + info.uuid, info);
                         chrome.tabs.create({
                             url: 'install.html?uuid=' + info.uuid,
                             active: false,
@@ -968,7 +999,7 @@ export class ScriptManager extends Manager {
                 }
                 resolve(val);
             }).catch((e) => {
-                App.Log.Warn("check update", "script:" + script!.id + " error: " + e, script!.name);
+                App.Log.Warn('check update', 'script:' + script.id + ' error: ' + e, script.name);
                 resolve(false);
             });
 
@@ -977,15 +1008,15 @@ export class ScriptManager extends Manager {
 
     public syncToScript(syncdata: SyncData): Promise<Script | undefined | string> {
         return new Promise(async resolve => {
-            if (syncdata.action == "update") {
+            if (syncdata.action == 'update') {
                 // NOTE:同步安装逻辑与现有逻辑不同,差不多重新写了一遍
-                let sync = syncdata.script;
+                const sync = syncdata.script;
                 if (!sync) {
                     return resolve(undefined);
                 }
-                let [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
+                const [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
                 if (script == undefined) {
-                    App.Log.Error("system", sync.uuid! + ' ' + old, "脚本同步失败");
+                    App.Log.Error('system', sync.uuid + ' ' + old, '脚本同步失败');
                     return resolve(<string>old);
                 }
                 if (old) {
@@ -1016,8 +1047,8 @@ export class ScriptManager extends Manager {
                     }
                 }
                 return resolve(script);
-            } else if (syncdata.action == "delete") {
-                let script = await this.scriptModel.findByUUID(syncdata.uuid!);
+            } else if (syncdata.action == 'delete') {
+                const script = await this.scriptModel.findByUUID(syncdata.uuid!);
                 if (script) {
                     this.scriptUninstall(script.id, true);
                     return resolve(script);
@@ -1036,12 +1067,12 @@ export class ScriptManager extends Manager {
                     return resolve(1);
                 }
                 let sync = await this.syncModel.findByKey(uuid);
-                let data: SyncData = {
+                const data: SyncData = {
                     action: action,
                     actiontime: new Date().getTime(),
                     uuid: uuid,
                 };
-                if (action == "update") {
+                if (action == 'update') {
                     data.script = {
                         name: script!.name,
                         uuid: script!.uuid,
@@ -1084,12 +1115,12 @@ export class ScriptManager extends Manager {
                     return resolve(1);
                 }
                 let sync = await this.syncModel.findByKey(url);
-                let data: SyncData = {
+                const data: SyncData = {
                     action: action,
                     actiontime: new Date().getTime(),
                     url: url,
                 };
-                if (action == "update") {
+                if (action == 'update') {
                     data.subscribe = {
                         name: subscribe!.name,
                         url: subscribe!.url,
@@ -1122,14 +1153,14 @@ export class ScriptManager extends Manager {
 
     public syncToSubscribe(syncdata: SyncData): Promise<Subscribe | undefined | string> {
         return new Promise(async resolve => {
-            if (syncdata.action == "update") {
-                let sync = syncdata.subscribe;
+            if (syncdata.action == 'update') {
+                const sync = syncdata.subscribe;
                 if (!sync) {
                     return resolve(undefined);
                 }
-                let [subscribe, old] = await this.controller.prepareSubscribeByCode(sync.code, sync.url);
+                const [subscribe, old] = await this.controller.prepareSubscribeByCode(sync.code, sync.url);
                 if (subscribe == undefined) {
-                    App.Log.Error("system", sync.url! + ' ' + old, "订阅同步失败");
+                    App.Log.Error('system', sync.url + ' ' + old, '订阅同步失败');
                     return resolve(<string>old);
                 }
                 if (old) {
@@ -1141,8 +1172,8 @@ export class ScriptManager extends Manager {
                 // 订阅直接save即可,不需要安装等操作
                 await this.subscribeModel.save(subscribe);
                 return resolve(subscribe);
-            } else if (syncdata.action == "delete") {
-                let sub = await this.subscribeModel.findOne({ url: syncdata.url });
+            } else if (syncdata.action == 'delete') {
+                const sub = await this.subscribeModel.findOne({ url: syncdata.url });
                 if (sub) {
                     // 订阅直接delete即可,不需要卸载等操作
                     await this.subscribeModel.delete(sub.id);
@@ -1150,7 +1181,7 @@ export class ScriptManager extends Manager {
                 }
                 return resolve(undefined);
             }
-            return resolve("");
+            return resolve('');
         });
     }
 

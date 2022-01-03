@@ -447,8 +447,11 @@ export class FrontendGrant implements ScriptContext {
     @FrontendGrant.GMFunction()
     public GM_registerMenuCommand(name: string, listener: () => any, accessKey?: string): number {
         const id = randomInt(1, 100000);
-        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], () => {
-            listener();
+        this.postRequest('GM_registerMenuCommand', [{ name: name, accessKey: accessKey, id: id }], (grant: Grant) => {
+            const data = <{ action: string }>grant.data;
+            if (data && data.action == 'click') {
+                listener();
+            }
         });
         return id;
     }
@@ -531,7 +534,7 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    protected GM_getTabs(callback:  (objs: { [key: number]: object }) => any): void {
+    protected GM_getTabs(callback: (objs: { [key: number]: object }) => any): void {
         this.postRequest('GM_getTabs', [], (grant: Grant) => {
             if (grant.error) {
                 throw new Error(grant.errorMsg);

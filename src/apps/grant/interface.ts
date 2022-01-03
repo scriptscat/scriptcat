@@ -20,7 +20,9 @@ export interface IPostMessage {
 
 export type Api = (grant: Grant, postMessage: IPostMessage, script?: Script) => Promise<any>;
 
-export type FreedCallback = (grant: Grant) => void;
+// 资源释放,后台脚本只有脚本id,当窗口是关闭而不是刷新时windowClose为true
+// TODO: 实现脚本id
+export type FreedCallback = (id: number, tabId?: number, windowClose?: boolean) => void;
 
 export interface IGrantListener {
     listen(callback: (msg: any, postMessage: IPostMessage) => Promise<any>): void

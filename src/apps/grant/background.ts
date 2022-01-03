@@ -365,6 +365,18 @@ export class BackgroundGrant {
     }
 
     public listenScriptGrant() {
+        chrome.tabs.onRemoved.addListener((tabId) => {
+            BackgroundGrant.freedCallback.forEach(v => {
+                v(0, tabId, true)
+            });
+        });
+        chrome.tabs.onUpdated.addListener((tabId, info) => {
+            if (info.status == 'loading' && !info.url) {
+                BackgroundGrant.freedCallback.forEach(v => {
+                    v(0, tabId, false)
+                });
+            }
+        });
         this.listener.listen((msg, postMessage) => {
             return new Promise(resolve => {
                 const grant = <Grant>msg;
@@ -379,7 +391,7 @@ export class BackgroundGrant {
                     if (grant.value == 'CAT_runComplete' || (grant.value == 'CAT_setRunError' && grant.params[0])) {
                         //执行完毕,释放资源
                         BackgroundGrant.freedCallback.forEach(v => {
-                            v(grant);
+                            v(grant.id, grant.tabId);
                         });
                     }
                     resolve(result);
@@ -638,8 +650,7 @@ export class BackgroundGrant {
                             data.push({ storeId: val.id });
                         }
                     });
-                    grant.data = { type: 'done', data: data };
-                    post.postMessage(grant);
+                    resolve({ type: 'done', data: data });
                 });
                 return;
             }
@@ -664,8 +675,7 @@ export class BackgroundGrant {
                         url: detail.url,
                         storeId: detail.storeId,
                     }, (cookies) => {
-                        grant.data = { type: 'done', data: cookies };
-                        post.postMessage(grant);
+                        resolve({ type: 'done', data: cookies });
                     });
                     break;
                 }
@@ -678,8 +688,7 @@ export class BackgroundGrant {
                         url: detail.url,
                         storeId: detail.storeId,
                     }, () => {
-                        grant.data = { type: 'done', data: [] };
-                        post.postMessage(grant);
+                        resolve({ type: 'done', data: [] });
                     });
                     break;
                 }
@@ -698,8 +707,7 @@ export class BackgroundGrant {
                         secure: detail.secure,
                         storeId: detail.storeId,
                     }, () => {
-                        grant.data = { type: 'done', data: [] };
-                        post.postMessage(grant);
+                        resolve({ type: 'done', data: [] });
                     });
                     break;
                 }
@@ -973,8 +981,8 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction({
         background: true,
-        freed: (grant: Grant) => {
-            BackgroundGrant.freedProxy(grant.id);
+        freed: (id: number) => {
+            BackgroundGrant.freedProxy(id);
         }
     })
     protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
@@ -1087,6 +1095,9 @@ export class BackgroundGrant {
                     menu.post.postMessage(menu.grant);
                 }
             });
+        },
+        freed: () => {
+            console.log();
         }
     })
     public GM_registerMenuCommand(grant: Grant, post: IPostMessage): Promise<any> {
@@ -1124,7 +1135,7 @@ export class BackgroundGrant {
 
 
     @BackgroundGrant.GMFunction({})
-    public GM_unregisterMenuCommand(grant: Grant, post: IPostMessage): Promise<any> {
+    public GM_unregisterMenuCommand(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             grant.params[0].scriptId = grant.id;
             if (grant.tabId) {
@@ -1145,13 +1156,13 @@ export class BackgroundGrant {
     public static tabDatas = new Map<number, Map<number, any>>();
 
     @BackgroundGrant.GMFunction({
-        freed: (grant: Grant) => {
-            const datas = BackgroundGrant.tabDatas.get(grant.id);
+        freed: (id, tabId, windowClose) => {
+            const datas = BackgroundGrant.tabDatas.get(id);
             if (!datas) {
                 return
             }
-            if (grant.tabId) {
-                datas.delete(grant.tabId);
+            if (tabId && windowClose) {
+                datas.delete(tabId);
             } else {
                 datas.delete(0);
             }
