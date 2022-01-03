@@ -44,7 +44,7 @@ import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox/compile';
 import { SubscribeModel } from '@App/model/subscribe';
 import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
-import { File } from '@App/model/do/back';
+import { File } from '@App/model/do/backup';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {

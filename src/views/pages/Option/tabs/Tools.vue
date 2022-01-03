@@ -12,13 +12,14 @@
 
 <script lang="ts">
 import { ScriptController } from '@App/apps/script/controller';
+import JSZip from 'jszip';
 import { Vue, Component } from 'vue-property-decorator';
 import Panels, {
   ConfigItem,
   PanelConfigs,
 } from '@App/views/components/Panels.vue';
 import { saveAs } from 'file-saver';
-import { File, Resource, Script, Subscribe } from '@App/model/do/back';
+import { File, Resource, Script, Subscribe } from '@App/model/do/backup';
 import { SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
 import { strToBase64 } from '@App/pkg/utils/utils';
 import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
@@ -40,8 +41,17 @@ export default class Tools extends Vue {
       items: [
         {
           type: 'button',
-          title: '导出文件',
-          describe: '导出备份文件',
+          title: '导出文件(压缩包)',
+          describe: '以zip压缩包的形式导出备份文件',
+          color: 'accent',
+          loading: false,
+          disabled: false,
+          click: this.clickExportZipFile,
+        },
+        {
+          type: 'button',
+          title: '导出文件(JSON文件)',
+          describe: '以json文件的形式导出备份文件',
           color: 'accent',
           loading: false,
           disabled: false,
@@ -49,7 +59,14 @@ export default class Tools extends Vue {
         },
         {
           type: 'button',
-          title: '导入文件',
+          title: '导入文件(压缩包)',
+          describe: '导入备份文件',
+          color: 'blue-grey',
+          click: this.clickImportZipFile,
+        },
+        {
+          type: 'button',
+          title: '导入文件(JSON文件)',
           describe: '导入备份文件',
           color: 'blue-grey',
           click: this.clickImportFile,
@@ -104,6 +121,26 @@ export default class Tools extends Vue {
       this.scriptCtl.openImportFileWindow(data!);
     };
     reader.readAsText(file);
+  }
+
+  clickExportZipFile(val: any) {
+    val.loading = true;
+    val.disabled = true;
+
+    console.log('export zip');
+    let zip = new JSZip();
+
+    this.exportModel.save(this.exportConfig);
+    zip.generateAsync({ type: 'blob' }).then((content) => {
+      saveAs(content, this.script.name + '.zip');
+    });
+
+    val.loading = false;
+    val.disabled = false;
+  }
+
+  clickImportZipFile() {
+    console.log('import zip');
   }
 
   clickImportFile() {

@@ -1,7 +1,16 @@
 import { PermissionModel } from '@App/model/permission';
 import { base64ToBlob, isFirefox } from '@App/pkg/utils/utils';
 import { App } from '../app';
-import { AppEvent, ListenGmLog, PermissionConfirm, RequestBackgroundRandCode, ScriptGrant, ScriptValueChange, TabMenuClick, TabRemove } from '../msg-center/event';
+import {
+    AppEvent,
+    ListenGmLog,
+    PermissionConfirm,
+    RequestBackgroundRandCode,
+    ScriptGrant,
+    ScriptValueChange,
+    TabMenuClick,
+    TabRemove
+} from '../msg-center/event';
 import { MsgCenter } from '../msg-center/msg-center';
 import { ScriptManager } from '../script/manager';
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from './interface';
@@ -111,11 +120,10 @@ export class BackgroundGrant {
                         case 'host':
                         case 'referer':
                         case 'accept-encoding':
-                        case 'connection':
-                            {
-                                unsafeHeader[lowerCase] = unsafeHeader[lowerCase] || val.value || '';
-                                break
-                            }
+                        case 'connection': {
+                            unsafeHeader[lowerCase] = unsafeHeader[lowerCase] || val.value || '';
+                            break
+                        }
                         default: {
                             requestHeaders.push(val);
                         }
@@ -258,10 +266,18 @@ export class BackgroundGrant {
                                 let ret = <Permission>await App.Cache.getOrSet(cacheKey, () => {
                                     return new Promise(resolve => {
                                         const handler = async () => {
-                                            let ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: confirm?.permissionValue });
+                                            let ret = await _this.permissionModel.findOne({
+                                                scriptId: script?.id,
+                                                permission: confirm?.permission,
+                                                permissionValue: confirm?.permissionValue
+                                            });
                                             if (!ret) {
                                                 if (confirm?.wildcard) {
-                                                    ret = await _this.permissionModel.findOne({ scriptId: script?.id, permission: confirm?.permission, permissionValue: '*' });
+                                                    ret = await _this.permissionModel.findOne({
+                                                        scriptId: script?.id,
+                                                        permission: confirm?.permission,
+                                                        permissionValue: '*'
+                                                    });
                                                 }
                                             }
                                             return resolve(ret);
@@ -336,7 +352,11 @@ export class BackgroundGrant {
                                     }
                                     //总是 放入数据库
                                     if (param.type >= 4) {
-                                        const oldConfirm = await _this.permissionModel.findOne({ scriptId: script.id, permission: ret.permission, permissionValue: ret.permissionValue });
+                                        const oldConfirm = await _this.permissionModel.findOne({
+                                            scriptId: script.id,
+                                            permission: ret.permission,
+                                            permissionValue: ret.permissionValue
+                                        });
                                         if (!oldConfirm) {
                                             void _this.permissionModel.save(ret);
                                         }
@@ -394,7 +414,7 @@ export class BackgroundGrant {
                 if (api == undefined) {
                     return resolve(undefined);
                 }
-                api.apply(this, [grant, postMessage]).then(result => {
+                api.apply(this, [grant, postMessage]).then((result: any) => {
                     if (grant.value == 'CAT_runComplete' || (grant.value == 'CAT_setRunError' && grant.params[0])) {
                         //执行完毕,释放资源
                         BackgroundGrant.freedCallback.forEach(v => {
@@ -402,7 +422,7 @@ export class BackgroundGrant {
                         });
                     }
                     resolve(result);
-                }).catch(e => {
+                }).catch((e: string) => {
                     grant.error = 'GM_ERROR';
                     grant.errorMsg = e;
                     resolve(grant);
@@ -727,6 +747,7 @@ export class BackgroundGrant {
 
 
     protected static tabMap = new Map<number, Array<any>>();
+
     @BackgroundGrant.GMFunction({
         listener: () => {
             chrome.tabs.onRemoved.addListener(tabId => {
@@ -901,7 +922,11 @@ export class BackgroundGrant {
                 return reject('param is null');
             }
             App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name, grant.id);
-            AppEvent.trigger(ListenGmLog, { level: grant.params[1] ?? LOGGER_LEVEL_INFO, scriptId: grant.id, message: grant.params[0] });
+            AppEvent.trigger(ListenGmLog, {
+                level: grant.params[1] ?? LOGGER_LEVEL_INFO,
+                scriptId: grant.id,
+                message: grant.params[0]
+            });
             return resolve(undefined);
         });
     }
@@ -943,6 +968,7 @@ export class BackgroundGrant {
     }
 
     protected static proxyRule = new Map<number, CAT_Types.ProxyRule[] | string>();
+
     protected static buildProxyPACScript(): string {
         let ret = 'function FindProxyForURL(url, host) {\nlet ret;';
         BackgroundGrant.proxyRule.forEach((val, key) => {
@@ -1029,14 +1055,38 @@ export class BackgroundGrant {
                     }
                 }
                 if (flag) {
-                    chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
-                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
+                    chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+                        type: 'mousePressed',
+                        x: param[0],
+                        y: param[1],
+                        button: 'left',
+                        clickCount: 1
+                    }, (result) => {
+                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+                            type: 'mouseReleased',
+                            x: param[0],
+                            y: param[1],
+                            button: 'left',
+                            clickCount: 1
+                        }, (result) => {
                         });
                     });
                 } else {
                     chrome.debugger.attach(target, '1.2', () => {
-                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
-                            chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: param[0], y: param[1], button: 'left', clickCount: 1 }, (result) => {
+                        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+                            type: 'mousePressed',
+                            x: param[0],
+                            y: param[1],
+                            button: 'left',
+                            clickCount: 1
+                        }, (result) => {
+                            chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+                                type: 'mouseReleased',
+                                x: param[0],
+                                y: param[1],
+                                button: 'left',
+                                clickCount: 1
+                            }, (result) => {
                             });
                         });
                     });
@@ -1048,6 +1098,7 @@ export class BackgroundGrant {
 
     protected static textarea: HTMLElement = document.createElement('textarea');
     public static clipboardData: any;
+
     @BackgroundGrant.GMFunction({
         listener: () => {
             document.body.appendChild(BackgroundGrant.textarea);
@@ -1076,6 +1127,7 @@ export class BackgroundGrant {
 
     protected static menu = new Map<number, Map<number, Map<number, any>>>();
     protected static bgMenu = new Map<number, Map<number, any>>();
+
     @BackgroundGrant.GMFunction({
         listener: () => {
             AppEvent.listener(TabRemove, val => {
@@ -1104,7 +1156,7 @@ export class BackgroundGrant {
         },
         freed: () => {
             console.log();
-        }
+        },
     })
     public GM_registerMenuCommand(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {

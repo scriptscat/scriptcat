@@ -18,7 +18,7 @@ export interface IPostMessage {
     postMessage(msg: any): void
 }
 
-export type Api = (grant: Grant, postMessage: IPostMessage, script?: Script) => Promise<any>;
+export type Api = (grant: Grant, postMessage: IPostMessage, script?: Script) => Promise<any> | any;
 
 // 资源释放,后台脚本只有脚本id,当窗口是关闭而不是刷新时windowClose为true
 // TODO: 实现脚本id

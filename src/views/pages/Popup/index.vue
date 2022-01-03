@@ -105,14 +105,14 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
-import { Tab, TabPane } from "@App/views/components/Tab";
+import { Vue, Component } from 'vue-property-decorator';
+import { Tab, TabPane } from '@App/views/components/Tab';
 import {
   Script,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_BACKGROUND,
-} from "@App/model/do/script";
-import ScriptList from "./ScriptList.vue";
+} from '@App/model/do/script';
+import ScriptList from './ScriptList.vue';
 import {
   mdiHome,
   mdiMessage,
@@ -122,11 +122,11 @@ import {
   mdiPlus,
   mdiBugOutline,
   mdiFileDocumentMultipleOutline,
-} from "@mdi/js";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { RequestTabRunScript } from "@App/apps/msg-center/event";
-import { ScriptController } from "@App/apps/script/controller";
-import { ExtVersion } from "@App/apps/config";
+} from '@mdi/js';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { RequestTabRunScript } from '@App/apps/msg-center/event';
+import { ScriptController } from '@App/apps/script/controller';
+import { ExtVersion } from '@App/apps/config';
 
 @Component({
   components: {
@@ -150,41 +150,41 @@ export default class Popup extends Vue {
   tabs = null;
 
   version = ExtVersion;
-  remoteVersion = "";
-  isdebug = process.env.NODE_ENV == "development";
+  remoteVersion = '';
+  isdebug = process.env.NODE_ENV == 'development';
 
   panel = [0];
 
   otherOptions: { title: string; icon: string; route: string }[] = [
     {
-      title: "新建脚本",
+      title: '新建脚本',
       icon: mdiPlus,
-      route: "/options.html#/?target=initial",
+      route: '/options.html#/?target=initial',
     },
     {
-      title: "获取脚本",
+      title: '获取脚本',
       icon: mdiMagnify,
-      route: "https://scriptcat.org/",
+      route: 'https://docs.scriptcat.org/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC',
     },
     {
-      title: "Bug/问题反馈",
+      title: 'Bug/问题反馈',
       icon: mdiBugOutline,
-      route: "https://github.com/scriptscat/scriptcat/issues",
+      route: 'https://github.com/scriptscat/scriptcat/issues',
     },
     {
-      title: "项目文档",
+      title: '项目文档',
       icon: mdiFileDocumentMultipleOutline,
-      route: "https://docs.scriptcat.org",
+      route: 'https://docs.scriptcat.org',
     },
     {
-      title: "Github",
+      title: 'Github',
       icon: mdiGithub,
-      route: "https://github.com/scriptscat/scriptcat",
+      route: 'https://github.com/scriptscat/scriptcat',
     },
   ];
 
-  notice = "";
-  oldNotice = "";
+  notice = '';
+  oldNotice = '';
   isShowNotice = false;
 
   showNotice() {
@@ -194,26 +194,26 @@ export default class Popup extends Vue {
       oldNotice: this.notice,
     });
 
-    let target = <HTMLElement>document.querySelector("#notice");
+    let target = <HTMLElement>document.querySelector('#notice');
     let h = (e: any) => {
       if (target != e.target && !target.contains(e.target)) {
         this.isShowNotice = false;
-        document.body.removeEventListener("click", h);
+        document.body.removeEventListener('click', h);
       }
     };
     setTimeout(() => {
-      document.body.addEventListener("click", h);
+      document.body.addEventListener('click', h);
     }, 0);
   }
 
   created() {
-    chrome.storage.local.get(["notice", "oldNotice", "version"], (items) => {
-      this.notice = items["notice"];
-      this.oldNotice = items["oldNotice"];
-      if (this.notice === "") {
+    chrome.storage.local.get(['notice', 'oldNotice', 'version'], (items) => {
+      this.notice = items['notice'];
+      this.oldNotice = items['oldNotice'];
+      if (this.notice === '') {
         this.notice = this.oldNotice;
       }
-      this.remoteVersion = items["version"];
+      this.remoteVersion = items['version'];
     });
     chrome.tabs.query(
       { active: true, lastFocusedWindow: true },
@@ -232,7 +232,7 @@ export default class Popup extends Vue {
             this.scriptConrtoller
               .scriptList((where) => {
                 return where
-                  .where("type")
+                  .where('type')
                   .anyOf([SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB]);
               })
               .then((result) => {

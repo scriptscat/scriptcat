@@ -191,7 +191,7 @@
 <script lang="ts">
 import { ResourceManager } from "@App/apps/resource";
 import { ScriptController } from "@App/apps/script/controller";
-import { File, Resource } from "@App/model/do/back";
+import { File, Resource } from "@App/model/do/backup";
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,

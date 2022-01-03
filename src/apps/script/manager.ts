@@ -19,7 +19,7 @@ import { Subscribe } from '@App/model/do/subscribe';
 import { SubscribeModel } from '@App/model/subscribe';
 import { SyncModel } from '@App/model/sync';
 import { SyncAction, SyncData } from '@App/model/do/sync';
-import { File } from '@App/model/do/back';
+import { File } from '@App/model/do/backup';
 import { v4 as uuidv4 } from 'uuid';
 import { Manager } from '@App/pkg/apps/manager';
 

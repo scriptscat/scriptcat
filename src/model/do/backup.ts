@@ -1,13 +1,13 @@
 // 使用tampermonkey的备份模式
 
-import { Metadata, Script as InstallScript } from "./script";
-import { SubscribeScript, Subscribe as InstallSubscribe } from "./subscribe";
+import { Metadata, Script as InstallScript } from './script';
+import { SubscribeScript, Subscribe as InstallSubscribe } from './subscribe';
 
 export interface File {
 	created_by: string
 	version: string
 	scripts: Script[];
-	subscribes?: Subscribe[];
+	subscribes: Subscribe[];
 	settings: Settings
 }
 
