@@ -1,4 +1,4 @@
-import { ScriptCache, Script } from "@App/model/do/script";
+import { ScriptCache, Script } from '@App/model/do/script';
 
 //后台脚本
 export class Background {
@@ -7,7 +7,7 @@ export class Background {
         return new Promise(async resolve => {
             sandbox.postMessage({ action: 'start', data: script, value: script.value }, '*');
             function listener(event: MessageEvent) {
-                if (event.data.action != "start") {
+                if (event.data.action != 'start') {
                     return;
                 }
                 resolve(event.data.data);
@@ -21,7 +21,7 @@ export class Background {
         return new Promise(async resolve => {
             sandbox.postMessage({ action: 'disable', data: script }, '*');
             function listener(event: MessageEvent) {
-                if (event.data.action != "disable") {
+                if (event.data.action != 'disable') {
                     return;
                 }
                 resolve();
@@ -35,7 +35,7 @@ export class Background {
         return new Promise(async resolve => {
             sandbox.postMessage({ action: 'stop', data: script, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
-                if (event.data.action != "stop") {
+                if (event.data.action != 'stop') {
                     return;
                 }
                 resolve();
@@ -49,7 +49,7 @@ export class Background {
         return new Promise(async resolve => {
             sandbox.postMessage({ action: 'exec', data: script, value: script.value, isdebug: isdebug }, '*');
             function listener(event: MessageEvent) {
-                if (event.data.action != "exec") {
+                if (event.data.action != 'exec') {
                     return;
                 }
                 resolve();

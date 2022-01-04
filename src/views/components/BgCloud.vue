@@ -70,17 +70,17 @@
 </template>
 
 <script lang="ts">
-import { Script } from "@App/model/do/script";
-import { Component, Prop, Vue } from "vue-property-decorator";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
-import { ValueModel } from "@App/model/value";
-import { ExportModel } from "@App/model/export";
-import { Value } from "@App/model/do/value";
-import { Export, EXPORT_DEST_LOCAL } from "@App/model/do/export";
-import { v4 as uuidv4 } from "uuid";
-import { mdiCloudUpload, mdiClose } from "@mdi/js";
-import { ExtVersion } from "@App/apps/config";
+import { Script } from '@App/model/do/script';
+import { Component, Prop, Vue } from 'vue-property-decorator';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { ValueModel } from '@App/model/value';
+import { ExportModel } from '@App/model/export';
+import { Value } from '@App/model/do/value';
+import { Export, EXPORT_DEST_LOCAL } from '@App/model/do/export';
+import { v4 as uuidv4 } from 'uuid';
+import { mdiCloudUpload, mdiClose } from '@mdi/js';
+import { ExtVersion } from '@App/apps/config';
 @Component({})
 export default class BgCloud extends Vue {
   icons = { mdiCloudUpload, mdiClose };
@@ -102,7 +102,7 @@ export default class BgCloud extends Vue {
   valueModel = new ValueModel();
 
   dests = [
-    { key: EXPORT_DEST_LOCAL, value: "本地" },
+    { key: EXPORT_DEST_LOCAL, value: '本地' },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
   ];

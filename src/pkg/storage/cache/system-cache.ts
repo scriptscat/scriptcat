@@ -1,19 +1,19 @@
-import { SystemCacheEvent } from "@App/apps/msg-center/event";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { randomString } from "@App/pkg/utils/utils";
-import { CHANGE_EVENT } from "../storage";
-import { MapCache, ICache } from "./cache";
+import { SystemCacheEvent } from '@App/apps/msg-center/event';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { randomString } from '@App/pkg/utils/utils';
+import { CHANGE_EVENT } from '../storage';
+import { MapCache, ICache } from './cache';
 
 // 只要是在域内都能缓存,直接用缓存在域内通讯!
 export class SystemCache extends MapCache implements ICache {
     protected master = false;
-    constructor(master: boolean = false) {
+    constructor(master = false) {
         super();
         this.master = master;
         // 判断是否是同一环境下的链接
         MsgCenter.listener(SystemCacheEvent, (data: any, port: chrome.runtime.Port): Promise<any> => {
             return new Promise(async resolve => {
-                let msg = data.msg;
+                const msg = data.msg;
                 switch (msg[0]) {
                     case 0:
                         return resolve({ data: this.map.get(msg[1]) });
@@ -47,7 +47,7 @@ export class SystemCache extends MapCache implements ICache {
 
     get(key: string): Promise<any> {
         return new Promise(async resolve => {
-            let ret = await super.get(key);
+            const ret = await super.get(key);
             if (ret) {
                 return resolve(ret);
             }

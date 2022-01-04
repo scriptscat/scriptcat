@@ -44,26 +44,26 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component, Prop } from "vue-property-decorator";
+import { Vue, Component, Prop } from 'vue-property-decorator';
 
-import { ScriptManager } from "@App/apps/script/manager";
-import { Script, SCRIPT_STATUS_ENABLE } from "@App/model/do/script";
+import { ScriptManager } from '@App/apps/script/manager';
+import { Script, SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
 
-import eventBus from "@Views/EventBus";
-import { Tab, TabPane } from "@App/views/components/Tab";
-import Config from "./Config.vue";
-import META from "./META.vue";
-import Editor from "./Editor.vue";
-import Resource from "./Resource.vue";
-import Storage from "./Storage.vue";
-import { get } from "@App/pkg/utils/utils";
-import EventType from "../../EventType";
-import { languages } from "monaco-editor";
-import { scriptModule } from "../../store/script";
-import { ScriptController } from "@App/apps/script/controller";
-import { v4 as uuidv4 } from "uuid";
+import eventBus from '@Views/EventBus';
+import { Tab, TabPane } from '@App/views/components/Tab';
+import Config from './Config.vue';
+import META from './META.vue';
+import Editor from './Editor.vue';
+import Resource from './Resource.vue';
+import Storage from './Storage.vue';
+import { get } from '@App/pkg/utils/utils';
+import EventType from '../../EventType';
+import { languages } from 'monaco-editor';
+import { scriptModule } from '../../store/script';
+import { ScriptController } from '@App/apps/script/controller';
+import { v4 as uuidv4 } from 'uuid';
 
-const colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+const colors = ['green', 'purple', 'indigo', 'cyan', 'teal', 'orange'];
 
 function getRandomColor() {
   return colors[Math.floor(Math.random() * colors.length)];
@@ -91,7 +91,7 @@ export default class ScriptTab extends Vue {
   @Prop() scriptId!: number;
   script: Script = <Script>{};
 
-  @Prop() template!: "normal" | "crontab" | "background";
+  @Prop() template!: 'normal' | 'crontab' | 'background';
 
   hasInitial = false;
   onMetaChange = false;
@@ -104,7 +104,7 @@ export default class ScriptTab extends Vue {
   async handleInitialSctipt({}: IInitialScript) {
     if (!this.scriptId) {
       eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
-        title: "新建脚本",
+        title: '新建脚本',
         initial: true,
         tabKey: this.tabKey,
       });
@@ -138,7 +138,7 @@ export default class ScriptTab extends Vue {
 
     this.hasInitial = true;
     // require自动补全
-    this.script.metadata["definition"]?.forEach((val) => {
+    this.script.metadata['definition']?.forEach((val) => {
       this.handleDTs(val);
     });
   }
@@ -153,7 +153,7 @@ export default class ScriptTab extends Vue {
     await this.scriptController.update(this.script);
 
     // 保存成功后
-    scriptModule.showSnackbar("config更新成功");
+    scriptModule.showSnackbar('config更新成功');
     // this.showSnackbar();
     this.onMetaChange = true;
     await this.handleInitialSctipt({} as any);
@@ -167,7 +167,7 @@ export default class ScriptTab extends Vue {
       oldScript,
     ] = await this.scriptController.prepareScriptByCode(
       currentCode,
-      this.script.origin || "",
+      this.script.origin || '',
       this.script.uuid ? this.script.uuid : uuidv4()
     );
 
@@ -197,10 +197,10 @@ export default class ScriptTab extends Vue {
 
     // 保存成功后
 
-    console.log("脚本保存成功");
+    console.log('脚本保存成功');
     if (debug) {
       scriptModule.showSnackbar(
-        "脚本准备进入调试模式执行,请按F12打开开发者工具进行调试."
+        '脚本准备进入调试模式执行,请按F12打开开发者工具进行调试.'
       );
       // 后台脚本才能调试
       let scriptCache = await this.scriptController.buildScriptCache(
@@ -208,15 +208,15 @@ export default class ScriptTab extends Vue {
       );
       sandbox.postMessage(
         {
-          action: "exec",
+          action: 'exec',
           data: scriptCache,
           value: scriptCache.value,
           isdebug: true,
         },
-        "*"
+        '*'
       );
     } else {
-      scriptModule.showSnackbar("脚本保存成功");
+      scriptModule.showSnackbar('脚本保存成功');
     }
     await this.handleInitialSctipt({} as any);
 
@@ -257,7 +257,7 @@ export default class ScriptTab extends Vue {
 
     for (const [key, values] of Object.entries(metaData)) {
       // todo switch化
-      if (["grant", "match", "connect", "require"].includes(key)) {
+      if (['grant', 'match', 'connect', 'require'].includes(key)) {
         const newValues = [];
 
         for (const value of values) {
@@ -265,9 +265,9 @@ export default class ScriptTab extends Vue {
         }
 
         buffer[key] = newValues;
-      } else if (key === "version") {
-        buffer[key] = values[0].split(".");
-      } else if (key === "compatible") {
+      } else if (key === 'version') {
+        buffer[key] = values[0].split('.');
+      } else if (key === 'compatible') {
         buffer[key] = values.map((item) => item.toLowerCase());
       } else {
         buffer[key] = values;

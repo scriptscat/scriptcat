@@ -1,9 +1,9 @@
-import { v5 as uuidv5 } from "uuid";
+import { v5 as uuidv5 } from 'uuid';
 import YAML from 'yaml';
-import { Script, UserConfig, Metadata } from "@App/model/do/script";
-import axios from "axios";
-import { ScriptUrlInfo } from "../msg-center/structs";
-import { Subscribe } from "@App/model/do/subscribe";
+import { Script, UserConfig, Metadata } from '@App/model/do/script';
+import axios from 'axios';
+import { ScriptUrlInfo } from '../msg-center/structs';
+import { Subscribe } from '@App/model/do/subscribe';
 
 export function parseMetadata(code: string): Metadata | null {
     let issub = false;
@@ -18,10 +18,10 @@ export function parseMetadata(code: string): Metadata | null {
         issub = true
     }
     regex = /\/\/\s*@([\S]+)((.+?)$|$)/gm;
-    let ret: Metadata = {};
+    const ret: Metadata = {};
     let meta: RegExpExecArray | null;
     while (meta = regex.exec(header[1])) {
-        let [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
+        const [key, val] = [meta[1].toLowerCase().trim(), meta[2].trim()];
         let values = ret[key]
         if (values == null) {
             values = [];
@@ -39,15 +39,15 @@ export function parseMetadata(code: string): Metadata | null {
 }
 
 export function parseUserConfig(code: string): UserConfig | undefined {
-    let regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
-    let config = regex.exec(code)
+    const regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
+    const config = regex.exec(code)
     if (!config) {
         return undefined;
     }
-    let configs = config[1].trim().split(/[-]{3,}/);
-    let ret: UserConfig = {};
+    const configs = config[1].trim().split(/[-]{3,}/);
+    const ret: UserConfig = {};
     configs.forEach(val => {
-        let obj = YAML.parse(val);
+        const obj = YAML.parse(val);
         for (const key in obj) {
             ret[key] = obj[key];
         }
@@ -73,18 +73,18 @@ export function loadScriptByUrl(url: string): Promise<ScriptUrlInfo | undefined>
             if (response.status != 200) {
                 return undefined;
             }
-            let ok = parseMetadata(response.data);
+            const ok = parseMetadata(response.data);
             if (!ok) {
                 return undefined;
             }
-            let uuid = uuidv5(url, uuidv5.URL);
-            let ret = {
+            const uuid = uuidv5(url, uuidv5.URL);
+            const ret = {
                 url: url,
                 code: response.data,
                 uuid: uuid,
                 issub: false,
             };
-            if (ok["usersubscribe"]) {
+            if (ok['usersubscribe']) {
                 ret.issub = true;
             }
             resolve(ret);
@@ -104,7 +104,7 @@ export function copyScript(script: Script, old: Script) {
     script.error = old.error;
     script.sort = old.sort;
     script.selfMetadata = old.selfMetadata || {};
-    for (let key in script.selfMetadata) {
+    for (const key in script.selfMetadata) {
         script.metadata[key] = script.metadata[key];
     }
     script.subscribeUrl = old.subscribeUrl;

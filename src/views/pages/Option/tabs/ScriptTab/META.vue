@@ -176,37 +176,37 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-import { mdiCheck, mdiPencil } from "@mdi/js";
-import { Script } from "@App/model/do/script";
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
+import { mdiCheck, mdiPencil } from '@mdi/js';
+import { Script } from '@App/model/do/script';
 
-const COLORS = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+const COLORS = ['green', 'purple', 'indigo', 'cyan', 'teal', 'orange'];
 
 function getRandomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)];
 }
 
 function formatConfigProperty(key: string, value: string) {
-  return `// @${key.padEnd(20, " ")}${value}`;
+  return `// @${key.padEnd(20, ' ')}${value}`;
 }
 
 const GRANT = [
-  "GM_setValue",
-  "GM_getValue",
-  "GM_setClipboard",
-  "GM_xmlhttpRequest",
-  "GMSC_xmlhttpRequest",
-  "GM_notification",
-  "GM_closeNotification",
-  "GM_updateNotification",
-  "GM_log",
-  "CAT_setLastRuntime",
-  "CAT_setRunError",
-  "CAT_runComplete",
-  "GM_cookie",
-  "CAT_setProxy",
-  "CAT_clearProxy",
-  "unsafeWindow",
+  'GM_setValue',
+  'GM_getValue',
+  'GM_setClipboard',
+  'GM_xmlhttpRequest',
+  'GMSC_xmlhttpRequest',
+  'GM_notification',
+  'GM_closeNotification',
+  'GM_updateNotification',
+  'GM_log',
+  'CAT_setLastRuntime',
+  'CAT_setRunError',
+  'CAT_runComplete',
+  'GM_cookie',
+  'CAT_setProxy',
+  'CAT_clearProxy',
+  'unsafeWindow',
 ];
 
 @Component({})
@@ -226,24 +226,24 @@ export default class CloseButton extends Vue {
     color: getRandomColor(),
   }));
 
-  licence = ["MIT", "GPL-3.0", "Apache"];
-  browsers = ["chrome", "safari", "edge", "ie"];
-  runAtHooks = ["document-start", "document-end"];
+  licence = ['MIT', 'GPL-3.0', 'Apache'];
+  browsers = ['chrome', 'safari', 'edge', 'ie'];
+  runAtHooks = ['document-start', 'document-end'];
 
   activator = null;
   attach = null;
-  colors = ["green", "purple", "indigo", "cyan", "teal", "orange"];
+  colors = ['green', 'purple', 'indigo', 'cyan', 'teal', 'orange'];
   editing = null;
   editingIndex = -1;
   items = [
-    { header: "Select an option or create one" },
+    { header: 'Select an option or create one' },
     {
-      text: "Foo",
-      color: "blue",
+      text: 'Foo',
+      color: 'blue',
     },
     {
-      text: "Bar",
-      color: "red",
+      text: 'Bar',
+      color: 'red',
     },
   ];
   nonce = 1;
@@ -266,7 +266,7 @@ export default class CloseButton extends Vue {
   filter(item: any, queryText: string, itemText: string) {
     if (item.header) return false;
 
-    const hasValue = (val: any) => (val != null ? val : "");
+    const hasValue = (val: any) => (val != null ? val : '');
 
     const text = hasValue(itemText);
     const query = hasValue(queryText);
@@ -278,17 +278,17 @@ export default class CloseButton extends Vue {
 
   model = [
     {
-      text: "Foo",
-      color: "blue",
+      text: 'Foo',
+      color: 'blue',
     },
   ];
 
-  @Watch("model")
+  @Watch('model')
   onModelChange(val: any[], prev: any[]) {
     if (val.length === prev.length) return;
 
     this.model = val.map((v: any) => {
-      if (typeof v === "string") {
+      if (typeof v === 'string') {
         v = {
           text: v,
           color: this.colors[this.nonce - 1],
@@ -308,14 +308,14 @@ export default class CloseButton extends Vue {
     const buffer: { [key: string]: string[] } = {};
 
     for (const [key, values] of Object.entries(this.metaBuffer)) {
-      if (["grant", "match", "connect", "require"].includes(key)) {
+      if (['grant', 'match', 'connect', 'require'].includes(key)) {
         const castValues = values as { text: string; color: string }[];
 
         buffer[key] = castValues.map((value) => value.text);
-      } else if (key === "version") {
+      } else if (key === 'version') {
         const castValues = values as string[];
 
-        buffer[key] = [castValues.join(".")];
+        buffer[key] = [castValues.join('.')];
       } else {
         if (Array.isArray(values)) {
           buffer[key] = values;
@@ -337,7 +337,7 @@ export default class CloseButton extends Vue {
     const oldCode = this.script.code;
 
     console.log(oldCode);
-    const pureCode = new RegExp(`^.*?==/UserScript==(.*)$`, "ms").exec(
+    const pureCode = new RegExp('^.*?==/UserScript==(.*)$', 'ms').exec(
       oldCode
     )![1];
     console.log(pureCode);
@@ -348,21 +348,21 @@ export default class CloseButton extends Vue {
 
     // const { name, ...rest } = formattedConfig;
 
-    let result = "// ==UserScript==\n";
+    let result = '// ==UserScript==\n';
 
     for (const [key, values] of Object.entries(formattedConfig)) {
       for (const value of values) {
-        result += formatConfigProperty(key, value) + "\n";
+        result += formatConfigProperty(key, value) + '\n';
       }
     }
 
-    result += "// ==/UserScript==";
+    result += '// ==/UserScript==';
     console.log(result);
 
     // 拼接新config和code
     const newCode = result + pureCode;
 
-    this.$emit<IUpdateMeta>("update-meta", {
+    this.$emit<IUpdateMeta>('update-meta', {
       code: newCode,
       name: formattedConfig.name.flat()[0],
       metadata: JSON.parse(JSON.stringify(formattedConfig)),

@@ -65,10 +65,10 @@
 
 
 <script lang="ts">
-import { Vue, Component, Prop } from "vue-property-decorator";
+import { Vue, Component, Prop } from 'vue-property-decorator';
 
 export interface ConfigItem {
-  type: "text" | "button" | "check" | "select";
+  type: 'text' | 'button' | 'check' | 'select';
   title: string;
   describe?: string;
   color?: string;

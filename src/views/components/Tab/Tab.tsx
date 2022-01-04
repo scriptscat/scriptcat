@@ -1,10 +1,10 @@
-import "./default.css";
+import './default.css';
 
-import { VNode } from "node_modules/vue/types";
-import { Component, Prop, Provide, Vue, Watch } from "vue-property-decorator";
+import { VNode } from 'node_modules/vue/types';
+import { Component, Prop, Provide, Vue, Watch } from 'vue-property-decorator';
 
-import CloseButton from "./CloseButton.vue";
-import TabPane from "./TabPane";
+import CloseButton from './CloseButton.vue';
+import TabPane from './TabPane';
 
 interface ITabItem { }
 
@@ -21,8 +21,8 @@ export default class Tab extends Vue {
     @Prop() disabledColor!: string;
     @Prop() disabledTextColor!: string;
     /** Tab style type */
-    @Prop({ default: "tabs" }) type!: "tabs" | "pills";
-    @Prop({ default: "head" }) activePattern!: "head" | "near";
+    @Prop({ default: 'tabs' }) type!: 'tabs' | 'pills';
+    @Prop({ default: 'head' }) activePattern!: 'head' | 'near';
     /** Centers the tabs and makes the container div full width */
     @Prop({ default: false }) centered!: boolean;
     @Prop({ default: true }) overflow!: boolean;
@@ -36,11 +36,11 @@ export default class Tab extends Vue {
     // closedTabs: VNode[] = [];
 
     get isTabShape() {
-        return this.type === "tabs";
+        return this.type === 'tabs';
     }
     get classList() {
-        let navType = this.isTabShape ? "nav-tabs" : "nav-pills";
-        let centerClass = this.centered ? "nav-justified" : "";
+        const navType = this.isTabShape ? 'nav-tabs' : 'nav-pills';
+        const centerClass = this.centered ? 'nav-justified' : '';
         return `nav ${navType} ${centerClass}`;
     }
     get activeTabStyle() {
@@ -50,14 +50,14 @@ export default class Tab extends Vue {
         };
     }
 
-    @Watch("tabs")
+    @Watch('tabs')
     onTabsChange(newTabs: TabPane[]) {
         if (newTabs.length > 0) {
             if (this.value) {
                 this.findTabAndActivate(this.value);
             } else {
                 if (newTabs.length <= this.activeTabIndex) {
-                    if (this.activePattern === "head") {
+                    if (this.activePattern === 'head') {
                         this.activateTab(0);
                     } else {
                         this.activateTab(this.activeTabIndex - 1);
@@ -69,13 +69,13 @@ export default class Tab extends Vue {
         }
     }
 
-    @Watch("value")
+    @Watch('value')
     onValueChange(newVal: any) {
         this.findTabAndActivate(newVal);
     }
 
     findTabAndActivate(tabNameOrIndex: string | number) {
-        let indexToActivate = this.tabs.findIndex(
+        const indexToActivate = this.tabs.findIndex(
             (tab, index) => tab.title === tabNameOrIndex || index === tabNameOrIndex,
         );
         // if somehow activeTabIndex is not reflected in the actual vue-tab instance, set it.
@@ -89,17 +89,17 @@ export default class Tab extends Vue {
         }
     }
 
-    navigateToTab(index: number, route: string = "") {
+    navigateToTab(index: number, route = '') {
         console.log(`navigate to ${index}`);
 
         if (index !== this.activeTabIndex) {
             this.changeTab(this.activeTabIndex, index, route);
         } else {
-            console.error("refuse to navigate to same tab");
+            console.error('refuse to navigate to same tab');
         }
     }
 
-    async changeTab(oldIndex: number, newIndex: number, route: string = "") {
+    async changeTab(oldIndex: number, newIndex: number, route = '') {
         const oldTab = this.tabs[oldIndex] || {};
 
         const continueFlag = await oldTab.beforeChange(oldTab);
@@ -117,10 +117,10 @@ export default class Tab extends Vue {
                 }
             }
 
-            this.$emit("tab-change", newIndex, newTab, oldTab);
+            this.$emit('tab-change', newIndex, newTab, oldTab);
             this.tryChangeRoute(route);
         } else {
-            console.error("navigate has been blocked cause of beforeChange hook");
+            console.error('navigate has been blocked cause of beforeChange hook');
         }
     }
 
@@ -132,7 +132,7 @@ export default class Tab extends Vue {
         if (tab.loaded === false) {
             tab.loaded = true;
         }
-        this.$emit("activeTab", tab.title);
+        this.$emit('activeTab', tab.title);
     }
 
     tryChangeRoute(route: string) {
@@ -168,9 +168,9 @@ export default class Tab extends Vue {
 
     renderTabTitle(index: number) {
         if (this.tabs.length === 0) return;
-        let tab = this.tabs[index];
-        let { active, title } = tab;
-        let titleStyles = { color: this.activeTabColor };
+        const tab = this.tabs[index];
+        const { active, title } = tab;
+        const titleStyles = { color: this.activeTabColor };
         titleStyles.color = this.activeTextColor;
 
         if (tab.$slots.title) {
@@ -187,7 +187,7 @@ export default class Tab extends Vue {
         // });
         else {
             const simpleTitle = (
-                <span class={`title`} style={active ? titleStyles : {}}>
+                <span class={'title'} style={active ? titleStyles : {}}>
                     {/* {this.renderIcon(index)} */}
                     {title}
                 </span>
@@ -210,7 +210,7 @@ export default class Tab extends Vue {
         } else {
             const { icon } = tab;
             if (icon) {
-                let simpleIcon = <i class={icon}>&nbsp;</i>;
+                const simpleIcon = <i class={icon}>&nbsp;</i>;
                 return simpleIcon;
             }
         }
@@ -229,18 +229,18 @@ export default class Tab extends Vue {
     renderTabs() {
         return this.tabs.map((tab, index) => {
             if (!tab) return;
-            let { route, id, title, icon, tabId, tabKey } = tab;
-            let active = this.activeTabIndex === index;
+            const { route, id, title, icon, tabId, tabKey } = tab;
+            const active = this.activeTabIndex === index;
 
             const closeButton = (
                 <CloseButton
                     tab={tab}
                     index={index}
                     onTabRemove={() => {
-                        this.$emit("tabRemove", index);
+                        this.$emit('tabRemove', index);
                     }}
                     style={{
-                        marginLeft: "5px",
+                        marginLeft: '5px',
                     }}
                 />
             );
@@ -248,14 +248,14 @@ export default class Tab extends Vue {
             return (
                 <li
                     name="tab"
-                    class={["tab", { active: active }, { disabled: tab.disabled }]}
+                    class={['tab', { active: active }, { disabled: tab.disabled }]}
                     key={tabKey}
                     id={`t-${tabId}`}
                     aria-selected={active}
                     aria-controls={`p-${tabId}`}
                     role="tab"
                     v-ripple
-                    style={{ fontSize: "16px" }}
+                    style={{ fontSize: '16px' }}
                     onClick={() => !tab.disabled && this.navigateToTab(index, route)}
                 >
                     <a
@@ -266,7 +266,7 @@ export default class Tab extends Vue {
                         // }}
                         // onClick
                         style={active ? this.activeTabStyle : this.tabStyles(tab)}
-                        class={[{ active_tab: active }, "tabs__link"]}
+                        class={[{ active_tab: active }, 'tabs__link']}
                         role="tab"
                     >
                         {this.renderIcon(index)}
@@ -282,15 +282,15 @@ export default class Tab extends Vue {
         const tabList = this.renderTabs();
 
         return (
-            <div class={["vue-tabs"]}>
-                <div class={["nav-tabs-navigation"]}>
-                    <div class={["nav-tabs-wrapper"]}>
+            <div class={['vue-tabs']}>
+                <div class={['nav-tabs-navigation']}>
+                    <div class={['nav-tabs-wrapper']}>
                         <ul class={this.classList} role="tablist">
                             {tabList}
                         </ul>
                     </div>
                 </div>
-                <div class={["tab-content"]}>
+                <div class={['tab-content']}>
                     {this.$slots.default}
                     {/* {this.$slots.default?.filter((item) => !this.closedTabs.includes(item))} */}
                     {/* {this.tabs.map((tab) => tab)} */}

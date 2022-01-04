@@ -3,7 +3,7 @@ import { Value } from './do/value';
 
 export class ValueModel extends Model<Value> {
 
-    public tableName: string = "value";
+    public tableName = 'value';
 
     constructor() {
         super();

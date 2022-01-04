@@ -234,20 +234,20 @@
 </template>
 
 <script lang="ts">
-import { BackgroundGrant } from "@App/apps/grant/background";
-import { SyncTaskEvent } from "@App/apps/msg-center/event";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { ScriptController } from "@App/apps/script/controller";
+import { BackgroundGrant } from '@App/apps/grant/background';
+import { SyncTaskEvent } from '@App/apps/msg-center/event';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { ScriptController } from '@App/apps/script/controller';
 import {
   Subscribe,
   SUBSCRIBE_STATUS_DISABLE,
   SUBSCRIBE_STATUS_ENABLE,
-} from "@App/model/do/subscribe";
+} from '@App/model/do/subscribe';
 
-import { mdiHome, mdiCodeTags, mdiBug, mdiDelete, mdiLink } from "@mdi/js";
-import dayjs from "dayjs";
-import { Vue, Component } from "vue-property-decorator";
-import { scriptModule } from "../store/script";
+import { mdiHome, mdiCodeTags, mdiBug, mdiDelete, mdiLink } from '@mdi/js';
+import dayjs from 'dayjs';
+import { Vue, Component } from 'vue-property-decorator';
+import { scriptModule } from '../store/script';
 
 //TODO: 与脚本列表差不多,可以优化,使用同一个组件
 @Component({})
@@ -262,24 +262,24 @@ export default class SubscribeList extends Vue {
 
   headers = [
     {
-      text: "#",
-      value: "id",
+      text: '#',
+      value: 'id',
     },
-    { text: "开启", value: "status" },
-    { text: "名称", value: "name" },
-    { text: "版本", value: "version" },
-    { text: "权限", value: "site" },
-    { text: "来源", value: "origin" },
-    { text: "主页", value: "home" },
-    { text: "排序", value: "sort", align: "center" },
-    { text: "最后更新", value: "updatetime", width: 100, align: "center" },
-    { text: "操作", value: "actions", sortable: false },
+    { text: '开启', value: 'status' },
+    { text: '名称', value: 'name' },
+    { text: '版本', value: 'version' },
+    { text: '权限', value: 'site' },
+    { text: '来源', value: 'origin' },
+    { text: '主页', value: 'home' },
+    { text: '排序', value: 'sort', align: 'center' },
+    { text: '最后更新', value: 'updatetime', width: 100, align: 'center' },
+    { text: '操作', value: 'actions', sortable: false },
   ];
   desserts: any[] = [];
   editedIndex = -1;
   editedItem: any = {};
   defaultItem = {
-    name: "",
+    name: '',
     calories: 0,
     fat: 0,
     carbs: 0,
@@ -356,12 +356,12 @@ export default class SubscribeList extends Vue {
   }
 
   copyLink(item: Subscribe) {
-    let msg = "订阅链接:" + item.url;
+    let msg = '订阅链接:' + item.url;
     BackgroundGrant.clipboardData = {
       data: msg,
     };
-    document.execCommand("copy", false, <any>null);
-    scriptModule.showSnackbar("复制成功");
+    document.execCommand('copy', false, <any>null);
+    scriptModule.showSnackbar('复制成功');
   }
 }
 </script>

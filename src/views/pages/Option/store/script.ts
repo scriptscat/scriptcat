@@ -5,12 +5,12 @@ import {
     MutationAction,
     VuexModule,
     getModule,
-} from "vuex-module-decorators";
+} from 'vuex-module-decorators';
 
-import store from "./index";
+import store from './index';
 
 @Module({
-    name: "script",
+    name: 'script',
     store,
     dynamic: true,
 })
@@ -21,7 +21,7 @@ class ScriptModule extends VuexModule {
     // updateTitle({}: { tabKey: number; title: string }) {}
 
     snackbar = false;
-    snackbarInfo = "";
+    snackbarInfo = '';
 
     @Mutation
     showSnackbar(message: string) {

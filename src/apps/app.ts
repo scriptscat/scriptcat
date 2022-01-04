@@ -1,6 +1,6 @@
-import { SystemConfig } from "@App/pkg/config";
-import { ICache } from "@App/pkg/storage/cache/cache";
-import { Logger } from "./logger/logger";
+import { SystemConfig } from '@App/pkg/config';
+import { ICache } from '@App/pkg/storage/cache/cache';
+import { Logger } from './logger/logger';
 
 export const ENV_BACKGROUND = 'background';
 export const ENV_FRONTEND = 'frontend';

@@ -1,5 +1,5 @@
-import Vue from "vue";
-import Vuex from "vuex";
+import Vue from 'vue';
+import Vuex from 'vuex';
 
 Vue.config.devtools = true;
 Vue.use(Vuex);

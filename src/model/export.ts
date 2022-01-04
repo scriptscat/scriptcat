@@ -3,7 +3,7 @@ import { Export } from './do/export';
 
 export class ExportModel extends Model<Export> {
 
-    public tableName: string = "export";
+    public tableName = 'export';
 
     constructor() {
         super();

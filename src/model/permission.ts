@@ -3,7 +3,7 @@ import { Permission } from './do/permission';
 
 export class PermissionModel extends Model<Permission> {
 
-    public tableName: string = "permission";
+    public tableName = 'permission';
 
     constructor() {
         super();

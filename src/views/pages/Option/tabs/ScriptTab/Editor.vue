@@ -46,8 +46,8 @@
                 }"
                 style="width: 300px"
               >
-                <span>{{ item.action }} </span>
-                <span v-if="item.keys">{{ item.keys }}</span>
+          n>{{ item.action }} </span>
+                <span v-f"tmky"{ tem.keys }}</span>
               </v-list-item-title>
             </div>
           </v-list-item>
@@ -63,13 +63,13 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-import { KeyMod, KeyCode, languages } from "monaco-editor";
-import { Script, SCRIPT_TYPE_NORMAL } from "@App/model/do/script";
-import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from "@mdi/js";
-import ResizableEditor from "@Components/ResizableEditor.vue";
-import EventType from "@Option/EventType";
-import eventBus from "@App/views/EventBus";
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
+import { KeyMod, KeyCode, languages } from 'monaco-editor';
+import { Script, SCRIPT_TYPE_NORMAL } from '@App/model/do/script';
+import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from '@mdi/js';
+import ResizableEditor from '@Components/ResizableEditor.vue';
+import EventType from '@Option/EventType';
+import eventBus from '@App/views/EventBus';
 
 interface IEditorMenu {
   [title: string]: {
@@ -97,13 +97,13 @@ export default class CloseButton extends Vue {
   @Prop() tabKey!: number | string;
   @Prop() scriptId!: number;
   @Prop() script!: Script;
-  @Prop() template!: "normal" | "crontab" | "background";
+  @Prop() template!: 'normal' | 'crontab' | 'background';
 
   @Prop() onMetaChange!: boolean;
   hasInitial = false;
   hasUnsavedChange = false;
 
-  @Watch("script")
+  @Watch('script')
   onScriptChange(news: Script, old: Script) {
     if (old && news.id == old.id) {
       return;
@@ -117,15 +117,15 @@ export default class CloseButton extends Vue {
 
   async mounted() {
     this.initialEditor();
-    let fileInput = <HTMLInputElement>document.getElementById("fileInput");
-    fileInput!.addEventListener("change", () => {
+    let fileInput = <HTMLInputElement>document.getElementById('fileInput');
+    fileInput!.addEventListener('change', () => {
       var file = fileInput!.files![0];
       var reader = new FileReader();
       let _this = this;
       reader.onload = function() {
         _this.editor.setValue(<string>this.result);
       };
-      reader.readAsText(file, "utf-8");
+      reader.readAsText(file, 'utf-8');
     });
   }
 
@@ -140,7 +140,7 @@ export default class CloseButton extends Vue {
           // });
 
           eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
-            title: `* ${this.script.name ?? "新建脚本"}`,
+            title: `* ${this.script.name ?? '新建脚本'}`,
             initial: this.scriptId ? undefined : true,
             scriptId: this.scriptId,
             tabKey: this.tabKey,
@@ -166,7 +166,7 @@ export default class CloseButton extends Vue {
   menu: IEditorMenu = {
     文件: [
       {
-        action: "保存",
+        action: '保存',
         handler: () => {
           this.$emit<ISaveScript>(EventType.SaveScript, {
             currentCode: this.editor.getValue(),
@@ -174,17 +174,17 @@ export default class CloseButton extends Vue {
           });
         },
         icon: mdiContentSave,
-        keys: "Ctrl+S",
+        keys: 'Ctrl+S',
       },
       {
-        action: "导入",
+        action: '导入',
         handler: () => {
-          document.getElementById("fileInput")!.click();
+          document.getElementById('fileInput')!.click();
         },
         icon: mdiFileImport,
       },
       {
-        action: "导出",
+        action: '导出',
         handler: () => {
           this.$emit<ISaveScript>(EventType.SaveScript, {
             currentCode: this.editor.getValue(),
@@ -192,11 +192,11 @@ export default class CloseButton extends Vue {
           });
 
           const blob = new Blob([this.editor.getValue()], {
-            type: "text/javascript",
+            type: 'text/javascript',
           });
-          const link = document.createElement("a");
-          link.download = this.script.name + ".user.js";
-          link.style.display = "none";
+          const link = document.createElement('a');
+          link.download = this.script.name + '.user.js';
+          link.style.display = 'none';
           link.href = URL.createObjectURL(blob);
           document.body.appendChild(link);
           link.click();
@@ -207,7 +207,7 @@ export default class CloseButton extends Vue {
     ],
     操作: [
       {
-        action: "调试",
+        action: '调试',
         show: this.script.type !== SCRIPT_TYPE_NORMAL,
         handler: () => {
           this.$emit<ISaveScript>(EventType.SaveScript, {
@@ -216,7 +216,7 @@ export default class CloseButton extends Vue {
           });
         },
         icon: mdiBug,
-        keys: "",
+        keys: '',
       },
     ],
   };

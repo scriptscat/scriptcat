@@ -117,16 +117,16 @@ import {
   Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-} from "@App/model/do/script";
-import { Component, Prop, Vue, Watch } from "vue-property-decorator";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
+} from '@App/model/do/script';
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
 import {
   ScriptRunStatusChange,
   TabMenuClick,
-} from "@App/apps/msg-center/event";
-import { mdiDelete, mdiPlay, mdiStop, mdiPencil } from "@mdi/js";
-import { mdiCogOutline } from "@mdi/js";
-import { ScriptController } from "@App/apps/script/controller";
+} from '@App/apps/msg-center/event';
+import { mdiDelete, mdiPlay, mdiStop, mdiPencil } from '@mdi/js';
+import { mdiCogOutline } from '@mdi/js';
+import { ScriptController } from '@App/apps/script/controller';
 
 @Component({})
 export default class ScriptList extends Vue {
@@ -148,7 +148,7 @@ export default class ScriptList extends Vue {
 
   scripts: Array<Script> = this.value;
 
-  @Watch("value")
+  @Watch('value')
   updataScript(newValue: any, oldValue: any) {
     this.scripts = this.value;
   }

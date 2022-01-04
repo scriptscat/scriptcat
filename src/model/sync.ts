@@ -1,5 +1,5 @@
-import { Sync } from "./do/sync";
-import { db, Model } from "./model";
+import { Sync } from './do/sync';
+import { db, Model } from './model';
 
 
 export class SyncModel extends Model<Sync> {

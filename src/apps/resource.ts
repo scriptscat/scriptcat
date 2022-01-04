@@ -1,9 +1,9 @@
-import { Resource } from "@App/model/do/resource";
-import { ResourceLinkModel, ResourceModel } from "@App/model/resource";
-import { blobToBase64, strToBase64 } from "@App/pkg/utils/utils";
-import axios from "axios";
-import crypto from "crypto-js";
-import { App } from "./app";
+import { Resource, ResourceHash } from '@App/model/do/resource';
+import { ResourceLinkModel, ResourceModel } from '@App/model/resource';
+import { blobToBase64, strToBase64 } from '@App/pkg/utils/utils';
+import axios from 'axios';
+import crypto from 'crypto-js';
+import { App } from './app';
 
 // @resource @require 等资源管理
 export class ResourceManager {
@@ -12,10 +12,10 @@ export class ResourceManager {
 
     public addResource(url: string, scriptId: number): Promise<Resource | undefined> {
         return new Promise(async resolve => {
-            let u = this.parseUrl(url);
+            const u = this.parseUrl(url);
             let result = await this.getResource(u.url);
             if (!result) {
-                let resource = await this.loadByUrl(u.url);
+                const resource = await this.loadByUrl(u.url);
                 if (!resource) {
                     return resolve(undefined);
                 }
@@ -24,15 +24,15 @@ export class ResourceManager {
                 await App.Cache.set('resource:' + u.url, resource);
                 if (await this.model.save(resource)) {
                     result = resource;
-                    App.Log.Info("resource", u.url, "add");
+                    App.Log.Info('resource', u.url, 'add');
                 }
             }
 
-            let link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
+            const link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
             if (link) {
                 return resolve(result);
             }
-            let ret = await this.linkModel.save({ id: 0, url: u.url, scriptId: scriptId, createtime: new Date().getTime() });
+            const ret = await this.linkModel.save({ id: 0, url: u.url, scriptId: scriptId, createtime: new Date().getTime() });
             if (ret) {
                 return resolve(undefined);
             }
@@ -42,8 +42,8 @@ export class ResourceManager {
 
     public getResource(url: string): Promise<Resource | undefined> {
         return new Promise(async resolve => {
-            let u = this.parseUrl(url);
-            let resource = await this.model.findOne({ url: u.url });
+            const u = this.parseUrl(url);
+            const resource = await this.model.findOne({ url: u.url });
             if (resource) {
                 // 校验hash
                 if (u.hash) {
@@ -63,13 +63,13 @@ export class ResourceManager {
 
     public deleteResource(url: string, scriptId: number): Promise<boolean> {
         return new Promise(async resolve => {
-            let u = this.parseUrl(url);
-            let link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
+            const u = this.parseUrl(url);
+            const link = await this.linkModel.findOne({ url: u.url, scriptId: scriptId });
             if (!link) {
                 return resolve(false);
             }
             await this.linkModel.delete(link.id);
-            let list = await this.linkModel.list(where => {
+            const list = await this.linkModel.list(where => {
                 return where.where({ url: u.url });
             });
             if (!list.length) {
@@ -81,31 +81,28 @@ export class ResourceManager {
     }
 
     public loadByUrl(url: string): Promise<Resource | undefined> {
-        return new Promise(async resolve => {
-            let u = this.parseUrl(url);
+        return new Promise(resolve => {
+            const u = this.parseUrl(url);
             axios.get(u.url, {
-                responseType: "blob"
-            }).then(async response => {
-                if (response.status != 200) {
-                    return resolve(undefined);
+                responseType: 'blob'
+            }).then(response => {
+                const handler = async () => {
+                    if (response.status != 200) {
+                        return resolve(undefined);
+                    }
+                    const resource: Resource = {
+                        id: 0,
+                        url: u.url, content: '',
+                        contentType: (<string>((<AnyMap>response.headers)['content-type']) || '').split(';')[0],
+                        hash: await this.calculateHash(<Blob>response.data),
+                        base64: '',
+                    };
+                    resource.content = await (<Blob>response.data).text();
+                    resource.base64 = await blobToBase64(<Blob>response.data) || '';
+                    App.Log.Info('resource', u.url, 'load');
+                    return resolve(resource);
                 }
-                let resource: Resource = {
-                    id: 0,
-                    url: u.url, content: '',
-                    contentType: (response.headers['content-type'] || '').split(';')[0],
-                    hash: {
-                        md5: crypto.MD5(response.data).toString(),
-                        sha1: crypto.SHA1(response.data).toString(),
-                        sha256: crypto.SHA256(response.data).toString(),
-                        sha384: crypto.SHA384(response.data).toString(),
-                        sha512: crypto.SHA512(response.data).toString(),
-                    },
-                    base64: '',
-                };
-                resource.content = await (<Blob>response.data).text();
-                resource.base64 = await blobToBase64(<Blob>response.data) || '';
-                App.Log.Info("resource", u.url, "load");
-                return resolve(resource);
+                void handler();
             }).catch((e) => {
                 console.log(url, 'error', e);
                 return resolve(undefined);
@@ -113,15 +110,34 @@ export class ResourceManager {
         });
     }
 
+    public calculateHash(blob: Blob): Promise<ResourceHash> {
+        return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.readAsBinaryString(blob);
+            reader.onloadend = function () {
+                if (!reader.result) {
+                    return resolve({ md5: '', sha1: '', sha256: '', sha384: '', sha512: '' });
+                }
+                resolve({
+                    md5: crypto.MD5(<string>reader.result).toString(),
+                    sha1: crypto.SHA1(<string>reader.result).toString(),
+                    sha256: crypto.SHA256(<string>reader.result).toString(),
+                    sha384: crypto.SHA384(<string>reader.result).toString(),
+                    sha512: crypto.SHA512(<string>reader.result).toString(),
+                });
+            };
+        });
+    }
+
     public parseUrl(url: string): { url: string, hash?: { [key: string]: string } } {
-        let urls = url.split("#");
+        const urls = url.split('#');
         if (urls.length < 2) {
             return { url: urls[0], hash: undefined };
         }
-        let hashs = urls[1].split(/[,;]/);
-        let hash: { [key: string]: string } = {};
+        const hashs = urls[1].split(/[,;]/);
+        const hash: { [key: string]: string } = {};
         hashs.forEach(val => {
-            let kv = val.split('=');
+            const kv = val.split('=');
             if (kv.length < 2) {
                 return
             }
@@ -131,8 +147,8 @@ export class ResourceManager {
     }
 
     public parseContent(url: string, content: string, contentType: string): Resource {
-        let u = this.parseUrl(url);
-        let resource: Resource = {
+        const u = this.parseUrl(url);
+        const resource: Resource = {
             id: 0,
             url: u.url, content: content,
             contentType: contentType,
@@ -145,7 +161,7 @@ export class ResourceManager {
             },
             base64: '',
         };
-        resource.base64 = "data:" + contentType + ";base64," + strToBase64(content);
+        resource.base64 = 'data:' + contentType + ';base64,' + strToBase64(content);
         return resource;
     }
 }

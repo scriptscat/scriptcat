@@ -37,11 +37,11 @@
 </template>
 
 <script lang="ts">
-import { Server } from "@App/apps/config";
-import { Vue, Component, Watch } from "vue-property-decorator";
-import { userModule } from "@App/views/pages/Option/store/user";
-import { UserController } from "@App/apps/user/controller";
-import { mdiAccountCircle } from "@mdi/js";
+import { Server } from '@App/apps/config';
+import { Vue, Component, Watch } from 'vue-property-decorator';
+import { userModule } from '@App/views/pages/Option/store/user';
+import { UserController } from '@App/apps/user/controller';
+import { mdiAccountCircle } from '@mdi/js';
 
 @Component({})
 export default class Snackbar extends Vue {
@@ -51,7 +51,7 @@ export default class Snackbar extends Vue {
 
   userController = new UserController();
 
-  @Watch("$store.state.user.userinfo")
+  @Watch('$store.state.user.userinfo')
   getUserInfo() {
     this.user = this.$store.state.user.userinfo;
     if (this.user.islogin) {
@@ -62,7 +62,7 @@ export default class Snackbar extends Vue {
   }
 
   login() {
-    let loginWindow = window.open(Server + "user/login?redirect=scriptcat");
+    let loginWindow = window.open(Server + 'user/login?redirect=scriptcat');
     if (!loginWindow) {
       return;
     }
@@ -86,7 +86,7 @@ export default class Snackbar extends Vue {
   }
 
   userInfo() {
-    window.open(Server + "account/settings");
+    window.open(Server + 'account/settings');
   }
 }
 </script>

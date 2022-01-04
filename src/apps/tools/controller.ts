@@ -1,5 +1,5 @@
-import { ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event";
-import { MsgCenter } from "../msg-center/msg-center";
+import { ToolsConnectVSCode, ToolsDisconnecttVSCode } from '../msg-center/event';
+import { MsgCenter } from '../msg-center/msg-center';
 
 export class ToolsController {
 

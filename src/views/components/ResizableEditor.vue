@@ -22,19 +22,19 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from "vue-property-decorator";
-import { editor } from "monaco-editor";
+import { Component, Prop, Vue } from 'vue-property-decorator';
+import { editor } from 'monaco-editor';
 
-import { sleep } from "@App/pkg/utils/utils";
-import normalTpl from "@App/template/normal.tpl";
-import crontabTpl from "@App/template/crontab.tpl";
-import backgroundTpl from "@App/template/background.tpl";
+import { sleep } from '@App/pkg/utils/utils';
+import normalTpl from '@App/template/normal.tpl';
+import crontabTpl from '@App/template/crontab.tpl';
+import backgroundTpl from '@App/template/background.tpl';
 
 @Component({})
 export default class ResizableEditor extends Vue {
-  @Prop({ default: "javascript" }) language!: string;
+  @Prop({ default: 'javascript' }) language!: string;
   // 可以选择默认模板
-  @Prop() template!: "normal" | "crontab" | "background";
+  @Prop() template!: 'normal' | 'crontab' | 'background';
   // @Prop({ default: "crontab" }) template!: "normal" | "crontab" | "background";
 
   // 页面上存在多个editor实例时，contentKeyService会报错
@@ -46,7 +46,7 @@ export default class ResizableEditor extends Vue {
   async mounted() {
     await this.createEditor();
 
-    window.addEventListener("resize", () => {
+    window.addEventListener('resize', () => {
       // todo lodash debounce
       // 首先，外部容器需要允许overflow，外部容器是flex item时，需要再封装一层
       // 其次，需要隐藏外部容器自身的overflow(隐藏overflow和允许overflow是两件事)
@@ -71,22 +71,22 @@ export default class ResizableEditor extends Vue {
     }
 
     if (!edit) {
-      alert("未能加载编辑器");
+      alert('未能加载编辑器');
       return;
     }
 
     let template: typeof crontabTpl;
 
     switch (this.template) {
-      case "normal":
+      case 'normal':
         template = normalTpl;
         break;
 
-      case "crontab":
+      case 'crontab':
         template = crontabTpl;
         break;
 
-      case "background":
+      case 'background':
         template = backgroundTpl;
         break;
     }
@@ -94,7 +94,7 @@ export default class ResizableEditor extends Vue {
     this.editor = editor.create(edit, {
       language: this.language,
       folding: true,
-      foldingStrategy: "indentation",
+      foldingStrategy: 'indentation',
       automaticLayout: true,
       overviewRulerBorder: false,
       scrollBeyondLastLine: false,
@@ -111,7 +111,7 @@ export default class ResizableEditor extends Vue {
       `#${this.uniqueEditorId}`
     );
 
-    const wrapper = document.querySelector("#containerWrapper");
+    const wrapper = document.querySelector('#containerWrapper');
     const tabContainer = document.querySelector(
       `section.tab-container div.${this.uniqueEditorId} `
     );

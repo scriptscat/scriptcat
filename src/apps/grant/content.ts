@@ -1,5 +1,5 @@
-import { App } from "../app";
-import { IGrantListener, IPostMessage } from "./interface";
+import { App } from '../app';
+import { IGrantListener, IPostMessage } from './interface';
 
 class postMessage implements IPostMessage {
 
@@ -33,8 +33,8 @@ export class grantListener implements IGrantListener {
             if (event.origin != 'null' && event.origin != App.ExtensionId) {
                 return;
             }
-            let post = new postMessage(this.context, event);
-            let ret = await callback(event.data, post);
+            const post = new postMessage(this.context, event);
+            const ret = await callback(event.data, post);
             if (ret) {
                 post.postMessage(ret);
             }

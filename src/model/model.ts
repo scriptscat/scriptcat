@@ -1,12 +1,12 @@
-import Dexie from "dexie";
-import { Page } from "../pkg/utils/utils";
+import Dexie from 'dexie';
+import { Page } from '../pkg/utils/utils';
 
-export let db = new Dexie("ScriptCat");
+export const db = new Dexie('ScriptCat');
 
 export abstract class Model<T> {
 
     public table!: Dexie.Table<T, number>;
-    public tableName: string = "";
+    public tableName = '';
     public list(query: Dexie.Collection | Dexie.Table | Page | ((where: Dexie.Table) => Dexie.Collection), page?: Page) {
         if (query instanceof Page) {
             page = query;
@@ -18,10 +18,10 @@ export abstract class Model<T> {
             return query.toArray();
         }
         let collect = query.offset((page.page() - 1) * page.count()).limit(page.count());
-        if (page.order() !== "id") {
+        if (page.order() !== 'id') {
             collect.sortBy(page.order());
         }
-        if (page.sort() == "desc") {
+        if (page.sort() == 'desc') {
             collect = collect.reverse();
         }
         return collect.toArray();
@@ -38,10 +38,10 @@ export abstract class Model<T> {
     public async save(val: T): Promise<T | undefined> {
         return new Promise(async (resolve, reject) => {
             try {
-                let id = <number>(<any>val).id;
+                const id = <number>(<any>val).id;
                 if (!id) {
                     delete (<any>val).id;
-                    let key = await this.table.add(val);
+                    const key = await this.table.add(val);
                     if (key) {
                         (<any>val).id = key;
                         return resolve(val);

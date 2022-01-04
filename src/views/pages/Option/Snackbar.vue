@@ -11,8 +11,8 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
-import { scriptModule } from "./store/script";
+import { Vue, Component } from 'vue-property-decorator';
+import { scriptModule } from './store/script';
 
 @Component({})
 export default class Snackbar extends Vue {

@@ -1,14 +1,14 @@
-import { Component, Prop, Vue } from "vue-property-decorator";
+import { Component, Prop, Vue } from 'vue-property-decorator';
 
-import Tab from "./Tab";
+import Tab from './Tab';
 
 @Component({})
 export default class TabPane extends Vue {
     $parent!: Tab;
 
     @Prop() tabKey!: string | number;
-    @Prop({ default: "" }) title!: string;
-    @Prop({ default: "" }) icon!: string;
+    @Prop({ default: '' }) title!: string;
+    @Prop({ default: '' }) icon!: string;
     @Prop({ default: null }) tabData!: any;
     @Prop({ default: false }) closable!: boolean;
     @Prop({ default: true }) keepAlive!: boolean;
@@ -35,7 +35,7 @@ export default class TabPane extends Vue {
     loaded = false;
 
     get isValidParent() {
-        return this.$parent.$options.name === "Tab";
+        return this.$parent.$options.name === 'Tab';
     }
     get hash() {
         return `#${this.id}`;
@@ -63,8 +63,8 @@ export default class TabPane extends Vue {
     }
 
     render() {
-        let loadContentFlag: boolean = false;
-        let needToFigureIsActiveAndKeepAlive: boolean = false;
+        let loadContentFlag = false;
+        let needToFigureIsActiveAndKeepAlive = false;
 
         // 判断懒加载
         if (this.lazy) {
@@ -97,10 +97,10 @@ export default class TabPane extends Vue {
                 {/* flex item下实现overflow */}
                 <div
                     style={{
-                        position: "absolute",
-                        height: "100%",
-                        width: "100%",
-                        overflowY: this.$parent.overflow ? "auto" : undefined,
+                        position: 'absolute',
+                        height: '100%',
+                        width: '100%',
+                        overflowY: this.$parent.overflow ? 'auto' : undefined,
                     }}
                 >
                     {loadContentFlag && this.$slots.default}

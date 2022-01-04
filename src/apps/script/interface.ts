@@ -1,4 +1,4 @@
-import { ScriptCache, Script } from "@App/model/do/script";
+import { ScriptCache, Script } from '@App/model/do/script';
 
 export interface IScript {
     // 用于自动启动

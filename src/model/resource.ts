@@ -1,5 +1,5 @@
-import { Resource, ResourceLink } from "./do/resource";
-import { db, Model } from "./model";
+import { Resource, ResourceLink } from './do/resource';
+import { db, Model } from './model';
 
 
 export class ResourceModel extends Model<Resource> {

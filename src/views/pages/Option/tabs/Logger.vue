@@ -49,29 +49,29 @@
 </template>
 
 <script lang="ts">
-import { Logger } from "@App/apps/logger/logger";
-import { LoggerModel } from "@App/model/logger";
+import { Logger } from '@App/apps/logger/logger';
+import { LoggerModel } from '@App/model/logger';
 import {
   LOGGER_LEVEL_DEBUG,
   LOGGER_LEVEL_ERROR,
   LOGGER_LEVEL_INFO,
   LOGGER_LEVEL_WARN,
-} from "@App/model/do/logger";
-import { Page } from "@App/pkg/utils/utils";
-import { Vue, Component, Watch } from "vue-property-decorator";
+} from '@App/model/do/logger';
+import { Page } from '@App/pkg/utils/utils';
+import { Vue, Component, Watch } from 'vue-property-decorator';
 
-import dayjs from "dayjs";
+import dayjs from 'dayjs';
 
 @Component({})
 export default class Logger_ extends Vue {
-  protected logs: Array<Logger> = new Array();
+  protected logs: Array<Logger> = [];
   protected logger: LoggerModel = new LoggerModel();
 
   page = 1;
   count = 20;
   length = 1;
 
-  @Watch("page")
+  @Watch('page')
   onPageChange(newPage: number) {
     this.logger.list(new Page(newPage, this.count)).then((result) => {
       this.logs = result;
@@ -103,15 +103,15 @@ export default class Logger_ extends Vue {
         break;
 
       case LOGGER_LEVEL_INFO:
-        color = "blue";
+        color = 'blue';
         break;
 
       case LOGGER_LEVEL_WARN:
-        color = "orange";
+        color = 'orange';
         break;
 
       case LOGGER_LEVEL_ERROR:
-        color = "red";
+        color = 'red';
         break;
     }
 
@@ -119,7 +119,7 @@ export default class Logger_ extends Vue {
   }
 
   formatTime(time: Date) {
-    return dayjs(time).format("MM-DD HH:mm:ss");
+    return dayjs(time).format('MM-DD HH:mm:ss');
   }
 }
 </script>

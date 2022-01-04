@@ -30,17 +30,17 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component } from "vue-property-decorator";
+import { Vue, Component } from 'vue-property-decorator';
 
 @Component({})
 export default class Carousel extends Vue {
   colors = [
-    "indigo",
-    "warning",
-    "pink darken-2",
-    "red lighten-1",
-    "deep-purple accent-4",
+    'indigo',
+    'warning',
+    'pink darken-2',
+    'red lighten-1',
+    'deep-purple accent-4',
   ];
-  slides = ["First", "Second", "Third", "Fourth", "Fifth"];
+  slides = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
 }
 </script>

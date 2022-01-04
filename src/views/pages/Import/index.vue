@@ -189,27 +189,27 @@
 </template>
 
 <script lang="ts">
-import { ResourceManager } from "@App/apps/resource";
-import { ScriptController } from "@App/apps/script/controller";
-import { File, Resource } from "@App/model/do/backup";
+import { ResourceManager } from '@App/apps/resource';
+import { ScriptController } from '@App/apps/script/controller';
+import { File, Resource } from '@App/model/do/backup';
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-} from "@App/model/do/script";
-import { SUBSCRIBE_STATUS_ENABLE } from "@App/model/do/subscribe";
-import { base64ToStr, waitGroup } from "@App/pkg/utils/utils";
-import { Component, Vue } from "vue-property-decorator";
-import { parseStorageValue } from "../utils";
+} from '@App/model/do/script';
+import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { base64ToStr, waitGroup } from '@App/pkg/utils/utils';
+import { Component, Vue } from 'vue-property-decorator';
+import { parseStorageValue } from '../utils';
 
 @Component({})
 export default class Index extends Vue {
   isSelectAllScript = true;
   selectedScript: number[] = [];
-  scriptNum: number = 0;
+  scriptNum = 0;
 
   isSelectAllSubscribe = true;
   selectedSubscribe: number[] = [];
-  subscribeNum: number = 0;
+  subscribeNum = 0;
 
   scriptCtrl = new ScriptController();
   resourceMgr = new ResourceManager();
@@ -218,7 +218,7 @@ export default class Index extends Vue {
 
   async mounted() {
     let url = new URL(location.href);
-    let uuid = url.searchParams.get("uuid");
+    let uuid = url.searchParams.get('uuid');
     if (!uuid) {
       return;
     }
@@ -231,18 +231,18 @@ export default class Index extends Vue {
       let code = base64ToStr(script.source);
       let [newScript, oldScript] = await this.scriptCtrl.prepareScriptByCode(
         code,
-        script.file_url || "",
+        script.file_url || '',
         script.file_url ? undefined : script.uuid
       );
-      if (typeof oldScript === "string") {
-        script.error = <string>oldScript;
+      if (typeof oldScript === 'string') {
+        script.error = oldScript;
         continue;
       }
       if (oldScript) {
         script.enabled = oldScript.status == SCRIPT_STATUS_ENABLE;
       }
       // 如果不是scriptcat管理器,处理option变成selfMetadata
-      if (file.created_by !== "ScriptCat") {
+      if (file.created_by !== 'ScriptCat') {
         // TODO: 以后处理啦
       }
       newScript!.selfMetadata = script.self_metadata;
@@ -260,8 +260,8 @@ export default class Index extends Vue {
           code,
           subscribe.url
         );
-        if (typeof oldSub === "string") {
-          subscribe.error = <string>oldSub;
+        if (typeof oldSub === 'string') {
+          subscribe.error = oldSub;
           continue;
         }
         if (oldSub) {
@@ -323,10 +323,10 @@ export default class Index extends Vue {
     let wait = new waitGroup(() => {
       _this.importLoading = false;
       if (this.scriptNum !== this.selectedScript.length) {
-        return alert("有脚本导入失败");
+        return alert('有脚本导入失败');
       }
       if (this.subscribeNum !== this.selectedSubscribe.length) {
-        return alert("有订阅导入失败");
+        return alert('有订阅导入失败');
       }
       this.closeWindow();
     });
@@ -371,8 +371,8 @@ export default class Index extends Vue {
                 key,
                 val,
                 script.id,
-                script.metadata["storagename"] &&
-                  script.metadata["storagename"][0]
+                script.metadata['storagename'] &&
+                  script.metadata['storagename'][0]
               );
               subWait.done();
             };

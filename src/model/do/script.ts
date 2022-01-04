@@ -1,6 +1,6 @@
-import { ScriptContext } from "@App/apps/grant/frontend";
-import { Resource } from "./resource";
-import { Value } from "./value";
+import { ScriptContext } from '@App/apps/grant/frontend';
+import { Resource } from './resource';
+import { Value } from './value';
 
 export type SCRIPT_TYPE = 1 | 2 | 3;
 

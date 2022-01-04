@@ -1,17 +1,17 @@
-import { App } from "@App/apps/app";
-import { Logger } from "@App/apps/msg-center/event";
-import { LOGGER_LEVEL } from "@App/model/do/logger";
+import { App } from '@App/apps/app';
+import { Logger } from '@App/apps/msg-center/event';
+import { LOGGER_LEVEL } from '@App/model/do/logger';
 export class Page {
     protected _page: number;
     protected _count: number;
     protected _order: string;
-    protected _sort: "asc" | "desc";
+    protected _sort: 'asc' | 'desc';
 
-    constructor(page: number, count: number, sort?: "asc" | "desc", order?: string) {
+    constructor(page: number, count: number, sort?: 'asc' | 'desc', order?: string) {
         this._page = page;
         this._count = count;
-        this._order = order || "id";
-        this._sort = sort || "desc";
+        this._order = order || 'id';
+        this._sort = sort || 'desc';
     }
 
     public page() {
@@ -33,21 +33,21 @@ export class Page {
 
 export function randomString(e: number) {
     e = e || 32;
-    var t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz",
+    let t = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz',
         a = t.length,
-        n = "";
+        n = '';
     for (let i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
     return n;
 }
 
 export function isFirefox() {
-    if (navigator.userAgent.indexOf("Firefox") >= 0) {
+    if (navigator.userAgent.indexOf('Firefox') >= 0) {
         return true;
     }
     return false;
 }
 
-export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title: string = "", scriptId?: number) {
+export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, title = '', scriptId?: number) {
     top!.postMessage(
         {
             action: Logger,
@@ -59,7 +59,7 @@ export function SendLogger(level: LOGGER_LEVEL, origin: string, msg: string, tit
                 scriptId: scriptId,
             },
         },
-        "*",
+        '*',
     );
 }
 
@@ -72,8 +72,8 @@ export function dealScript( source: string): string {
 }
 
 export function dealSymbol(source: string): string {
-    source = source.replace(/("|\\)/g, "\\$1");
-    source = source.replace(/(\r\n|\n)/g, "\\n");
+    source = source.replace(/("|\\)/g, '\\$1');
+    source = source.replace(/(\r\n|\n)/g, '\\n');
     return source;
 }
 
@@ -83,8 +83,8 @@ export function dealSymbol(source: string): string {
  * @param {*} url
  */
 export function get(url: string, success?: (resp: string) => void, error?: (resp: XMLHttpRequest) => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("GET", url, true);
+    const xmlhttp = createRequest();
+    xmlhttp.open('GET', url, true);
     xmlhttp.onerror = () => error && error(xmlhttp);
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
@@ -104,8 +104,8 @@ export function get(url: string, success?: (resp: string) => void, error?: (resp
  * @param {*} url
  */
 export function getJson(url: string, success: (resp: any) => void, error?: () => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("GET", url, true);
+    const xmlhttp = createRequest();
+    xmlhttp.open('GET', url, true);
     xmlhttp.onerror = () => error && error();
     xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
@@ -129,9 +129,9 @@ export function getJson(url: string, success: (resp: any) => void, error?: () =>
  * @param {*} json
  */
 export function post(url: string, data: string, success: (resp: string) => void, error?: () => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("POST", url, true);
-    xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    const xmlhttp = createRequest();
+    xmlhttp.open('POST', url, true);
+    xmlhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xmlhttp.onerror = () => error && error();
     xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
@@ -154,9 +154,9 @@ export function post(url: string, data: string, success: (resp: string) => void,
  * @param {*} json
  */
 export function postJson(url: string, data: any, success: (resp: any) => void, error?: () => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("POST", url, true);
-    xmlhttp.setRequestHeader("Content-Type", "application/json");
+    const xmlhttp = createRequest();
+    xmlhttp.open('POST', url, true);
+    xmlhttp.setRequestHeader('Content-Type', 'application/json');
     xmlhttp.onerror = () => error && error();
     xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
@@ -179,9 +179,9 @@ export function postJson(url: string, data: any, success: (resp: any) => void, e
  * @param {*} json
  */
 export function put(url: string, data: string, success: (resp: any) => void, error?: () => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("PUT", url, true);
-    xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    const xmlhttp = createRequest();
+    xmlhttp.open('PUT', url, true);
+    xmlhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xmlhttp.onerror = () => error && error();
     xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
@@ -205,9 +205,9 @@ export function put(url: string, data: string, success: (resp: any) => void, err
  * @param {*} json
  */
 export function putJson(url: string, data: any, success: (resp: any) => void, error?: () => void) {
-    let xmlhttp = createRequest();
-    xmlhttp.open("PUT", url, true);
-    xmlhttp.setRequestHeader("Content-Type", "application/json");
+    const xmlhttp = createRequest();
+    xmlhttp.open('PUT', url, true);
+    xmlhttp.setRequestHeader('Content-Type', 'application/json');
     xmlhttp.onerror = () => error && error();
     xmlhttp.responseType = 'json';
     xmlhttp.onreadystatechange = function () {
@@ -228,7 +228,7 @@ export function putJson(url: string, data: any, success: (resp: any) => void, er
  * 创建http请求
  */
 function createRequest(): XMLHttpRequest {
-    let xmlhttp = new XMLHttpRequest();
+    const xmlhttp = new XMLHttpRequest();
     (<any>xmlhttp).error = function (callback: Function) {
         (<any>xmlhttp).errorCallback = callback;
         return xmlhttp;
@@ -245,12 +245,12 @@ export function randomInt(min: number, max: number) {
 
 export function InfoNotification(title: string, msg: string) {
     chrome.notifications.create({
-        type: "basic",
+        type: 'basic',
         title: title,
         message: msg,
-        iconUrl: chrome.runtime.getURL("assets/logo.png")
+        iconUrl: chrome.runtime.getURL('assets/logo.png')
     });
-    App.Log.Info("system", msg, title);
+    App.Log.Info('system', msg, title);
 }
 
 export function blobToBase64(blob: Blob): Promise<string | null> {
@@ -262,12 +262,12 @@ export function blobToBase64(blob: Blob): Promise<string | null> {
 }
 
 export function base64ToBlob(dataURI: string) {
-    var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-    var byteString = atob(dataURI.split(',')[1]);
-    var arrayBuffer = new ArrayBuffer(byteString.length);
-    var intArray = new Uint8Array(arrayBuffer);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const byteString = atob(dataURI.split(',')[1]);
+    const arrayBuffer = new ArrayBuffer(byteString.length);
+    const intArray = new Uint8Array(arrayBuffer);
 
-    for (var i = 0; i < byteString.length; i++) {
+    for (let i = 0; i < byteString.length; i++) {
         intArray[i] = byteString.charCodeAt(i);
     }
     return new Blob([intArray], { type: mimeString });

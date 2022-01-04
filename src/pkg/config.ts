@@ -1,9 +1,9 @@
-import { App, ENV_BACKGROUND, ENV_FRONTEND } from "@App/apps/app";
-import { MsgCenter } from "@App/apps/msg-center/msg-center";
-import { Storage } from "@App/pkg/storage/storage"
-import { ChromeStorage } from "./storage/chrome";
+import { App, ENV_BACKGROUND, ENV_FRONTEND } from '@App/apps/app';
+import { MsgCenter } from '@App/apps/msg-center/msg-center';
+import { Storage } from '@App/pkg/storage/storage'
+import { ChromeStorage } from './storage/chrome';
 
-export const SYSTEM_CONFIG_CHANGE = "system_config_change";
+export const SYSTEM_CONFIG_CHANGE = 'system_config_change';
 //NOTE: 可以抽象set接口
 export class SystemConfig {
 
@@ -12,7 +12,7 @@ export class SystemConfig {
     public static storage: Storage;
 
     public static async init() {
-        let list = await this.storage.keys();
+        const list = await this.storage.keys();
         for (const key in list) {
             this.cache.set(key, list[key]);
         }
@@ -35,7 +35,7 @@ export class SystemConfig {
     }
 
     public static list() {
-        let ret: { [key: string]: any } = {};
+        const ret: { [key: string]: any } = {};
         this.cache.forEach((val, key) => {
             ret[key] = val;
         });
@@ -52,11 +52,11 @@ export class SystemConfig {
 
     // 检查更新周期,单位为秒
     public static get check_script_update_cycle(): number {
-        return this.cache.get("check_script_update_cycle") || 86400;
+        return this.cache.get('check_script_update_cycle') || 86400;
     }
 
     public static set check_script_update_cycle(n: number) {
-        this.set("check_script_update_cycle", n);
+        this.set('check_script_update_cycle', n);
     }
 
     public static get enable_auto_sync(): boolean {
@@ -67,7 +67,7 @@ export class SystemConfig {
     }
 
     public static set enable_auto_sync(enable: boolean) {
-        this.set("enable_auto_sync", enable);
+        this.set('enable_auto_sync', enable);
     }
 
     public static get update_disable_script(): boolean {
@@ -75,7 +75,7 @@ export class SystemConfig {
     }
 
     public static set update_disable_script(enable: boolean) {
-        this.set("update_disable_script", enable);
+        this.set('update_disable_script', enable);
     }
 
     public static get vscode_url(): string {
@@ -83,16 +83,16 @@ export class SystemConfig {
     }
 
     public static set vscode_url(val: string) {
-        this.set("vscode_url", val);
+        this.set('vscode_url', val);
     }
 
     public static get vscode_reconnect(): boolean {
-        return this.cache.get("vscode_reconnect") || false;
+        return this.cache.get('vscode_reconnect') || false;
     }
 
     public static set vscode_reconnect(val: boolean) {
-        this.set("vscode_reconnect", val);
+        this.set('vscode_reconnect', val);
     }
 }
 
-SystemConfig.storage = new ChromeStorage("system");
+SystemConfig.storage = new ChromeStorage('system');

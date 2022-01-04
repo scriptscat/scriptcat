@@ -1,20 +1,20 @@
-import "reflect-metadata";
-import "vuetify/dist/vuetify.min.css";
+import 'reflect-metadata';
+import 'vuetify/dist/vuetify.min.css';
 
-import Vue from "vue";
-import Component from "vue-class-component";
-import VueRouter, { RouteConfig } from "vue-router";
+import Vue from 'vue';
+import Component from 'vue-class-component';
+import VueRouter, { RouteConfig } from 'vue-router';
 //@ts-ignore
-import VuetifyDialogPromise from "vuetify-dialog-promise";
+import VuetifyDialogPromise from 'vuetify-dialog-promise';
 
-import { i18n, vuetify } from "../i18n/i18n";
-import { migrate } from "./model/migrate";
-import store from "@Option/store";
-import { DBLogger } from "./apps/logger/logger";
-import { MapCache } from "./pkg/storage/cache/cache";
-import { ENV_FRONTEND, InitApp } from "./apps/app";
-import { SystemConfig } from "./pkg/config";
-import { registerEditorPrompt } from "./pkg/utils/editor";
+import { i18n, vuetify } from '../i18n/i18n';
+import { migrate } from './model/migrate';
+import store from '@Option/store';
+import { DBLogger } from './apps/logger/logger';
+import { MapCache } from './pkg/storage/cache/cache';
+import { ENV_FRONTEND, InitApp } from './apps/app';
+import { SystemConfig } from './pkg/config';
+import { registerEditorPrompt } from './pkg/utils/editor';
 
 migrate();
 
@@ -33,15 +33,15 @@ Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
     {
-        path: "*",
-        name: "Home",
-        component: () => import("@App/views/pages/Option"),
+        path: '*',
+        name: 'Home',
+        component: () => import('@App/views/pages/Option'),
     },
 ];
 
 const router = new VueRouter({
-    mode: "hash",
-    base: "options.html",
+    mode: 'hash',
+    base: 'options.html',
     routes,
 });
 
@@ -63,4 +63,4 @@ new Vue({
     i18n,
     vuetify: vuetify,
     render: (h) => h(WithRouter),
-}).$mount("#app");
+}).$mount('#app');

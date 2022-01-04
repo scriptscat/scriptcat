@@ -1,5 +1,5 @@
-import { Subscribe } from "./do/subscribe";
-import { db, Model } from "./model";
+import { Subscribe } from './do/subscribe';
+import { db, Model } from './model';
 
 
 export class SubscribeModel extends Model<Subscribe> {

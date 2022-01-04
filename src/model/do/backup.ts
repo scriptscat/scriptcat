@@ -1,5 +1,6 @@
 // 使用tampermonkey的备份模式
 
+import { ResourceHash } from './resource';
 import { Metadata, Script as InstallScript } from './script';
 import { SubscribeScript, Subscribe as InstallSubscribe } from './subscribe';
 
@@ -23,14 +24,14 @@ export interface Script {
 	position: number
 	uuid: string
 	file_url?: string
-	// base64形式的代码
 	source: string
 	requires: Resource[]
 	requires_css: Resource[]
 	resources: Resource[]
 	self_metadata: Metadata
 	subscribe_url?: string
-	// 需要解析source获得
+	modified: number
+	// 导入用,需要解析source获得
 	metadata?: Metadata
 	script?: InstallScript
 	old?: InstallScript
@@ -42,10 +43,10 @@ export interface Subscribe {
 	name: string
 	url: string
 	enabled: boolean
-	// base64
 	source: string
 	scripts: { [key: string]: SubscribeScript };
-	// 解析source获得
+	modified: number
+	// 导入用,解析source获得
 	metadata?: Metadata
 	subscribe?: InstallSubscribe
 	old?: InstallSubscribe
@@ -58,8 +59,9 @@ export interface Options {
 
 export interface Resource {
 	meta: { name: string, url: string, ts: number, mimetype: string }
-	// base64形式的代码
 	source: string
+	base64?: string
+	hash: ResourceHash
 }
 
 export interface Storage {

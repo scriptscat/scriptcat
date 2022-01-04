@@ -1,9 +1,9 @@
-import { Manager } from "@App/pkg/apps/manager";
-import { SystemConfig } from "@App/pkg/config";
-import { ExternalWhitelist } from "../config";
-import { ExternalMessage, ToolsConnectVSCode, ToolsDisconnecttVSCode } from "../msg-center/event";
-import { ScriptController } from "../script/controller";
-import { ScriptManager } from "../script/manager";
+import { Manager } from '@App/pkg/apps/manager';
+import { SystemConfig } from '@App/pkg/config';
+import { ExternalWhitelist } from '../config';
+import { ExternalMessage, ToolsConnectVSCode, ToolsDisconnecttVSCode } from '../msg-center/event';
+import { ScriptController } from '../script/controller';
+import { ScriptManager } from '../script/manager';
 
 export class ToolsManager extends Manager {
 
@@ -34,12 +34,12 @@ export class ToolsManager extends Manager {
 	public externalMessage(body: any, sendResponse: (response?: any) => void, sender?: chrome.runtime.MessageSender) {
 		return new Promise(async resolve => {
 			// 对外接口白名单
-			let u = new URL(sender?.url!);
+			const u = new URL(sender?.url!);
 			for (let i = 0; i < ExternalWhitelist.length; i++) {
 				if (u.host.endsWith(ExternalWhitelist[i])) {
 					switch (body.action) {
-						case "isInstalled":
-							let script = await this.scriptController.scriptModel.findByNameAndNamespace(body.params.name, body.params.namespace);
+						case 'isInstalled':
+							const script = await this.scriptController.scriptModel.findByNameAndNamespace(body.params.name, body.params.namespace);
 							if (script) {
 								resolve({ action: 'isInstalled', data: { installed: true, version: script.metadata['version'] && script.metadata['version'][0] } });
 							} else {
@@ -70,12 +70,12 @@ export class ToolsManager extends Manager {
 
 			// Listen for messages
 			this.wsc.addEventListener('message', async (ev) => {
-				let data = JSON.parse(ev.data);
+				const data = JSON.parse(ev.data);
 				switch (data.action) {
 					case 'onchange': {
-						let code = data.data.script;
-						let [newScript, oldScript] = await this.scriptController.prepareScriptByCode(code, data.data.uri);
-						if (typeof oldScript === "string") {
+						const code = data.data.script;
+						const [newScript, oldScript] = await this.scriptController.prepareScriptByCode(code, data.data.uri);
+						if (typeof oldScript === 'string') {
 							return;
 						}
 						if (oldScript) {

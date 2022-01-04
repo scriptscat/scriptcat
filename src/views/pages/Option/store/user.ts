@@ -1,5 +1,5 @@
-import { Server } from "@App/apps/config";
-import { get } from "@App/pkg/utils/utils";
+import { Server } from '@App/apps/config';
+import { get } from '@App/pkg/utils/utils';
 import {
     Action,
     Module,
@@ -7,12 +7,12 @@ import {
     MutationAction,
     VuexModule,
     getModule,
-} from "vuex-module-decorators";
+} from 'vuex-module-decorators';
 
-import store from "./index";
+import store from './index';
 
 @Module({
-    name: "user",
+    name: 'user',
     store,
     dynamic: true,
 })
@@ -24,8 +24,8 @@ class UserModule extends VuexModule {
     checkUserinfo() {
         chrome.storage.local.get(['currentUser', 'userinfo'], items => {
             if (items['currentUser']) {
-                get(Server + "api/v1/user", (resp) => {
-                    let json = JSON.parse(resp);
+                get(Server + 'api/v1/user', (resp) => {
+                    const json = JSON.parse(resp);
                     if (json.code == 0) {
                         json.data.islogin = true;
                         this.userinfo = json.data;
@@ -46,8 +46,8 @@ class UserModule extends VuexModule {
 
     @Mutation
     login() {
-        get(Server + "api/v1/user", (resp) => {
-            let json = JSON.parse(resp);
+        get(Server + 'api/v1/user', (resp) => {
+            const json = JSON.parse(resp);
             if (json.code == 0) {
                 json.data.islogin = true;
                 this.userinfo = json.data;

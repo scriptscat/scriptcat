@@ -1,4 +1,4 @@
-export type ResourceType = "require" | "require-css" | "resource";
+export type ResourceType = 'require' | 'require-css' | 'resource';
 
 export interface Resource {
     id: number

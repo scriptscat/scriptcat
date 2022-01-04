@@ -3,7 +3,7 @@ import { Script } from './do/script';
 
 export class ScriptModel extends Model<Script> {
 
-    public tableName: string = "scripts";
+    public tableName = 'scripts';
 
     constructor() {
         super();

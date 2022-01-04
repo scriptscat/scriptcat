@@ -1,24 +1,24 @@
-import { BackgroundGrant } from "@App/apps/grant/background";
-import { grantListener } from "@App/apps/grant/content";
-import { ScriptManager } from "@App/apps/script/manager";
-import { Tab, TabPane } from "@Components/Tab";
-import eventBus from "@Views/EventBus";
-import { Component, Vue } from "vue-property-decorator";
-import { VApp } from "vuetify/lib";
-import EventType from "./EventType";
-import Snackbar from "./Snackbar.vue";
-import UserMenu from "@App/views/components/UserMenu.vue";
-import { scriptModule } from "./store/script";
-import Config from "./tabs/Config.vue";
-import Logger from "./tabs/Logger.vue";
-import Tools from "./tabs/Tools.vue";
-import ScriptList from "./tabs/ScriptList.vue";
-import ScriptTab from "./tabs/ScriptTab/index.vue";
-import SubscribeList from "./tabs/SubscribeList.vue";
-import { userModule } from "./store/user";
+import { BackgroundGrant } from '@App/apps/grant/background';
+import { grantListener } from '@App/apps/grant/content';
+import { ScriptManager } from '@App/apps/script/manager';
+import { Tab, TabPane } from '@Components/Tab';
+import eventBus from '@Views/EventBus';
+import { Component, Vue } from 'vue-property-decorator';
+import { VApp } from 'vuetify/lib';
+import EventType from './EventType';
+import Snackbar from './Snackbar.vue';
+import UserMenu from '@App/views/components/UserMenu.vue';
+import { scriptModule } from './store/script';
+import Config from './tabs/Config.vue';
+import Logger from './tabs/Logger.vue';
+import Tools from './tabs/Tools.vue';
+import ScriptList from './tabs/ScriptList.vue';
+import ScriptTab from './tabs/ScriptTab/index.vue';
+import SubscribeList from './tabs/SubscribeList.vue';
+import { userModule } from './store/user';
 
 interface IExternalAction {
-    target?: "editor";
+    target?: 'editor';
     id?: string;
 }
 
@@ -66,7 +66,7 @@ export default class App extends Vue {
 
     generateScriptTab(
         scriptId: number,
-        template: "normal" | "crontab" | "background" = "crontab",
+        template: 'normal' | 'crontab' | 'background' = 'crontab',
     ): ITabItem {
         const tabKey = Math.random();
 
@@ -77,8 +77,8 @@ export default class App extends Vue {
             content: (
                 <div
                     style={{
-                        display: "flex",
-                        height: "100%",
+                        display: 'flex',
+                        height: '100%',
                     }}
                 >
                     <ScriptTab tabKey={tabKey} scriptId={scriptId} template={template} />
@@ -113,12 +113,12 @@ export default class App extends Vue {
                 return new Promise((resolve) => {
                     console.log(currentTab);
 
-                    if (currentTab.title.startsWith("*")) {
+                    if (currentTab.title.startsWith('*')) {
                         this.$confirm({
-                            title: "注意",
-                            text: "有未保存的更改，确认要关闭吗？",
-                            acceptText: "确认",
-                            cancelText: "取消",
+                            title: '注意',
+                            text: '有未保存的更改，确认要关闭吗？',
+                            acceptText: '确认',
+                            cancelText: '取消',
                         })
                             .then(() => {
                                 return resolve(true);
@@ -138,35 +138,35 @@ export default class App extends Vue {
         this.allTabs.push(
             {
                 tabKey: SCRIPT_LIST_INDEX,
-                title: "脚本列表",
+                title: '脚本列表',
                 content: <ScriptList></ScriptList>,
                 closable: false,
                 lazy: false,
             },
             {
                 tabKey: SUBSCRIBE_LIST_INDEX,
-                title: "订阅列表",
+                title: '订阅列表',
                 content: <SubscribeList></SubscribeList>,
                 closable: false,
                 lazy: false,
             },
             {
                 tabKey: LOGGER_INDEX,
-                title: "运行日志",
+                title: '运行日志',
                 content: <Logger></Logger>,
                 closable: false,
                 keepAlive: false,
             },
             {
                 tabKey: TOOLS_INDEX,
-                title: "系统工具",
+                title: '系统工具',
                 content: <Tools></Tools>,
                 closable: false,
                 keepAlive: false,
             },
             {
                 tabKey: CONFIG_LIST_INDEX,
-                title: "设置",
+                title: '设置',
                 content: <Config></Config>,
                 closable: false,
                 keepAlive: false,
@@ -178,16 +178,16 @@ export default class App extends Vue {
         this.$nextTick(() => {
             const query = (this.$route.query as unknown) as IExternalAction;
 
-            if (query?.target === "editor") {
+            if (query?.target === 'editor') {
                 // 编辑脚本
                 this.handleEditScript({ scriptId: parseInt(query.id as string) });
-            } else if (query?.target === "initial") {
+            } else if (query?.target === 'initial') {
                 // 新建脚本
                 eventBus.$emit<INewScript>(EventType.NewScript, { template: 'normal' } as any);
             }
         });
         // deubg用的bg
-        let grant = BackgroundGrant.SingleInstance(
+        const grant = BackgroundGrant.SingleInstance(
             new ScriptManager(),
             new grantListener(sandbox.window),
             true
@@ -195,16 +195,16 @@ export default class App extends Vue {
         grant.listenScriptGrant();
         // 监听调试返回消息
         window.addEventListener('message', event => {
-            if (event.data.action != "exec respond") {
+            if (event.data.action != 'exec respond') {
                 return;
             }
-            if (event.data.data == "success") {
+            if (event.data.data == 'success') {
                 scriptModule.showSnackbar(
-                    "脚本执行完成" + (event.data.result ? " 执行结果:" + event.data.result : "")
+                    '脚本执行完成' + (event.data.result ? ' 执行结果:' + event.data.result : '')
                 );
             } else {
                 scriptModule.showSnackbar(
-                    "脚本执行失败" + (event.data.error ? " 执行结果:" + event.data.error : "")
+                    '脚本执行失败' + (event.data.error ? ' 执行结果:' + event.data.error : '')
                 );
             }
         });
@@ -254,7 +254,7 @@ export default class App extends Vue {
 
     /** 在原PlusTab中保存了脚本时触发 */
     handleNewScript({ scriptId, tabKey, template }: INewScript) {
-        console.log("handleNewScript");
+        console.log('handleNewScript');
 
         // 需要知道是哪一个tab触发了保存事件，因为可能同时打开了多个“新建脚本”
         const scriptTabIndex = this.allTabs.findIndex((tab) => tab.tabKey == tabKey);
@@ -304,7 +304,7 @@ export default class App extends Vue {
             this.allTabs[newScriptIndex] = newScriptTab;
         } else {
             if (!scriptId) {
-                alert("title修改失败，未能识别scriptId");
+                alert('title修改失败，未能识别scriptId');
             }
 
             const scriptTabIndex = this.allTabs.findIndex((tab) => tab.scriptId == scriptId);
@@ -313,7 +313,7 @@ export default class App extends Vue {
                 return;
             } else {
                 const scriptTab = { ...this.allTabs[scriptTabIndex] };
-                scriptTab.title = title.length > 20 ? title.slice(0, 20) + "..." : title;
+                scriptTab.title = title.length > 20 ? title.slice(0, 20) + '...' : title;
                 this.allTabs[scriptTabIndex] = scriptTab;
             }
 
@@ -337,7 +337,7 @@ export default class App extends Vue {
     }
 
     user = {
-        username: "未登录",
+        username: '未登录',
         islogin: false
     };
 
@@ -351,9 +351,9 @@ export default class App extends Vue {
                 </v-app-bar>
                 <div
                     style={{
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}
                 >
                     <Snackbar />
@@ -370,9 +370,9 @@ export default class App extends Vue {
                                     // key必须唯一
                                     key={tabKey}
                                     {...{ props: rest }}
-                                    title={typeof finalTitle === "string" ? finalTitle : undefined}
+                                    title={typeof finalTitle === 'string' ? finalTitle : undefined}
                                 >
-                                    {finalTitle && typeof finalTitle !== "string" && (
+                                    {finalTitle && typeof finalTitle !== 'string' && (
                                         <div slot="title"> {finalTitle} </div>
                                     )}
                                     {icon && <div slot="icon"> {icon}</div>}

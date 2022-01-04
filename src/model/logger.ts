@@ -3,7 +3,7 @@ import { Log } from './do/logger';
 
 export class LoggerModel extends Model<Log> {
 
-    public tableName: string = "logger";
+    public tableName = 'logger';
 
     constructor() {
         super();
