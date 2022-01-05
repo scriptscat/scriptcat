@@ -67,7 +67,7 @@ export function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function dealScript( source: string): string {
+export function dealScript(source: string): string {
     return dealSymbol(source);
 }
 
@@ -254,10 +254,18 @@ export function InfoNotification(title: string, msg: string) {
 }
 
 export function blobToBase64(blob: Blob): Promise<string | null> {
-    return new Promise((resolve, _) => {
+    return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(<string | null>reader.result);
         reader.readAsDataURL(blob);
+    });
+}
+
+export function blobToText(blob: Blob): Promise<string | null> {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(<string | null>reader.result);
+        reader.readAsText(blob);
     });
 }
 

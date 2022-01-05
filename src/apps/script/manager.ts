@@ -19,7 +19,7 @@ import { Subscribe } from '@App/model/do/subscribe';
 import { SubscribeModel } from '@App/model/subscribe';
 import { SyncModel } from '@App/model/sync';
 import { SyncAction, SyncData } from '@App/model/do/sync';
-import { File } from '@App/model/do/backup';
+import { ExportFile } from '@App/model/do/backup';
 import { v4 as uuidv4 } from 'uuid';
 import { Manager } from '@App/pkg/apps/manager';
 
@@ -196,7 +196,7 @@ export class ScriptManager extends Manager {
         });
     }
 
-    public openImportFileWindow(file: File): Promise<any> {
+    public openImportFileWindow(file: ExportFile): Promise<any> {
         return new Promise(resolve => {
             // 打开导入窗口
             const uuid = uuidv4()
@@ -209,7 +209,7 @@ export class ScriptManager extends Manager {
         });
     }
 
-    public importFile(file: File): Promise<any> {
+    public importFile(file: ExportFile): Promise<any> {
         return new Promise(resolve => {
 
 
@@ -217,7 +217,7 @@ export class ScriptManager extends Manager {
         });
     }
 
-    public requestImportFile(uuid: string): Promise<File> {
+    public requestImportFile(uuid: string): Promise<ExportFile> {
         return new Promise(resolve => {
             const file = App.Cache.get('import:info:' + uuid);
             resolve(file);

@@ -5,6 +5,7 @@
       type="file"
       @change="importFileChange"
       style="display: none"
+      accept=".zip,.json,.txt"
     />
     <Panels :configs="configs" />
   </div>
@@ -19,7 +20,6 @@ import Panels, {
 } from '@App/views/components/Panels.vue';
 import { Resource } from '@App/model/do/backup';
 import { SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
-import { strToBase64 } from '@App/pkg/utils/utils';
 import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
 import { ToolsController } from '@App/apps/tools/controller';
 import { SystemConfig } from '@App/pkg/config';

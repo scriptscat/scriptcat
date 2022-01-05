@@ -1,67 +1,51 @@
 // 使用tampermonkey的备份模式
-
-import { ResourceHash } from './resource';
 import { Metadata, Script as InstallScript } from './script';
 import { SubscribeScript, Subscribe as InstallSubscribe } from './subscribe';
 
-export interface File {
-	created_by: string
-	version: string
-	scripts: Script[];
-	subscribes: Subscribe[];
-	settings: Settings
-}
-
-export interface Settings {
-
-}
-
-export interface Script {
+export interface ExportScript {
 	name: string
-	options: Options
+	script: InstallScript
 	storage: Storage
 	enabled: boolean
 	position: number
-	uuid: string
-	file_url?: string
-	source: string
-	requires: Resource[]
-	requires_css: Resource[]
-	resources: Resource[]
-	self_metadata: Metadata
-	subscribe_url?: string
-	modified: number
-	// 导入用,需要解析source获得
-	metadata?: Metadata
-	script?: InstallScript
-	old?: InstallScript
-	error?: string
-	background?: boolean
+	requires: ExportResource[]
+	requires_css: ExportResource[]
+	resources: ExportResource[]
 }
 
-export interface Subscribe {
-	name: string
-	url: string
+export interface ImportScript {
+	source: string
 	enabled: boolean
-	source: string
-	scripts: { [key: string]: SubscribeScript };
-	modified: number
-	// 导入用,解析source获得
-	metadata?: Metadata
-	subscribe?: InstallSubscribe
-	old?: InstallSubscribe
-	error?: string
+	position: number
+	storage?: Storage
+	requires?: ImportResource[]
+	requires_css?: ImportResource[]
+	resources?: ImportResource[]
 }
 
-export interface Options {
-
-}
-
-export interface Resource {
+export interface ImportResource {
 	meta: { name: string, url: string, ts: number, mimetype: string }
 	source: string
-	base64?: string
-	hash: ResourceHash
+	base64: string
+}
+
+
+export interface ExportSubscribe {
+	name: string
+	subscribe: InstallSubscribe
+	enabled: boolean
+}
+
+export interface ImportSubscribe {
+	source: string
+	enabled: boolean
+	scripts: { [key: string]: SubscribeScript };
+}
+
+export interface ExportResource {
+	meta: { name: string, url: string, ts: number, mimetype: string }
+	source: string
+	base64: string
 }
 
 export interface Storage {

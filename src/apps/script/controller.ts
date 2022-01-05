@@ -44,7 +44,7 @@ import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox/compile';
 import { SubscribeModel } from '@App/model/subscribe';
 import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
-import { File } from '@App/model/do/backup';
+import { ExportFile } from '@App/model/do/backup';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -180,10 +180,10 @@ export class ScriptController {
         });
     }
 
-    public getImportFile(uuid: string): Promise<File> {
+    public getImportFile(uuid: string): Promise<ExportFile> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestImportFile, uuid, resp => {
-                resolve(<File>resp);
+                resolve(<ExportFile>resp);
             });
         });
     }
@@ -565,8 +565,8 @@ export class ScriptController {
         })
     }
 
-    public parseBackFile(str: string): { data?: File, err?: string } {
-        const data = <File>JSON.parse(str);
+    public parseBackFile(str: string): { data?: ExportFile, err?: string } {
+        const data = <ExportFile>JSON.parse(str);
         if (!data.created_by) {
             return { err: '错误的格式' };
         }
@@ -576,7 +576,7 @@ export class ScriptController {
         return { data: data };
     }
 
-    public openImportFileWindow(file: File): Promise<any> {
+    public openImportFileWindow(file: ExportFile): Promise<any> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(OpenImportFileWindow, file, (resp) => {
                 resolve(resp);
