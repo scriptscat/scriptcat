@@ -97,11 +97,18 @@ export default class Tools extends Vue {
   };
 
   importFileChange(ev: Event) {
-    let file = (<HTMLInputElement>ev.target!).files![0];
+    const files = (<HTMLInputElement>ev.target).files;
+    if (!files) {
+      return;
+    }
+    const file = files[0];
     if (!file) {
       return;
     }
     const url = URL.createObjectURL(file);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 6e3);
     void this.scriptCtl.openImportFileWindow(file.name, url);
   }
 
@@ -118,7 +125,7 @@ export default class Tools extends Vue {
   }
 
   clickImportFile() {
-    let importFile = <HTMLInputElement>document.getElementById('import-file')!;
+    let importFile = <HTMLInputElement>document.getElementById('import-file');
     importFile.click();
   }
 
