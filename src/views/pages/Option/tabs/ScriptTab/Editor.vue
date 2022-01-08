@@ -46,8 +46,8 @@
                 }"
                 style="width: 300px"
               >
-          n>{{ item.action }} </span>
-                <span v-f"tmky"{ tem.keys }}</span>
+                <span>{{ item.action }} </span>
+                <span v-if="item.keys">{{ item.keys }}</span>
               </v-list-item-title>
             </div>
           </v-list-item>
@@ -64,7 +64,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
-import { KeyMod, KeyCode, languages } from 'monaco-editor';
+import { KeyMod, KeyCode } from 'monaco-editor';
 import { Script, SCRIPT_TYPE_NORMAL } from '@App/model/do/script';
 import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from '@mdi/js';
 import ResizableEditor from '@Components/ResizableEditor.vue';
@@ -122,7 +122,7 @@ export default class CloseButton extends Vue {
       var file = fileInput!.files![0];
       var reader = new FileReader();
       let _this = this;
-      reader.onload = function() {
+      reader.onload = function () {
         _this.editor.setValue(<string>this.result);
       };
       reader.readAsText(file, 'utf-8');
