@@ -126,3 +126,32 @@ interface IPermissionConfirm {
     allow: boolean
     type: number
 }
+
+
+declare namespace Panel {
+    export interface ConfigItem {
+        type: "text" | "button" | "check" | "select";
+        title: string;
+        describe?: string;
+        color?: string;
+        loading?: boolean;
+        disabled?: boolean;
+        click?: any;
+        value?: any;
+        change?: any;
+    }
+
+    export interface ButtonItem {
+        loading: boolean;
+        disabled: boolean;
+        a: string;
+    }
+
+    export interface ConfigGroup {
+        items: ConfigItem[];
+    }
+
+    export interface PanelConfigs {
+        [key: string]: ConfigGroup;
+    }
+}

@@ -45,7 +45,6 @@ export const SyncTaskEvent = 'sync-task-event';
 export const TriggerSync = 'trigger-sync';
 
 export const OpenImportFileWindow = 'open-import-file-window';
-export const ImportFile = 'import-file';
 export const RequestImportFile = 'request-import-file';
 
 export const ToolsConnectVSCode = 'tools-connect-vscode';

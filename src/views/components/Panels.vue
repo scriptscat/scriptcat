@@ -63,36 +63,15 @@
   </v-expansion-panels>
 </template>
 
-
 <script lang="ts">
 import { Vue, Component, Prop } from 'vue-property-decorator';
-
-export interface ConfigItem {
-  type: 'text' | 'button' | 'check' | 'select';
-  title: string;
-  describe?: string;
-  color?: string;
-  loading?: boolean;
-  disabled?: boolean;
-  click?: any;
-  value?: any;
-  change?: any;
-}
-
-export interface ConfigGroup {
-  items: ConfigItem[];
-}
-
-export interface PanelConfigs {
-  [key: string]: ConfigGroup;
-}
 
 @Component({})
 export default class Panels extends Vue {
   panel = [0, 1, 2, 3];
 
   @Prop()
-  configs!: any;
+  configs!: Panel.PanelConfigs;
 }
 </script>
 

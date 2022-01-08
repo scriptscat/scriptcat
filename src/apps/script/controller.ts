@@ -24,7 +24,6 @@ import {
     SubscribeUpdate,
     Unsubscribe,
     SubscribeCheckUpdate,
-    ImportFile,
     OpenImportFileWindow,
     RequestImportFile,
     ScriptValueChange
@@ -44,7 +43,6 @@ import { ResourceManager } from '../resource';
 import { compileScriptCode } from '@App/pkg/sandbox/compile';
 import { SubscribeModel } from '@App/model/subscribe';
 import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
-import { ExportFile } from '@App/model/do/backup';
 
 // 脚本控制器,发送或者接收来自管理器的消息,并不对脚本数据做实际的处理
 export class ScriptController {
@@ -180,10 +178,10 @@ export class ScriptController {
         });
     }
 
-    public getImportFile(uuid: string): Promise<ExportFile> {
+    public getImportFile(uuid: string): Promise<{ name: string, url: string }> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestImportFile, uuid, resp => {
-                resolve(<ExportFile>resp);
+                resolve(<{ name: string, url: string }>resp);
             });
         });
     }
@@ -565,20 +563,9 @@ export class ScriptController {
         })
     }
 
-    public parseBackFile(str: string): { data?: ExportFile, err?: string } {
-        const data = <ExportFile>JSON.parse(str);
-        if (!data.created_by) {
-            return { err: '错误的格式' };
-        }
-        if (!data.scripts) {
-            return { err: '脚本为空' }
-        }
-        return { data: data };
-    }
-
-    public openImportFileWindow(file: ExportFile): Promise<any> {
+    public openImportFileWindow(name: string, url: string): Promise<any> {
         return new Promise(resolve => {
-            MsgCenter.sendMessage(OpenImportFileWindow, file, (resp) => {
+            MsgCenter.sendMessage(OpenImportFileWindow, { name, url }, (resp) => {
                 resolve(resp);
             });
         });

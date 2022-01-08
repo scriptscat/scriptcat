@@ -1,8 +1,7 @@
 import 'reflect-metadata';
 import 'vuetify/dist/vuetify.min.css';
 import Vue from 'vue';
-import Vuetify from 'vuetify';
-
+import { i18n, vuetify } from '../i18n/i18n';
 import App from '@App/views/pages/Import/index.vue';
 import { migrate } from './model/migrate';
 
@@ -18,12 +17,8 @@ InitApp({
     Environment: ENV_FRONTEND,
 });
 
-Vue.use(Vuetify);
-
-const opts = {};
-const vuetifyInstance = new Vuetify(opts);
-
 new Vue({
-    vuetify: vuetifyInstance,
+    i18n,
+    vuetify: vuetify,
     render: (h) => h(App),
 }).$mount('#app');

@@ -1,9 +1,10 @@
-import { ExportScript, ExportSubscribe, ImportResource, ImportScript, ImportSubscribe, Storage } from '@App/model/do/backup';
+import { ExportScript, ExportSubscribe, ImportResource, ImportScript, ImportScriptOptions, ImportSubscribe, ResourceMeta, Storage } from '@App/model/do/backup';
 import { Metadata } from '@App/model/do/script';
 import JSZip from 'jszip';
 import crypto from 'crypto-js';
-import { base64ToStr, blobToBase64, strToBase64 } from './utils';
+import { base64ToBlob, base64ToStr, strToBase64 } from './utils';
 import { SubscribeScript } from '@App/model/do/subscribe';
+import { ResourceManager } from '@App/apps/resource';
 
 export interface JsonFile {
 	created_by: string
@@ -16,19 +17,20 @@ export interface JsonFile {
 export interface JsonSubscribe {
 	name: string
 	source: string
+	url: string
 	enabled: boolean
 	scripts: { [key: string]: SubscribeScript };
 }
 
-export interface ScriptOptions {
+export interface JsonScriptOptions {
 	check_for_updates: boolean,
-	comment: string,
+	comment: string | null,
 	compat_foreach: boolean,
 	compat_metadata: boolean,
 	compat_prototypes: boolean,
 	compat_wrappedjsobject: boolean,
 	compatopts_for_requires: boolean,
-	noframes: boolean,
+	noframes: boolean | null,
 	override: {
 		merge_connects: boolean,
 		merge_excludes: boolean,
@@ -38,7 +40,7 @@ export interface ScriptOptions {
 		orig_excludes: Array<string>,
 		orig_includes: Array<string>,
 		orig_matches: Array<string>,
-		orig_noframe: boolean,
+		orig_noframes: boolean | null,
 		orig_run_at: string,
 		use_blockers: Array<string>,
 		use_connects: Array<string>,
@@ -46,12 +48,12 @@ export interface ScriptOptions {
 		use_includes: Array<string>,
 		use_matches: Array<string>,
 	},
-	run_at: string
+	run_at: string | null
 }
 
 export interface JsonScript {
 	name: string
-	options: ScriptOptions
+	options: JsonScriptOptions
 	storage: Storage
 	enabled: boolean
 	position: number
@@ -70,6 +72,27 @@ export interface JsonBackupResource {
 	source: string
 }
 
+export interface FileScriptOptions {
+	options: JsonScriptOptions,
+	settings: { enabled: boolean, position: number },
+	meta: {
+		name: string,
+		// uuid: script.script.uuid,
+		modified: number,
+		file_url: string,
+		subscribe_url?: string
+	}
+}
+
+export interface FileSubscribeOptions {
+	settings: { enabled: boolean },
+	scripts: { [key: string]: SubscribeScript },
+	meta: {
+		name: string,
+		modified: number,
+		url: string,
+	}
+}
 
 export interface Backup {
 	WriteScript(script: ExportScript): void
@@ -78,7 +101,9 @@ export interface Backup {
 
 	ReadScript(): ImportScript | undefined
 	ReadSubscribe(): ImportSubscribe | undefined
-	Import(data: any): Promise<void>
+	Import(data: Blob): Promise<void>
+
+	Progress(callback: (cur: number, total: number) => void): void
 }
 
 export class JsonBackup implements Backup {
@@ -91,40 +116,40 @@ export class JsonBackup implements Backup {
 		// settings: {},
 	};
 
-	protected scriptOption(script: ExportScript): ScriptOptions {
+	protected scriptOption(script: ExportScript): JsonScriptOptions {
 		return {
 			check_for_updates: false,
-			comment: '',
+			comment: null,
 			compat_foreach: false,
 			compat_metadata: false,
 			compat_prototypes: false,
 			compat_wrappedjsobject: false,
-			compatopts_for_requires: false,
-			noframes: false,
+			compatopts_for_requires: true,
+			noframes: null,
 			override: {
-				merge_connects: false,
-				merge_excludes: false,
-				merge_includes: false,
-				merge_matches: false,
-				orig_connects: [],
-				orig_excludes: [],
-				orig_includes: [],
-				orig_matches: [],
-				orig_noframe: false,
-				orig_run_at: '',
+				merge_connects: true,
+				merge_excludes: true,
+				merge_includes: true,
+				merge_matches: true,
+				orig_connects: script.script.metadata['connect'] || [],
+				orig_excludes: script.script.metadata['exclude'] || [],
+				orig_includes: script.script.metadata['include'] || [],
+				orig_matches: script.script.metadata['match'] || [],
+				orig_noframes: script.script.metadata['noframe'] ? true : null,
+				orig_run_at: (script.script.metadata['run_at'] && script.script.metadata['run_at'][0]) || 'document-idle',
 				use_blockers: [],
 				use_connects: [],
 				use_excludes: [],
 				use_includes: [],
 				use_matches: [],
 			},
-			run_at: '',
+			run_at: null,
 		};
 	}
 
 	WriteScript(script: ExportScript): void {
 		// 对资源保存为base64
-		let requires = new Array<JsonBackupResource>();
+		const requires = new Array<JsonBackupResource>();
 		script.requires.forEach(val => {
 			if (val.base64) {
 				requires.push({
@@ -135,7 +160,7 @@ export class JsonBackup implements Backup {
 				});
 			}
 		});
-		let requires_css = new Array<JsonBackupResource>();
+		const requires_css = new Array<JsonBackupResource>();
 		script.requires_css.forEach(val => {
 			if (val.base64) {
 				requires_css.push({
@@ -146,7 +171,7 @@ export class JsonBackup implements Backup {
 				});
 			}
 		});
-		let resources = new Array<JsonBackupResource>();
+		const resources = new Array<JsonBackupResource>();
 		script.resources.forEach(val => {
 			if (val.base64) {
 				resources.push({
@@ -164,7 +189,7 @@ export class JsonBackup implements Backup {
 			enabled: script.enabled,
 			position: script.position,
 			uuid: script.script.uuid,
-			file_url?: script.script.download_url,
+			file_url: script.script.download_url,
 			source: strToBase64(script.script.code),
 			requires: requires,
 			requires_css: requires_css,
@@ -178,8 +203,9 @@ export class JsonBackup implements Backup {
 		this.file.subscribes.push({
 			name: sub.name,
 			source: strToBase64(sub.subscribe.code),
+			url: sub.subscribe.url,
 			scripts: sub.subscribe.scripts,
-			enabled: sub.enabled
+			enabled: sub.enabled,
 		});
 	}
 	Export(): Promise<void> {
@@ -202,8 +228,8 @@ export class JsonBackup implements Backup {
 		if (this.scriptCursor >= this.file.scripts.length) {
 			return undefined;
 		}
-		const script = this.file.scripts[this.scriptCursor];
-		let requires = new Array<ImportResource>();
+		const script = this.file.scripts[this.scriptCursor++];
+		const requires = new Array<ImportResource>();
 		script.requires.forEach(val => {
 			requires.push({
 				meta: val.meta,
@@ -211,7 +237,7 @@ export class JsonBackup implements Backup {
 				base64: val.source,
 			});
 		});
-		let requires_css = new Array<ImportResource>();
+		const requires_css = new Array<ImportResource>();
 		script.requires_css.forEach(val => {
 			requires.push({
 				meta: val.meta,
@@ -219,19 +245,35 @@ export class JsonBackup implements Backup {
 				base64: val.source,
 			});
 		});
-		let resources = new Array<ImportResource>();
+		const resources = new Array<ImportResource>();
 		script.resources.forEach(val => {
-			requires.push({
-				meta: val.meta,
-				source: base64ToStr(val.source),
-				base64: val.source,
-			});
+			if (val.meta.mimetype.startsWith('text/') || ResourceManager.textContentTypeMap.has(val.meta.mimetype)) {
+				requires.push({
+					meta: val.meta,
+					source: base64ToStr(val.source),
+					base64: val.source,
+				});
+			} else {
+				requires.push({
+					meta: val.meta,
+					source: '',
+					base64: val.source,
+				});
+			}
 		});
+
+		const options: ImportScriptOptions = {
+			name: script.name,
+			download_url: script.file_url || '',
+			subscribe_url: script.subscribe_url,
+		};
+
 		return {
 			source: base64ToStr(script.source),
 			enabled: script.enabled,
 			position: script.position,
 			storage: script.storage,
+			options: options,
 			requires: requires,
 			requires_css: requires_css,
 			resources: resources,
@@ -246,19 +288,32 @@ export class JsonBackup implements Backup {
 		return {
 			source: base64ToStr(subscribe.source),
 			enabled: subscribe.enabled,
-			scripts: subscribe.scripts
+			scripts: subscribe.scripts,
+			options: {
+				name: subscribe.name,
+				url: subscribe.url,
+			}
 		};
 	}
 
 	Import(data: Blob): Promise<void> {
 		return new Promise(resolve => {
-			data.text().then((text) => {
+			void data.text().then((text) => {
 				this.file = JSON.parse(text);
 				resolve();
 			});
 		});
 	}
 
+	progressCallback?: (cur: number, total: number) => void;
+
+	Progress(callback: (cur: number, total: number) => void) {
+		this.progressCallback = callback;
+	}
+
+	triggerProgress(cur: number, total: number) {
+		this.progressCallback && this.progressCallback(cur, total);
+	}
 }
 
 export class ZipBackup extends JsonBackup implements Backup {
@@ -267,43 +322,44 @@ export class ZipBackup extends JsonBackup implements Backup {
 
 	WriteScript(script: ExportScript): void {
 		this.zip.file(script.name + '.user.js', script.script.code);
-		this.zip.file(script.name + '.options.json', JSON.stringify({
+		//NOTE: tm会对同名的uuid校验,先屏蔽了
+		this.zip.file(script.name + '.options.json', JSON.stringify(<FileScriptOptions>{
 			options: this.scriptOption(script),
 			settings: { enabled: script.enabled, position: script.position },
 			meta: {
 				name: script.name,
-				uuid: script.script.uuid,
+				// uuid: script.script.uuid,
 				modified: script.script.updatetime || script.script.createtime,
 				file_url: script.script.download_url,
+				subscribe_url: script.script.subscribeUrl,
 			}
 		}));
 		this.zip.file(script.name + '.storage.json', JSON.stringify(script.storage));
 		script.requires.forEach(val => {
-			if (val.base64) {
-				const md5 = crypto.MD5('requires' + val.meta.url).toString();
-				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, val.source);
-				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.require.json', JSON.stringify(val.meta));
-			}
+			// md5是tm的导出规则
+			const md5 = crypto.MD5('requires' + val.meta.url).toString();
+			this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, val.source);
+			this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.requires.json', JSON.stringify(val.meta));
 		});
 		script.requires_css.forEach(val => {
-			if (val.base64) {
-				const md5 = crypto.MD5('requires_css' + val.meta.url).toString();
-				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, val.source);
-				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.require.css.json', JSON.stringify(val.meta));
-			}
+			const md5 = crypto.MD5('requires_css' + val.meta.url).toString();
+			this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, val.source);
+			this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.requires.css.json', JSON.stringify(val.meta));
 		});
 		script.resources.forEach(val => {
-			if (val.base64) {
-				const md5 = crypto.MD5('resources' + val.meta.url).toString();
+			const md5 = crypto.MD5('resources' + val.meta.url).toString();
+			if (val.meta.mimetype.startsWith('text/') || ResourceManager.textContentTypeMap.has(val.meta.mimetype)) {
 				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, val.source);
-				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.resource.json', JSON.stringify(val.meta));
+			} else {
+				this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name, base64ToBlob(val.base64));
 			}
+			this.zip.file(script.name + '.user.js-' + md5 + '-' + val.meta.name + '.resources.json', JSON.stringify(val.meta));
 		});
 	}
 
 	WriteSubscribe(sub: ExportSubscribe): void {
 		this.zip.file(sub.name + '.user.sub.js', sub.subscribe.code);
-		this.zip.file(sub.name + '.user.sub.options.json', JSON.stringify({
+		this.zip.file(sub.name + '.user.sub.options.json', JSON.stringify(<FileSubscribeOptions>{
 			settings: { enabled: sub.enabled },
 			scripts: sub.subscribe.scripts,
 			meta: {
@@ -334,14 +390,257 @@ export class ZipBackup extends JsonBackup implements Backup {
 		});
 	}
 
-	Import(data: File): Promise<void> {
+	Import(data: Blob): Promise<void> {
 		return new Promise(resolve => {
-			void JSZip.loadAsync(data).then(zip => {
+			void JSZip.loadAsync(data).then(async zip => {
+				const scriptMap = new Map<string, ImportScript>();
+				const subscribeMap = new Map<string, ImportSubscribe>();
+				const resourceMap = new Map<string, ImportResource>();
+				// 加载全部文件
+				let cur = 0;
+				let total = 0;
+				zip.forEach(() => {
+					total++
+				});
 				for (const key in zip.files) {
-					console.log(key);
+					if (key.endsWith('.user.js')) {
+						const name = key.substring(0, key.length - 8);
+						await this.getAndSet(scriptMap, name, async (val: ImportScript) => {
+							return new Promise(resolve => {
+								const handler = async () => {
+									const file = zip.file(key);
+									if (file) {
+										val.source = await file.async('string');
+										if (val.enabled === undefined) {
+											val.enabled = true;
+										}
+										if (val.position === undefined) {
+											val.position = 0;
+										}
+									}
+									resolve();
+								}
+								void handler();
+							});
+						});
+					} else if (key.endsWith('.options.json')) {
+						if (key.endsWith('.user.sub.options.json')) {
+							const name = key.substring(0, key.length - 22);
+							await this.getAndSet(subscribeMap, name, async (val: ImportSubscribe) => {
+								return new Promise(resolve => {
+									const handler = async () => {
+										const file = zip.file(key);
+										if (file) {
+											try {
+												const options = <FileSubscribeOptions>JSON.parse(await file.async('string'));
+												val.options = {
+													name: options.meta.name,
+													url: options.meta.url
+												};
+												val.enabled = options.settings.enabled;
+											} catch (e) {
+												console.log(e);
+											}
+										}
+										resolve();
+									}
+									void handler();
+								});
+							});
+						} else {
+							const name = key.substring(0, key.length - 13);
+							await this.getAndSet(scriptMap, name, async (val: ImportScript) => {
+								return new Promise(resolve => {
+									const handler = async () => {
+										const file = zip.file(key);
+										if (file) {
+											try {
+												const options = <FileScriptOptions>JSON.parse(await file.async('string'));
+												val.options = {
+													name: options.meta.name,
+													download_url: options.meta.file_url,
+													subscribe_url: options.meta.subscribe_url,
+												};
+												val.enabled = options.settings.enabled;
+												val.position = options.settings.position;
+											} catch (e) {
+												console.log(e);
+											}
+										}
+										resolve();
+									}
+									void handler();
+								});
+							});
+						}
+					} else if (key.endsWith('.storage.json')) {
+						const name = key.substring(0, key.length - 13);
+						await this.getAndSet(scriptMap, name, async (val: ImportScript) => {
+							return new Promise(resolve => {
+								const handler = async () => {
+									const file = zip.file(key);
+									if (file) {
+										try {
+											val.storage = <Storage>JSON.parse(await file.async('string'));
+										} catch (e) {
+											console.log(e);
+										}
+									}
+									resolve();
+								}
+								void handler();
+							});
+						});
+					} else if (key.endsWith('.resources.json')) {
+						const file = zip.file(key);
+						if (file) {
+							await this.setResource(scriptMap, resourceMap, 'resource', key, file);
+						}
+					} else if (key.endsWith('.requires.json')) {
+						const file = zip.file(key);
+						if (file) {
+							await this.setResource(scriptMap, resourceMap, 'require', key, file);
+						}
+					} else if (key.endsWith('.requires.css.json')) {
+						const file = zip.file(key);
+						if (file) {
+							await this.setResource(scriptMap, resourceMap, 'require.css', key, file);
+						}
+					} else {
+						const pos = key.indexOf('.user.js');
+						if (pos === -1) {
+							continue
+						}
+						const name = key.substring(0, pos);
+						const md5 = key.substring(pos + 9, pos + 41);
+						if (!md5) {
+							continue
+						}
+						let resource = resourceMap.get(name + md5);
+						if (!resource) {
+							resource = <ImportResource>{ source: '' };
+						}
+						resourceMap.set(name + md5, resource);
+						const file = zip.file(key);
+						if (file) {
+							try {
+								resource.base64 = await file.async('base64');
+								if (resource.meta && (resource.meta.mimetype.startsWith('text/') || ResourceManager.textContentTypeMap.has(resource.meta.mimetype))) {
+									// 存在meta
+									resource.source = base64ToStr(resource.base64)
+								}
+							} catch (e) {
+								console.log(e);
+							}
+						}
+					}
+					this.triggerProgress(cur++, total);
 				}
+				const scripts: ImportScript[] = [];
+				const subscribes: ImportSubscribe[] = [];
+				scriptMap.forEach(val => {
+					scripts.push(val);
+				});
+				subscribeMap.forEach(val => {
+					subscribes.push(val);
+				});
+				this.scripts = scripts;
+				this.subscribes = subscribes;
+
 				resolve();
 			});
+		});
+	}
+
+	scripts: ImportScript[] = [];
+	subscribes: ImportSubscribe[] = [];
+
+	scriptCursor = 0;
+	subscribeCursor = 0;
+
+	ReadScript(): ImportScript | undefined {
+		if (this.scriptCursor >= this.scripts.length) {
+			return undefined;
+		}
+		return this.scripts[this.scriptCursor++];
+	}
+
+	ReadSubscribe(): ImportSubscribe | undefined {
+		if (this.subscribeCursor >= this.subscribes.length) {
+			return undefined;
+		}
+		return this.subscribes[this.subscribeCursor++];
+	}
+
+	setResource(scriptMap: Map<string, ImportScript>, resourceMap: Map<string, ImportResource>, type: string, filename: string, file: JSZip.JSZipObject): Promise<void> {
+		return new Promise(resolve => {
+			const handler = async () => {
+				const pos = filename.indexOf('.user.js');
+				if (pos === -1) {
+					return resolve();
+				}
+				const name = filename.substring(0, pos);
+				const md5 = filename.substring(pos + 9, pos + 41);
+				if (!md5) {
+					return resolve();
+				}
+				let resource = resourceMap.get(name + md5);
+				if (!resource) {
+					resource = <ImportResource>{ source: '' };
+				}
+				await this.getAndSet(scriptMap, name, (val: ImportScript) => {
+					return new Promise(resolve => {
+						if (!resource) {
+							return resolve();
+						}
+						switch (type) {
+							case 'resource':
+								val.resources = val.resources || [];
+								val.resources.push(resource);
+								break
+							case 'require':
+								val.requires = val.requires || [];
+								val.requires.push(resource);
+								break;
+							case 'require.css':
+								val.requires_css = val.requires_css || [];
+								val.requires_css.push(resource);
+								break;
+						}
+						resolve();
+					});
+				});
+				resourceMap.set(name + md5, resource);
+				if (file) {
+					try {
+						const temp = <ResourceMeta>JSON.parse(await file.async('string'));
+						resource.meta = temp;
+						if (resource.base64 && (resource.meta.mimetype.startsWith('text/') || ResourceManager.textContentTypeMap.has(resource.meta.mimetype))) {
+							// 存在base64
+							resource.source = base64ToStr(resource.base64);
+						}
+					} catch (e) {
+						console.log(e);
+					}
+				}
+				resolve();
+			}
+			void handler();
+		});
+	}
+
+	getAndSet(map: Map<string, any>, key: string, value: (val: any) => Promise<void>): Promise<void> {
+		return new Promise(resolve => {
+			const handler = async () => {
+				let val = map.get(key);
+				if (!val) {
+					val = {};
+				}
+				await value(val);
+				map.set(key, val);
+				resolve();
+			}
+			void handler();
 		});
 	}
 

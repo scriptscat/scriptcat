@@ -60,7 +60,7 @@ export function toStorageValueStr(val: unknown): string {
     case 'string':
       return 's' + val;
     case 'number':
-      return 'n' + val;
+      return 'n' + val.toString();
     case 'boolean':
       return 'b' + (val ? 'true' : 'false');
     default:
@@ -72,7 +72,7 @@ export function toStorageValueStr(val: unknown): string {
   }
 }
 
-export function parseStorageValue(str: string): unknown {
+export function parseStorageValue(str: string): any {
   if (str === '') {
     return undefined;
   }

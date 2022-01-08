@@ -14,17 +14,14 @@
 <script lang="ts">
 import { ScriptController } from '@App/apps/script/controller';
 import { Vue, Component } from 'vue-property-decorator';
-import Panels, {
-  ConfigItem,
-  PanelConfigs,
-} from '@App/views/components/Panels.vue';
-import { Resource } from '@App/model/do/backup';
+import Panels from '@App/views/components/Panels.vue';
 import { SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
 import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
 import { ToolsController } from '@App/apps/tools/controller';
 import { SystemConfig } from '@App/pkg/config';
 import { toStorageValueStr } from '../../utils';
 import { Backup, JsonBackup, ZipBackup } from '@App/pkg/utils/backup';
+import { ExportResource } from '@App/model/do/backup';
 
 @Component({
   components: { Panels },
@@ -35,7 +32,7 @@ export default class Tools extends Vue {
 
   panel = [0, 1, 2, 3];
 
-  configs: PanelConfigs = {
+  configs: Panel.PanelConfigs = {
     备份: {
       items: [
         {
@@ -45,7 +42,7 @@ export default class Tools extends Vue {
           color: 'accent',
           loading: false,
           disabled: false,
-          click: this.clickExportZipFile,
+          click: (item: Panel.ButtonItem) => this.clickExportZipFile(item),
         },
         {
           type: 'button',
@@ -55,14 +52,14 @@ export default class Tools extends Vue {
           color: 'accent',
           loading: false,
           disabled: false,
-          click: this.clickExportFile,
+          click: (item: Panel.ButtonItem) => this.clickExportFile(item),
         },
         {
           type: 'button',
           title: '导入文件',
           describe: '导入备份文件,会根据后缀识别',
           color: 'blue-grey',
-          click: this.clickImportFile,
+          click: () => this.clickImportFile(),
         },
       ],
     },
@@ -76,7 +73,7 @@ export default class Tools extends Vue {
           value: SystemConfig.vscode_url,
           loading: false,
           disabled: false,
-          change(val: ConfigItem) {
+          change(val: { value: string }) {
             SystemConfig.vscode_url = val.value;
           },
         },
@@ -85,7 +82,7 @@ export default class Tools extends Vue {
           title: '自动连接vscode服务',
           describe: '启动时自动连接到vscode扩展服务,断开连接后也会自动重连',
           value: SystemConfig.vscode_reconnect,
-          change(val: any) {
+          change(val: { value: boolean }) {
             SystemConfig.vscode_reconnect = val.value;
           },
         },
@@ -93,7 +90,7 @@ export default class Tools extends Vue {
           type: 'button',
           title: '连接',
           color: 'blue-grey',
-          click: this.connectVScode,
+          click: (item: Panel.ButtonItem) => this.connectVScode(item),
         },
       ],
     },
@@ -104,19 +101,11 @@ export default class Tools extends Vue {
     if (!file) {
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      // 处理导入文件
-      let { data, err } = this.scriptCtl.parseBackFile(<string>reader.result);
-      if (err) {
-        return alert(err);
-      }
-      this.scriptCtl.openImportFileWindow(data!);
-    };
-    reader.readAsText(file);
+    const url = URL.createObjectURL(file);
+    void this.scriptCtl.openImportFileWindow(file.name, url);
   }
 
-  async clickExportZipFile(val: ConfigItem) {
+  public async clickExportZipFile(val: Panel.ButtonItem) {
     val.loading = true;
     val.disabled = true;
     await this.export(new ZipBackup());
@@ -141,9 +130,9 @@ export default class Tools extends Vue {
         for (let i = 0; i < list.length; i++) {
           let script = list[i];
           let storage: { [key: string]: string } = {};
-          let requires: Resource[] = [];
-          let resources: Resource[] = [];
-          let requires_css: Resource[] = [];
+          let requires: ExportResource[] = [];
+          let resources: ExportResource[] = [];
+          let requires_css: ExportResource[] = [];
 
           // value导出
           let values = await this.scriptCtl.getScriptValue(script);
@@ -182,22 +171,16 @@ export default class Tools extends Vue {
 
           backup.WriteScript({
             name: script.name,
-            options: {},
+            script: script,
             storage: {
               data: storage,
               ts: nowTime.getTime(),
             },
             enabled: script.status == SCRIPT_STATUS_ENABLE,
             position: script.sort,
-            uuid: script.uuid,
-            file_url: script.origin,
-            source: script.code,
             requires: requires,
             requires_css: requires_css,
             resources: resources,
-            self_metadata: script.selfMetadata,
-            subscribe_url: script.subscribeUrl,
-            modified: script.updatetime || script.createtime,
           });
         }
 
@@ -207,11 +190,8 @@ export default class Tools extends Vue {
           let subscribe = subList[i];
           backup.WriteSubscribe({
             name: subscribe.name,
-            url: subscribe.url,
+            subscribe: subscribe,
             enabled: subscribe.status === SUBSCRIBE_STATUS_ENABLE,
-            source: subscribe.code,
-            scripts: subscribe.scripts,
-            modified: subscribe.updatetime || subscribe.createtime,
           });
         }
 
@@ -223,7 +203,7 @@ export default class Tools extends Vue {
     });
   }
 
-  async clickExportFile(val: ConfigItem) {
+  async clickExportFile(val: Panel.ButtonItem) {
     val.loading = true;
     val.disabled = true;
 
@@ -245,11 +225,11 @@ export default class Tools extends Vue {
     return url;
   }
 
-  async connectVScode(val: ConfigItem) {
+  async connectVScode(val: Panel.ButtonItem) {
     val.loading = true;
     val.disabled = true;
     let ret = await this.toolsCtrl.connectVScode(
-      this.configs.开发调试.items[0].value!
+      <string>this.configs['开发调试'].items[0].value
     );
     if (typeof ret === 'string') {
       alert(ret);

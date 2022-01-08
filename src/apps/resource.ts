@@ -80,6 +80,11 @@ export class ResourceManager {
         });
     }
 
+    // 方便识别text文本储存
+    static textContentTypeMap = new Map<string, boolean>().
+        set('application/javascript', true).
+        set('application/json', true);
+
     public loadByUrl(url: string): Promise<Resource | undefined> {
         return new Promise(resolve => {
             const u = this.parseUrl(url);
@@ -93,11 +98,13 @@ export class ResourceManager {
                     const resource: Resource = {
                         id: 0,
                         url: u.url, content: '',
-                        contentType: (<string>((<AnyMap>response.headers)['content-type']) || '').split(';')[0],
+                        contentType: (<string>((<AnyMap>response.headers)['content-type']) || 'application/octet-stream').split(';')[0],
                         hash: await this.calculateHash(<Blob>response.data),
                         base64: '',
                     };
-                    resource.content = await (<Blob>response.data).text();
+                    if (resource.contentType.startsWith('text/') || ResourceManager.textContentTypeMap.has(resource.contentType)) {
+                        resource.content = await (<Blob>response.data).text();
+                    }
                     resource.base64 = await blobToBase64(<Blob>response.data) || '';
                     App.Log.Info('resource', u.url, 'load');
                     return resolve(resource);

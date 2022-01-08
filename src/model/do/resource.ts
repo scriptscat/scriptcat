@@ -7,7 +7,7 @@ export interface Resource {
     base64: string
     hash: ResourceHash
     type?: ResourceType
-    contentType?: string
+    contentType: string
     createtime?: number
     updatetime?: number
 }

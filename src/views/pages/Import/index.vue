@@ -7,7 +7,6 @@
     <v-main>
       <div style="padding: 10px">
         <div class="description">
-          <div class="text-h6">来源管理器: {{ file.created_by }}</div>
           <div class="control d-flex justify-start" style="margin: 10px 0">
             <v-btn
               @click="importFile"
@@ -47,6 +46,9 @@
             <div class="text-subtitle-2">
               脚本导入进度: {{ scriptNum }}/{{ selectedScript.length }}
             </div>
+            <div v-if="loading" class="text-subtitle-2">
+              脚本加载进度: {{ cur }}/{{ total }}
+            </div>
           </div>
           <v-list two-line>
             <v-list-item-group
@@ -54,7 +56,7 @@
               multiple
               active-class="blue--text"
             >
-              <template v-for="(item, index) in file.scripts">
+              <template v-for="(item, index) in scripts">
                 <v-list-item :key="'item' + index" v-if="!item.error">
                   <v-list-item-content>
                     <v-list-item-title
@@ -67,21 +69,21 @@
                     >
                     </v-list-item-title>
                     <v-list-item-subtitle
-                      v-if="item.metadata['author']"
-                      v-text="'作者: ' + item.metadata['author'][0]"
+                      v-if="item.script.metadata['author']"
+                      v-text="'作者: ' + item.script.metadata['author'][0]"
                     ></v-list-item-subtitle>
                     <v-list-item-subtitle
-                      v-if="item.metadata['description']"
-                      v-text="'描述: ' + item.metadata['description'][0]"
+                      v-if="item.script.metadata['description']"
+                      v-text="'描述: ' + item.script.metadata['description'][0]"
                     ></v-list-item-subtitle>
                     <v-list-item-subtitle
-                      v-if="item.file_url"
-                      v-text="'来源: ' + item.file_url"
+                      v-if="item.download_url"
+                      v-text="'来源: ' + item.download_url"
                     ></v-list-item-subtitle>
                     <v-list-item-subtitle
                       >操作:
                       {{
-                        item.old ? "更新脚本" : "安装脚本"
+                        item.hasOld ? "更新脚本" : "安装脚本"
                       }}</v-list-item-subtitle
                     >
                   </v-list-item-content>
@@ -101,7 +103,7 @@
                   </v-list-item-content>
                 </v-list-item>
                 <v-divider
-                  v-if="index < file.scripts.length - 1"
+                  v-if="index < scripts.length - 1"
                   :key="index"
                 ></v-divider>
               </template>
@@ -110,7 +112,7 @@
         </div>
 
         <div
-          v-if="file.subscribes"
+          v-if="subscribes.length"
           class="script-list"
           style="border-top: 1px dashed"
         >
@@ -137,7 +139,7 @@
               multiple
               active-class="orange--text"
             >
-              <template v-for="(item, index) in file.subscribes">
+              <template v-for="(item, index) in subscribes">
                 <v-list-item :key="'item' + index" v-if="!item.error">
                   <v-list-item-content>
                     <v-list-item-title v-text="item.name"></v-list-item-title>
@@ -176,7 +178,7 @@
                   </v-list-item-content>
                 </v-list-item>
                 <v-divider
-                  v-if="index < file.subscribes.length - 1"
+                  v-if="index < subscribes.length - 1"
                   :key="index"
                 ></v-divider>
               </template>
@@ -191,15 +193,43 @@
 <script lang="ts">
 import { ResourceManager } from '@App/apps/resource';
 import { ScriptController } from '@App/apps/script/controller';
-import { File, Resource } from '@App/model/do/backup';
 import {
+  ImportResource,
+  ImportScript,
+  ImportSubscribe,
+} from '@App/model/do/backup';
+import {
+  Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from '@App/model/do/script';
-import { SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from '@App/model/do/subscribe';
+import { Backup, JsonBackup, ZipBackup } from '@App/pkg/utils/backup';
 import { base64ToStr, waitGroup } from '@App/pkg/utils/utils';
 import { Component, Vue } from 'vue-property-decorator';
 import { parseStorageValue } from '../utils';
+
+type ShowScript = {
+  name: string;
+  download_url: string;
+  subscribe_url?: string;
+  background?: boolean;
+  enabled: boolean;
+  error?: string;
+  hasOld?: boolean;
+  script?: Script;
+  import: ImportScript;
+};
+
+type ShowSubscribe = {
+  name: string;
+  url: string;
+  enabled: boolean;
+  error?: string;
+  hasOld?: boolean;
+  subscribe?: Subscribe;
+  import: ImportSubscribe;
+};
 
 @Component({})
 export default class Index extends Vue {
@@ -215,6 +245,8 @@ export default class Index extends Vue {
   resourceMgr = new ResourceManager();
   importLoading = false;
   file: File = <File>(<unknown>{ scripts: [] });
+  scripts: ShowScript[] = [];
+  subscribes: ShowSubscribe[] = [];
 
   async mounted() {
     let url = new URL(location.href);
@@ -222,64 +254,100 @@ export default class Index extends Vue {
     if (!uuid) {
       return;
     }
-    this.load(await this.scriptCtrl.getImportFile(uuid));
+    void this.load(await this.scriptCtrl.getImportFile(uuid));
   }
 
-  async load(file: File) {
-    for (let i = 0; i < file.scripts.length; i++) {
-      let script = file.scripts[i];
-      let code = base64ToStr(script.source);
+  backupFactory(name: string, url: string): Promise<Backup> {
+    return new Promise((resolve) => {
+      void fetch(url).then(async (res) => {
+        let backup: Backup;
+        if (name.endsWith('.zip')) {
+          backup = new ZipBackup();
+        } else {
+          backup = new JsonBackup();
+        }
+        backup.Progress((cur, total) => {
+          this.cur = cur;
+          this.total = total;
+        });
+        void backup.Import(await res.blob()).then(() => {
+          resolve(backup);
+        });
+      });
+    });
+  }
+
+  loading = false;
+  cur = 0;
+  total = 0;
+
+  async load(file: { name: string; url: string }) {
+    this.loading = true;
+    const backup = await this.backupFactory(file.name, file.url);
+    let importScript;
+    while ((importScript = backup.ReadScript())) {
+      let script: ShowScript = {
+        name: (importScript.options && importScript.options.name) || '-',
+        download_url:
+          (importScript.options && importScript.options.download_url) || '',
+        enabled: importScript.enabled,
+        subscribe_url:
+          (importScript.options && importScript.options.subscribe_url) || '',
+        import: importScript,
+      };
       let [newScript, oldScript] = await this.scriptCtrl.prepareScriptByCode(
-        code,
-        script.file_url || '',
-        script.file_url ? undefined : script.uuid
+        importScript.source,
+        script.download_url
       );
-      if (typeof oldScript === 'string') {
-        script.error = oldScript;
+      if (typeof oldScript === 'string' || !newScript) {
+        script.error = <string>oldScript || 'error';
+        this.scripts.push(script);
         continue;
       }
       if (oldScript) {
         script.enabled = oldScript.status == SCRIPT_STATUS_ENABLE;
       }
-      // 如果不是scriptcat管理器,处理option变成selfMetadata
-      if (file.created_by !== 'ScriptCat') {
-        // TODO: 以后处理啦
-      }
-      newScript!.selfMetadata = script.self_metadata;
-      newScript!.subscribeUrl = script.subscribe_url;
-      script.metadata = newScript?.metadata;
-      script.old = oldScript;
+      script.name = newScript.name;
+      //TODO:处理selfMetadata信息
+      // newScript.selfMetadata = script.self_metadata;
+      newScript.subscribeUrl = script.subscribe_url;
+      script.hasOld = oldScript ? true : false;
       script.script = newScript;
       script.background = newScript?.type !== 1;
+      this.scripts.push(script);
     }
-    if (file.subscribes) {
-      for (let i = 0; i < file.subscribes.length; i++) {
-        let subscribe = file.subscribes[i];
-        let code = base64ToStr(subscribe.source);
-        let [newSub, oldSub] = await this.scriptCtrl.prepareSubscribeByCode(
-          code,
-          subscribe.url
-        );
-        if (typeof oldSub === 'string') {
-          subscribe.error = oldSub;
-          continue;
-        }
-        if (oldSub) {
-          subscribe.enabled = oldSub.status == SUBSCRIBE_STATUS_ENABLE;
-        }
-        newSub!.scripts = subscribe.scripts;
-        subscribe.metadata = newSub?.metadata;
-        subscribe.subscribe = newSub;
-        subscribe.old = oldSub;
+    let importSubscribe;
+    while ((importSubscribe = backup.ReadSubscribe())) {
+      let subscribe: ShowSubscribe = {
+        name: importSubscribe.options.name,
+        url: importSubscribe.options.url,
+        enabled: importSubscribe.enabled,
+        import: importSubscribe,
+      };
+      let [newSub, oldSub] = await this.scriptCtrl.prepareSubscribeByCode(
+        importSubscribe.source,
+        subscribe.url
+      );
+      if (typeof oldSub === 'string' || !newSub) {
+        subscribe.error = <string>oldSub || 'error';
+        this.subscribes.push(subscribe);
+        continue;
       }
+      if (oldSub) {
+        subscribe.enabled = oldSub.status == SUBSCRIBE_STATUS_ENABLE;
+      }
+      newSub.scripts = importSubscribe.scripts;
+      subscribe.subscribe = newSub;
+      subscribe.hasOld = oldSub ? true : false;
+      this.subscribes.push(subscribe);
     }
-    this.file = file;
     this.selectAll();
     this.selectAllSubscribe();
+    this.loading = false;
   }
 
-  importResource(resources: Resource[]): Promise<boolean> {
-    return new Promise(async (resolve) => {
+  importResource(resources: ImportResource[]): Promise<boolean> {
+    return new Promise((resolve) => {
       let wait = new waitGroup(() => {
         resolve(true);
       });
@@ -310,18 +378,17 @@ export default class Index extends Vue {
               wait.done();
             });
         };
-        handle();
+        void handle();
       }
     });
   }
 
   async importFile() {
     this.importLoading = true;
-    let _this = this;
     this.scriptNum = 0;
     this.subscribeNum = 0;
     let wait = new waitGroup(() => {
-      _this.importLoading = false;
+      this.importLoading = false;
       if (this.scriptNum !== this.selectedScript.length) {
         return alert('有脚本导入失败');
       }
@@ -334,7 +401,7 @@ export default class Index extends Vue {
     wait.add(this.selectedSubscribe.length);
     for (let i = 0; i < this.selectedScript.length; i++) {
       let val = this.selectedScript[i];
-      let scriptInfo = this.file.scripts[val];
+      let scriptInfo = this.scripts[val];
       if (scriptInfo.error) {
         this.scriptNum += 1;
         wait.done();
@@ -342,31 +409,37 @@ export default class Index extends Vue {
       }
       // 并发处理,缩短io时间
       let handle = async () => {
-        let script = scriptInfo.script!;
+        let script = scriptInfo.script;
+        if (!script) {
+          return;
+        }
         script.status = scriptInfo.enabled
           ? SCRIPT_STATUS_ENABLE
           : SCRIPT_STATUS_DISABLE;
         // 如果有资源 先导入资源
-        if (scriptInfo.requires) {
-          await this.importResource(scriptInfo.requires);
+        if (scriptInfo.import.requires) {
+          await this.importResource(scriptInfo.import.requires);
         }
-        if (scriptInfo.resources) {
-          await this.importResource(scriptInfo.resources);
+        if (scriptInfo.import.resources) {
+          await this.importResource(scriptInfo.import.resources);
         }
-        if (scriptInfo.requires_css) {
-          await this.importResource(scriptInfo.requires_css);
+        if (scriptInfo.import.requires_css) {
+          await this.importResource(scriptInfo.import.requires_css);
         }
         await this.scriptCtrl.notWaitUpdate(script);
         // 导入value数据
-        if (scriptInfo.storage) {
+        if (scriptInfo.import.storage) {
           let subWait = new waitGroup(() => {
             this.scriptNum += 1;
             wait.done();
           });
-          subWait.add(Object.keys(scriptInfo.storage.data).length);
-          for (const key in scriptInfo.storage.data) {
+          subWait.add(Object.keys(scriptInfo.import.storage.data).length);
+          for (const key in scriptInfo.import.storage.data) {
             let importValue = async () => {
-              let val = parseStorageValue(scriptInfo.storage.data[key]);
+              if (!scriptInfo.import.storage || !script) {
+                return;
+              }
+              let val = parseStorageValue(scriptInfo.import.storage.data[key]);
               await this.scriptCtrl.updateValue(
                 key,
                 val,
@@ -376,12 +449,12 @@ export default class Index extends Vue {
               );
               subWait.done();
             };
-            importValue();
+            void importValue();
           }
         }
       };
       try {
-        handle();
+        void handle();
       } catch (e) {
         console.log(e, scriptInfo);
         wait.done();
@@ -389,14 +462,17 @@ export default class Index extends Vue {
     }
     for (let i = 0; i < this.selectedSubscribe.length; i++) {
       let val = this.selectedSubscribe[i];
-      let subscribeInfo = this.file.subscribes![val];
+      let subscribeInfo = this.subscribes[val];
       if (subscribeInfo.error) {
         this.subscribeNum += 1;
         wait.done();
         continue;
       }
       try {
-        await this.scriptCtrl.subscribeModel.save(subscribeInfo.subscribe!);
+        if (!subscribeInfo.subscribe) {
+          continue;
+        }
+        await this.scriptCtrl.subscribeModel.save(subscribeInfo.subscribe);
         this.subscribeNum += 1;
         wait.done();
       } catch (e) {
@@ -413,7 +489,7 @@ export default class Index extends Vue {
   selectAll() {
     this.selectedScript = [];
     if (this.isSelectAllScript) {
-      this.file.scripts.forEach((_, index) => {
+      this.scripts.forEach((_, index) => {
         this.selectedScript.push(index);
       });
     }
@@ -421,10 +497,9 @@ export default class Index extends Vue {
 
   selectAllSubscribe() {
     if (this.isSelectAllSubscribe) {
-      this.file.subscribes &&
-        this.file.subscribes.forEach((_, index) => {
-          this.selectedSubscribe.push(index);
-        });
+      this.subscribes.forEach((_, index) => {
+        this.selectedSubscribe.push(index);
+      });
     }
   }
 }

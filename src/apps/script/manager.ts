@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { MsgCenter } from '@App/apps/msg-center/msg-center';
-import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, ImportFile, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from '@App/apps/msg-center/event';
+import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from '@App/apps/msg-center/event';
 import { dealScript, get, randomString } from '@App/pkg/utils/utils';
 import { App } from '../app';
 import { UrlMatch } from '@App/pkg/match';
@@ -19,7 +19,6 @@ import { Subscribe } from '@App/model/do/subscribe';
 import { SubscribeModel } from '@App/model/subscribe';
 import { SyncModel } from '@App/model/sync';
 import { SyncAction, SyncData } from '@App/model/do/sync';
-import { ExportFile } from '@App/model/do/backup';
 import { v4 as uuidv4 } from 'uuid';
 import { Manager } from '@App/pkg/apps/manager';
 
@@ -103,7 +102,6 @@ export class ScriptManager extends Manager {
         this.listenerMessage(SubscribeCheckUpdate, this.subscribeCheckUpdate);
 
         this.listenerMessage(OpenImportFileWindow, this.openImportFileWindow)
-        this.listenerMessage(ImportFile, this.importFile)
         this.listenerMessage(RequestImportFile, this.requestImportFile)
 
         // 监听事件,并转发
@@ -196,11 +194,11 @@ export class ScriptManager extends Manager {
         });
     }
 
-    public openImportFileWindow(file: ExportFile): Promise<any> {
+    public openImportFileWindow(file: { name: string, url: string }): Promise<any> {
         return new Promise(resolve => {
             // 打开导入窗口
             const uuid = uuidv4()
-            App.Cache.set('import:info:' + uuid, file);
+            void App.Cache.set('import:info:' + uuid, file);
             chrome.tabs.create({
                 url: 'import.html?uuid=' + uuid,
                 active: true,
@@ -209,15 +207,7 @@ export class ScriptManager extends Manager {
         });
     }
 
-    public importFile(file: ExportFile): Promise<any> {
-        return new Promise(resolve => {
-
-
-            resolve(true);
-        });
-    }
-
-    public requestImportFile(uuid: string): Promise<ExportFile> {
+    public requestImportFile(uuid: string): Promise<any> {
         return new Promise(resolve => {
             const file = App.Cache.get('import:info:' + uuid);
             resolve(file);

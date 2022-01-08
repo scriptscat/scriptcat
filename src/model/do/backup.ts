@@ -1,5 +1,5 @@
 // 使用tampermonkey的备份模式
-import { Metadata, Script as InstallScript } from './script';
+import { Script as InstallScript } from './script';
 import { SubscribeScript, Subscribe as InstallSubscribe } from './subscribe';
 
 export interface ExportScript {
@@ -17,16 +17,27 @@ export interface ImportScript {
 	source: string
 	enabled: boolean
 	position: number
+	options?: ImportScriptOptions
 	storage?: Storage
 	requires?: ImportResource[]
 	requires_css?: ImportResource[]
 	resources?: ImportResource[]
 }
 
+export interface ImportScriptOptions {
+	name: string
+	download_url: string
+	subscribe_url?: string
+}
+
 export interface ImportResource {
-	meta: { name: string, url: string, ts: number, mimetype: string }
+	meta: ResourceMeta
 	source: string
 	base64: string
+}
+
+export interface ResourceMeta {
+	name: string, url: string, ts: number, mimetype: string
 }
 
 
@@ -40,6 +51,12 @@ export interface ImportSubscribe {
 	source: string
 	enabled: boolean
 	scripts: { [key: string]: SubscribeScript };
+	options: ImportSubscribeOptions
+}
+
+export interface ImportSubscribeOptions {
+	name: string
+	url: string
 }
 
 export interface ExportResource {
