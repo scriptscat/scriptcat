@@ -111,6 +111,7 @@ declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, erro
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
 declare function CAT_click(x: number, y: number): void;
+declare function CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void);
 
 declare namespace CAT_Types {
     interface ProxyRule {
@@ -225,7 +226,7 @@ declare namespace GM_Types {
     }
 
     interface DownloadError {
-        error: 'not_enabled' | 'not_whitelisted' | 'not_permitted' | 'not_supported' | 'not_succeeded',
+        error: 'not_enabled' | 'not_whitelisted' | 'not_permitted' | 'not_supported' | 'not_succeeded' | 'unknown',
         details?: string
     }
 

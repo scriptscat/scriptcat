@@ -35,6 +35,7 @@
         "cookies",
         "storage",
         "debugger",
+        "downloads",
         "webRequest",
         "background",
         "<all_urls>",

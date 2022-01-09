@@ -1,5 +1,5 @@
 //@ts-ignore
-import dts from '@App/types/tampermonkey.d.ts';
+import dts from '@App/types/scriptcat';
 import { CancellationToken, editor, languages, Position } from 'monaco-editor';
 
 export function registerEditorPrompt() {

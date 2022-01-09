@@ -2,6 +2,7 @@ import { ScriptCache } from '@App/model/do/script';
 import { Value } from '@App/model/do/value';
 import { addStyle } from '@App/pkg/frontend';
 import { blobToBase64, randomInt, randomString } from '@App/pkg/utils/utils';
+import { url } from 'inspector';
 import { BrowserMsg, ListenMsg } from '../msg-center/browser';
 import { AppEvent, ScriptValueChange } from '../msg-center/event';
 import { Grant } from './interface';
@@ -544,6 +545,38 @@ export class FrontendGrant implements ScriptContext {
         })
     }
 
+    @FrontendGrant.GMFunction()
+    protected GM_download(url: GM_Types.DownloadDetails | string, name?: string): void {
+        let details: GM_Types.DownloadDetails;
+        if (typeof url == 'string') {
+            details = {
+                name: name || '',
+                url: url
+            };
+        } else {
+            details = url;
+        }
+        this.postRequest('GM_download', [details], (grant: Grant) => {
+            if (grant.error) {
+                details.onerror && details.onerror({
+                    error: 'unknown',
+                    details: grant.error
+                })
+                return
+            }
+        });
+    }
+
+    @FrontendGrant.GMFunction()
+    protected CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void): void {
+        this.postRequest('CAT_createFile', [file, name], (grant: Grant) => {
+            if (grant.error) {
+                ondone && ondone(false, grant.error);
+                return
+            }
+            ondone && ondone(true);
+        });
+    }
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void
@@ -554,8 +587,9 @@ export class SandboxMsg implements BrowserMsg {
         top!.postMessage(msg, '*');
     }
 
-    public listen(topic: string, callback: ListenMsg) {
-        console.log('未实现');
+    public listen() {
+        //TODO: 未实现
+        // console.log('未实现');
     }
 
 }
