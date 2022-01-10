@@ -1294,13 +1294,16 @@ export class BackgroundGrant {
     public GM_download(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
             const config = <GM_Types.DownloadDetails>grant.params[0];
-            const headers = new Array<chrome.downloads.HeaderNameValuePair>();
-            if (config.headers) {
-                for (const key in config.headers) {
-                    headers.push({
-                        name: key, value: config.headers[key]
-                    });
-                }
+            // blob本地文件直接下载
+            if (config.url.startsWith('blob:')) {
+                chrome.downloads.download({
+                    url: config.url,
+                    saveAs: config.saveAs,
+                    filename: config.name,
+                }, () => {
+                    resolve({ type: 'onload' });
+                });
+                return;
             }
             // 使用ajax下载blob,再使用download api创建下载
             const xhr = new XMLHttpRequest();
@@ -1326,12 +1329,13 @@ export class BackgroundGrant {
             xhr.onload = () => {
                 deal('onload');
                 const url = URL.createObjectURL(xhr.response);
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                }, 6000);
                 chrome.downloads.download({
-                    method: config.method,
                     url: url,
                     saveAs: config.saveAs,
                     filename: config.name,
-                    headers: headers,
                 });
             }
             xhr.onerror = () => {
