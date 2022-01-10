@@ -220,11 +220,13 @@ export class BackgroundGrant {
                         }
                         App.Log.Debug('script', 'call function: ' + propertyName, script.name);
                         const metaGrant = script.metadata['grant'] || [];
-                        // TODO: 优化效率
+                        // TODO: 使用map优化效率
                         if (!permission.default) {
                             let flag = false;
+                            console.log(metaGrant);
+                            console.log(propertyName);
                             for (let i = 0; i < metaGrant.length; i++) {
-                                if (metaGrant[i] == propertyName) {
+                                if (metaGrant[i] == propertyName || metaGrant[i].replace('.', '_') == propertyName) {
                                     flag = true;
                                     break;
                                 }
@@ -502,7 +504,7 @@ export class BackgroundGrant {
                 resolve(ret);
             });
         },
-        alias: ['GM.fetch', 'GM.xmlHttpRequest'],
+        alias: ['GM.xmlHttpRequest'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise((resolve, reject) => {
