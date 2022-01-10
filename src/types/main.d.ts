@@ -104,7 +104,7 @@ declare namespace GMSend {
         binary?: boolean
         timeout?: number
         context?: CONTEXT_TYPE
-        responseType?: 'arraybuffer' | 'blob' | 'json'
+        responseType?: 'text' | 'arraybuffer' | 'blob' | 'json'
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,

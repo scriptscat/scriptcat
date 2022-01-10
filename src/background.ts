@@ -150,9 +150,6 @@ chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason == 'install') {
         chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
     } else if (details.reason == 'update') {
-        // 中版本的更新才打开新窗口
-        if (details.previousVersion?.substring(0, details.previousVersion.lastIndexOf('.')) != ExtVersion.substring(0, ExtVersion.lastIndexOf('.'))) {
-            chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
-        }
+        chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
     }
 });

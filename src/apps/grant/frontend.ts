@@ -546,11 +546,11 @@ export class FrontendGrant implements ScriptContext {
     }
 
     @FrontendGrant.GMFunction()
-    protected GM_download(url: GM_Types.DownloadDetails | string, name?: string): void {
+    protected GM_download(url: GM_Types.DownloadDetails | string, filename?: string): void {
         let details: GM_Types.DownloadDetails;
         if (typeof url == 'string') {
             details = {
-                name: name || '',
+                name: filename || '',
                 url: url
             };
         } else {
@@ -564,19 +564,10 @@ export class FrontendGrant implements ScriptContext {
                 })
                 return
             }
+            console.log(grant);
         });
     }
 
-    @FrontendGrant.GMFunction()
-    protected CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void): void {
-        this.postRequest('CAT_createFile', [file, name], (grant: Grant) => {
-            if (grant.error) {
-                ondone && ondone(false, grant.error);
-                return
-            }
-            ondone && ondone(true);
-        });
-    }
 }
 
 export type rejectCallback = (msg: string, delayrun: number) => void

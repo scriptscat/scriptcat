@@ -179,7 +179,7 @@ declare namespace GM_Types {
         response?: any,
         responseText?: string,
         responseXML?: Document | null
-        responseType?: 'arraybuffer' | 'blob' | 'json'
+        responseType?: 'text' | 'arraybuffer' | 'blob' | 'json'
     }
 
     interface XHRProgress extends XHRResponse {
@@ -202,7 +202,7 @@ declare namespace GM_Types {
         binary?: boolean
         timeout?: number
         context?: ContextType
-        responseType?: 'arraybuffer' | 'blob' | 'json'
+        responseType?: 'text' | 'arraybuffer' | 'blob' | 'json'
         overrideMimeType?: string,
         anonymous?: boolean,
         fetch?: boolean,
@@ -231,9 +231,10 @@ declare namespace GM_Types {
     }
 
     interface DownloadDetails {
+        method?: 'GET' | 'POST'
         url: string,
         name: string,
-        headers?: { readonly [key: string]: string },
+        headers?: { [key: string]: string }
         saveAs?: boolean,
         timeout?: number,
         onerror?: Listener<DownloadError>,

@@ -1274,4 +1274,39 @@ export class BackgroundGrant {
         });
     }
 
+    @BackgroundGrant.GMFunction({
+        listener: () => {
+            chrome.downloads.onCreated.addListener((item) => {
+                console.log('create', item);
+            });
+            chrome.downloads.onChanged.addListener((item) => {
+                console.log('change', item);
+            })
+        }
+    })
+    public GM_download(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            const data = <GM_Types.DownloadDetails>grant.params[0];
+            const headers = new Array<chrome.downloads.HeaderNameValuePair>();
+            if (data.headers) {
+                for (const key in data.headers) {
+                    headers.push({
+                        name: key, value: data.headers[key]
+                    });
+                }
+            }
+            chrome.downloads.download({
+                method: data.method,
+                url: data.url,
+                saveAs: data.saveAs,
+                filename: data.name,
+                headers: headers,
+            }, (id) => {
+                console.log(id);
+                resolve('1');
+            });
+        })
+
+    }
+
 }
