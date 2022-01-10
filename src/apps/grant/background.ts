@@ -502,7 +502,7 @@ export class BackgroundGrant {
                 resolve(ret);
             });
         },
-        alias: ['GM.fetch'],
+        alias: ['GM.fetch', 'GM.xmlHttpRequest'],
     })
     protected GM_xmlhttpRequest(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise((resolve, reject) => {

@@ -68,8 +68,12 @@ export class FrontendGrant implements ScriptContext {
                 param: param
             });
             // 兼容GM.*
-            const dot = key.replace('_', '.');
+            let dot = key.replace('_', '.');
             if (dot != key) {
+                // 特殊处理GM.xmlHttpRequest
+                if (dot == 'GM.xmlhttpRequest') {
+                    dot = 'GM.xmlHttpRequest';
+                }
                 FrontendGrant.apis.set(dot, {
                     api: descriptor.value,
                     param: param
