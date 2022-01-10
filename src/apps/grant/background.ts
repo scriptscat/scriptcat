@@ -519,13 +519,18 @@ export class BackgroundGrant {
                 xhr.responseType = config.responseType || '';
             }
 
-            const deal = (event: string) => {
-                const respond = this.dealXhr(config, xhr);
+            const deal = (event: string, data?: AnyMap) => {
+                const respond: AnyMap = this.dealXhr(config, xhr);
+                if (data) {
+                    for (const key in data) {
+                        respond[key] = data[key];
+                    }
+                }
                 grant.data = { type: event, data: respond };
                 post.postMessage(grant);
             }
             xhr.onload = () => {
-                deal('load');
+                deal('onload');
             }
             xhr.onloadstart = () => {
                 deal('onloadstart');
@@ -547,8 +552,7 @@ export class BackgroundGrant {
                     total: event.total,
                     totalSize: event.total,
                 };
-                grant.data = { type: 'onprogress', data: respond };
-                post.postMessage(grant);
+                deal('onprogress', respond)
             }
             xhr.onreadystatechange = () => {
                 deal('onreadystatechange');
@@ -557,36 +561,14 @@ export class BackgroundGrant {
                 grant.data = { type: 'ontimeout', data: '' };
                 post.postMessage(grant);
             }
-            xhr.setRequestHeader('X-Cat-' + this.rand + '-Scriptcat', 'true');
-            for (let key in config.headers) {
-                const val = config.headers[key];
-                // 处理unsafe的header
-                switch (key.toLowerCase()) {
-                    case 'user-agent':
-                    case 'host':
-                    case 'origin':
-                    case 'accept-encoding':
-                    case 'connection':
-                    case 'referer': {
-                        key = 'X-Cat-' + this.rand + '-' + key;
-                        break;
-                    }
-                }
-                try {
-                    xhr.setRequestHeader(key, val);
-                } catch (e) {
-                    App.Log.Debug('gmxhr', (e as Error).message, grant.name, grant.id);
-                }
-            }
+
+            this.dealUnsafeHeader(xhr, config.headers);
+            this.dealXhrCookie(xhr, config.cookie, config.anonymous);
+
             if (config.timeout) {
                 xhr.timeout = config.timeout;
             }
-            if (config.cookie) {
-                xhr.setRequestHeader('X-Cat-' + this.rand + '-Cookie', config.cookie);
-            }
-            if (config.anonymous) {
-                xhr.setRequestHeader('X-Cat-' + this.rand + '-Anonymous', 'true');
-            }
+
             if (config.overrideMimeType) {
                 xhr.overrideMimeType(config.overrideMimeType);
             }
@@ -1274,37 +1256,111 @@ export class BackgroundGrant {
         });
     }
 
-    @BackgroundGrant.GMFunction({
-        listener: () => {
-            chrome.downloads.onCreated.addListener((item) => {
-                console.log('create', item);
-            });
-            chrome.downloads.onChanged.addListener((item) => {
-                console.log('change', item);
-            })
+    protected dealUnsafeHeader(xhr: XMLHttpRequest, headers?: { [key: string]: string }): { [key: string]: string } {
+        xhr.setRequestHeader('X-Cat-' + this.rand + '-Scriptcat', 'true');
+        for (let key in headers) {
+            const val = headers[key];
+            // 处理unsafe的header
+            switch (key.toLowerCase()) {
+                case 'user-agent':
+                case 'host':
+                case 'origin':
+                case 'accept-encoding':
+                case 'connection':
+                case 'referer': {
+                    key = 'X-Cat-' + this.rand + '-' + key;
+                    break;
+                }
+            }
+            try {
+                xhr.setRequestHeader(key, val);
+            } catch (e) {
+                App.Log.Debug('gmxhr', (e as Error).message, 'GM_xmlhttpRequest');
+            }
         }
-    })
-    public GM_download(grant: Grant): Promise<any> {
+        return headers || {};
+    }
+
+    protected dealXhrCookie(xhr: XMLHttpRequest, cookie?: string, anonymous?: boolean) {
+        if (cookie) {
+            xhr.setRequestHeader('X-Cat-' + this.rand + '-Cookie', cookie);
+        }
+        if (anonymous) {
+            xhr.setRequestHeader('X-Cat-' + this.rand + '-Anonymous', 'true');
+        }
+    }
+
+    @BackgroundGrant.GMFunction()
+    public GM_download(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            const data = <GM_Types.DownloadDetails>grant.params[0];
+            const config = <GM_Types.DownloadDetails>grant.params[0];
             const headers = new Array<chrome.downloads.HeaderNameValuePair>();
-            if (data.headers) {
-                for (const key in data.headers) {
+            if (config.headers) {
+                for (const key in config.headers) {
                     headers.push({
-                        name: key, value: data.headers[key]
+                        name: key, value: config.headers[key]
                     });
                 }
             }
-            chrome.downloads.download({
-                method: data.method,
-                url: data.url,
-                saveAs: data.saveAs,
-                filename: data.name,
-                headers: headers,
-            }, (id) => {
-                console.log(id);
-                resolve('1');
-            });
+            // 使用ajax下载blob,再使用download api创建下载
+            const xhr = new XMLHttpRequest();
+            xhr.open(config.method || 'GET', config.url, true);
+            xhr.responseType = 'blob';
+            const deal = (event: string, data?: AnyMap) => {
+                const removeXCat = new RegExp('x-cat-' + this.rand + '-', 'g');
+                const respond: AnyMap = {
+                    finalUrl: xhr.responseURL || config.url,
+                    readyState: <any>xhr.readyState,
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseHeaders: xhr.getAllResponseHeaders().replace(removeXCat, ''),
+                };
+                if (data) {
+                    for (const key in data) {
+                        respond[key] = data[key];
+                    }
+                }
+                grant.data = { type: event, data: respond };
+                post.postMessage(grant);
+            }
+            xhr.onload = () => {
+                deal('onload');
+                const url = URL.createObjectURL(xhr.response);
+                chrome.downloads.download({
+                    method: config.method,
+                    url: url,
+                    saveAs: config.saveAs,
+                    filename: config.name,
+                    headers: headers,
+                });
+            }
+            xhr.onerror = () => {
+                deal('onerror');
+            }
+            xhr.onprogress = (event) => {
+                const respond: GM_Types.XHRProgress = {
+                    done: xhr.DONE,
+                    lengthComputable: event.lengthComputable,
+                    loaded: event.loaded,
+                    total: event.total,
+                    totalSize: event.total,
+                };
+                deal('onprogress', respond);
+            }
+            xhr.ontimeout = () => {
+                grant.data = { type: 'ontimeout', data: '' };
+                post.postMessage(grant);
+            }
+
+            this.dealUnsafeHeader(xhr, config.headers);
+            this.dealXhrCookie(xhr, config.cookie, config.anonymous);
+
+            if (config.timeout) {
+                xhr.timeout = config.timeout;
+            }
+
+            xhr.send();
+            return resolve(undefined);
         })
 
     }

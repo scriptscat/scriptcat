@@ -237,8 +237,11 @@ declare namespace GM_Types {
         headers?: { [key: string]: string }
         saveAs?: boolean,
         timeout?: number,
+        cookie?: string,
+        anonymous?: boolean
+
         onerror?: Listener<DownloadError>,
-        ontimeout?: Listener<object>,
+        ontimeout?: () => void,
         onload?: Listener<object>,
         onprogress?: Listener<XHRProgress<void>>
     }

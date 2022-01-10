@@ -218,7 +218,7 @@ export class FrontendGrant implements ScriptContext {
             }
             const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data || {};
             switch (data.type) {
-                case 'load':
+                case 'onload':
                     details.onload && details.onload(data.data);
                     break;
                 case 'onloadend':
@@ -556,7 +556,16 @@ export class FrontendGrant implements ScriptContext {
         } else {
             details = url;
         }
-        this.postRequest('GM_download', [details], (grant: Grant) => {
+        this.postRequest('GM_download', [{
+            method: details.method,
+            url: details.url,
+            name: details.name,
+            headers: details.headers,
+            saveAs: details.saveAs,
+            timeout: details.timeout,
+            cookie: details.cookie,
+            anonymous: details.anonymous
+        }], (grant: Grant) => {
             if (grant.error) {
                 details.onerror && details.onerror({
                     error: 'unknown',
@@ -564,7 +573,25 @@ export class FrontendGrant implements ScriptContext {
                 })
                 return
             }
-            console.log(grant);
+            const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data || {};
+            //TODO: 错误处理
+            switch (data.type) {
+                case 'onload':
+                    details.onload && details.onload(data.data);
+                    break
+                case 'onprogress':
+                    details.onprogress && details.onprogress(<GM_Types.XHRProgress>data.data);
+                    break;
+                case 'ontimeout':
+                    details.ontimeout && details.ontimeout();
+                    break;
+                case 'onerror':
+                    details.onerror && details.onerror({
+                        error: 'unknown'
+                    });
+                    break;
+
+            }
         });
     }
 
