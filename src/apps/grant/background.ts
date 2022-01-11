@@ -76,6 +76,12 @@ export class BackgroundGrant {
             send(this.rand);
         });
         try {
+            const reqOpt = ['blocking', 'requestHeaders'];
+            const respOpt = ['blocking', 'responseHeaders'];
+            if (!isFirefox()) {
+                reqOpt.push('extraHeaders');
+                respOpt.push('extraHeaders');
+            }
             chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
                 let setCookie = '';
                 let cookie = '';
@@ -158,10 +164,11 @@ export class BackgroundGrant {
                 }
             }, {
                 urls: ['<all_urls>'],
-            }, ['blocking', 'requestHeaders', 'extraHeaders']);
+            }, reqOpt);
             const responseHeader: { [key: string]: boolean } = { 'set-cookie': true };
-            chrome.webRequest.onHeadersReceived.addListener((details) => {
-                if (details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) {
+            chrome.webRequest.onHeadersReceived.addListener((details: chrome.webRequest.WebResponseHeadersDetails & { originUrl?: string }) => {
+                if ((details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) ||
+                    (details.originUrl && details.originUrl.startsWith(chrome.extension.getURL('')))) {
                     details.responseHeaders?.forEach(val => {
                         if (responseHeader[val.name]) {
                             details.responseHeaders?.push({
@@ -177,8 +184,9 @@ export class BackgroundGrant {
                 }
             }, {
                 urls: ['<all_urls>'],
-            }, ['blocking', 'responseHeaders', 'extraHeaders']);
+            }, respOpt);
         } catch (e) {
+            console.log(e);
         }
     }
 
@@ -223,8 +231,6 @@ export class BackgroundGrant {
                         // TODO: 使用map优化效率
                         if (!permission.default) {
                             let flag = false;
-                            console.log(metaGrant);
-                            console.log(propertyName);
                             for (let i = 0; i < metaGrant.length; i++) {
                                 if (metaGrant[i] == propertyName || metaGrant[i].replace('.', '_') == propertyName) {
                                     flag = true;
