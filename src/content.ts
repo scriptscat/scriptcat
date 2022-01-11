@@ -18,6 +18,10 @@ chrome.runtime.sendMessage('runScript', (event: unknown) => {
                         (<{ cloneInto: (detail: any, view: any) => any }><unknown>global).cloneInto(resp, document.defaultView) : resp;
                     browserMsg.send(msg.flag, msg);
                     break;
+                case 'CAT_createBlobUrl':
+                    msg.data = URL.createObjectURL(msg.params[0]);
+                    browserMsg.send(msg.flag, msg);
+                    break;
                 default:
                     // NOTE: 好像没处理释放问题
                     MsgCenter.connect(ScriptGrant, msg).addListener((msg: Grant) => {

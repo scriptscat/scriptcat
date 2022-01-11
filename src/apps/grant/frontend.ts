@@ -138,7 +138,16 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob'] })
+    @FrontendGrant.GMFunction()
+    public CAT_createBlobUrl(blob: Blob): Promise<string> {
+        return new Promise(resolve => {
+            this.postRequest('CAT_createBlobUrl', [blob], (grant: Grant) => {
+                resolve(<string>grant.data);
+            });
+        });
+    }
+
+    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob', 'CAT_createBlobUrl'] })
     public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
         const u = new URL(details.url, window.location.href);
         if (details.headers) {
@@ -197,6 +206,9 @@ export class FrontendGrant implements ScriptContext {
                     }
                 }
                 param.data = data;
+            } else if (details.data instanceof Blob) {
+                param.dataType = 'Blob';
+                param.data = await this.CAT_createBlobUrl(details.data);
             } else {
                 param.data = details.data;
             }
@@ -249,6 +261,8 @@ export class FrontendGrant implements ScriptContext {
             }
         });
     }
+
+
 
     public GM_notification(text: string, title: string, image: string, onclick?: GM_Types.NotificationOnClick): void
 

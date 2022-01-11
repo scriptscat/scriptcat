@@ -422,19 +422,22 @@ export class BackgroundGrant {
                 if (api == undefined) {
                     return resolve(undefined);
                 }
-                api.apply(this, [grant, postMessage]).then((result: any) => {
-                    if (grant.value == 'CAT_runComplete' || (grant.value == 'CAT_setRunError' && grant.params[0])) {
-                        //执行完毕,释放资源
-                        BackgroundGrant.freedCallback.forEach(v => {
-                            v(grant.id, grant.tabId);
-                        });
-                    }
-                    resolve(result);
-                }).catch((e: string) => {
-                    grant.error = 'GM_ERROR';
-                    grant.errorMsg = e;
-                    resolve(grant);
-                });
+                const ret = api.apply(this, [grant, postMessage]);
+                if (ret instanceof Promise) {
+                    ret.then((result: any) => {
+                        if (grant.value == 'CAT_runComplete' || (grant.value == 'CAT_setRunError' && grant.params[0])) {
+                            //后台脚本执行完毕,释放资源
+                            BackgroundGrant.freedCallback.forEach(v => {
+                                v(grant.id, grant.tabId);
+                            });
+                        }
+                        resolve(result);
+                    }).catch((e: string) => {
+                        grant.error = 'GM_ERROR';
+                        grant.errorMsg = e;
+                        resolve(grant);
+                    });
+                }
             });
         });
 
@@ -592,6 +595,15 @@ export class BackgroundGrant {
                     });
                     xhr.send(data);
                 }
+            } else if (config.dataType == 'Blob') {
+                const handler = async () => {
+                    if (!config.data) {
+                        return reject('data is null');
+                    }
+                    const resp = await (await fetch(<string>config.data)).blob();
+                    xhr.send(resp);
+                }
+                void handler();
             } else {
                 xhr.send(<string>config.data);
             }
@@ -741,7 +753,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         listener: () => {
             chrome.tabs.onRemoved.addListener(tabId => {
-                const tab = BackgroundGrant.tabMap.get(tabId);
+                const tab = <[Grant, IPostMessage]>BackgroundGrant.tabMap.get(tabId);
                 if (tab) {
                     tab[0].data = { type: 'close' }
                     tab[1].postMessage(tab[0]);
@@ -775,36 +787,45 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction({
         listener: () => {
-            chrome.notifications.onClosed.addListener(async (id, user) => {
-                const ret = await App.Cache.get('GM_notification:' + id);
-                if (ret) {
-                    const [grant, post] = ret;
-                    grant.data = { type: 'done', id: id, user: user };
-                    post.postMessage(grant);
-                    App.Cache.del('GM_notification:' + id);
+            chrome.notifications.onClosed.addListener((id, user) => {
+                const handler = async () => {
+                    const ret = await App.Cache.get('GM_notification:' + id);
+                    if (ret) {
+                        const [grant, post] = <[Grant, IPostMessage]>ret;
+                        grant.data = { type: 'done', id: id, user: user };
+                        post.postMessage(grant);
+                        void App.Cache.del('GM_notification:' + id);
+                    }
                 }
+                void handler();
             });
-            chrome.notifications.onClicked.addListener(async (id) => {
-                const ret = await App.Cache.get('GM_notification:' + id);
-                if (ret) {
-                    const [grant, post] = ret;
-                    grant.data = { type: 'click', id: id, index: undefined };
-                    post.postMessage(grant);
-                    grant.data = { type: 'done', id: id, user: true };
-                    post.postMessage(grant);
-                    App.Cache.del('GM_notification:' + id);
+            chrome.notifications.onClicked.addListener((id) => {
+                const handler = async () => {
+                    const ret = await App.Cache.get('GM_notification:' + id);
+                    if (ret) {
+                        const [grant, post] = <[Grant, IPostMessage]>ret;
+                        grant.data = { type: 'click', id: id, index: undefined };
+                        post.postMessage(grant);
+                        grant.data = { type: 'done', id: id, user: true };
+                        post.postMessage(grant);
+                        void App.Cache.del('GM_notification:' + id);
+                    }
                 }
+                void handler();
             });
-            chrome.notifications.onButtonClicked.addListener(async (id, buttonIndex) => {
-                const ret = await App.Cache.get('GM_notification:' + id);
-                if (ret) {
-                    const [grant, post] = ret;
-                    grant.data = { type: 'click', id: id, index: buttonIndex };
-                    post.postMessage(grant);
-                    grant.data = { type: 'done', id: id, user: true };
-                    post.postMessage(grant);
-                    App.Cache.del('GM_notification:' + id);
+            chrome.notifications.onButtonClicked.addListener((id, buttonIndex) => {
+                const handler = async () => {
+                    const ret = await App.Cache.get('GM_notification:' + id);
+                    if (ret) {
+                        const [grant, post] = <[Grant, IPostMessage]>ret;
+                        grant.data = { type: 'click', id: id, index: buttonIndex };
+                        post.postMessage(grant);
+                        grant.data = { type: 'done', id: id, user: true };
+                        post.postMessage(grant);
+                        void App.Cache.del('GM_notification:' + id);
+                    }
                 }
+                void handler();
             });
         }
     })
@@ -827,7 +848,7 @@ export class BackgroundGrant {
             }
 
             chrome.notifications.create(options, (notificationId) => {
-                App.Cache.set('GM_notification:' + notificationId, [grant, post]);
+                void App.Cache.set('GM_notification:' + notificationId, [grant, post]);
                 grant.data = { type: 'create', id: notificationId };
                 post.postMessage(grant);
                 if (details.timeout) {
@@ -835,7 +856,7 @@ export class BackgroundGrant {
                         chrome.notifications.clear(notificationId);
                         grant.data = { type: 'done', id: notificationId, user: false };
                         post.postMessage(grant);
-                        App.Cache.del('GM_notification:' + notificationId);
+                        void App.Cache.del('GM_notification:' + notificationId);
                     }, details.timeout);
                 }
             });
@@ -845,18 +866,17 @@ export class BackgroundGrant {
 
     @BackgroundGrant.GMFunction()
     protected GM_closeNotification(grant: Grant): Promise<any> {
-        return new Promise(async resolve => {
-            chrome.notifications.clear(grant.params[0]);
-
-            const ret = await App.Cache.get('GM_notification:' + grant.params[0]);
-            if (ret) {
-                const [grant, post] = ret;
-                grant.data = { type: 'done', id: grant.params[0], user: false };
-                post.postMessage(grant);
-                App.Cache.del('GM_notification:' + grant.params[0]);
-            }
-
-            return resolve(undefined);
+        return new Promise(resolve => {
+            chrome.notifications.clear(<string>grant.params[0]);
+            void App.Cache.get('GM_notification:' + <string>grant.params[0]).then(ret => {
+                if (ret) {
+                    const [grant, post] = <[Grant, IPostMessage]>ret;
+                    grant.data = { type: 'done', id: grant.params[0], user: false };
+                    post.postMessage(grant);
+                    void App.Cache.del('GM_notification:' + <string>grant.params[0]);
+                }
+                return resolve(undefined);
+            });
         });
     }
 
