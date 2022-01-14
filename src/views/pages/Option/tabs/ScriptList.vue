@@ -117,7 +117,11 @@
                 label
                 small
               >
-                <v-icon left v-text="icons.mdiAlertCircleOutline" small></v-icon>
+                <v-icon
+                  left
+                  v-text="icons.mdiAlertCircleOutline"
+                  small
+                ></v-icon>
                 {{ $t("script.runStatus.error") }}
               </v-chip>
               <v-chip
@@ -130,7 +134,11 @@
                 label
                 small
               >
-                <v-icon left v-text="icons.mdiClockTimeFourOutline" small></v-icon>
+                <v-icon
+                  left
+                  v-text="icons.mdiClockTimeFourOutline"
+                  small
+                ></v-icon>
                 {{ $t("script.runStatus.complete") }}
               </v-chip>
             </div>
@@ -138,8 +146,12 @@
           <span v-if="item.type == 2 && item.metadata['crontab']">
             定时脚本,下一次运行时间:{{ nextTime(item.metadata["crontab"][0]) }}
           </span>
-          <span v-else-if="item.type == 3"> 后台脚本,会在扩展开启时自动执行 </span>
-          <span v-else-if="item.type == 1"> 前台页面脚本,会在指定的页面上运行 </span>
+          <span v-else-if="item.type == 3">
+            后台脚本,会在扩展开启时自动执行
+          </span>
+          <span v-else-if="item.type == 1">
+            前台页面脚本,会在指定的页面上运行
+          </span>
         </v-tooltip>
       </template>
 
@@ -263,9 +275,20 @@
           indeterminate
           color="primary"
         ></v-progress-circular>
-        <span v-else-if="item.updatetime === -2" style="color: #ff6565">有更新</span>
-        <span v-else style="cursor: pointer" @click="checkUpdate(item)">
+        <span v-else-if="item.updatetime === -2" style="color: #ff6565"
+          >有更新</span
+        >
+        <span
+          v-else-if="item.checkupdate_url"
+          style="cursor: pointer"
+          @click="checkUpdate(item)"
+        >
           {{ mapTimeStampToHumanized(item.updatetime) }}</span
+        ><span
+          v-else
+          style="color: #afafaf"
+          title="无法检查更新,可能是无更新地址或者禁用了更新"
+          >---</span
         >
       </template>
 
@@ -413,7 +436,10 @@
             @click="stopScript(item)"
             >{{ icons.mdiStop }}</v-icon
           >
-          <BgCloud v-if="item.type !== 1 && item.metadata['cloudcat']" :script="item" />
+          <BgCloud
+            v-if="item.type !== 1 && item.metadata['cloudcat']"
+            :script="item"
+          />
         </span>
       </template>
 
@@ -422,19 +448,28 @@
 
     <v-dialog v-model="dialogDelete" max-width="500px">
       <v-card>
-        <v-card-title class="headline" :style="{ display: 'grid', placeItems: 'center' }">
+        <v-card-title
+          class="headline"
+          :style="{ display: 'grid', placeItems: 'center' }"
+        >
           你确定要删除该脚本吗？
         </v-card-title>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="blue darken-1" text @click="closeDelete">取消</v-btn>
-          <v-btn color="blue darken-1" text @click="deleteItemConfirm"> 确定 </v-btn>
+          <v-btn color="blue darken-1" text @click="deleteItemConfirm">
+            确定
+          </v-btn>
           <v-spacer></v-spacer>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showlog" transition="dialog-bottom-transition" max-width="600">
+    <v-dialog
+      v-model="showlog"
+      transition="dialog-bottom-transition"
+      max-width="600"
+    >
       <template v-slot:default="dialog">
         <v-card>
           <v-toolbar color="primary" dark>
@@ -466,13 +501,17 @@
                   width="1"
                   color="primary"
                 ></v-progress-circular>
-                <span style="color: #1976d2; margin-left: 4px">等待日志...</span>
+                <span style="color: #1976d2; margin-left: 4px"
+                  >等待日志...</span
+                >
               </div>
             </div>
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions class="justify-end">
-            <v-btn text color="error" @click="clearLog(logScript)">清空日志</v-btn>
+            <v-btn text color="error" @click="clearLog(logScript)"
+              >清空日志</v-btn
+            >
           </v-card-actions>
         </v-card>
       </template>
@@ -633,7 +672,14 @@ import Sortable from 'sortablejs';
 dayjs.locale('zh-cn');
 dayjs.extend(relativeTime);
 
-const multipleActionTypes = ['启用', '禁用', '导出', '更新', '重置', '删除'] as const;
+const multipleActionTypes = [
+  '启用',
+  '禁用',
+  // "导出",
+  '更新',
+  // "重置",
+  '删除',
+] as const;
 
 @Component({
   components: { BgCloud },
@@ -671,7 +717,14 @@ export default class ScriptList extends Vue {
   filterText = '';
 
   multipleActionTypes = multipleActionTypes;
-  multipleFilterTypes = ['自动', '@name', '@namespace', '@author', '@grant', '@include'];
+  multipleFilterTypes = [
+    '自动',
+    '@name',
+    '@namespace',
+    '@author',
+    '@grant',
+    '@include',
+  ];
 
   rules = [];
 
@@ -682,18 +735,35 @@ export default class ScriptList extends Vue {
     // 执行操作
     switch (this.multipleAction) {
       case '删除':
+        if (!confirm('确定删除吗?')) {
+          return;
+        }
         for (const script of targets) {
           await this.scriptController.uninstall(script.id);
         }
-
         alert('批量删除成功');
-
-        // 响应式scriptList
-        eventBus.$emit(EventType.UpdateScriptList);
-
+        break;
+      case '禁用':
+        for (const script of targets) {
+          await this.scriptController.disable(script.id);
+        }
+        alert('批量禁用成功');
+        break;
+      case '启用':
+        for (const script of targets) {
+          await this.scriptController.enable(script.id);
+        }
+        alert('批量启用成功');
+        break;
+      case '更新':
+        for (const script of targets) {
+          await this.scriptController.check(script.id);
+        }
+        alert('批量检查更新成功');
         break;
     }
 
+    eventBus.$emit(EventType.UpdateScriptList);
     this.selected = [];
   }
 
@@ -952,7 +1022,9 @@ export default class ScriptList extends Vue {
           id: 0,
           scriptId: script.id,
           storageName:
-            (script.metadata['storagename'] && script.metadata['storagename'][0]) || '',
+            (script.metadata['storagename'] &&
+              script.metadata['storagename'][0]) ||
+            '',
           key: key,
           value: item.value,
           createtime: new Date().getTime(),

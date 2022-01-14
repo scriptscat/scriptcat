@@ -10,8 +10,8 @@
           <div class="control d-flex justify-start" style="margin: 10px 0">
             <v-btn
               @click="importFile"
-              :loading="importLoading"
-              :disabled="importLoading"
+              :loading="importLoading || loading"
+              :disabled="importLoading || loading"
               depressed
               small
               color="primary"
@@ -46,8 +46,29 @@
             <div class="text-subtitle-2">
               脚本导入进度: {{ scriptNum }}/{{ selectedScript.length }}
             </div>
-            <div v-if="loading" class="text-subtitle-2">
-              脚本加载进度: {{ cur }}/{{ total }}
+            <div
+              v-if="loading"
+              class="text-subtitle-2"
+              style="margin-left: 10px"
+            >
+              加载进度: {{ cur }}/{{ total }}
+            </div>
+          </div>
+          <div
+            class="control d-flex justify-start align-center"
+            style="margin: 10px 0"
+          >
+            <div class="subtitle-2">请选择你要导入的订阅:</div>
+            <v-checkbox
+              v-model="isSelectAllScript"
+              label="全选"
+              color="secondary"
+              @change="selectAllSubscribe"
+              style="margin: 0 10px; padding: 0"
+              hide-details
+            ></v-checkbox>
+            <div class="text-subtitle-2">
+              订阅导入进度: {{ subscribeNum }}/{{ selectedSubscribe.length }}
             </div>
           </div>
           <v-list two-line>
@@ -62,9 +83,9 @@
                     <v-list-item-title
                       v-html="
                         item.name +
-                        (item.background
-                          ? '<img src=\'/assets/logo.png\' width=\'16px\'/>'
-                          : '')
+                          (item.background
+                            ? '<img src=\'/assets/logo.png\' width=\'16px\'/>'
+                            : '')
                       "
                     >
                     </v-list-item-title>
@@ -116,23 +137,6 @@
           class="script-list"
           style="border-top: 1px dashed"
         >
-          <div
-            class="control d-flex justify-start align-center"
-            style="margin: 10px 0"
-          >
-            <div class="subtitle-2">请选择你要导入的订阅:</div>
-            <v-checkbox
-              v-model="isSelectAllScript"
-              label="全选"
-              color="secondary"
-              @change="selectAllSubscribe"
-              style="margin: 0 10px; padding: 0"
-              hide-details
-            ></v-checkbox>
-            <div class="text-subtitle-2">
-              订阅导入进度: {{ subscribeNum }}/{{ selectedSubscribe.length }}
-            </div>
-          </div>
           <v-list two-line>
             <v-list-item-group
               v-model="selectedScript"
@@ -297,11 +301,11 @@ export default class Index extends Vue {
       };
       let [newScript, oldScript] = await this.scriptCtrl.prepareScriptByCode(
         importScript.source,
-        script.download_url
+        script.download_url,
       );
       if (typeof oldScript === 'string' || !newScript) {
         script.error = <string>oldScript || 'error';
-        this.scripts.push(script);
+        this.selectedScript.push(this.scripts.push(script) - 1);
         continue;
       }
       if (oldScript) {
@@ -314,7 +318,7 @@ export default class Index extends Vue {
       script.hasOld = oldScript ? true : false;
       script.script = newScript;
       script.background = newScript?.type !== 1;
-      this.scripts.push(script);
+      this.selectedScript.push(this.scripts.push(script) - 1);
     }
     let importSubscribe;
     while ((importSubscribe = backup.ReadSubscribe())) {
@@ -330,7 +334,7 @@ export default class Index extends Vue {
       );
       if (typeof oldSub === 'string' || !newSub) {
         subscribe.error = <string>oldSub || 'error';
-        this.subscribes.push(subscribe);
+        this.selectedSubscribe.push(this.subscribes.push(subscribe) - 1);
         continue;
       }
       if (oldSub) {
@@ -339,7 +343,7 @@ export default class Index extends Vue {
       newSub.scripts = importSubscribe.scripts;
       subscribe.subscribe = newSub;
       subscribe.hasOld = oldSub ? true : false;
-      this.subscribes.push(subscribe);
+      this.selectedSubscribe.push(this.subscribes.push(subscribe) - 1);
     }
     this.selectAll();
     this.selectAllSubscribe();
@@ -411,6 +415,7 @@ export default class Index extends Vue {
       let handle = async () => {
         let script = scriptInfo.script;
         if (!script) {
+          console.log('error',scriptInfo);
           return;
         }
         script.status = scriptInfo.enabled
@@ -451,6 +456,9 @@ export default class Index extends Vue {
             };
             void importValue();
           }
+        } else {
+          this.scriptNum += 1;
+          wait.done();
         }
       };
       try {

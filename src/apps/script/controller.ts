@@ -1,4 +1,4 @@
-import { v5 as uuidv5 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import {
     SCRIPT_STATUS_ENABLE,
     SCRIPT_STATUS_DISABLE,
@@ -74,12 +74,15 @@ export class ScriptController {
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         return new Promise(async resolve => {
             if (script.id) {
-                resolve(script.id);
-                MsgCenter.sendMessage(ScriptReinstall, script);
+                MsgCenter.sendMessage(ScriptReinstall, script, () => {
+                    resolve(script.id);
+                });
             } else {
                 await this.scriptModel.save(script);
                 resolve(script.id);
-                MsgCenter.sendMessage(ScriptInstall, script);
+                MsgCenter.sendMessage(ScriptInstall, script, () => {
+                    resolve(script.id);
+                });
             }
         });
     }
@@ -280,7 +283,7 @@ export class ScriptController {
             }
             const script: Script = {
                 id: 0,
-                uuid: uuid || uuidv5(url, uuidv5.URL),
+                uuid: uuid || uuidv4(),
                 name: metadata['name'][0],
                 code: code,
                 author: metadata['author'] && metadata['author'][0],

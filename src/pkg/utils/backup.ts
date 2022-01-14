@@ -408,7 +408,7 @@ export class ZipBackup extends JsonBackup implements Backup {
 						await this.getAndSet(scriptMap, name, async (val: ImportScript) => {
 							return new Promise(resolve => {
 								const handler = async () => {
-									const file = zip.file(key);
+									const file = zip.files[key];
 									if (file) {
 										val.source = await file.async('string');
 										if (val.enabled === undefined) {

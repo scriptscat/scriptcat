@@ -282,9 +282,14 @@ export function base64ToBlob(dataURI: string) {
 }
 
 export function base64ToStr(base64: string): string {
-    return decodeURIComponent(atob(base64).split('').map(function (c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
+    try {
+        return decodeURIComponent(atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+    } catch (e) {
+        console.log(e);
+    }
+    return '';
 }
 
 export function strToBase64(str: string): string {
