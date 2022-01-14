@@ -67,6 +67,7 @@ export default class App extends Vue {
     generateScriptTab(
         scriptId: number,
         template: 'normal' | 'crontab' | 'background' = 'crontab',
+        param?: AnyMap
     ): ITabItem {
         const tabKey = Math.random();
 
@@ -81,7 +82,7 @@ export default class App extends Vue {
                         height: '100%',
                     }}
                 >
-                    <ScriptTab tabKey={tabKey} scriptId={scriptId} template={template} />
+                    <ScriptTab tabKey={tabKey} scriptId={scriptId} template={template} param={param} />
                 </div>
             ),
             closable: true,
@@ -183,7 +184,21 @@ export default class App extends Vue {
                 this.handleEditScript({ scriptId: parseInt(query.id as string) });
             } else if (query?.target === 'initial') {
                 // 新建脚本
-                eventBus.$emit<INewScript>(EventType.NewScript, { template: 'normal' } as any);
+                chrome.storage.local.get(["activeTabUrl"], (items) => {
+                    console.log(items);
+                    if (items['activeTabUrl']) {
+                        chrome.storage.local.remove('activeTabUrl');
+                        eventBus.$emit<INewScript>(EventType.NewScript, {
+                            template: 'normal', param: {
+                                match: items['activeTabUrl'].url
+                            }
+                        } as any);
+                    } else {
+                        eventBus.$emit<INewScript>(EventType.NewScript, {
+                            template: 'normal'
+                        } as any);
+                    }
+                });
             }
         });
         // deubg用的bg
@@ -253,20 +268,16 @@ export default class App extends Vue {
     }
 
     /** 在原PlusTab中保存了脚本时触发 */
-    handleNewScript({ scriptId, tabKey, template }: INewScript) {
+    handleNewScript({ scriptId, tabKey, template, param }: INewScript) {
         console.log('handleNewScript');
 
         // 需要知道是哪一个tab触发了保存事件，因为可能同时打开了多个“新建脚本”
         const scriptTabIndex = this.allTabs.findIndex((tab) => tab.tabKey == tabKey);
 
-        console.log({
-            scriptTabIndex,
-        });
-
         this.updateTab({
             // -1时，说明目前并没有打开“新建脚本”，只有固定的3个基础页面，需要新开，即initial
             index: scriptTabIndex === -1 ? this.allTabs.length : scriptTabIndex,
-            newTab: this.generateScriptTab(scriptId, template),
+            newTab: this.generateScriptTab(scriptId, template, param),
         });
 
         this.$nextTick(() => {

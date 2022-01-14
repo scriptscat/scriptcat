@@ -14,6 +14,7 @@
           :script="script"
           :scriptId="scriptId"
           :template="template"
+          :param="param"
           :onMetaChange="onMetaChange"
           @initial-script="handleInitialSctipt"
           @save-script="handleSaveScript"
@@ -92,6 +93,7 @@ export default class ScriptTab extends Vue {
   script: Script = <Script>{};
 
   @Prop() template!: 'normal' | 'crontab' | 'background';
+  @Prop() param?: AnyMap;
 
   hasInitial = false;
   onMetaChange = false;

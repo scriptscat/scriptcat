@@ -56,7 +56,11 @@
     </div>
 
     <div class="sub-container">
-      <ResizableEditor ref="resizableEditor" :template="template" />
+      <ResizableEditor
+        ref="resizableEditor"
+        :template="template"
+        :param="param"
+      />
     </div>
     <input type="file" id="fileInput" hidden accept=".js" />
   </div>
@@ -98,6 +102,7 @@ export default class CloseButton extends Vue {
   @Prop() scriptId!: number;
   @Prop() script!: Script;
   @Prop() template!: 'normal' | 'crontab' | 'background';
+  @Prop() param?: AnyMap;
 
   @Prop() onMetaChange!: boolean;
   hasInitial = false;
@@ -122,7 +127,7 @@ export default class CloseButton extends Vue {
       var file = fileInput!.files![0];
       var reader = new FileReader();
       let _this = this;
-      reader.onload = function () {
+      reader.onload = function() {
         _this.editor.setValue(<string>this.result);
       };
       reader.readAsText(file, 'utf-8');

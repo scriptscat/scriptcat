@@ -36,6 +36,7 @@ export default class ResizableEditor extends Vue {
   // 可以选择默认模板
   @Prop() template!: 'normal' | 'crontab' | 'background';
   // @Prop({ default: "crontab" }) template!: "normal" | "crontab" | "background";
+  @Prop() param?: AnyMap;
 
   // 页面上存在多个editor实例时，contentKeyService会报错
   uniqueEditorId = `container${String(Math.random()).slice(2)}`;
@@ -75,7 +76,7 @@ export default class ResizableEditor extends Vue {
       return;
     }
 
-    let template: typeof crontabTpl;
+    let template: string;
 
     switch (this.template) {
       case 'normal':
@@ -90,6 +91,14 @@ export default class ResizableEditor extends Vue {
         template = backgroundTpl;
         break;
     }
+    console.log(this.param);
+    for (const key in this.param) {
+      template = template.replaceAll(
+        '{{' + key + '}}',
+        <string>this.param[key]
+      );
+    }
+    template = template.replaceAll(/\s+\/\/\s?@.*?\s+{{.*?}}/g, '');
 
     this.editor = editor.create(edit, {
       language: this.language,

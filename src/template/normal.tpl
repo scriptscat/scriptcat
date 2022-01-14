@@ -4,6 +4,11 @@
 // @version      0.1.0
 // @description  try to take over the world!
 // @author       You
+// @match        {{match}}
 // ==/UserScript==
 
-// 在此处键入代码……
+(function() {
+    'use strict';
+
+    // Your code here...
+})();

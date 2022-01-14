@@ -45,6 +45,7 @@ interface INewScript {
     scriptId: number;
     tabKey: string | number;
     template?: 'normal' | 'crontab' | 'background';
+    param?: AnyMap
 }
 
 interface IUpdateMeta {
