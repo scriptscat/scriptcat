@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { MsgCenter } from '@App/apps/msg-center/msg-center';
 import { AppEvent, ScriptExec, ScriptRunStatusChange, ScriptStatusChange, ScriptStop, ScriptUninstall, ScriptReinstall, ScriptValueChange, TabRemove, RequestTabRunScript, ScriptInstall, RequestInstallInfo, ScriptCheckUpdate, RequestConfirmInfo, ListenGmLog, SubscribeUpdate, Unsubscribe, SubscribeCheckUpdate, OpenImportFileWindow, RequestImportFile, ScriptInstallByURL } from '@App/apps/msg-center/event';
-import { dealScript, get, randomString } from '@App/pkg/utils/utils';
+import { dealScript, get, InfoNotification, randomString } from '@App/pkg/utils/utils';
 import { App } from '../app';
 import { UrlMatch } from '@App/pkg/match';
 import { ValueModel } from '@App/model/value';
 import { ResourceManager } from '../resource';
-import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, SCRIPT_STATUS_DELETE } from '@App/model/do/script';
+import { ScriptCache, Script, SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, SCRIPT_TYPE_CRONTAB, SCRIPT_TYPE_BACKGROUND, SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ERROR, SCRIPT_RUN_STATUS_RETRY, SCRIPT_RUN_STATUS_ERROR, SCRIPT_STATUS_DELETE, Metadata } from '@App/model/do/script';
 import { Value } from '@App/model/do/value';
 import { ScriptModel } from '@App/model/script';
 import { Background } from './background';
@@ -21,6 +21,7 @@ import { SyncModel } from '@App/model/sync';
 import { SyncAction, SyncData } from '@App/model/do/sync';
 import { v4 as uuidv4 } from 'uuid';
 import { Manager } from '@App/pkg/apps/manager';
+import { SystemConfig } from '@App/pkg/config';
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager extends Manager {
@@ -225,18 +226,18 @@ export class ScriptManager extends Manager {
     }
 
     // 检查订阅规则是否改变,是否能够静默更新
-    public checkSubscribeRule(oldSub: Subscribe, newSub: Subscribe): boolean {
+    public checkUpdateRule(oldMeta: Metadata, newMeta: Metadata): boolean {
         //判断connect是否改变
         const oldConnect = new Map();
         const newConnect = new Map();
-        oldSub.metadata['connect'] && oldSub.metadata['connect'].forEach(val => {
+        oldMeta['connect'] && oldMeta['connect'].forEach(val => {
             oldConnect.set(val, 1);
         });
-        newSub.metadata['connect'] && newSub.metadata['connect'].forEach(val => {
+        newMeta['connect'] && newMeta['connect'].forEach(val => {
             newConnect.set(val, 1);
         });
         // 老的里面没有新的就需要用户确认了
-        for (const key in newConnect) {
+        for (const key of newConnect.keys()) {
             if (!oldConnect.has(key)) {
                 return false
             }
@@ -266,80 +267,87 @@ export class ScriptManager extends Manager {
     }
 
     public subscribeCheckUpdate(subscribeId: number): Promise<boolean> {
-        return new Promise(async resolve => {
-            const sub = await this.subscribeModel.findById(subscribeId);
-            if (!sub) {
-                return resolve(false);
-            }
-            this.subscribeModel.table.update(sub.id, { checktime: new Date().getTime() });
-            axios.get(sub.url, {
-                headers: {
-                    'Cache-Control': 'no-cache'
+        return new Promise(resolve => {
+            const handler = async () => {
+                const sub = await this.subscribeModel.findById(subscribeId);
+                if (!sub) {
+                    return resolve(false);
                 }
-            }).then((response): string | null => {
-                if (response.status != 200) {
-                    App.Log.Warn('check subscribe', 'subscribe:' + sub.id + ' error: respond:' + response.statusText, sub.name);
-                    return null;
-                }
-                const metadata = parseMetadata(response.data);
-                if (metadata == null) {
-                    App.Log.Error('check subscribe', 'MetaData信息错误', sub.name);
-                    return null;
-                }
-                if (!sub.metadata['version']) {
-                    sub.metadata['version'] = ['v0.0.0'];
-                }
-                if (!metadata['version']) {
-                    return null;
-                }
-                const regexp = /[0-9]+/g
-                let oldVersion = sub.metadata['version'][0].match(regexp);
-                if (!oldVersion) {
-                    oldVersion = ['0', '0', '0'];
-                }
-                const Version = metadata['version'][0].match(regexp);
-                if (!Version) {
-                    App.Log.Warn('check subscribe', '订阅脚本version格式错误:' + sub.id, sub.name);
-                    return null;
-                }
-                for (let i = 0; i < Version.length; i++) {
-                    if (oldVersion[i] == undefined) {
-                        return response.data;
+                void this.subscribeModel.table.update(sub.id, { checktime: new Date().getTime() });
+                axios.get(sub.url, {
+                    responseType: 'text',
+                    headers: {
+                        'Cache-Control': 'no-cache'
                     }
-                    if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
-                        return response.data;
+                }).then(async (response): Promise<[Subscribe, Subscribe] | null> => {
+                    if (response.status != 200) {
+                        App.Log.Warn('check subscribe', 'subscribe:' + sub.id.toString() + ' error: respond:' + response.statusText, sub.name);
+                        return null;
                     }
-                }
-                return null;
-            }).then(async (val: string | null) => {
-                // TODO: 解析了不知道多少次,有时间优化
-                if (val) {
-                    const [newSub, oldSub] = await this.controller.prepareSubscribeByCode(val, sub.url);
-                    if (newSub) {
+                    const [newSub, oldSub] = await this.controller.prepareSubscribeByCode(<string>response.data, sub.url);
+                    if (typeof oldSub == 'string') {
+                        App.Log.Error('check subscribe', oldSub, sub.name);
+                        return null;
+                    }
+                    if (!newSub) {
+                        App.Log.Error('check subscribe', '未知错误', sub.name);
+                        return null;
+                    }
+                    if (!sub.metadata['version']) {
+                        sub.metadata['version'] = ['v0.0.0'];
+                    }
+                    if (!newSub.metadata['version']) {
+                        return null;
+                    }
+                    const regexp = /[0-9]+/g
+                    let oldVersion = sub.metadata['version'][0].match(regexp);
+                    if (!oldVersion) {
+                        oldVersion = ['0', '0', '0'];
+                    }
+                    const Version = newSub.metadata['version'][0].match(regexp);
+                    if (!Version) {
+                        App.Log.Warn('check subscribe', '订阅脚本version格式错误:' + sub.id.toString(), sub.name);
+                        return null;
+                    }
+                    for (let i = 0; i < Version.length; i++) {
+                        if (oldVersion[i] == undefined) {
+                            return [newSub, sub];
+                        }
+                        if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
+                            return [newSub, sub];
+                        }
+                    }
+                    return null;
+                }).then(async (val: [Subscribe | undefined, Subscribe | undefined] | null) => {
+                    // TODO: 解析了不知道多少次,有时间优化
+                    if (val) {
                         // 规则通过静默更新,未通过打开窗口
-                        if (this.checkSubscribeRule(<Subscribe>oldSub, newSub)) {
-                            this.subscribeUpdate(newSub, <Subscribe>oldSub);
+                        const oldSub = <Subscribe>val[1], newSub = <Subscribe>val[0];
+                        if (this.checkUpdateRule(oldSub.metadata, newSub.metadata)) {
+                            void this.subscribeUpdate(newSub, oldSub);
                         } else {
                             const info = await loadScriptByUrl(sub.url);
                             if (info) {
-                                App.Cache.set('install:info:' + info.uuid, info);
+                                void App.Cache.set('install:info:' + info.uuid, info);
                                 chrome.tabs.create({
                                     url: 'install.html?uuid=' + info.uuid,
                                     active: false,
                                 });
                             }
                         }
+                        resolve(true);
+                    } else {
+                        resolve(false);
                     }
-                    resolve(true);
-                } else {
+                }).catch((e: string) => {
                     resolve(false);
-                }
-            }).catch((e) => {
-                App.Log.Warn('check subscribe', 'subscribe:' + sub.id + ' error: ' + e, sub.name);
-                resolve(false);
-            });
+                    App.Log.Warn('check subscribe', 'subscribe:' + sub.id.toString() + ' error: ' + e, sub.name);
+                });
+            }
+            void handler();
         });
     }
+
 
     public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined, changeRule?: boolean): Promise<number> {
         return new Promise(async resolve => {
@@ -926,73 +934,99 @@ export class ScriptManager extends Manager {
 
     // 检查脚本更新
     public scriptCheckUpdate(scriptId: number): Promise<boolean> {
-        return new Promise(async resolve => {
-            const script = await this.getScript(scriptId);
-            if (!script) {
-                return resolve(false);
+        return new Promise(resolve => {
+            const handler = async () => {
+                const script = await this.getScript(scriptId);
+                if (!script) {
+                    return resolve(false);
+                }
+                if (!script.checkupdate_url) {
+                    return resolve(false);
+                }
+                void this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });
+                axios.get(script.checkupdate_url, {
+                    responseType: 'text',
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                }).then(async (response): Promise<[Script, Script] | null> => {
+                    if (response.status != 200) {
+                        App.Log.Warn('check update', 'script:' + script.id.toString() + ' error: respond:' + response.statusText, script.name);
+                        return null;
+                    }
+                    const [newScript, oldScript] = await this.controller.prepareScriptByCode(<string>response.data, script.download_url, script.uuid);
+                    if (typeof oldScript == 'string') {
+                        App.Log.Error('check update', oldScript, script.name);
+                        return null;
+                    }
+                    if (!newScript) {
+                        App.Log.Error('check update', '未知错误', script.name);
+                        return null;
+                    }
+                    if (!script.metadata['version']) {
+                        script.metadata['version'] = ['0.0.0'];
+                    }
+                    if (!newScript.metadata['version']) {
+                        return null;
+                    }
+                    const regexp = /[0-9]+/g
+                    let oldVersion = script.metadata['version'][0].match(regexp);
+                    if (!oldVersion) {
+                        oldVersion = ['0', '0', '0'];
+                    }
+                    const Version = newScript.metadata['version'][0].match(regexp);
+                    if (!Version) {
+                        App.Log.Warn('check update', 'script:' + script.id.toString() + ' error: version format', script.name);
+                        return null;
+                    }
+                    for (let i = 0; i < Version.length; i++) {
+                        if (oldVersion[i] == undefined) {
+                            return [newScript, script];
+                        }
+                        if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
+                            return [newScript, script];
+                        }
+                    }
+                    return null;
+                }).then(async (val) => {
+                    if (val) {
+                        // 规则通过静默更新,未通过打开窗口
+                        const oldInfo = val[1], newScript = val[0];
+                        if (SystemConfig.silence_update_script && this.checkUpdateRule(oldInfo.metadata, newScript.metadata)) {
+                            // 之前加载的是updateurl的内容,重载downloadurl
+                            const [newScript, oldScript] = await this.controller.prepareScriptByUrl(script.download_url || script.origin);
+                            if (typeof oldScript == 'string') {
+                                App.Log.Error('check update', '更新脚本下载错误', script.name);
+                                return resolve(false);
+                            }
+                            if (!newScript) {
+                                App.Log.Error('check update', '未知错误', script.name);
+                                return resolve(false);
+                            }
+                            void this.scriptReinstall(newScript);
+                            InfoNotification('脚本更新 - ' + oldInfo.name, newScript.name + ' 更新到了 ' + (newScript.metadata['version'] && newScript.metadata['version'][0]))
+                        } else {
+                            const info = await loadScriptByUrl(script.download_url || script.origin);
+                            if (info) {
+                                info.url = script.origin;
+                                info.uuid = uuidv5(info.url, uuidv5.URL)
+                                void App.Cache.set('install:info:' + info.uuid, info);
+                                chrome.tabs.create({
+                                    url: 'install.html?uuid=' + info.uuid,
+                                    active: false,
+                                });
+                            }
+                        }
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                }).catch((e: string) => {
+                    resolve(false);
+                    App.Log.Warn('check update', 'script:' + script.id.toString() + ' error: ' + e, script.name);
+                });
             }
-            if (!script.checkupdate_url) {
-                return resolve(false);
-            }
-            this.scriptModel.table.update(script.id, { checktime: new Date().getTime() });
-            axios.get(script.checkupdate_url, {
-                headers: {
-                    'Cache-Control': 'no-cache'
-                }
-            }).then((response): boolean => {
-                if (response.status != 200) {
-                    App.Log.Warn('check update', 'script:' + script.id + ' error: respond:' + response.statusText, script.name);
-                    return false;
-                }
-                const meta = parseMetadata(response.data);
-                if (!meta) {
-                    App.Log.Warn('check update', 'script:' + script.id + ' error: metadata format', script.name);
-                    return false;
-                }
-                if (!script.metadata['version']) {
-                    script.metadata['version'] = ['0.0.0'];
-                }
-                if (!meta['version']) {
-                    return false;
-                }
-                const regexp = /[0-9]+/g
-                let oldVersion = script.metadata['version'][0].match(regexp);
-                if (!oldVersion) {
-                    oldVersion = ['0', '0', '0'];
-                }
-                const Version = meta['version'][0].match(regexp);
-                if (!Version) {
-                    App.Log.Warn('check update', 'script:' + script.id + ' error: version format', script.name);
-                    return false;
-                }
-                for (let i = 0; i < Version.length; i++) {
-                    if (oldVersion[i] == undefined) {
-                        return true;
-                    }
-                    if (parseInt(Version[i]) > parseInt(oldVersion[i])) {
-                        return true;
-                    }
-                }
-                return false;
-            }).then(async (val) => {
-                if (val) {
-                    const info = await loadScriptByUrl(script.download_url || script.origin);
-                    if (info) {
-                        info.url = script.origin;
-                        info.uuid = uuidv5(info.url, uuidv5.URL)
-                        App.Cache.set('install:info:' + info.uuid, info);
-                        chrome.tabs.create({
-                            url: 'install.html?uuid=' + info.uuid,
-                            active: false,
-                        });
-                    }
-                }
-                resolve(val);
-            }).catch((e) => {
-                App.Log.Warn('check update', 'script:' + script.id + ' error: ' + e, script.name);
-                resolve(false);
-            });
-
+            void handler();
         })
     }
 

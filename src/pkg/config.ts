@@ -18,7 +18,7 @@ export class SystemConfig {
         }
         // 监听设置变化
         if (App.Environment === ENV_BACKGROUND) {
-            MsgCenter.listenerMessage(SYSTEM_CONFIG_CHANGE, (body) => {
+            MsgCenter.listenerMessage(SYSTEM_CONFIG_CHANGE, (body: { key: string, val: any }) => {
                 this.set(body.key, body.val);
                 this.set('changetime', new Date().getTime());
             });
@@ -30,7 +30,7 @@ export class SystemConfig {
         if (App.Environment === ENV_FRONTEND) {
             MsgCenter.sendMessage(SYSTEM_CONFIG_CHANGE, { key: key, val: val });
         } else {
-            this.storage.set(key, val);
+            void this.storage.set(key, val);
         }
     }
 
@@ -43,7 +43,7 @@ export class SystemConfig {
     }
 
     public static get changetime() {
-        return this.cache.get('changetime') || 0;
+        return <number>this.cache.get('changetime') || 0;
     }
 
     public static set changetime(n: number) {
@@ -52,18 +52,25 @@ export class SystemConfig {
 
     // 检查更新周期,单位为秒
     public static get check_script_update_cycle(): number {
-        return this.cache.get('check_script_update_cycle') || 86400;
+        return <number>this.cache.get('check_script_update_cycle') || 86400;
     }
 
     public static set check_script_update_cycle(n: number) {
         this.set('check_script_update_cycle', n);
     }
 
+    public static get silence_update_script(): boolean {
+        return <boolean>this.cache.get('silence_update_script') || false;
+    }
+    public static set silence_update_script(val: boolean) {
+        this.set('silence_update_script', val);
+    }
+
     public static get enable_auto_sync(): boolean {
         if (!this.cache.has('enable_auto_sync')) {
             return true;
         }
-        return this.cache.get('enable_auto_sync');
+        return <boolean>this.cache.get('enable_auto_sync');
     }
 
     public static set enable_auto_sync(enable: boolean) {
@@ -71,7 +78,7 @@ export class SystemConfig {
     }
 
     public static get update_disable_script(): boolean {
-        return this.cache.get('update_disable_script');
+        return <boolean>this.cache.get('update_disable_script');
     }
 
     public static set update_disable_script(enable: boolean) {
@@ -79,7 +86,7 @@ export class SystemConfig {
     }
 
     public static get vscode_url(): string {
-        return this.cache.get('vscode_url') || 'ws://localhost:8642';
+        return <string>this.cache.get('vscode_url') || 'ws://localhost:8642';
     }
 
     public static set vscode_url(val: string) {
@@ -87,7 +94,7 @@ export class SystemConfig {
     }
 
     public static get vscode_reconnect(): boolean {
-        return this.cache.get('vscode_reconnect') || false;
+        return <boolean>this.cache.get('vscode_reconnect') || false;
     }
 
     public static set vscode_reconnect(val: boolean) {

@@ -66,6 +66,15 @@ export default class Config extends Vue {
             SystemConfig.check_script_update_cycle = val.value.key;
           },
         },
+        {
+          type: 'check',
+          value: SystemConfig.silence_update_script,
+          title: '非重要变更静默更新脚本',
+          describe: '@connect未发生变化将静默更新脚本',
+          change(val: any) {
+            SystemConfig.silence_update_script = val.value;
+          },
+        },
       ],
     },
   };
