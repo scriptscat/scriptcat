@@ -209,6 +209,7 @@ declare namespace GM_Types {
         user?: string,
         password?: string,
         nocache?: boolean
+        maxRedirects?: number
 
         onload?: Listener<XHRResponse>,
         onloadstart?: Listener<XHRResponse>,

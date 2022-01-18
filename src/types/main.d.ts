@@ -113,6 +113,7 @@ declare namespace GMSend {
         password?: string,
         nocache?: boolean
         dataType?: 'FormData' | 'Blob'
+        maxRedirects?: number
     }
 
     interface XHRFormData {

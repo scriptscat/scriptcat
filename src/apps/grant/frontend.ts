@@ -169,7 +169,8 @@ export class FrontendGrant implements ScriptContext {
             overrideMimeType: details.overrideMimeType,
             anonymous: details.anonymous,
             user: details.user,
-            password: details.password
+            password: details.password,
+            maxRedirects: details.maxRedirects,
         };
         if (!param.headers) {
             param.headers = {};

@@ -82,7 +82,12 @@ export class BackgroundGrant {
                 reqOpt.push('extraHeaders');
                 respOpt.push('extraHeaders');
             }
-            chrome.webRequest.onBeforeSendHeaders.addListener((data) => {
+            const maxRedirects = new Map<string, [number, number]>();
+            // 处理重定向请求
+            chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
+                if (!this.isExtensionRequest(details)) {
+                    return;
+                }
                 let setCookie = '';
                 let cookie = '';
                 let anonymous = false;
@@ -90,9 +95,13 @@ export class BackgroundGrant {
                 let isScriptcat = false;
                 const requestHeaders: chrome.webRequest.HttpHeader[] = [];
                 const unsafeHeader: { [key: string]: string } = {};
-                data.requestHeaders?.forEach((val) => {
+                details.requestHeaders?.forEach((val) => {
                     const lowerCase = val.name.toLowerCase();
                     switch (lowerCase) {
+                        case 'x-cat-' + this.rand + '-max-redirects': {
+                            maxRedirects.set(details.requestId, [0, parseInt(val.value || '')]);
+                            break;
+                        }
                         case 'x-cat-' + this.rand + '-cookie': {
                             setCookie = val.value || '';
                             break;
@@ -166,16 +175,20 @@ export class BackgroundGrant {
                 urls: ['<all_urls>'],
             }, reqOpt);
             const responseHeader: { [key: string]: boolean } = { 'set-cookie': true };
-            chrome.webRequest.onHeadersReceived.addListener((details: chrome.webRequest.WebResponseHeadersDetails & { originUrl?: string }) => {
-                if ((details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) ||
-                    (details.originUrl && details.originUrl.startsWith(chrome.extension.getURL('')))) {
-                    details.responseHeaders?.forEach(val => {
+            chrome.webRequest.onHeadersReceived.addListener((details) => {
+                if (this.isExtensionRequest(details)) {
+                    details.responseHeaders?.forEach((val) => {
                         if (responseHeader[val.name]) {
-                            details.responseHeaders?.push({
-                                name: 'x-cat-' + this.rand + '-' + val.name,
-                                value: val.value,
-                                binaryValue: val.binaryValue,
-                            });
+                            val.name = 'x-cat-' + this.rand + '-' + val.name;
+                        }
+                        if (val.name.toLowerCase() === 'location') {
+                            const nums = maxRedirects.get(details.requestId);
+                            if (nums) {
+                                nums[0]++
+                                if (nums[0] > nums[1]) {
+                                    val.name = 'x-cat-' + this.rand + '-' + val.name;
+                                }
+                            }
                         }
                     });
                     return {
@@ -185,9 +198,20 @@ export class BackgroundGrant {
             }, {
                 urls: ['<all_urls>'],
             }, respOpt);
+            chrome.webRequest.onCompleted.addListener((details) => {
+                if (!this.isExtensionRequest(details)) {
+                    return;
+                }
+                maxRedirects.delete(details.requestId);
+            }, { urls: ['<all_urls>'] });
         } catch (e) {
             console.log(e);
         }
+    }
+
+    protected isExtensionRequest(details: chrome.webRequest.ResourceRequest & { originUrl?: string }): boolean {
+        return (details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) ||
+            (details.originUrl && details.originUrl.startsWith(chrome.extension.getURL(''))) ? true : false;
     }
 
     // 单实例
@@ -573,8 +597,7 @@ export class BackgroundGrant {
                 post.postMessage(grant);
             }
 
-            this.dealUnsafeHeader(xhr, config.headers);
-            this.dealXhrCookie(xhr, config.cookie, config.anonymous);
+            this.dealUnsafeHeader(config, xhr, config.headers);
 
             if (config.timeout) {
                 xhr.timeout = config.timeout;
@@ -1284,7 +1307,7 @@ export class BackgroundGrant {
         });
     }
 
-    protected dealUnsafeHeader(xhr: XMLHttpRequest, headers?: { [key: string]: string }): { [key: string]: string } {
+    protected dealUnsafeHeader(config: GMSend.XHRDetails, xhr: XMLHttpRequest, headers?: { [key: string]: string }): { [key: string]: string } {
         xhr.setRequestHeader('X-Cat-' + this.rand + '-Scriptcat', 'true');
         for (let key in headers) {
             const val = headers[key];
@@ -1306,16 +1329,16 @@ export class BackgroundGrant {
                 App.Log.Debug('gmxhr', (e as Error).message, 'GM_xmlhttpRequest');
             }
         }
-        return headers || {};
-    }
-
-    protected dealXhrCookie(xhr: XMLHttpRequest, cookie?: string, anonymous?: boolean) {
-        if (cookie) {
-            xhr.setRequestHeader('X-Cat-' + this.rand + '-Cookie', cookie);
+        if (config.maxRedirects !== undefined) {
+            xhr.setRequestHeader('X-Cat-' + this.rand + '-Max-redirects', config.maxRedirects.toString());
         }
-        if (anonymous) {
+        if (config.cookie) {
+            xhr.setRequestHeader('X-Cat-' + this.rand + '-Cookie', config.cookie);
+        }
+        if (config.anonymous) {
             xhr.setRequestHeader('X-Cat-' + this.rand + '-Anonymous', 'true');
         }
+        return headers || {};
     }
 
     @BackgroundGrant.GMFunction()
@@ -1384,8 +1407,7 @@ export class BackgroundGrant {
                 post.postMessage(grant);
             }
 
-            this.dealUnsafeHeader(xhr, config.headers);
-            this.dealXhrCookie(xhr, config.cookie, config.anonymous);
+            this.dealUnsafeHeader(config, xhr, config.headers);
 
             if (config.timeout) {
                 xhr.timeout = config.timeout;
