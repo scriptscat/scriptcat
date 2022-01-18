@@ -210,8 +210,8 @@ export class BackgroundGrant {
     }
 
     protected isExtensionRequest(details: chrome.webRequest.ResourceRequest & { originUrl?: string }): boolean {
-        return (details.initiator && chrome.extension.getURL('').startsWith(details.initiator)) ||
-            (details.originUrl && details.originUrl.startsWith(chrome.extension.getURL(''))) ? true : false;
+        return (details.initiator && chrome.runtime.getURL('').startsWith(details.initiator)) ||
+            (details.originUrl && details.originUrl.startsWith(chrome.runtime.getURL(''))) ? true : false;
     }
 
     // 单实例
