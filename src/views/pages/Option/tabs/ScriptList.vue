@@ -1143,7 +1143,7 @@ export default class ScriptList extends Vue {
     BackgroundGrant.clipboardData = {
       data: msg,
     };
-    document.execCommand('copy', false, <any>null);
+    document.execCommand('copy', false, undefined);
     scriptModule.showSnackbar('复制成功');
   }
 

@@ -30,8 +30,12 @@
         <v-btn @click="allow(true, 5)" color="primary">
           总是允许此{{ param.permissionContent }}
         </v-btn>
-        <v-btn v-if="param.wildcard" @click="allow(true, 4)" color="warning">
-          总是允许全部{{ param.permissionContent }}
+        <v-btn
+          v-if="param.wildcard && num > 2"
+          @click="allow(true, 4)"
+          color="warning"
+        >
+          总是允许剩下{{ num }}个{{ param.permissionContent }}
         </v-btn>
       </div>
 
@@ -46,8 +50,11 @@
         <v-btn @click="allow(false, 5)" color="error">
           总是拒绝此{{ param.permissionContent }}
         </v-btn>
-        <v-btn v-if="param.wildcard" @click="allow(false, 4)" color="error"
-          >总是拒绝全部{{ param.permissionContent }}</v-btn
+        <v-btn
+          v-if="param.wildcard && num > 2"
+          @click="allow(false, 4)"
+          color="error"
+          >总是拒绝剩下{{ num }}个{{ param.permissionContent }}</v-btn
         >
       </div>
     </v-main>
@@ -65,6 +72,7 @@ export default class Confirm extends Vue {
   scriptConrtoller: ScriptController = new ScriptController();
 
   protected param: ConfirmParam = <ConfirmParam>{};
+  protected num = 0;
   protected timeout = 30;
   protected uuid = '';
   protected select = false;
@@ -75,7 +83,7 @@ export default class Confirm extends Vue {
       return;
     }
     this.uuid = uuid;
-    this.param = await this.scriptConrtoller.getConfirmInfo(uuid);
+    [this.param, this.num] = await this.scriptConrtoller.getConfirmInfo(uuid);
     let i = setInterval(() => {
       this.timeout--;
       if (!this.timeout) {

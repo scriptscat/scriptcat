@@ -189,10 +189,10 @@ export class ScriptController {
         });
     }
 
-    public getConfirmInfo(uuid: string): Promise<ConfirmParam> {
+    public getConfirmInfo(uuid: string): Promise<[ConfirmParam, number]> {
         return new Promise(resolve => {
             MsgCenter.sendMessage(RequestConfirmInfo, uuid, resp => {
-                resolve(<ConfirmParam>resp);
+                resolve(<[ConfirmParam, number]>resp);
             });
         });
     }

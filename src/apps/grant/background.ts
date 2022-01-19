@@ -16,7 +16,7 @@ import { ScriptManager } from '../script/manager';
 import { Grant, Api, IPostMessage, IGrantListener, ConfirmParam, PermissionParam, FreedCallback } from './interface';
 import { v4 as uuidv4 } from 'uuid'
 import { ValueModel } from '@App/model/value';
-import { LOGGER_LEVEL_INFO } from '@App/model/do/logger';
+import { LOGGER_LEVEL, LOGGER_LEVEL_INFO } from '@App/model/do/logger';
 import { Permission } from '@App/model/do/permission';
 import { Script } from '@App/model/do/script';
 import { Value } from '@App/model/do/value';
@@ -344,10 +344,12 @@ export class BackgroundGrant {
                                 // 处理下一个
                                 const next = () => {
                                     // 一个打开确定,一群不打开只监听消息
-                                    const confirm = list.pop();
-                                    if (confirm) {
-                                        void App.Cache.set('confirm:info:' + confirm.uuid, confirm);
-                                        chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + confirm.uuid) });
+                                    const item = list.pop();
+                                    if (item) {
+                                        void App.Cache.set('confirm:info:' + item.uuid, [item, list.length]);
+                                        chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + item.uuid) });
+                                    } else {
+                                        void App.Cache.del('confirm:window:' + confirm.permission + ':list:' + script.id.toString());
                                     }
                                 }
                                 const listener = async (param: IPermissionConfirm) => {
@@ -919,7 +921,7 @@ export class BackgroundGrant {
                 silent: details.silent,
                 progress: details.progress
             };
-            chrome.notifications.update(id, options);
+            chrome.notifications.update(<string>id, options);
             return resolve(undefined);
         });
     }
@@ -927,7 +929,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            this.scriptMgr.setLastRuntime(grant.id, grant.params[0]);
+            void this.scriptMgr.setLastRuntime(grant.id, <number>grant.params[0]);
             return resolve(undefined);
         });
     }
@@ -935,7 +937,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_setRunError(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            this.scriptMgr.setRunError(grant.id, grant.params[0], grant.params[1]);
+            void this.scriptMgr.setRunError(grant.id, <string>grant.params[0], <number>grant.params[1]);
             return resolve(undefined);
         });
     }
@@ -943,7 +945,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({ default: true, background: true })
     protected CAT_runComplete(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            this.scriptMgr.setRunComplete(grant.id);
+            void this.scriptMgr.setRunComplete(grant.id);
             return resolve(undefined);
         });
     }
@@ -954,7 +956,7 @@ export class BackgroundGrant {
             if (grant.params.length == 0) {
                 return reject('param is null');
             }
-            App.Log.Logger(grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', grant.params[0], grant.name, grant.id);
+            App.Log.Logger(<LOGGER_LEVEL>grant.params[1] ?? LOGGER_LEVEL_INFO, 'GM_log', <string>grant.params[0], grant.name, grant.id);
             AppEvent.trigger(ListenGmLog, {
                 level: grant.params[1] ?? LOGGER_LEVEL_INFO,
                 scriptId: grant.id,
@@ -967,36 +969,39 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction()
     protected GM_setValue(grant: Grant, post: IPostMessage, script?: Script): Promise<any> {
         //getValue直接从缓存中返回了,无需编写
-        return new Promise(async resolve => {
-            const [key, value] = grant.params;
-            let model: Value | undefined;
-            if (script?.metadata['storagename']) {
-                model = await this.valueModel.findOne({ storageName: script.metadata['storagename'][0], key: key });
-            } else {
-                model = await this.valueModel.findOne({ scriptId: script?.id, key: key });
-            }
-            if (!model) {
-                model = {
-                    id: 0,
-                    scriptId: script?.id || 0,
-                    storageName: (script?.metadata['storagename'] && script?.metadata['storagename'][0]) || '',
-                    key: key,
-                    value: value,
-                    createtime: new Date().getTime()
+        return new Promise(resolve => {
+            const hanlder = async () => {
+                const [key, value] = grant.params;
+                let model: Value | undefined;
+                if (script?.metadata['storagename']) {
+                    model = await this.valueModel.findOne({ storageName: script.metadata['storagename'][0], key: key });
+                } else {
+                    model = await this.valueModel.findOne({ scriptId: script?.id, key: key });
                 }
-            } else {
-                model.value = value;
-            }
+                if (!model) {
+                    model = {
+                        id: 0,
+                        scriptId: script?.id || 0,
+                        storageName: (script?.metadata['storagename'] && script?.metadata['storagename'][0]) || '',
+                        key: key,
+                        value: value,
+                        createtime: new Date().getTime()
+                    }
+                } else {
+                    model.value = value;
+                }
 
-            if (value === undefined) {
-                this.valueModel.delete(model.id);
+                if (value === undefined) {
+                    void this.valueModel.delete(model.id);
+                    AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
+                    return resolve(undefined);
+                }
+
+                void this.valueModel.save(model);
                 AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
-                return resolve(undefined);
+                resolve(undefined);
             }
-
-            this.valueModel.save(model);
-            AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
-            resolve(undefined);
+            void hanlder();
         })
     }
 
@@ -1021,7 +1026,8 @@ export class BackgroundGrant {
                             regex = regex.replace('*', '(?:^|.*?)')
                         }
                         regex = regex.replace(/\//g, '\\/');
-                        ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` + (val.proxyServer.port ? ':' + val.proxyServer.port : '') + '"}\n';
+                        ret += `if(/${regex}/.test(url)){return "${val.proxyServer.scheme?.toUpperCase() || 'HTTP'} ${val.proxyServer.host}` +
+                            (val.proxyServer.port ? ':' + val.proxyServer.port.toString() : '') + '"}\n';
                     });
                 });
             }
@@ -1052,7 +1058,7 @@ export class BackgroundGrant {
     })
     protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
         return new Promise(resolve => {
-            BackgroundGrant.proxyRule.set(grant.id, grant.params[0]);
+            BackgroundGrant.proxyRule.set(grant.id, <CAT_Types.ProxyRule[]>grant.params[0]);
             App.Log.Debug('background', 'enable proxy', grant.name);
             chrome.proxy.settings.set({
                 value: {
@@ -1102,6 +1108,7 @@ export class BackgroundGrant {
                             button: 'left',
                             clickCount: 1
                         }, (result) => {
+                            console.log(result);
                         });
                     });
                 } else {
@@ -1120,6 +1127,7 @@ export class BackgroundGrant {
                                 button: 'left',
                                 clickCount: 1
                             }, (result) => {
+                                console.log(result);
                             });
                         });
                     });
@@ -1130,18 +1138,18 @@ export class BackgroundGrant {
     }
 
     protected static textarea: HTMLElement = document.createElement('textarea');
-    public static clipboardData: any;
+    public static clipboardData: { type?: string, data: string } | undefined;
 
     @BackgroundGrant.GMFunction({
         listener: () => {
             document.body.appendChild(BackgroundGrant.textarea);
             document.addEventListener('copy', (e: ClipboardEvent) => {
-                if (!BackgroundGrant.clipboardData) {
+                if (!BackgroundGrant.clipboardData || !e.clipboardData) {
                     return;
                 }
                 e.preventDefault();
                 const { type, data } = BackgroundGrant.clipboardData;
-                (<any>e).clipboardData.setData(type || 'text/plain', data);
+                e.clipboardData.setData(type || 'text/plain', data);
                 BackgroundGrant.clipboardData = undefined;
             })
         }
