@@ -14,7 +14,7 @@
         "pack": "node ./scripts/pack.js"
     },
     "author": "CodFrm",
-    "license": "MIT",
+    "license": "GPLv3",
     "dependencies": {
         "adm-zip": "^0.5.3",
         "axios": "^0.21.1",
