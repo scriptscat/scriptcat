@@ -122,12 +122,16 @@ export function buildThis(global: AnyMap, context: AnyMap) {
             return true;
         },
         getOwnPropertyDescriptor(_, name) {
-            let ret = Object.getOwnPropertyDescriptor(context, name)
-            if (ret) {
+            try {
+                let ret = Object.getOwnPropertyDescriptor(context, name)
+                if (ret) {
+                    return ret;
+                }
+                ret = Object.getOwnPropertyDescriptor(global, name);
                 return ret;
+            } catch (e) {
+                return undefined;
             }
-            ret = Object.getOwnPropertyDescriptor(global, name);
-            return ret;
         }
     });
     return proxy;

@@ -35,7 +35,7 @@
           @click="allow(true, 4)"
           color="warning"
         >
-          总是允许剩下{{ num }}个{{ param.permissionContent }}
+          总是允许全部{{ param.permissionContent }}
         </v-btn>
       </div>
 
@@ -54,7 +54,7 @@
           v-if="param.wildcard && num > 2"
           @click="allow(false, 4)"
           color="error"
-          >总是拒绝剩下{{ num }}个{{ param.permissionContent }}</v-btn
+          >总是拒绝全部{{ param.permissionContent }}</v-btn
         >
       </div>
     </v-main>
