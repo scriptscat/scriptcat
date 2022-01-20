@@ -72,9 +72,9 @@ function sandboxLoad(event: MessageEvent) {
     if (event.data.action != 'load') {
         return;
     }
-    scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
+    void scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
         items.forEach((script: Script) => {
-            scripts.enableScript(script);
+            void scripts.enableScript(script);
         });
     });
 }
@@ -86,7 +86,7 @@ setInterval(() => {
         return;
     }
 
-    scripts.scriptList((table: Dexie.Table) => {
+    void scripts.scriptList((table: Dexie.Table) => {
         return table
             .where('checktime')
             .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
@@ -95,18 +95,18 @@ setInterval(() => {
             if (!SystemConfig.update_disable_script && value.status == SCRIPT_STATUS_DISABLE) {
                 return;
             }
-            scripts.scriptCheckUpdate(value.id);
+            void scripts.scriptCheckUpdate(value.id);
         });
     });
 
-    scripts.subscribeList((table: Dexie.Table) => {
+    void scripts.subscribeList((table: Dexie.Table) => {
         return table
             .where('checktime')
             .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
     }).then((items) => {
         items.forEach((value: Subscribe) => {
             if (value.status == SUBSCRIBE_STATUS_ENABLE) {
-                scripts.subscribeCheckUpdate(value.id);
+                void scripts.subscribeCheckUpdate(value.id);
             }
         });
     });
@@ -142,7 +142,7 @@ setInterval(() => {
         });
     });
     if (SystemConfig.enable_auto_sync) {
-        user.sync();
+        void user.sync();
     }
 }, 1800000);
 

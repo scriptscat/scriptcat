@@ -147,123 +147,141 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob', 'CAT_createBlobUrl'] })
-    public async GM_xmlhttpRequest(details: GM_Types.XHRDetails) {
-        const u = new URL(details.url, window.location.href);
-        if (details.headers) {
-            for (const key in details.headers) {
-                if (key.toLowerCase() == 'cookie') {
-                    details.cookie = details.cookie || details.headers[key];
-                    delete details.headers[key];
-                }
-            }
-        }
-        const param: GMSend.XHRDetails = {
-            method: details.method,
-            timeout: details.timeout,
-            url: u.href,
-            headers: details.headers,
-            cookie: details.cookie,
-            context: details.context,
-            responseType: details.responseType,
-            overrideMimeType: details.overrideMimeType,
-            anonymous: details.anonymous,
-            user: details.user,
-            password: details.password,
-            maxRedirects: details.maxRedirects,
-        };
-        if (!param.headers) {
-            param.headers = {};
-        }
-        if (details.nocache) {
-            param.headers['Cache-Control'] = 'no-cache';
-        }
-        if (details.data) {
-            if (details.data instanceof FormData) {
-                param.dataType = 'FormData';
-                const data: Array<GMSend.XHRFormData> = [];
-                const keys: { [key: string]: boolean } = {};
-                details.data.forEach((val, key) => {
-                    keys[key] = true;
-                });
-                for (const key in keys) {
-                    const values = details.data.getAll(key);
-                    for (let i = 0; i < values.length; i++) {
-                        const val = values[i];
-                        if (val instanceof File) {
-                            data.push({
-                                key: key,
-                                type: 'file',
-                                val: await blobToBase64(val) || '',
-                                filename: val.name
-                            });
-                        } else {
-                            data.push({
-                                key: key,
-                                type: 'text',
-                                val: val
-                            });
-                        }
+    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob', 'CAT_createBlobUrl','CAT_abortXhr'] })
+    public GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void> {
+        let abort = () => { return };
+        const handler = async () => {
+            const u = new URL(details.url, window.location.href);
+            if (details.headers) {
+                for (const key in details.headers) {
+                    if (key.toLowerCase() == 'cookie') {
+                        details.cookie = details.cookie || details.headers[key];
+                        delete details.headers[key];
                     }
                 }
-                param.data = data;
-            } else if (details.data instanceof Blob) {
-                param.dataType = 'Blob';
-                param.data = await this.CAT_createBlobUrl(details.data);
-            } else {
-                param.data = details.data;
             }
-        }
-
-        if (details.onload && (details.responseType == 'arraybuffer' || details.responseType == 'blob')) {
-            const old = details.onload;
-            details.onload = async (xhr) => {
-                const resp = await this.CAT_fetchBlob(<string>xhr.response);
-                if (details.responseType == 'arraybuffer') {
-                    xhr.response = await resp.arrayBuffer();
+            const param: GMSend.XHRDetails = {
+                method: details.method,
+                timeout: details.timeout,
+                url: u.href,
+                headers: details.headers,
+                cookie: details.cookie,
+                context: details.context,
+                responseType: details.responseType,
+                overrideMimeType: details.overrideMimeType,
+                anonymous: details.anonymous,
+                user: details.user,
+                password: details.password,
+                maxRedirects: details.maxRedirects,
+            };
+            if (!param.headers) {
+                param.headers = {};
+            }
+            if (details.nocache) {
+                param.headers['Cache-Control'] = 'no-cache';
+            }
+            if (details.data) {
+                if (details.data instanceof FormData) {
+                    param.dataType = 'FormData';
+                    const data: Array<GMSend.XHRFormData> = [];
+                    const keys: { [key: string]: boolean } = {};
+                    details.data.forEach((val, key) => {
+                        keys[key] = true;
+                    });
+                    for (const key in keys) {
+                        const values = details.data.getAll(key);
+                        for (let i = 0; i < values.length; i++) {
+                            const val = values[i];
+                            if (val instanceof File) {
+                                data.push({
+                                    key: key,
+                                    type: 'file',
+                                    val: await blobToBase64(val) || '',
+                                    filename: val.name
+                                });
+                            } else {
+                                data.push({
+                                    key: key,
+                                    type: 'text',
+                                    val: val
+                                });
+                            }
+                        }
+                    }
+                    param.data = data;
+                } else if (details.data instanceof Blob) {
+                    param.dataType = 'Blob';
+                    param.data = await this.CAT_createBlobUrl(details.data);
                 } else {
-                    xhr.response = resp;
+                    param.data = details.data;
                 }
-                old(xhr);
             }
-        }
 
-        this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
-            if (grant.error) {
-                details.onerror && details.onerror(grant.errorMsg || '');
-                return;
+            if (details.onload && (details.responseType == 'arraybuffer' || details.responseType == 'blob')) {
+                const old = details.onload;
+                details.onload = async (xhr) => {
+                    const resp = await this.CAT_fetchBlob(<string>xhr.response);
+                    if (details.responseType == 'arraybuffer') {
+                        xhr.response = await resp.arrayBuffer();
+                    } else {
+                        xhr.response = resp;
+                    }
+                    old(xhr);
+                }
             }
-            const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data || {};
-            switch (data.type) {
-                case 'onload':
-                    details.onload && details.onload(data.data);
-                    break;
-                case 'onloadend':
-                    details.onloadend && details.onloadend(data.data);
-                    break;
-                case 'onloadstart':
-                    details.onloadstart && details.onloadstart(data.data);
-                    break;
-                case 'onprogress':
-                    details.onprogress && details.onprogress(<GM_Types.XHRProgress>data.data);
-                    break;
-                case 'onreadystatechange':
-                    details.onreadystatechange && details.onreadystatechange(data.data);
-                    break;
-                case 'ontimeout':
-                    details.ontimeout && details.ontimeout();
-                    break;
-                case 'onerror':
-                    details.onerror && details.onerror('');
-                    break;
-                case 'onabort':
-                    details.onabort && details.onabort();
-                    break;
-            }
-        });
+
+            this.postRequest('GM_xmlhttpRequest', [param], (grant: Grant) => {
+                if (grant.error) {
+                    details.onerror && details.onerror(grant.errorMsg || '');
+                    return;
+                }
+                const data = <{ type: string, data: GM_Types.XHRResponse }>grant.data || {};
+                switch (data.type) {
+                    case 'onload':
+                        details.onload && details.onload(data.data);
+                        break;
+                    case 'onloadend':
+                        details.onloadend && details.onloadend(data.data);
+                        break;
+                    case 'onloadstart':
+                        details.onloadstart && details.onloadstart(data.data);
+                        break;
+                    case 'onprogress':
+                        details.onprogress && details.onprogress(<GM_Types.XHRProgress>data.data);
+                        break;
+                    case 'onreadystatechange':
+                        details.onreadystatechange && details.onreadystatechange(data.data);
+                        break;
+                    case 'ontimeout':
+                        details.ontimeout && details.ontimeout();
+                        break;
+                    case 'onerror':
+                        details.onerror && details.onerror('');
+                        break;
+                    case 'onabort':
+                        details.onabort && details.onabort();
+                        break;
+                    case 'requestId':
+                        console.log(data.data);
+                        abort = () => {
+                            this.CAT_abortXhr(<number>data.data);
+                        }
+                        break;
+                }
+            });
+        }
+        void handler();
+        return {
+            abort: () => {
+                abort();
+            },
+        };
     }
 
-
+    @FrontendGrant.GMFunction()
+    public CAT_abortXhr(requestId: number) {
+        this.postRequest('CAT_abortXhr', [requestId]);
+    }
 
     public GM_notification(text: string, title: string, image: string, onclick?: GM_Types.NotificationOnClick): void
 

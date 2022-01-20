@@ -41,29 +41,36 @@ export class ScriptManager extends Manager {
     protected changePort = new Map<any, chrome.runtime.Port[]>();
     public listenEvent() {
         // 监听值修改事件,并发送给全局
-        AppEvent.listener(ScriptValueChange, async (msg: any) => {
-            const { model, tabid } = msg;
-            let vals: { [key: string]: Value } = {};
-            let key = '';
-            if (model.storageName) {
-                key = 'value:storagename:' + model.storageName;
-                vals = await App.Cache.get(key);
-            } else {
-                key = 'value:' + model.scriptId;
-                vals = await App.Cache.get(key);
-            }
-            if (!vals) {
-                vals = {};
-                await App.Cache.set(key, vals);
-            }
-            vals[model.key] = model;
-            this.changePort.forEach(val => {
-                val.forEach(val => {
-                    val.postMessage(model);
+        AppEvent.listener(ScriptValueChange, (msg: any) => {
+            const handler = async () => {
+                const { model, tabid } = <{ model: Value, tabid: number }>msg;
+                let vals: { [key: string]: Value } = {};
+                let key = '';
+                if (model.storageName) {
+                    key = 'value:storagename:' + model.storageName;
+                    vals = await App.Cache.get(key);
+                } else {
+                    key = 'value:' + model.scriptId.toString();
+                    vals = await App.Cache.get(key);
+                }
+                if (!vals) {
+                    vals = {};
+                    await App.Cache.set(key, vals);
+                }
+                if (model.value === undefined) {
+                    delete vals[model.key]
+                } else {
+                    vals[model.key] = model;
+                }
+                this.changePort.forEach(val => {
+                    val.forEach(val => {
+                        val.postMessage(model);
+                    })
                 })
-            })
-            // 监听值修改事件,并发送给沙盒环境
-            sandbox.postMessage({ action: ScriptValueChange, value: msg }, '*');
+                // 监听值修改事件,并发送给沙盒环境
+                sandbox.postMessage({ action: ScriptValueChange, value: msg }, '*');
+            }
+            void handler();
         });
         MsgCenter.listener(ScriptValueChange, (msg, port) => {
             if (typeof msg == 'string') {

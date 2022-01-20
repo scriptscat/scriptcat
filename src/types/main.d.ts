@@ -132,7 +132,7 @@ interface IPermissionConfirm {
 
 declare namespace Panel {
     export interface ConfigItem {
-        type: "text" | "button" | "check" | "select";
+        type: 'text' | 'button' | 'check' | 'select';
         title: string;
         describe?: string;
         color?: string;

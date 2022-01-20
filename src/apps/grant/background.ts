@@ -508,6 +508,24 @@ export class BackgroundGrant {
         return respond;
     }
 
+    request = new Map<number, XMLHttpRequest>();
+    requestId = 0;
+
+    @BackgroundGrant.GMFunction({
+        alias: ['GM_xmlhttpRequest']
+    })
+    protected CAT_abortXhr(grant: Grant): Promise<void> {
+        return new Promise(resolve => {
+            const id = <number>grant.params[0];
+            const xhr = this.request.get(id);
+            if (xhr) {
+                xhr.abort();
+                this.request.delete(id);
+            }
+            resolve();
+        });
+    }
+
     //TODO:按照tampermonkey文档实现
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
@@ -550,6 +568,11 @@ export class BackgroundGrant {
             const config = <GMSend.XHRDetails>grant.params[0];
 
             const xhr = new XMLHttpRequest();
+
+            this.request.set(++this.requestId, xhr);
+            grant.data = { type: 'requestId', data: this.requestId };
+            post.postMessage(grant);
+
             xhr.open(config.method || 'GET', config.url, true, config.user || '', config.password || '');
             config.overrideMimeType && xhr.overrideMimeType(config.overrideMimeType);
             if (config.responseType != 'json') {
@@ -564,7 +587,11 @@ export class BackgroundGrant {
                     }
                 }
                 grant.data = { type: event, data: respond };
-                post.postMessage(grant);
+                try {
+                    post.postMessage(grant);
+                } catch (e) {
+                    xhr.abort();
+                }
             }
             xhr.onload = () => {
                 deal('onload');
@@ -682,7 +709,7 @@ export class BackgroundGrant {
             });
         }
     })
-    protected GM_cookie(grant: Grant, post: IPostMessage): Promise<any> {
+    protected GM_cookie(grant: Grant): Promise<any> {
         return new Promise((resolve, reject) => {
             const param = grant.params;
             if (param.length != 2) {
@@ -795,14 +822,14 @@ export class BackgroundGrant {
                 active: param.active || false,
             }, tab => {
                 resolve({ type: 'tabid', tabId: tab.id });
-                BackgroundGrant.tabMap.set(tab.id!, [grant, post]);
+                BackgroundGrant.tabMap.set(<number>tab.id, [grant, post]);
             });
         });
     }
 
     // 隐藏函数
     @BackgroundGrant.GMFunction({ default: true })
-    protected GM_closeInTab(grant: Grant, post: IPostMessage): Promise<any> {
+    protected GM_closeInTab(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             chrome.tabs.remove(<number>grant.params[0]);
             resolve(undefined);
@@ -927,7 +954,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true, background: true })
-    protected CAT_setLastRuntime(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_setLastRuntime(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             void this.scriptMgr.setLastRuntime(grant.id, <number>grant.params[0]);
             return resolve(undefined);
@@ -935,7 +962,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true, background: true })
-    protected CAT_setRunError(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_setRunError(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             void this.scriptMgr.setRunError(grant.id, <string>grant.params[0], <number>grant.params[1]);
             return resolve(undefined);
@@ -943,7 +970,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true, background: true })
-    protected CAT_runComplete(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_runComplete(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             void this.scriptMgr.setRunComplete(grant.id);
             return resolve(undefined);
@@ -951,7 +978,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ default: true })
-    protected GM_log(grant: Grant, post: IPostMessage): Promise<any> {
+    protected GM_log(grant: Grant): Promise<any> {
         return new Promise((resolve, reject) => {
             if (grant.params.length == 0) {
                 return reject('param is null');
@@ -990,13 +1017,12 @@ export class BackgroundGrant {
                 } else {
                     model.value = value;
                 }
-
-                if (value === undefined) {
+                if (value === undefined || value === null) {
+                    model.value = undefined;
                     void this.valueModel.delete(model.id);
                     AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
                     return resolve(undefined);
                 }
-
                 void this.valueModel.save(model);
                 AppEvent.trigger(ScriptValueChange, { model, tabid: grant.tabId });
                 resolve(undefined);
@@ -1056,7 +1082,7 @@ export class BackgroundGrant {
             BackgroundGrant.freedProxy(id);
         }
     })
-    protected CAT_setProxy(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_setProxy(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.proxyRule.set(grant.id, <CAT_Types.ProxyRule[]>grant.params[0]);
             App.Log.Debug('background', 'enable proxy', grant.name);
@@ -1073,7 +1099,7 @@ export class BackgroundGrant {
     }
 
     @BackgroundGrant.GMFunction({ background: true })
-    protected CAT_clearProxy(grant: Grant, post: IPostMessage): Promise<any> {
+    protected CAT_clearProxy(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.freedProxy(grant.id);
             resolve(undefined);
@@ -1100,15 +1126,13 @@ export class BackgroundGrant {
                         y: param[1],
                         button: 'left',
                         clickCount: 1
-                    }, (result) => {
+                    }, () => {
                         chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
                             type: 'mouseReleased',
                             x: param[0],
                             y: param[1],
                             button: 'left',
                             clickCount: 1
-                        }, (result) => {
-                            console.log(result);
                         });
                     });
                 } else {
@@ -1119,15 +1143,13 @@ export class BackgroundGrant {
                             y: param[1],
                             button: 'left',
                             clickCount: 1
-                        }, (result) => {
+                        }, () => {
                             chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
                                 type: 'mouseReleased',
                                 x: param[0],
                                 y: param[1],
                                 button: 'left',
                                 clickCount: 1
-                            }, (result) => {
-                                console.log(result);
                             });
                         });
                     });
@@ -1154,7 +1176,7 @@ export class BackgroundGrant {
             })
         }
     })
-    public GM_setClipboard(grant: Grant, post: IPostMessage): Promise<any> {
+    public GM_setClipboard(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             BackgroundGrant.clipboardData = {
                 type: grant.params[1],
