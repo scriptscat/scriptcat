@@ -14,7 +14,7 @@ export class Match<T> {
             };
         }
         if (url == 'http*') {
-            return { scheme: '*', host: '*', path: '', search: '' };
+            return { scheme: '*', host: '*', path: '*', search: '*' };
         }
         match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
         if (match) {
@@ -41,10 +41,10 @@ export class Match<T> {
                 u.scheme = 'http[s]';
                 break;
         }
-        u.host = u.host.replace(/\*/g, '.*?');
+        u.host = u.host.replace(/\*/g, '[^/]*?');
         // 处理 *.开头
-        if (u.host.startsWith('.*?.')) {
-            u.host = '(.*?\.?)' + u.host.substr(4);
+        if (u.host.startsWith('[^/]*?.')) {
+            u.host = '([^/]*?\.?)' + u.host.substr(7);
         }
         // 处理顶域
         if (u.host.endsWith('tld')) {

@@ -79,6 +79,28 @@ describe('UrlMatch2', () => {
     const url = new UrlMatch<string>();
     it('http*', () => {
         url.add('http*', 'ok1');
-        expect(url.match('http://www.http*.com')).toEqual(['ok1']);
+        expect(url.match('http://www.http.com')).toEqual(['ok1']);
+    });
+    it('port', () => {
+        url.add('http://domain:8080', 'ok2');
+        expect(url.match('http://domain:8080/')).toEqual(['ok1', 'ok2']);
+        expect(url.match('http://domain:8080/123')).toEqual(['ok1']);
+    });
+    it('无/', () => {
+        url.add('http://domain2', 'ok3');
+        url.add('http://domain2*', 'ok4');
+        expect(url.match('http://domain2/')).toEqual(['ok1', 'ok3', 'ok4']);
+        expect(url.match('http://domain2.com/')).toEqual(['ok1',  'ok4']);
+        expect(url.match('http://domain2/123')).toEqual(['ok1']);
+    })
+});
+
+describe('UrlMatch3', () => {
+    const url = new UrlMatch<string>();
+    it('port', () => {
+        url.add('http://domain:*/', 'ok1');
+        expect(url.match('http://domain:8080/')).toEqual(['ok1']);
+        expect(url.match('http://domain:8080')).toEqual(['ok1']);
+        expect(url.match('http://domain:8080/123')).toEqual([]);
     });
 });

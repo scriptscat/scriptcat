@@ -5,5 +5,6 @@ export const Server = process.env.NODE_ENV == 'production' ? 'https://sc.icodef.
 export const ExternalWhitelist = [
 	'greasyfork.org',
 	'scriptcat.org',
+	'tampermonkey.net.cn',
 	'openuserjs.org',
 ];
