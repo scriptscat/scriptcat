@@ -11,7 +11,7 @@ fs.writeFileSync("./build/scriptcat/manifest.json", str);
 
 // 处理config.ts version
 str = fs.readFileSync("./src/apps/config.ts").toString();
-str = str.replace(/ExtVersion = '(.*?)';/, 'ExtVersion = "' + pjson.version + '";');
+str = str.replace(/ExtVersion = '(.*?)';/, 'ExtVersion = \'' + pjson.version + '\';');
 fs.writeFileSync("./src/apps/config.ts", str);
 
 execSync("npm run build", { stdio: 'inherit' });
