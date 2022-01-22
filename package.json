@@ -1,6 +1,6 @@
 {
     "name": "scriptcat",
-    "version": "0.8.2",
+    "version": "0.9.0",
     "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
     "scripts": {
         "lint": "eslint --ext .js,.ts,.tsx tests/ src/",
@@ -28,6 +28,7 @@
         "monaco-editor": "^0.22.3",
         "reflect-metadata": "^0.1.13",
         "sortablejs": "^1.14.0",
+        "tencentcloud-sdk-nodejs": "^4.0.278",
         "uuid": "^8.3.2",
         "vue": "^2.6.12",
         "vue-i18n": "^8.24.1",

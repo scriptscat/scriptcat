@@ -77,7 +77,7 @@ declare function GM_registerMenuCommand(name: string, listener: () => void, acce
 declare function GM_unregisterMenuCommand(id: number): void;
 
 declare interface tab {
-    close()
+    close(): void
     onclose?: () => void
     closed?: boolean
     name?: string
@@ -111,7 +111,7 @@ declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, erro
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
 declare function CAT_clearProxy(): void;
 declare function CAT_click(x: number, y: number): void;
-declare function CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void);
+declare function CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void): void;
 
 declare namespace CAT_Types {
     interface ProxyRule {
@@ -192,6 +192,7 @@ declare namespace GM_Types {
     }
 
     type Listener<OBJ> = (event: OBJ) => any;
+    type ContextType = any;
 
     interface XHRDetails {
         method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
@@ -244,7 +245,7 @@ declare namespace GM_Types {
         onerror?: Listener<DownloadError>,
         ontimeout?: () => void,
         onload?: Listener<object>,
-        onprogress?: Listener<XHRProgress<void>>
+        onprogress?: Listener<XHRProgress>
     }
 
     interface NotificationThis extends NotificationDetails {

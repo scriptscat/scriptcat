@@ -85,6 +85,11 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { mdiCloudUpload, mdiClose } from '@mdi/js';
 import { ExtVersion } from '@App/apps/config';
+import packageTpl from '@App/template/cloudcat-package/package.tpl';
+import utilsTpl from '@App/template/cloudcat-package/utils.tpl';
+import indexTpl from '@App/template/cloudcat-package/index.tpl';
+
+
 @Component({})
 export default class BgCloud extends Vue {
   icons = { mdiCloudUpload, mdiClose };
@@ -143,85 +148,102 @@ export default class BgCloud extends Vue {
         exportCookie: exportCookie,
         exportValue: exportValue,
       };
-      this.exportModel.save(this.exportConfig);
+      void this.exportModel.save(this.exportConfig);
     }
   }
 
   submit() {
     switch (this.exportConfig.dest) {
       case EXPORT_DEST_LOCAL:
-        this.local();
+        void this.local();
         break;
     }
   }
 
   async local() {
     let zip = await this.pack();
-    this.exportModel.save(this.exportConfig);
-    zip.generateAsync({ type: 'blob' }).then((content) => {
+    void this.exportModel.save(this.exportConfig);
+    void zip.generateAsync({ type: 'blob' }).then((content) => {
       saveAs(content, this.script.name + '.zip');
     });
   }
 
   pack(): Promise<JSZip> {
-    return new Promise(async (resolve) => {
-      let zip = new JSZip();
-      zip.file('userScript.js', this.script.code);
-      let lines = this.exportConfig.exportCookie.split('\n');
-      let cookies: { [key: string]: chrome.cookies.Cookie[] } = {};
-      let cookie = false;
-      for (let i = 0; i < lines.length; i++) {
-        let val = lines[0];
-        let detail: any = {};
-        val.split(';').forEach((param) => {
-          let s = param.split('=');
-          if (s.length != 2) {
-            return;
+    return new Promise((resolve) => {
+      const handler = async () => {
+        let zip = new JSZip();
+        zip.file('userScript.js', this.script.code);
+        let lines = this.exportConfig.exportCookie.split('\n');
+        let cookies: { [key: string]: chrome.cookies.Cookie[] } = {};
+        let cookie = false;
+        for (let i = 0; i < lines.length; i++) {
+          let val = lines[0];
+          if (!val) {
+            continue;
           }
-          detail[s[0]] = s[1].trim();
-        });
-        if (!detail.url && !detail.domain) {
-          continue;
+          let detail: chrome.cookies.GetAllDetails = {};
+          val.split(';').forEach((param) => {
+            let s = param.split('=');
+            if (s.length != 2) {
+              return;
+            }
+            (<AnyMap>detail)[s[0]] = s[1].trim();
+          });
+          if (!detail.url && !detail.domain) {
+            continue;
+          }
+          cookie = true;
+          if (detail.url) {
+            let u = new URL(detail.url);
+            cookies[u.host] = await this.getCookie(detail);
+          } else if (detail.domain) {
+            cookies[detail.domain] = await this.getCookie(detail);
+          }
         }
-        cookie = true;
-        if (detail.url) {
-          let u = new URL(detail.url);
-          cookies[u.host] = await this.getCookie(detail);
-        } else {
-          cookies[detail.domain] = await this.getCookie(detail);
-        }
-      }
-      cookie && zip.file('cookie.json', JSON.stringify(cookies));
+        cookie &&
+          zip.file('cookie.js', 'export default ' + JSON.stringify(cookies));
 
-      lines = this.exportConfig.exportValue.split('\n');
-      let values: Value[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        let val = lines[0];
-        let keys = val.split(',');
-        for (let n = 0; n < keys.length; n++) {
-          let value = await this.getValue(keys[n]);
-          if (value) {
-            values.push(value);
+        lines = this.exportConfig.exportValue.split('\n');
+        let values: Value[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          let val = lines[0];
+          let keys = val.split(',');
+          for (let n = 0; n < keys.length; n++) {
+            const key = keys[n];
+            if (!key) {
+              continue;
+            }
+            let value = await this.getValue(key);
+            if (value) {
+              values.push(value);
+            }
           }
         }
-      }
-      zip.file('value.json', JSON.stringify(values));
-      zip.file(
-        'config.json',
-        JSON.stringify({
-          version: ExtVersion,
-          uuid: this.exportConfig.uuid,
-          overwrite: {
-            value: this.exportConfig.overwriteValue,
-            cookie: this.exportConfig.overwriteCookie,
-          },
-        })
-      );
-      resolve(zip);
+        zip.file('value.js', 'export default ' + JSON.stringify(values));
+        zip.file(
+          'config.js',
+          'export default ' +
+            JSON.stringify({
+              version: ExtVersion,
+              uuid: this.exportConfig.uuid,
+              overwrite: {
+                value: this.exportConfig.overwriteValue,
+                cookie: this.exportConfig.overwriteCookie,
+              },
+            })
+        );
+        zip.file('package.json',<string>packageTpl);
+        zip.file('utils.js',<string>utilsTpl);
+        zip.file('index.js',<string>indexTpl);
+        resolve(zip);
+      };
+      void handler();
     });
   }
 
-  getCookie(detail: any): Promise<chrome.cookies.Cookie[]> {
+  getCookie(
+    detail: chrome.cookies.GetAllDetails
+  ): Promise<chrome.cookies.Cookie[]> {
     return new Promise((resolve) => {
       chrome.cookies.getAll(detail, (cookies) => {
         resolve(cookies);
@@ -229,25 +251,28 @@ export default class BgCloud extends Vue {
     });
   }
 
-  getValue(key: any): Promise<any> {
-    return new Promise(async (resolve) => {
-      let model: Value | undefined;
-      if (this.script.metadata['storagename']) {
-        model = await this.valueModel.findOne({
-          storageName: this.script.metadata['storagename'][0],
-          key: key,
-        });
-      } else {
-        model = await this.valueModel.findOne({
-          scriptId: this.script,
-          key: key,
-        });
-      }
-      if (model) {
-        resolve(model);
-      } else {
-        resolve(undefined);
-      }
+  getValue(key: any): Promise<Value | undefined> {
+    return new Promise((resolve) => {
+      const handler = async () => {
+        let model: Value | undefined;
+        if (this.script.metadata['storagename']) {
+          model = await this.valueModel.findOne({
+            storageName: this.script.metadata['storagename'][0],
+            key: key,
+          });
+        } else {
+          model = await this.valueModel.findOne({
+            scriptId: this.script,
+            key: key,
+          });
+        }
+        if (model) {
+          resolve(model);
+        } else {
+          resolve(undefined);
+        }
+      };
+      void handler();
     });
   }
 }
