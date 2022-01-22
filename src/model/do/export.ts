@@ -1,7 +1,8 @@
 
-export type EXPORT_DEST = 1 | 2 | 3;
+export type EXPORT_DEST = 'local' | 'tencentCloud' | '';
 
-export const EXPORT_DEST_LOCAL = 1;
+export const EXPORT_DEST_LOCAL = 'local';
+export const EXPORT_TENCENT_CLOUD = 'tencentCloud';
 // 导出与本地脚本关联记录
 export interface Export {
 	id: number

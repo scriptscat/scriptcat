@@ -77,7 +77,11 @@ import { saveAs } from 'file-saver';
 import { ValueModel } from '@App/model/value';
 import { ExportModel } from '@App/model/export';
 import { Value } from '@App/model/do/value';
-import { Export, EXPORT_DEST_LOCAL } from '@App/model/do/export';
+import {
+  Export,
+  EXPORT_DEST_LOCAL,
+  EXPORT_TENCENT_CLOUD,
+} from '@App/model/do/export';
 import { v4 as uuidv4 } from 'uuid';
 import { mdiCloudUpload, mdiClose } from '@mdi/js';
 import { ExtVersion } from '@App/apps/config';
@@ -91,7 +95,7 @@ export default class BgCloud extends Vue {
     id: 0,
     uuid: '',
     scriptId: 0,
-    dest: 1,
+    dest: EXPORT_DEST_LOCAL,
     overwriteValue: false,
     overwriteCookie: false,
     exportCookie: '',
@@ -103,6 +107,7 @@ export default class BgCloud extends Vue {
 
   dests = [
     { key: EXPORT_DEST_LOCAL, value: '本地' },
+    { key: EXPORT_TENCENT_CLOUD, value: '腾讯云' },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
   ];
