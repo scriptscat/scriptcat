@@ -357,94 +357,97 @@ export class ScriptManager extends Manager {
 
 
     public subscribeUpdate(sub: Subscribe, old: Subscribe | undefined, changeRule?: boolean): Promise<number> {
-        return new Promise(async resolve => {
-            // 异步处理订阅
-            const deleteScript = [];
-            let addScript: string[] = [];
-            const addScriptName = [];
-            if (old) {
-                // 存在老订阅,与新订阅比较scripts找出要删除或者新增的脚本
-                sub.metadata['scripturl'].forEach(val => {
-                    if (!old?.scripts[val]) {
-                        // 老的不存在,新的存在,新增
-                        addScript.push(val);
-                    } else {
-                        sub.scripts[val] = old.scripts[val];
-                    }
-                })
-                for (const key in old.scripts) {
-                    const script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
-                    if (script) {
-                        if (!sub.scripts[key]) {
-                            // 老的存在,新的不存在,删除
-                            deleteScript.push(script.name);
-                            this.scriptUninstall(script.id);
-                        } else if (changeRule) {
-                            // 修改已有的connect,可能要考虑一下手动修改了connect的情况
-                            script.selfMetadata['connect'] = sub.metadata['connect'];
-                            this.scriptReinstall(script);
+        return new Promise(resolve => {
+            const handler = async () => {
+                // 异步处理订阅
+                const deleteScript = [];
+                let addScript: string[] = [];
+                const addScriptName = [];
+                if (old) {
+                    // 存在老订阅,与新订阅比较scripts找出要删除或者新增的脚本
+                    sub.metadata['scripturl'].forEach(val => {
+                        if (!old?.scripts[val]) {
+                            // 老的不存在,新的存在,新增
+                            addScript.push(val);
+                        } else {
+                            sub.scripts[val] = old.scripts[val];
+                        }
+                    });
+                    for (const key in old.scripts) {
+                        const script = await this.scriptModel.findByUUIDAndSubscribeUrl(old.scripts[key].uuid, sub.url);
+                        if (script) {
+                            if (!sub.scripts[key]) {
+                                // 老的存在,新的不存在,删除
+                                deleteScript.push(script.name);
+                                void this.scriptUninstall(script.id);
+                            } else if (changeRule) {
+                                // 修改已有的connect,可能要考虑一下手动修改了connect的情况
+                                script.selfMetadata['connect'] = sub.metadata['connect'];
+                                void this.scriptReinstall(script);
+                            }
                         }
                     }
+                } else {
+                    addScript = sub.metadata['scripturl'];
                 }
-            } else {
-                addScript = sub.metadata['scripturl'];
-            }
-            const error = [];
-            for (let i = 0; i < addScript.length; i++) {
-                const url = addScript[i];
-                let script = await this.scriptModel.findByOriginAndSubscribeUrl(url, sub.url);
-                let oldscript;
-                if (!script) {
-                    try {
-                        [script, oldscript] = await this.controller.prepareScriptByUrl(url);
-                        if (!script) {
-                            App.Log.Error('subscribe', url + ':' + oldscript, sub.name + ' 订阅脚本安装失败')
+                const error = [];
+                for (let i = 0; i < addScript.length; i++) {
+                    const url = addScript[i];
+                    let script = await this.scriptModel.findByOriginAndSubscribeUrl(url, sub.url);
+                    let oldscript;
+                    if (!script) {
+                        try {
+                            [script, oldscript] = await this.controller.prepareScriptByUrl(url);
+                            if (!script) {
+                                App.Log.Error('subscribe', url + ':' + (<string>oldscript), sub.name + ' 订阅脚本安装失败')
+                                error.push(url);
+                                continue;
+                            }
+                        } catch (e) {
                             error.push(url);
-                            continue;
                         }
-                    } catch (e) {
-                        error.push(url);
                     }
+                    if (script!.subscribeUrl && script!.subscribeUrl != sub.url) {
+                        App.Log.Warn('subscribe', script!.name + '已被\"' + script!.subscribeUrl + '"订阅', sub.name + ' 订阅冲突');
+                        continue;
+                    }
+                    script!.selfMetadata['connect'] = sub.metadata['connect'];
+                    if (oldscript == undefined) {
+                        script!.subscribeUrl = sub.url;
+                        script!.status = SCRIPT_STATUS_ENABLE;
+                        script!.id = await this.scriptInstall(script!);
+                        addScriptName.push(script!.name);
+                    }
+                    sub.scripts[url] = {
+                        uuid: script!.uuid,
+                        url: url,
+                    };
                 }
-                if (script!.subscribeUrl && script!.subscribeUrl != sub.url) {
-                    App.Log.Warn('subscribe', script!.name + '已被\"' + script!.subscribeUrl + '"订阅', sub.name + ' 订阅冲突');
-                    continue;
+                let msg = '';
+                if (addScriptName.length) {
+                    msg += '新增脚本:' + addScriptName.join(',') + '\n';
                 }
-                script!.selfMetadata['connect'] = sub.metadata['connect'];
-                if (oldscript == undefined) {
-                    script!.subscribeUrl = sub.url;
-                    script!.status = SCRIPT_STATUS_ENABLE;
-                    script!.id = await this.scriptInstall(script!);
-                    addScriptName.push(script!.name);
+                if (deleteScript.length) {
+                    msg += '删除脚本:' + deleteScript.join(',') + '\n';
                 }
-                sub.scripts[url] = {
-                    uuid: script!.uuid,
-                    url: url,
-                };
+                if (error.length) {
+                    msg += '安装失败脚本:' + error.join(',');
+                }
+                await this.subscribeModel.save(sub);
+                void this.syncSubscribeTask(sub.url, 'update', sub);
+                if (!msg) {
+                    return;
+                }
+                chrome.notifications.create({
+                    type: 'basic',
+                    title: sub.name + ' 订阅更新成功',
+                    message: msg,
+                    iconUrl: chrome.runtime.getURL('assets/logo.png')
+                });
+                App.Log.Info('subscribe', msg, sub.name + ' 订阅更新成功')
+                return resolve(sub.id);
             }
-            let msg = '';
-            if (addScriptName.length) {
-                msg += '新增脚本:' + addScriptName.join(',') + '\n';
-            }
-            if (deleteScript.length) {
-                msg += '删除脚本:' + deleteScript.join(',') + '\n';
-            }
-            if (error.length) {
-                msg += '安装失败脚本:' + error.join(',');
-            }
-            await this.subscribeModel.save(sub);
-            this.syncSubscribeTask(sub.url, 'update', sub);
-            if (!msg) {
-                return;
-            }
-            chrome.notifications.create({
-                type: 'basic',
-                title: sub.name + ' 订阅更新成功',
-                message: msg,
-                iconUrl: chrome.runtime.getURL('assets/logo.png')
-            });
-            App.Log.Info('subscribe', msg, sub.name + ' 订阅更新成功')
-            return resolve(sub.id);
+            void handler();
         });
     }
 
@@ -463,25 +466,28 @@ export class ScriptManager extends Manager {
     }
 
     public scriptReinstall(script: Script): Promise<boolean> {
-        return new Promise(async resolve => {
-            const oldScript = await this.scriptModel.findById(script.id);
-            if (!oldScript) {
-                return resolve(false);
+        return new Promise(resolve => {
+            const handler = async () => {
+                const oldScript = await this.scriptModel.findById(script.id);
+                if (!oldScript) {
+                    return resolve(false);
+                }
+                void App.Cache.del('script:grant:' + script.id.toString());
+                copyScript(script, oldScript);
+                script.updatetime = new Date().getTime();
+                // 加载资源
+                await this.loadResouce(script);
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.disableScript(oldScript);
+                    await this.enableScript(script);
+                } else {
+                    await this.scriptModel.save(script);
+                }
+                // 设置同步任务
+                void this.syncScriptTask(script.uuid, 'update', script);
+                return resolve(true);
             }
-            // 加载资源
-            App.Cache.del('script:' + script.id);
-            copyScript(script, oldScript);
-            script.updatetime = new Date().getTime();
-            await this.loadResouce(script);
-            if (script.status == SCRIPT_STATUS_ENABLE) {
-                await this.disableScript(oldScript);
-                await this.enableScript(script);
-            } else {
-                await this.scriptModel.save(script);
-            }
-            // 设置同步任务
-            this.syncScriptTask(script.uuid, 'update', script);
-            return resolve(true);
+            void handler();
         });
     }
 
@@ -504,31 +510,34 @@ export class ScriptManager extends Manager {
     }
 
     public scriptUninstall(scriptId: number, sync?: boolean): Promise<boolean> {
-        return new Promise(async resolve => {
-            const script = await this.scriptModel.findById(scriptId);
-            if (!script) {
-                return resolve(false);
+        return new Promise(resolve => {
+            const handler = async () => {
+                const script = await this.scriptModel.findById(scriptId);
+                if (!script) {
+                    return resolve(false);
+                }
+                if (script.status == SCRIPT_STATUS_ENABLE) {
+                    await this.disableScript(script, true);
+                } else {
+                    script.status = SCRIPT_STATUS_DELETE;
+                    AppEvent.trigger(ScriptStatusChange, script);
+                }
+                await this.scriptModel.delete(script.id);
+                void App.Cache.del('script:grant:' + script.id.toString());
+                //TODO:释放资源
+                script.metadata['require']?.forEach((val: string) => {
+                    void this.resource.deleteResource(val, script.id);
+                });
+                script.metadata['require-css']?.forEach((val: string) => {
+                    void this.resource.deleteResource(val, script.id);
+                });
+                // 设置同步任务
+                if (!sync) {
+                    void this.syncScriptTask(script.uuid, 'delete');
+                }
+                return resolve(true);
             }
-            if (script.status == SCRIPT_STATUS_ENABLE) {
-                await this.disableScript(script, true);
-            } else {
-                script.status = SCRIPT_STATUS_DELETE;
-                AppEvent.trigger(ScriptStatusChange, script);
-            }
-            await this.scriptModel.delete(script.id);
-            //TODO:释放资源
-            App.Cache.del('script:' + script.id);
-            script.metadata['require']?.forEach((val: string) => {
-                this.resource.deleteResource(val, script.id);
-            });
-            script.metadata['require-css']?.forEach((val: string) => {
-                this.resource.deleteResource(val, script.id);
-            });
-            // 设置同步任务
-            if (!sync) {
-                this.syncScriptTask(script.uuid, 'delete');
-            }
-            return resolve(true);
+            void handler();
         });
     }
 
@@ -846,6 +855,7 @@ export class ScriptManager extends Manager {
                 }
             }
             await this.scriptModel.save(script);
+            console.log(script.metadata['connect']);
             AppEvent.trigger(ScriptStatusChange, script);
             return resolve(true);
         });
@@ -901,6 +911,23 @@ export class ScriptManager extends Manager {
 
     public getScript(id: number): Promise<Script | undefined> {
         return this.scriptModel.findById(id);
+    }
+
+    public getScriptSelfMeta(id: number): Promise<Script | undefined> {
+        return new Promise(resolve => {
+            const handler = async () => {
+                const script = await this.getScript(id);
+                if (!script) {
+                    return resolve(undefined);
+                }
+                // 自定义配置
+                for (const key in script.selfMetadata) {
+                    script.metadata[key] = script.selfMetadata[key];
+                }
+                return resolve(script);
+            }
+            void handler()
+        });
     }
 
     // 设置脚本最后一次运行时间
@@ -1038,55 +1065,58 @@ export class ScriptManager extends Manager {
     }
 
     public syncToScript(syncdata: SyncData): Promise<Script | undefined | string> {
-        return new Promise(async resolve => {
-            if (syncdata.action == 'update') {
-                // NOTE:同步安装逻辑与现有逻辑不同,差不多重新写了一遍
-                const sync = syncdata.script;
-                if (!sync) {
+        return new Promise(resolve => {
+            const handler = async () => {
+                if (syncdata.action == 'update') {
+                    // NOTE:同步安装逻辑与现有逻辑不同,差不多重新写了一遍
+                    const sync = syncdata.script;
+                    if (!sync) {
+                        return resolve(undefined);
+                    }
+                    const [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
+                    if (script == undefined) {
+                        App.Log.Error('system', sync.uuid + ' ' + <string>old, '脚本同步失败');
+                        return resolve(<string>old);
+                    }
+                    if (old) {
+                        script.status = (<Script>old).status;
+                        script.runStatus = (<Script>old).runStatus;
+                    }
+                    script.sort = sync.sort;
+                    script.selfMetadata = JSON.parse(sync.self_meta) || {};
+                    script.createtime = sync.createtime;
+                    script.updatetime = sync.updatetime;
+                    script.subscribeUrl = sync.subscribe_url
+                    if (script.id) {
+                        // 存在reinstall
+                        void App.Cache.del('script:grant:' + script.id.toString());
+                        await this.loadResouce(script);
+                        if (script.status == SCRIPT_STATUS_ENABLE) {
+                            await this.disableScript(<Script>old || script);
+                            await this.enableScript(script);
+                        } else {
+                            await this.scriptModel.save(script);
+                        }
+                    } else {
+                        // 不存在install
+                        await this.scriptModel.save(script);
+                        await this.loadResouce(script);
+                        if (script.status == SCRIPT_STATUS_ENABLE) {
+                            await this.enableScript(script);
+                        }
+                    }
+                    return resolve(script);
+                } else if (syncdata.action == 'delete') {
+                    const script = await this.scriptModel.findByUUID(<string>syncdata.uuid);
+                    if (script) {
+                        void this.scriptUninstall(script.id, true);
+                        return resolve(script);
+                    }
                     return resolve(undefined);
                 }
-                const [script, old] = await this.controller.prepareScriptByCode(sync.code, sync.origin, sync.uuid);
-                if (script == undefined) {
-                    App.Log.Error('system', sync.uuid + ' ' + old, '脚本同步失败');
-                    return resolve(<string>old);
-                }
-                if (old) {
-                    script.status = (<Script>old).status;
-                    script.runStatus = (<Script>old).runStatus;
-                }
-                script.sort = sync.sort;
-                script.selfMetadata = JSON.parse(sync.self_meta) || {};
-                script.createtime = sync.createtime;
-                script.updatetime = sync.updatetime;
-                script.subscribeUrl = sync.subscribe_url
-                if (script.id) {
-                    // 存在reinstall
-                    App.Cache.del('script:' + script.id);
-                    await this.loadResouce(script);
-                    if (script.status == SCRIPT_STATUS_ENABLE) {
-                        await this.disableScript(<Script>old || script);
-                        await this.enableScript(script);
-                    } else {
-                        await this.scriptModel.save(script);
-                    }
-                } else {
-                    // 不存在install
-                    await this.scriptModel.save(script);
-                    await this.loadResouce(script);
-                    if (script.status == SCRIPT_STATUS_ENABLE) {
-                        await this.enableScript(script);
-                    }
-                }
-                return resolve(script);
-            } else if (syncdata.action == 'delete') {
-                const script = await this.scriptModel.findByUUID(syncdata.uuid!);
-                if (script) {
-                    this.scriptUninstall(script.id, true);
-                    return resolve(script);
-                }
-                return resolve(undefined);
+                return resolve('无操作');
             }
-            return resolve('无操作');
+            void handler();
         });
     }
 

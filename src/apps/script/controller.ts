@@ -490,31 +490,34 @@ export class ScriptController {
     }
 
     public buildScriptCache(script: Script): Promise<ScriptCache> {
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        return new Promise(async resolve => {
-            const ret: ScriptCache = <ScriptCache>Object.assign({}, script);
+        return new Promise(resolve => {
+            const handler = async () => {
+                const ret: ScriptCache = <ScriptCache>Object.assign({}, script);
 
-            // 自定义配置
-            for (const key in ret.metadata) {
-                if (ret.selfMetadata && ret.selfMetadata[key]) {
-                    ret.metadata[key] = ret.selfMetadata[key];
+                // 自定义配置
+                if (ret.selfMetadata) {
+                    ret.metadata = Object.assign({}, ret.metadata);
+                    for (const key in ret.selfMetadata) {
+                        ret.metadata[key] = ret.selfMetadata[key];
+                    }
                 }
+
+                ret.value = await this.getScriptValue(ret);
+
+                ret.resource = await this.getResources(ret);
+
+                ret.flag = randomString(16);
+                ret.code = compileScriptCode(ret);
+
+                ret.grantMap = {};
+
+                ret.metadata['grant']?.forEach((val: string) => {
+                    ret.grantMap[val] = 'ok';
+                });
+
+                resolve(ret);
             }
-
-            ret.value = await this.getScriptValue(ret);
-
-            ret.resource = await this.getResources(ret);
-
-            ret.flag = randomString(16);
-            ret.code = compileScriptCode(ret);
-
-            ret.grantMap = {};
-
-            ret.metadata['grant']?.forEach((val: string) => {
-                ret.grantMap[val] = 'ok';
-            });
-
-            resolve(ret);
+            void handler();
         });
     }
 

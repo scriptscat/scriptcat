@@ -244,8 +244,8 @@ export class BackgroundGrant {
                 const _this: BackgroundGrant = <BackgroundGrant>this;
                 return new Promise((resolve, reject) => {
                     const handler = async () => {
-                        const script = <Script | undefined>await App.Cache.getOrSet('script:' + grant.id.toString(), () => {
-                            return _this.scriptMgr.getScript(grant.id)
+                        const script = <Script | undefined>await App.Cache.getOrSet('script:grant:' + grant.id.toString(), () => {
+                            return _this.scriptMgr.getScriptSelfMeta(grant.id);
                         });
                         if (!script) {
                             return reject('permission denied');
@@ -530,6 +530,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
+                console.log(grant, script);
                 const config = <GM_Types.XHRDetails>grant.params[0];
                 const url = new URL(config.url);
                 if (script.metadata['connect']) {
@@ -542,11 +543,11 @@ export class BackgroundGrant {
                 }
                 const ret: ConfirmParam = {
                     permission: 'cors',
-                    permissionValue: url.host,
+                    permissionValue: url.hostname,
                     title: '脚本正在试图访问跨域资源',
                     metadata: {
                         '脚本名称': script.name,
-                        '请求域名': url.host,
+                        '请求域名': url.hostname,
                         '请求地址': config.url,
                     },
                     describe: '请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项',

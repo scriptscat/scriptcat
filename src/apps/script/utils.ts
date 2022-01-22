@@ -103,9 +103,8 @@ export function copyScript(script: Script, old: Script) {
     script.delayruntime = old.delayruntime;
     script.error = old.error;
     script.sort = old.sort;
-    script.selfMetadata = old.selfMetadata || {};
-    for (const key in script.selfMetadata) {
-        script.metadata[key] = script.metadata[key];
+    if (!script.selfMetadata) {
+        script.selfMetadata = old.selfMetadata || {};
     }
     script.subscribeUrl = old.subscribeUrl;
     script.status = old.status;
