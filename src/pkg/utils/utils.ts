@@ -33,9 +33,9 @@ export class Page {
 
 export function randomString(e: number) {
     e = e || 32;
-    let t = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz',
-        a = t.length,
-        n = '';
+    const t = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz',
+        a = t.length;
+    let n = '';
     for (let i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
     return n;
 }
@@ -137,7 +137,7 @@ export function post(url: string, data: string, success: (resp: string) => void,
     xmlhttp.onreadystatechange = function () {
         if (this.readyState == 4) {
             if (this.status == 200) {
-                success && success(this.response);
+                success && success(<string>this.response);
             } else {
                 error && error();
             }
@@ -229,10 +229,6 @@ export function putJson(url: string, data: any, success: (resp: any) => void, er
  */
 function createRequest(): XMLHttpRequest {
     const xmlhttp = new XMLHttpRequest();
-    (<any>xmlhttp).error = function (callback: Function) {
-        (<any>xmlhttp).errorCallback = callback;
-        return xmlhttp;
-    };
     xmlhttp.withCredentials = true;
     return xmlhttp;
 }
@@ -294,8 +290,8 @@ export function base64ToStr(base64: string): string {
 
 export function strToBase64(str: string): string {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
-        (match, p1) => {
-            return String.fromCharCode(parseInt('0x' + p1, 16));
+        (match, p1: string) => {
+            return String.fromCharCode(parseInt(`0x${p1}`, 16));
         }));
 }
 
@@ -321,4 +317,8 @@ export class waitGroup {
             this.callback();
         }
     }
+}
+
+export function unixTime(): number {
+    return parseInt((new Date().getTime() / 1000).toString());
 }

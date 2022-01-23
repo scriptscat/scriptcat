@@ -20,7 +20,7 @@
           <v-input :v-model="exportConfig.uuid" disabled> </v-input>
           <v-select
             label="上传至"
-            v-model="exportConfig.dest"
+            v-model="exportDest"
             :items="dests"
             item-text="value"
             item-value="key"
@@ -28,7 +28,28 @@
             persistent-hint
             return-object
             single-line
+            @change="onChangeDest"
           ></v-select>
+
+          <div v-if="exportDest.key == EXPORT_TENCENT_CLOUD">
+            <v-text-field
+              v-model="exportConfig.param.secretId"
+              label="SecretId"
+            >
+            </v-text-field>
+            <v-text-field
+              v-model="exportConfig.param.secretKey"
+              label="SecretKey"
+            >
+            </v-text-field>
+            <v-text-field
+              v-model="exportConfig.param.region"
+              label="地域"
+              hint="地域请查看 https://cloud.tencent.com/document/product/583/17237 为空自动选择就近地域,填写可指定地域,例如:华南地区(广州) 填写:ap-guangzhou"
+              persistent-hint
+            >
+            </v-text-field>
+          </div>
 
           <v-textarea
             v-model="exportConfig.exportValue"
@@ -79,6 +100,7 @@ import { ExportModel } from '@App/model/export';
 import { Value } from '@App/model/do/value';
 import {
   Export,
+  EXPORT_DEST,
   EXPORT_DEST_LOCAL,
   EXPORT_TENCENT_CLOUD,
 } from '@App/model/do/export';
@@ -88,10 +110,19 @@ import { ExtVersion } from '@App/apps/config';
 import packageTpl from '@App/template/cloudcat-package/package.tpl';
 import utilsTpl from '@App/template/cloudcat-package/utils.tpl';
 import indexTpl from '@App/template/cloudcat-package/index.tpl';
+import { ClientConfig } from '@App/pkg/sdk/tencent_cloud/client';
+import { ScfClient } from '@App/pkg/sdk/tencent_cloud/scf';
 
+interface TencentCloud {
+  secretId: string;
+  secretKey: string;
+  region: string;
+}
 
 @Component({})
 export default class BgCloud extends Vue {
+  EXPORT_TENCENT_CLOUD = EXPORT_TENCENT_CLOUD;
+
   icons = { mdiCloudUpload, mdiClose };
 
   @Prop()
@@ -106,23 +137,32 @@ export default class BgCloud extends Vue {
     exportCookie: '',
     exportValue: '',
   };
+  exportDest = { key: EXPORT_DEST_LOCAL, value: '本地', param: {} };
 
   exportModel = new ExportModel();
   valueModel = new ValueModel();
 
   dests = [
     { key: EXPORT_DEST_LOCAL, value: '本地' },
-    { key: EXPORT_TENCENT_CLOUD, value: '腾讯云' },
+    {
+      key: EXPORT_TENCENT_CLOUD,
+      value: '腾讯云',
+      param: <TencentCloud>{ secretId: '', secretKey: '' },
+    },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
   ];
 
   btnText = { 1: '导出' };
 
-  async mounted() {
+  mounted() {
+    void this.onChangeDest();
+  }
+
+  async onChangeDest() {
     let e = await this.exportModel.findOne({
       scriptId: this.script.id,
-      dest: this.exportConfig.dest,
+      dest: this.exportDest.key,
     });
     if (e) {
       this.exportConfig = e;
@@ -142,7 +182,8 @@ export default class BgCloud extends Vue {
         id: 0,
         uuid: uuidv4(),
         scriptId: this.script.id,
-        dest: this.exportConfig.dest,
+        dest: <EXPORT_DEST>this.exportDest.key,
+        param: this.exportDest.param,
         overwriteValue: false,
         overwriteCookie: false,
         exportCookie: exportCookie,
@@ -153,16 +194,47 @@ export default class BgCloud extends Vue {
   }
 
   submit() {
-    switch (this.exportConfig.dest) {
+    this.exportConfig.dest = <EXPORT_DEST>this.exportDest.key;
+    switch (this.exportDest.key) {
       case EXPORT_DEST_LOCAL:
         void this.local();
         break;
+      case EXPORT_TENCENT_CLOUD:
+        void this.tencent();
+        break;
     }
+    void this.exportModel.save(this.exportConfig);
+  }
+
+  async tencent() {
+    const param = <TencentCloud>this.exportDest.param;
+    const clientConfig: ClientConfig = {
+      credential: {
+        secretId: param.secretId,
+        secretKey: param.secretKey,
+      },
+      region: param.region,
+      profile: {
+        httpProfile: {
+          reqMethod: 'POST', // 请求方法
+          reqTimeout: 30, // 请求超时时间，默认60s
+        },
+      },
+    };
+    const cli = new ScfClient(clientConfig);
+    let zip = await this.pack();
+    void zip.generateAsync({ type: 'base64' }).then((content) => {
+      void cli.CreateFunction({
+        FunctionName: 'test',
+        Code: {
+          ZipFile: content,
+        },
+      });
+    });
   }
 
   async local() {
     let zip = await this.pack();
-    void this.exportModel.save(this.exportConfig);
     void zip.generateAsync({ type: 'blob' }).then((content) => {
       saveAs(content, this.script.name + '.zip');
     });
@@ -232,9 +304,9 @@ export default class BgCloud extends Vue {
               },
             })
         );
-        zip.file('package.json',<string>packageTpl);
-        zip.file('utils.js',<string>utilsTpl);
-        zip.file('index.js',<string>indexTpl);
+        zip.file('package.json', <string>packageTpl);
+        zip.file('utils.js', <string>utilsTpl);
+        zip.file('index.js', <string>indexTpl);
         resolve(zip);
       };
       void handler();

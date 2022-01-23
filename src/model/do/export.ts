@@ -8,6 +8,7 @@ export interface Export {
 	id: number
 	uuid: string
 	scriptId: number
+	param?: AnyMap
 	dest: EXPORT_DEST
 	overwriteValue: boolean
 	overwriteCookie: boolean

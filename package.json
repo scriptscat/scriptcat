@@ -28,7 +28,6 @@
         "monaco-editor": "^0.22.3",
         "reflect-metadata": "^0.1.13",
         "sortablejs": "^1.14.0",
-        "tencentcloud-sdk-nodejs": "^4.0.278",
         "uuid": "^8.3.2",
         "vue": "^2.6.12",
         "vue-i18n": "^8.24.1",
