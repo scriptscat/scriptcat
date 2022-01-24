@@ -1,7 +1,16 @@
 {
     "presets": [
         "@vue/babel-preset-jsx",
-        "@babel/preset-env",
+        [
+            "@babel/preset-env",
+            {
+                "targets": {
+                    "chrome": "67"
+                },
+                "useBuiltIns": "usage",
+                "corejs": "3.18"
+            }
+        ],
         "@babel/preset-typescript"
     ],
     "plugins": [

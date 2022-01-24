@@ -347,7 +347,7 @@ export class BackgroundGrant {
                                     const item = list.pop();
                                     if (item) {
                                         void App.Cache.set('confirm:info:' + item.uuid, [item, list.length]);
-                                        chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + item.uuid) });
+                                        void chrome.tabs.create({ url: chrome.runtime.getURL('confirm.html?uuid=' + item.uuid) });
                                     } else {
                                         void App.Cache.del('confirm:window:' + confirm.permission + ':list:' + script.id.toString());
                                     }
@@ -484,7 +484,7 @@ export class BackgroundGrant {
                 if (xhr.response instanceof ArrayBuffer) {
                     respond.response = URL.createObjectURL(new Blob([xhr.response]));
                 } else {
-                    respond.response = URL.createObjectURL(xhr.response);
+                    respond.response = URL.createObjectURL(<Blob>xhr.response);
                 }
                 setTimeout(() => {
                     URL.revokeObjectURL(<string>respond.response);
@@ -832,7 +832,7 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({ default: true })
     protected GM_closeInTab(grant: Grant): Promise<any> {
         return new Promise(resolve => {
-            chrome.tabs.remove(<number>grant.params[0]);
+            void chrome.tabs.remove(<number>grant.params[0]);
             resolve(undefined);
         })
     }
@@ -889,9 +889,9 @@ export class BackgroundGrant {
                 return reject('param is null');
             }
             const details: GM_Types.NotificationDetails = params[0];
-            const options: chrome.notifications.NotificationOptions = {
+            const options: chrome.notifications.NotificationOptions<true> = {
                 title: details.title || 'ScriptCat',
-                message: details.text,
+                message: details.text || '无消息内容',
                 iconUrl: details.image || getIcon(script) || chrome.runtime.getURL('assets/logo.png'),
                 type: (isFirefox() || details.progress === undefined) ? 'basic' : 'progress',
             };

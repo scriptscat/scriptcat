@@ -46,7 +46,7 @@
                 }"
                 style="width: 300px"
               >
-                <span>{{ item.action }} </span>
+                <span>{{ item.action }}</span>
                 <span v-if="item.keys">{{ item.keys }}</span>
               </v-list-item-title>
             </div>
@@ -68,7 +68,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
-import { KeyMod, KeyCode } from 'monaco-editor';
+import { KeyMod, KeyCode, editor } from 'monaco-editor';
 import { Script, SCRIPT_TYPE_NORMAL } from '@App/model/do/script';
 import { mdiContentSave, mdiFileImport, mdiFileExport, mdiBug } from '@mdi/js';
 import ResizableEditor from '@Components/ResizableEditor.vue';
@@ -89,13 +89,13 @@ interface IEditorMenu {
 @Component({
   components: { ResizableEditor },
 })
-export default class CloseButton extends Vue {
-  $refs!: {
+export default class Editor extends Vue {
+  public $refs!: {
     resizableEditor: ResizableEditor;
   };
 
   get editor() {
-    return this.$refs.resizableEditor.editor;
+    return <editor.IStandaloneCodeEditor>this.$refs.resizableEditor.editor;
   }
 
   @Prop() tabKey!: number | string;
@@ -105,8 +105,8 @@ export default class CloseButton extends Vue {
   @Prop() param?: AnyMap;
 
   @Prop() onMetaChange!: boolean;
-  hasInitial = false;
-  hasUnsavedChange = false;
+  public hasInitial = false;
+  public hasUnsavedChange = false;
 
   @Watch('script')
   onScriptChange(news: Script, old: Script) {
@@ -120,21 +120,24 @@ export default class CloseButton extends Vue {
     }
   }
 
-  async mounted() {
-    this.initialEditor();
+  mounted() {
+    void this.initialEditor();
     let fileInput = <HTMLInputElement>document.getElementById('fileInput');
-    fileInput!.addEventListener('change', () => {
-      var file = fileInput!.files![0];
-      var reader = new FileReader();
-      let _this = this;
-      reader.onload = function() {
-        _this.editor.setValue(<string>this.result);
+    fileInput.addEventListener('change', () => {
+      let file = fileInput.files?.[0];
+      if (!file) {
+        return;
+      }
+      let reader = new FileReader();
+      let self = this;
+      reader.onload = function () {
+        self.editor.setValue(<string>this.result);
       };
       reader.readAsText(file, 'utf-8');
     });
   }
 
-  async initialEditor() {
+  initialEditor() {
     this.editor.onDidChangeModelContent(() => {
       if (this.hasInitial && !this.hasUnsavedChange) {
         // 修改meta会自动保存，或者不保存也行，统一交由用户决定(保存)
@@ -156,7 +159,7 @@ export default class CloseButton extends Vue {
       }
     });
 
-    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, async () => {
+    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyS, () => {
       this.$emit<ISaveScript>(EventType.SaveScript, {
         currentCode: this.editor.getValue(),
         debug: false,
@@ -184,7 +187,7 @@ export default class CloseButton extends Vue {
       {
         action: '导入',
         handler: () => {
-          document.getElementById('fileInput')!.click();
+          (<HTMLInputElement>document.getElementById('fileInput')).click();
         },
         icon: mdiFileImport,
       },

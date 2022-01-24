@@ -1,3 +1,5 @@
 /build
 /node_modules
 .eslintrc.js
+webpack.*
+/scripts

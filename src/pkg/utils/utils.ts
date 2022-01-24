@@ -1,6 +1,8 @@
 import { App } from '@App/apps/app';
 import { Logger } from '@App/apps/msg-center/event';
 import { LOGGER_LEVEL } from '@App/model/do/logger';
+import 'core-js/es/array';
+
 export class Page {
     protected _page: number;
     protected _count: number;

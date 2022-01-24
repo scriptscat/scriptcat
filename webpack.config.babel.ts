@@ -2,7 +2,6 @@ import path from "path";
 const chalk = require('chalk')
 const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
-import CopyPlugin from "copy-webpack-plugin";
 import htmlWebpackPlugin from "html-webpack-plugin";
 import MiniCssExtractPlugin from "mini-css-extract-plugin";
 import MonacoLocalesPlugin from "monaco-editor-locales-plugin";
@@ -165,9 +164,11 @@ const config: Configuration = {
                 ],
             },
             {
-                test: /(?<!\.d)\.tsx?$/,
+                test: /(?<!\.d)\.(ts|tsx)?$/,
                 use: [
-                    "babel-loader",
+                    {
+                        loader: "babel-loader",
+                    },
                     {
                         loader: "ts-loader",
                         options: {
@@ -203,6 +204,9 @@ const config: Configuration = {
                 use: ["file-loader"],
             },
         ],
+    },
+    stats: {
+        errorDetails: false,
     },
 };
 

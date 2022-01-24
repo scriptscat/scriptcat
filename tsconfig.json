@@ -1,9 +1,9 @@
 {
     "compilerOptions": {
-        "target": "esnext",
-        "module": "esnext",
+        "target": "es2021",
+        "module": "es2022",
         "lib": [
-            "ESNext",
+            "ES2021",
             "DOM"
         ],
         "strict": true,

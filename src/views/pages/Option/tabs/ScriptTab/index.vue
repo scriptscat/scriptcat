@@ -45,7 +45,7 @@
 </template>
 
 <script lang="ts">
-import { Vue, Component, Prop } from 'vue-property-decorator';
+import { Vue, Component, Prop, Ref } from 'vue-property-decorator';
 
 import { ScriptManager } from '@App/apps/script/manager';
 import { Script, SCRIPT_STATUS_ENABLE } from '@App/model/do/script';
@@ -158,20 +158,18 @@ export default class ScriptTab extends Vue {
     scriptModule.showSnackbar('config更新成功');
     // this.showSnackbar();
     this.onMetaChange = true;
-    await this.handleInitialSctipt({} as any);
+    await this.handleInitialSctipt(<IInitialScript>{});
     this.onMetaChange = false;
   }
 
   async handleSaveScript({ currentCode, debug }: ISaveScript) {
     // todo 保存时候错误处理
-    let [
-      newScript,
-      oldScript,
-    ] = await this.scriptController.prepareScriptByCode(
-      currentCode,
-      this.script.origin || '',
-      this.script.uuid ? this.script.uuid : uuidv4()
-    );
+    let [newScript, oldScript] =
+      await this.scriptController.prepareScriptByCode(
+        currentCode,
+        this.script.origin || '',
+        this.script.uuid ? this.script.uuid : uuidv4()
+      );
 
     if (newScript == undefined) {
       alert(oldScript);
@@ -220,7 +218,7 @@ export default class ScriptTab extends Vue {
     } else {
       scriptModule.showSnackbar('脚本保存成功');
     }
-    await this.handleInitialSctipt({} as any);
+    await this.handleInitialSctipt(<IInitialScript>{});
 
     eventBus.$emit<IChangeTitle>(EventType.ChangeTitle, {
       title: `${this.script.name}`,

@@ -40,7 +40,7 @@ export class SystemCache extends MapCache implements ICache {
             try {
                 MsgCenter.connect(SystemCacheEvent, { msg: [event, key, data, oldData] });
             } catch (e) {
-                console.log(e.message);
+                console.log(e);
             }
         }
     }

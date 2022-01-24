@@ -5,7 +5,6 @@ import { MultiGrantListener } from '@App/apps/grant/utils';
 import { Logger } from './apps/msg-center/event';
 import { SystemConfig } from './pkg/config';
 import { App, ENV_BACKGROUND, InitApp } from './apps/app';
-import { DBLogger } from './apps/logger/logger';
 import { migrate } from './model/migrate';
 import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_STATUS_DISABLE } from './model/do/script';
 import { MapCache } from './pkg/storage/cache/cache';
@@ -14,6 +13,8 @@ import { Server } from './apps/config';
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from './model/do/subscribe';
 import { UserManager } from './apps/user/manager';
 import { ToolsManager } from './apps/tools/manager';
+import Dexie from 'dexie';
+import { DBLogger } from './apps/logger/dblogger';
 
 migrate();
 

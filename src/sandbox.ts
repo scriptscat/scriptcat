@@ -4,12 +4,12 @@ import { SandboxContext } from './apps/grant/frontend';
 import { SendLogger } from './pkg/utils/utils';
 import { App, ENV_FRONTEND, InitApp } from './apps/app';
 import { MapCache } from './pkg/storage/cache/cache';
-import { ConsoleLogger } from './apps/logger/logger';
 import { AppEvent, ScriptValueChange } from './apps/msg-center/event';
 import { LOGGER_LEVEL_INFO, LOGGER_LEVEL_ERROR } from './model/do/logger';
 import { Script, ScriptCache, SCRIPT_TYPE_CRONTAB } from './model/do/script';
 import { nextTime } from './views/pages/utils';
 import { compileScript, createSandboxContext } from './pkg/sandbox/compile';
+import { ConsoleLogger } from './apps/logger/console';
 
 InitApp({
     Log: new ConsoleLogger(),

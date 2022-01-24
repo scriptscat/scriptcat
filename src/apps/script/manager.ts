@@ -22,6 +22,7 @@ import { SyncAction, SyncData } from '@App/model/do/sync';
 import { v4 as uuidv4 } from 'uuid';
 import { Manager } from '@App/pkg/apps/manager';
 import { SystemConfig } from '@App/pkg/config';
+import Dexie from 'dexie';
 
 // 脚本管理器,收到控制器消息进行实际的操作
 export class ScriptManager extends Manager {
