@@ -37,7 +37,7 @@ export default class App extends Vue {
     allTabs: ITabItem[] = [];
 
     created() {
-        eventBus.$on<ICreateScript>(EventType.NewScript, this.handleCreateScript);
+        eventBus.$on(EventType.NewScript, this.handleCreateScript);
         eventBus.$on<INewScript>(EventType.NewScript, this.handleNewScript);
         eventBus.$on<IEditScript>(EventType.EditScript, this.handleEditScript);
         eventBus.$on<IChangeTitle>(EventType.ChangeTitle, this.handleChangeTitle);

@@ -6,16 +6,25 @@ export interface CreateFunctionRequest {
 		// base64的zip文件
 		ZipFile: string,
 	},
+	Handler?: string
+	Type?: 'Event'
+	Runtime?: 'Python2.7' | 'Python3.6' | 'Nodejs10.15' | 'Nodejs12.16' | ' Php5' | ' Php7' | 'Go1' | 'Java8' | 'CustomRuntime'
+	Description?: string
 }
 
 export class ScfClient extends Client {
 
 	constructor(client: ClientConfig) {
-		let service = 'scf';
+		let url = 'scf';
 		if (client.region != '') {
-			service += '.' + client.region;
+			url += '.' + client.region;
 		}
-		super(client, service, '2018-04-16');
+		url += '.tencentcloudapi.com';
+		super(client, {
+			url: url,
+			service: 'scf',
+			version: '2018-04-16',
+		});
 	}
 
 	// 创建新的函数

@@ -16,15 +16,19 @@ export interface ClientConfig {
 	}
 }
 
-export class Client {
+export interface Api {
+	url: string
 	service: string
-	config: ClientConfig;
 	version: string
+}
 
-	constructor(config: ClientConfig, service: string, version: string) {
+export class Client {
+	config: ClientConfig;
+	api: Api
+
+	constructor(config: ClientConfig, api: Api) {
 		this.config = config;
-		this.service = service;
-		this.version = version;
+		this.api = api;
 	}
 
 	protected request(action: string, req: AnyMap): Promise<AnyMap> {
@@ -35,7 +39,7 @@ export class Client {
 			const date = this.getDate(now);
 			const signedHeaders = 'content-type;host';
 
-			const canonicalHeaders = 'content-type:application/json; charset=utf-8\n' + 'host:' + this.service + '.tencentcloudapi.com' + '\n';
+			const canonicalHeaders = 'content-type:application/json; charset=utf-8\n' + 'host:' + this.api.url + '\n';
 
 			const payload = JSON.stringify(req);
 			const hashedRequestPayload = SHA256(payload).toString();
@@ -47,10 +51,10 @@ export class Client {
 				+ signedHeaders + '\n'
 				+ hashedRequestPayload;
 
-			const credentialScope = date + '/' + this.service + '/' + 'tc3_request';
+			const credentialScope = date + '/' + this.api.service + '/' + 'tc3_request';
 
 			const secretDate = HmacSHA256(date, 'TC3' + this.config.credential.secretKey);
-			const secretService = HmacSHA256(this.service, secretDate);
+			const secretService = HmacSHA256(this.api.service, secretDate);
 			const secretSigning = HmacSHA256('tc3_request', secretService);
 
 			const hashedCanonicalRequest = SHA256(canonicalRequest).toString();
@@ -67,17 +71,18 @@ export class Client {
 					'X-TC-Action': action,
 					'X-TC-Region': this.config.region,
 					'X-TC-Timestamp': unixTime(),
-					'X-TC-Version': this.version,
+					'X-TC-Version': this.api.version,
 					'Authorization': Authorization,
 					'Content-Type': 'application/json; charset=utf-8'
 				};
 				if (!this.config.region) {
 					delete headers['X-TC-Region'];
 				}
-				const resp = await axios.post('https://' + this.service + '.tencentcloudapi.com', payload, {
+				const resp = await axios.post('https://' + this.api.url, payload, {
 					headers: headers,
 					responseType: 'json',
 				});
+
 				resolve(<AnyMap>resp.data);
 			}
 			void handler();

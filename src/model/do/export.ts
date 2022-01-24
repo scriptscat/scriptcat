@@ -9,6 +9,7 @@ export interface Export {
 	uuid: string
 	scriptId: number
 	param?: AnyMap
+	defalt?: boolean
 	dest: EXPORT_DEST
 	overwriteValue: boolean
 	overwriteCookie: boolean

@@ -101,8 +101,10 @@ export default class Tab extends Vue {
 
     async changeTab(oldIndex: number, newIndex: number, route = '') {
         const oldTab = this.tabs[oldIndex] || {};
-
-        const continueFlag = await oldTab.beforeChange(oldTab);
+        let continueFlag = true;
+        if (typeof oldTab.beforeChange == 'function') {
+            continueFlag = await oldTab.beforeChange(oldTab);
+        }
 
         if (continueFlag) {
             const newTab = this.tabs[newIndex];

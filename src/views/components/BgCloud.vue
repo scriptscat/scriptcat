@@ -33,22 +33,28 @@
 
           <div v-if="exportDest.key == EXPORT_TENCENT_CLOUD">
             <v-text-field
+              v-if="exportConfig.param"
               v-model="exportConfig.param.secretId"
               label="SecretId"
             >
             </v-text-field>
             <v-text-field
+              v-if="exportConfig.param"
               v-model="exportConfig.param.secretKey"
               label="SecretKey"
             >
             </v-text-field>
-            <v-text-field
+            <v-select
+              v-if="exportConfig.param"
+              label="地域选择"
               v-model="exportConfig.param.region"
-              label="地域"
-              hint="地域请查看 https://cloud.tencent.com/document/product/583/17237 为空自动选择就近地域,填写可指定地域,例如:华南地区(广州) 填写:ap-guangzhou"
+              :items="exportConfig.param.regionList"
+              item-text="value"
+              item-value="key"
+              hint="地域请查看 https://cloud.tencent.com/document/product/583/17237"
               persistent-hint
-            >
-            </v-text-field>
+              single-line
+            ></v-select>
           </div>
 
           <v-textarea
@@ -116,7 +122,8 @@ import { ScfClient } from '@App/pkg/sdk/tencent_cloud/scf';
 interface TencentCloud {
   secretId: string;
   secretKey: string;
-  region: string;
+  region: { key: string; value: string };
+  regionList: { key: string; value: string }[];
 }
 
 @Component({})
@@ -137,7 +144,10 @@ export default class BgCloud extends Vue {
     exportCookie: '',
     exportValue: '',
   };
-  exportDest = { key: EXPORT_DEST_LOCAL, value: '本地', param: {} };
+  exportDest: { key: string; value: string; param?: AnyMap } = {
+    key: EXPORT_DEST_LOCAL,
+    value: '本地',
+  };
 
   exportModel = new ExportModel();
   valueModel = new ValueModel();
@@ -147,7 +157,29 @@ export default class BgCloud extends Vue {
     {
       key: EXPORT_TENCENT_CLOUD,
       value: '腾讯云',
-      param: <TencentCloud>{ secretId: '', secretKey: '' },
+      param: <TencentCloud>{
+        secretId: '',
+        secretKey: '',
+        region: { value: '就近地域接入', key: '' },
+        regionList: [
+          { value: '就近地域接入', key: '' },
+          { value: '华东地区(上海)', key: 'ap-shanghai' },
+          { value: '华北地区(北京)', key: 'ap-beijing' },
+          { value: '西南地区(成都)', key: 'ap-chengdu' },
+          { value: '西南地区(重庆)', key: 'ap-chongqing' },
+          { value: '港澳台地区(中国香港)', key: 'ap-hongkong' },
+          { value: '亚太东南(新加坡)', key: 'ap-singapore' },
+          { value: '亚太东南(曼谷)', key: 'ap-bangkok' },
+          { value: '亚太南部(孟买)', key: 'ap-mumbai' },
+          { value: '亚太东北(首尔)', key: 'ap-seoul' },
+          { value: '亚太东北(东京)', key: 'ap-tokyo' },
+          { value: '美国东部(弗吉尼亚)', key: 'na-ashburn' },
+          { value: '美国西部(硅谷)', key: 'na-siliconvalley' },
+          { value: '北美地区(多伦多)', key: 'na-toronto' },
+          { value: '欧洲地区(法兰克福)', key: 'eu-frankfurt' },
+          { value: '欧洲地区(莫斯科)', key: 'eu-moscow' },
+        ],
+      },
     },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
@@ -156,10 +188,20 @@ export default class BgCloud extends Vue {
   btnText = { 1: '导出' };
 
   mounted() {
+    const exportDest = localStorage['export_' + this.script.id.toString()];
+    if (exportDest) {
+      for (let i = 0; i < this.dests.length; i++) {
+        if (this.dests[i].key == exportDest) {
+          this.exportDest = this.dests[i];
+        }
+      }
+    }
+
     void this.onChangeDest();
   }
 
   async onChangeDest() {
+    localStorage['export_' + this.script.id.toString()] = this.exportDest.key;
     let e = await this.exportModel.findOne({
       scriptId: this.script.id,
       dest: this.exportDest.key,
@@ -213,7 +255,7 @@ export default class BgCloud extends Vue {
         secretId: param.secretId,
         secretKey: param.secretKey,
       },
-      region: param.region,
+      region: param.region.key,
       profile: {
         httpProfile: {
           reqMethod: 'POST', // 请求方法

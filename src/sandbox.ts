@@ -17,7 +17,6 @@ InitApp({
     Environment: ENV_FRONTEND,
 });
 
-
 const cronjobMap = new Map<number, Array<CronJob>>();
 
 type ExecType = 'run' | 'crontab' | 'retry' | 'debug';

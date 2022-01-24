@@ -37,10 +37,6 @@ interface IEditScript {
 }
 
 
-interface ICreateScript {
-    //
-}
-
 interface INewScript {
     scriptId: number;
     tabKey: string | number;
