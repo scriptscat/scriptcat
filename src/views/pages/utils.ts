@@ -95,3 +95,53 @@ export function parseStorageValue(str: string): any {
       return str;
   }
 }
+
+
+// 处理once的crontab表达式,将once之前的时间替换成最小值运行.
+export function parseOnceCrontab(crontab: string): string {
+  const ss = crontab.split(' ');
+  switch (ss.length) {
+    case 5:
+      ss.unshift('0');
+      break;
+    case 6:
+      break;
+    default:
+      return '';
+  }
+  const cron: string[] = [];
+  for (let i = 0; i < ss.length; i++) {
+    if (ss[i] == 'once') {
+      cron.push('*');
+      // 将之前的时间替换为最小值
+      let n = i - 1;
+      for (; n >= 0; n--) {
+        if (cron[n][0] == '*') {
+          // 为*替换为当前位最小值
+          switch (n) {
+            // 秒 分 时
+            case 0:
+            case 1:
+            case 2:
+              cron[n] = '0'
+              break
+            // 日 月
+            case 3:
+            case 4:
+              cron[n] = '1'
+              break
+          }
+        } else if (cron[n].indexOf('-') !== -1) {
+          // 为一个范围,替换为范围内最小值
+          cron[n] = cron[n].split('-')[0];
+        } else if (cron[n].indexOf(',') !== -1) {
+          // 取第一个分割
+          cron[n] = cron[n].split(',')[0];
+        }
+      }
+    } else {
+      cron.push(ss[i]);
+    }
+  }
+  return cron.join(' ');
+}

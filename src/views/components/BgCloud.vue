@@ -6,6 +6,17 @@
       </v-icon>
     </template>
     <template v-slot:default="dialog">
+      <v-snackbar
+        v-model="snackbar"
+        timeout="5000"
+        multi-line
+        :color="snackbarColor"
+      >
+        {{ snackbarText }}
+        <template v-slot:action="{ attrs }">
+          <v-btn text v-bind="attrs" @click="snackbar = false"> 关闭 </v-btn>
+        </template>
+      </v-snackbar>
       <v-card>
         <v-toolbar color="primary" dark>
           <v-toolbar-title>上传至云端执行</v-toolbar-title>
@@ -17,6 +28,9 @@
           </v-toolbar-items>
         </v-toolbar>
         <div style="padding: 10px; box-sizing: border-box">
+          <a href="https://docs.scriptcat.org/dev/cloudcat.html" target="_blank"
+            >云端执行文档</a
+          >
           <v-input :v-model="exportConfig.uuid" disabled> </v-input>
           <v-select
             label="上传至"
@@ -41,6 +55,7 @@
             <v-text-field
               v-if="exportConfig.param"
               v-model="exportConfig.param.secretKey"
+              type="password"
               label="SecretKey"
             >
             </v-text-field>
@@ -53,6 +68,7 @@
               item-value="key"
               hint="地域请查看 https://cloud.tencent.com/document/product/583/17237"
               persistent-hint
+              return-object
               single-line
             ></v-select>
           </div>
@@ -87,6 +103,9 @@
           <div v-else-if="exportConfig.dest == 'remote'"></div>
         </div>
         <v-card-actions class="justify-end">
+          <v-btn text color="error" @click="clear">{{
+            btnText[exportConfig.dest] || "清除配置"
+          }}</v-btn>
           <v-btn text color="success" @click="submit">{{
             btnText[exportConfig.dest] || "提交"
           }}</v-btn>
@@ -122,7 +141,7 @@ import { ScfClient } from '@App/pkg/sdk/tencent_cloud/scf';
 interface TencentCloud {
   secretId: string;
   secretKey: string;
-  region: { key: string; value: string };
+  region: string;
   regionList: { key: string; value: string }[];
 }
 
@@ -131,6 +150,10 @@ export default class BgCloud extends Vue {
   EXPORT_TENCENT_CLOUD = EXPORT_TENCENT_CLOUD;
 
   icons = { mdiCloudUpload, mdiClose };
+
+  snackbar = false;
+  snackbarText = '';
+  snackbarColor = 'red';
 
   @Prop()
   script!: Script;
@@ -160,9 +183,8 @@ export default class BgCloud extends Vue {
       param: <TencentCloud>{
         secretId: '',
         secretKey: '',
-        region: { value: '就近地域接入', key: '' },
+        region: 'ap-shanghai',
         regionList: [
-          { value: '就近地域接入', key: '' },
           { value: '华东地区(上海)', key: 'ap-shanghai' },
           { value: '华北地区(北京)', key: 'ap-beijing' },
           { value: '西南地区(成都)', key: 'ap-chengdu' },
@@ -235,6 +257,17 @@ export default class BgCloud extends Vue {
     }
   }
 
+  async clear() {
+    let e = await this.exportModel.findOne({
+      scriptId: this.script.id,
+      dest: this.exportDest.key,
+    });
+    if (e) {
+      await this.exportModel.delete(e.id);
+    }
+    void this.onChangeDest();
+  }
+
   submit() {
     this.exportConfig.dest = <EXPORT_DEST>this.exportDest.key;
     switch (this.exportDest.key) {
@@ -249,30 +282,62 @@ export default class BgCloud extends Vue {
   }
 
   async tencent() {
-    const param = <TencentCloud>this.exportDest.param;
+    let crontab =
+      this.script.metadata['crontab'] && this.script.metadata['crontab'][0];
+    if (!crontab) {
+      this.message('未检测到@crontab声明暂时只支持定时脚本');
+      return;
+    }
+    
+    const param = <TencentCloud>this.exportConfig.param;
     const clientConfig: ClientConfig = {
       credential: {
         secretId: param.secretId,
         secretKey: param.secretKey,
       },
-      region: param.region.key,
+      region: param.region,
       profile: {
         httpProfile: {
-          reqMethod: 'POST', // 请求方法
-          reqTimeout: 30, // 请求超时时间，默认60s
+          reqMethod: 'POST',
+          reqTimeout: 30,
         },
       },
     };
     const cli = new ScfClient(clientConfig);
     let zip = await this.pack();
-    void zip.generateAsync({ type: 'base64' }).then((content) => {
-      void cli.CreateFunction({
-        FunctionName: 'test',
+    void zip.generateAsync({ type: 'base64' }).then(async (content) => {
+      const resp = await cli.CreateFunction({
+        FunctionName: this.script.uuid,
         Code: {
           ZipFile: content,
         },
+        Handler: 'utils.run',
+        Type: 'Event',
+        Runtime: 'Nodejs12.16',
+        Description:
+          this.script.name +
+          ' ' +
+          (this.script.metadata['description'] &&
+            this.script.metadata['description'][0]),
+        InstallDependency: 'TRUE',
       });
+      if (resp.Response.Error) {
+        this.message(
+          '上传失败! ' +
+            resp.Response.Error.Code +
+            ': ' +
+            resp.Response.Error.Message
+        );
+        return;
+      }
+      this.message('上传成功!请前往云函数控制台查看详情!', 'success');
     });
+  }
+
+  message(text: string, color = 'red') {
+    this.snackbar = true;
+    this.snackbarText = text;
+    this.snackbarColor = color;
   }
 
   async local() {

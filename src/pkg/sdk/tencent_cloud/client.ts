@@ -22,6 +22,18 @@ export interface Api {
 	version: string
 }
 
+export interface Response {
+	Error?: {
+		Code: string
+		Message: string
+	}
+	RequestId: string
+}
+
+export interface JsonResponse<T> {
+	Response: T
+}
+
 export class Client {
 	config: ClientConfig;
 	api: Api
@@ -31,8 +43,8 @@ export class Client {
 		this.api = api;
 	}
 
-	protected request(action: string, req: AnyMap): Promise<AnyMap> {
-		return new Promise(resolve => {
+	protected request<T=Response>(action: string, req: AnyMap): Promise<JsonResponse<T>> {
+		return new Promise((resolve) => {
 
 			const algorithm = 'TC3-HMAC-SHA256'
 			const now = new Date();
@@ -69,21 +81,20 @@ export class Client {
 			const handler = async () => {
 				const headers: AnyMap = {
 					'X-TC-Action': action,
-					'X-TC-Region': this.config.region,
 					'X-TC-Timestamp': unixTime(),
 					'X-TC-Version': this.api.version,
+					'X-TC-Language': 'zh-CN',
 					'Authorization': Authorization,
 					'Content-Type': 'application/json; charset=utf-8'
 				};
-				if (!this.config.region) {
-					delete headers['X-TC-Region'];
+				if (this.config.region) {
+					headers['X-TC-Region'] = this.config.region;
 				}
 				const resp = await axios.post('https://' + this.api.url, payload, {
 					headers: headers,
 					responseType: 'json',
 				});
-
-				resolve(<AnyMap>resp.data);
+				resolve(<JsonResponse<T>>resp.data);
 			}
 			void handler();
 		});
