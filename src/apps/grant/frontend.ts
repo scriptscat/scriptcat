@@ -147,7 +147,7 @@ export class FrontendGrant implements ScriptContext {
         });
     }
 
-    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob', 'CAT_createBlobUrl','CAT_abortXhr'] })
+    @FrontendGrant.GMFunction({ depend: ['CAT_fetchBlob', 'CAT_createBlobUrl', 'CAT_abortXhr'] })
     public GM_xmlhttpRequest(details: GM_Types.XHRDetails): GM_Types.AbortHandle<void> {
         let abort = () => { return };
         const handler = async () => {
@@ -262,7 +262,6 @@ export class FrontendGrant implements ScriptContext {
                         details.onabort && details.onabort();
                         break;
                     case 'requestId':
-                        console.log(data.data);
                         abort = () => {
                             this.CAT_abortXhr(<number>data.data);
                         }

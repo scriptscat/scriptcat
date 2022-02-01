@@ -856,7 +856,6 @@ export class ScriptManager extends Manager {
                 }
             }
             await this.scriptModel.save(script);
-            console.log(script.metadata['connect']);
             AppEvent.trigger(ScriptStatusChange, script);
             return resolve(true);
         });

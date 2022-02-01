@@ -18,8 +18,8 @@ export function compileScriptCode(script: ScriptCache): string {
 }
 
 // 编译成脚本方法
-export function compileScript(script: ScriptCache): any {
-	return new Function('context', script.code);
+export function compileScript(script: ScriptCache): (param: AnyMap) => void {
+	return <(param: AnyMap) => void>new Function('context', script.code);
 }
 
 // 设置api依赖

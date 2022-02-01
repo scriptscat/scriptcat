@@ -19,7 +19,7 @@ chrome.runtime.sendMessage('runScript', (event: unknown) => {
                     browserMsg.send(msg.flag, msg);
                     break;
                 case 'CAT_createBlobUrl':
-                    msg.data = URL.createObjectURL(msg.params[0]);
+                    msg.data = URL.createObjectURL(<Blob>msg.params[0]);
                     browserMsg.send(msg.flag, msg);
                     break;
                 default:

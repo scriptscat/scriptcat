@@ -530,7 +530,6 @@ export class BackgroundGrant {
     @BackgroundGrant.GMFunction({
         confirm: (grant: Grant, script: Script) => {
             return new Promise(resolve => {
-                console.log(grant, script);
                 const config = <GM_Types.XHRDetails>grant.params[0];
                 const url = new URL(config.url);
                 if (script.metadata['connect']) {
@@ -661,6 +660,30 @@ export class BackgroundGrant {
                 xhr.send(<string>config.data);
             }
             return resolve(undefined);
+        });
+    }
+
+    // CAT_fetchBlob与CAT_createBlobUrl 沙盒中才有效,前端的在src/content.ts中处理
+    @BackgroundGrant.GMFunction({
+        default: true
+    })
+    protected CAT_fetchBlob(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            const handler = async () => {
+            const resp=await (await fetch(<string>grant.params[0])).blob();
+            console.log('fetch',resp);
+                resolve(resp);
+            }
+            void handler();
+        });
+    }
+
+    @BackgroundGrant.GMFunction({
+        default: true
+    })
+    protected CAT_createBlobUrl(grant: Grant): Promise<any> {
+        return new Promise(resolve => {
+            resolve(URL.createObjectURL(<Blob>grant.params[0]));
         });
     }
 
