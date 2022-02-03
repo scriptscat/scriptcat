@@ -8,8 +8,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "CodFrm",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
-    "scriptcat-nodejs": "^0.1.2"
+    "scriptcat-nodejs": "^0.1.4"
   }
 }

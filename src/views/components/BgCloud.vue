@@ -48,6 +48,12 @@
           <div v-if="exportDest.key == EXPORT_TENCENT_CLOUD">
             <v-text-field
               v-if="exportConfig.param"
+              v-model="exportConfig.param.functionName"
+              label="FunctionName"
+            >
+            </v-text-field>
+            <v-text-field
+              v-if="exportConfig.param"
               v-model="exportConfig.param.secretId"
               label="SecretId"
             >
@@ -103,12 +109,14 @@
           <div v-else-if="exportConfig.dest == 'remote'"></div>
         </div>
         <v-card-actions class="justify-end">
-          <v-btn text color="error" @click="clear">{{
-            btnText[exportConfig.dest] || "清除配置"
-          }}</v-btn>
-          <v-btn text color="success" @click="submit">{{
-            btnText[exportConfig.dest] || "提交"
-          }}</v-btn>
+          <v-btn text color="error" @click="clear">清除配置</v-btn>
+          <v-btn
+            text
+            color="success"
+            @click="submit"
+            :loading="submitLoading"
+            >{{ exportDest.btnLabel || "提交" }}</v-btn
+          >
         </v-card-actions>
       </v-card>
     </template>
@@ -137,12 +145,21 @@ import utilsTpl from '@App/template/cloudcat-package/utils.tpl';
 import indexTpl from '@App/template/cloudcat-package/index.tpl';
 import { ClientConfig } from '@App/pkg/sdk/tencent_cloud/client';
 import { ScfClient } from '@App/pkg/sdk/tencent_cloud/scf';
+import { parseOnceCrontab } from '../pages/utils';
 
 interface TencentCloud {
+  functionName: string;
   secretId: string;
   secretKey: string;
   region: string;
   regionList: { key: string; value: string }[];
+}
+
+interface ExportConfig {
+  [key: string]: any;
+  key: string;
+  value: string;
+  param?: AnyMap;
 }
 
 @Component({})
@@ -167,7 +184,8 @@ export default class BgCloud extends Vue {
     exportCookie: '',
     exportValue: '',
   };
-  exportDest: { key: string; value: string; param?: AnyMap } = {
+
+  exportDest: ExportConfig = {
     key: EXPORT_DEST_LOCAL,
     value: '本地',
   };
@@ -175,12 +193,13 @@ export default class BgCloud extends Vue {
   exportModel = new ExportModel();
   valueModel = new ValueModel();
 
-  dests = [
-    { key: EXPORT_DEST_LOCAL, value: '本地' },
+  dests: ExportConfig[] = [
+    { key: EXPORT_DEST_LOCAL, value: '本地', btnLabel: '导出' },
     {
       key: EXPORT_TENCENT_CLOUD,
       value: '腾讯云',
       param: <TencentCloud>{
+        functionName: 'sc-' + this.script.uuid,
         secretId: '',
         secretKey: '',
         region: 'ap-shanghai',
@@ -202,12 +221,11 @@ export default class BgCloud extends Vue {
           { value: '欧洲地区(莫斯科)', key: 'eu-moscow' },
         ],
       },
+      btnLabel: '上传',
     },
     // { key: "remote", value: "云端" },
     // { key: "self", value: "自建服务器" },
   ];
-
-  btnText = { 1: '导出' };
 
   mounted() {
     const exportDest = localStorage['export_' + this.script.id.toString()];
@@ -268,69 +286,126 @@ export default class BgCloud extends Vue {
     void this.onChangeDest();
   }
 
-  submit() {
+  submitLoading = false;
+  async submit() {
+    this.submitLoading = true;
     this.exportConfig.dest = <EXPORT_DEST>this.exportDest.key;
     switch (this.exportDest.key) {
       case EXPORT_DEST_LOCAL:
-        void this.local();
+        await this.local();
         break;
       case EXPORT_TENCENT_CLOUD:
-        void this.tencent();
+        await this.tencent();
         break;
     }
     void this.exportModel.save(this.exportConfig);
+    this.submitLoading = false;
   }
 
-  async tencent() {
-    let crontab =
-      this.script.metadata['crontab'] && this.script.metadata['crontab'][0];
-    if (!crontab) {
-      this.message('未检测到@crontab声明暂时只支持定时脚本');
-      return;
-    }
-    
-    const param = <TencentCloud>this.exportConfig.param;
-    const clientConfig: ClientConfig = {
-      credential: {
-        secretId: param.secretId,
-        secretKey: param.secretKey,
-      },
-      region: param.region,
-      profile: {
-        httpProfile: {
-          reqMethod: 'POST',
-          reqTimeout: 30,
-        },
-      },
-    };
-    const cli = new ScfClient(clientConfig);
-    let zip = await this.pack();
-    void zip.generateAsync({ type: 'base64' }).then(async (content) => {
-      const resp = await cli.CreateFunction({
-        FunctionName: this.script.uuid,
-        Code: {
-          ZipFile: content,
-        },
-        Handler: 'utils.run',
-        Type: 'Event',
-        Runtime: 'Nodejs12.16',
-        Description:
-          this.script.name +
-          ' ' +
-          (this.script.metadata['description'] &&
-            this.script.metadata['description'][0]),
-        InstallDependency: 'TRUE',
-      });
-      if (resp.Response.Error) {
-        this.message(
-          '上传失败! ' +
-            resp.Response.Error.Code +
-            ': ' +
-            resp.Response.Error.Message
-        );
-        return;
+  async tencent(): Promise<void> {
+    return new Promise((resolve) => {
+      let crontab =
+        this.script.metadata['crontab'] && this.script.metadata['crontab'][0];
+      if (!crontab) {
+        this.message('未检测到@crontab声明暂时只支持定时脚本');
+        return resolve();
       }
-      this.message('上传成功!请前往云函数控制台查看详情!', 'success');
+
+      const param = <TencentCloud>this.exportConfig.param;
+      const clientConfig: ClientConfig = {
+        credential: {
+          secretId: param.secretId,
+          secretKey: param.secretKey,
+        },
+        region: param.region,
+        profile: {
+          httpProfile: {
+            reqMethod: 'POST',
+            reqTimeout: 30,
+          },
+        },
+      };
+      const cli = new ScfClient(clientConfig);
+      const handler = async () => {
+        let zip = await this.pack();
+        void zip.generateAsync({ type: 'base64' }).then(async (content) => {
+          // 上传函数
+          let resp = await cli.CreateFunction({
+            FunctionName: param.functionName,
+            Code: {
+              ZipFile: content,
+            },
+            Handler: 'utils.run',
+            Type: 'Event',
+            Runtime: 'Nodejs12.16',
+            Description:
+              this.script.name +
+              ' ' +
+              (this.script.metadata['description'] &&
+                this.script.metadata['description'][0]),
+            InstallDependency: 'TRUE',
+          });
+          if (resp.Response.Error) {
+            this.message(
+              '上传失败! ' +
+                resp.Response.Error.Code +
+                ': ' +
+                resp.Response.Error.Message
+            );
+            return resolve();
+          }
+          const handler = () => {
+            setTimeout(() => {
+              const getFunc = async () => {
+                const resp = await cli.GetFunction({
+                  FunctionName: param.functionName,
+                });
+                if (resp.Response.Error) {
+                  this.message(
+                    '状态查询失败! ' +
+                      resp.Response.Error.Code +
+                      ': ' +
+                      resp.Response.Error.Message
+                  );
+                  return resolve();
+                }
+                if (resp.Response.Status.indexOf('Failed') !== -1) {
+                  this.message('函数状态错误:' + resp.Response.Status);
+                  return resolve();
+                }
+                if (resp.Response.Status == 'Active') {
+                  // 创建触发器
+                  const resp = await cli.CreateTrigger({
+                    FunctionName: param.functionName,
+                    TriggerName: param.functionName,
+                    Type: 'timer',
+                    TriggerDesc: parseOnceCrontab(crontab) + ' *', // 腾讯云有7位,最后一位为年,参考: https://cloud.tencent.com/document/product/583/9708#cron-.E8.A1.A8.E8.BE.BE.E5.BC.8F
+                  });
+                  if (resp.Response.Error) {
+                    this.message(
+                      '触发器创建失败! ' +
+                        resp.Response.Error.Code +
+                        ': ' +
+                        resp.Response.Error.Message
+                    );
+                    return resolve();
+                  }
+                  this.message(
+                    '上传成功!请前往云函数控制台查看详情!',
+                    'success'
+                  );
+                  resolve();
+                } else {
+                  handler();
+                }
+              };
+              void getFunc();
+            }, 2000);
+          };
+          handler();
+        });
+      };
+      void handler();
     });
   }
 
@@ -340,10 +415,16 @@ export default class BgCloud extends Vue {
     this.snackbarColor = color;
   }
 
-  async local() {
-    let zip = await this.pack();
-    void zip.generateAsync({ type: 'blob' }).then((content) => {
-      saveAs(content, this.script.name + '.zip');
+  async local(): Promise<void> {
+    return new Promise((resolve) => {
+      const handler = async () => {
+        let zip = await this.pack();
+        void zip.generateAsync({ type: 'blob' }).then((content) => {
+          saveAs(content, this.script.name + '.zip');
+          resolve();
+        });
+      };
+      void handler();
     });
   }
 
@@ -353,14 +434,13 @@ export default class BgCloud extends Vue {
         let zip = new JSZip();
         zip.file('userScript.js', this.script.code);
         let lines = this.exportConfig.exportCookie.split('\n');
-        let cookies: { [key: string]: chrome.cookies.Cookie[] } = {};
-        let cookie = false;
+        let cookies: ExportCookies[] = [];
         for (let i = 0; i < lines.length; i++) {
-          let val = lines[0];
+          let val = lines[i];
           if (!val) {
             continue;
           }
-          let detail: chrome.cookies.GetAllDetails = {};
+          let detail: ExportCookies = {};
           val.split(';').forEach((param) => {
             let s = param.split('=');
             if (s.length != 2) {
@@ -371,16 +451,14 @@ export default class BgCloud extends Vue {
           if (!detail.url && !detail.domain) {
             continue;
           }
-          cookie = true;
-          if (detail.url) {
-            let u = new URL(detail.url);
-            cookies[u.host] = await this.getCookie(detail);
-          } else if (detail.domain) {
-            cookies[detail.domain] = await this.getCookie(detail);
-          }
+          detail.cookies = await this.getCookies(detail);
+          cookies.push(detail);
         }
-        cookie &&
-          zip.file('cookie.js', 'export default ' + JSON.stringify(cookies));
+        cookies.length &&
+          zip.file(
+            'cookies.js',
+            'exports.cookies = ' + JSON.stringify(cookies)
+          );
 
         lines = this.exportConfig.exportValue.split('\n');
         let values: Value[] = [];
@@ -392,13 +470,13 @@ export default class BgCloud extends Vue {
             if (!key) {
               continue;
             }
-            let value = await this.getValue(key);
+            let value = await this.getValues(key);
             if (value) {
               values.push(value);
             }
           }
         }
-        zip.file('value.js', 'export default ' + JSON.stringify(values));
+        zip.file('values.js', 'export default ' + JSON.stringify(values));
         zip.file(
           'config.js',
           'export default ' +
@@ -420,7 +498,7 @@ export default class BgCloud extends Vue {
     });
   }
 
-  getCookie(
+  getCookies(
     detail: chrome.cookies.GetAllDetails
   ): Promise<chrome.cookies.Cookie[]> {
     return new Promise((resolve) => {
@@ -430,7 +508,7 @@ export default class BgCloud extends Vue {
     });
   }
 
-  getValue(key: any): Promise<Value | undefined> {
+  getValues(key: string): Promise<Value | undefined> {
     return new Promise((resolve) => {
       const handler = async () => {
         let model: Value | undefined;

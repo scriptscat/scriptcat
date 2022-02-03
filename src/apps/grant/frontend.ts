@@ -152,12 +152,10 @@ export class FrontendGrant implements ScriptContext {
         let abort = () => { return };
         const handler = async () => {
             const u = new URL(details.url, window.location.href);
-            if (details.headers) {
-                for (const key in details.headers) {
-                    if (key.toLowerCase() == 'cookie') {
-                        details.cookie = details.cookie || details.headers[key];
-                        delete details.headers[key];
-                    }
+            for (const key in details.headers) {
+                if (key.toLowerCase() == 'cookie') {
+                    details.cookie = details.headers[key];
+                    delete details.headers[key];
                 }
             }
             const param: GMSend.XHRDetails = {

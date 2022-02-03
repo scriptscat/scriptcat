@@ -15,8 +15,8 @@ export interface CreateFunctionRequest {
 
 export interface CreateTriggerRequest {
 	FunctionName: string,
-	TriggerName: string
-	Type: 'timer'
+	TriggerName?: string
+	Type?: 'timer'
 	TriggerDesc?: string
 }
 
@@ -26,6 +26,7 @@ export interface GetFunctionRequest {
 
 export interface GetFunctionResponse extends Response {
 	FunctionName: string
+	Status: 'Creating' | 'CreateFailed' | 'Active' | 'Updating' | 'UpdateFailed' | 'Publishing' | 'PublishFailed' | 'Deleting' | 'DeleteFailed'
 }
 
 export class ScfClient extends Client {

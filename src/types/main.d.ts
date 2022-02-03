@@ -65,24 +65,6 @@ interface ICodeChange {
 
 declare const ScriptFlag: string;
 
-declare namespace chrome {
-    declare namespace clipboard {
-        declare function setImageData(
-            imageData: ArrayBuffer,
-            type: ImageType,
-            additionalItems: AdditionalDataItem[],
-            callback: function,
-        );
-
-        type DataItemType = 'textPlain' | 'textHtml';
-        type ImageType = 'png' | 'jpeg';
-        declare interface AdditionalDataItem {
-            data: string;
-            type: DataItemType;
-        }
-    }
-}
-
 declare const top: Window;
 
 interface Userinfo {
@@ -152,4 +134,8 @@ declare namespace Panel {
     export interface PanelConfigs {
         [key: string]: ConfigGroup;
     }
+}
+
+interface ExportCookies extends chrome.cookies.GetAllDetails {
+    cookies?: chrome.cookies.Cookie[];
 }

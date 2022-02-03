@@ -670,8 +670,7 @@ export class BackgroundGrant {
     protected CAT_fetchBlob(grant: Grant): Promise<any> {
         return new Promise(resolve => {
             const handler = async () => {
-            const resp=await (await fetch(<string>grant.params[0])).blob();
-            console.log('fetch',resp);
+                const resp = await (await fetch(<string>grant.params[0])).blob();
                 resolve(resp);
             }
             void handler();

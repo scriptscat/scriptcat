@@ -1,4 +1,3 @@
-import { compileScript } from "@App/pkg/sandbox/compile";
 
 export type ListenCallback = (msg: any, port: chrome.runtime.Port) => Promise<any> | any;
 
