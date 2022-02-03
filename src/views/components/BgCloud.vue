@@ -302,7 +302,7 @@ export default class BgCloud extends Vue {
     this.submitLoading = false;
   }
 
-  async tencent(): Promise<void> {
+  tencent(): Promise<void> {
     return new Promise((resolve) => {
       let crontab =
         this.script.metadata['crontab'] && this.script.metadata['crontab'][0];

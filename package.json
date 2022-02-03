@@ -67,7 +67,6 @@
         "crx": "^5.0.1",
         "css-loader": "^5.0.1",
         "deepmerge": "^4.2.2",
-        "electron": "^12.0.0",
         "eslint": "^8.3.0",
         "eslint-config-prettier": "^8.3.0",
         "eslint-plugin-html": "^6.2.0",
