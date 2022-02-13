@@ -577,18 +577,21 @@ export class ScriptManager extends Manager {
     }
 
     public stopScript(msg: any): Promise<boolean> {
-        return new Promise(async resolve => {
-            const script = await this.scriptModel.findById(msg.scriptId);
-            if (!script) {
-                return resolve(false);
+        return new Promise(resolve => {
+            const handler = async () => {
+                const script = await this.scriptModel.findById(msg.scriptId);
+                if (!script) {
+                    return resolve(false);
+                }
+                if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
+                    await this.background.stopScript(script, msg.isdebug);
+                    void this.setRunComplete(script.id)
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
             }
-            if (script.type == SCRIPT_TYPE_CRONTAB || script.type == SCRIPT_TYPE_BACKGROUND) {
-                await this.background.stopScript(script, msg.isdebug);
-                this.setRunComplete(script.id)
-                resolve(true);
-            } else {
-                resolve(false);
-            }
+            void handler();
         });
     }
 
@@ -655,7 +658,7 @@ export class ScriptManager extends Manager {
             const filter: ScriptCache[] = [];
 
             let matchScript = runMatchScript.get(detail.tab.id);
-            if (!matchScript) {
+            if (!matchScript || !detail.frameId) {
                 matchScript = new Map();
                 runMatchScript.set(detail.tab.id, matchScript);
             }
@@ -672,7 +675,7 @@ export class ScriptManager extends Manager {
                 filter.push(script);
             });
             // 注入框架
-            chrome.tabs.executeScript(detail.tab.id, {
+            void chrome.tabs.executeScript(detail.tab.id, {
                 frameId: detail.frameId,
                 code: `(function(){
                     let temp = document.createElement('script');
@@ -693,13 +696,13 @@ export class ScriptManager extends Manager {
             chrome.browserAction.getBadgeText({
                 tabId: detail.tab?.id,
             }, res => {
-                chrome.browserAction.setBadgeText({
+                void chrome.browserAction.setBadgeText({
                     text: (filter.length + (parseInt(res) || 0)).toString(),
                     tabId: detail.tab?.id,
                 });
             });
 
-            chrome.browserAction.setBadgeBackgroundColor({
+            void chrome.browserAction.setBadgeBackgroundColor({
                 color: [255, 0, 0, 255],
                 tabId: detail.tab?.id,
             });
@@ -725,7 +728,7 @@ export class ScriptManager extends Manager {
                         runAt = 'document_idle';
                         break;
                 }
-                chrome.tabs.executeScript(detail.tab!.id!, {
+                void chrome.tabs.executeScript(detail.tab!.id!, {
                     frameId: detail.frameId,
                     code: `(function(){
                         let temp = document.createElement('script');

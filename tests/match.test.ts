@@ -82,6 +82,7 @@ describe('UrlMatch2', () => {
         url.add('*://*', 'ok2');
         expect(url.match('http://www.http.com')).toEqual(['ok1', 'ok2']);
         expect(url.match('https://pan.baidu.com/disk/home?from=newversion&stayAtHome=true#/all?path=%2F&vmode=list')).toEqual(['ok1', 'ok2']);
+        expect(url.match('https://github.com/CodFrm')).toEqual(['ok1', 'ok2']);
     });
     it('port', () => {
         const url = new UrlMatch<string>();
