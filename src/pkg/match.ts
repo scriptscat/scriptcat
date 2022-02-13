@@ -9,7 +9,7 @@ export class Match<T> {
             return {
                 scheme: match[1],
                 host: match[2],
-                path: match[4] || '/',
+                path: match[4] || (url[url.length - 1] === '*' ? '*' : '/'),
                 search: match[5],
             };
         }
@@ -21,7 +21,7 @@ export class Match<T> {
             return {
                 scheme: '*',
                 host: match[1],
-                path: match[3] || '/',
+                path: match[3] || (url[url.length - 1] === '*' ? '*' : '/'),
                 search: match[4],
             };
         }

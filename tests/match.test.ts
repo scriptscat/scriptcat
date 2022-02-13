@@ -76,22 +76,26 @@ describe('UrlMatch', () => {
 
 
 describe('UrlMatch2', () => {
-    const url = new UrlMatch<string>();
     it('http*', () => {
+        const url = new UrlMatch<string>();
         url.add('http*', 'ok1');
-        expect(url.match('http://www.http.com')).toEqual(['ok1']);
+        url.add('*://*', 'ok2');
+        expect(url.match('http://www.http.com')).toEqual(['ok1', 'ok2']);
+        expect(url.match('https://pan.baidu.com/disk/home?from=newversion&stayAtHome=true#/all?path=%2F&vmode=list')).toEqual(['ok1', 'ok2']);
     });
     it('port', () => {
+        const url = new UrlMatch<string>();
         url.add('http://domain:8080', 'ok2');
-        expect(url.match('http://domain:8080/')).toEqual(['ok1', 'ok2']);
-        expect(url.match('http://domain:8080/123')).toEqual(['ok1']);
+        expect(url.match('http://domain:8080/')).toEqual(['ok2']);
+        expect(url.match('http://domain:8080/123')).toEqual([]);
     });
     it('无/', () => {
+        const url = new UrlMatch<string>();
         url.add('http://domain2', 'ok3');
         url.add('http://domain2*', 'ok4');
-        expect(url.match('http://domain2/')).toEqual(['ok1', 'ok3', 'ok4']);
-        expect(url.match('http://domain2.com/')).toEqual(['ok1', 'ok4']);
-        expect(url.match('http://domain2/123')).toEqual(['ok1']);
+        expect(url.match('http://domain2/')).toEqual(['ok3', 'ok4']);
+        expect(url.match('http://domain2.com/')).toEqual(['ok4']);
+        expect(url.match('http://domain2/123')).toEqual(['ok4']);
     })
 });
 
