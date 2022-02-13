@@ -90,7 +90,7 @@ describe('UrlMatch2', () => {
         url.add('http://domain2', 'ok3');
         url.add('http://domain2*', 'ok4');
         expect(url.match('http://domain2/')).toEqual(['ok1', 'ok3', 'ok4']);
-        expect(url.match('http://domain2.com/')).toEqual(['ok1',  'ok4']);
+        expect(url.match('http://domain2.com/')).toEqual(['ok1', 'ok4']);
         expect(url.match('http://domain2/123')).toEqual(['ok1']);
     })
 });

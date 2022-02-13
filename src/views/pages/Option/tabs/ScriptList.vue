@@ -523,6 +523,7 @@
 
     <v-speed-dial
       v-model="fab"
+      v-show="hideFloat"
       right
       bottom
       direction="top"
@@ -541,6 +542,23 @@
           <v-icon v-else> {{ icons.mdiPlus }} </v-icon>
         </v-btn>
       </template>
+
+      <v-tooltip left>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            v-on="on"
+            fab
+            dark
+            small
+            color="#1296db"
+            @click="() => (hideFloat = false)"
+          >
+            <v-icon>{{ icons.mdiEyeOffOutline }}</v-icon>
+          </v-btn>
+        </template>
+        <span>隐藏按钮</span>
+      </v-tooltip>
 
       <v-tooltip left>
         <template v-slot:activator="{ on, attrs }">
@@ -661,6 +679,7 @@ import {
   mdiAlarm,
   mdiFileDocumentOutline,
   mdiDelete,
+  mdiEyeOffOutline,
 } from '@mdi/js';
 
 import BgCloud from '@Components/BgCloud.vue';
@@ -688,7 +707,7 @@ export default class ScriptList extends Vue {
   scriptController: ScriptController = new ScriptController();
   protected scripts: Script[] = [];
   selected: Script[] = [];
-
+  hideFloat = true;
   icons = {
     mdiApplication,
     mdiRss,
@@ -710,6 +729,7 @@ export default class ScriptList extends Vue {
     mdiAlarm,
     mdiFileDocumentOutline,
     mdiDelete,
+    mdiEyeOffOutline,
   };
 
   multipleAction: typeof multipleActionTypes[number] = '删除';
