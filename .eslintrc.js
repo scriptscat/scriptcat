@@ -88,6 +88,7 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": ["off"],
     "@typescript-eslint/no-unsafe-assignment": ["off"],
     "@typescript-eslint/no-implied-eval": ["off"],
+    "@typescript-eslint/ban-ts-comment": ["off"],
     "@typescript-eslint/no-this-alias": [
       "error",
       {

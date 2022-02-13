@@ -1,6 +1,7 @@
 const { ScriptCat } = require("scriptcat-nodejs/dist/src/scriptcat");
 const fs = require('fs');
 const cookies = require('./cookies');
+const values = require('./values');
 
 exports.run = function () {
 	const code = fs.readFileSync('userScript.js', 'utf8');
@@ -8,7 +9,8 @@ exports.run = function () {
 	const run = new ScriptCat();
 
 	run.RunOnce(code, {
-		cookies: cookies.cookies,
+		cookies: cookies,
+		values: values,
 	}).then((res) => {
 		console.log(res);
 	});

@@ -1,6 +1,6 @@
 //@ts-ignore
 import dts from '@App/types/scriptcat';
-import { CancellationToken, editor, languages, Position } from 'monaco-editor';
+import { languages } from 'monaco-editor';
 
 export function registerEditorPrompt() {
 	// @ts-ignore
@@ -17,22 +17,22 @@ export function registerEditorPrompt() {
 
 	// 悬停提示
 	const prompt: { [key: string]: any } = {
-		'name': '脚本名称',
-		'description': '脚本描述',
-		'namespace': '脚本命名空间',
-		'version': '脚本版本',
-		'author': '脚本作者',
-		'background': '后台脚本',
+		name: '脚本名称',
+		description: '脚本描述',
+		namespace: '脚本命名空间',
+		version: '脚本版本',
+		author: '脚本作者',
+		background: '后台脚本',
 	};
 
 	languages.registerHoverProvider('javascript', {
-		provideHover: (model, position, token) => {
-			return new Promise(resolve => {
+		provideHover: (model, position) => {
+			return new Promise((resolve) => {
 				const line = model.getLineContent(position.lineNumber);
 				const flag = /^\/\/\s*@(\w+?)(\s+(.*?)|)$/.exec(line);
 				if (flag) {
 					return resolve({
-						contents: [{ value: prompt[flag[1]] }]
+						contents: [{ value: prompt[flag[1]] }],
 					});
 				}
 				// 匹配==UserScript==
@@ -43,6 +43,6 @@ export function registerEditorPrompt() {
 				}
 				return resolve(null);
 			});
-		}
+		},
 	});
 }
