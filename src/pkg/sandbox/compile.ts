@@ -5,16 +5,21 @@ import { ScriptCache, Script } from '@App/model/do/script';
 export function compileScriptCode(script: ScriptCache): string {
 	let code = script.code;
 	let require = '';
-	script.metadata['require'] && script.metadata['require'].forEach((val) => {
-		const res = script.resource[val];
-		if (res) {
-			require = require + '\n' + res.content;
-		}
-	});
+	script.metadata['require'] &&
+		script.metadata['require'].forEach((val) => {
+			const res = script.resource[val];
+			if (res) {
+				require = require + '\n' + res.content;
+			}
+		});
 	code = require + code;
-	return 'with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
-		code + '\n//# sourceURL=' + chrome.runtime.getURL('/' + encodeURI(script.name) + '.user.js') +
+	return (
+		'with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
+		code +
+		'\n//# sourceURL=' +
+		chrome.runtime.getURL('/' + encodeURI(script.name) + '.user.js') +
 		'\n})(context)'
+	);
 }
 
 // 编译成脚本方法
@@ -32,7 +37,7 @@ function setDepend(context: ScriptContext, apiVal: FrontenApiValue) {
 				return;
 			}
 			if (value.startsWith('GM.')) {
-				const [_, t] = value.split('.');
+				const [, t] = value.split('.');
 				(<{ [key: string]: any }>context['GM'])[t] = dependApi.api.bind(context);
 			} else {
 				context[value] = dependApi.api.bind(context);
@@ -49,17 +54,20 @@ export function createSandboxContext(script: ScriptCache): SandboxContext {
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
+	console.log(SandboxContext.apis);
 	context['postRequest'] = context.postRequest;
 	context['script'] = context.script;
 	if (script.metadata['grant']) {
 		context['GM'] = context;
+		console.log(context);
 		script.metadata['grant'].forEach((value: string) => {
 			const apiVal = context.getApi(value);
+			console.log(value, apiVal);
 			if (!apiVal) {
 				return;
 			}
 			if (value.startsWith('GM.')) {
-				const [_, t] = value.split('.');
+				const [, t] = value.split('.');
 				(<{ [key: string]: any }>context['GM'])[t] = apiVal.api.bind(context);
 			} else {
 				context[value] = apiVal.api.bind(context);

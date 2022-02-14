@@ -320,7 +320,7 @@ export default class BgCloud extends Vue {
 						},
 						Handler: 'utils.run',
 						Type: 'Event',
-						Runtime: 'Nodejs12.16',
+						Runtime: 'Nodejs16.13',
 						Description:
 							this.script.name +
 							' ' +
@@ -435,7 +435,7 @@ export default class BgCloud extends Vue {
 					cookies.push(detail);
 				}
 				cookies.length &&
-					zip.file('cookies.js', 'exports.default = ' + JSON.stringify(cookies));
+					zip.file('cookies.js', 'exports.cookies = ' + JSON.stringify(cookies));
 
 				lines = this.exportConfig.exportValue.split('\n');
 				let values: Value[] = [];
@@ -454,7 +454,7 @@ export default class BgCloud extends Vue {
 						}
 					}
 				}
-				zip.file('values.js', 'exports.default = ' + JSON.stringify(values));
+				zip.file('values.js', 'exports.values = ' + JSON.stringify(values));
 				zip.file(
 					'config.js',
 					'export default ' +

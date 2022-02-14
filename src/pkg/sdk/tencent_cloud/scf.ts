@@ -8,7 +8,7 @@ export interface CreateFunctionRequest {
 	},
 	Handler?: string
 	Type?: 'Event'
-	Runtime?: 'Python2.7' | 'Python3.6' | 'Nodejs10.15' | 'Nodejs12.16' | 'Php5' | 'Php7' | 'Go1' | 'Java8' | 'CustomRuntime'
+	Runtime?: 'Python2.7' | 'Python3.6' | 'Nodejs10.15'|'Nodejs14.18' | 'Nodejs16.13' | 'Php5' | 'Php7' | 'Go1' | 'Java8' | 'CustomRuntime'
 	Description?: string
 	InstallDependency?: 'TRUE' | 'FALSE'
 }

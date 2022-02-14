@@ -10,6 +10,6 @@
   "author": "CodFrm",
   "license": "MIT",
   "dependencies": {
-    "scriptcat-nodejs": "^0.1.4"
+    "scriptcat-nodejs": "^0.1.7"
   }
 }
