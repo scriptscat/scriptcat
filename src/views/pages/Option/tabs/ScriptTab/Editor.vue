@@ -159,7 +159,7 @@ export default class Editor extends Vue {
       }
     });
 
-    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KeyS, () => {
+    this.editor.addCommand(KeyMod.CtrlCmd | KeyCode.KEY_S, () => {
       this.$emit<ISaveScript>(EventType.SaveScript, {
         currentCode: this.editor.getValue(),
         debug: false,
