@@ -83,7 +83,9 @@ export class ResourceManager {
     // 方便识别text文本储存
     static textContentTypeMap = new Map<string, boolean>().
         set('application/javascript', true).
+        set('application/x-javascript', true).
         set('application/json', true);
+        
 
     public loadByUrl(url: string): Promise<Resource | undefined> {
         return new Promise(resolve => {
