@@ -89,6 +89,7 @@ export class FrontendGrant implements ScriptContext {
 				name: this.script.name,
 				namespace: this.script.namespace,
 				version: this.script.metadata['version'] && this.script.metadata['version'][0],
+				author: this.script.author,
 			},
 		};
 	}

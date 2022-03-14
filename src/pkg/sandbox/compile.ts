@@ -54,15 +54,12 @@ export function createSandboxContext(script: ScriptCache): SandboxContext {
 }
 
 export function createContext(context: ScriptContext, script: Script): ScriptContext {
-	console.log(SandboxContext.apis);
 	context['postRequest'] = context.postRequest;
 	context['script'] = context.script;
 	if (script.metadata['grant']) {
 		context['GM'] = context;
-		console.log(context);
 		script.metadata['grant'].forEach((value: string) => {
 			const apiVal = context.getApi(value);
-			console.log(value, apiVal);
 			if (!apiVal) {
 				return;
 			}
