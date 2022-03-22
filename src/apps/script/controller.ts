@@ -376,8 +376,16 @@ export class ScriptController {
         });
     }
 
-    public saveValue(script: Script, key: string, val: any): Promise<Value | undefined> {
-        return this.updateValue(key, val, script.id, (script.metadata['storagename'] && script.metadata['storagename'][0] || undefined));
+    public async saveValue(script: Script, key: string, val: any): Promise<Value | undefined> {
+        const storageName = script.metadata?.storagename?.[0]
+        // 无缓存字段时
+        if (!storageName) {
+            return
+        }
+        const model = await this.updateValue(key, val, script.id, storageName);
+        // 清空storagename的缓存数据，触发getScriptValue方法重新同步一次数据
+        await App.Cache.remove('value:storagename:' + storageName)
+        return model
     }
 
     public deleteValue(script: Script, key: string): Promise<void> {
