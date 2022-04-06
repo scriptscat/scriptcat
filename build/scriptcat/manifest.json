@@ -37,6 +37,7 @@
         "debugger",
         "downloads",
         "webRequest",
+        "management",
         "background",
         "<all_urls>",
         "contextMenus",

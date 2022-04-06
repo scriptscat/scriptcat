@@ -8,7 +8,7 @@ import { App, ENV_BACKGROUND, InitApp } from './apps/app';
 import { migrate } from './model/migrate';
 import { SCRIPT_STATUS_ENABLE, Script, SCRIPT_STATUS_DISABLE } from './model/do/script';
 import { MapCache } from './pkg/storage/cache/cache';
-import { get } from './pkg/utils/utils';
+import { get, InfoNotification } from './pkg/utils/utils';
 import { Server } from './apps/config';
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from './model/do/subscribe';
 import { UserManager } from './apps/user/manager';
@@ -19,29 +19,29 @@ import { DBLogger } from './apps/logger/dblogger';
 migrate();
 
 InitApp({
-    Log: new DBLogger(),
-    Cache: new MapCache(),
-    Environment: ENV_BACKGROUND,
+	Log: new DBLogger(),
+	Cache: new MapCache(),
+	Environment: ENV_BACKGROUND,
 });
 
 void SystemConfig.init();
 
 chrome.contextMenus.create({
-    id: 'script-cat',
-    title: 'ScriptCat',
-    contexts: ['all'],
-    onclick: () => {
-        console.log('exec script');
-    },
+	id: 'script-cat',
+	title: 'ScriptCat',
+	contexts: ['all'],
+	onclick: () => {
+		console.log('exec script');
+	},
 });
 
 const scripts = new ScriptManager();
 const user = new UserManager();
 const tools = new ToolsManager(scripts);
 const grant = BackgroundGrant.SingleInstance(
-    scripts,
-    new MultiGrantListener(new bgGrantListener(), new grantListener(sandbox.window)),
-    false
+	scripts,
+	new MultiGrantListener(new bgGrantListener(), new grantListener(sandbox.window)),
+	false
 );
 scripts.listenEvent();
 scripts.listen();
@@ -53,106 +53,141 @@ tools.listenEvent();
 
 grant.listenScriptGrant();
 window.addEventListener('message', (event) => {
-    if (event.data.action != Logger) {
-        return;
-    }
-    const data = event.data.data;
-    App.Log.Logger(data.level, data.origin, data.message, data.title, data.scriptId);
+	if (event.data.action != Logger) {
+		return;
+	}
+	const data = event.data.data;
+	App.Log.Logger(data.level, data.origin, data.message, data.title, data.scriptId);
 });
 
 const timer = setInterval(() => {
-    sandbox.postMessage({ action: 'load' }, '*');
+	sandbox.postMessage({ action: 'load' }, '*');
 }, 1000);
 window.addEventListener('message', sandboxLoad);
 function sandboxLoad(event: MessageEvent) {
-    clearInterval(timer);
-    window.removeEventListener('message', sandboxLoad);
-    if (event.origin != 'null' && event.origin != App.ExtensionId) {
-        return;
-    }
-    if (event.data.action != 'load') {
-        return;
-    }
-    void scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
-        items.forEach((script: Script) => {
-            void scripts.enableScript(script);
-        });
-    });
+	clearInterval(timer);
+	window.removeEventListener('message', sandboxLoad);
+	if (event.origin != 'null' && event.origin != App.ExtensionId) {
+		return;
+	}
+	if (event.data.action != 'load') {
+		return;
+	}
+	void scripts.scriptList({ status: SCRIPT_STATUS_ENABLE }).then((items) => {
+		items.forEach((script: Script) => {
+			void scripts.enableScript(script);
+		});
+	});
 }
 
 // 检查更新
 setInterval(() => {
+	if (SystemConfig.check_script_update_cycle === 0) {
+		return;
+	}
 
-    if (SystemConfig.check_script_update_cycle === 0) {
-        return;
-    }
+	void scripts
+		.scriptList((table: Dexie.Table) => {
+			return table
+				.where('checktime')
+				.belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
+		})
+		.then((items) => {
+			items.forEach((value: Script) => {
+				if (!SystemConfig.update_disable_script && value.status == SCRIPT_STATUS_DISABLE) {
+					return;
+				}
+				void scripts.scriptCheckUpdate(value.id);
+			});
+		});
 
-    void scripts.scriptList((table: Dexie.Table) => {
-        return table
-            .where('checktime')
-            .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
-    }).then((items) => {
-        items.forEach((value: Script) => {
-            if (!SystemConfig.update_disable_script && value.status == SCRIPT_STATUS_DISABLE) {
-                return;
-            }
-            void scripts.scriptCheckUpdate(value.id);
-        });
-    });
-
-    void scripts.subscribeList((table: Dexie.Table) => {
-        return table
-            .where('checktime')
-            .belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
-    }).then((items) => {
-        items.forEach((value: Subscribe) => {
-            if (value.status == SUBSCRIBE_STATUS_ENABLE) {
-                void scripts.subscribeCheckUpdate(value.id);
-            }
-        });
-    });
-
+	void scripts
+		.subscribeList((table: Dexie.Table) => {
+			return table
+				.where('checktime')
+				.belowOrEqual(new Date().getTime() - SystemConfig.check_script_update_cycle * 1000);
+		})
+		.then((items) => {
+			items.forEach((value: Subscribe) => {
+				if (value.status == SUBSCRIBE_STATUS_ENABLE) {
+					void scripts.subscribeCheckUpdate(value.id);
+				}
+			});
+		});
 }, 60000);
 
 get(Server + 'api/v1/system/version', (str) => {
-    chrome.storage.local.get(['oldNotice'], items => {
-        const resp = JSON.parse(str);
-        if (resp.data.notice !== items['oldNotice']) {
-            chrome.storage.local.set({
-                notice: resp.data.notice
-            });
-        }
-        chrome.storage.local.set({
-            version: resp.data.version,
-        });
-    });
+	chrome.storage.local.get(['oldNotice'], (items) => {
+		const resp = JSON.parse(str);
+		if (resp.data.notice !== items['oldNotice']) {
+			chrome.storage.local.set({
+				notice: resp.data.notice,
+			});
+		}
+		chrome.storage.local.set({
+			version: resp.data.version,
+		});
+	});
 });
 // 半小时同步一次数据和检查更新
 setInterval(() => {
-    get(Server + 'api/v1/system/version', (str) => {
-        chrome.storage.local.get(['oldNotice'], items => {
-            const resp = JSON.parse(str);
-            if (resp.data.notice !== items['oldNotice']) {
-                chrome.storage.local.set({
-                    notice: resp.data.notice
-                });
-            }
-            chrome.storage.local.set({
-                version: resp.data.version,
-            });
-        });
-    });
-    if (SystemConfig.enable_auto_sync) {
-        void user.sync();
-    }
+	get(Server + 'api/v1/system/version', (str) => {
+		chrome.storage.local.get(['oldNotice'], (items) => {
+			const resp = JSON.parse(str);
+			if (resp.data.notice !== items['oldNotice']) {
+				chrome.storage.local.set({
+					notice: resp.data.notice,
+				});
+			}
+			chrome.storage.local.set({
+				version: resp.data.version,
+			});
+		});
+	});
+	if (SystemConfig.enable_auto_sync) {
+		void user.sync();
+	}
 }, 1800000);
 
 if (process.env.NODE_ENV == 'production') {
-    chrome.runtime.onInstalled.addListener((details) => {
-        if (details.reason == 'install') {
-            chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
-        } else if (details.reason == 'update') {
-            chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
-        }
-    });
+	chrome.runtime.onInstalled.addListener((details) => {
+		if (details.reason == 'install') {
+			chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
+		} else if (details.reason == 'update') {
+			chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
+		}
+	});
 }
+
+chrome.management.onEnabled.addListener((info) => {
+	for (const [, value] of info.permissions.entries()) {
+		if (value == 'proxy') {
+			InfoNotification(
+				'检测到扩展proxy权限冲突',
+				'检测到扩展"' + info.name + '"与ScriptCat冲突,可能会导致无法正常使用ScriptCat'
+			);
+			break;
+		}
+	}
+});
+
+chrome.management.getAll((items) => {
+	let text = '';
+	for (const item of items) {
+		if (item.id == chrome.runtime.id) {
+			continue;
+		}
+		for (const [, value] of item.permissions.entries()) {
+			if (value == 'proxy') {
+				text += item.name + ';';
+				break;
+			}
+		}
+	}
+	if (text !== '') {
+		InfoNotification(
+			'检测到扩展proxy权限冲突',
+			'检测到扩展"' + text + '"与ScriptCat冲突,可能会导致无法正常使用ScriptCat'
+		);
+	}
+});
