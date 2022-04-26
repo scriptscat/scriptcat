@@ -195,17 +195,11 @@ const GRANT = [
   'GM_getValue',
   'GM_setClipboard',
   'GM_xmlhttpRequest',
-  'GMSC_xmlhttpRequest',
   'GM_notification',
   'GM_closeNotification',
   'GM_updateNotification',
   'GM_log',
-  'CAT_setLastRuntime',
-  'CAT_setRunError',
-  'CAT_runComplete',
   'GM_cookie',
-  'CAT_setProxy',
-  'CAT_clearProxy',
   'unsafeWindow',
 ];
 

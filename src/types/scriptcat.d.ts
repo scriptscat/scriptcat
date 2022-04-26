@@ -108,10 +108,12 @@ declare function GM_cookie(action: GM_Types.CookieAction, details: GM_Types.Cook
 // 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
 declare function GM_getCookieStore(tabid: number, ondone: (storeId: number, error: any | undefined) => void): void;
 
+// 正式版中以废弃
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
+// 正式版中以废弃
 declare function CAT_clearProxy(): void;
+// 正式版中以废弃
 declare function CAT_click(x: number, y: number): void;
-declare function CAT_createFile(file: string | Blob, name: string, ondone?: (download: boolean, error?: any | undefined) => void): void;
 
 declare namespace CAT_Types {
     interface ProxyRule {

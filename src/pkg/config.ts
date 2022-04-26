@@ -4,6 +4,7 @@ import { Storage } from '@App/pkg/storage/storage'
 import { ChromeStorage } from './storage/chrome';
 
 export const SYSTEM_CONFIG_CHANGE = 'system_config_change';
+
 //NOTE: 可以抽象set接口
 export class SystemConfig {
 

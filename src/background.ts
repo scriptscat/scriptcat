@@ -52,7 +52,9 @@ user.listenEvent();
 tools.listenEvent();
 
 grant.listenScriptGrant();
-window.addEventListener('message', (event) => {
+
+// 监听日志
+window.addEventListener('message', (event: MessageEvent<{ action: string; data: any }>) => {
 	if (event.data.action != Logger) {
 		return;
 	}
@@ -64,7 +66,7 @@ const timer = setInterval(() => {
 	sandbox.postMessage({ action: 'load' }, '*');
 }, 1000);
 window.addEventListener('message', sandboxLoad);
-function sandboxLoad(event: MessageEvent) {
+function sandboxLoad(event: MessageEvent<{ action: string }>) {
 	clearInterval(timer);
 	window.removeEventListener('message', sandboxLoad);
 	if (event.origin != 'null' && event.origin != App.ExtensionId) {
@@ -118,28 +120,29 @@ setInterval(() => {
 
 get(Server + 'api/v1/system/version', (str) => {
 	chrome.storage.local.get(['oldNotice'], (items) => {
-		const resp = JSON.parse(str);
+		const resp = <{ data: { notice: string; version: string } }>JSON.parse(str);
 		if (resp.data.notice !== items['oldNotice']) {
-			chrome.storage.local.set({
+			void chrome.storage.local.set({
 				notice: resp.data.notice,
 			});
 		}
-		chrome.storage.local.set({
+		void chrome.storage.local.set({
 			version: resp.data.version,
 		});
 	});
 });
+
 // 半小时同步一次数据和检查更新
 setInterval(() => {
 	get(Server + 'api/v1/system/version', (str) => {
 		chrome.storage.local.get(['oldNotice'], (items) => {
-			const resp = JSON.parse(str);
+			const resp = <{ data: { notice: string; version: string } }>JSON.parse(str);
 			if (resp.data.notice !== items['oldNotice']) {
-				chrome.storage.local.set({
+				void chrome.storage.local.set({
 					notice: resp.data.notice,
 				});
 			}
-			chrome.storage.local.set({
+			void chrome.storage.local.set({
 				version: resp.data.version,
 			});
 		});
@@ -152,42 +155,9 @@ setInterval(() => {
 if (process.env.NODE_ENV == 'production') {
 	chrome.runtime.onInstalled.addListener((details) => {
 		if (details.reason == 'install') {
-			chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
+			void chrome.tabs.create({ url: 'https://docs.scriptcat.org/' });
 		} else if (details.reason == 'update') {
-			chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
+			void chrome.tabs.create({ url: 'https://docs.scriptcat.org/change/' });
 		}
 	});
 }
-
-chrome.management.onEnabled.addListener((info) => {
-	for (const [, value] of info.permissions.entries()) {
-		if (value == 'proxy') {
-			InfoNotification(
-				'检测到扩展proxy权限冲突',
-				'检测到扩展"' + info.name + '"与ScriptCat冲突,可能会导致无法正常使用ScriptCat'
-			);
-			break;
-		}
-	}
-});
-
-chrome.management.getAll((items) => {
-	let text = '';
-	for (const item of items) {
-		if (item.id == chrome.runtime.id) {
-			continue;
-		}
-		for (const [, value] of item.permissions.entries()) {
-			if (value == 'proxy') {
-				text += item.name + ';';
-				break;
-			}
-		}
-	}
-	if (text !== '') {
-		InfoNotification(
-			'检测到扩展proxy权限冲突',
-			'检测到扩展"' + text + '"与ScriptCat冲突,可能会导致无法正常使用ScriptCat'
-		);
-	}
-});
