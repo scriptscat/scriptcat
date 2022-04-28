@@ -911,7 +911,7 @@ export class BackgroundGrant {
 					break;
 				}
 				case 'set': {
-					if (!detail.url || !detail.name) {
+					if ((!detail.url && !detail.domain) || !detail.name) {
 						return reject(
 							'set operation must have url or domain, and the name must exist'
 						);
