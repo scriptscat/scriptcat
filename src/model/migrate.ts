@@ -59,4 +59,7 @@ export function migrate() {
     db.version(14).stores({
         value: '++id,[scriptId+key],[storageName+key]',
     });
+    db.version(15).stores({
+        permission: '++id,scriptId,[scriptId+permission+permissionValue],createtime,updatetime',
+    });
 }

@@ -21,7 +21,7 @@ InitApp({
 const logger = createLogger({
 	level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
 	catalog: {
-		name: 'sandbox',
+		type: 'sandbox',
 	},
 	transports: [new ConsoleTransports()],
 });
@@ -178,7 +178,7 @@ function runCrontab(script: ScriptCache) {
 		if (nextTime(val) == '错误的定时表达式') {
 			return;
 		}
-		logger.debug(`${script.name} corntab ${val}`);
+		logger.debug(`${script.name} corntab "${val}"`);
 
 		const cron = new CronJob(
 			val,

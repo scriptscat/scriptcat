@@ -41,6 +41,6 @@ export class ConsoleTransports implements LoggerTransports {
             catalogStr=catalogStr.substring(0, catalogStr.length - 1);
 			catalogStr += ']';
 		}
-		console.log('[%s]%s: %s', level, catalogStr, info);
+		console.log('[%s]%s - %s', level, catalogStr, info);
 	}
 }

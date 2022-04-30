@@ -84,6 +84,7 @@ export default class Confirm extends Vue {
     }
     this.uuid = uuid;
     [this.param, this.num] = await this.scriptConrtoller.getConfirmInfo(uuid);
+    console.log(this.num);
     let i = setInterval(() => {
       this.timeout--;
       if (!this.timeout) {

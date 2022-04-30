@@ -398,17 +398,23 @@ export class BackgroundGrant {
 										MsgCenter.removeListenerAll(
 											PermissionConfirm + confirm.uuid
 										);
-										next();
+										void next();
 									}, 300000);
 								}
 								// 处理下一个
-								const next = () => {
+								const next = async () => {
 									// 一个打开确定,一群不打开只监听消息
 									const item = list.pop();
 									if (item) {
+										// 使用已允许了的域名做确认
+										const perList = await _this.permissionModel.list(
+											(table) => {
+												return table.where({ scriptId: script.id });
+											}
+										);
 										void App.Cache.set('confirm:info:' + item.uuid, [
 											item,
-											list.length,
+											perList.length || list.length,
 										]);
 										void chrome.tabs.create({
 											url: chrome.runtime.getURL(
@@ -445,11 +451,11 @@ export class BackgroundGrant {
 										case 5:
 										case 3: {
 											ret.permissionValue = confirm.permissionValue || '';
-											next();
+											void next();
 											break;
 										}
 										default:
-											next();
+											void next();
 											break;
 									}
 									//临时 放入缓存
