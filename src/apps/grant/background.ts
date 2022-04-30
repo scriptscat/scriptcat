@@ -911,10 +911,11 @@ export class BackgroundGrant {
 					break;
 				}
 				case 'set': {
-					if ((!detail.url && !detail.domain) || !detail.name) {
-						return reject(
-							'set operation must have url or domain, and the name must exist'
-						);
+					if (!detail.name) {
+						return reject('must exist name');
+					}
+					if (!detail.url || !detail.domain) {
+						return reject('must have url or domain');
 					}
 					chrome.cookies.set(
 						{
@@ -1189,150 +1190,6 @@ export class BackgroundGrant {
 				resolve(undefined);
 			};
 			void hanlder();
-		});
-	}
-
-	protected static proxyRule = new Map<number, CAT_Types.ProxyRule[] | string>();
-
-	protected static buildProxyPACScript(): string {
-		let ret = 'function FindProxyForURL(url, host) {\nlet ret;';
-		BackgroundGrant.proxyRule.forEach((val, key) => {
-			if (typeof val == 'string') {
-				ret += `\nfunction pac${key}(){\n${val}\nreturn FindProxyForURL(url,host)}\nret=pac${key}();if(ret && ret!='DIRECT'){return ret;}`;
-			} else {
-				val.forEach((val) => {
-					val.matchUrl.forEach((url) => {
-						let regex = url;
-						if (regex.indexOf('*') === -1) {
-							regex = regex.replace(/\./g, '\\.');
-							if (regex.indexOf('.') === 1 || regex.indexOf('//.') !== -1) {
-								regex = regex.replace('\\.', '(?:^|www)\\.');
-							}
-						} else {
-							regex = regex.replace(/\./g, '\\.');
-							regex = regex.replace('*', '(?:^|.*?)');
-						}
-						regex = regex.replace(/\//g, '\\/');
-						ret +=
-							`if(/${regex}/.test(url)){return "${
-								val.proxyServer.scheme?.toUpperCase() || 'HTTP'
-							} ${val.proxyServer.host}` +
-							(val.proxyServer.port ? ':' + val.proxyServer.port.toString() : '') +
-							'"}\n';
-					});
-				});
-			}
-		});
-		return ret + '\nreturn "DIRECT"}';
-	}
-
-	protected static freedProxy(id: number) {
-		BackgroundGrant.proxyRule.delete(id);
-		if (BackgroundGrant.proxyRule.size == 0) {
-			return chrome.proxy.settings.clear({});
-		}
-		chrome.proxy.settings.set({
-			value: {
-				mode: 'pac_script',
-				pacScript: {
-					data: BackgroundGrant.buildProxyPACScript(),
-				},
-			},
-		});
-	}
-
-	@BackgroundGrant.GMFunction({
-		background: true,
-		freed: (id: number) => {
-			BackgroundGrant.freedProxy(id);
-		},
-	})
-	protected CAT_setProxy(grant: Grant): Promise<any> {
-		return new Promise((resolve) => {
-			BackgroundGrant.proxyRule.set(grant.id, <CAT_Types.ProxyRule[]>grant.params[0]);
-			App.Log.Debug('background', 'enable proxy', grant.name);
-            chrome.extension
-			chrome.proxy.settings.set({
-				value: {
-					mode: 'pac_script',
-					pacScript: {
-						data: BackgroundGrant.buildProxyPACScript(),
-					},
-				},
-			});
-			resolve(undefined);
-		});
-	}
-
-	@BackgroundGrant.GMFunction({ background: true })
-	protected CAT_clearProxy(grant: Grant): Promise<any> {
-		return new Promise((resolve) => {
-			BackgroundGrant.freedProxy(grant.id);
-			resolve(undefined);
-		});
-	}
-
-    // 真实点击,未来将会废弃
-	@BackgroundGrant.GMFunction()
-	public CAT_click(grant: Grant, post: IPostMessage): Promise<any> {
-		return new Promise((resolve) => {
-			const target = { tabId: (<chrome.runtime.MessageSender>post.sender()).tab?.id };
-			const param = grant.params;
-			chrome.debugger.getTargets((result) => {
-				let flag = false;
-				for (let i = 0; i < result.length; i++) {
-					if (result[i].tabId == target.tabId) {
-						flag = result[i].attached;
-						break;
-					}
-				}
-				if (flag) {
-					chrome.debugger.sendCommand(
-						target,
-						'Input.dispatchMouseEvent',
-						{
-							type: 'mousePressed',
-							x: param[0],
-							y: param[1],
-							button: 'left',
-							clickCount: 1,
-						},
-						() => {
-							chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
-								type: 'mouseReleased',
-								x: param[0],
-								y: param[1],
-								button: 'left',
-								clickCount: 1,
-							});
-						}
-					);
-				} else {
-					chrome.debugger.attach(target, '1.2', () => {
-						chrome.debugger.sendCommand(
-							target,
-							'Input.dispatchMouseEvent',
-							{
-								type: 'mousePressed',
-								x: param[0],
-								y: param[1],
-								button: 'left',
-								clickCount: 1,
-							},
-							() => {
-								chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
-									type: 'mouseReleased',
-									x: param[0],
-									y: param[1],
-									button: 'left',
-									clickCount: 1,
-								});
-							}
-						);
-					});
-				}
-			});
-			resolve(undefined);
 		});
 	}
 

@@ -25,7 +25,6 @@
         "dexie": "^3.2.0",
         "file-saver": "^2.0.5",
         "jszip": "^3.7.1",
-        "log4js": "^6.4.5",
         "monaco-editor": "^0.22.0",
         "reflect-metadata": "^0.1.13",
         "sortablejs": "^1.14.0",
