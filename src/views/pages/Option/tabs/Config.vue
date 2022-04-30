@@ -63,7 +63,7 @@ export default class Config extends Vue {
             { key: 604800, val: '每周' },
           ],
           change(val: any) {
-            SystemConfig.check_script_update_cycle = val.value.key;
+            SystemConfig.check_script_update_cycle = val.value;
           },
         },
         {

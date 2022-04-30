@@ -15,6 +15,8 @@ import { UserManager } from './apps/user/manager';
 import { ToolsManager } from './apps/tools/manager';
 import Dexie from 'dexie';
 import { DBLogger } from './apps/logger/dblogger';
+import { createLogger } from './apps/logger/logger';
+import { ConsoleTransports } from './apps/logger/console';
 
 migrate();
 
@@ -22,6 +24,14 @@ InitApp({
 	Log: new DBLogger(),
 	Cache: new MapCache(),
 	Environment: ENV_BACKGROUND,
+});
+
+const logger = createLogger({
+	catalog: {
+		name: 'background',
+	},
+	level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+	transports: [new ConsoleTransports()],
 });
 
 void SystemConfig.init();
@@ -84,6 +94,7 @@ function sandboxLoad(event: MessageEvent<{ action: string }>) {
 
 // 检查更新
 setInterval(() => {
+	logger.debug(`check_script_update_cycle ${SystemConfig.check_script_update_cycle}`);
 	if (SystemConfig.check_script_update_cycle === 0) {
 		return;
 	}
