@@ -33,7 +33,6 @@
         "tabs",
         "cookies",
         "storage",
-        "debugger",
         "downloads",
         "webRequest",
         "background",
