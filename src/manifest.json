@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "ScriptCat",
+  "version": "0.10.0",
+  "description": "脚本猫,一个用户脚本的框架,可编写脚本每天帮你自动处理事务.",
+  "options_ui": {
+    "page": "./src/options.html",
+    "open_in_tab": true
+  },
+  "default_locale": "zh_CN",
+  "icons": {
+    "128": "assets/logo.png"
+  },
+  "author": "CodFrm",
+  "background": {}
+}
