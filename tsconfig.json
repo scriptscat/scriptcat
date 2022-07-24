@@ -21,12 +21,6 @@
       "@App/*": [
         "src/*"
       ],
-      "@Pages/*": [
-        "src/pages/*"
-      ],
-      "@Components/*": [
-        "src/pages/components/*"
-      ],
       "@Test/*": [
         "tests/*"
       ]

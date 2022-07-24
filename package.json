@@ -11,12 +11,15 @@
     "pack": "node ./build/pack.js"
   },
   "dependencies": {
+    "@arco-design/web-react": "^2.37.2",
     "monaco-editor": "^0.33.0",
     "monaco-vim": "^0.3.4",
+    "pako": "^2.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "unocss": "^0.44.5",
-    "react-monaco-editor": "^0.49.0"
+    "react-monaco-editor": "^0.49.0",
+    "react-router-dom": "^6.3.0",
+    "unocss": "^0.44.5"
   },
   "devDependencies": {
     "@babel/core": "^7.18.9",
@@ -24,6 +27,8 @@
     "@babel/preset-env": "^7.18.9",
     "@babel/preset-react": "^7.18.6",
     "@babel/preset-typescript": "^7.18.6",
+    "@types/chrome": "^0.0.193",
+    "@types/pako": "^2.0.0",
     "@types/react": "^18.0.15",
     "@types/react-dom": "^18.0.6",
     "@types/webpack-bundle-analyzer": "^4.4.1",

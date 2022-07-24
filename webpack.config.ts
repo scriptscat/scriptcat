@@ -20,6 +20,8 @@ const template = `${assets}/template`;
 const config: Configuration = {
   entry: {
     options: `${src}/pages/options/main.tsx`,
+    background: `${src}/background.ts`,
+    sandbox: `${src}/sandbox.ts`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
   },
@@ -38,6 +40,16 @@ const config: Configuration = {
         removeComments: true,
       },
       chunks: ["options"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/sandbox.html`,
+      template: `${template}/sandbox.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["sandbox"],
     }),
     new ESLintPlugin({
       extensions: [".ts", ".tsx"],
@@ -63,8 +75,6 @@ const config: Configuration = {
     extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl"],
     alias: {
       "@App": path.resolve(__dirname, "src/"),
-      "@Pages": path.resolve(__dirname, "src/pages"),
-      "@Components": path.resolve(__dirname, "src/pages/components"),
     },
   },
   module: {
