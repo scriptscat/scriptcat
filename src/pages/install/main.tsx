@@ -6,7 +6,6 @@ import "uno.css";
 import "@arco-design/web-react/dist/css/arco.css";
 import ConnectInternal from "@App/app/connect/internal";
 import MainLayout from "../components/layout/MainLayout";
-import Sider from "../components/layout/Sider";
 
 registerEditor();
 
@@ -17,7 +16,7 @@ console.log(con);
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
     <MainLayout>
-      <Sider />
+      <div>123</div>
     </MainLayout>
   </div>
 );

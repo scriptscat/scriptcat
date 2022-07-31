@@ -20,8 +20,11 @@ const template = `${assets}/template`;
 const config: Configuration = {
   entry: {
     options: `${src}/pages/options/main.tsx`,
+    install: `${src}/pages/install/main.tsx`,
     background: `${src}/background.ts`,
     sandbox: `${src}/sandbox.ts`,
+    content: `${src}/content.ts`,
+    popup: `${src}/pages/popup/main.tsx`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
   },
@@ -42,6 +45,16 @@ const config: Configuration = {
       chunks: ["options"],
     }),
     new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/install.html`,
+      template: `${template}/install.html`,
+      inject: "head",
+      title: "Install - ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["install"],
+    }),
+    new HtmlWebpackPlugin({
       filename: `${dist}/ext/src/sandbox.html`,
       template: `${template}/sandbox.html`,
       inject: "head",
@@ -50,6 +63,26 @@ const config: Configuration = {
         removeComments: true,
       },
       chunks: ["sandbox"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/popup.html`,
+      template: `${template}/popup.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["popup"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/background.html`,
+      template: `${template}/background.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["background"],
     }),
     new ESLintPlugin({
       extensions: [".ts", ".tsx"],
@@ -99,7 +132,10 @@ const config: Configuration = {
                 "@babel/preset-react",
                 "@babel/preset-typescript",
               ],
-              plugins: ["@babel/plugin-transform-runtime"],
+              plugins: [
+                "@babel/plugin-transform-runtime",
+                ["@babel/plugin-proposal-decorators", { legacy: true }],
+              ],
             },
           },
         ],

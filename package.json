@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@arco-design/web-react": "^2.37.2",
+    "dexie": "^3.2.2",
     "monaco-editor": "^0.33.0",
     "monaco-vim": "^0.3.4",
     "pako": "^2.0.4",
@@ -19,10 +20,13 @@
     "react-dom": "^18.2.0",
     "react-monaco-editor": "^0.49.0",
     "react-router-dom": "^6.3.0",
-    "unocss": "^0.44.5"
+    "unocss": "^0.44.5",
+    "uuid": "^8.3.2",
+    "yaml": "^2.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.18.9",
+    "@babel/plugin-proposal-decorators": "^7.18.9",
     "@babel/plugin-transform-runtime": "^7.18.9",
     "@babel/preset-env": "^7.18.9",
     "@babel/preset-react": "^7.18.6",
@@ -31,6 +35,7 @@
     "@types/pako": "^2.0.0",
     "@types/react": "^18.0.15",
     "@types/react-dom": "^18.0.6",
+    "@types/uuid": "^8.3.4",
     "@types/webpack-bundle-analyzer": "^4.4.1",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@unocss/webpack": "^0.44.5",

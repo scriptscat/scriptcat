@@ -5,7 +5,7 @@
   "author": "CodFrm",
   "description": "脚本猫,一个用户脚本的框架,可编写脚本每天帮你自动处理事务.",
   "options_ui": {
-    "page": "./src/options.html",
+    "page": "src/options.html",
     "open_in_tab": true
   },
   "default_locale": "zh_CN",
@@ -13,10 +13,10 @@
     "128": "assets/logo.png"
   },
   "browser_action": {
-    "default_popup": "./src/popup.html"
+    "default_popup": "src/popup.html"
   },
   "background": {
-    "page": "./src/background.html"
+    "page": "src/background.html"
   },
   "content_scripts": [
     {
@@ -40,6 +40,6 @@
     "webRequestBlocking"
   ],
   "sandbox": {
-    "pages": ["./src/sandbox.html"]
+    "pages": ["src/sandbox.html"]
   }
 }
