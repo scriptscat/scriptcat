@@ -6,6 +6,7 @@ import "uno.css";
 import "@arco-design/web-react/dist/css/arco.css";
 import ConnectInternal from "@App/app/connect/internal";
 import MainLayout from "../components/layout/MainLayout";
+import App from "./App";
 
 registerEditor();
 
@@ -15,8 +16,8 @@ console.log(con);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
-    <MainLayout>
-      <div>123</div>
+    <MainLayout className="!flex-col !px-4">
+      <App />
     </MainLayout>
   </div>
 );

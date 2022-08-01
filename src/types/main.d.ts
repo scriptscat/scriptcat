@@ -1,3 +1,2 @@
-
-declare module '@App/types/scriptcat.d.ts';
-declare module '*.tpl';
+declare module "@App/types/scriptcat.d.ts";
+declare module "*.tpl";

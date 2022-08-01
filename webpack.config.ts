@@ -11,6 +11,7 @@ import { presetUno, presetAttributify } from "unocss";
 
 const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
+const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
 
 const src = `${__dirname}/src`;
 const dist = `${__dirname}/dist`;
@@ -98,7 +99,12 @@ const config: Configuration = {
     new ProgressBarPlugin({}),
     new CompressionPlugin({
       test: /ts.worker.js/,
-      // deleteOriginalAssets: true,
+      deleteOriginalAssets: true,
+    }),
+    new MonacoLocalesPlugin({
+      languages: ["es", "zh-cn"],
+      defaultLanguage: "zh-cn",
+      logUnmatched: false,
     }),
     UnoCSS({
       presets: [presetUno(), presetAttributify()],

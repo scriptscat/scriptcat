@@ -16,7 +16,7 @@ console.log(con);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
-    <MainLayout>
+    <MainLayout className="!flex-row">
       <Sider />
     </MainLayout>
   </div>

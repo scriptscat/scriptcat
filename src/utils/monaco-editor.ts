@@ -2,13 +2,25 @@
 // eslint-disable-next-line import/no-unresolved
 import dts from "@App/types/scriptcat";
 import { languages } from "monaco-editor";
+import pako from "pako";
 
 export default function registerEditor() {
+  // @ts-ignore
+  window.tsUrl = "";
+  fetch(chrome.runtime.getURL("/src/ts.worker.js.gz"))
+    .then((resp) => resp.blob())
+    .then(async (blob) => {
+      const result = pako.inflate(await blob.arrayBuffer());
+      // @ts-ignore
+      window.tsUrl = URL.createObjectURL(new Blob([result]));
+    });
   // @ts-ignore
   window.MonacoEnvironment = {
     getWorkerUrl(moduleId: any, label: any) {
       if (label === "typescript" || label === "javascript") {
-        return "/src/ts.worker.js";
+        // return "/src/ts.worker.js";
+        // @ts-ignore
+        return window.tsUrl;
       }
       return "/src/editor.worker.js";
     },

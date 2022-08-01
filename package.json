@@ -52,6 +52,7 @@
     "eslint-plugin-react": "^7.30.1",
     "eslint-webpack-plugin": "^3.2.0",
     "html-webpack-plugin": "^5.5.0",
+    "monaco-editor-locales-plugin": "^0.0.3",
     "prettier": "^2.7.1",
     "progress-bar-webpack-plugin": "^2.1.0",
     "raw-loader": "^4.0.2",
