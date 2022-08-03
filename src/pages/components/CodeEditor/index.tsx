@@ -13,6 +13,10 @@ const CodeEditor: React.FC<{
       edit = editor.create(div, {
         value: "Hello World",
         language: "javascript",
+        theme:
+          document.body.getAttribute("arco-theme") === "dark"
+            ? "vs-dark"
+            : "vs",
         folding: true,
         foldingStrategy: "indentation",
         automaticLayout: true,

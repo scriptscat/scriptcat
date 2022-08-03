@@ -61,7 +61,7 @@ const Sider: React.FC = () => {
       <Layout.Content
         className="p-4"
         style={{
-          borderLeft: "1px solid #e8e8e8",
+          borderLeft: "1px solid var(--color-bg-5)",
         }}
       >
         <Routes>

@@ -12,13 +12,34 @@ import {
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useState } from "react";
+import "./index.css";
+
+function switchLight(mode: string) {
+  if (mode === "auto") {
+    const darkThemeMq = window.matchMedia("(prefers-color-scheme: dark)");
+    const isMatch = (match: boolean) => {
+      if (match) {
+        document.body.setAttribute("arco-theme", "dark");
+      } else {
+        document.body.removeAttribute("arco-theme");
+      }
+    };
+    darkThemeMq.addEventListener("change", (e) => {
+      isMatch(e.matches);
+    });
+    isMatch(darkThemeMq.matches);
+  } else {
+    document.body.setAttribute("arco-theme", mode);
+  }
+}
 
 const MainLayout: React.FC<{
   children: ReactNode;
   className: string;
 }> = ({ children, className }) => {
-  // document.body.setAttribute("arco-theme", "dark");
+  const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
+  switchLight(lightMode);
   return (
     <Layout>
       <Layout.Header
@@ -41,7 +62,14 @@ const MainLayout: React.FC<{
         <Space size="large">
           <Dropdown
             droplist={
-              <Menu>
+              <Menu
+                onClickMenuItem={(key) => {
+                  switchLight(key);
+                  setLightMode(key);
+                  localStorage.lightMode = key;
+                }}
+                selectedKeys={[lightMode]}
+              >
                 <Menu.Item key="light">
                   <IconSunFill /> Light
                 </Menu.Item>
@@ -54,11 +82,18 @@ const MainLayout: React.FC<{
               </Menu>
             }
             position="bl"
+            trigger="click"
           >
             <Button
               type="text"
               size="small"
-              icon={<IconSunFill />}
+              icon={
+                <>
+                  {lightMode === "auto" && <IconDesktop />}
+                  {lightMode === "light" && <IconSunFill />}
+                  {lightMode === "dark" && <IconMoonFill />}
+                </>
+              }
               style={{
                 color: "var(--color-text-1)",
               }}

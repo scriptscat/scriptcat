@@ -16,7 +16,7 @@ console.log(con);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
-    <MainLayout className="!flex-col !px-4">
+    <MainLayout className="!flex-col !px-4 box-border">
       <App />
     </MainLayout>
   </div>
