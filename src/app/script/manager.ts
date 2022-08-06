@@ -1,23 +1,37 @@
+/* eslint-disable max-classes-per-file */
 import { fetchScriptInfo } from "@App/utils/script";
 import ConnectCenter from "../connect/center";
 import Manager from "../manager";
 import { Script } from "../repo/scripts";
 
+type Event = "install";
+
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 export class ScriptManager extends Manager {
-  // eslint-disable-next-line no-useless-constructor
-  constructor(center: ConnectCenter) {
-    super(center);
+  static instance = new ScriptManager(ConnectCenter.getInstance());
+
+  static getInstance() {
+    return ScriptManager.instance;
   }
 
+  static ListenEventDecorator(event: Event) {
+    return (target: any, propertyName: string) => {
+      ScriptManager.getInstance().listenEvent(
+        event,
+        // @ts-ignore
+        target.constructor
+          .getInstance()
+          [propertyName].bind(target.constructor.getInstance())
+      );
+    };
+  }
+
+  // eslint-disable-next-line class-methods-use-this
   public start() {
     ScriptManager.listenInstallRequest();
-
-    this.listenEvent("install", this.installHandler);
   }
 
   // 监听脚本安装/更新请求
-  // eslint-disable-next-line class-methods-use-this
   public static listenInstallRequest() {
     chrome.webRequest.onBeforeRequest.addListener(
       (req: chrome.webRequest.WebRequestBodyDetails) => {
@@ -57,10 +71,29 @@ export class ScriptManager extends Manager {
         });
       });
   }
+}
 
+// 事件监听处理
+export class ScriptEvent {
+  static instance = new ScriptEvent(ScriptManager.getInstance());
+
+  manager: ScriptManager;
+
+  constructor(manager: ScriptManager) {
+    this.manager = manager;
+  }
+
+  static getInstance() {
+    return ScriptEvent.instance;
+  }
+
+  @ScriptManager.ListenEventDecorator("install")
   public installHandler(script: Script) {
-    console.log(script);
-    console.log(this.center);
+    return new Promise((resolve) => {
+      console.log(script);
+      console.log(this.manager);
+      resolve({ test: 1 });
+    });
   }
 }
 

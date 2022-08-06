@@ -2,14 +2,17 @@ import { Handler, Target } from "./connect";
 
 // 连接中心,只有background才能使用,其他环境通过runtime.connect连接到background
 export default class ConnectCenter {
-  connectMap: Map<string, Map<number, chrome.runtime.Port>>;
+  static instance = new ConnectCenter();
 
-  handler: Map<string, Handler>;
-
-  constructor() {
-    this.connectMap = new Map();
-    this.handler = new Map();
+  static getInstance() {
+    return ConnectCenter.instance;
   }
+
+  connectMap: Map<string, Map<number, chrome.runtime.Port>> = new Map();
+
+  streamMap: Map<string, string> = new Map();
+
+  handler: Map<string, Handler> = new Map();
 
   public listen() {
     chrome.runtime.onConnect.addListener((port) => {
@@ -28,14 +31,29 @@ export default class ConnectCenter {
         }
         const handler = this.handler.get(message.action);
         if (handler) {
-          handler(message.action, message.data);
+          if (message.stream) {
+            const ret = handler(message.action, message.data);
+            if (ret) {
+              ret
+                .then((data: any) => {
+                  port.postMessage({
+                    action: message.action,
+                    data,
+                    stream: message.stream,
+                  });
+                })
+                .catch(() => {});
+            }
+          } else {
+            handler(message.action, message.data);
+          }
         }
       });
     });
   }
 
   public setHandler(tag: string, handler: Handler) {
-    this.handler.set(handler.name, handler);
+    this.handler.set(tag, handler);
   }
 
   // 根据目标发送

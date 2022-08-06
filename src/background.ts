@@ -4,9 +4,6 @@ import ScriptManager from "./app/script/manager";
 // 数据库初始化
 migrate();
 // 通讯中心
-const center = new ConnectCenter();
-center.listen();
+ConnectCenter.getInstance().listen();
 // 脚本后台处理器
-const script = new ScriptManager(center);
-
-script.start();
+ScriptManager.getInstance().start();

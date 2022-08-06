@@ -1,7 +1,7 @@
 import ConnectCenter from "./connect/center";
 
 // eslint-disable-next-line no-unused-vars
-type Handler = (data: any) => void;
+type Handler = (data: any) => void | Promise<any>;
 
 export default class Manager {
   center: ConnectCenter;
@@ -12,7 +12,9 @@ export default class Manager {
 
   public listenEvent(action: string, func: Handler) {
     this.center.setHandler(action, (_action: string, data: any) => {
-      func(data);
+      return new Promise((resolve) => {
+        resolve(func(data));
+      });
     });
   }
 }
