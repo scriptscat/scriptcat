@@ -2,10 +2,16 @@ import { Handler, Target } from "./connect";
 
 // 连接中心,只有background才能使用,其他环境通过runtime.connect连接到background
 export default class ConnectCenter {
-  static instance = new ConnectCenter();
+  static instance: ConnectCenter;
 
   static getInstance() {
     return ConnectCenter.instance;
+  }
+
+  constructor() {
+    if (!ConnectCenter.instance) {
+      ConnectCenter.instance = this;
+    }
   }
 
   connectMap: Map<string, Map<number, chrome.runtime.Port>> = new Map();

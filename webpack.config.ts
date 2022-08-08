@@ -120,31 +120,7 @@ const config: Configuration = {
     rules: [
       {
         test: /\.(ts|tsx)?$/,
-        use: [
-          {
-            loader: "babel-loader",
-            options: {
-              presets: [
-                [
-                  "@babel/preset-env",
-                  {
-                    corejs: {
-                      version: 3,
-                    },
-                    useBuiltIns: "entry",
-                    targets: { chrome: "68", firefox: "60" },
-                  },
-                ],
-                "@babel/preset-react",
-                "@babel/preset-typescript",
-              ],
-              plugins: [
-                "@babel/plugin-transform-runtime",
-                ["@babel/plugin-proposal-decorators", { legacy: true }],
-              ],
-            },
-          },
-        ],
+        use: ["babel-loader"],
         exclude: /node_modules/,
       },
       {

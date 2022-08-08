@@ -45,7 +45,7 @@ const MainLayout: React.FC<{
       <Layout.Header
         style={{
           height: "50px",
-          borderBottom: "1px solid var(--color-bg-5)",
+          borderBottom: "1px solid var(--color-neutral-3)",
         }}
         className="flex items-center justify-between p-x-4"
       >

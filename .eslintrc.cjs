@@ -37,6 +37,12 @@ module.exports = {
         namedComponents: ["function-declaration", "arrow-function"],
       },
     ],
+    "@typescript-eslint/no-unused-vars": [
+      2,
+      {
+        args: "none",
+      },
+    ],
   },
   settings: {
     "import/resolver": {

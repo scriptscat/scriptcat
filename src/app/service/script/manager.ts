@@ -1,29 +1,26 @@
-/* eslint-disable max-classes-per-file */
 import { fetchScriptInfo } from "@App/utils/script";
-import ConnectCenter from "../connect/center";
-import Manager from "../manager";
-import { Script } from "../repo/scripts";
-
-type Event = "install";
+import Cache from "../../cache";
+import ConnectCenter from "../../connect/center";
+import Manager from "../../manager";
+import { ScriptDAO } from "../../repo/scripts";
+import ScriptEventListener from "./event";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 export class ScriptManager extends Manager {
-  static instance = new ScriptManager(ConnectCenter.getInstance());
+  static instance: ScriptManager;
 
   static getInstance() {
     return ScriptManager.instance;
   }
 
-  static ListenEventDecorator(event: Event) {
-    return (target: any, propertyName: string) => {
-      ScriptManager.getInstance().listenEvent(
-        event,
-        // @ts-ignore
-        target.constructor
-          .getInstance()
-          [propertyName].bind(target.constructor.getInstance())
-      );
-    };
+  event: ScriptEventListener;
+
+  constructor(center: ConnectCenter) {
+    super(center);
+    if (!ScriptManager.instance) {
+      ScriptManager.instance = this;
+    }
+    this.event = new ScriptEventListener(this, new ScriptDAO());
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -61,6 +58,11 @@ export class ScriptManager extends Manager {
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
     fetchScriptInfo(req.url)
       .then((info) => {
+        Cache.getInstance().set(
+          `script:info:${info.uuid}`,
+          info,
+          1000 * 60 * 60
+        );
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });
@@ -70,30 +72,6 @@ export class ScriptManager extends Manager {
           url: `${req.url}#bypass=true`,
         });
       });
-  }
-}
-
-// 事件监听处理
-export class ScriptEvent {
-  static instance = new ScriptEvent(ScriptManager.getInstance());
-
-  manager: ScriptManager;
-
-  constructor(manager: ScriptManager) {
-    this.manager = manager;
-  }
-
-  static getInstance() {
-    return ScriptEvent.instance;
-  }
-
-  @ScriptManager.ListenEventDecorator("install")
-  public installHandler(script: Script) {
-    return new Promise((resolve) => {
-      console.log(script);
-      console.log(this.manager);
-      resolve({ test: 1 });
-    });
   }
 }
 

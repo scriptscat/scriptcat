@@ -1,5 +1,5 @@
 /* eslint-disable no-param-reassign */
-import db from "./repo/model";
+import { db } from "./repo/dao";
 import { Script } from "./repo/scripts";
 
 // 重命名字段,统一使用小峰驼
@@ -9,6 +9,7 @@ function renameField(): void {
       scripts:
         "++id,&uuid,name,namespace,author,originDomain,subscribeUrl,type,sort,status," +
         "runStatus,createtime,updatetime,checktime",
+      logger: "++id,level,message,createtime",
     })
     .upgrade(async (tx) => {
       await tx

@@ -1,3 +1,5 @@
+import { DAO, db } from "./dao";
+
 export type Metadata = { [key: string]: string[] };
 
 export type SUBSCRIBE_STATUS = 1 | 2 | 3 | 4;
@@ -22,4 +24,17 @@ export interface Subscribe {
   createtime: number;
   updatetime?: number;
   checktime: number;
+}
+
+export class SubscribeDAO extends DAO<Subscribe> {
+  public tableName = "subscribe";
+
+  constructor() {
+    super();
+    this.table = db.table(this.tableName);
+  }
+
+  public findByUrl(url: string) {
+    return this.findOne({ url });
+  }
 }

@@ -1,3 +1,5 @@
+import { db, DAO } from "./dao";
+
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
 
@@ -66,4 +68,34 @@ export interface Script {
   delayruntime?: number; // 脚本下次运行时间戳
 }
 
-export class Scripts {}
+export class ScriptDAO extends DAO<Script> {
+  public tableName = "scripts";
+
+  constructor() {
+    super();
+    this.table = db.table(this.tableName);
+  }
+
+  public findByName(name: string) {
+    return this.findOne({ name });
+  }
+
+  public findByNameAndNamespace(name: string, namespace?: string) {
+    if (namespace) {
+      return this.findOne({ name, namespace });
+    }
+    return this.findOne({ name });
+  }
+
+  public findByUUID(uuid: string) {
+    return this.findOne({ uuid });
+  }
+
+  public findByUUIDAndSubscribeUrl(uuid: string, suburl: string) {
+    return this.findOne({ subscribeUrl: suburl, uuid });
+  }
+
+  public findByOriginAndSubscribeUrl(origin: string, suburl: string) {
+    return this.findOne({ subscribeUrl: suburl, origin });
+  }
+}
