@@ -48,7 +48,9 @@ export default class ConnectCenter {
                     stream: message.stream,
                   });
                 })
-                .catch(() => {});
+                .catch(() => {
+                  // TODO: 错误处理
+                });
             }
           } else {
             handler(message.action, message.data);

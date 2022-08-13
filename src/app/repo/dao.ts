@@ -73,27 +73,23 @@ export abstract class DAO<T> {
 
   public async save(val: T): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
-      try {
-        const id = <number>(<any>val).id;
-        if (!id) {
-          this.table.add(val).then((key) => {
-            if (key) {
-              // eslint-disable-next-line no-param-reassign
-              (<any>val).id = key;
-              return resolve(val);
-            }
-            return resolve(undefined);
-          });
-        } else {
-          this.table.update(id, val).then((ok) => {
-            if (ok) {
-              return resolve(val);
-            }
-            return resolve(undefined);
-          });
-        }
-      } catch (e) {
-        reject(e);
+      const id = <number>(<any>val).id;
+      if (!id) {
+        delete (<any>val).id;
+        this.table
+          .add(val)
+          .then((key) => {
+            (<any>val).id = key;
+            return resolve(val);
+          })
+          .catch((e) => reject(e));
+      } else {
+        this.table
+          .update(id, val)
+          .then(() => {
+            return resolve(val);
+          })
+          .catch((e) => reject(e));
       }
     });
   }

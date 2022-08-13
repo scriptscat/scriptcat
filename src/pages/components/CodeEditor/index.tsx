@@ -1,36 +1,75 @@
 import { editor } from "monaco-editor";
-import React, { useEffect } from "react";
+import React, { useEffect, useImperativeHandle, useState } from "react";
 
-const CodeEditor: React.FC<{
+type Props = {
+  // eslint-disable-next-line react/require-default-props
   className?: string;
-}> = ({ className }) => {
+  // eslint-disable-next-line react/require-default-props
+  diffCode?: string; // 因为代码加载是异步的,diifCode有3种状态:undefined不确定,""没有diff,有diff,不确定的情况下,编辑器不会加载
+  code: string;
+};
+
+const CodeEditor: React.ForwardRefRenderFunction<
+  { editor: editor.IStandaloneCodeEditor | undefined },
+  Props
+> = ({ className, code, diffCode }, ref) => {
+  const [monacoEditor, setEditor] = useState<any>();
+  useImperativeHandle(ref, () => ({
+    editor: monacoEditor,
+  }));
   useEffect(() => {
-    let edit: editor.IEditor;
+    if (diffCode === undefined) {
+      return () => {};
+    }
+    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
     // @ts-ignore
     const ts = window.tsUrl ? 0 : 200;
     setTimeout(() => {
       const div = document.querySelector("#editor") as HTMLDivElement;
-      edit = editor.create(div, {
-        value: "Hello World",
-        language: "javascript",
-        theme:
-          document.body.getAttribute("arco-theme") === "dark"
-            ? "vs-dark"
-            : "vs",
-        folding: true,
-        foldingStrategy: "indentation",
-        automaticLayout: true,
-        overviewRulerBorder: false,
-        scrollBeyondLastLine: false,
-        readOnly: true,
-      });
+      if (diffCode) {
+        edit = editor.createDiffEditor(div, {
+          theme:
+            document.body.getAttribute("arco-theme") === "dark"
+              ? "vs-dark"
+              : "vs",
+          enableSplitViewResizing: false,
+          renderSideBySide: false,
+          folding: true,
+          foldingStrategy: "indentation",
+          automaticLayout: true,
+          overviewRulerBorder: false,
+          scrollBeyondLastLine: false,
+          readOnly: true,
+          diffWordWrap: "off",
+        });
+        edit.setModel({
+          original: editor.createModel(diffCode, "javascript"),
+          modified: editor.createModel(code, "javascript"),
+        });
+      } else {
+        edit = editor.create(div, {
+          language: "javascript",
+          theme:
+            document.body.getAttribute("arco-theme") === "dark"
+              ? "vs-dark"
+              : "vs",
+          folding: true,
+          foldingStrategy: "indentation",
+          automaticLayout: true,
+          overviewRulerBorder: false,
+          scrollBeyondLastLine: false,
+          readOnly: true,
+        });
+        edit.setValue(code);
+        setEditor(edit);
+      }
     }, ts);
     return () => {
       if (edit) {
         edit.dispose();
       }
     };
-  }, []);
+  }, [code, diffCode]);
   return (
     <div
       id="editor"
@@ -46,8 +85,4 @@ const CodeEditor: React.FC<{
   );
 };
 
-CodeEditor.defaultProps = {
-  className: "",
-};
-
-export default CodeEditor;
+export default React.forwardRef(CodeEditor);

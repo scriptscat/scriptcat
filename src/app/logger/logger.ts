@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import LoggerCore, { LogLabel, LogLevel } from "./core";
 
 const levelNumber = {
@@ -35,8 +36,9 @@ export default class Logger {
     }
     if (this.core.debug) {
       // eslint-disable-next-line no-console
-      console.log(
-        "[%s] msg=%s label=%s",
+      console.trace(
+        "%s [%s] msg=%s label=%s",
+        dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
         level,
         message,
         JSON.stringify(buildLabel(this.label, label))

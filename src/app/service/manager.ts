@@ -1,6 +1,5 @@
-import ConnectCenter from "./connect/center";
+import ConnectCenter from "../connect/center";
 
-// eslint-disable-next-line no-unused-vars
 type Handler = (data: any) => void | Promise<any>;
 
 export default class Manager {

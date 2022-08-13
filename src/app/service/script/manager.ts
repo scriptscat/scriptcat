@@ -1,7 +1,7 @@
 import { fetchScriptInfo } from "@App/utils/script";
 import Cache from "../../cache";
 import ConnectCenter from "../../connect/center";
-import Manager from "../../manager";
+import Manager from "../manager";
 import { ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 
@@ -56,7 +56,7 @@ export class ScriptManager extends Manager {
   }
 
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
-    fetchScriptInfo(req.url)
+    fetchScriptInfo(req.url, "user")
       .then((info) => {
         Cache.getInstance().set(
           `script:info:${info.uuid}`,

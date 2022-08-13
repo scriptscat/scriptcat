@@ -3,13 +3,19 @@ import {
   ScriptDAO,
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
 import { v4 as uuidv4 } from "uuid";
-import { parseMetadata, parseUserConfig, ScriptInfo } from "@App/utils/script";
+import {
+  copyScript,
+  parseMetadata,
+  parseUserConfig,
+  ScriptInfo,
+} from "@App/utils/script";
 import { nextTime } from "@App/utils/utils";
 import ConnectInternal from "../../connect/internal";
 import { ScriptEvent } from "./event";
@@ -43,21 +49,21 @@ export default class ScriptController {
     });
   }
 
-  public install() {
-    return this.dispatchEvent("install", {});
+  // 安装或者更新脚本
+  public upsert(script: Script) {
+    return this.dispatchEvent("upsert", script);
   }
 
-  public fetch(uuid: string): Promise<ScriptInfo> {
+  public fetchScriptInfo(uuid: string): Promise<ScriptInfo> {
     return this.dispatchEvent("fetch", uuid);
   }
 
   // 通过代码解析出脚本信息
   public prepareScriptByCode(
     code: string,
-    u?: string,
+    url: string,
     uuid?: string
-  ): Promise<Script> {
-    const url = u || "";
+  ): Promise<Script & { oldScript?: Script }> {
     return new Promise((resolve) => {
       const metadata = parseMetadata(code);
       if (metadata == null) {
@@ -69,7 +75,9 @@ export default class ScriptController {
       let type = SCRIPT_TYPE_NORMAL;
       if (metadata.crontab !== undefined) {
         type = SCRIPT_TYPE_CRONTAB;
-        if (nextTime(metadata.crontab[0]) === "错误的定时表达式") {
+        try {
+          nextTime(metadata.crontab[0]);
+        } catch (e) {
           throw new Error("错误的定时表达式");
         }
       } else if (metadata.background !== undefined) {
@@ -91,8 +99,7 @@ export default class ScriptController {
           [, domain] = urlSplit;
         }
       }
-      this.scriptDAO.findByUUIDAndSubscribeUrl("123", "123");
-      const script: Script = {
+      let script: Script & { oldScript?: Script } = {
         id: 0,
         uuid: uuid || uuidv4(),
         name: metadata.name[0],
@@ -114,7 +121,33 @@ export default class ScriptController {
         updatetime: new Date().getTime(),
         checktime: 0,
       };
-      resolve(script);
+      this.scriptDAO.findByUUIDAndSubscribeUrl("123", "123");
+      const handler = async () => {
+        let old: Script | undefined;
+        if (uuid !== undefined) {
+          old = await this.scriptDAO.findByUUID(uuid);
+        } else {
+          old = await this.scriptDAO.findByNameAndNamespace(
+            script.name,
+            script.namespace
+          );
+          if (!old) {
+            old = await this.scriptDAO.findByUUID(script.uuid);
+          }
+        }
+        if (old) {
+          script.oldScript = old;
+          script = copyScript(script, old);
+        } else {
+          // 前台脚本默认开启
+          if (script.type === SCRIPT_TYPE_NORMAL) {
+            script.status = SCRIPT_STATUS_ENABLE;
+          }
+          script.checktime = new Date().getTime();
+        }
+        resolve(script);
+      };
+      handler();
     });
   }
 }

@@ -1,6 +1,7 @@
 import { v5 as uuidv5 } from "uuid";
-import { Metadata, UserConfig } from "@App/app/repo/scripts";
+import { Metadata, Script, UserConfig } from "@App/app/repo/scripts";
 import YAML from "yaml";
+import { Subscribe } from "@App/app/repo/subscribe";
 
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
@@ -53,22 +54,18 @@ export function parseUserConfig(code: string): UserConfig | undefined {
   return ret;
 }
 
-export function validMetadata(metadata: Metadata | null): Metadata | null {
-  if (metadata == null) {
-    return null;
-  }
-
-  return metadata;
-}
-
 export type ScriptInfo = {
   url: string;
   code: string;
   uuid: string;
   issub: boolean;
+  source: "user" | "system";
 };
 
-export async function fetchScriptInfo(url: string): Promise<ScriptInfo> {
+export async function fetchScriptInfo(
+  url: string,
+  source: "user" | "system"
+): Promise<ScriptInfo> {
   const resp = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
@@ -88,9 +85,38 @@ export async function fetchScriptInfo(url: string): Promise<ScriptInfo> {
     code: body,
     uuid,
     issub: false,
+    source,
   };
   if (ok.usersubscribe) {
     ret.issub = true;
   }
+  return ret;
+}
+
+export function copyScript(script: Script, old: Script): Script {
+  const ret = script;
+  ret.id = old.id;
+  ret.uuid = old.uuid;
+  ret.createtime = old.createtime;
+  ret.checktime = old.checktime;
+  ret.lastruntime = old.lastruntime;
+  ret.delayruntime = old.delayruntime;
+  ret.error = old.error;
+  ret.sort = old.sort;
+  if (!ret.selfMetadata) {
+    ret.selfMetadata = old.selfMetadata || {};
+  }
+  ret.subscribeUrl = old.subscribeUrl;
+  ret.status = old.status;
+  return ret;
+}
+
+export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
+  const ret = sub;
+  ret.id = old.id;
+  ret.createtime = old.createtime;
+  ret.status = old.status;
+  ret.checktime = old.checktime;
+  ret.error = old.error;
   return ret;
 }

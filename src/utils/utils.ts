@@ -25,7 +25,7 @@ export function nextTime(crontab: string): string {
   try {
     cron = new CronTime(crontab.replace(/once/g, "*"));
   } catch (e) {
-    return "错误的定时表达式";
+    throw new Error("错误的定时表达式");
   }
   if (oncePos) {
     switch (oncePos) {
@@ -52,7 +52,7 @@ export function nextTime(crontab: string): string {
           .plus({ week: 1 })
           .toFormat("yyyy-MM-dd 每星期运行一次");
     }
-    return "错误表达式";
+    throw new Error("错误表达式");
   }
   return cron.sendAt().toFormat("yyyy-MM-dd HH:mm:ss");
 }

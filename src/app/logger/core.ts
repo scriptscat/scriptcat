@@ -2,7 +2,7 @@ import Logger from "./logger";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
-export type LogLabel = { [key: string]: string };
+export type LogLabel = { [key: string]: string | boolean | number };
 
 // 储存
 export interface Writer {
