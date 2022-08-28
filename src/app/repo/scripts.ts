@@ -1,4 +1,6 @@
-import { db, DAO } from "./dao";
+import { DAO, db } from "./dao";
+import { Resource } from "./resource";
+import { Value } from "./value";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -65,7 +67,14 @@ export interface Script {
   updatetime?: number; // 脚本更新时间戳
   checktime: number; // 脚本检查更新时间戳
   lastruntime?: number; // 脚本最后一次运行时间戳
-  delayruntime?: number; // 脚本下次运行时间戳
+}
+
+// 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
+export interface ScriptRunResouce extends Script {
+  grantMap: { [key: string]: string };
+  value: { [key: string]: Value };
+  flag: string;
+  resource: { [key: string]: Resource };
 }
 
 export class ScriptDAO extends DAO<Script> {

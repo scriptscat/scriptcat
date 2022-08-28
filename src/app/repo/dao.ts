@@ -1,7 +1,10 @@
 // eslint-disable-next-line max-classes-per-file
 import Dexie from "dexie";
+import Logger from "../logger/logger";
 
 export const db = new Dexie("ScriptCat");
+
+export const ErrSaveError = new Error("数据保存失败");
 
 export class Page {
   protected Page: number;
@@ -71,27 +74,17 @@ export abstract class DAO<T> {
     return this.table.where(where).first();
   }
 
-  public async save(val: T): Promise<T | undefined> {
-    return new Promise((resolve, reject) => {
-      const id = <number>(<any>val).id;
-      if (!id) {
-        delete (<any>val).id;
-        this.table
-          .add(val)
-          .then((key) => {
-            (<any>val).id = key;
-            return resolve(val);
-          })
-          .catch((e) => reject(e));
-      } else {
-        this.table
-          .update(id, val)
-          .then(() => {
-            return resolve(val);
-          })
-          .catch((e) => reject(e));
-      }
-    });
+  public async save(val: T) {
+    const id = <number>(<any>val).id;
+    if (!id) {
+      delete (<any>val).id;
+      return this.table.add(val);
+    }
+    const resp = await this.table.update(id, val);
+    if (resp) {
+      return Promise.resolve(id);
+    }
+    return Promise.reject(ErrSaveError);
   }
 
   public findById(id: number) {

@@ -1,7 +1,13 @@
-import { Handler } from "./connect";
+import { Connect, Handler } from "./connect";
 
 // content与页面通讯,使用CustomEvent
-export default class ConnectContent {
+export default class ConnectContent implements Connect {
+  static instance: ConnectContent;
+
+  static getInstance() {
+    return this.instance;
+  }
+
   eventId: string;
 
   isContent: boolean;

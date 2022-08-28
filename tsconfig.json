@@ -20,15 +20,12 @@
     "paths": {
       "@App/*": [
         "src/*"
-      ],
-      "@Test/*": [
-        "tests/*"
       ]
     },
     "typeRoots": [
       "./node_modules/@types/",
       "./src/types"
-    ],
+    ]
   },
   "include": [
     "src",

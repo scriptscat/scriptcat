@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import { Handler, Stream, Target } from "./connect";
+import { Connect, Handler, Stream, Target } from "./connect";
 
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
-export default class ConnectInternal {
+export default class ConnectInternal implements Connect {
   static instance: ConnectInternal;
 
   static getInstance() {
@@ -24,7 +24,11 @@ export default class ConnectInternal {
       if (message.stream) {
         const stream = this.stream.get(message.stream);
         if (stream) {
-          stream.handler(message.data);
+          if (message.error) {
+            stream.catch(message.error);
+          } else {
+            stream.handler(message.data);
+          }
           this.stream.delete(message.stream);
         }
       }
@@ -41,19 +45,26 @@ export default class ConnectInternal {
     });
   }
 
-  // 发送单次流消息,只能接收到返回,不能再发送
-  public sendSingleStream(
-    action: string,
-    data: any,
-    // eslint-disable-next-line no-shadow, no-unused-vars
-    resp: (data: any) => void
-  ) {
-    const stream = uuidv4();
-    this.stream.set(stream, new Stream(resp));
-    this.port.postMessage({
-      action,
-      data,
-      stream,
+  // 发送有返回的消息
+  public syncSend(action: string, data: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const stream = uuidv4();
+      this.stream.set(
+        stream,
+        new Stream(
+          (resp) => {
+            resolve(resp);
+          },
+          (err) => {
+            reject(err);
+          }
+        )
+      );
+      this.port.postMessage({
+        action,
+        data,
+        stream,
+      });
     });
   }
 

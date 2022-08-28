@@ -1,6 +1,8 @@
 import { Handler, Target } from "./connect";
+import ConnectSandbox from "./sandbox";
 
 // 连接中心,只有background才能使用,其他环境通过runtime.connect连接到background
+// 将sandbox的连接也聚合在了一起
 export default class ConnectCenter {
   static instance: ConnectCenter;
 
@@ -8,7 +10,10 @@ export default class ConnectCenter {
     return ConnectCenter.instance;
   }
 
-  constructor() {
+  sandbox: ConnectSandbox;
+
+  constructor(sandbox: ConnectSandbox) {
+    this.sandbox = sandbox;
     if (!ConnectCenter.instance) {
       ConnectCenter.instance = this;
     }
@@ -20,7 +25,7 @@ export default class ConnectCenter {
 
   handler: Map<string, Handler> = new Map();
 
-  public listen() {
+  public start() {
     chrome.runtime.onConnect.addListener((port) => {
       let connectMap = this.connectMap.get(port.name);
       if (!connectMap) {
@@ -48,8 +53,12 @@ export default class ConnectCenter {
                     stream: message.stream,
                   });
                 })
-                .catch(() => {
-                  // TODO: 错误处理
+                .catch((err: Error) => {
+                  port.postMessage({
+                    action: message.action,
+                    error: err.message,
+                    stream: message.stream,
+                  });
                 });
             }
           } else {
@@ -62,6 +71,7 @@ export default class ConnectCenter {
 
   public setHandler(tag: string, handler: Handler) {
     this.handler.set(tag, handler);
+    this.sandbox.setHandler(tag, handler);
   }
 
   // 根据目标发送

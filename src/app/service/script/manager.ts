@@ -1,31 +1,45 @@
 import { fetchScriptInfo } from "@App/utils/script";
-import Cache from "../../cache";
+import Runtime from "@App/runtime/background/runtime";
+import Cache from "@App/app/cache";
 import ConnectCenter from "../../connect/center";
 import Manager from "../manager";
-import { ScriptDAO } from "../../repo/scripts";
+import { SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 export class ScriptManager extends Manager {
   static instance: ScriptManager;
 
-  static getInstance() {
+  static getInstance(): ScriptManager {
     return ScriptManager.instance;
   }
 
   event: ScriptEventListener;
 
-  constructor(center: ConnectCenter) {
+  scriptDAO: ScriptDAO;
+
+  runtime: Runtime;
+
+  constructor(center: ConnectCenter, runtime: Runtime) {
     super(center);
     if (!ScriptManager.instance) {
       ScriptManager.instance = this;
     }
     this.event = new ScriptEventListener(this, new ScriptDAO());
+    this.scriptDAO = new ScriptDAO();
+    this.runtime = runtime;
   }
 
-  // eslint-disable-next-line class-methods-use-this
   public start() {
     ScriptManager.listenInstallRequest();
+    // 启动开启的后台脚本
+    this.scriptDAO.table
+      .where({ status: SCRIPT_STATUS_ENABLE })
+      .toArray((items) => {
+        items.forEach((item) => {
+          this.runtime.enable(item);
+        });
+      });
   }
 
   // 监听脚本安装/更新请求

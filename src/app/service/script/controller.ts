@@ -42,16 +42,20 @@ export default class ScriptController {
   }
 
   public dispatchEvent(event: ScriptEvent, data: any): Promise<any> {
-    return new Promise((resolve) => {
-      this.internal.sendSingleStream(`script-${event}`, data, (resp) => {
-        resolve(resp);
-      });
-    });
+    return this.internal.syncSend(`script-${event}`, data);
   }
 
   // 安装或者更新脚本
   public upsert(script: Script) {
     return this.dispatchEvent("upsert", script);
+  }
+
+  public enable(id: number) {
+    return this.dispatchEvent("enable", id);
+  }
+
+  public disable(id: number) {
+    return this.dispatchEvent("disable", id);
   }
 
   public fetchScriptInfo(uuid: string): Promise<ScriptInfo> {

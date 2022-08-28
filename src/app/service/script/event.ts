@@ -1,11 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import Cache from "../../cache";
-import { ScriptDAO, Script } from "../../repo/scripts";
+import { ScriptDAO, Script, SCRIPT_STATUS_ENABLE } from "../../repo/scripts";
 import Hook from "../hook";
 import ScriptManager from "./manager";
 
-export type ScriptEvent = "upsert" | "fetch";
+export type ScriptEvent = "upsert" | "fetch" | "enable" | "disable";
 
 const events: { [key: string]: (data: any) => Promise<any> } = {};
 
@@ -68,6 +68,41 @@ export default class ScriptEventListener {
   public fetchInfoHandler(uuid: string) {
     return new Promise((resolve) => {
       resolve(this.cache.get(`script:info:${uuid}`));
+    });
+  }
+
+  @ListenEventDecorator("enable")
+  public enableHandler(id: number) {
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          if (script?.status !== SCRIPT_STATUS_ENABLE) {
+            script.status = SCRIPT_STATUS_ENABLE;
+            this.dao.save(script);
+          }
+          return resolve(1);
+        })
+        .catch((e) => {
+          this.logger.error("enable error", { error: e });
+        });
+    });
+  }
+
+  @ListenEventDecorator("disable")
+  public disableHandler(id: number) {
+    return new Promise((resolve) => {
+      this.dao.findById(id).then((script) => {
+        if (script?.status === SCRIPT_STATUS_ENABLE) {
+          // script.state = SCRIPT_STATUS_DISABLE;
+          // this.dao.save(script);
+        }
+        resolve(1);
+      });
+      // .catch((e) => {});
     });
   }
 }

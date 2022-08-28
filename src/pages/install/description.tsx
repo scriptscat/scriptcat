@@ -151,26 +151,26 @@ export default function Description() {
           });
           if (isCookie) {
             desList.push(
-              <Typography.Text type="error">
+              <Typography.Text type="error" key="cookie">
                 请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
               </Typography.Text>
             );
           }
           if (meta.crontab) {
             desList.push(
-              <Typography.Text>
+              <Typography.Text key="crontab">
                 这是一个定时脚本,开启将会在特点时间自动运行,也可以在面板中手动控制运行.
               </Typography.Text>
             );
             desList.push(
-              <Typography.Text>
+              <Typography.Text key="cronta-nexttime">
                 crontab表达式: {meta.crontab[0]} 最近一次运行时间:{" "}
                 {nextTime(meta.crontab[0])}
               </Typography.Text>
             );
           } else if (meta.background) {
             desList.push(
-              <Typography.Text>
+              <Typography.Text key="background">
                 这是一个后台脚本,开启将会在浏览器打开时自动运行一次,也可以在面板中手动控制运行.
               </Typography.Text>
             );

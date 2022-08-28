@@ -23,6 +23,15 @@ export default class Cache {
     return this.lru.get(key);
   }
 
+  public async getOrSet(key: string, set: () => Promise<any>): Promise<any> {
+    let ret = await this.get(key);
+    if (!ret) {
+      ret = await set();
+      this.set(key, ret);
+    }
+    return Promise.resolve(ret);
+  }
+
   public set(key: string, value: any, ttl?: number): void {
     this.lru.set(key, value, { ttl });
   }

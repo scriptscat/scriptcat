@@ -10,7 +10,7 @@ type Props = {
 };
 
 const CodeEditor: React.ForwardRefRenderFunction<
-  { editor: editor.IStandaloneCodeEditor | undefined },
+  { editor: editor.ICodeEditor | undefined },
   Props
 > = ({ className, code, diffCode }, ref) => {
   const [monacoEditor, setEditor] = useState<any>();

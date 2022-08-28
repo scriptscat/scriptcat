@@ -65,4 +65,16 @@ export default class Logger {
   error(message: string, ...label: LogLabel[]) {
     this.log("error", message, ...label);
   }
+
+  static E(e: any): LogLabel {
+    // eslint-disable-next-line no-console
+    console.error(e);
+    if (typeof e === "string") {
+      return { error: e };
+    }
+    if (e instanceof Error) {
+      return { error: e.message, stack: e.stack || "" };
+    }
+    return {};
+  }
 }

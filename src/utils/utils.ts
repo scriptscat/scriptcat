@@ -64,3 +64,14 @@ export function formatTime(time: Date) {
 export function semTime(time: Date) {
   return dayjs().to(dayjs(time));
 }
+
+export function randomString(e: number) {
+  e = e || 32;
+  const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
+  const a = t.length;
+  let n = "";
+  for (let i = 0; i < e; i += 1) {
+    n += t.charAt(Math.floor(Math.random() * a));
+  }
+  return n;
+}

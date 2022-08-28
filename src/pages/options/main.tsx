@@ -6,9 +6,11 @@ import "uno.css";
 import "@arco-design/web-react/dist/css/arco.css";
 import ConnectInternal from "@App/app/connect/internal";
 import ScriptController from "@App/app/service/script/controller";
+import migrate from "@App/app/migrate";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
 
+migrate();
 registerEditor();
 
 // 扩展连接

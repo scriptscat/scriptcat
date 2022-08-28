@@ -1,14 +1,16 @@
+import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
+import Subscribe from "@App/pages/options/routes/Subscribe";
 import { Layout, Menu } from "@arco-design/web-react";
 import {
   IconCode,
-  IconSubscribe,
   IconFile,
-  IconTool,
   IconSettings,
+  IconSubscribe,
+  IconTool,
 } from "@arco-design/web-react/icon";
 import React, { useState } from "react";
-import { HashRouter, Link, Routes, Route } from "react-router-dom";
+import { HashRouter, Link, Route, Routes } from "react-router-dom";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -59,13 +61,15 @@ const Sider: React.FC = () => {
         </Menu>
       </Layout.Sider>
       <Layout.Content
-        className="p-4"
         style={{
           borderLeft: "1px solid var(--color-bg-5)",
+          overflowY: "scroll",
         }}
       >
         <Routes>
           <Route index element={<ScriptList />} />
+          <Route path="/script/editor/:id" element={<ScriptEditor />} />
+          <Route path="/subscribe" element={<Subscribe />} />
         </Routes>
       </Layout.Content>
     </HashRouter>

@@ -2,6 +2,8 @@ import { v5 as uuidv5 } from "uuid";
 import { Metadata, Script, UserConfig } from "@App/app/repo/scripts";
 import YAML from "yaml";
 import { Subscribe } from "@App/app/repo/subscribe";
+import Logger from "@App/app/logger/logger";
+import LoggerCore from "@App/app/logger/core";
 
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
@@ -119,4 +121,58 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   ret.checktime = old.checktime;
   ret.error = old.error;
   return ret;
+}
+
+export function blobToBase64(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+export function blobToText(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.readAsText(blob);
+  });
+}
+
+export function base64ToBlob(dataURI: string) {
+  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
+  const byteString = atob(dataURI.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+
+  for (let i = 0; i < byteString.length; i += 1) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mimeString });
+}
+
+export function base64ToStr(base64: string): string {
+  try {
+    return decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => {
+          return `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`;
+        })
+        .join("")
+    );
+  } catch (e) {
+    LoggerCore.getInstance()
+      .logger({ utils: "base64ToStr" })
+      .debug("base64 to string failed", Logger.E(e));
+  }
+  return "";
+}
+
+export function strToBase64(str: string): string {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
+      return String.fromCharCode(parseInt(`0x${p1}`, 16));
+    })
+  );
 }
