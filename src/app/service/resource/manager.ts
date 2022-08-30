@@ -28,7 +28,9 @@ export class ResourceManager extends Manager {
     }
     this.resourceDAO = new ResourceDAO();
     this.resourceLinkDAO = new ResourceLinkDAO();
-    this.logger = LoggerCore.getInstance().logger({ manager: "resource" });
+    this.logger = LoggerCore.getInstance().logger({
+      component: "resource",
+    });
   }
 
   public async getResource(

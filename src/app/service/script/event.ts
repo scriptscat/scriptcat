@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import Cache from "../../cache";
-import { ScriptDAO, Script, SCRIPT_STATUS_ENABLE } from "../../repo/scripts";
+import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
 import Hook from "../hook";
 import ScriptManager from "./manager";
 
@@ -29,7 +29,7 @@ export default class ScriptEventListener {
     this.manager = manager;
     this.dao = dao;
     this.cache = Cache.getInstance();
-    this.logger = LoggerCore.getInstance().logger({ manager: "script" });
+    this.logger = LoggerCore.getInstance().logger({ component: "script" });
     Object.keys(events).forEach((event) => {
       this.manager.listenEvent(`script-${event}`, events[event].bind(this));
     });

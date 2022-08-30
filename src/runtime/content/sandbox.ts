@@ -6,7 +6,8 @@ import {
   SCRIPT_TYPE_CRONTAB,
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
-import { CronJob, CronTime } from "cron";
+import { CronJob } from "cron";
+import ExecScript from "./exec_script";
 
 type SandboxEvent = "enable" | "disable";
 
@@ -20,11 +21,11 @@ export default class SandboxRuntime {
 
   cronJob: Map<number, Array<CronJob>> = new Map();
 
-  runningScript: Map<number, boolean> = new Map();
+  execScripts: Map<number, ExecScript> = new Map();
 
   constructor(con: ConnectSandbox) {
     this.connect = con;
-    this.logger = LoggerCore.getInstance().logger({ script: "sandbox" });
+    this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
   }
 
   listenEvent(event: SandboxEvent, handler: Handler) {
@@ -36,6 +37,7 @@ export default class SandboxRuntime {
   // 开启沙盒运行环境,监听background来的请求
   start() {
     this.listenEvent("enable", this.enable);
+    this.listenEvent("disable", this.disable);
   }
 
   enable(script: ScriptRunResouce): Promise<boolean> {
@@ -52,12 +54,29 @@ export default class SandboxRuntime {
     }
   }
 
-  backgroundScript(script: ScriptRunResouce) {
-    this.runningScript.set(script.id, true);
-    return this.execScript(script);
+  disable(id: number): Promise<boolean> {
+    if (!this.execScripts.has(id)) {
+      return Promise.resolve(false);
+    }
+    // 停止脚本运行,主要是停止定时器
+    // 后续考虑停止正在运行的脚本的方法
+    // 现期对于正在运行的脚本仅仅是在background中判断是否运行
+    // 未运行的脚本不处理GMApi的请求
+    const list = this.cronJob.get(id);
+    if (list) {
+      list.forEach((val) => {
+        val.stop();
+      });
+      this.cronJob.delete(id);
+    }
+    return Promise.resolve(true);
   }
 
-  execScript(script: ScriptRunResouce) {}
+  backgroundScript(script: ScriptRunResouce) {
+    const exec = new ExecScript(script);
+    this.execScripts.set(script.id, exec);
+    return exec.exec();
+  }
 
   crontabScript(script: ScriptRunResouce) {
     // 执行定时脚本 运行表达式
@@ -65,6 +84,7 @@ export default class SandboxRuntime {
       throw new Error("错误的crontab表达式");
     }
     let flag = false;
+    const exec = new ExecScript(script);
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;
@@ -82,7 +102,10 @@ export default class SandboxRuntime {
         crontab = crontab.replace(/once/g, "*");
       }
       try {
-        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        const cron = new CronJob(
+          crontab,
+          this.crontabExec(script, oncePos, exec)
+        );
         cronJobList.push(cron);
       } catch (e) {
         flag = true;
@@ -98,18 +121,18 @@ export default class SandboxRuntime {
         crontab.stop();
       });
     } else {
-      this.runningScript.set(script.id, true);
+      this.execScripts.set(script.id, exec);
       this.cronJob.set(script.id, cronJobList);
     }
     return Promise.resolve(!flag);
   }
 
-  crontabExec(script: ScriptRunResouce, oncePos: number) {
+  crontabExec(script: ScriptRunResouce, oncePos: number, exec: ExecScript) {
     if (oncePos) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
         if (!script.lastruntime) {
-          this.execScript(script);
+          exec.exec();
           return;
         }
         const now = new Date();

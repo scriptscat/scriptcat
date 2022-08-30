@@ -37,7 +37,7 @@ export default class Logger {
     if (this.core.debug) {
       // eslint-disable-next-line no-console
       console.trace(
-        "%s [%s] msg=%s label=%s",
+        "%s [%s] component=%s msg=%s label=%s",
         dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
         level,
         message,
@@ -47,7 +47,7 @@ export default class Logger {
   }
 
   with(...label: LogLabel[]) {
-    return new Logger(this.core, ...this.label, ...label);
+    return new Logger(this.core, this.component, ...this.label, ...label);
   }
 
   debug(message: string, ...label: LogLabel[]) {

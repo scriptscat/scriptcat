@@ -69,7 +69,7 @@ export class ResourceDAO extends DAO<Resource> {
     super();
     this.table = db.table(this.tableName);
     this.resourceLinkDAO = new ResourceLinkDAO();
-    this.logger = LoggerCore.getInstance().logger({ DAO: "resource" });
+    this.logger = LoggerCore.getInstance().logger({ component: "resource" });
   }
 
   public async addResource(url: string, scriptId: number): Promise<Resource> {

@@ -1,9 +1,10 @@
 import { LogLabel, LogLevel } from "../logger/core";
-import { db, DAO } from "./dao";
+import { DAO, db } from "./dao";
 
 export interface Logger {
   id: number;
   level: LogLevel;
+  component?: string;
   message: string;
   label: LogLabel;
   createtime: number;

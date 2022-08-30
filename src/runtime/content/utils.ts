@@ -18,8 +18,135 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
   )}\n})(context)`;
 }
 
-// 构建运行沙盒运行环境
-export function buildSandbox(context: any, code: string) {}
+export type ScriptFunc = (context: any) => any;
+// 通过脚本代码编译脚本函数
+export function compileScript(code: string): ScriptFunc {
+  return new Function("context", code);
+}
+
+const writables: { [key: string]: any } = {
+  addEventListener: global.addEventListener,
+  removeEventListener: global.removeEventListener,
+  dispatchEvent: global.dispatchEvent,
+};
+
+// 记录初始的
+const init = new Map<string, boolean>();
+
+// 复制原有的,防止被前端网页复写
+const descs = Object.getOwnPropertyDescriptors(global);
+Object.keys(descs).forEach((key) => {
+  const desc = descs[key];
+  if (desc && desc.writable && !writables[key]) {
+    writables[key] = desc.value;
+  } else {
+    init.set(key, true);
+  }
+});
 
 // 构建沙盒上下文
-export function buildContext() {}
+export function buildContext(global: any, context: any) {
+  const special = Object.assign(writables);
+  // 后台脚本要不要考虑不能使用eval?
+  const thisContext = { eval: global.eval };
+  const proxy = new Proxy(context, {
+    defineProperty(_, name, desc) {
+      if (Object.defineProperty(context, name, desc)) {
+        return true;
+      }
+      return false;
+    },
+    get(_, name) {
+      switch (name) {
+        case "window":
+        case "self":
+        // case 'global':
+        case "globalThis":
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return special.global || proxy;
+        case "top":
+        case "parent":
+          if (global[name] === global.self) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return special.global || proxy;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return global.top;
+        default:
+          break;
+      }
+      if (typeof name === "string" && name !== "undefined") {
+        if (context[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return context[name];
+        }
+        if (thisContext[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return thisContext[name];
+        }
+        if (special[name] !== undefined) {
+          if (
+            typeof special[name] === "function" &&
+            !(<EmptyFunction>special[name]).prototype
+          ) {
+            return (<EmptyFunction>special[name]).bind(global);
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return special[name];
+        }
+        if (global[name] !== undefined) {
+          if (
+            typeof global[name] === "function" &&
+            !(<EmptyFunction>global[name]).prototype
+          ) {
+            return (<EmptyFunction>global[name]).bind(global);
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return global[name];
+        }
+      }
+      return undefined;
+    },
+    has(_, name) {
+      return true;
+    },
+    set(_, name: string, val) {
+      switch (name) {
+        case "window":
+        case "self":
+        // case 'global':
+        case "globalThis":
+          special.global = val;
+          return true;
+      }
+      if (special[name]) {
+        special[name] = val;
+        return true;
+      }
+      if (init.has(name)) {
+        const des = Object.getOwnPropertyDescriptor(global, name);
+        // 只读的return
+        if (des && des.get && !des.set && des.configurable) {
+          return true;
+        }
+        global[name] = val;
+        return true;
+      }
+      context[name] = val;
+      return true;
+    },
+    getOwnPropertyDescriptor(_, name) {
+      try {
+        let ret = Object.getOwnPropertyDescriptor(context, name);
+        if (ret) {
+          return ret;
+        }
+        ret = Object.getOwnPropertyDescriptor(global, name);
+        return ret;
+      } catch (e) {
+        return undefined;
+      }
+    },
+  });
+  return proxy;
+}

@@ -7,7 +7,7 @@ module.exports = {
           version: 3,
         },
         useBuiltIns: "entry",
-        targets: { chrome: "68", firefox: "60" },
+        // targets: "> 0.5%, last 2 versions, Firefox ESR, not dead",
       },
       "@babel/preset-typescript",
     ],

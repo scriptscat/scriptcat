@@ -33,7 +33,7 @@ export default class Runtime {
     this.connectSandbox = connectSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
-    this.logger = LoggerCore.getInstance().logger({ script: "runtime" });
+    this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
   }
 
   // 脚本发生变动
