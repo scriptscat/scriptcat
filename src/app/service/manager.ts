@@ -1,11 +1,11 @@
-import ConnectCenter from "../connect/center";
+import MessageCenter from "../message/center";
 
 type Handler = (data: any) => void | Promise<any>;
 
 export default class Manager {
-  center: ConnectCenter;
+  center: MessageCenter;
 
-  constructor(center: ConnectCenter) {
+  constructor(center: MessageCenter) {
     this.center = center;
   }
 

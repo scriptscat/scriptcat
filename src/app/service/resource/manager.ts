@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop */
-import ConnectCenter from "@App/app/connect/center";
+import MessageCenter from "@App/app/message/center";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { Resource, ResourceDAO } from "@App/app/repo/resource";
@@ -21,7 +21,7 @@ export class ResourceManager extends Manager {
 
   logger: Logger;
 
-  constructor(center: ConnectCenter) {
+  constructor(center: MessageCenter) {
     super(center);
     if (!ResourceManager.instance) {
       ResourceManager.instance = this;

@@ -11,7 +11,7 @@ export default class Cache {
 
   private constructor() {
     this.lru = new LRU<string, any>({
-      max: 1000,
+      max: 10000,
       ttl: 1000 * 60 * 60,
       allowStale: false,
       updateAgeOnGet: false,

@@ -1,20 +1,20 @@
 import { v4 as uuidv4 } from "uuid";
-import { Connect, Handler, SendResponse, Stream } from "./connect";
+import { Connect, Handler, Message } from "./message";
 
 // 用于扩展页与沙盒页通讯,使用postMessage,由于是使用的window.postMessage
 // 所以background和sandbox页都是使用此对象,没有区分
-export default class ConnectSandbox implements Connect {
-  static instance: ConnectSandbox;
+export default class MessageSandbox implements Message {
+  static instance: MessageSandbox;
 
   static getInstance() {
-    return ConnectSandbox.instance;
+    return MessageSandbox.instance;
   }
 
   window: Window;
 
   handler: Map<string, Handler>;
 
-  stream: Map<string, Stream> = new Map();
+  stream: Map<string, Connect> = new Map();
 
   constructor(_window: Window) {
     this.window = _window;
@@ -25,11 +25,15 @@ export default class ConnectSandbox implements Connect {
         const streamHandler = this.stream.get(stream);
         if (streamHandler) {
           if (message.data.error) {
-            streamHandler.catch(message.data.error);
-          } else {
+            if (streamHandler.catch) {
+              streamHandler.catch(message.data.error);
+            }
+          } else if (streamHandler.handler) {
             streamHandler.handler(message.data);
           }
-          this.stream.delete(message.data.stream);
+          if (!message.data.connect) {
+            this.stream.delete(message.data.stream);
+          }
           return;
         }
         const handler = this.handler.get(message.data.action);
@@ -77,9 +81,24 @@ export default class ConnectSandbox implements Connect {
         handler(message.data.action, message.data.data);
       }
     });
-    if (!ConnectSandbox.instance) {
-      ConnectSandbox.instance = this;
+    if (!MessageSandbox.instance) {
+      MessageSandbox.instance = this;
     }
+  }
+
+  nativeSend(data: any): void {
+    this.window.postMessage(data, "*");
+  }
+
+  connect(): Connect {
+    const stream = uuidv4();
+    const connect = new Connect(this, stream);
+    this.stream.set(stream, connect);
+    return connect;
+  }
+
+  disconnect(connect: Connect) {
+    this.stream.delete(connect.flag);
   }
 
   syncSend(action: string, data: any): Promise<any> {
@@ -87,7 +106,7 @@ export default class ConnectSandbox implements Connect {
       const stream = uuidv4();
       this.stream.set(
         stream,
-        new Stream(
+        new Connect(
           (resp) => {
             resolve(resp);
           },

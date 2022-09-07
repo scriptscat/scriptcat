@@ -59,7 +59,7 @@ declare function GM_listValues(): string[];
 
 declare function GM_addValueChangeListener(
   name: string,
-  listener: GM_Types.ValueChangeListener
+  listener: GMTypes.ValueChangeListener
 ): number;
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
@@ -68,7 +68,7 @@ declare function GM_setValue(name: string, value: any): void;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
-declare function GM_log(message: string, level?: GM_Types.LoggerLevel): any;
+declare function GM_log(message: string, level?: GMTypes.LoggerLevel): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
@@ -91,22 +91,22 @@ declare interface tab {
 
 declare function GM_openInTab(
   url: string,
-  options: GM_Types.OpenTabOptions
+  options: GMTypes.OpenTabOptions
 ): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
 declare function GM_openInTab(url: string): tab;
 
 declare function GM_xmlhttpRequest(
-  details: GM_Types.XHRDetails
-): GM_Types.AbortHandle<void>;
+  details: GMTypes.XHRDetails
+): GMTypes.AbortHandle<void>;
 
 declare function GM_download(
-  details: GM_Types.DownloadDetails
-): GM_Types.AbortHandle<boolean>;
+  details: GMTypes.DownloadDetails
+): GMTypes.AbortHandle<boolean>;
 declare function GM_download(
   url: string,
   filename: string
-): GM_Types.AbortHandle<boolean>;
+): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => any): void;
 declare function GM_saveTab(obj: object): void;
@@ -115,19 +115,19 @@ declare function GM_getTabs(
 ): void;
 
 declare function GM_notification(
-  details: GM_Types.NotificationDetails,
-  ondone?: GM_Types.NotificationOnDone
+  details: GMTypes.NotificationDetails,
+  ondone?: GMTypes.NotificationOnDone
 ): void;
 declare function GM_notification(
   text: string,
   title: string,
   image: string,
-  onclick?: GM_Types.NotificationOnClick
+  onclick?: GMTypes.NotificationOnClick
 ): void;
 declare function GM_closeNotification(id: string): void;
 declare function GM_updateNotification(
   id: string,
-  details: GM_Types.NotificationDetails
+  details: GMTypes.NotificationDetails
 ): void;
 
 declare function GM_setClipboard(
@@ -137,9 +137,9 @@ declare function GM_setClipboard(
 
 // name和domain不能都为空
 declare function GM_cookie(
-  action: GM_Types.CookieAction,
-  details: GM_Types.CookieDetails,
-  ondone: (cookie: GM_Types.Cookie[], error: any | undefined) => void
+  action: GMTypes.CookieAction,
+  details: GMTypes.CookieDetails,
+  ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
 ): void;
 // 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
 declare function GM_getCookieStore(
@@ -167,7 +167,7 @@ declare namespace CAT_Types {
   }
 }
 
-declare namespace GM_Types {
+declare namespace GMTypes {
   // store为获取隐身窗口之类的cookie
   type CookieAction = "list" | "delete" | "set" | "store";
 

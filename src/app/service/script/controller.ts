@@ -17,7 +17,7 @@ import {
   ScriptInfo,
 } from "@App/utils/script";
 import { nextTime } from "@App/utils/utils";
-import ConnectInternal from "../../connect/internal";
+import MessageInternal from "../../message/internal";
 import { ScriptEvent } from "./event";
 
 // 脚本控制器,主要负责与manager交互,控制器发送消息给manager,manager进行处理
@@ -32,9 +32,9 @@ export default class ScriptController {
 
   subscribeDAO: SubscribeDAO = new SubscribeDAO();
 
-  internal: ConnectInternal;
+  internal: MessageInternal;
 
-  constructor(internal: ConnectInternal) {
+  constructor(internal: MessageInternal) {
     this.internal = internal;
     if (!ScriptController.instance) {
       ScriptController.instance = this;

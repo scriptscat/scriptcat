@@ -1,8 +1,8 @@
-import { Connect, Handler } from "./connect";
+import { Message, Handler } from "./message";
 
 // content与页面通讯,使用CustomEvent
-export default class ConnectContent implements Connect {
-  static instance: ConnectContent;
+export default class MessageContent implements Message {
+  static instance: MessageContent;
 
   static getInstance() {
     return this.instance;

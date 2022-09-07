@@ -4,7 +4,7 @@ import registerEditor from "@App/utils/monaco-editor";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
 import "@arco-design/web-react/dist/css/arco.css";
-import ConnectInternal from "@App/app/connect/internal";
+import MessageInternal from "@App/app/message/internal";
 import ScriptController from "@App/app/service/script/controller";
 import migrate from "@App/app/migrate";
 import MainLayout from "../components/layout/MainLayout";
@@ -14,7 +14,7 @@ migrate();
 registerEditor();
 
 // 扩展连接
-const con = new ConnectInternal("options");
+const con = new MessageInternal("options");
 // 脚本控制器
 // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
 const scriptCtrl = new ScriptController(con);

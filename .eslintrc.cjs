@@ -18,6 +18,9 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
+  globals: {
+    GMTypes: "readonly",
+  },
   plugins: ["react", "@typescript-eslint", "prettier"],
   rules: {
     "react/jsx-filename-extension": [1, { extensions: [".tsx"] }],

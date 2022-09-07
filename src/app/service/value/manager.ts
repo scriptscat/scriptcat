@@ -1,6 +1,7 @@
-import ConnectCenter from "@App/app/connect/center";
+import MessageCenter from "@App/app/message/center";
 import { Script } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
+import { keyScriptValue } from "@App/utils/cache_key";
 import Cache from "../../cache";
 import Manager from "../manager";
 
@@ -14,7 +15,7 @@ export class ValueManager extends Manager {
 
   valueDAO: ValueDAO;
 
-  constructor(center: ConnectCenter) {
+  constructor(center: MessageCenter) {
     super(center);
     if (!ValueManager.instance) {
       ValueManager.instance = this;
@@ -26,15 +27,12 @@ export class ValueManager extends Manager {
   public async getScriptValues(
     script: Script
   ): Promise<{ [key: string]: Value }> {
-    let key = "";
-    if (script.metadata.storagename) {
-      key = `value:storagename:${script.metadata.storagename[0]}`;
-    } else {
-      key = `value:${script.id.toString()}`;
-    }
-    return Cache.getInstance().getOrSet(key, () => {
-      return this.getValues(script);
-    });
+    return Cache.getInstance().getOrSet(
+      keyScriptValue(script.id, script.metadata.storagename),
+      () => {
+        return this.getValues(script);
+      }
+    );
   }
 
   public async getValues(script: Script): Promise<{ [key: string]: Value }> {

@@ -12,7 +12,7 @@
     "pack": "node ./build/pack.js"
   },
   "dependencies": {
-    "@arco-design/web-react": "^2.39.0",
+    "@arco-design/web-react": "^2.39.3",
     "axios": "^0.27.2",
     "cron": "^2.1.0",
     "crypto-js": "^4.1.1",

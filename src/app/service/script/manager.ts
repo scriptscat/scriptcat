@@ -1,7 +1,8 @@
 import { fetchScriptInfo } from "@App/utils/script";
 import Runtime from "@App/runtime/background/runtime";
 import Cache from "@App/app/cache";
-import ConnectCenter from "../../connect/center";
+import { keyScriptInfo } from "@App/utils/cache_key";
+import MessageCenter from "../../message/center";
 import Manager from "../manager";
 import { SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
@@ -20,7 +21,7 @@ export class ScriptManager extends Manager {
 
   runtime: Runtime;
 
-  constructor(center: ConnectCenter, runtime: Runtime) {
+  constructor(center: MessageCenter, runtime: Runtime) {
     super(center);
     if (!ScriptManager.instance) {
       ScriptManager.instance = this;
@@ -72,11 +73,7 @@ export class ScriptManager extends Manager {
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
     fetchScriptInfo(req.url, "user")
       .then((info) => {
-        Cache.getInstance().set(
-          `script:info:${info.uuid}`,
-          info,
-          1000 * 60 * 60
-        );
+        Cache.getInstance().set(keyScriptInfo(info.uuid), info, 1000 * 60 * 60);
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });

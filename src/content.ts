@@ -1,5 +1,5 @@
-import ConnectInternal from "./app/connect/internal";
+import MessageInternal from "./app/message/internal";
 
-const con = new ConnectInternal("connect");
+const con = new MessageInternal("content");
 
 console.log(con);

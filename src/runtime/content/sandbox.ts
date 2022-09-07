@@ -1,4 +1,4 @@
-import ConnectSandbox from "@App/app/connect/sandbox";
+import MessageSandbox from "@App/app/message/sandbox";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
@@ -15,7 +15,7 @@ type Handler = (data: any) => Promise<any>;
 
 // 沙盒运行环境
 export default class SandboxRuntime {
-  connect: ConnectSandbox;
+  connect: MessageSandbox;
 
   logger: Logger;
 
@@ -23,7 +23,7 @@ export default class SandboxRuntime {
 
   execScripts: Map<number, ExecScript> = new Map();
 
-  constructor(con: ConnectSandbox) {
+  constructor(con: MessageSandbox) {
     this.connect = con;
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
   }
@@ -55,13 +55,15 @@ export default class SandboxRuntime {
   }
 
   disable(id: number): Promise<boolean> {
-    if (!this.execScripts.has(id)) {
+    const exec = this.execScripts.get(id);
+    if (!exec) {
       return Promise.resolve(false);
     }
     // 停止脚本运行,主要是停止定时器
     // 后续考虑停止正在运行的脚本的方法
     // 现期对于正在运行的脚本仅仅是在background中判断是否运行
     // 未运行的脚本不处理GMApi的请求
+    exec.stop();
     const list = this.cronJob.get(id);
     if (list) {
       list.forEach((val) => {
@@ -73,7 +75,7 @@ export default class SandboxRuntime {
   }
 
   backgroundScript(script: ScriptRunResouce) {
-    const exec = new ExecScript(script);
+    const exec = new ExecScript(script, MessageSandbox.getInstance());
     this.execScripts.set(script.id, exec);
     return exec.exec();
   }
@@ -84,7 +86,7 @@ export default class SandboxRuntime {
       throw new Error("错误的crontab表达式");
     }
     let flag = false;
-    const exec = new ExecScript(script);
+    const exec = new ExecScript(script, MessageSandbox.getInstance().connect());
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;
@@ -104,7 +106,7 @@ export default class SandboxRuntime {
       try {
         const cron = new CronJob(
           crontab,
-          this.crontabExec(script, oncePos, exec)
+          SandboxRuntime.crontabExec(script, oncePos, exec)
         );
         cronJobList.push(cron);
       } catch (e) {
@@ -127,7 +129,11 @@ export default class SandboxRuntime {
     return Promise.resolve(!flag);
   }
 
-  crontabExec(script: ScriptRunResouce, oncePos: number, exec: ExecScript) {
+  static crontabExec(
+    script: ScriptRunResouce,
+    oncePos: number,
+    exec: ExecScript
+  ) {
     if (oncePos) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
@@ -158,12 +164,12 @@ export default class SandboxRuntime {
           default:
         }
         if (flag) {
-          this.execScript(script);
+          exec.exec();
         }
       };
     }
     return () => {
-      this.execScript(script);
+      exec.exec();
     };
   }
 

@@ -1,6 +1,5 @@
 // eslint-disable-next-line max-classes-per-file
 import Dexie from "dexie";
-import Logger from "../logger/logger";
 
 export const db = new Dexie("ScriptCat");
 

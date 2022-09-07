@@ -1,6 +1,6 @@
 // 脚本运行时,主要负责脚本的加载和匹配
 // 油猴脚本将监听页面的创建,将代码注入到页面中
-import ConnectSandbox from "@App/app/connect/sandbox";
+import MessageSandbox from "@App/app/message/sandbox";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
@@ -16,7 +16,7 @@ import { compileScriptCode } from "../content/utils";
 
 // 后台脚本将会将代码注入到沙盒中
 export default class Runtime {
-  connectSandbox: ConnectSandbox;
+  connectSandbox: MessageSandbox;
 
   resourceManager: ResourceManager;
 
@@ -25,7 +25,7 @@ export default class Runtime {
   logger: Logger;
 
   constructor(
-    connectSandbox: ConnectSandbox,
+    connectSandbox: MessageSandbox,
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
@@ -57,9 +57,9 @@ export default class Runtime {
   // 脚本关闭
   disable(script: Script): Promise<boolean> {
     if (script.metadata.background || script.metadata.crontab) {
-      this.unloadBackgroundScript(script);
+      return this.unloadBackgroundScript(script);
     } else {
-      this.unloadPageScript(script);
+      return this.unloadPageScript(script);
     }
   }
 

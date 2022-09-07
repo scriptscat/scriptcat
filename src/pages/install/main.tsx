@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import registerEditor from "@App/utils/monaco-editor";
 import "@arco-design/web-react/dist/css/arco.css";
-import ConnectInternal from "@App/app/connect/internal";
+import MessageInternal from "@App/app/message/internal";
 import ScriptController from "@App/app/service/script/controller";
 import migrate from "@App/app/migrate";
 // eslint-disable-next-line import/no-unresolved
@@ -13,7 +13,7 @@ import MainLayout from "../components/layout/MainLayout";
 migrate();
 registerEditor();
 
-const con = new ConnectInternal("options");
+const con = new MessageInternal("options");
 
 ScriptController.instance = new ScriptController(con);
 

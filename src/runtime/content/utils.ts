@@ -1,4 +1,6 @@
+import { Message } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
+import GMApi, { ApiValue, GMContext } from "./gm_api";
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResouce): string {
@@ -21,7 +23,59 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
 export type ScriptFunc = (context: any) => any;
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return new Function("context", code);
+  // eslint-disable-next-line no-new-func
+  return <ScriptFunc>new Function("context", code);
+}
+
+// 设置api依赖
+function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
+  if (apiVal.param.depend) {
+    for (let i = 0; i < apiVal.param.depend.length; i += 1) {
+      const value = apiVal.param.depend[i];
+      const dependApi = context.getApi(value);
+      if (!dependApi) {
+        return;
+      }
+      if (value.startsWith("GM.")) {
+        const [, t] = value.split(".");
+        (<{ [key: string]: any }>context.GM)[t] = dependApi.api.bind(context);
+      } else {
+        context[value] = dependApi.api.bind(context);
+      }
+      setDepend(context, dependApi);
+    }
+  }
+}
+
+// 构建沙盒上下文
+export function createContext(script: ScriptRunResouce, message: Message) {
+  // 按照GMApi构建
+  const context: { [key: string]: any } = {
+    script,
+    message,
+    valueChangeListener: new Map<
+      number,
+      { name: string; listener: GMTypes.ValueChangeListener }
+    >(),
+    sendMessage: GMApi.prototype.sendMessage,
+    connect: GMApi.prototype.connect,
+  };
+  if (script.metadata.grant) {
+    script.metadata.grant.forEach((val) => {
+      const api = GMContext.apis.get(val);
+      if (!api) {
+        return;
+      }
+      if (val.startsWith("GM.")) {
+        const [, t] = val.split(".");
+        (<{ [key: string]: any }>context.GM)[t] = api.api.bind(context);
+      } else {
+        context[val] = api.api.bind(context);
+      }
+      setDepend(context, api);
+    });
+  }
+  return context;
 }
 
 const writables: { [key: string]: any } = {
@@ -44,11 +98,12 @@ Object.keys(descs).forEach((key) => {
   }
 });
 
-// 构建沙盒上下文
-export function buildContext(global: any, context: any) {
+// 拦截上下文
+export function proxyContext(global: any, context: any) {
   const special = Object.assign(writables);
   // 后台脚本要不要考虑不能使用eval?
-  const thisContext = { eval: global.eval };
+  const thisContext: { [key: string]: any } = { eval: global.eval };
+  // @ts-ignore
   const proxy = new Proxy(context, {
     defineProperty(_, name, desc) {
       if (Object.defineProperty(context, name, desc)) {
@@ -60,7 +115,6 @@ export function buildContext(global: any, context: any) {
       switch (name) {
         case "window":
         case "self":
-        // case 'global':
         case "globalThis":
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return special.global || proxy;
@@ -87,9 +141,9 @@ export function buildContext(global: any, context: any) {
         if (special[name] !== undefined) {
           if (
             typeof special[name] === "function" &&
-            !(<EmptyFunction>special[name]).prototype
+            !(<{ prototype: any }>special[name]).prototype
           ) {
-            return (<EmptyFunction>special[name]).bind(global);
+            return (<{ bind: any }>special[name]).bind(global);
           }
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return special[name];
@@ -97,9 +151,9 @@ export function buildContext(global: any, context: any) {
         if (global[name] !== undefined) {
           if (
             typeof global[name] === "function" &&
-            !(<EmptyFunction>global[name]).prototype
+            !(<{ prototype: any }>global[name]).prototype
           ) {
-            return (<EmptyFunction>global[name]).bind(global);
+            return (<{ bind: any }>global[name]).bind(global);
           }
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return global[name];
@@ -107,17 +161,17 @@ export function buildContext(global: any, context: any) {
       }
       return undefined;
     },
-    has(_, name) {
+    has() {
       return true;
     },
     set(_, name: string, val) {
       switch (name) {
         case "window":
         case "self":
-        // case 'global':
         case "globalThis":
           special.global = val;
           return true;
+        default:
       }
       if (special[name]) {
         special[name] = val;

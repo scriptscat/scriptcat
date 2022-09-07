@@ -1,19 +1,19 @@
 import { v4 as uuidv4 } from "uuid";
-import { Connect, Handler, Stream, Target } from "./connect";
+import { Connect, Handler, Message, Target } from "./message";
 
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
-export default class ConnectInternal implements Connect {
-  static instance: ConnectInternal;
+export default class MessageInternal implements Message {
+  static instance: MessageInternal;
 
   static getInstance() {
-    return ConnectInternal.instance;
+    return MessageInternal.instance;
   }
 
   port: chrome.runtime.Port;
 
   handler: Map<string, Handler>;
 
-  stream: Map<string, Stream> = new Map();
+  connectMap: Map<string, Connect> = new Map();
 
   constructor(tag: string) {
     this.port = chrome.runtime.connect({
@@ -22,20 +22,37 @@ export default class ConnectInternal implements Connect {
     this.handler = new Map();
     this.port.onMessage.addListener((message) => {
       if (message.stream) {
-        const stream = this.stream.get(message.stream);
+        const stream = this.connectMap.get(message.stream);
         if (stream) {
           if (message.error) {
             stream.catch(message.error);
           } else {
             stream.handler(message.data);
           }
-          this.stream.delete(message.stream);
+          if (!message.connect) {
+            this.connectMap.delete(message.stream);
+          }
         }
       }
     });
-    if (!ConnectInternal.instance) {
-      ConnectInternal.instance = this;
+    if (!MessageInternal.instance) {
+      MessageInternal.instance = this;
     }
+  }
+
+  connect(): Connect {
+    const stream = uuidv4();
+    const connect = new Connect(this, stream);
+    this.connectMap.set(stream, connect);
+    return connect;
+  }
+
+  disconnect(connect: Connect): void {
+    this.connectMap.delete(connect.flag);
+  }
+
+  nativeSend(data: any): void {
+    this.port.postMessage(data);
   }
 
   public send(action: string, data: any) {
@@ -49,9 +66,9 @@ export default class ConnectInternal implements Connect {
   public syncSend(action: string, data: any): Promise<any> {
     return new Promise((resolve, reject) => {
       const stream = uuidv4();
-      this.stream.set(
+      this.connectMap.set(
         stream,
-        new Stream(
+        new Connect(
           (resp) => {
             resolve(resp);
           },

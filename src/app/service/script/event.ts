@@ -1,5 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { keyScriptInfo } from "@App/utils/cache_key";
 import Cache from "../../cache";
 import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
 import Hook from "../hook";
@@ -67,7 +68,7 @@ export default class ScriptEventListener {
   @ListenEventDecorator("fetch")
   public fetchInfoHandler(uuid: string) {
     return new Promise((resolve) => {
-      resolve(this.cache.get(`script:info:${uuid}`));
+      resolve(this.cache.get(keyScriptInfo(uuid)));
     });
   }
 
