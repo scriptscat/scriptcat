@@ -6,13 +6,16 @@ type Props = {
   className?: string;
   // eslint-disable-next-line react/require-default-props
   diffCode?: string; // 因为代码加载是异步的,diifCode有3种状态:undefined不确定,""没有diff,有diff,不确定的情况下,编辑器不会加载
+  // eslint-disable-next-line react/require-default-props
+  editable?: boolean;
+  id: string;
   code: string;
 };
 
 const CodeEditor: React.ForwardRefRenderFunction<
   { editor: editor.ICodeEditor | undefined },
   Props
-> = ({ className, code, diffCode }, ref) => {
+> = ({ id, className, code, diffCode, editable }, ref) => {
   const [monacoEditor, setEditor] = useState<any>();
   useImperativeHandle(ref, () => ({
     editor: monacoEditor,
@@ -25,7 +28,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
     // @ts-ignore
     const ts = window.tsUrl ? 0 : 200;
     setTimeout(() => {
-      const div = document.querySelector("#editor") as HTMLDivElement;
+      const div = document.getElementById(id) as HTMLDivElement;
       if (diffCode) {
         edit = editor.createDiffEditor(div, {
           theme:
@@ -58,7 +61,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
           automaticLayout: true,
           overviewRulerBorder: false,
           scrollBeyondLastLine: false,
-          readOnly: true,
+          readOnly: !editable,
         });
         edit.setValue(code);
         setEditor(edit);
@@ -72,13 +75,16 @@ const CodeEditor: React.ForwardRefRenderFunction<
   }, [code, diffCode]);
   return (
     <div
-      id="editor"
+      id={id}
       style={{
         margin: 0,
         padding: 0,
         border: 0,
         width: "100%",
         height: "100%",
+        display: "flex",
+        flexGrow: "1",
+        overflow: "hidden",
       }}
       className={className}
     />

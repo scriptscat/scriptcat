@@ -2,7 +2,12 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { keyScriptInfo } from "@App/utils/cache_key";
 import Cache from "../../cache";
-import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
+import {
+  Script,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
+  ScriptDAO,
+} from "../../repo/scripts";
 import Hook from "../hook";
 import ScriptManager from "./manager";
 
@@ -81,29 +86,40 @@ export default class ScriptEventListener {
           if (!script) {
             return reject(new Error("脚本不存在"));
           }
-          if (script?.status !== SCRIPT_STATUS_ENABLE) {
+          if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
             this.dao.save(script);
+            Hook.getInstance().dispatchHook("script:enable", script);
           }
           return resolve(1);
         })
         .catch((e) => {
-          this.logger.error("enable error", { error: e });
+          this.logger.error("enable error", Logger.E(e));
+          reject(e);
         });
     });
   }
 
   @ListenEventDecorator("disable")
   public disableHandler(id: number) {
-    return new Promise((resolve) => {
-      this.dao.findById(id).then((script) => {
-        if (script?.status === SCRIPT_STATUS_ENABLE) {
-          // script.state = SCRIPT_STATUS_DISABLE;
-          // this.dao.save(script);
-        }
-        resolve(1);
-      });
-      // .catch((e) => {});
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          if (script.status === SCRIPT_STATUS_ENABLE) {
+            script.status = SCRIPT_STATUS_DISABLE;
+            this.dao.save(script);
+            Hook.getInstance().dispatchHook("script:disable", script);
+          }
+          return resolve(1);
+        })
+        .catch((e) => {
+          this.logger.error("disable error", Logger.E(e));
+          reject(e);
+        });
     });
   }
 }

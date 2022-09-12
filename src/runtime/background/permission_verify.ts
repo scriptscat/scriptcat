@@ -60,5 +60,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  verify(script: Script, api: ApiValue): Promise<boolean> {}
+  verify(script: Script, api: ApiValue): Promise<boolean> {
+    return true;
+  }
 }

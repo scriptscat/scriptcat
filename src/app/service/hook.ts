@@ -1,5 +1,5 @@
-type HookID = "script:upsert";
-type Handler = (data: any) => Promise<boolean>;
+export type HookID = "script:upsert" | "script:disable" | "script:enable";
+export type Handler = (id: HookID, data: any) => Promise<boolean>;
 export default class Hook {
   static instance: Hook = new Hook();
 
@@ -21,7 +21,7 @@ export default class Hook {
     }
     return Promise.all(
       this.hookMap[id].map((func) => {
-        return func(data);
+        return func(id, data);
       })
     );
   }

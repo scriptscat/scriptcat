@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
+  Affix,
   Button,
+  Dropdown,
+  Menu,
   Message,
   Switch,
   Table,
@@ -10,27 +13,41 @@ import {
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import {
   Script,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_STATUS_DISABLE,
 } from "@App/app/repo/scripts";
-import { IconClockCircle, IconCommon } from "@arco-design/web-react/icon";
+import {
+  IconClockCircle,
+  IconCommon,
+  IconLink,
+  IconPlus,
+} from "@arco-design/web-react/icon";
 import { nextTime } from "@App/utils/utils";
 import {
   RiBugFill,
   RiDeleteBin5Fill,
+  RiEyeOffLine,
+  RiFileCodeLine,
   RiPencilFill,
   RiPlayFill,
   RiStopFill,
+  RiTerminalBoxLine,
+  RiTerminalLine,
+  RiTimerLine,
 } from "react-icons/ri";
 import { Link } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
+import SpeedDial from "@mui/material/SpeedDial";
+import SpeedDialIcon from "@mui/material/SpeedDialIcon";
+import SpeedDialAction from "@mui/material/SpeedDialAction";
 
 type ListType = Script & { loading?: boolean };
 
 function ScriptList() {
+  // const navigate = useNavigate();
   const [scriptList, setScriptList] = useState<ListType[]>([]);
   const columns: ColumnProps[] = [
     {
@@ -189,6 +206,9 @@ function ScriptList() {
         setScriptList(scripts);
       });
   }, []);
+  // const newScript = (template: string) => {
+  //
+  // };
   return (
     <div>
       <Table
@@ -204,6 +224,41 @@ function ScriptList() {
           type: "checkbox",
         }}
       />
+      <SpeedDial
+        ariaLabel="action"
+        sx={{
+          position: "absolute",
+          bottom: 40,
+          right: 40,
+        }}
+        icon={<SpeedDialIcon />}
+      >
+        <SpeedDialAction
+          className="bg-blue-5! color-light!"
+          icon={<RiEyeOffLine />}
+          tooltipTitle="隐藏按钮"
+        />
+        <SpeedDialAction
+          className="bg-blue-5! color-light!"
+          icon={<RiFileCodeLine />}
+          tooltipTitle="普通脚本"
+        />
+        <SpeedDialAction
+          className="bg-blue-5! color-light!"
+          icon={<RiTerminalBoxLine />}
+          tooltipTitle="后台脚本"
+        />
+        <SpeedDialAction
+          className="bg-blue-5! color-light!"
+          icon={<RiTimerLine />}
+          tooltipTitle="定时脚本"
+        />
+        <SpeedDialAction
+          className="bg-blue-5! color-light!"
+          icon={<IconLink />}
+          tooltipTitle="链接导入"
+        />
+      </SpeedDial>
     </div>
   );
 }

@@ -86,7 +86,7 @@ export default class SandboxRuntime {
       throw new Error("错误的crontab表达式");
     }
     let flag = false;
-    const exec = new ExecScript(script, MessageSandbox.getInstance().connect());
+    const exec = new ExecScript(script, MessageSandbox.getInstance());
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;

@@ -11,6 +11,7 @@ import {
 } from "@arco-design/web-react/icon";
 import React, { useState } from "react";
 import { HashRouter, Link, Route, Routes } from "react-router-dom";
+import CustomLink from "..";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -19,6 +20,7 @@ if (!hash.length) {
 } else {
   hash = hash.substring(1);
 }
+
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
 
@@ -33,31 +35,31 @@ const Sider: React.FC = () => {
             setMenuSelect(key);
           }}
         >
-          <Link to="/">
+          <CustomLink to="/">
             <MenuItem key="/">
-              <IconCode /> 脚本列表
+              <IconCode /> 已安装脚本
             </MenuItem>
-          </Link>
-          <Link to="/subscribe">
+          </CustomLink>
+          <CustomLink to="/subscribe">
             <MenuItem key="/subscribe">
-              <IconSubscribe /> 订阅列表
+              <IconSubscribe /> 订阅
             </MenuItem>
-          </Link>
-          <Link to="/logger">
+          </CustomLink>
+          <CustomLink to="/logger">
             <MenuItem key="/logger">
-              <IconFile /> 运行日志
+              <IconFile /> 日志
             </MenuItem>
-          </Link>
-          <Link to="/tools">
+          </CustomLink>
+          <CustomLink to="/tools">
             <MenuItem key="/tools">
-              <IconTool /> 系统工具
+              <IconTool /> 工具
             </MenuItem>
-          </Link>
-          <Link to="/setting">
+          </CustomLink>
+          <CustomLink to="/setting">
             <MenuItem key="/setting">
-              <IconSettings /> 系统设置
+              <IconSettings /> 设置
             </MenuItem>
-          </Link>
+          </CustomLink>
         </Menu>
       </Layout.Sider>
       <Layout.Content
@@ -68,7 +70,10 @@ const Sider: React.FC = () => {
       >
         <Routes>
           <Route index element={<ScriptList />} />
-          <Route path="/script/editor/:id" element={<ScriptEditor />} />
+          <Route path="/script/editor">
+            <Route path=":id" element={<ScriptEditor />} />
+            <Route path="" element={<ScriptEditor />} />
+          </Route>
           <Route path="/subscribe" element={<Subscribe />} />
         </Routes>
       </Layout.Content>

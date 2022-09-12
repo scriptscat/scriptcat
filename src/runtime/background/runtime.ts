@@ -8,7 +8,7 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
-import Hook from "@App/app/service/hook";
+import Hook, { HookID } from "@App/app/service/hook";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
 import { randomString } from "@App/utils/utils";
@@ -30,6 +30,8 @@ export default class Runtime {
     valueManager: ValueManager
   ) {
     Hook.getInstance().addHook("script:upsert", this.scriptUpdate);
+    Hook.getInstance().addHook("script:enable", this.enable);
+    Hook.getInstance().addHook("script:disable", this.disable);
     this.connectSandbox = connectSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
@@ -37,15 +39,15 @@ export default class Runtime {
   }
 
   // 脚本发生变动
-  scriptUpdate(script: Script): Promise<boolean> {
+  scriptUpdate(id: HookID, script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.enable(script as ScriptRunResouce);
+      return this.enable(id, script as ScriptRunResouce);
     }
-    return this.disable(script);
+    return this.disable(id, script);
   }
 
   // 脚本开启
-  async enable(script: Script): Promise<boolean> {
+  async enable(id: HookID, script: Script): Promise<boolean> {
     // 编译脚本运行资源
     const scriptRes = await this.buildScriptRunResource(script);
     if (scriptRes.metadata.background || scriptRes.metadata.crontab) {
@@ -55,12 +57,11 @@ export default class Runtime {
   }
 
   // 脚本关闭
-  disable(script: Script): Promise<boolean> {
+  disable(id: HookID, script: Script): Promise<boolean> {
     if (script.metadata.background || script.metadata.crontab) {
       return this.unloadBackgroundScript(script);
-    } else {
-      return this.unloadPageScript(script);
     }
+    return this.unloadPageScript(script);
   }
 
   // 加载页面脚本
@@ -75,21 +76,33 @@ export default class Runtime {
 
   // 加载后台脚本
   loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.connectSandbox.syncSend("enable", script).then(
-        (resp) => {
+    return new Promise((resolve, reject) => {
+      this.connectSandbox
+        .syncSend("enable", script)
+        .then((resp) => {
           resolve(resp);
-        },
-        (err) => {
+        })
+        .catch((err) => {
           this.logger.error("后台脚本加载失败", Logger.E(err));
-          resolve(false);
-        }
-      );
+          reject(err);
+        });
     });
   }
 
   // 卸载后台脚本
-  unloadBackgroundScript(script: Script) {}
+  unloadBackgroundScript(script: Script): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.connectSandbox
+        .syncSend("disable", script.id)
+        .then((resp) => {
+          resolve(resp);
+        })
+        .catch((err) => {
+          this.logger.error("后台脚本停止失败", Logger.E(err));
+          reject(err);
+        });
+    });
+  }
 
   async buildScriptRunResource(script: Script): Promise<ScriptRunResouce> {
     const ret: ScriptRunResouce = <ScriptRunResouce>Object.assign(script);

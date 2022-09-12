@@ -125,7 +125,6 @@ export default class ScriptController {
         updatetime: new Date().getTime(),
         checktime: 0,
       };
-      this.scriptDAO.findByUUIDAndSubscribeUrl("123", "123");
       const handler = async () => {
         let old: Script | undefined;
         if (uuid !== undefined) {

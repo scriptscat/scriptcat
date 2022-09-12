@@ -13,6 +13,9 @@
   },
   "dependencies": {
     "@arco-design/web-react": "^2.39.3",
+    "@emotion/react": "^11.10.4",
+    "@emotion/styled": "^11.10.4",
+    "@mui/material": "^5.10.4",
     "axios": "^0.27.2",
     "cron": "^2.1.0",
     "crypto-js": "^4.1.1",

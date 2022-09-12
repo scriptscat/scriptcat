@@ -16,8 +16,9 @@ registerEditor();
 // 扩展连接
 const con = new MessageInternal("options");
 // 脚本控制器
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
 const scriptCtrl = new ScriptController(con);
+
+ScriptController.instance = scriptCtrl;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>

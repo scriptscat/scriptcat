@@ -34,6 +34,7 @@ module.exports = {
     ],
     "no-use-before-define": "off",
     "no-param-reassign": "off",
+    "no-bitwise": "off",
     "@typescript-eslint/no-use-before-define": ["error"],
     "react/function-component-definition": [
       2,
