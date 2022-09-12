@@ -38,7 +38,7 @@ import {
   RiTerminalLine,
   RiTimerLine,
 } from "react-icons/ri";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
 import SpeedDial from "@mui/material/SpeedDial";
 import SpeedDialIcon from "@mui/material/SpeedDialIcon";
@@ -47,7 +47,7 @@ import SpeedDialAction from "@mui/material/SpeedDialAction";
 type ListType = Script & { loading?: boolean };
 
 function ScriptList() {
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
   const [scriptList, setScriptList] = useState<ListType[]>([]);
   const columns: ColumnProps[] = [
     {
@@ -86,7 +86,6 @@ function ScriptList() {
               p.catch((err) => {
                 Message.error(err);
               }).finally(() => {
-                console.log(scriptList);
                 scriptList[index].loading = false;
                 setScriptList([...scriptList]);
               });
@@ -242,16 +241,31 @@ function ScriptList() {
           className="bg-blue-5! color-light!"
           icon={<RiFileCodeLine />}
           tooltipTitle="普通脚本"
+          onClick={() => {
+            navigate("/script/editor");
+          }}
         />
         <SpeedDialAction
           className="bg-blue-5! color-light!"
           icon={<RiTerminalBoxLine />}
           tooltipTitle="后台脚本"
+          onClick={() => {
+            navigate({
+              pathname: "/script/editor",
+              search: "template=background",
+            });
+          }}
         />
         <SpeedDialAction
           className="bg-blue-5! color-light!"
           icon={<RiTimerLine />}
           tooltipTitle="定时脚本"
+          onClick={() => {
+            navigate({
+              pathname: "/script/editor",
+              search: "template=crontab",
+            });
+          }}
         />
         <SpeedDialAction
           className="bg-blue-5! color-light!"

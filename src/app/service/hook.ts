@@ -19,11 +19,20 @@ export default class Hook {
     if (!this.hookMap[id]) {
       return Promise.resolve();
     }
-    return Promise.all(
-      this.hookMap[id].map((func) => {
-        return func(id, data);
-      })
-    );
+    return new Promise((resolve, reject) => {
+      Promise.all(
+        this.hookMap[id].map((func) => {
+          return func(id, { ...data });
+        })
+      ).then(
+        () => {
+          resolve(true);
+        },
+        (e) => {
+          reject(e);
+        }
+      );
+    });
   }
 
   public addHook(id: HookID, func: Handler) {

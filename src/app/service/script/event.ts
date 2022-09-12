@@ -45,28 +45,24 @@ export default class ScriptEventListener {
   @ListenEventDecorator("upsert")
   public upsertHandler(script: Script) {
     return new Promise((resolve, reject) => {
-      this.dao
-        .save(script)
-        .then(() => {
+      const logger = this.logger.with({
+        id: script.id,
+        name: script.name,
+        uuid: script.uuid,
+        version: script.metadata.version[0],
+      });
+
+      this.dao.save(script).then(
+        () => {
+          logger.info("脚本安装成功");
           Hook.getInstance().dispatchHook("script:upsert", script);
-          this.logger.info("脚本安装成功", {
-            id: script.id,
-            name: script.name,
-            uuid: script.uuid,
-            version: script.metadata.version[0],
-          });
           resolve({ id: script.id });
-        })
-        .catch((e) => {
-          this.logger.error("脚本安装失败", {
-            id: script.id,
-            name: script.name,
-            uuid: script.uuid,
-            version: script.metadata.version[0],
-            error: e,
-          });
+        },
+        (e) => {
+          logger.error("脚本安装失败", Logger.E(e));
           reject(e);
-        });
+        }
+      );
     });
   }
 

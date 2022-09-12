@@ -38,7 +38,7 @@ export class ScriptManager extends Manager {
       .where({ status: SCRIPT_STATUS_ENABLE })
       .toArray((items) => {
         items.forEach((item) => {
-          this.runtime.enable(item);
+          this.runtime.enable("script:enable", item);
         });
       });
   }

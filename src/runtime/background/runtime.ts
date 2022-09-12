@@ -12,6 +12,7 @@ import Hook, { HookID } from "@App/app/service/hook";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
 import { randomString } from "@App/utils/utils";
+import MessageCenter from "@App/app/message/center";
 import { compileScriptCode } from "../content/utils";
 
 // 后台脚本将会将代码注入到沙盒中
@@ -29,13 +30,20 @@ export default class Runtime {
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
-    Hook.getInstance().addHook("script:upsert", this.scriptUpdate);
-    Hook.getInstance().addHook("script:enable", this.enable);
-    Hook.getInstance().addHook("script:disable", this.disable);
     this.connectSandbox = connectSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
     this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
+    Hook.getInstance().addHook("script:upsert", this.scriptUpdate.bind(this));
+    Hook.getInstance().addHook("script:enable", this.enable.bind(this));
+    Hook.getInstance().addHook("script:disable", this.disable.bind(this));
+    // 接受消息,注入脚本
+    MessageCenter.getInstance().setHandler(
+      "pageLoad",
+      (action: string, data: any, sender) => {
+        console.log("page load", sender);
+      }
+    );
   }
 
   // 脚本发生变动

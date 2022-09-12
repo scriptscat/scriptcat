@@ -1,5 +1,7 @@
 import MessageInternal from "./app/message/internal";
 
-const con = new MessageInternal("content");
+const message = new MessageInternal("content");
 
-console.log(con);
+console.log(message);
+
+message.send("pageLoad", null);

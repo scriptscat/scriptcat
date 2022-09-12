@@ -1,9 +1,14 @@
-export type Handler = (action: string, data: any) => void | Promise<any>;
+export type Handler = (
+  action: string,
+  data: any,
+  sender?: chrome.runtime.MessageSender
+) => void | Promise<any>;
 
 export type HandlerWithConnect = (
   connect: Connect,
   action: string,
-  data: any
+  data: any,
+  sender?: chrome.runtime.MessageSender
 ) => void | Promise<any>;
 
 export type Target = { tag: string; id?: number[] };

@@ -1,14 +1,8 @@
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
-import List from "@mui/material/List";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import { IconList } from "@arco-design/web-react/icon";
-import ListItemText from "@mui/material/ListItemText";
-import Divider from "@mui/material/Divider";
 import {
   Button,
   Dropdown,
@@ -19,20 +13,29 @@ import {
 } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import ScriptController from "@App/app/service/script/controller";
+import normalTpl from "@App/template/normal.tpl";
+import crontabTpl from "@App/template/crontab.tpl";
+import backgroundTpl from "@App/template/background.tpl";
+import { v4 as uuidv4 } from "uuid";
 
 const { Row } = Grid;
 const { Col } = Grid;
 
 type HotKey = {
   hotKey: number;
-  action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
+  action: (
+    script: Script,
+    index: number,
+    codeEditor: editor.IStandaloneCodeEditor
+  ) => void;
 };
 
 const Editor: React.FC<{
   id: string;
+  index: number;
   script: Script;
   hotKeys: HotKey[];
-}> = ({ id, script, hotKeys }) => {
+}> = ({ id, script, index, hotKeys }) => {
   const [init, setInit] = useState(false);
   const codeEditor = useRef<{ editor: editor.IStandaloneCodeEditor }>(null);
 
@@ -44,9 +47,9 @@ const Editor: React.FC<{
       return () => {};
     }
     hotKeys.forEach((item) => {
-      codeEditor.current?.editor.addCommand(item.hotKey, () =>
-        item.action(script, codeEditor.current!.editor)
-      );
+      codeEditor.current?.editor.addCommand(item.hotKey, () => {
+        item.action(script, index, codeEditor.current!.editor);
+      });
     });
     return () => {
       codeEditor.current?.editor.dispose();
@@ -69,13 +72,18 @@ type EditorMenu = {
   items: {
     title: string;
     hotKey: number;
-    action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+    action: (
+      script: Script,
+      index: number,
+      e: editor.IStandaloneCodeEditor
+    ) => void;
   }[];
 };
 
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = ScriptController.getInstance();
+  const template = useSearchParams()[0].get("template");
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -92,7 +100,7 @@ function ScriptEditor() {
         {
           title: "保存",
           hotKey: KeyMod.CtrlCmd | KeyCode.KeyS,
-          action: (script, e) => {
+          action: (script, index, e) => {
             // 解析code生成新的script并更新
             scriptCtrl
               .prepareScriptByCode(
@@ -103,9 +111,12 @@ function ScriptEditor() {
               .then(
                 (newScript) => {
                   scriptCtrl.upsert(newScript).then(
-                    (resp) => {
-                      console.log(resp);
-                      Message.success("保存成功");
+                    () => {
+                      if (newScript.id === 0) {
+                        Message.success("新建成功,请注意后台脚本不会默认开启");
+                      } else {
+                        Message.success("保存成功");
+                      }
                     },
                     (err) => {
                       Message.error(`保存失败: ${err}`);
@@ -113,7 +124,7 @@ function ScriptEditor() {
                   );
                 },
                 (err) => {
-                  Message.error(`保存失败: ${err}`);
+                  Message.error(`错误的脚本代码: ${err}`);
                 }
               );
           },
@@ -145,11 +156,25 @@ function ScriptEditor() {
           active: true,
           hotKeys,
         });
-        resp = { ...resp };
-        resp.code = "tes";
+        setEditors([...editors]);
+      });
+    } else {
+      let code = "";
+      switch (template) {
+        case "background":
+          code = backgroundTpl;
+          break;
+        case "crontab":
+          code = crontabTpl;
+          break;
+        default:
+          code = normalTpl;
+          break;
+      }
+      scriptCtrl.prepareScriptByCode(code, "", uuidv4()).then((script) => {
         editors.push({
-          script: resp,
-          active: false,
+          script,
+          active: true,
           hotKeys,
         });
         setEditors([...editors]);
@@ -257,7 +282,8 @@ function ScriptEditor() {
                 >
                   <Editor
                     id={`e_${index.toString()}`}
-                    code={item.script.code}
+                    index={index}
+                    script={item.script}
                     hotKeys={item.hotKeys}
                   />
                 </div>

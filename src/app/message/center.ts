@@ -101,7 +101,8 @@ export default class MessageCenter {
             handler(
               new Connect(new PortMessage(port), message.stream),
               message.action,
-              message.data
+              message.data,
+              port.sender
             );
           }
           return;
@@ -109,7 +110,7 @@ export default class MessageCenter {
         const handler = this.handlerMap.get(message.action);
         if (handler) {
           if (message.stream) {
-            const ret = handler(message.action, message.data);
+            const ret = handler(message.action, message.data, port.sender);
             if (ret) {
               ret
                 .then((data: any) => {
@@ -130,7 +131,7 @@ export default class MessageCenter {
               this.logger.warn("handler return is null");
             }
           } else {
-            handler(message.action, message.data);
+            handler(message.action, message.data, port.sender);
           }
         }
       });
