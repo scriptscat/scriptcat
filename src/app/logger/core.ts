@@ -25,16 +25,24 @@ export default class LoggerCore {
 
   debug: boolean = false;
 
-  constructor(config: { level?: LogLevel; debug?: boolean; writer: Writer }) {
+  labels: LogLabel;
+
+  constructor(config: {
+    level?: LogLevel;
+    debug?: boolean;
+    writer: Writer;
+    labels: LogLabel;
+  }) {
     this.writer = config.writer;
     this.level = config.level || this.level;
     this.debug = config.debug || this.debug;
+    this.labels = config.labels || {};
     if (!LoggerCore.instance) {
       LoggerCore.instance = this;
     }
   }
 
   logger(...label: LogLabel[]) {
-    return new Logger(this, ...label);
+    return new Logger(this, this.labels, ...label);
   }
 }

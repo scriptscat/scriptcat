@@ -11,7 +11,15 @@ export type HandlerWithConnect = (
   sender?: chrome.runtime.MessageSender
 ) => void | Promise<any>;
 
-export type Target = { tag: string; id?: number[] };
+export type TargetTag =
+  | "content"
+  | "sandbox"
+  | "popup"
+  | "option"
+  | "install"
+  | "confirm";
+
+export type Target = { tag: TargetTag; id?: number[] };
 
 export type ConnectHandler = (data: any) => void;
 

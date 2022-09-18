@@ -36,7 +36,7 @@ export default class Logger {
     }
     if (this.core.debug) {
       // eslint-disable-next-line no-console
-      console.trace(
+      console.info(
         "%s [%s] msg=%s label=%s",
         dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
         level,
@@ -68,12 +68,15 @@ export default class Logger {
 
   static E(e: any): LogLabel {
     // eslint-disable-next-line no-console
-    console.error(e);
+    console.log(e);
     if (typeof e === "string") {
       return { error: e };
     }
     if (e instanceof Error) {
       return { error: e.message, stack: e.stack || "" };
+    }
+    if (typeof e === "object") {
+      return e;
     }
     return {};
   }

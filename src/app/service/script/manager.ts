@@ -4,7 +4,7 @@ import Cache from "@App/app/cache";
 import { keyScriptInfo } from "@App/utils/cache_key";
 import MessageCenter from "../../message/center";
 import Manager from "../manager";
-import { SCRIPT_STATUS_ENABLE, ScriptDAO } from "../../repo/scripts";
+import { ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
@@ -31,16 +31,9 @@ export class ScriptManager extends Manager {
     this.runtime = runtime;
   }
 
+  // eslint-disable-next-line class-methods-use-this
   public start() {
     ScriptManager.listenInstallRequest();
-    // 启动开启的后台脚本
-    this.scriptDAO.table
-      .where({ status: SCRIPT_STATUS_ENABLE })
-      .toArray((items) => {
-        items.forEach((item) => {
-          this.runtime.enable("script:enable", item);
-        });
-      });
   }
 
   // 监听脚本安装/更新请求

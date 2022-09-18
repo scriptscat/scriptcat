@@ -13,7 +13,7 @@ import MainLayout from "../components/layout/MainLayout";
 migrate();
 registerEditor();
 
-const con = new MessageInternal("options");
+const con = new MessageInternal("install");
 
 ScriptController.instance = new ScriptController(con);
 

@@ -68,7 +68,7 @@ export default class ScriptController {
     url: string,
     uuid?: string
   ): Promise<Script & { oldScript?: Script }> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const metadata = parseMetadata(code);
       if (metadata == null) {
         throw new Error("MetaData信息错误");
@@ -82,7 +82,7 @@ export default class ScriptController {
         try {
           nextTime(metadata.crontab[0]);
         } catch (e) {
-          throw new Error("错误的定时表达式");
+          throw new Error(`错误的定时表达式,请检查: ${metadata.crontab[0]}`);
         }
       } else if (metadata.background !== undefined) {
         type = SCRIPT_TYPE_BACKGROUND;
@@ -139,6 +139,15 @@ export default class ScriptController {
           }
         }
         if (old) {
+          if (
+            (old.type === SCRIPT_TYPE_NORMAL &&
+              script.type !== SCRIPT_TYPE_NORMAL) ||
+            (script.type === SCRIPT_TYPE_NORMAL &&
+              old.type !== SCRIPT_TYPE_NORMAL)
+          ) {
+            reject(new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变"));
+            return;
+          }
           script.oldScript = old;
           script = copyScript(script, old);
         } else {

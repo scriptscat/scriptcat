@@ -1,5 +1,7 @@
 declare let sandbox: Window;
 
+declare let ScriptFlag: string;
+
 type AnyMap = {
   [key: string]: any;
 };

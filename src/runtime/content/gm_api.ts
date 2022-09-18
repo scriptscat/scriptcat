@@ -58,7 +58,7 @@ export default class GMApi {
 
   // 单次回调使用
   public sendMessage(api: string, params: any[]) {
-    return this.message.syncSend("gm_api", {
+    return this.message.syncSend("gmApi", {
       api,
       scriptId: this.script.id,
       params,

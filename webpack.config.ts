@@ -7,7 +7,7 @@ import ESLintPlugin from "eslint-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import CompressionPlugin from "compression-webpack-plugin";
-import { presetUno, presetAttributify } from "unocss";
+import { presetAttributify, presetUno } from "unocss";
 
 const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
@@ -24,8 +24,10 @@ const config: Configuration = {
     install: `${src}/pages/install/main.tsx`,
     background: `${src}/background.ts`,
     sandbox: `${src}/sandbox.ts`,
-    content: `${src}/content.ts`,
     popup: `${src}/pages/popup/main.tsx`,
+
+    content: `${src}/content.ts`,
+    inject: `${src}/inject.ts`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
   },

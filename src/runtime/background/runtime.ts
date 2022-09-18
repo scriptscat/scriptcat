@@ -6,18 +6,23 @@ import Logger from "@App/app/logger/logger";
 import {
   Script,
   SCRIPT_STATUS_ENABLE,
+  SCRIPT_TYPE_NORMAL,
+  ScriptDAO,
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
 import Hook, { HookID } from "@App/app/service/hook";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
-import { randomString } from "@App/utils/utils";
+import { dealScript, randomString } from "@App/utils/utils";
 import MessageCenter from "@App/app/message/center";
+import { UrlInclude, UrlMatch } from "@App/utils/match";
 import { compileScriptCode } from "../content/utils";
 
 // 后台脚本将会将代码注入到沙盒中
 export default class Runtime {
   connectSandbox: MessageSandbox;
+
+  scriptDAO: ScriptDAO;
 
   resourceManager: ResourceManager;
 
@@ -25,23 +30,161 @@ export default class Runtime {
 
   logger: Logger;
 
+  scriptFlag: string;
+
+  match: UrlMatch<ScriptRunResouce> = new UrlMatch();
+
+  include: UrlInclude<ScriptRunResouce> = new UrlInclude();
+
   constructor(
     connectSandbox: MessageSandbox,
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
+    this.scriptDAO = new ScriptDAO();
     this.connectSandbox = connectSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
+    this.scriptFlag = randomString(8);
     this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
     Hook.getInstance().addHook("script:upsert", this.scriptUpdate.bind(this));
+    Hook.getInstance().addHook("script:delete", this.scriptDelete.bind(this));
     Hook.getInstance().addHook("script:enable", this.enable.bind(this));
     Hook.getInstance().addHook("script:disable", this.disable.bind(this));
+
+    this.listenPageLoad();
+  }
+
+  listenPageLoad(): void {
+    this.scriptDAO.table.toArray((items) => {
+      items.forEach((item) => {
+        // 加载所有的脚本
+        if (item.status === SCRIPT_STATUS_ENABLE) {
+          this.enable("script:enable", item);
+        } else if (item.type === SCRIPT_TYPE_NORMAL) {
+          // 只处理未开启的普通页面脚本
+          this.disable("script:disable", item);
+        }
+      });
+    });
     // 接受消息,注入脚本
+    // 获取注入源码
+    const { scriptFlag } = this;
+    let injectedSource = "";
+    fetch(chrome.runtime.getURL("src/inject.js"))
+      .then((resp) => resp.text())
+      .then((source: string) => {
+        injectedSource = dealScript(
+          `(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`
+        );
+      });
+
+    // 监听菜单创建
+
+    // 给popup页面获取运行脚本
+    MessageCenter.getInstance().setHandler(
+      "queryPageScript",
+      (action: string, url: string) => {
+        return Promise.resolve(this.match.match(url));
+      }
+    );
     MessageCenter.getInstance().setHandler(
       "pageLoad",
       (action: string, data: any, sender) => {
-        console.log("page load", sender);
+        return new Promise((resolve) => {
+          if (!sender) {
+            return;
+          }
+          if (!(sender.url && sender.tab && sender.tab.id)) {
+            return;
+          }
+
+          const scripts = this.match.match(sender.url);
+          const filter: ScriptRunResouce[] = [];
+
+          scripts.forEach((script) => {
+            if (script.status !== SCRIPT_STATUS_ENABLE) {
+              return;
+            }
+            if (script.metadata.noframes) {
+              if (sender.frameId !== 0) {
+                return;
+              }
+            }
+            filter.push(script);
+          });
+          if (!filter.length) {
+            return;
+          }
+
+          resolve({ flag: scriptFlag, scripts: filter });
+
+          // 注入运行框架
+          chrome.tabs.executeScript(sender.tab.id, {
+            frameId: sender.frameId,
+            code: `(function(){
+                    let temp = document.createElement('script');
+                    temp.setAttribute('type', 'text/javascript');
+                    temp.innerHTML = "${injectedSource}";
+                    temp.className = "injected-js";
+                    document.documentElement.appendChild(temp)
+                    temp.remove();
+                }())`,
+            runAt: "document_start",
+          });
+          // 注入脚本
+          filter.forEach((script) => {
+            let runAt = "document_idle";
+            if (script.metadata["run-at"]) {
+              [runAt] = script.metadata["run-at"];
+            }
+            switch (runAt) {
+              case "document-body":
+              case "document-menu":
+              case "document-start":
+                runAt = "document_start";
+                break;
+              case "document-end":
+                runAt = "document_end";
+                break;
+              case "document-idle":
+                runAt = "document_idle";
+                break;
+              default:
+                runAt = "document_idle";
+                break;
+            }
+            chrome.tabs.executeScript(sender.tab!.id!, {
+              frameId: sender.frameId,
+              code: `(function(){
+                    let temp = document.createElement('script');
+                    temp.setAttribute('type', 'text/javascript');
+                    temp.innerHTML = "${script.code}";
+                    temp.className = "injected-js";
+                    document.documentElement.appendChild(temp)
+                    temp.remove();
+                }())`,
+              runAt,
+            });
+          });
+
+          // 角标和脚本
+          chrome.browserAction.getBadgeText(
+            {
+              tabId: sender.tab!.id,
+            },
+            (res: string) => {
+              chrome.browserAction.setBadgeText({
+                text: (filter.length + (parseInt(res, 10) || 0)).toString(),
+                tabId: sender.tab!.id,
+              });
+            }
+          );
+          chrome.browserAction.setBadgeBackgroundColor({
+            color: "#4594d5",
+            tabId: sender.tab!.id,
+          });
+        });
       }
     );
   }
@@ -54,11 +197,22 @@ export default class Runtime {
     return this.disable(id, script);
   }
 
+  // 脚本删除
+  scriptDelete(id: HookID, script: Script): Promise<boolean> {
+    if (script.status === SCRIPT_STATUS_ENABLE) {
+      return this.disable(id, script);
+    }
+    // 清理匹配资源
+    this.match.del(<ScriptRunResouce>script);
+    this.include.del(<ScriptRunResouce>script);
+    return Promise.resolve(true);
+  }
+
   // 脚本开启
   async enable(id: HookID, script: Script): Promise<boolean> {
     // 编译脚本运行资源
     const scriptRes = await this.buildScriptRunResource(script);
-    if (scriptRes.metadata.background || scriptRes.metadata.crontab) {
+    if (script.type !== SCRIPT_TYPE_NORMAL) {
       return this.loadBackgroundScript(scriptRes);
     }
     return this.loadPageScript(scriptRes);
@@ -66,7 +220,7 @@ export default class Runtime {
 
   // 脚本关闭
   disable(id: HookID, script: Script): Promise<boolean> {
-    if (script.metadata.background || script.metadata.crontab) {
+    if (script.type !== SCRIPT_TYPE_NORMAL) {
       return this.unloadBackgroundScript(script);
     }
     return this.unloadPageScript(script);
@@ -74,12 +228,47 @@ export default class Runtime {
 
   // 加载页面脚本
   loadPageScript(script: ScriptRunResouce) {
-    return Promise.resolve(false);
+    // 重构code
+    script.code = dealScript(
+      `window['${script.flag}']=function(context){\n${script.code}\n}`
+    );
+
+    this.match.del(<ScriptRunResouce>script);
+    this.include.del(<ScriptRunResouce>script);
+    if (script.metadata.match) {
+      script.metadata.match.forEach((url) => {
+        try {
+          this.match.add(url, script);
+        } catch (e) {
+          this.logger.error("url加载错误", Logger.E(e));
+        }
+      });
+    }
+    if (script.metadata.include) {
+      script.metadata.include.forEach((url) => {
+        try {
+          this.include.add(url, script);
+        } catch (e) {
+          this.logger.error("url加载错误", Logger.E(e));
+        }
+      });
+    }
+    if (script.metadata.exclude) {
+      script.metadata.exclude.forEach((url) => {
+        try {
+          this.include.exclude(url, script);
+          this.match.exclude(url, script);
+        } catch (e) {
+          this.logger.error("url加载错误", Logger.E(e));
+        }
+      });
+    }
+    return Promise.resolve(true);
   }
 
   // 卸载页面脚本
   unloadPageScript(script: Script) {
-    return Promise.resolve(false);
+    return this.loadPageScript(<ScriptRunResouce>script);
   }
 
   // 加载后台脚本

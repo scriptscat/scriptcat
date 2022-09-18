@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { Connect, Handler, Message, Target } from "./message";
+import { Connect, Handler, Message, Target, TargetTag } from "./message";
 
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
 export default class MessageInternal implements Message {
@@ -15,7 +15,7 @@ export default class MessageInternal implements Message {
 
   connectMap: Map<string, Connect> = new Map();
 
-  constructor(tag: string) {
+  constructor(tag: TargetTag) {
     this.port = chrome.runtime.connect({
       name: tag,
     });
@@ -33,6 +33,11 @@ export default class MessageInternal implements Message {
             this.connectMap.delete(message.stream);
           }
         }
+        return;
+      }
+      const handler = this.handler.get(message.action);
+      if (handler) {
+        handler(message.action, message.data);
       }
     });
     if (!MessageInternal.instance) {
@@ -95,6 +100,6 @@ export default class MessageInternal implements Message {
   }
 
   public setHandler(tag: string, handler: Handler) {
-    this.handler.set(handler.name, handler);
+    this.handler.set(tag, handler);
   }
 }

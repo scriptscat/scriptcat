@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  Affix,
   Button,
-  Dropdown,
-  Menu,
   Message,
   Switch,
   Table,
@@ -23,7 +20,6 @@ import {
   IconClockCircle,
   IconCommon,
   IconLink,
-  IconPlus,
 } from "@arco-design/web-react/icon";
 import { nextTime } from "@App/utils/utils";
 import {
@@ -35,7 +31,6 @@ import {
   RiPlayFill,
   RiStopFill,
   RiTerminalBoxLine,
-  RiTerminalLine,
   RiTimerLine,
 } from "react-icons/ri";
 import { Link, useNavigate } from "react-router-dom";

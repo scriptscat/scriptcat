@@ -1,7 +1,8 @@
 // gm api 权限验证
 
 import { PermissionDAO } from "@App/app/repo/permission";
-import { Api } from "./gm_api";
+import { Script } from "@App/app/repo/scripts";
+import { Api, Request } from "./gm_api";
 
 export interface ApiParam {
   // 默认提供的函数
@@ -9,7 +10,7 @@ export interface ApiParam {
   // 是否只有后台环境中才能执行
   background?: boolean;
   // 是否需要弹出页面让用户进行确认
-  // confirm?: (grant: Grant, script: Script) => Promise<ConfirmParam | boolean>;
+  confirm?: (request: Request, script: Script) => Promise<boolean>;
   // 监听方法
   listener?: () => void;
   // 别名
@@ -60,7 +61,26 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  verify(script: Script, api: ApiValue): Promise<boolean> {
-    return true;
+  verify(request: Request, script: Script, api: ApiValue): Promise<boolean> {
+    if (api.param.default) {
+      return Promise.resolve(true);
+    }
+    if (api.param.confirm) {
+      // 需要弹出页面确认
+      this.permissionDAO.find();
+    } else {
+      // 没有其它条件,从metadata.grant中判断
+      const { grant } = script.metadata;
+      if (!grant) {
+        return Promise.reject(new Error(""));
+      }
+      for (let i = 0; i < grant.length; i += 1) {
+        if (grant[i] === request.api) {
+          return Promise.resolve(true);
+        }
+      }
+      return Promise.resolve(false);
+    }
+    return Promise.resolve(true);
   }
 }

@@ -16,9 +16,10 @@ migrate();
 const loggerCore = new LoggerCore({
   debug: process.env.NODE_ENV === "development",
   writer: new DBWriter(new LoggerDAO()),
+  labels: { env: "background" },
 });
 
-loggerCore.logger({ env: "background" }).debug("background start");
+loggerCore.logger().debug("background start");
 // 沙盒通讯
 // eslint-disable-next-line no-undef
 const sandboxConnect = new MessageSandbox(sandbox);

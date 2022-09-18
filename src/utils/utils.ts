@@ -75,3 +75,13 @@ export function randomString(e: number) {
   }
   return n;
 }
+
+export function dealSymbol(source: string): string {
+  source = source.replace(/("|\\)/g, "\\$1");
+  source = source.replace(/(\r\n|\n)/g, "\\n");
+  return source;
+}
+
+export function dealScript(source: string): string {
+  return dealSymbol(source);
+}

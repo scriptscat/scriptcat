@@ -23,6 +23,7 @@ describe("UrlMatch-google", () => {
       "ok2",
     ]);
     expect(url.match("https://www.google.com/foo")).toEqual(["ok1", "ok2"]);
+    expect(url.match("https://www.google.com/foo2")).toEqual(["ok1", "ok2"]);
   });
   it("match3", () => {
     expect(url.match("https://www.google.com/foo/baz/bar")).toEqual([

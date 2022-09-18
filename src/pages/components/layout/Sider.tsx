@@ -10,7 +10,7 @@ import {
   IconTool,
 } from "@arco-design/web-react/icon";
 import React, { useState } from "react";
-import { HashRouter, Link, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import CustomLink from "..";
 
 const MenuItem = Menu.Item;

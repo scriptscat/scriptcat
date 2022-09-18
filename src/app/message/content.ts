@@ -1,4 +1,7 @@
-import { Message, Handler } from "./message";
+import { v4 as uuidv4 } from "uuid";
+import LoggerCore from "../logger/core";
+import Logger from "../logger/logger";
+import { Connect, Handler, Message } from "./message";
 
 // content与页面通讯,使用CustomEvent
 export default class MessageContent implements Message {
@@ -14,6 +17,8 @@ export default class MessageContent implements Message {
 
   handler: Map<string, Handler>;
 
+  connectMap: Map<string, Connect> = new Map();
+
   constructor(eventId: string, isContent: boolean) {
     this.eventId = eventId;
     this.isContent = isContent;
@@ -21,20 +26,98 @@ export default class MessageContent implements Message {
     document.addEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
-        const { detail } = <{ detail: { data: any; action: string } }>event;
-        const handler = this.handler.get(detail.action);
+        const message = (<
+          {
+            detail: {
+              data: any;
+              action: string;
+              stream: string;
+              error: any;
+              connect: boolean;
+            };
+          }
+        >event).detail;
+        if (message.stream) {
+          const stream = this.connectMap.get(message.stream);
+          if (stream) {
+            if (message.error) {
+              stream.catch(message.error);
+            } else {
+              stream.handler(message.data);
+            }
+            if (!message.connect) {
+              this.connectMap.delete(message.stream);
+            }
+          }
+        }
+        const handler = this.handler.get(message.action);
         if (handler) {
-          handler(detail.data.action, detail.data.data);
+          if (message.stream) {
+            const ret = handler(message.action, message.data);
+            if (ret) {
+              ret
+                .then((data: any) => {
+                  this.nativeSend({
+                    action: message.action,
+                    data,
+                    stream: message.stream,
+                  });
+                })
+                .catch((err: Error) => {
+                  this.nativeSend({
+                    action: message.action,
+                    error: Logger.E(err),
+                    stream: message.stream,
+                  });
+                });
+            } else {
+              LoggerCore.getInstance()
+                .logger({ comments: "MessageContent" })
+                .warn("handler return is null");
+            }
+          } else {
+            handler(message.action, message.data);
+          }
         }
       }
     );
+    if (!MessageContent.instance) {
+      MessageContent.instance = this;
+    }
   }
 
-  public send(action: string, data: any) {
-    let detail = <{ action: string; data: any }>{
-      action,
-      data,
-    };
+  syncSend(action: string, data: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const stream = uuidv4();
+      this.connectMap.set(
+        stream,
+        new Connect(
+          (resp) => {
+            resolve(resp);
+          },
+          (err) => {
+            reject(err);
+          }
+        )
+      );
+      this.nativeSend({
+        action,
+        data,
+        stream,
+      });
+    });
+  }
+
+  connect(): Connect {
+    throw new Error("Method not implemented.");
+  }
+
+  disconnect(connect: Connect): void {
+    throw new Error("Method not implemented.");
+  }
+
+  nativeSend(data: any): void {
+    let detail = data;
     if ((<{ cloneInto: any }>(<unknown>window)).cloneInto) {
       try {
         detail = (<
@@ -56,6 +139,13 @@ export default class MessageContent implements Message {
       detail,
     });
     document.dispatchEvent(ev);
+  }
+
+  public send(action: string, data: any) {
+    this.nativeSend({
+      action,
+      data,
+    });
   }
 
   public setHandler(action: string, handler: Handler) {

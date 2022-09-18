@@ -19,28 +19,36 @@ export default class ExecScript {
 
   context: any;
 
-  constructor(script: ScriptRunResouce, message: Message) {
+  constructor(
+    script: ScriptRunResouce,
+    message: Message,
+    scriptFunc?: ScriptFunc
+  ) {
     this.scriptRes = script;
     this.logger = LoggerCore.getInstance().logger({
       component: "exec",
       id: this.scriptRes.id,
       name: this.scriptRes.name,
     });
-    // 构建脚本资源
-    this.scriptFunc = compileScript(this.scriptRes.code);
+    if (scriptFunc) {
+      this.scriptFunc = scriptFunc;
+    } else {
+      // 构建脚本资源
+      this.scriptFunc = compileScript(this.scriptRes.code);
+    }
     // 构建脚本上下文
     this.context = proxyContext(window, createContext(script, message));
   }
 
   exec() {
-    this.logger.info("script start");
+    this.logger.debug("script start");
     this.scriptFunc(this.context);
     return Promise.resolve(true);
   }
 
   // TODO: 实现脚本的停止,资源释放
   stop() {
-    this.logger.info("script stop");
+    this.logger.debug("script stop");
     return true;
   }
 }

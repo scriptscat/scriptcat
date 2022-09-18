@@ -10,9 +10,10 @@ const connectSandbox = new MessageSandbox(top!);
 const loggerCore = new LoggerCore({
   debug: process.env.NODE_ENV === "development",
   writer: new MessageWriter(connectSandbox),
+  labels: { env: "sandbox" },
 });
 
-loggerCore.logger({ env: "sandbox" }).debug("sandbox start");
+loggerCore.logger().debug("sandbox start");
 
 const sandbox = new SandboxRuntime(connectSandbox);
 

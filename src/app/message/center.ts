@@ -80,6 +80,7 @@ export default class MessageCenter {
       let connectMap = this.connectMap.get(port.name);
       if (!connectMap) {
         connectMap = new Map();
+        this.connectMap.set(port.name, connectMap);
       }
       const id = port.sender?.frameId ?? port.sender!.tab!.id!;
       connectMap.set(id, port);
@@ -217,6 +218,14 @@ export default class MessageCenter {
           data,
         });
       });
+    } else if (target.tag === "sandbox") {
+      this.sandbox.postMessage(
+        {
+          action,
+          data,
+        },
+        "*"
+      );
     } else {
       // 同tag广播
       connectMap.forEach((port) => {

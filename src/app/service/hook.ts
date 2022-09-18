@@ -1,4 +1,8 @@
-export type HookID = "script:upsert" | "script:disable" | "script:enable";
+export type HookID =
+  | "script:upsert"
+  | "script:delete"
+  | "script:disable"
+  | "script:enable";
 export type Handler = (id: HookID, data: any) => Promise<boolean>;
 export default class Hook {
   static instance: Hook = new Hook();

@@ -35,6 +35,7 @@
     "background",
     "<all_urls>",
     "contextMenus",
+    "webNavigation",
     "notifications",
     "clipboardWrite",
     "webRequestBlocking"

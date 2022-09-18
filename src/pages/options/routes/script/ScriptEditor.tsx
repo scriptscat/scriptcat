@@ -108,25 +108,23 @@ function ScriptEditor() {
                 script.origin || "",
                 script.uuid
               )
-              .then(
-                (newScript) => {
-                  scriptCtrl.upsert(newScript).then(
-                    () => {
-                      if (newScript.id === 0) {
-                        Message.success("新建成功,请注意后台脚本不会默认开启");
-                      } else {
-                        Message.success("保存成功");
-                      }
-                    },
-                    (err) => {
-                      Message.error(`保存失败: ${err}`);
+              .then((newScript) => {
+                scriptCtrl.upsert(newScript).then(
+                  () => {
+                    if (newScript.id === 0) {
+                      Message.success("新建成功,请注意后台脚本不会默认开启");
+                    } else {
+                      Message.success("保存成功");
                     }
-                  );
-                },
-                (err) => {
-                  Message.error(`错误的脚本代码: ${err}`);
-                }
-              );
+                  },
+                  (err) => {
+                    Message.error(`保存失败: ${err}`);
+                  }
+                );
+              })
+              .catch((err) => {
+                Message.error(`错误的脚本代码: ${err}`);
+              });
           },
         },
       ],

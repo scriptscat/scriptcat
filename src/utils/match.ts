@@ -142,6 +142,7 @@ export class UrlMatch<T> extends Match<T> {
 
   public del(val: T): void {
     super.del(val);
+    this.excludeMatch.del(val);
     this.cache.clear();
   }
 
@@ -230,7 +231,7 @@ export class UrlInclude<T> extends UrlMatch<T> {
       re += u.path.replace(/\*/g, ".*?");
     }
     if (u.search) {
-      re += u.search.replace(/([\?])/g, "\\$1").replace(/\*/g, ".*?");
+      re += u.search.replace(/([\\?])/g, "\\$1").replace(/\*/g, ".*?");
     }
     return `${re.replace(/\//g, "/")}$`;
   }
