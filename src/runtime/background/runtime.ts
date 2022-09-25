@@ -16,6 +16,7 @@ import ValueManager from "@App/app/service/value/manager";
 import { dealScript, randomString } from "@App/utils/utils";
 import MessageCenter from "@App/app/message/center";
 import { UrlInclude, UrlMatch } from "@App/utils/match";
+import { MessageSender } from "@App/app/message/message";
 import { compileScriptCode } from "../content/utils";
 
 // 后台脚本将会将代码注入到沙盒中
@@ -90,12 +91,12 @@ export default class Runtime {
     );
     MessageCenter.getInstance().setHandler(
       "pageLoad",
-      (action: string, data: any, sender) => {
+      (_action: string, data: any, sender: MessageSender) => {
         return new Promise((resolve) => {
           if (!sender) {
             return;
           }
-          if (!(sender.url && sender.tab && sender.tab.id)) {
+          if (!(sender.url && sender.tabId)) {
             return;
           }
 
@@ -120,7 +121,7 @@ export default class Runtime {
           resolve({ flag: scriptFlag, scripts: filter });
 
           // 注入运行框架
-          chrome.tabs.executeScript(sender.tab.id, {
+          chrome.tabs.executeScript(sender.tabId, {
             frameId: sender.frameId,
             code: `(function(){
                     let temp = document.createElement('script');
@@ -154,7 +155,7 @@ export default class Runtime {
                 runAt = "document_idle";
                 break;
             }
-            chrome.tabs.executeScript(sender.tab!.id!, {
+            chrome.tabs.executeScript(sender.tabId!, {
               frameId: sender.frameId,
               code: `(function(){
                     let temp = document.createElement('script');
@@ -171,18 +172,18 @@ export default class Runtime {
           // 角标和脚本
           chrome.browserAction.getBadgeText(
             {
-              tabId: sender.tab!.id,
+              tabId: sender.tabId,
             },
             (res: string) => {
               chrome.browserAction.setBadgeText({
                 text: (filter.length + (parseInt(res, 10) || 0)).toString(),
-                tabId: sender.tab!.id,
+                tabId: sender.tabId,
               });
             }
           );
           chrome.browserAction.setBadgeBackgroundColor({
             color: "#4594d5",
-            tabId: sender.tab!.id,
+            tabId: sender.tabId,
           });
         });
       }

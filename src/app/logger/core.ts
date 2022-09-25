@@ -19,6 +19,10 @@ export default class LoggerCore {
     return LoggerCore.instance;
   }
 
+  static getLogger(...label: LogLabel[]) {
+    return LoggerCore.getInstance().logger(...label);
+  }
+
   writer: Writer;
 
   level: LogLevel = "info";

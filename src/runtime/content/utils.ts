@@ -1,5 +1,6 @@
 import { Message } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { v4 as uuidv4 } from "uuid";
 import GMApi, { ApiValue, GMContext } from "./gm_api";
 
 // 构建脚本运行代码
@@ -32,7 +33,7 @@ function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
   if (apiVal.param.depend) {
     for (let i = 0; i < apiVal.param.depend.length; i += 1) {
       const value = apiVal.param.depend[i];
-      const dependApi = context.getApi(value);
+      const dependApi = GMContext.apis.get(value);
       if (!dependApi) {
         return;
       }
@@ -48,10 +49,13 @@ function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
 }
 
 // 构建沙盒上下文
-export function createContext(script: ScriptRunResouce, message: Message) {
+export function createContext(
+  scriptRes: ScriptRunResouce,
+  message: Message
+): GMApi {
   // 按照GMApi构建
   const context: { [key: string]: any } = {
-    script,
+    scriptRes,
     message,
     valueChangeListener: new Map<
       number,
@@ -59,9 +63,11 @@ export function createContext(script: ScriptRunResouce, message: Message) {
     >(),
     sendMessage: GMApi.prototype.sendMessage,
     connect: GMApi.prototype.connect,
+    runFlag: uuidv4(),
+    valueUpdate: GMApi.prototype.valueUpdate,
   };
-  if (script.metadata.grant) {
-    script.metadata.grant.forEach((val) => {
+  if (scriptRes.metadata.grant) {
+    scriptRes.metadata.grant.forEach((val) => {
       const api = GMContext.apis.get(val);
       if (!api) {
         return;
@@ -75,7 +81,7 @@ export function createContext(script: ScriptRunResouce, message: Message) {
       setDepend(context, api);
     });
   }
-  return context;
+  return <GMApi>context;
 }
 
 const writables: { [key: string]: any } = {

@@ -96,7 +96,7 @@ export abstract class DAO<T> {
 
   public async delete(id: number | { [key: string]: any }) {
     if (typeof id === "number") {
-      return this.table.delete(id);
+      return this.table.where({ id }).delete();
     }
     return this.table.where(id).delete();
   }

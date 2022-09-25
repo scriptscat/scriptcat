@@ -1,8 +1,19 @@
 import { v4 as uuidv4 } from "uuid";
-import { Connect, Handler, Message, Target, TargetTag } from "./message";
+import { Channel } from "./channel";
+import {
+  ChannelManager,
+  MessageHander,
+  MessageManager,
+  Target,
+  TargetTag,
+  WarpChannelManager,
+} from "./message";
 
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
-export default class MessageInternal implements Message {
+export default class MessageInternal
+  extends MessageHander
+  implements MessageManager
+{
   static instance: MessageInternal;
 
   static getInstance() {
@@ -11,49 +22,43 @@ export default class MessageInternal implements Message {
 
   port: chrome.runtime.Port;
 
-  handler: Map<string, Handler>;
-
-  connectMap: Map<string, Connect> = new Map();
+  channelManager: ChannelManager;
 
   constructor(tag: TargetTag) {
+    super();
     this.port = chrome.runtime.connect({
       name: tag,
     });
-    this.handler = new Map();
+    this.channelManager = new WarpChannelManager((data) => {
+      this.nativeSend(data);
+    });
+
     this.port.onMessage.addListener((message) => {
-      if (message.stream) {
-        const stream = this.connectMap.get(message.stream);
-        if (stream) {
-          if (message.error) {
-            stream.catch(message.error);
-          } else {
-            stream.handler(message.data);
-          }
-          if (!message.connect) {
-            this.connectMap.delete(message.stream);
-          }
-        }
-        return;
-      }
-      const handler = this.handler.get(message.action);
-      if (handler) {
-        handler(message.action, message.data);
-      }
+      this.handler(message, this.channelManager, { targetTag: "content" });
+    });
+    this.port.onDisconnect.addListener(() => {
+      this.channelManager.free();
     });
     if (!MessageInternal.instance) {
       MessageInternal.instance = this;
     }
   }
 
-  connect(): Connect {
-    const stream = uuidv4();
-    const connect = new Connect(this, stream);
-    this.connectMap.set(stream, connect);
-    return connect;
+  // 组合ChannelManager
+  getChannel(flag: string): Channel | undefined {
+    return this.channelManager.getChannel(flag);
   }
 
-  disconnect(connect: Connect): void {
-    this.connectMap.delete(connect.flag);
+  channel(flag?: string): Channel {
+    return this.channelManager.channel(flag);
+  }
+
+  disChannel(channel: Channel): void {
+    this.channelManager.disChannel(channel);
+  }
+
+  free(): void {
+    this.channelManager.free();
   }
 
   nativeSend(data: any): void {
@@ -69,37 +74,16 @@ export default class MessageInternal implements Message {
 
   // 发送有返回的消息
   public syncSend(action: string, data: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const stream = uuidv4();
-      this.connectMap.set(
-        stream,
-        new Connect(
-          (resp) => {
-            resolve(resp);
-          },
-          (err) => {
-            reject(err);
-          }
-        )
-      );
-      this.port.postMessage({
-        action,
-        data,
-        stream,
-      });
-    });
+    const channel = this.channelManager.channel();
+    return channel.syncSend(action, data);
   }
 
   // 广播
-  public broadcast(target: Target, action: string, data: any) {
-    this.port.postMessage({
+  public broadcast(_target: Target, action: string, data: any) {
+    this.nativeSend({
       action,
       data,
       broadcast: true,
     });
-  }
-
-  public setHandler(tag: string, handler: Handler) {
-    this.handler.set(tag, handler);
   }
 }

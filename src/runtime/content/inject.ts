@@ -1,6 +1,6 @@
 import MessageContent from "@App/app/message/content";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import ExecScript from "./exec_script";
+import ExecScript, { ValueUpdateData } from "./exec_script";
 import { ScriptFunc } from "./utils";
 
 // 注入脚本的沙盒环境
@@ -15,6 +15,7 @@ export default class InjectRuntime {
   }
 
   start() {
+    const execList = <ExecScript[]>[];
     this.scripts.forEach((script) => {
       // @ts-ignore
       const scriptFunc = window[script.flag];
@@ -26,6 +27,7 @@ export default class InjectRuntime {
           MessageContent.getInstance(),
           scriptFunc
         );
+        execList.push(exec);
         exec.exec();
       } else {
         // 监听脚本加载,和屏蔽读取
@@ -39,10 +41,20 @@ export default class InjectRuntime {
               MessageContent.getInstance(),
               val
             );
+            execList.push(exec);
             exec.exec();
           },
         });
       }
     });
+    // 监听值变化
+    MessageContent.getInstance().setHandler(
+      "valueUpdate",
+      (_action, data: ValueUpdateData) => {
+        execList.forEach((exec) => {
+          exec.valueUpdate(data);
+        });
+      }
+    );
   }
 }

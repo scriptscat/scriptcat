@@ -16,7 +16,7 @@ const logger = new LoggerCore({
   labels: { env: "inject", href: window.location.href },
 });
 
-message.setHandler("pageLoad", (action, data) => {
+message.setHandler("pageLoad", (_action, data) => {
   logger.logger().debug("inject start");
 
   const runtime = new InjectRuntime(data.scripts, flag);

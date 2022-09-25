@@ -1,80 +1,180 @@
+// eslint-disable-next-line max-classes-per-file
+import { v4 as uuidv4 } from "uuid";
+import LoggerCore from "../logger/core";
+import Logger from "../logger/logger";
+import { Channel } from "./channel";
+
+export type MessageSender = {
+  tabId?: number;
+  frameId?: number;
+  url?: string;
+  runFlag?: string;
+  targetTag: TargetTag;
+};
+
 export type Handler = (
   action: string,
   data: any,
-  sender?: chrome.runtime.MessageSender
+  sender: MessageSender
 ) => void | Promise<any>;
 
-export type HandlerWithConnect = (
-  connect: Connect,
+export type HandlerWithChannel = (
+  channel: Channel,
   action: string,
   data: any,
-  sender?: chrome.runtime.MessageSender
+  sender: MessageSender
 ) => void | Promise<any>;
 
 export type TargetTag =
+  | "background"
   | "content"
   | "sandbox"
   | "popup"
-  | "option"
+  | "options"
   | "install"
   | "confirm";
 
 export type Target = { tag: TargetTag; id?: number[] };
 
-export type ConnectHandler = (data: any) => void;
-
-export type ConnectCatch = (err: string) => void;
-
-export interface NativeMessage {
-  // 发送原生消息
+export interface ChannelManager {
   nativeSend(data: any): void;
-  disconnect(connect: Connect): void;
+  channel(flag?: string): Channel;
+  getChannel(flag: string): Channel | undefined;
+  disChannel(channel: Channel): void;
+  free(): void;
 }
 
-export interface Message extends NativeMessage {
-  send(action: string, data: any): void;
-  // 发送有返回的异步消息
+export interface MessageManager extends ChannelManager {
   syncSend(action: string, data: any): Promise<any>;
-  // 长连接
-  connect(): Connect;
-  // 释放长连接资源,通过connect.flag去释放
-  disconnect(connect: Connect): void;
-  setHandler(action: string, handler: Handler): void;
+  send(action: string, data: any): void;
 }
 
-export class Connect {
-  message!: NativeMessage;
+// channel管理器,使用组合的方式使用
+export class WarpChannelManager {
+  channelMap = new Map<string, Channel>();
 
-  flag!: string;
+  nativeSend: (data: any) => void;
 
-  handler!: ConnectHandler;
+  constructor(nativeSend: (data: any) => void) {
+    this.nativeSend = nativeSend;
+  }
 
-  catch!: ConnectCatch;
+  // 建立新的信道
+  channel(flag?: string): Channel {
+    if (!flag) {
+      flag = uuidv4();
+    }
+    const channel = new Channel(this, flag);
+    this.channelMap.set(flag, channel);
+    return channel;
+  }
 
-  constructor(
-    handler: ConnectHandler | NativeMessage,
-    catchError: ConnectCatch | string
+  // 获取信道
+  getChannel(flag: string): Channel | undefined {
+    return this.channelMap.get(flag);
+  }
+
+  disChannel(channel: Channel): void {
+    this.channelMap.delete(channel.flag);
+  }
+
+  free() {
+    this.channelMap.clear();
+  }
+}
+
+export abstract class MessageHander {
+  // 处理handler,可以有一次返回
+  handlerMap: Map<string, Handler> = new Map();
+
+  // 长连接处理handler,可以双方进行通信
+  channelHandlerMap: Map<string, HandlerWithChannel> = new Map();
+
+  // 处理接收到的消息,第二个参数使用channelMap的原因是在background中可以根据chrome.runtime去释放掉channel
+  async handler(
+    message: {
+      action?: string;
+      data: any;
+      stream?: string;
+      error?: any;
+      channel?: boolean;
+    },
+    channelManager: ChannelManager,
+    sender: MessageSender
   ) {
-    if (typeof handler === "function") {
-      this.handler = handler;
-      this.catch = <ConnectCatch>catchError!;
-    } else {
-      this.message = handler;
-      this.flag = <string>catchError;
+    // 信道长连接
+    if (message.channel) {
+      let channel = channelManager.getChannel(message.stream!);
+      if (channel) {
+        // 处理信道消息
+        if (message.error) {
+          channel.catch(message.error);
+        } else {
+          channel.handler(message.data);
+        }
+      } else {
+        // 如果没有找到channel,则说明是一个新的channel,需要创建
+        const handler = this.channelHandlerMap.get(message.action!);
+        if (handler) {
+          channel = channelManager.channel(message.stream);
+          handler(channel, message.action!, message.data, sender);
+        }
+      }
+      return;
+    }
+    // 有返回的消息
+    if (message.stream) {
+      // 没有action的消息,说明是一个返回消息
+      if (message.action) {
+        const handler = this.handlerMap.get(message.action!);
+        if (handler) {
+          const ret = handler(message.action!, message.data, sender);
+          if (ret) {
+            ret
+              .then((data) => {
+                channelManager.nativeSend({
+                  stream: message.stream,
+                  data,
+                });
+              })
+              .catch((err) => {
+                channelManager.nativeSend({
+                  error: err.message,
+                  stream: message.stream,
+                });
+              });
+          } else {
+            LoggerCore.getLogger({ component: "message" }).warn(
+              "handler return is null"
+            );
+          }
+        }
+      } else {
+        const channel = channelManager.getChannel(message.stream);
+        if (channel) {
+          if (message.error) {
+            channel.catch(message.error);
+          } else {
+            channel.handler(message.data);
+          }
+        }
+      }
+      return;
+    }
+    // 无返回的消息
+    const handler = this.handlerMap.get(message.action!);
+    if (handler) {
+      handler(message.action!, message.data, sender);
     }
   }
 
-  public send(action: string, data: any) {
-    // 使用原生方法发送消息
-    this.message.nativeSend({
-      action,
-      data,
-      stream: this.flag,
-      connect: true,
-    });
+  // 单次消息处理
+  setHandler(action: string, handler: Handler) {
+    this.handlerMap.set(action, handler);
   }
 
-  public disconnect() {
-    this.message.disconnect(this);
+  // 长连接的处理
+  setHandlerWithConnect(action: string, handler: HandlerWithChannel) {
+    this.channelHandlerMap.set(action, handler);
   }
 }

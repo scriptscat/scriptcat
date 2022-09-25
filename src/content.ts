@@ -26,6 +26,36 @@ internalMessage.syncSend("pageLoad", null).then((resp) => {
     internalMessage.send(action, data);
   });
 
+  // 转发长连接的gmApi消息
+  contentMessage.setHandlerWithConnect(
+    "gmApiChannel",
+    (inject, action, data) => {
+      const background = internalMessage.channel();
+      // 转发inject->background
+      inject.setHandler((req) => {
+        background.send(req.data);
+      });
+      inject.setCatch((err) => {
+        background.throw(err);
+      });
+      inject.setDisChannelHandler(() => {
+        background.disChannel();
+      });
+      // 转发background->inject
+      background.setHandler((bgResp) => {
+        inject.send(bgResp);
+      });
+      background.setCatch((err) => {
+        inject.throw(err);
+      });
+      background.setDisChannelHandler(() => {
+        inject.disChannel();
+      });
+      // 建立连接
+      background.channel(action, data);
+    }
+  );
+
   // 由background到content
   // 转发value更新事件
   internalMessage.setHandler("valueUpdate", (action, data) => {

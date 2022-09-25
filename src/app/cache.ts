@@ -1,5 +1,3 @@
-import LRU from "lru-cache";
-
 export default class Cache {
   static instance: Cache = new Cache();
 
@@ -7,20 +5,14 @@ export default class Cache {
     return Cache.instance;
   }
 
-  lru: LRU<string, any>;
+  map: Map<string, any>;
 
   private constructor() {
-    this.lru = new LRU<string, any>({
-      max: 10000,
-      ttl: 1000 * 60 * 60,
-      allowStale: false,
-      updateAgeOnGet: false,
-      updateAgeOnHas: false,
-    });
+    this.map = new Map<string, any>();
   }
 
   public get(key: string): any {
-    return this.lru.get(key);
+    return this.map.get(key);
   }
 
   public async getOrSet(key: string, set: () => Promise<any>): Promise<any> {
@@ -32,15 +24,15 @@ export default class Cache {
     return Promise.resolve(ret);
   }
 
-  public set(key: string, value: any, ttl?: number): void {
-    this.lru.set(key, value, { ttl });
+  public set(key: string, value: any): void {
+    this.map.set(key, value);
   }
 
   public has(key: string): boolean {
-    return this.lru.has(key);
+    return this.map.has(key);
   }
 
   public del(key: string): void {
-    this.lru.delete(key);
+    this.map.delete(key);
   }
 }

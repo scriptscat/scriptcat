@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { Connect, Handler, Message } from "./message";
+import { Channel, Handler, Message } from "./message";
 
 // 用于扩展页与沙盒页通讯,使用postMessage,由于是使用的window.postMessage
 // 所以background和sandbox页都是使用此对象,没有区分
@@ -14,7 +14,7 @@ export default class MessageSandbox implements Message {
 
   handler: Map<string, Handler>;
 
-  stream: Map<string, Connect> = new Map();
+  stream: Map<string, Channel> = new Map();
 
   constructor(_window: Window) {
     this.window = _window;
@@ -90,14 +90,14 @@ export default class MessageSandbox implements Message {
     this.window.postMessage(data, "*");
   }
 
-  connect(): Connect {
+  channel(): Channel {
     const stream = uuidv4();
-    const connect = new Connect(this, stream);
+    const connect = new Channel(this, stream);
     this.stream.set(stream, connect);
     return connect;
   }
 
-  disconnect(connect: Connect) {
+  disChannel(connect: Channel) {
     this.stream.delete(connect.flag);
   }
 
@@ -106,7 +106,7 @@ export default class MessageSandbox implements Message {
       const stream = uuidv4();
       this.stream.set(
         stream,
-        new Connect(
+        new Channel(
           (resp) => {
             resolve(resp);
           },

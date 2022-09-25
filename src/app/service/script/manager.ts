@@ -66,7 +66,11 @@ export class ScriptManager extends Manager {
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
     fetchScriptInfo(req.url, "user")
       .then((info) => {
-        Cache.getInstance().set(keyScriptInfo(info.uuid), info, 1000 * 60 * 60);
+        Cache.getInstance().set(keyScriptInfo(info.uuid), info);
+        setTimeout(() => {
+          // 清理缓存
+          Cache.getInstance().del(keyScriptInfo(info.uuid));
+        }, 60);
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });

@@ -61,16 +61,16 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  verify(request: Request, script: Script, api: ApiValue): Promise<boolean> {
+  verify(request: Request, api: ApiValue): Promise<boolean> {
     if (api.param.default) {
       return Promise.resolve(true);
     }
+    // 需要用户确认
     if (api.param.confirm) {
-      // 需要弹出页面确认
       this.permissionDAO.find();
     } else {
       // 没有其它条件,从metadata.grant中判断
-      const { grant } = script.metadata;
+      const { grant } = request.script.metadata;
       if (!grant) {
         return Promise.reject(new Error(""));
       }

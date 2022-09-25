@@ -1,10 +1,20 @@
 import { v4 as uuidv4 } from "uuid";
 import LoggerCore from "../logger/core";
 import Logger from "../logger/logger";
-import { Connect, Handler, Message } from "./message";
+import { Channel } from "./channel";
+import {
+  ChannelManager,
+  Handler,
+  MessageHander,
+  MessageManager,
+  WarpChannelManager,
+} from "./message";
 
 // content与页面通讯,使用CustomEvent
-export default class MessageContent implements Message {
+export default class MessageContent
+  extends MessageHander
+  implements MessageManager
+{
   static instance: MessageContent;
 
   static getInstance() {
@@ -15,14 +25,15 @@ export default class MessageContent implements Message {
 
   isContent: boolean;
 
-  handler: Map<string, Handler>;
-
-  connectMap: Map<string, Connect> = new Map();
+  channelManager: ChannelManager;
 
   constructor(eventId: string, isContent: boolean) {
+    super();
     this.eventId = eventId;
     this.isContent = isContent;
-    this.handler = new Map();
+    this.channelManager = new WarpChannelManager((data) => {
+      this.nativeSend(data);
+    });
     document.addEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
@@ -37,48 +48,7 @@ export default class MessageContent implements Message {
             };
           }
         >event).detail;
-        if (message.stream) {
-          const stream = this.connectMap.get(message.stream);
-          if (stream) {
-            if (message.error) {
-              stream.catch(message.error);
-            } else {
-              stream.handler(message.data);
-            }
-            if (!message.connect) {
-              this.connectMap.delete(message.stream);
-            }
-          }
-        }
-        const handler = this.handler.get(message.action);
-        if (handler) {
-          if (message.stream) {
-            const ret = handler(message.action, message.data);
-            if (ret) {
-              ret
-                .then((data: any) => {
-                  this.nativeSend({
-                    action: message.action,
-                    data,
-                    stream: message.stream,
-                  });
-                })
-                .catch((err: Error) => {
-                  this.nativeSend({
-                    action: message.action,
-                    error: Logger.E(err),
-                    stream: message.stream,
-                  });
-                });
-            } else {
-              LoggerCore.getInstance()
-                .logger({ comments: "MessageContent" })
-                .warn("handler return is null");
-            }
-          } else {
-            handler(message.action, message.data);
-          }
-        }
+        this.handler(message, this.channelManager, { targetTag: "content" });
       }
     );
     if (!MessageContent.instance) {
@@ -86,34 +56,27 @@ export default class MessageContent implements Message {
     }
   }
 
+  // 组合ChannelManager
+
+  getChannel(flag: string): Channel | undefined {
+    return this.channelManager.getChannel(flag);
+  }
+
+  channel(flag?: string): Channel {
+    return this.channelManager.channel(flag);
+  }
+
+  disChannel(channel: Channel): void {
+    return this.disChannel(channel);
+  }
+
+  free(): void {
+    return this.free();
+  }
+
   syncSend(action: string, data: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const stream = uuidv4();
-      this.connectMap.set(
-        stream,
-        new Connect(
-          (resp) => {
-            resolve(resp);
-          },
-          (err) => {
-            reject(err);
-          }
-        )
-      );
-      this.nativeSend({
-        action,
-        data,
-        stream,
-      });
-    });
-  }
-
-  connect(): Connect {
-    throw new Error("Method not implemented.");
-  }
-
-  disconnect(connect: Connect): void {
-    throw new Error("Method not implemented.");
+    const channel = this.channelManager.channel();
+    return channel.syncSend(action, data);
   }
 
   nativeSend(data: any): void {
@@ -146,9 +109,5 @@ export default class MessageContent implements Message {
       action,
       data,
     });
-  }
-
-  public setHandler(action: string, handler: Handler) {
-    this.handler.set(action, handler);
   }
 }

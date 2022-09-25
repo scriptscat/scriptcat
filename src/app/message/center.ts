@@ -2,50 +2,16 @@
 import LoggerCore from "../logger/core";
 import Logger from "../logger/logger";
 import {
-  Connect,
-  Handler,
-  HandlerWithConnect,
-  NativeMessage,
+  MessageHander,
+  MessageSender,
   Target,
+  TargetTag,
+  WarpChannelManager,
 } from "./message";
-
-class PortMessage implements NativeMessage {
-  port: chrome.runtime.Port;
-
-  constructor(port: chrome.runtime.Port) {
-    this.port = port;
-  }
-
-  nativeSend(data: any): void {
-    this.port.postMessage(data);
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  disconnect(): void {
-    throw new Error("Method not implemented.");
-  }
-}
-
-class WindowMessage implements NativeMessage {
-  window: Window;
-
-  constructor(window: Window) {
-    this.window = window;
-  }
-
-  nativeSend(data: any): void {
-    this.window.postMessage(data, "*");
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  disconnect(): void {
-    throw new Error("Method not implemented.");
-  }
-}
 
 // 连接中心,只有background才能使用,其他环境通过runtime.connect连接到background
 // sandbox的连接也聚合在了一起
-export default class MessageCenter {
+export default class MessageCenter extends MessageHander {
   static instance: MessageCenter;
 
   sandbox: Window;
@@ -57,6 +23,7 @@ export default class MessageCenter {
   }
 
   constructor() {
+    super();
     // eslint-disable-next-line no-undef
     this.sandbox = sandbox;
     this.logger = LoggerCore.getInstance().logger({
@@ -67,25 +34,41 @@ export default class MessageCenter {
     }
   }
 
-  connectMap: Map<string, Map<number, chrome.runtime.Port>> = new Map();
+  connectMap: Map<TargetTag, Map<number, chrome.runtime.Port>> = new Map();
 
   streamMap: Map<string, string> = new Map();
 
-  handlerMap: Map<string, Handler> = new Map();
-
-  connectHandlerMap: Map<string, HandlerWithConnect> = new Map();
-
   public start() {
+    // 基于chrome.runtime.onConnect去做
     chrome.runtime.onConnect.addListener((port) => {
-      let connectMap = this.connectMap.get(port.name);
+      let connectMap = this.connectMap.get(<TargetTag>port.name);
       if (!connectMap) {
         connectMap = new Map();
-        this.connectMap.set(port.name, connectMap);
+        this.connectMap.set(<TargetTag>port.name, connectMap);
       }
-      const id = port.sender?.frameId ?? port.sender!.tab!.id!;
+      // 构建发送者,使用自定义的发送者结构体
+      const sender: MessageSender = {
+        targetTag: <TargetTag>port.name,
+      };
+      let id = 0;
+      if (port.sender && port.sender.tab) {
+        if (port.sender.frameId) {
+          id = port.sender.tab!.id! + port.sender.frameId;
+          sender.frameId = port.sender.frameId;
+        } else {
+          id = port.sender.tab!.id!;
+        }
+        sender.tabId = port.sender.tab?.id;
+        sender.url = port.sender.url;
+      }
+      // 使用tabId作为标识
       connectMap.set(id, port);
+      const portMessage = new WarpChannelManager((data) => {
+        port.postMessage(data);
+      });
       port.onDisconnect.addListener(() => {
         connectMap!.delete(id);
+        portMessage.free();
       });
       port.onMessage.addListener((message) => {
         if (message.broadcast === true) {
@@ -94,48 +77,13 @@ export default class MessageCenter {
           targets.forEach((target: Target) => {
             this.send(target, message.action, message.data);
           });
-        }
-        // 长连接
-        if (message.connect) {
-          const handler = this.connectHandlerMap.get(message.action);
-          if (handler) {
-            handler(
-              new Connect(new PortMessage(port), message.stream),
-              message.action,
-              message.data,
-              port.sender
-            );
-          }
           return;
         }
-        const handler = this.handlerMap.get(message.action);
-        if (handler) {
-          if (message.stream) {
-            const ret = handler(message.action, message.data, port.sender);
-            if (ret) {
-              ret
-                .then((data: any) => {
-                  port.postMessage({
-                    action: message.action,
-                    data,
-                    stream: message.stream,
-                  });
-                })
-                .catch((err: Error) => {
-                  port.postMessage({
-                    action: message.action,
-                    error: err.message,
-                    stream: message.stream,
-                  });
-                });
-            } else {
-              this.logger.warn("handler return is null");
-            }
-          } else {
-            handler(message.action, message.data, port.sender);
-          }
-        }
+        this.handler(message, portMessage, sender);
       });
+    });
+    const sandboxMessage = new WarpChannelManager((data) => {
+      this.sandbox.postMessage(data, "*");
     });
     // 监听沙盒消息
     window.addEventListener("message", (event) => {
@@ -147,65 +95,35 @@ export default class MessageCenter {
           this.send(target, message.action, message.data);
         });
       }
-      // 长连接
-      if (message.connect) {
-        const handler = this.connectHandlerMap.get(message.action);
-        if (handler) {
-          handler(
-            new Connect(new WindowMessage(this.sandbox), message.stream),
-            message.action,
-            message.data
-          );
-        }
-        return;
-      }
-      const handler = this.handlerMap.get(message.action);
-      if (handler) {
-        if (message.stream) {
-          const ret = handler(message.action, message.data);
-          if (ret) {
-            ret
-              .then((data: any) => {
-                this.sandbox.postMessage(
-                  {
-                    action: message.action,
-                    data,
-                    stream: message.stream,
-                  },
-                  "*"
-                );
-              })
-              .catch((err: Error) => {
-                this.sandbox.postMessage(
-                  {
-                    action: message.action,
-                    error: err.message,
-                    stream: message.stream,
-                  },
-                  "*"
-                );
-              });
-          } else {
-            this.logger.warn("handler return is null");
-          }
-        } else {
-          handler(message.action, message.data);
-        }
-      }
+      this.handler(message, sandboxMessage, { targetTag: "sandbox" });
     });
   }
 
-  public setHandler(action: string, handler: Handler) {
-    this.handlerMap.set(action, handler);
-  }
-
-  // 长连接的处理
-  setHandlerWithConnect(action: string, handler: HandlerWithConnect) {
-    this.connectHandlerMap.set(action, handler);
-  }
-
   // 根据目标发送
-  public send(target: Target, action: string, data: any) {
+  public send(target: Target | "all", action: string, data: any) {
+    if (target === "all") {
+      this.connectMap.forEach((_, key) => {
+        this.send(
+          {
+            tag: key,
+          },
+          action,
+          data
+        );
+      });
+      this.send({ tag: "sandbox" }, action, data);
+      return;
+    }
+    if (target.tag === "sandbox") {
+      this.sandbox.postMessage(
+        {
+          action,
+          data,
+        },
+        "*"
+      );
+      return;
+    }
     const connectMap = this.connectMap.get(target.tag);
     if (!connectMap) {
       return;
@@ -218,14 +136,6 @@ export default class MessageCenter {
           data,
         });
       });
-    } else if (target.tag === "sandbox") {
-      this.sandbox.postMessage(
-        {
-          action,
-          data,
-        },
-        "*"
-      );
     } else {
       // 同tag广播
       connectMap.forEach((port) => {
