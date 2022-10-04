@@ -33,11 +33,14 @@ export class Channel {
     catchError: ChannelCatch | string
   ) {
     if (typeof handler === "function") {
-      this.handler = handler;
-      this.catch = <ChannelCatch>catchError!;
+      this.setHandler(handler);
+      this.setCatch(<ChannelCatch>catchError);
     } else {
       this.manager = handler;
       this.flag = <string>catchError;
+      this.setHandler(() => {
+        LoggerCore.getInstance().logger().warn("channel handler is null");
+      });
     }
   }
 

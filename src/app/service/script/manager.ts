@@ -1,7 +1,7 @@
 import { fetchScriptInfo } from "@App/utils/script";
 import Runtime from "@App/runtime/background/runtime";
 import Cache from "@App/app/cache";
-import { keyScriptInfo } from "@App/utils/cache_key";
+import CacheKey from "@App/utils/cache_key";
 import MessageCenter from "../../message/center";
 import Manager from "../manager";
 import { ScriptDAO } from "../../repo/scripts";
@@ -66,11 +66,11 @@ export class ScriptManager extends Manager {
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
     fetchScriptInfo(req.url, "user")
       .then((info) => {
-        Cache.getInstance().set(keyScriptInfo(info.uuid), info);
+        Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
         setTimeout(() => {
           // 清理缓存
-          Cache.getInstance().del(keyScriptInfo(info.uuid));
-        }, 60);
+          Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
+        }, 60 * 1000);
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });

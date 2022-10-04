@@ -2,10 +2,10 @@ import dayjs from "dayjs";
 import LoggerCore, { LogLabel, LogLevel } from "./core";
 
 const levelNumber = {
-  debug: 0,
-  info: 1,
-  warn: 2,
-  error: 3,
+  debug: 10,
+  info: 100,
+  warn: 1000,
+  error: 10000,
 };
 
 function buildLabel(...label: LogLabel[][]): LogLabel {

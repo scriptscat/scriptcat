@@ -3,7 +3,7 @@ import { MessageSender } from "@App/app/message/message";
 import { Script } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
-import { keyScriptValue } from "@App/utils/cache_key";
+import CacheKey from "@App/utils/cache_key";
 import Cache from "../../cache";
 import Hook from "../hook";
 import Manager from "../manager";
@@ -35,7 +35,7 @@ export class ValueManager extends Manager {
     script: Script
   ): Promise<{ [key: string]: Value }> {
     return Cache.getInstance().getOrSet(
-      keyScriptValue(script.id, script.metadata.storagename),
+      CacheKey.scriptValue(script.id, script.metadata.storagename),
       () => {
         return this.getValues(script);
       }
@@ -92,7 +92,7 @@ export class ValueManager extends Manager {
     let changeNum = 0;
     // 更新缓存
     const cache = Cache.getInstance().get(
-      keyScriptValue(script.id, script.metadata.storagename)
+      CacheKey.scriptValue(script.id, script.metadata.storagename)
     );
 
     if (value === undefined || value === null) {

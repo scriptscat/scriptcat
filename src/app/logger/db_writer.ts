@@ -10,11 +10,9 @@ export default class DBWriter implements Writer {
   }
 
   write(level: LogLevel, message: string, label: LogLabel): void {
-    const { component } = label;
     this.dao.save({
       id: 0,
       level,
-      component,
       message,
       label,
       createtime: new Date().getTime(),

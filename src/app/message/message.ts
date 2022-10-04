@@ -1,7 +1,6 @@
 // eslint-disable-next-line max-classes-per-file
 import { v4 as uuidv4 } from "uuid";
 import LoggerCore from "../logger/core";
-import Logger from "../logger/logger";
 import { Channel } from "./channel";
 
 export type MessageSender = {
@@ -132,10 +131,12 @@ export abstract class MessageHander {
           if (ret) {
             ret
               .then((data) => {
-                channelManager.nativeSend({
-                  stream: message.stream,
-                  data,
-                });
+                if (data) {
+                  channelManager.nativeSend({
+                    stream: message.stream,
+                    data,
+                  });
+                }
               })
               .catch((err) => {
                 channelManager.nativeSend({

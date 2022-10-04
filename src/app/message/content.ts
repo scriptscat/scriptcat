@@ -1,10 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
-import LoggerCore from "../logger/core";
-import Logger from "../logger/logger";
 import { Channel } from "./channel";
 import {
   ChannelManager,
-  Handler,
   MessageHander,
   MessageManager,
   WarpChannelManager,
@@ -67,11 +63,11 @@ export default class MessageContent
   }
 
   disChannel(channel: Channel): void {
-    return this.disChannel(channel);
+    return this.channelManager.disChannel(channel);
   }
 
   free(): void {
-    return this.free();
+    return this.channelManager.free();
   }
 
   syncSend(action: string, data: any): Promise<any> {

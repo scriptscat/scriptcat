@@ -25,7 +25,7 @@ const config: Configuration = {
     background: `${src}/background.ts`,
     sandbox: `${src}/sandbox.ts`,
     popup: `${src}/pages/popup/main.tsx`,
-
+    confirm: `${src}/pages/confirm/main.tsx`,
     content: `${src}/content.ts`,
     inject: `${src}/inject.ts`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
@@ -86,6 +86,16 @@ const config: Configuration = {
         removeComments: true,
       },
       chunks: ["background"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/confirm.html`,
+      template: `${template}/confirm.html`,
+      inject: "head",
+      title: "Confirm - ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["confirm"],
     }),
     new ESLintPlugin({
       extensions: [".ts", ".tsx"],

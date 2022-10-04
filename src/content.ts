@@ -1,5 +1,5 @@
 import LoggerCore from "./app/logger/core";
-import MessageWriter from "./app/logger/messageWriter";
+import MessageWriter from "./app/logger/message_writer";
 import MessageContent from "./app/message/content";
 import MessageInternal from "./app/message/internal";
 

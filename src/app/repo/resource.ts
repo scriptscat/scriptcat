@@ -3,7 +3,7 @@ import crypto from "crypto-js";
 import { blobToBase64 } from "@App/utils/script";
 import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
-import { keyResourceByUrl } from "@App/utils/cache_key";
+import CacheKey from "@App/utils/cache_key";
 import Logger from "../logger/logger";
 import { DAO, db } from "./dao";
 import { ResourceLinkDAO } from "./resource_link";
@@ -82,7 +82,7 @@ export class ResourceDAO extends DAO<Resource> {
         const resource = await ResourceDAO.loadByUrl(u.url);
         resource.createtime = new Date().getTime();
         resource.updatetime = new Date().getTime();
-        Cache.getInstance().set(keyResourceByUrl(u.url), resource);
+        Cache.getInstance().set(CacheKey.resourceByUrl(u.url), resource);
         const id = await this.save(resource);
         result = resource;
         this.logger.info("load resource success", { url: u.url, id });

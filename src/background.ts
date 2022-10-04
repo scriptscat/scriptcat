@@ -1,8 +1,8 @@
 import MessageCenter from "./app/message/center";
 import MessageSandbox from "./app/message/sandbox";
 import LoggerCore from "./app/logger/core";
-import DBWriter from "./app/logger/dbWriter";
-import { ListenerMessage } from "./app/logger/messageWriter";
+import DBWriter from "./app/logger/db_writer";
+import { ListenerMessage } from "./app/logger/message_writer";
 import migrate from "./app/migrate";
 import { LoggerDAO } from "./app/repo/logger";
 import { ResourceManager } from "./app/service/resource/manager";

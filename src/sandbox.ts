@@ -1,6 +1,6 @@
 import MessageSandbox from "./app/message/sandbox";
 import LoggerCore from "./app/logger/core";
-import MessageWriter from "./app/logger/messageWriter";
+import MessageWriter from "./app/logger/message_writer";
 import SandboxRuntime from "./runtime/content/sandbox";
 
 // eslint-disable-next-line no-restricted-globals

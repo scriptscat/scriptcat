@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-/* eslint-disable max-classes-per-file */
 import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
@@ -8,8 +7,8 @@ import { Channel } from "@App/app/message/channel";
 import { MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
-import { keyScript } from "@App/utils/cache_key";
-import PermissionVerify from "./permission_verify";
+import CacheKey from "@App/utils/cache_key";
+import PermissionVerify, { ConfirmParam } from "./permission_verify";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -34,6 +33,8 @@ export default class GMApi {
 
   permissionVerify: PermissionVerify;
 
+  logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
+
   constructor() {
     this.message = MessageCenter.getInstance();
     this.script = new ScriptDAO();
@@ -49,7 +50,12 @@ export default class GMApi {
           return Promise.reject(new Error("api is not found"));
         }
         const req = await this.parseRequest(data, sender);
-        await this.permissionVerify.verify(req, api);
+        try {
+          await this.permissionVerify.verify(req, api);
+        } catch (e) {
+          this.logger.error("verify error", Logger.E(e));
+          return Promise.reject(e);
+        }
         return api.api.call(this, req);
       }
     );
@@ -63,10 +69,15 @@ export default class GMApi {
       ) => {
         const api = PermissionVerify.apis.get(data.api);
         if (!api) {
-          return Promise.reject(new Error("api is not found"));
+          return connect.throw("api is not found");
         }
         const req = await this.parseRequest(data, sender);
-        await this.permissionVerify.verify(req, api);
+        try {
+          await this.permissionVerify.verify(req, api);
+        } catch (e: any) {
+          this.logger.error("verify error", Logger.E(e));
+          return connect.throw(e.message);
+        }
         return api.api.call(this, req, connect);
       }
     );
@@ -78,7 +89,7 @@ export default class GMApi {
     sender: MessageSender
   ): Promise<Request> {
     const script = await Cache.getInstance().getOrSet(
-      keyScript(data.scriptId),
+      CacheKey.script(data.scriptId),
       () => {
         return this.script.findById(data.scriptId);
       }
@@ -108,7 +119,35 @@ export default class GMApi {
     );
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({
+    confirm: (request: Request) => {
+      const config = <GMSend.XHRDetails>request.params[0];
+      const url = new URL(config.url);
+      if (request.script.metadata.connect) {
+        const { connect } = request.script.metadata;
+        for (let i = 0; i < connect.length; i += 1) {
+          if (url.hostname.endsWith(connect[i])) {
+            return Promise.resolve(true);
+          }
+        }
+      }
+      return Promise.resolve({
+        permission: "cors",
+        permissionValue: url.hostname,
+        title: "脚本正在试图访问跨域资源",
+        metadata: {
+          脚本名称: request.script.name,
+          请求域名: url.hostname,
+          请求地址: config.url,
+        },
+        describe:
+          "请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项",
+        wildcard: true,
+        permissionContent: "域名",
+      } as ConfirmParam);
+    },
+    alias: ["GM.xmlHttpRequest"],
+  })
   GM_xmlhttpRequest(request: Request, channel: Channel): Promise<any> {
     console.log(request, channel);
     channel.setHandler((data) => {
