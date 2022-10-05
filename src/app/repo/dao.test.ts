@@ -1,17 +1,16 @@
-import Dexie from "dexie";
-import { indexedDB, IDBKeyRange } from "fake-indexeddb";
-import { DAO } from "./dao";
-const db = new Dexie("Test", {
-  indexedDB: indexedDB,
-  IDBKeyRange: IDBKeyRange,
-});
+import "fake-indexeddb/auto";
+import { DAO, db } from "./dao";
+import { LoggerDAO } from "./logger";
+import migrate from "../migrate";
+
+migrate();
 
 interface Test {
   id: number;
   data: string;
 }
 
-db.version(1).stores({ test: "++id,data" });
+db.version(17).stores({ test: "++id,data" });
 
 class testDAO extends DAO<Test> {
   public tableName = "test";
@@ -24,7 +23,7 @@ class testDAO extends DAO<Test> {
 
 describe("dao", () => {
   const dao = new testDAO();
-  test("测试save", async () => {
+  it("测试save", async () => {
     expect(await dao.save({ id: 0, data: "ok1" })).toEqual(1);
 
     expect(await dao.save({ id: 0, data: "ok" })).toEqual(2);
@@ -32,17 +31,32 @@ describe("dao", () => {
     expect(await dao.save({ id: 2, data: "ok2" })).toEqual(2);
   });
 
-  test("测试find", async () => {
+  it("测试find", async () => {
     expect(await dao.findOne({ id: 1 })).toEqual({ id: 1, data: "ok1" });
     expect(await dao.findById(2)).toEqual({ id: 2, data: "ok2" });
   });
 
-  test("测试list", async () => {
+  it("测试list", async () => {
     expect(await dao.list({ id: 1 })).toEqual([{ id: 1, data: "ok1" }]);
   });
 
-  test("测试delete", async () => {
+  it("测试delete", async () => {
     expect(await dao.delete({ id: 1 })).toEqual(1);
     expect(await dao.findById(1)).toEqual(undefined);
+  });
+});
+
+describe("model", () => {
+  const logger = new LoggerDAO();
+  it("save", async () => {
+    expect(
+      await logger.save({
+        id: 0,
+        level: "info",
+        message: "ok",
+        label: {},
+        createtime: new Date().getTime(),
+      })
+    ).toEqual(1);
   });
 });

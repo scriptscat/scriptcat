@@ -100,13 +100,15 @@ export default class GMApi {
         this.scriptRes.value[data.value.key] = data.value;
       }
       this.valueChangeListener.forEach((item) => {
-        item.listener(
-          data.value.key,
-          data.oldValue,
-          data.value.value,
-          data.sender.runFlag !== this.runFlag,
-          data.sender.tabId
-        );
+        if (item.name === data.value.key) {
+          item.listener(
+            data.value.key,
+            data.oldValue,
+            data.value.value,
+            data.sender.runFlag !== this.runFlag,
+            data.sender.tabId
+          );
+        }
       });
     }
   }
@@ -166,7 +168,7 @@ export default class GMApi {
     } else {
       this.scriptRes.value[key] = ret;
     }
-    this.sendMessage("GM_setValue", [key, value]);
+    return this.sendMessage("GM_setValue", [key, value]);
   }
 
   @GMContext.API({ depend: ["GM_setValue"] })
@@ -198,9 +200,7 @@ export default class GMApi {
   @GMContext.API()
   public CAT_fetchBlob(url: string): Promise<Blob> {
     return new Promise((resolve) => {
-      this.postRequest("CAT_fetchBlob", [url], (grant: Grant) => {
-        resolve(<Blob>grant.data);
-      });
+      resolve(new Blob());
     });
   }
 
@@ -208,9 +208,7 @@ export default class GMApi {
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
     return new Promise((resolve) => {
-      this.postRequest("CAT_createBlobUrl", [blob], (grant: Grant) => {
-        resolve(<string>grant.data);
-      });
+      resolve("ok");
     });
   }
 

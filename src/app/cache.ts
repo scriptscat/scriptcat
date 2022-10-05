@@ -16,7 +16,7 @@ export default class Cache {
   }
 
   public async getOrSet(key: string, set: () => Promise<any>): Promise<any> {
-    let ret = await this.get(key);
+    let ret = this.get(key);
     if (!ret) {
       ret = await set();
       this.set(key, ret);

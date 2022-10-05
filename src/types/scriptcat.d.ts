@@ -64,11 +64,17 @@ declare function GM_addValueChangeListener(
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
 
-declare function GM_setValue(name: string, value: any): void;
+// 可以使用Promise实际等待值的设置完成
+declare function GM_setValue(name: string, value: any): Promise;
 
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
-declare function GM_log(message: string, level?: GMTypes.LoggerLevel): any;
+// 支持level和label
+declare function GM_log(
+  message: string,
+  level?: GMTypes.LoggerLevel,
+  labels: GMTypes.LoggerLabel[]
+): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
@@ -173,6 +179,10 @@ declare namespace GMTypes {
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 
+  type LoggerLabel = {
+    [key: string]: string | boolean | number | undefined;
+  };
+
   interface CookieDetails {
     url?: string;
     name?: string;
@@ -264,7 +274,6 @@ declare namespace GMTypes {
     onprogress?: Listener<XHRProgress>;
     onreadystatechange?: Listener<XHRResponse>;
     ontimeout?: () => void;
-    //TODO
     onabort?: () => void;
     onerror?: (err: string) => void;
   }

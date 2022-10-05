@@ -79,7 +79,7 @@ export abstract class DAO<T> {
       delete (<any>val).id;
       return this.table.add(val);
     }
-    const resp = await this.table.update(id, val);
+    const resp = await this.table.update(id, <any>val);
     if (resp) {
       return Promise.resolve(id);
     }

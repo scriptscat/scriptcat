@@ -18,15 +18,7 @@ export class Channel {
 
   disChannelHandler?: ChannelHandler;
 
-  catch: ChannelCatch = (err) => {
-    LoggerCore.getInstance().logger().error(
-      "channel error",
-      {
-        flag: this.flag,
-      },
-      Logger.E(err)
-    );
-  };
+  catch!: ChannelCatch;
 
   constructor(
     handler: ChannelHandler | ChannelManager,
@@ -38,6 +30,11 @@ export class Channel {
     } else {
       this.manager = handler;
       this.flag = <string>catchError;
+      this.setCatch((err) => {
+        LoggerCore.getInstance().logger(Logger.E(err)).error("channel error", {
+          flag: this.flag,
+        });
+      });
       this.setHandler(() => {
         LoggerCore.getInstance().logger().warn("channel handler is null");
       });
@@ -64,12 +61,14 @@ export class Channel {
     });
   }
 
+  // 抛出错误并关闭信道
   throw(err: any): void {
     this.manager.nativeSend({
       stream: this.flag,
       error: err,
       channel: true,
     });
+    this.manager.disChannel(this);
   }
 
   // 发送后只需要接收一条消息,不需要建立长连接,不需要使用channel建立信道
@@ -104,7 +103,13 @@ export class Channel {
   }
 
   setCatch(catchError: ChannelCatch) {
-    this.catch = catchError;
+    this.catch = function warp(err): void {
+      catchError(err);
+      this.manager.disChannel(this);
+      if (this.disChannelHandler) {
+        this.disChannelHandler("dischannel");
+      }
+    };
   }
 
   setDisChannelHandler(handler: ChannelHandler) {

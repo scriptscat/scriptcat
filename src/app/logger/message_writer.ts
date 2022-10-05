@@ -1,13 +1,13 @@
 import MessageCenter from "../message/center";
-import { Message } from "../message/message";
+import { MessageManager } from "../message/message";
 import { Logger, LoggerDAO } from "../repo/logger";
 import { LogLabel, LogLevel, Writer } from "./core";
 
 // 通过通讯机制写入日志
 export default class MessageWriter implements Writer {
-  connect: Message;
+  connect: MessageManager;
 
-  constructor(connect: Message) {
+  constructor(connect: MessageManager) {
     this.connect = connect;
   }
 

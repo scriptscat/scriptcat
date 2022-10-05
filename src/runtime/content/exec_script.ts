@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Message, MessageSender } from "@App/app/message/message";
+import { MessageManager, MessageSender } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { Value } from "@App/app/repo/value";
 import GMApi from "./gm_api";
@@ -31,7 +31,7 @@ export default class ExecScript {
 
   constructor(
     scriptRes: ScriptRunResouce,
-    message: Message,
+    message: MessageManager,
     scriptFunc?: ScriptFunc
   ) {
     this.scriptRes = scriptRes;

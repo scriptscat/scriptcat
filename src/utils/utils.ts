@@ -85,3 +85,10 @@ export function dealSymbol(source: string): string {
 export function dealScript(source: string): string {
   return dealSymbol(source);
 }
+
+export function isFirefox() {
+  if (navigator.userAgent.indexOf("Firefox") >= 0) {
+    return true;
+  }
+  return false;
+}

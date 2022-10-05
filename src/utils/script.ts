@@ -102,7 +102,7 @@ export function copyScript(script: Script, old: Script): Script {
   ret.createtime = old.createtime;
   ret.checktime = old.checktime;
   ret.lastruntime = old.lastruntime;
-  ret.delayruntime = old.delayruntime;
+  // ret.delayruntime = old.delayruntime;
   ret.error = old.error;
   ret.sort = old.sort;
   if (!ret.selfMetadata) {

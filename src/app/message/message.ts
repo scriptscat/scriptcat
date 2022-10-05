@@ -22,7 +22,7 @@ export type HandlerWithChannel = (
   action: string,
   data: any,
   sender: MessageSender
-) => void | Promise<any>;
+) => void;
 
 export type TargetTag =
   | "background"

@@ -4,11 +4,14 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import MessageCenter from "@App/app/message/center";
 import { Channel } from "@App/app/message/channel";
+import { v4 as uuidv4 } from "uuid";
 import { MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/utils/cache_key";
+import { base64ToBlob } from "@App/utils/script";
 import PermissionVerify, { ConfirmParam } from "./permission_verify";
+import { dealXhr, listenerWebRequest, setXhrUnsafeHeader } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -35,10 +38,13 @@ export default class GMApi {
 
   logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
 
+  headerFlag: string;
+
   constructor() {
     this.message = MessageCenter.getInstance();
     this.script = new ScriptDAO();
     this.permissionVerify = new PermissionVerify();
+    this.headerFlag = `x-cat-${uuidv4()}`;
   }
 
   start() {
@@ -72,15 +78,19 @@ export default class GMApi {
           return connect.throw("api is not found");
         }
         const req = await this.parseRequest(data, sender);
+        console.log(req);
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e: any) {
+          console.log(e);
           this.logger.error("verify error", Logger.E(e));
           return connect.throw(e.message);
         }
         return api.api.call(this, req, connect);
       }
     );
+    // 监听web请求
+    listenerWebRequest(this.headerFlag);
   }
 
   // 解析请求
@@ -148,19 +158,103 @@ export default class GMApi {
     },
     alias: ["GM.xmlHttpRequest"],
   })
-  GM_xmlhttpRequest(request: Request, channel: Channel): Promise<any> {
-    console.log(request, channel);
-    channel.setHandler((data) => {
-      console.log(data);
-    });
-    channel.send("okok shoudao l");
-    channel.throw("abab");
-    setTimeout(() => {
-      channel.send("resp");
-    }, 1000);
-    channel.disChannelHandler = () => {
-      console.log("disconnectHandler");
+  async GM_xmlhttpRequest(request: Request, channel: Channel): Promise<any> {
+    if (request.params.length <= 0) {
+      // 错误
+      return channel.throw("param is failed");
+    }
+    const config = <GMSend.XHRDetails>request.params[0];
+
+    const xhr = new XMLHttpRequest();
+    xhr.open(
+      config.method || "GET",
+      config.url,
+      true,
+      config.user || "",
+      config.password || ""
+    );
+    if (config.overrideMimeType) {
+      xhr.overrideMimeType(config.overrideMimeType);
+    }
+    if (config.responseType !== "json") {
+      xhr.responseType = config.responseType || "";
+    }
+
+    const deal = (event: string, data?: any) => {
+      const response: any = dealXhr(this.headerFlag, config, xhr);
+      if (data) {
+        Object.keys(data).forEach((key) => {
+          response[key] = data[key];
+        });
+      }
+      channel.send({ event, response });
     };
+    xhr.onload = () => {
+      deal("onload");
+    };
+    xhr.onloadstart = () => {
+      deal("onloadstart");
+    };
+    xhr.onloadend = () => {
+      deal("onloadstart");
+    };
+    xhr.onabort = () => {
+      deal("onabort");
+    };
+    xhr.onerror = () => {
+      deal("onerror");
+    };
+    xhr.onprogress = (event) => {
+      const respond: GMTypes.XHRProgress = {
+        done: xhr.DONE,
+        lengthComputable: event.lengthComputable,
+        loaded: event.loaded,
+        total: event.total,
+        totalSize: event.total,
+      };
+      deal("onprogress", respond);
+    };
+    xhr.onreadystatechange = () => {
+      deal("onreadystatechange");
+    };
+    xhr.ontimeout = () => {
+      channel.send({ event: "ontimeout" });
+    };
+    setXhrUnsafeHeader(this.headerFlag, config, xhr);
+
+    if (config.timeout) {
+      xhr.timeout = config.timeout;
+    }
+
+    if (config.overrideMimeType) {
+      xhr.overrideMimeType(config.overrideMimeType);
+    }
+
+    channel.disChannelHandler = () => {
+      xhr.abort();
+    };
+
+    if (config.dataType === "FormData") {
+      const data = new FormData();
+      if (config.data && config.data instanceof Array) {
+        config.data.forEach((val: GMSend.XHRFormData) => {
+          if (val.type === "file") {
+            data.append(val.key, base64ToBlob(val.val), val.filename);
+          } else {
+            data.append(val.key, val.val);
+          }
+        });
+        xhr.send(data);
+      }
+    } else if (config.dataType === "Blob") {
+      if (!config.data) {
+        return channel.throw("data is null");
+      }
+      const resp = await (await fetch(<string>config.data)).blob();
+      xhr.send(resp);
+    } else {
+      xhr.send(<string>config.data);
+    }
     return Promise.resolve();
   }
 }
