@@ -1,54 +1,34 @@
 {
-    "compilerOptions": {
-        "target": "es2021",
-        "module": "es2022",
-        "lib": [
-            "ES2021",
-            "DOM"
-        ],
-        "strict": true,
-        "jsx": "preserve",
-        "jsxFactory": "h",
-        "importHelpers": true,
-        "moduleResolution": "node",
-        "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true,
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
-        "sourceMap": true,
-        "skipLibCheck": true,
-        "baseUrl": ".",
-        "paths": {
-            "@App/*": [
-                "src/*"
-            ],
-            "@Views/*": [
-                "src/views/*"
-            ],
-            "@Components/*": [
-                "src/views/components/*"
-            ],
-            "@Option/*": [
-                "src/views/pages/Option/*"
-            ],
-            "@Test/*": [
-                "tests/*"
-            ]
-        },
-        "typeRoots": [
-            "./node_modules/@types/",
-            "./src/types"
-        ],
-    },
-    "exclude": [
-        "node_modules",
-        "build",
-        "assets"
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "CommonJS",
+    "lib": [
+      "ES2021",
+      "DOM"
     ],
-    "include": [
-        "src/**/*.ts",
-        "src/**/*.tsx",
-        "src/**/*.vue",
-        "./tests/*.test.ts"
+    "strict": true,
+    "jsx": "react-jsx",
+    "importHelpers": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@App/*": [
+        "src/*"
+      ]
+    },
+    "typeRoots": [
+      "./node_modules/@types/",
+      "./src/types/"
     ]
+  },
+  "include": [
+    "src",
+    "pkg",
+  ]
 }

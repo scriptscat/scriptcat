@@ -1,60 +1,65 @@
-import { Grant } from './apps/grant/interface';
-import { FrontendMsg } from './apps/msg-center/browser';
-import { ExternalMessage, ScriptExec, ScriptGrant, ScriptValueChange } from './apps/msg-center/event';
-import { MsgCenter } from './apps/msg-center/msg-center';
-import { ScriptCache } from './model/do/script';
+import LoggerCore from "./app/logger/core";
+import MessageWriter from "./app/logger/message_writer";
+import MessageContent from "./app/message/content";
+import MessageInternal from "./app/message/internal";
 
-chrome.runtime.sendMessage('runScript', (event: unknown) => {
-    const { flag, scripts } = (<{ scripts: ScriptCache[], flag: string }>event);
-    const browserMsg = new FrontendMsg(flag, true);
+const internalMessage = new MessageInternal("content");
 
-    browserMsg.send('scripts', scripts);
-    browserMsg.listen('grant', (msg: { value: string, params: any[], flag: string, data: any }) => {
-        const handler = async () => {
-            switch (msg.value) {
-                case 'CAT_fetchBlob':
-                    const resp = await (await fetch(<RequestInfo>msg.params[0])).blob();
-                    msg.data = (<{ cloneInto?: (detail: any, view: any) => any }><unknown>global).cloneInto ?
-                        (<{ cloneInto: (detail: any, view: any) => any }><unknown>global).cloneInto(resp, document.defaultView) : resp;
-                    browserMsg.send(msg.flag, msg);
-                    break;
-                case 'CAT_createBlobUrl':
-                    msg.data = URL.createObjectURL(<Blob>msg.params[0]);
-                    browserMsg.send(msg.flag, msg);
-                    break;
-                default:
-                    // NOTE: 好像没处理释放问题
-                    MsgCenter.connect(ScriptGrant, msg).addListener((msg: Grant) => {
-                        browserMsg.send(msg.flag || '', msg);
-                    });
-            }
-        }
-        void handler();
-    });
-    MsgCenter.connect(ScriptValueChange, 'init').addListener((msg: any) => {
-        browserMsg.send(ScriptValueChange, msg);
-    });
-    browserMsg.listen(ExternalMessage, msg => {
-        MsgCenter.connect(ExternalMessage, msg).addListener((msg) => {
-            browserMsg.send(ExternalMessage, msg);
-        });
-    });
-    chrome.runtime.onMessage.addListener((event: { action: string, uuid: string }) => {
-        switch (event.action) {
-            case ScriptExec:
-                browserMsg.send(ScriptExec, event.uuid);
-                break;
-        }
-    });
-
-    // 处理blob
-    browserMsg.listen('fetchBlob', (msg: { url: string, id: string }) => {
-        const handler = async () => {
-            const ret = await fetch(msg.url);
-            browserMsg.send('fetchBlob', { url: msg.url, id: msg.id, ret });
-        }
-        void handler();
-    })
+const logger = new LoggerCore({
+  debug: process.env.NODE_ENV === "development",
+  writer: new MessageWriter(internalMessage),
+  labels: { env: "content", href: window.location.href },
 });
 
+internalMessage.syncSend("pageLoad", null).then((resp) => {
+  logger.logger().debug("content start");
+  // 通过flag与inject建立通讯
+  const contentMessage = new MessageContent(resp.flag, true);
 
+  // 由content到background
+  // 转发gmApi消息
+  contentMessage.setHandler("gmApi", (action, data) => {
+    return internalMessage.syncSend(action, data);
+  });
+  // 转发log消息
+  contentMessage.setHandler("log", (action, data) => {
+    internalMessage.send(action, data);
+  });
+
+  // 转发长连接的gmApi消息
+  contentMessage.setHandlerWithConnect(
+    "gmApiChannel",
+    (inject, action, data) => {
+      const background = internalMessage.channel();
+      // 转发inject->background
+      inject.setHandler((req) => {
+        background.send(req.data);
+      });
+      inject.setCatch((err) => {
+        background.throw(err);
+      });
+      inject.setDisChannelHandler(() => {
+        background.disChannel();
+      });
+      // 转发background->inject
+      background.setHandler((bgResp) => {
+        inject.send(bgResp);
+      });
+      background.setCatch((err) => {
+        inject.throw(err);
+      });
+      background.setDisChannelHandler(() => {
+        inject.disChannel();
+      });
+      // 建立连接
+      background.channel(action, data);
+    }
+  );
+
+  // 由background到content
+  // 转发value更新事件
+  internalMessage.setHandler("valueUpdate", (action, data) => {
+    contentMessage.send(action, data);
+  });
+  contentMessage.send("pageLoad", resp);
+});

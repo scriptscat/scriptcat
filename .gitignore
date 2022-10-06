@@ -1,19 +1,26 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
 node_modules
-build/report/
-build/scriptcat/src/*.js
-build/scriptcat/src/*
-build/scriptcat/**.html
-build/scriptcat/src/*.txt
-build/scriptcat/src/*.ttf
-build/scriptcat/src/*.css
+dist
+dist-ssr
+*.local
 
-*.zip
-*.crx
-*.pem
-manifest_firefox.json
-manifest_chrome.json
-scriptcat_firefox
-
-private
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
 .idea
-.vscode
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+coverage

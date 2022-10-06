@@ -1,0 +1,36 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+      - develop/*
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '16.x'
+
+    - name: Cache Node.js modules
+      uses: actions/cache@v2
+      with:
+        path: ~/.npm 
+        key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.OS }}-node-
+          ${{ runner.OS }}-
+
+    - name: Package with Node
+      env:
+        CHROME_PEM: ${{ secrets.CHROME_PEM }}
+      run: |
+        echo "$CHROME_PEM" > ./build/scriptcat.pem
+        chmod 600 ./build/scriptcat.pem
+        npm ci
+        npm run pack

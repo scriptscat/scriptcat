@@ -1,0 +1,36 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+      - develop/*
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    name: Run tests
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "16.x"
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-
+
+      - name: Unit Test
+        run: |
+          npm ci
+          npm run test
+
+      - name: Upload coverage reports to Codecov with GitHub Action
+        uses: codecov/codecov-action@v3

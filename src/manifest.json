@@ -1,0 +1,46 @@
+{
+  "manifest_version": 2,
+  "name": "ScriptCat",
+  "version": "0.10.0",
+  "author": "CodFrm",
+  "description": "脚本猫,一个用户脚本的框架,可编写脚本每天帮你自动处理事务.",
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
+  "default_locale": "zh_CN",
+  "icons": {
+    "128": "assets/logo.png"
+  },
+  "browser_action": {
+    "default_popup": "src/popup.html"
+  },
+  "background": {
+    "page": "src/background.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "permissions": [
+    "tabs",
+    "cookies",
+    "storage",
+    "downloads",
+    "webRequest",
+    "background",
+    "<all_urls>",
+    "contextMenus",
+    "webNavigation",
+    "notifications",
+    "clipboardWrite",
+    "webRequestBlocking"
+  ],
+  "sandbox": {
+    "pages": ["src/sandbox.html"]
+  }
+}
