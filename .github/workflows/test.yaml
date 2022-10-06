@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  run-test:
+  tests:
     runs-on: ubuntu-latest
     name: Run tests
     steps:
@@ -31,8 +31,6 @@ jobs:
         run: |
           npm ci
           npm run test
-      - name: Generate Coverage
-        run: |
-          npm run coverage
+
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v3

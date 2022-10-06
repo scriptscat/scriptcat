@@ -30,8 +30,8 @@ jobs:
         env:
           CHROME_PEM: ${{ secrets.CHROME_PEM }}
         run: |
-          echo "$CHROME_PEM" > ./build/scriptcat.pem
-          chmod 600 ./build/scriptcat.pem
+          echo "$CHROME_PEM" > ./dist/scriptcat.pem
+          chmod 600 ./dist/scriptcat.pem
           npm ci  
           npm test
           npm run pack
@@ -56,7 +56,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/scriptcat.zip
+          asset_path: ./dist/scriptcat.zip
           asset_name: scriptcat.zip
           asset_content_type: application/zip
 
@@ -67,6 +67,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/scriptcat_firefox.zip
+          asset_path: ./dist/scriptcat_firefox.zip
           asset_name: scriptcat_firefox.zip
+          asset_content_type: application/zip
+
+      - name: Upload Crx Release Asset zip
+        id: upload-crx-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/scriptcat.crx
+          asset_name: scriptcat.crx
           asset_content_type: application/zip
