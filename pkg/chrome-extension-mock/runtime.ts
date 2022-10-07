@@ -23,7 +23,7 @@ export default class Runtime {
       name: connectInfo?.name || "",
       sender: {
         tab: {
-          id: Math.random(),
+          id: 1,
         } as unknown as chrome.tabs.Tab,
         url: window.location.href,
       },

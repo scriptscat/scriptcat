@@ -41,6 +41,8 @@ export interface ApiParam {
   listener?: () => void;
   // 别名
   alias?: string[];
+  // 关联
+  link?: string;
 }
 
 export interface ApiValue {
@@ -65,13 +67,19 @@ export default class PermissionVerify {
         api: descriptor.value,
         param,
       });
+      // 处理别名
+      if (param.alias) {
+        param.alias.forEach((alias) => {
+          PermissionVerify.apis.set(alias, {
+            api: descriptor.value,
+            param,
+          });
+        });
+      }
+
       // 兼容GM.*
-      let dot = key.replace("_", ".");
+      const dot = key.replace("_", ".");
       if (dot !== key) {
-        // 特殊处理GM.xmlHttpRequest
-        if (dot === "GM.xmlhttpRequest") {
-          dot = "GM.xmlHttpRequest";
-        }
         PermissionVerify.apis.set(dot, {
           api: descriptor.value,
           param,
@@ -146,17 +154,18 @@ export default class PermissionVerify {
     if (api.param.default) {
       return Promise.resolve(true);
     }
-    // 需要用户确认
-    if (api.param.confirm) {
-      return this.pushConfirmQueue(request, api);
-    }
     // 没有其它条件,从metadata.grant中判断
     const { grant } = request.script.metadata;
     if (!grant) {
       return Promise.reject(new Error("grant is undefined"));
     }
+
     for (let i = 0; i < grant.length; i += 1) {
-      if (grant[i] === request.api) {
+      if (grant[i] === request.api || grant[i] === api.param.link) {
+        // 需要用户确认
+        if (api.param.confirm) {
+          return this.pushConfirmQueue(request, api);
+        }
         return Promise.resolve(true);
       }
     }

@@ -61,10 +61,10 @@ export default class Runtime {
       items.forEach((item) => {
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
-          this.enable("script:enable", item);
+          this.enable(item);
         } else if (item.type === SCRIPT_TYPE_NORMAL) {
           // 只处理未开启的普通页面脚本
-          this.disable("script:disable", item);
+          this.disable(item);
         }
       });
     });
@@ -191,17 +191,17 @@ export default class Runtime {
   }
 
   // 脚本发生变动
-  scriptUpdate(id: string, script: Script): Promise<boolean> {
+  scriptUpdate(script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.enable(id, script as ScriptRunResouce);
+      return this.enable(script as ScriptRunResouce);
     }
-    return this.disable(id, script);
+    return this.disable(script);
   }
 
   // 脚本删除
-  scriptDelete(id: string, script: Script): Promise<boolean> {
+  scriptDelete(script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.disable(id, script);
+      return this.disable(script);
     }
     // 清理匹配资源
     this.match.del(<ScriptRunResouce>script);
@@ -210,7 +210,7 @@ export default class Runtime {
   }
 
   // 脚本开启
-  async enable(id: string, script: Script): Promise<boolean> {
+  async enable(script: Script): Promise<boolean> {
     // 编译脚本运行资源
     const scriptRes = await this.buildScriptRunResource(script);
     if (script.type !== SCRIPT_TYPE_NORMAL) {
@@ -220,7 +220,7 @@ export default class Runtime {
   }
 
   // 脚本关闭
-  disable(id: string, script: Script): Promise<boolean> {
+  disable(script: Script): Promise<boolean> {
     if (script.type !== SCRIPT_TYPE_NORMAL) {
       return this.unloadBackgroundScript(script);
     }

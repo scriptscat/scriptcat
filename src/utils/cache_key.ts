@@ -19,11 +19,11 @@ export default class CacheKey {
   // 脚本缓存
   @Handler(() => {
     // 监听并删除
-    ScriptManager.hook.addHook("upsert", (_, script: Script) => {
+    ScriptManager.hook.addHook("upsert", (script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });
-    ScriptManager.hook.addHook("delete", (_, script: Script) => {
+    ScriptManager.hook.addHook("delete", (script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });

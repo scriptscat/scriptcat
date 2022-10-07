@@ -192,6 +192,9 @@ export default class GMApi {
         });
       }
       channel.send({ event, data: response });
+      if (event === "onload") {
+        channel.disChannel();
+      }
     };
     xhr.onload = () => {
       deal("onload");
@@ -269,6 +272,7 @@ export default class GMApi {
         if (ret) {
           const channel = <Channel>ret;
           channel.send({ event: "done", id, user });
+          channel.disChannel();
           Cache.getInstance().del(`GM_notification:${id}`);
         }
       });
@@ -278,6 +282,7 @@ export default class GMApi {
           const channel = <Channel>ret;
           channel.send({ event: "click", id, index: undefined });
           channel.send({ event: "done", id, user: true });
+          channel.disChannel();
           Cache.getInstance().del(`GM_notification:${id}`);
         }
       });
@@ -287,6 +292,7 @@ export default class GMApi {
           const channel = <Channel>ret;
           channel.send({ event: "click", id, index: buttonIndex });
           channel.send({ event: "done", id, user: true });
+          channel.disChannel();
           Cache.getInstance().del(`GM_notification:${id}`);
         }
       });
@@ -319,6 +325,7 @@ export default class GMApi {
         setTimeout(() => {
           chrome.notifications.clear(notificationId);
           channel.send({ event: "done", id: notificationId, user: false });
+          channel.disChannel();
           Cache.getInstance().del(`GM_notification:${notificationId}`);
         }, details.timeout);
       }
@@ -371,4 +378,104 @@ export default class GMApi {
     });
     return Promise.resolve(true);
   }
+
+  @PermissionVerify.API({
+    listener: () => {
+      chrome.tabs.onRemoved.addListener((tabId) => {
+        const channel = <Channel>(
+          Cache.getInstance().get(`GM_openInTab:${tabId}`)
+        );
+        if (channel) {
+          channel.send({ event: "onclose" });
+          channel.disChannel();
+          Cache.getInstance().del(`GM_openInTab:${tabId}`);
+        }
+      });
+    },
+  })
+  GM_openInTab(request: Request, channel: Channel) {
+    const url = request.params[0];
+    const options = request.params[1] || {};
+    chrome.tabs.create({ url, active: options.active }, (tab) => {
+      Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
+      channel.send({ event: "oncreate", tabId: tab.id });
+    });
+  }
+
+  @PermissionVerify.API({
+    link: "GM_openInTab",
+  })
+  async GM_closeInTab(request: Request): Promise<boolean> {
+    try {
+      await chrome.tabs.remove(<number>request.params[0]);
+    } catch (e) {
+      this.logger.error("GM_closeInTab", Logger.E(e));
+    }
+    return Promise.resolve(true);
+  }
+
+  static tabData = new Map<number, Map<number | string, any>>();
+
+  @PermissionVerify.API({
+    listener: () => {
+      chrome.tabs.onRemoved.addListener((tabId) => {
+        GMApi.tabData.forEach((value) => {
+          value.forEach((v, tabIdKey) => {
+            if (tabIdKey === tabId) {
+              value.delete(tabIdKey);
+            }
+          });
+        });
+      });
+    },
+  })
+  GM_getTab(request: Request) {
+    return Promise.resolve(
+      GMApi.tabData
+        .get(request.scriptId)
+        ?.get(request.sender.tabId || request.sender.targetTag)
+    );
+  }
+
+  @PermissionVerify.API()
+  GM_saveTab(request: Request) {
+    const data = request.params[0];
+    const tabId = request.sender.tabId || request.sender.targetTag;
+    if (!GMApi.tabData.has(request.scriptId)) {
+      GMApi.tabData.set(request.scriptId, new Map());
+    }
+    GMApi.tabData.get(request.scriptId)?.set(tabId, data);
+    return Promise.resolve(true);
+  }
+
+  @PermissionVerify.API()
+  GM_getTabs(request: Request) {
+    if (!GMApi.tabData.has(request.scriptId)) {
+      return Promise.resolve({});
+    }
+    const resp: { [key: string | number]: object } = {};
+    GMApi.tabData.get(request.scriptId)?.forEach((value, key) => {
+      resp[key] = value;
+    });
+    return Promise.resolve(resp);
+  }
+
+  @PermissionVerify.API()
+  GM_download() {}
+
+  // TODO: GM_registerMenuCommand
+  @PermissionVerify.API()
+  GM_registerMenuCommand() {}
+
+  @PermissionVerify.API()
+  GM_unregisterMenuCommand() {}
+
+  @PermissionVerify.API()
+  GM_setClipboard() {}
+
+  @PermissionVerify.API()
+  GM_cookie() {}
+
+  @PermissionVerify.API()
+  GM_getCookieStore() {}
 }

@@ -15,6 +15,7 @@ import { newMockXhr } from "mock-xmlhttprequest";
 import chromeMock from "pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
+import PermissionVerify from "./background/permission_verify";
 
 migrate();
 
@@ -52,6 +53,12 @@ const scriptRes = {
       "GM_closeNotification",
       // gm log
       "GM_log",
+      // gm openInTab
+      "GM_openInTab",
+      // gm get/save tab
+      "GM_getTab",
+      "GM_saveTab",
+      "GM_getTabs",
     ],
     connect: ["baidu.com", "example.com"],
   },
@@ -60,7 +67,6 @@ const scriptRes = {
   value: {},
 } as unknown as ScriptRunResouce;
 
-LoggerCore.getLogger({ component: "test" }).info("beforeAll");
 const exec = new ExecScript(scriptRes, internal);
 const contentApi = exec.sandboxContent;
 
@@ -168,22 +174,22 @@ describe("GM xmlHttpRequest", () => {
   });
   it("permission", () => {
     // 模拟权限确认
-    chromeMock.tabs.hookCreate(
-      (createProperties: chrome.tabs.CreateProperties) => {
-        // 模拟确认
-        const uuid = createProperties.url?.split("uuid=")[1] || "";
-        permissionCtrl.sendConfirm(uuid, {
-          allow: true,
-          type: 3,
-        });
-      }
-    );
+    const hookFn = (createProperties: chrome.tabs.CreateProperties) => {
+      // 模拟确认
+      const uuid = createProperties.url?.split("uuid=")[1] || "";
+      permissionCtrl.sendConfirm(uuid, {
+        allow: true,
+        type: 3,
+      });
+    };
+    chromeMock.tabs.hook.addHook("create", hookFn);
     return new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
         url: "/",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
             expect(resp.responseText).toBe("example");
+            chromeMock.tabs.hook.removeHook("create", hookFn);
             resolve();
           }
         },
@@ -279,7 +285,7 @@ describe("GM log", () => {
     return new Promise<void>((resolve) => {
       LoggerCore.hook.addHook(
         "log",
-        (id, { level, message }: { level: string; message: string }) => {
+        ({ level, message }: { level: string; message: string }) => {
           expect(level).toBe("info");
           expect(message).toBe("test");
           resolve();
@@ -287,6 +293,48 @@ describe("GM log", () => {
         }
       );
       contentApi.GM_log("test");
+    });
+  });
+});
+
+describe("GM openInTab", () => {
+  it("open close", () => {
+    return new Promise<void>((resolve) => {
+      const tab = contentApi.GM_openInTab("https://www.baidu.com");
+      tab.onclose = () => {
+        resolve();
+      };
+      setTimeout(() => {
+        tab.close();
+      }, 100);
+    });
+  });
+  it("user close", () => {
+    return new Promise<void>((resolve) => {
+      const tab = contentApi.GM_openInTab("https://www.baidu.com");
+      tab.onclose = () => {
+        resolve();
+      };
+      setTimeout(() => {
+        chromeMock.tabs.remove(1);
+      }, 100);
+    });
+  });
+});
+
+describe("GM get/save tab", () => {
+  it("get", async () => {
+    await contentApi.GM_saveTab({ test: 123 });
+    await new Promise<void>((resolve) => {
+      contentApi.GM_getTab((data) => {
+        expect(data.test).toBe(123);
+        // close tab
+        chromeMock.tabs.remove(1);
+        contentApi.GM_getTabs((data) => {
+          expect(Object.keys(data).length).toBe(0);
+          resolve();
+        });
+      });
     });
   });
 });

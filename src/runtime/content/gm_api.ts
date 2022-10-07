@@ -7,6 +7,7 @@ import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { blobToBase64 } from "@App/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
+import { addStyle } from "./utils";
 
 interface ApiParam {
   depend?: string[];
@@ -452,5 +453,99 @@ export default class GMApi {
     labels?: GMTypes.LoggerLabel
   ) {
     return this.sendMessage("GM_log", [message, level, labels]);
+  }
+
+  @GMContext.API({ depend: ["GM_closeInTab"] })
+  public GM_openInTab(
+    url: string,
+    options?: GMTypes.OpenTabOptions | boolean
+  ): GMTypes.Tab {
+    let option: GMTypes.OpenTabOptions = {};
+    if (arguments.length === 1) {
+      option.active = true;
+    } else if (typeof options === "boolean") {
+      option.active = options;
+    } else {
+      option = <GMTypes.OpenTabOptions>options;
+    }
+    let tabid: any;
+
+    const ret: GMTypes.Tab = {
+      close: () => {
+        this.GM_closeInTab(tabid);
+      },
+    };
+
+    const connect = this.connect("GM_openInTab", [url, option], (data) => {
+      switch (data.event) {
+        case "oncreate":
+          tabid = data.tabId;
+          break;
+        case "onclose":
+          ret.onclose && ret.onclose();
+          ret.closed = true;
+          connect.disChannel();
+          break;
+        default:
+          break;
+      }
+    });
+    return ret;
+  }
+
+  @GMContext.API()
+  public GM_closeInTab(tabid: string) {
+    return this.sendMessage("GM_closeInTab", [tabid]);
+  }
+
+  @GMContext.API()
+  GM_getResourceText(name: string): string | undefined {
+    if (!this.scriptRes.resource) {
+      return undefined;
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      return r.content;
+    }
+    return undefined;
+  }
+
+  @GMContext.API()
+  GM_getResourceURL(name: string): string | undefined {
+    if (!this.scriptRes.resource) {
+      return undefined;
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      return r.base64;
+    }
+    return undefined;
+  }
+
+  @GMContext.API()
+  GM_addStyle(css: string): HTMLElement {
+    return addStyle(css);
+  }
+
+  @GMContext.API()
+  async GM_getTab(callback: (data: any) => void) {
+    const resp = await this.sendMessage("GM_getTab", []);
+    callback(resp);
+  }
+
+  @GMContext.API()
+  GM_saveTab(obj: object) {
+    if (typeof obj === "object") {
+      obj = JSON.parse(JSON.stringify(obj));
+    }
+    return this.sendMessage("GM_saveTab", [obj]);
+  }
+
+  @GMContext.API()
+  async GM_getTabs(
+    callback: (objs: { [key: string | number]: object }) => any
+  ) {
+    const resp = await this.sendMessage("GM_getTabs", []);
+    callback(resp);
   }
 }

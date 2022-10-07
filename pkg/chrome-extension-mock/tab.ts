@@ -1,11 +1,25 @@
+import Hook, { HookHandler } from "@App/app/service/hook";
+
 export default class MockTab {
-  hooks: Map<string, Function> = new Map();
+  hook = new Hook<"create" | "remove">();
 
-  hookCreate(callback: Function) {
-    this.hooks.set("create", callback);
+  create(
+    createProperties: chrome.tabs.CreateProperties,
+    callback?: (tab: chrome.tabs.Tab) => void
+  ) {
+    this.hook.dispatchHook("create", createProperties);
+    callback?.({
+      id: 1,
+    } as chrome.tabs.Tab);
   }
 
-  create(createProperties: chrome.tabs.CreateProperties) {
-    this.hooks.get("create")?.(createProperties);
+  remove(tabId: number) {
+    this.hook.dispatchHook("remove", tabId);
   }
+
+  onRemoved = {
+    addListener: (callback: HookHandler) => {
+      this.hook.addHook("remove", callback);
+    },
+  };
 }
