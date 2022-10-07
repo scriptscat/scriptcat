@@ -1,3 +1,4 @@
+import Hook from "../service/hook";
 import Logger from "./logger";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -49,4 +50,6 @@ export default class LoggerCore {
   logger(...label: LogLabel[]) {
     return new Logger(this, this.labels, ...label);
   }
+
+  static hook = new Hook<"log">();
 }

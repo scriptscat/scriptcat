@@ -46,6 +46,12 @@ const scriptRes = {
       "GM_addValueChangeListener",
       // gm xhr
       "GM_xmlhttpRequest",
+      // gm notification
+      "GM_notification",
+      "GM_updateNotification",
+      "GM_closeNotification",
+      // gm log
+      "GM_log",
     ],
     connect: ["baidu.com", "example.com"],
   },
@@ -201,6 +207,86 @@ describe("GM xmlHttpRequest", () => {
           }
         },
       });
+    });
+  });
+});
+
+describe("GM notification", () => {
+  it("click", async () => {
+    const onclick = jest.fn();
+    await new Promise<void>((resolve) => {
+      contentApi.GM_notification({
+        text: "test",
+        title: "test",
+        onclick() {
+          onclick();
+        },
+        ondone() {
+          resolve();
+        },
+        oncreate(id) {
+          chromeMock.notifications.mockClick(id);
+        },
+      });
+    });
+    expect(onclick).toBeCalledTimes(1);
+  });
+  it("click button", async () => {
+    const onclick = jest.fn();
+    let nid;
+    await new Promise<void>((resolve) => {
+      contentApi.GM_notification({
+        text: "test",
+        title: "test",
+        onclick(id, index) {
+          onclick(id, index);
+        },
+        ondone(user) {
+          expect(user).toBe(true);
+          resolve();
+        },
+        oncreate(id) {
+          nid = id;
+          contentApi.GM_updateNotification(id, {});
+          chromeMock.notifications.mockClickButton(nid, 1);
+        },
+        buttons: [{ title: "btn1" }, { title: "btn2" }],
+      });
+    });
+    expect(onclick).toBeCalledWith(nid, 1);
+  });
+  it("timeout close", async () => {
+    const ondone = jest.fn();
+    await new Promise<void>((resolve) => {
+      contentApi.GM_notification({
+        text: "test",
+        title: "test",
+        timeout: 1000,
+        ondone(user) {
+          ondone(user);
+          resolve();
+        },
+        oncreate(id) {},
+      });
+    });
+    expect(ondone).toBeCalledTimes(1);
+    expect(ondone).toBeCalledWith(false);
+  });
+});
+
+describe("GM log", () => {
+  it("log", () => {
+    return new Promise<void>((resolve) => {
+      LoggerCore.hook.addHook(
+        "log",
+        (id, { level, message }: { level: string; message: string }) => {
+          expect(level).toBe("info");
+          expect(message).toBe("test");
+          resolve();
+          return Promise.resolve(true);
+        }
+      );
+      contentApi.GM_log("test");
     });
   });
 });

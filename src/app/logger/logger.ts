@@ -53,6 +53,7 @@ export default class Logger {
           break;
       }
     }
+    LoggerCore.hook.dispatchHook("log", { level, message, label });
   }
 
   with(...label: LogLabel[]) {

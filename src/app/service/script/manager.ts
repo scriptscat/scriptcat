@@ -6,9 +6,12 @@ import MessageCenter from "../../message/center";
 import Manager from "../manager";
 import { ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
+import Hook from "../hook";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 export class ScriptManager extends Manager {
+  static hook = new Hook<"upsert" | "enable" | "disable" | "delete">();
+
   static instance: ScriptManager;
 
   static getInstance(): ScriptManager {

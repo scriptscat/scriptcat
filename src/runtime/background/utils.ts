@@ -1,5 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/utils/utils";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
@@ -295,4 +296,14 @@ export async function dealXhr(
     }
   }
   return Promise.resolve(respond);
+}
+
+export function getIcon(script: Script): string {
+  return (
+    (script.metadata.icon && script.metadata.icon[0]) ||
+    (script.metadata.iconurl && script.metadata.iconurl[0]) ||
+    (script.metadata.defaulticon && script.metadata.defaulticon[0]) ||
+    (script.metadata.icon64 && script.metadata.icon64[0]) ||
+    (script.metadata.icon64url && script.metadata.icon64url[0])
+  );
 }

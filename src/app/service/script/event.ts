@@ -8,7 +8,6 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptDAO,
 } from "../../repo/scripts";
-import Hook from "../hook";
 import ScriptManager from "./manager";
 
 export type ScriptEvent = "upsert" | "fetch" | "enable" | "disable";
@@ -55,7 +54,7 @@ export default class ScriptEventListener {
       this.dao.save(script).then(
         () => {
           logger.info("脚本安装成功");
-          Hook.getInstance().dispatchHook("script:upsert", script);
+          ScriptManager.hook.dispatchHook("upsert", script);
           resolve({ id: script.id });
         },
         (e) => {
@@ -85,7 +84,7 @@ export default class ScriptEventListener {
           if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
             this.dao.save(script);
-            Hook.getInstance().dispatchHook("script:enable", script);
+            ScriptManager.hook.dispatchHook("enable", script);
           }
           return resolve(1);
         })
@@ -108,7 +107,7 @@ export default class ScriptEventListener {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_DISABLE;
             this.dao.save(script);
-            Hook.getInstance().dispatchHook("script:disable", script);
+            ScriptManager.hook.dispatchHook("disable", script);
           }
           return resolve(1);
         })

@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 /* eslint-disable max-classes-per-file */
+import LoggerCore from "@App/app/logger/core";
 import { Channel, ChannelHandler } from "@App/app/message/channel";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
@@ -364,5 +365,92 @@ export default class GMApi {
         }
       },
     };
+  }
+
+  @GMContext.API()
+  public async GM_notification(
+    detail: GMTypes.NotificationDetails | string,
+    ondone?: GMTypes.NotificationOnDone | string,
+    image?: string,
+    onclick?: GMTypes.NotificationOnClick
+  ) {
+    let data: GMTypes.NotificationDetails = {};
+    if (typeof detail === "string") {
+      data.text = detail;
+      switch (arguments.length) {
+        case 4:
+          data.onclick = onclick;
+        // eslint-disable-next-line no-fallthrough
+        case 3:
+          data.image = image;
+        // eslint-disable-next-line no-fallthrough
+        case 2:
+          data.title = <string>ondone;
+        // eslint-disable-next-line no-fallthrough
+        default:
+          break;
+      }
+    } else {
+      data = detail;
+      data.ondone = data.ondone || <GMTypes.NotificationOnDone>ondone;
+    }
+    let click: GMTypes.NotificationOnClick;
+    let done: GMTypes.NotificationOnDone;
+    let create: GMTypes.NotificationOnClick;
+    if (data.onclick) {
+      click = data.onclick;
+      delete data.onclick;
+    }
+    if (data.ondone) {
+      done = data.ondone;
+      delete data.ondone;
+    }
+    if (data.oncreate) {
+      create = data.oncreate;
+      delete data.oncreate;
+    }
+    this.connect("GM_notification", [data], (resp: any) => {
+      switch (resp.event) {
+        case "click": {
+          click && click.apply({ id: resp.id }, [resp.id, resp.index]);
+          break;
+        }
+        case "done": {
+          done && done.apply({ id: resp.id }, [resp.user]);
+          break;
+        }
+        case "create": {
+          create && create.apply({ id: resp.id }, [resp.id]);
+          break;
+        }
+        default:
+          LoggerCore.getLogger().warn("GM_notification resp is error", {
+            resp,
+          });
+          break;
+      }
+    });
+  }
+
+  @GMContext.API()
+  public GM_closeNotification(id: string) {
+    this.sendMessage("GM_closeNotification", [id]);
+  }
+
+  @GMContext.API()
+  public GM_updateNotification(
+    id: string,
+    details: GMTypes.NotificationDetails
+  ): void {
+    this.sendMessage("GM_updateNotification", [id, details]);
+  }
+
+  @GMContext.API()
+  GM_log(
+    message: string,
+    level?: GMTypes.LoggerLevel,
+    labels?: GMTypes.LoggerLabel
+  ) {
+    return this.sendMessage("GM_log", [message, level, labels]);
   }
 }

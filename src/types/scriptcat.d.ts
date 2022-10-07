@@ -73,7 +73,7 @@ declare function GM_getValue(name: string, defaultValue?: any): any;
 declare function GM_log(
   message: string,
   level?: GMTypes.LoggerLevel,
-  labels: GMTypes.LoggerLabel[]
+  labels?: GMTypes.LoggerLabel
 ): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
@@ -318,11 +318,7 @@ declare namespace GMTypes {
     id: string,
     index?: number
   ) => any;
-  type NotificationOnDone = (
-    this: NotificationThis,
-    clicked: boolean,
-    id: string
-  ) => any;
+  type NotificationOnDone = (this: NotificationThis, user: boolean) => any;
 
   interface NotificationButton {
     title: string;

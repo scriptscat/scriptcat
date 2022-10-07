@@ -5,8 +5,8 @@ import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
 import CacheKey from "@App/utils/cache_key";
 import Cache from "../../cache";
-import Hook from "../hook";
 import Manager from "../manager";
+import ScriptManager from "../script/manager";
 
 // value管理器,负责value等更新获取等操作
 export class ValueManager extends Manager {
@@ -24,9 +24,9 @@ export class ValueManager extends Manager {
       ValueManager.instance = this;
     }
     this.valueDAO = new ValueDAO();
-    Hook.getInstance().addHook("script:delete", () => {
+
+    ScriptManager.hook.addHook("delete", () => {
       // 清理缓存
-      return Promise.resolve(true);
     });
   }
 

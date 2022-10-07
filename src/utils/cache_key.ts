@@ -3,7 +3,7 @@
 
 import Cache from "@App/app/cache";
 import { Script } from "@App/app/repo/scripts";
-import Hook from "@App/app/service/hook";
+import ScriptManager from "@App/app/service/script/manager";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 
 // 缓存key装饰器
@@ -19,13 +19,11 @@ export default class CacheKey {
   // 脚本缓存
   @Handler(() => {
     // 监听并删除
-    Hook.getInstance().addHook("script:upsert", (_, script: Script) => {
-      // 更新缓存
+    ScriptManager.hook.addHook("upsert", (_, script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });
-    Hook.getInstance().addHook("script:delete", (_, script: Script) => {
-      // 删除缓存
+    ScriptManager.hook.addHook("delete", (_, script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });

@@ -10,8 +10,14 @@ import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/utils/cache_key";
 import { base64ToBlob } from "@App/utils/script";
+import { isFirefox } from "@App/utils/utils";
 import PermissionVerify, { ConfirmParam } from "./permission_verify";
-import { dealXhr, listenerWebRequest, setXhrUnsafeHeader } from "./utils";
+import {
+  dealXhr,
+  getIcon,
+  listenerWebRequest,
+  setXhrUnsafeHeader,
+} from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -254,5 +260,115 @@ export default class GMApi {
       xhr.send(<string>config.data);
     }
     return Promise.resolve();
+  }
+
+  @PermissionVerify.API({
+    listener() {
+      chrome.notifications.onClosed.addListener((id, user) => {
+        const ret = Cache.getInstance().get(`GM_notification:${id}`);
+        if (ret) {
+          const channel = <Channel>ret;
+          channel.send({ event: "done", id, user });
+          Cache.getInstance().del(`GM_notification:${id}`);
+        }
+      });
+      chrome.notifications.onClicked.addListener((id) => {
+        const ret = Cache.getInstance().get(`GM_notification:${id}`);
+        if (ret) {
+          const channel = <Channel>ret;
+          channel.send({ event: "click", id, index: undefined });
+          channel.send({ event: "done", id, user: true });
+          Cache.getInstance().del(`GM_notification:${id}`);
+        }
+      });
+      chrome.notifications.onButtonClicked.addListener((id, buttonIndex) => {
+        const ret = Cache.getInstance().get(`GM_notification:${id}`);
+        if (ret) {
+          const channel = <Channel>ret;
+          channel.send({ event: "click", id, index: buttonIndex });
+          channel.send({ event: "done", id, user: true });
+          Cache.getInstance().del(`GM_notification:${id}`);
+        }
+      });
+    },
+  })
+  GM_notification(request: Request, channel: Channel): any {
+    if (request.params.length === 0) {
+      return channel.throw("param is failed");
+    }
+    const details: GMTypes.NotificationDetails = request.params[0];
+    const options: chrome.notifications.NotificationOptions<true> = {
+      title: details.title || "ScriptCat",
+      message: details.text || "无消息内容",
+      iconUrl:
+        details.image ||
+        getIcon(request.script) ||
+        chrome.runtime.getURL("assets/logo.png"),
+      type:
+        isFirefox() || details.progress === undefined ? "basic" : "progress",
+    };
+    if (!isFirefox()) {
+      options.silent = details.silent;
+      options.buttons = details.buttons;
+    }
+
+    chrome.notifications.create(options, (notificationId) => {
+      Cache.getInstance().set(`GM_notification:${notificationId}`, channel);
+      channel.send({ event: "create", id: notificationId });
+      if (details.timeout) {
+        setTimeout(() => {
+          chrome.notifications.clear(notificationId);
+          channel.send({ event: "done", id: notificationId, user: false });
+          Cache.getInstance().del(`GM_notification:${notificationId}`);
+        }, details.timeout);
+      }
+    });
+
+    return true;
+  }
+
+  @PermissionVerify.API()
+  GM_closeNotification(request: Request): Promise<boolean> {
+    chrome.notifications.clear(<string>request.params[0]);
+    const ret = Cache.getInstance().get(
+      `GM_notification:${<string>request.params[0]}`
+    );
+    if (ret) {
+      const channel = <Channel>ret;
+      channel.send({ event: "done", id: request.params[0], user: false });
+      Cache.getInstance().del(`GM_notification:${<string>request.params[0]}`);
+    }
+    return Promise.resolve(true);
+  }
+
+  @PermissionVerify.API()
+  GM_updateNotification(request: Request): Promise<boolean> {
+    if (isFirefox()) {
+      return Promise.reject(new Error("firefox does not support this method"));
+    }
+    const id = request.params[0];
+    const details: GMTypes.NotificationDetails = request.params[1];
+    const options: chrome.notifications.NotificationOptions = {
+      title: details.title,
+      message: details.text,
+      iconUrl: details.image,
+      type: details.progress === undefined ? "basic" : "progress",
+      silent: details.silent,
+      progress: details.progress,
+    };
+    chrome.notifications.update(<string>id, options);
+    return Promise.resolve(true);
+  }
+
+  @PermissionVerify.API()
+  GM_log(request: Request): Promise<boolean> {
+    const message = request.params[0];
+    const level = request.params[1] || "info";
+    const labels = request.params[2] || {};
+    LoggerCore.getLogger(labels).log(level, message, {
+      scriptId: request.scriptId,
+      component: "GM_log",
+    });
+    return Promise.resolve(true);
   }
 }
