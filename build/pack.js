@@ -56,5 +56,6 @@ crx
     fs.writeFileSync("./build/scriptcat.crx", crxBuffer);
   })
   .catch((err) => {
+    // eslint-disable-next-line no-console
     console.error(err);
   });

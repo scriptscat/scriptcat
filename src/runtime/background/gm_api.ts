@@ -78,11 +78,9 @@ export default class GMApi {
           return connect.throw("api is not found");
         }
         const req = await this.parseRequest(data, sender);
-        console.log(req);
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e: any) {
-          console.log(e);
           this.logger.error("verify error", Logger.E(e));
           return connect.throw(e.message);
         }
@@ -180,14 +178,14 @@ export default class GMApi {
       xhr.responseType = config.responseType || "";
     }
 
-    const deal = (event: string, data?: any) => {
-      const response: any = dealXhr(this.headerFlag, config, xhr);
+    const deal = async (event: string, data?: any) => {
+      const response: any = await dealXhr(this.headerFlag, config, xhr);
       if (data) {
         Object.keys(data).forEach((key) => {
           response[key] = data[key];
         });
       }
-      channel.send({ event, response });
+      channel.send({ event, data: response });
     };
     xhr.onload = () => {
       deal("onload");

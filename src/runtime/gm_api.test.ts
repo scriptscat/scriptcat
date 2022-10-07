@@ -1,3 +1,4 @@
+// gm api 单元测试
 // 初始化runtime环境
 import "fake-indexeddb/auto";
 import BgGMApi from "./background/gm_api";
@@ -6,10 +7,14 @@ import LoggerCore from "@App/app/logger/core";
 import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
 import MessageCenter from "@App/app/message/center";
-import { Script, ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
+import { ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
 import MessageInternal from "@App/app/message/internal";
 import ValueManager from "@App/app/service/value/manager";
 import ExecScript, { ValueUpdateData } from "./content/exec_script";
+import { newMockXhr } from "mock-xmlhttprequest";
+import chromeMock from "pkg/chrome-extension-mock";
+import PermissionController from "@App/app/service/permission/controller";
+import ContentRuntime from "./content/content";
 
 migrate();
 
@@ -39,7 +44,10 @@ const scriptRes = {
       "GM_deleteValue",
       "GM_listValues",
       "GM_addValueChangeListener",
+      // gm xhr
+      "GM_xmlhttpRequest",
     ],
+    connect: ["baidu.com", "example.com"],
   },
   code: "console.log('test')",
   runFlag: "test",
@@ -89,5 +97,110 @@ describe("GM value", () => {
       false,
       expect.anything()
     );
+  });
+});
+
+const permissionCtrl = new PermissionController(internal);
+const contentRuntime = new ContentRuntime(
+  <MessageInternal>(<unknown>center),
+  internal
+);
+contentRuntime.listenCATApi();
+let blobData: Blob;
+// mock createObjectURL和fetch
+global.URL.createObjectURL = function (data: Blob) {
+  blobData = data;
+  return "blob://test";
+};
+// @ts-ignore
+global.fetch = function (url) {
+  return Promise.resolve({
+    blob: () => Promise.resolve(blobData),
+  });
+};
+
+describe("GM xmlHttpRequest", () => {
+  const MockXhr = newMockXhr();
+  MockXhr.onSend = async (request) => {
+    switch (request.url) {
+      case "https://www.baidu.com/":
+        return request.respond(200, {}, "baidu");
+      case window.location.href:
+        return request.respond(200, {}, "example");
+    }
+    if (request.method === "POST") {
+      switch (request.url) {
+        case "https://example.com/form":
+          if (request.body.get("blob") instanceof Blob) {
+            return request.respond(
+              200,
+              { "Content-Type": "text/html" },
+              // mock 一个blob对象
+              {
+                text: () => Promise.resolve("form"),
+              }
+            );
+          }
+          return request.respond(400, {}, "bad");
+      }
+    }
+    return request.respond(200, {}, "test");
+  };
+  global.XMLHttpRequest = MockXhr;
+  it("get", () => {
+    return new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.baidu.com",
+        onreadystatechange: (resp) => {
+          if (resp.readyState === 4 && resp.status === 200) {
+            expect(resp.responseText).toBe("baidu");
+            resolve();
+          }
+        },
+      });
+    });
+  });
+  it("permission", () => {
+    // 模拟权限确认
+    chromeMock.tabs.hookCreate(
+      (createProperties: chrome.tabs.CreateProperties) => {
+        // 模拟确认
+        const uuid = createProperties.url?.split("uuid=")[1] || "";
+        permissionCtrl.sendConfirm(uuid, {
+          allow: true,
+          type: 3,
+        });
+      }
+    );
+    return new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "/",
+        onreadystatechange: (resp) => {
+          if (resp.readyState === 4 && resp.status === 200) {
+            expect(resp.responseText).toBe("example");
+            resolve();
+          }
+        },
+      });
+    });
+  });
+  it("post数据和blob", () => {
+    const form = new FormData();
+    form.append("blob", new Blob(["blob"]));
+    return new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://example.com/form",
+        method: "POST",
+        data: form,
+        responseType: "blob",
+        onreadystatechange: async (resp) => {
+          if (resp.readyState === 4 && resp.status === 200) {
+            expect(resp.responseText).toBe("form");
+            expect(await resp.response.text()).toBe("form");
+            resolve();
+          }
+        },
+      });
+    });
   });
 });

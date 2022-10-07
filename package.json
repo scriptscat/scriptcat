@@ -68,7 +68,7 @@
     "html-webpack-plugin": "^5.5.0",
     "jest": "^28.1.3",
     "jest-environment-jsdom": "^29.1.2",
-    "jest-webextension-mock": "^3.7.22",
+    "mock-xmlhttprequest": "^8.1.0",
     "monaco-editor-locales-plugin": "^0.0.3",
     "prettier": "^2.7.1",
     "progress-bar-webpack-plugin": "^2.1.0",

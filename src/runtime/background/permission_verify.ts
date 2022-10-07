@@ -1,5 +1,4 @@
 // gm api 权限验证
-
 import Cache from "@App/app/cache";
 import MessageCenter from "@App/app/message/center";
 import { PermissionDAO } from "@App/app/repo/permission";
@@ -7,7 +6,6 @@ import { Script } from "@App/app/repo/scripts";
 import CacheKey from "@App/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import MessageQueue from "@App/utils/message_queue";
-import { constants } from "pako";
 import { Api, Request } from "./gm_api";
 
 export interface ConfirmParam {
@@ -29,8 +27,7 @@ export interface ConfirmParam {
 
 export interface UserConfirm {
   allow: boolean;
-  // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
-  type: number;
+  type: number; // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
 }
 
 export interface ApiParam {

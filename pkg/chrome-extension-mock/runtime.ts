@@ -1,3 +1,8 @@
+type Port = chrome.runtime.Port & {
+  setTargetPort: (port: chrome.runtime.Port) => void;
+  messageListener: Array<(message: any) => void>;
+};
+
 export default class Runtime {
   connectListener: Array<(port: chrome.runtime.Port) => void> = [];
 
@@ -7,15 +12,20 @@ export default class Runtime {
     },
   };
 
-  Port(connectInfo?: chrome.runtime.ConnectInfo): chrome.runtime.Port {
+  Port(connectInfo?: chrome.runtime.ConnectInfo) {
     const messageListener: Array<(message: any) => void> = [];
+    let targetPort: Port;
     return {
+      setTargetPort(port: Port) {
+        targetPort = port;
+      },
+      messageListener,
       name: connectInfo?.name || "",
       sender: {
         tab: {
           id: Math.random(),
         } as unknown as chrome.tabs.Tab,
-        url: "http://example.com",
+        url: window.location.href,
       },
       postMessage(message: any) {
         messageListener.forEach((callback) => {
@@ -24,7 +34,7 @@ export default class Runtime {
       },
       onMessage: {
         addListener(callback: (message: any) => void) {
-          messageListener.push(callback);
+          targetPort.messageListener.push(callback);
         },
       } as unknown as chrome.events.Event<(message: any) => void>,
       onDisconnect: {
@@ -32,14 +42,21 @@ export default class Runtime {
           // do nothing
         },
       } as unknown as chrome.events.Event<() => void>,
-    } as unknown as chrome.runtime.Port;
+    } as unknown as Port;
   }
 
   connect(connectInfo?: chrome.runtime.ConnectInfo) {
     const port = this.Port(connectInfo);
+    const targetPort = this.Port(connectInfo);
+    targetPort.setTargetPort(port);
+    port.setTargetPort(targetPort);
     this.connectListener.forEach((callback) => {
-      callback(port);
+      callback(targetPort);
     });
     return port;
+  }
+
+  getURL(path: string) {
+    return `${window.location.href}${path}`;
   }
 }

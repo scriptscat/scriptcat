@@ -1,9 +1,13 @@
 import Runtime from "./runtime";
+import MockTab from "./tab";
 import WebRequest from "./web_reqeuest";
 
-const mockChrome = {
+const chromeMock = {
+  tabs: new MockTab(),
   runtime: new Runtime(),
   webRequest: new WebRequest(),
 };
 // @ts-ignore
-global.chrome = mockChrome;
+global.chrome = chromeMock;
+
+export default chromeMock;

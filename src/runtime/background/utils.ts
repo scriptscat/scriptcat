@@ -238,11 +238,11 @@ export function setXhrUnsafeHeader(
   }
 }
 
-export function dealXhr(
+export async function dealXhr(
   headerFlag: string,
   config: GMSend.XHRDetails,
   xhr: XMLHttpRequest
-): GMTypes.XHRResponse {
+): Promise<GMTypes.XHRResponse> {
   const removeXCat = new RegExp(`${headerFlag}-`, "g");
   const respond: GMTypes.XHRResponse = {
     finalUrl: xhr.responseURL || config.url,
@@ -254,13 +254,26 @@ export function dealXhr(
   };
   if (xhr.readyState === 4) {
     if (
-      config.responseType === "arraybuffer" ||
-      config.responseType === "blob"
+      config.responseType?.toLowerCase() === "arraybuffer" ||
+      config.responseType?.toLowerCase() === "blob"
     ) {
+      let blob: Blob;
       if (xhr.response instanceof ArrayBuffer) {
-        respond.response = URL.createObjectURL(new Blob([xhr.response]));
+        blob = new Blob([xhr.response]);
+        respond.response = URL.createObjectURL(blob);
       } else {
-        respond.response = URL.createObjectURL(<Blob>xhr.response);
+        blob = <Blob>xhr.response;
+        respond.response = URL.createObjectURL(blob);
+      }
+      try {
+        if (xhr.getResponseHeader("Content-Type")?.indexOf("text") !== -1) {
+          // 如果是文本类型,则尝试转换为文本
+          respond.responseText = await blob.text();
+        }
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error(
+          "GM XHR getResponseHeader error"
+        );
       }
       setTimeout(() => {
         URL.revokeObjectURL(<string>respond.response);
@@ -268,21 +281,18 @@ export function dealXhr(
     } else if (config.responseType === "json") {
       try {
         respond.response = JSON.parse(xhr.responseText);
+        respond.responseText = xhr.responseText;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR JSON parse error");
       }
     } else {
       try {
         respond.response = xhr.response;
+        respond.responseText = xhr.responseText;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR response error");
       }
     }
-    try {
-      respond.responseText = xhr.responseText;
-    } catch (e) {
-      LoggerCore.getLogger(Logger.E(e)).error("GM XHR responseText error");
-    }
   }
-  return respond;
+  return Promise.resolve(respond);
 }

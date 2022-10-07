@@ -33,4 +33,16 @@ describe("message center", () => {
     await content.syncSend("test", "test");
     expect(listener).toBeCalled();
   });
+
+  it("with connect", async () => {
+    const listener = jest.fn();
+    center.setHandlerWithConnect("test-channel", (connect, data) => {
+      listener(connect, data);
+      connect.setHandler(listener);
+    });
+    const channel = content.channel();
+    channel.channel("test-channel", [1, 2, 3]);
+    channel.send("test");
+    expect(listener).toBeCalledTimes(2);
+  });
 });
