@@ -14,6 +14,7 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-sucess-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-sucess-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 ![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_shield)
 
 ## 关于脚本猫
 
@@ -66,3 +67,7 @@ ScriptCat
 
 - [Telegram](https://t.me/scriptscat)
 - [QQ 群 887697472](https://jq.qq.com/?_wv=1027&k=3qXMfJ92)
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
