@@ -463,13 +463,6 @@ export default class GMApi {
   @PermissionVerify.API()
   GM_download() {}
 
-  // TODO: GM_registerMenuCommand
-  @PermissionVerify.API()
-  GM_registerMenuCommand() {}
-
-  @PermissionVerify.API()
-  GM_unregisterMenuCommand() {}
-
   @PermissionVerify.API()
   GM_setClipboard() {}
 
@@ -478,4 +471,11 @@ export default class GMApi {
 
   @PermissionVerify.API()
   GM_getCookieStore() {}
+
+  // TODO: GM_registerMenuCommand
+  @PermissionVerify.API()
+  GM_registerMenuCommand() {}
+
+  @PermissionVerify.API()
+  GM_unregisterMenuCommand() {}
 }

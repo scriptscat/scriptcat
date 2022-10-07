@@ -66,4 +66,6 @@
 
 
 ## License
+本项目使用GPLv3协议开源, 请遵守协议规定.	
+
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
