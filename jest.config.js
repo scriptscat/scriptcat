@@ -23,7 +23,7 @@ module.exports = {
   },
 
   "jest.autoRun": {
-    "watch": true,
+    "watch": false,
     "onStartup": ["all-tests"]
   }
 };

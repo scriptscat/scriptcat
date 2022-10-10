@@ -50,6 +50,7 @@ browserMsg.listen('scripts', (msg) => {
     scripts.forEach(script => {
         // 构建沙盒
         let context: ScriptContext;
+		const GMInfo = FrontendGrant.GM_info(script);
         if (script.grantMap['none']) {
             context = <any>window;
         } else {
@@ -67,8 +68,8 @@ browserMsg.listen('scripts', (msg) => {
                     }
                     Object.defineProperty(window, script.flag, {
                         get: () => { return undefined; },
-                        set: (val: (context: ScriptContext) => void) => {
-                            val.apply(context, [context]);
+                        set: (val: (GM_Info:any, context: ScriptContext) => void) => {
+                            val.apply(context, [GMInfo, context]);
                         }
                     });
                     // 注入css
@@ -87,8 +88,8 @@ browserMsg.listen('scripts', (msg) => {
         }
         Object.defineProperty(window, script.flag, {
             get: () => { return undefined; },
-            set: (val: (context: ScriptContext) => void) => {
-                val.apply(context, [context]);
+            set: (val: (GM_Info:any, context: ScriptContext) => void) => {
+                val.apply(context, [GMInfo, context]);
             }
         });
         // 注入css

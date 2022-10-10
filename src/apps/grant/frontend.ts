@@ -4,6 +4,7 @@ import { addStyle } from '@App/pkg/frontend';
 import { blobToBase64, randomInt, randomString } from '@App/pkg/utils/utils';
 import { BrowserMsg } from '../msg-center/browser';
 import { AppEvent, ScriptValueChange } from '../msg-center/event';
+import { getMetadataStr } from '../script/utils';
 import { Grant } from './interface';
 
 type Callback = (grant: Grant) => void;
@@ -24,7 +25,7 @@ export interface ScriptContext {
 
 	getApi(grant: string): FrontenApiValue | undefined;
 	ValueChange(name: string, value: Value): void;
-	GM_info(): any;
+	// GM_info(): any;
 }
 
 export class FrontendGrant implements ScriptContext {
@@ -79,17 +80,23 @@ export class FrontendGrant implements ScriptContext {
 		};
 	}
 
-	public GM_info() {
+	static GM_info(script: ScriptCache) {
+		const metadataStr = getMetadataStr(script.sourceCode);
 		return {
+			// downloadMode
+			// isIncognito
 			scriptWillUpdate: false,
 			scriptHandler: 'ScriptCat',
-			scriptUpdateURL: this.script.checkupdate_url,
-			scriptSource: this.script.code,
+			scriptUpdateURL: script.checkupdate_url,
+			scriptMetaStr: metadataStr,
+			scriptSource: script.code,
+			version: script.metadata['version'] && script.metadata['version'][0],
 			script: {
-				name: this.script.name,
-				namespace: this.script.namespace,
-				version: this.script.metadata['version'] && this.script.metadata['version'][0],
-				author: this.script.author,
+				// TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
+				name: script.name,
+				namespace: script.namespace,
+				version: script.metadata['version'] && script.metadata['version'][0],
+				author: script.author,
 			},
 		};
 	}
@@ -774,5 +781,4 @@ export class SandboxContext extends FrontendGrant {
 		this.end();
 		this.postRequest('CAT_runComplete', []);
 	};
-
 }

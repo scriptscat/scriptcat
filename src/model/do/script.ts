@@ -39,6 +39,7 @@ export interface Config {
 export type UserConfig = { [key: string]: { [key: string]: Config } };
 
 export interface ScriptCache extends Script {
+    sourceCode: string
     grantMap: { [key: string]: string }
     value: { [key: string]: Value }
     flag: string
@@ -53,11 +54,11 @@ export interface Script {
     name: string;
     //script code
     code: string;
-    namespace?: string;
+    namespace: string;
     author?: string;
-    origin_domain: string;
+    origin_domain?: string;
     //script origin
-    origin: string;
+    origin?: string;
     //script checkupdate meta url
     checkupdate_url: string;
     download_url: string;

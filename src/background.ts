@@ -143,7 +143,14 @@ get(Server + 'api/v1/system/version', (str) => {
 	});
 });
 
-// 半小时同步一次数据和检查更新
+// 半小时同步一次数据
+setInterval(() => {
+	if (SystemConfig.enable_auto_sync) {
+		void user.sync();
+	}
+}, 1800 * 1000);
+
+// 两小时检查一次更新
 setInterval(() => {
 	get(Server + 'api/v1/system/version', (str) => {
 		chrome.storage.local.get(['oldNotice'], (items) => {
@@ -158,10 +165,7 @@ setInterval(() => {
 			});
 		});
 	});
-	if (SystemConfig.enable_auto_sync) {
-		void user.sync();
-	}
-}, 1800000);
+}, 7200 * 1000);
 
 if (process.env.NODE_ENV == 'production') {
 	chrome.runtime.onInstalled.addListener((details) => {

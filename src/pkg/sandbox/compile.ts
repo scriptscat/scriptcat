@@ -14,11 +14,11 @@ export function compileScriptCode(script: ScriptCache): string {
 		});
 	code = require + code;
 	return (
-		'with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
+		'with (context) return ((GM_info ,context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
 		code +
 		'\n//# sourceURL=' +
 		chrome.runtime.getURL('/' + encodeURI(script.name) + '.user.js') +
-		'\n})(context)'
+		'\n})(GM_info, context)'
 	);
 }
 

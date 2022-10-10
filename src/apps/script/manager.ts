@@ -607,7 +607,7 @@ export class ScriptManager extends Manager {
                     return;
                 }
                 const cache = await this.controller.buildScriptCache(script);
-                cache.code = dealScript(`window['${cache.flag}']=function(context){\n` + cache.code + '\n}');
+                cache.code = dealScript(`window['${cache.flag}']=function(GM_info, context){\n` + cache.code + '\n}');
                 script.metadata['match']?.forEach(val => {
                     this.match.add(val, cache);
                 });

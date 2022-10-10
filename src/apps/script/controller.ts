@@ -515,8 +515,9 @@ export class ScriptController {
 
                 ret.resource = await this.getResources(ret);
 
-                ret.flag = randomString(16);
-                ret.code = compileScriptCode(ret);
+				ret.flag = randomString(16);
+				ret.sourceCode = ret.code;
+				ret.code = compileScriptCode(ret);
 
                 ret.grantMap = {};
 

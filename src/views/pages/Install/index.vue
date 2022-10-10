@@ -264,6 +264,16 @@ export default class Index extends Vue {
       this.isupdate = true;
       this.oldVersion = oldscript.metadata['version'] && oldscript.metadata['version'][0];
       document.title = '更新脚本 - ' + this.script.name + ' - ScriptCat ';
+      // 更新于60s后自动关闭
+      let n = 60;
+      setInterval(() => {
+        if (n > 0) {
+          n--;
+          this.label = '脚本(' + n + 's)';
+        } else {
+          window.close();
+        }
+      }, 1000);
     } else {
       this.editor = editor.create(edit, {
         language: 'javascript',
