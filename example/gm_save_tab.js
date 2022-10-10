@@ -2,7 +2,7 @@
 // @name         gm get/save tab
 // @namespace    https://bbs.tampermonkey.net.cn/
 // @version      0.1.0
-// @description  try to take over the world!
+// @description  用于保存当前标签页的数据, 关闭后会自动删除, 可以获取其它标签页的数据
 // @author       You
 // @match        https://bbs.tampermonkey.net.cn/
 // @grant GM_saveTab
@@ -18,4 +18,4 @@ GM_getTab(data => {
 
 GM_getTabs(data => {
     console.log(data);
-})
+});

@@ -350,6 +350,9 @@ export default class GMApi {
             details.onabort && details.onabort();
             break;
           default:
+            LoggerCore.getLogger().warn("GM_xmlhttpRequest resp is error", {
+              resp,
+            });
             break;
         }
       });
@@ -547,5 +550,93 @@ export default class GMApi {
   ) {
     const resp = await this.sendMessage("GM_getTabs", []);
     callback(resp);
+  }
+
+  @GMContext.API()
+  GM_download(
+    url: GMTypes.DownloadDetails | string,
+    filename?: string
+  ): GMTypes.AbortHandle<void> {
+    let details: GMTypes.DownloadDetails;
+    if (typeof url === "string") {
+      details = {
+        name: filename || "",
+        url,
+      };
+    } else {
+      details = url;
+    }
+    const connect = this.connect(
+      "GM_download",
+      [
+        {
+          method: details.method,
+          url: details.url,
+          name: details.name,
+          headers: details.headers,
+          saveAs: details.saveAs,
+          timeout: details.timeout,
+          cookie: details.cookie,
+          anonymous: details.anonymous,
+        },
+      ],
+      (resp: any) => {
+        const data = <GMTypes.XHRResponse>resp.data || {};
+        switch (resp.event) {
+          case "onload":
+            details.onload && details.onload(data);
+            break;
+          case "onprogress":
+            details.onprogress && details.onprogress(<GMTypes.XHRProgress>data);
+            break;
+          case "ontimeout":
+            details.ontimeout && details.ontimeout();
+            break;
+          case "onerror":
+            details.onerror &&
+              details.onerror({
+                error: "unknown",
+              });
+            break;
+          default:
+            LoggerCore.getLogger().warn("GM_download resp is error", {
+              resp,
+            });
+            break;
+        }
+      }
+    );
+
+    return {
+      abort: () => {
+        connect.disChannel();
+      },
+    };
+  }
+
+  @GMContext.API()
+  GM_setClipboard(
+    data: string,
+    info?: string | { type?: string; minetype?: string }
+  ) {
+    return this.sendMessage("GM_setClipboard", [data, info]);
+  }
+
+  @GMContext.API()
+  GM_cookie(
+    action: string,
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    if (!details.url && !details.domain) {
+      details.url = window.location.href;
+    }
+    this.sendMessage("GM_cookie", [action, details])
+      .then((resp: any) => {
+        done && done(resp, undefined);
+      })
+      .catch((err) => {
+        done && done(undefined, err);
+      });
   }
 }

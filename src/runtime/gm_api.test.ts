@@ -59,8 +59,12 @@ const scriptRes = {
       "GM_getTab",
       "GM_saveTab",
       "GM_getTabs",
+      // gm download
+      "GM_download",
+      // gm cookie
+      "GM_cookie",
     ],
-    connect: ["baidu.com", "example.com"],
+    connect: ["example.com"],
   },
   code: "console.log('test')",
   runFlag: "test",
@@ -132,13 +136,33 @@ global.fetch = function (url) {
 };
 
 describe("GM xmlHttpRequest", () => {
-  const MockXhr = newMockXhr();
-  MockXhr.onSend = async (request) => {
+  const mockXhr = newMockXhr();
+  mockXhr.onSend = async (request) => {
     switch (request.url) {
-      case "https://www.baidu.com/":
-        return request.respond(200, {}, "baidu");
-      case window.location.href:
+      case "https://www.example.com/":
         return request.respond(200, {}, "example");
+      case window.location.href:
+        return request.respond(200, {}, "location");
+      case "https://example.com/json":
+        return request.respond(
+          200,
+          { "Content-Type": "application/json" },
+          JSON.stringify({ test: 1 })
+        );
+      case "https://www.example.com/unsafeHeader":
+        if (
+          request.requestHeaders.getHeader("Origin") !==
+            "https://example.com" ||
+          request.requestHeaders.getHeader("Cookie") !== "website=example.com"
+        ) {
+          return request.respond(400, {}, "bad request");
+        }
+        return request.respond(200, { "Set-Cookie": "test=1" }, "unsafeHeader");
+      case "https://www.wexample.com/unsafeHeader/cookie":
+        if (request.requestHeaders.getHeader("Cookie") !== "test=1") {
+          return request.respond(400, {}, "bad request");
+        }
+        return request.respond(200, {}, "unsafeHeader/cookie");
     }
     if (request.method === "POST") {
       switch (request.url) {
@@ -158,14 +182,14 @@ describe("GM xmlHttpRequest", () => {
     }
     return request.respond(200, {}, "test");
   };
-  global.XMLHttpRequest = MockXhr;
+  global.XMLHttpRequest = mockXhr;
   it("get", () => {
     return new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
-        url: "https://www.baidu.com",
+        url: "https://www.example.com",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
-            expect(resp.responseText).toBe("baidu");
+            expect(resp.responseText).toBe("example");
             resolve();
           }
         },
@@ -188,7 +212,7 @@ describe("GM xmlHttpRequest", () => {
         url: "/",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
-            expect(resp.responseText).toBe("example");
+            expect(resp.responseText).toBe("location");
             chromeMock.tabs.hook.removeHook("create", hookFn);
             resolve();
           }
@@ -211,6 +235,70 @@ describe("GM xmlHttpRequest", () => {
             expect(await resp.response.text()).toBe("form");
             resolve();
           }
+        },
+      });
+    });
+  });
+  // xml原版是没有responseText的,但是tampermonkey有,恶心的兼容性
+  it("json", async () => {
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://example.com/json",
+        method: "GET",
+        responseType: "json",
+        onload: (resp) => {
+          expect(resp.response.test).toBe(1);
+          expect(resp.responseText).toBe('{"test":1}');
+          resolve();
+        },
+      });
+    });
+    // bad json
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.example.com/",
+        method: "GET",
+        responseType: "json",
+        onload: (resp) => {
+          expect(resp.response).toBeUndefined();
+          expect(resp.responseText).toBe("example");
+          resolve();
+        },
+      });
+    });
+  });
+  it("unsafeHeader", async () => {
+    global.XMLHttpRequest = chromeMock.webRequest.mockXhr(mockXhr);
+    // 模拟header
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.example.com/unsafeHeader",
+        method: "GET",
+        headers: {
+          Origin: "https://example.com",
+        },
+        onload: (resp) => {
+          expect(resp.responseText).toBe("unsafeHeader");
+          expect(resp.responseHeaders?.indexOf("set-cookie")).not.toBe(-1);
+          resolve();
+        },
+      });
+    });
+  });
+  it("unsafeHeader/cookie", async () => {
+    global.XMLHttpRequest = chromeMock.webRequest.mockXhr(mockXhr);
+    // 模拟header
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.wexample.com/unsafeHeader/cookie",
+        method: "GET",
+        headers: {
+          Cookie: "test=1",
+        },
+        anonymous: true,
+        onload: (resp) => {
+          expect(resp.responseText).toBe("unsafeHeader/cookie");
+          resolve();
         },
       });
     });
@@ -335,6 +423,172 @@ describe("GM get/save tab", () => {
           resolve();
         });
       });
+    });
+  });
+});
+
+describe("GM download", () => {
+  it("download", async () => {
+    await new Promise<void>((resolve) => {
+      contentApi.GM_download({
+        url: "https://www.example.com/",
+        name: "test",
+        saveAs: true,
+        onload() {
+          resolve();
+        },
+      });
+    });
+  });
+});
+
+describe("GM cookie", () => {
+  // 未授权
+  it("unauthorized", async () => {
+    await new Promise<void>((resolve) => {
+      // 获取storeID无需授权
+      contentApi.GM_cookie(
+        "store",
+        {
+          tabId: 1,
+        },
+        (value, err) => {
+          expect(value).toEqual([{ storeId: "0" }]);
+          resolve();
+        }
+      );
+    });
+    // 不在@connect中
+    await new Promise<void>((resolve) => {
+      contentApi.GM_cookie(
+        "list",
+        { url: "https://scriptcat.org" },
+        (value, err) => {
+          expect(err).toBe("hostname must be in the definition of connect");
+          resolve();
+        }
+      );
+    });
+    // 在@connect中,但被拒绝
+    const hookFn = (createProperties: chrome.tabs.CreateProperties) => {
+      // 模拟确认
+      const uuid = createProperties.url?.split("uuid=")[1] || "";
+      permissionCtrl.sendConfirm(uuid, {
+        allow: false,
+        type: 1,
+      });
+    };
+    chromeMock.tabs.hook.addHook("create", hookFn);
+    await new Promise<void>((resolve) => {
+      contentApi.GM_cookie(
+        "list",
+        { url: "https://www.example.com" },
+        (value, err) => {
+          expect(err).toBe("permission not allowed");
+          chromeMock.tabs.hook.removeHook("create", hookFn);
+          resolve();
+        }
+      );
+    });
+  });
+  // 模拟授权
+  it("list", async () => {
+    const hookFn = (createProperties: chrome.tabs.CreateProperties) => {
+      // 模拟确认
+      const uuid = createProperties.url?.split("uuid=")[1] || "";
+      permissionCtrl.sendConfirm(uuid, {
+        allow: true,
+        type: 3,
+      });
+    };
+    chromeMock.tabs.hook.addHook("create", hookFn);
+    await new Promise<void>((resolve) => {
+      chromeMock.cookies.mockGetAll = (detail, callback) => {
+        expect(detail.url).toBe("https://www.example.com");
+        callback([{ name: "test" } as chrome.cookies.Cookie]);
+      };
+      contentApi.GM_cookie(
+        "list",
+        { url: "https://www.example.com" },
+        (value, err) => {
+          expect(value).toEqual([{ name: "test" }]);
+          chromeMock.tabs.hook.removeHook("create", hookFn);
+          resolve();
+        }
+      );
+    });
+    await new Promise<void>((resolve) => {
+      chromeMock.cookies.mockGetAll = (detail, callback) => {
+        expect(detail.domain).toBe("www.example.com");
+        callback([{ name: "domain test" } as chrome.cookies.Cookie]);
+      };
+      contentApi.GM_cookie(
+        "list",
+        { domain: "www.example.com" },
+        (value, err) => {
+          expect(value).toEqual([{ name: "domain test" }]);
+          resolve();
+        }
+      );
+    });
+  });
+  it("set", async () => {
+    const hookFn = (createProperties: chrome.tabs.CreateProperties) => {
+      // 模拟确认
+      const uuid = createProperties.url?.split("uuid=")[1] || "";
+      permissionCtrl.sendConfirm(uuid, {
+        allow: true,
+        type: 3,
+      });
+    };
+    chromeMock.tabs.hook.addHook("create", hookFn);
+    await new Promise<void>((resolve) => {
+      contentApi.GM_cookie(
+        "set",
+        {
+          url: "https://www.example.com",
+          name: "test",
+          value: "123",
+        },
+        (value, err) => {
+          chromeMock.tabs.hook.removeHook("create", hookFn);
+          console.log(value, err);
+          expect(value).toBeNull();
+          expect(err).toBeNull();
+          resolve();
+        }
+      );
+    });
+    await new Promise<void>((resolve) => {
+      contentApi.GM_cookie(
+        "set",
+        {
+          domain: "www.example.com",
+          name: "test",
+          value: "123",
+        },
+        (value, err) => {
+          expect(value).toBeNull();
+          expect(err).toBeNull();
+          resolve();
+        }
+      );
+    });
+  });
+  it("remove", async () => {
+    await new Promise<void>((resolve) => {
+      contentApi.GM_cookie(
+        "delete",
+        {
+          url: "https://www.example.com",
+          name: "test",
+        },
+        (value, err) => {
+          expect(value).toBeNull();
+          expect(err).toBeNull();
+          resolve();
+        }
+      );
     });
   });
 });

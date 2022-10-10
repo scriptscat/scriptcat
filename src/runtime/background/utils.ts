@@ -76,7 +76,7 @@ export function listenerWebRequest(headerFlag: string) {
       details.requestHeaders?.forEach((val) => {
         const lowerCase = val.name.toLowerCase();
         if (lowerCase.startsWith(`${headerFlag}-`)) {
-          const headerKey = lowerCase.substring(0, headerFlag.length + 1);
+          const headerKey = lowerCase.substring(headerFlag.length + 1);
           // 处理unsafeHeaders
           switch (headerKey) {
             case "cookie":
@@ -98,6 +98,7 @@ export function listenerWebRequest(headerFlag: string) {
               preRequestHeaders[headerKey] = val.value || "";
               break;
           }
+          return;
         }
         // 原生header
         switch (lowerCase) {
@@ -210,13 +211,17 @@ export function setXhrUnsafeHeader(
   xhr.setRequestHeader(`${headerFlag}-gm-xhr`, "true");
   if (config.headers) {
     Object.keys(config.headers).forEach((key) => {
+      const lowKey = key.toLowerCase();
       if (
-        unsafeHeaders[key] ||
-        key.startsWith("sec-") ||
-        key.startsWith("proxy-")
+        unsafeHeaders[lowKey] ||
+        lowKey.startsWith("sec-") ||
+        lowKey.startsWith("proxy-")
       ) {
         try {
-          xhr.setRequestHeader(`${headerFlag}-${key}`, config.headers![key]!);
+          xhr.setRequestHeader(
+            `${headerFlag}-${lowKey}`,
+            config.headers![key]!
+          );
         } catch (e) {
           LoggerCore.getLogger(Logger.E(e)).error(
             "GM XHR setRequestHeader error"
@@ -282,16 +287,24 @@ export async function dealXhr(
     } else if (config.responseType === "json") {
       try {
         respond.response = JSON.parse(xhr.responseText);
-        respond.responseText = xhr.responseText;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR JSON parse error");
+      }
+      try {
+        respond.responseText = xhr.responseText;
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error("GM XHR getResponseText error");
       }
     } else {
       try {
         respond.response = xhr.response;
-        respond.responseText = xhr.responseText;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR response error");
+      }
+      try {
+        respond.responseText = xhr.responseText;
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error("GM XHR getResponseText error");
       }
     }
   }

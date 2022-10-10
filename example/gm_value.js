@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         test gm value
+// @name         gm value
 // @namespace    https://bbs.tampermonkey.net.cn/
 // @version      0.1.0
-// @description  try to take over the world!
+// @description  可以持久化存储数据, 并且可以监听数据变化
 // @author       You
 // @match https://bbs.tampermonkey.net.cn/
 // @run-at document-start

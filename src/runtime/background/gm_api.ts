@@ -163,10 +163,6 @@ export default class GMApi {
     alias: ["GM.xmlHttpRequest"],
   })
   async GM_xmlhttpRequest(request: Request, channel: Channel): Promise<any> {
-    if (request.params.length <= 0) {
-      // 错误
-      return channel.throw("param is failed");
-    }
     const config = <GMSend.XHRDetails>request.params[0];
 
     const xhr = new XMLHttpRequest();
@@ -461,13 +457,260 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  GM_download() {}
+  GM_download(request: Request, channel: Channel) {
+    const config = <GMTypes.DownloadDetails>request.params[0];
+    // blob本地文件直接下载
+    if (config.url.startsWith("blob:")) {
+      chrome.downloads.download(
+        {
+          url: config.url,
+          saveAs: config.saveAs,
+          filename: config.name,
+        },
+        () => {
+          channel.send({ event: "onload" });
+        }
+      );
+      return;
+    }
+    // 使用ajax下载blob,再使用download api创建下载
+    const xhr = new XMLHttpRequest();
+    xhr.open(config.method || "GET", config.url, true);
+    xhr.responseType = "blob";
+    const deal = (event: string, data?: any) => {
+      const removeXCat = new RegExp(`${this.headerFlag}-`, "g");
+      const respond: any = {
+        finalUrl: xhr.responseURL || config.url,
+        readyState: <any>xhr.readyState,
+        status: xhr.status,
+        statusText: xhr.statusText,
+        responseHeaders: xhr.getAllResponseHeaders().replace(removeXCat, ""),
+      };
+      if (data) {
+        Object.keys(data).forEach((key) => {
+          respond[key] = data[key];
+        });
+      }
+      channel.send({ event, data: respond });
+    };
+    xhr.onload = () => {
+      deal("onload");
+      const url = URL.createObjectURL(xhr.response);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 6000);
+      chrome.downloads.download({
+        url,
+        saveAs: config.saveAs,
+        filename: config.name,
+      });
+    };
+    xhr.onerror = () => {
+      deal("onerror");
+    };
+    xhr.onprogress = (event) => {
+      const respond: GMTypes.XHRProgress = {
+        done: xhr.DONE,
+        lengthComputable: event.lengthComputable,
+        loaded: event.loaded,
+        total: event.total,
+        totalSize: event.total,
+      };
+      deal("onprogress", respond);
+    };
+    xhr.ontimeout = () => {
+      channel.send({ event: "ontimeout" });
+    };
+    setXhrUnsafeHeader(this.headerFlag, config, xhr);
 
-  @PermissionVerify.API()
-  GM_setClipboard() {}
+    if (config.timeout) {
+      xhr.timeout = config.timeout;
+    }
 
-  @PermissionVerify.API()
-  GM_cookie() {}
+    xhr.send();
+  }
+
+  static clipboardData: { type?: string; data: string } | undefined;
+
+  @PermissionVerify.API({
+    listener() {
+      document.body.appendChild(PermissionVerify.textarea);
+      document.addEventListener("copy", (e: ClipboardEvent) => {
+        if (!GMApi.clipboardData || !e.clipboardData) {
+          return;
+        }
+        e.preventDefault();
+        const { type, data } = GMApi.clipboardData;
+        e.clipboardData.setData(type || "text/plain", data);
+        GMApi.clipboardData = undefined;
+      });
+    },
+  })
+  GM_setClipboard(request: Request) {
+    return new Promise((resolve) => {
+      GMApi.clipboardData = {
+        type: request.params[1],
+        data: request.params[0],
+      };
+      PermissionVerify.textarea.focus();
+      document.execCommand("copy", false, <any>null);
+      resolve(undefined);
+    });
+  }
+
+  @PermissionVerify.API({
+    confirm(request: Request) {
+      if (request.params[0] === "store") {
+        return Promise.resolve(true);
+      }
+      const detail = <GMTypes.CookieDetails>request.params[1];
+      if (!detail.url && !detail.domain) {
+        return Promise.reject(new Error("there must be one of url or domain"));
+      }
+      let url: URL = <URL>{};
+      if (detail.url) {
+        url = new URL(detail.url);
+      } else {
+        url.host = detail.domain || "";
+        url.hostname = detail.domain || "";
+      }
+      let flag = false;
+      if (request.script.metadata.connect) {
+        const { connect } = request.script.metadata;
+        for (let i = 0; i < connect.length; i += 1) {
+          if (url.hostname.endsWith(connect[i])) {
+            flag = true;
+            break;
+          }
+        }
+      }
+      if (!flag) {
+        return Promise.reject(
+          new Error("hostname must be in the definition of connect")
+        );
+      }
+      return Promise.resolve({
+        permission: "cookie",
+        permissionValue: url.host,
+        title: "脚本正在试图访问网站cookie内容",
+        metadata: {
+          脚本名称: request.script.name,
+          请求域名: url.host,
+        },
+        describe:
+          "请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.",
+        permissionContent: "Cookie域",
+        uuid: "",
+      });
+    },
+  })
+  GM_cookie(request: Request) {
+    return new Promise((resolve, reject) => {
+      const param = request.params;
+      if (param.length !== 2) {
+        reject(new Error("there must be two parameters"));
+        return;
+      }
+      const detail = <GMTypes.CookieDetails>request.params[1];
+      if (param[0] === "store") {
+        chrome.cookies.getAllCookieStores((res) => {
+          const data: any[] = [];
+          res.forEach((val) => {
+            if (detail.tabId) {
+              for (let n = 0; n < val.tabIds.length; n += 1) {
+                if (val.tabIds[n] === detail.tabId) {
+                  data.push({ storeId: val.id });
+                  break;
+                }
+              }
+            } else {
+              data.push({ storeId: val.id });
+            }
+          });
+          resolve(data);
+        });
+        return;
+      }
+      // url或者域名不能为空
+      if (detail.url) {
+        detail.url = detail.url.trim();
+      }
+      if (detail.domain) {
+        detail.domain = detail.domain.trim();
+      }
+      if (!detail.url && !detail.domain) {
+        reject(new Error("there must be one of url or domain"));
+        return;
+      }
+      switch (param[0]) {
+        case "list": {
+          chrome.cookies.getAll(
+            {
+              domain: detail.domain,
+              name: detail.name,
+              path: detail.path,
+              secure: detail.secure,
+              session: detail.session,
+              url: detail.url,
+              storeId: detail.storeId,
+            },
+            (cookies) => {
+              resolve(cookies);
+            }
+          );
+          break;
+        }
+        case "delete": {
+          if (!detail.url || !detail.name) {
+            reject(new Error("delete operation must have url and name"));
+            return;
+          }
+          chrome.cookies.remove(
+            {
+              name: detail.name,
+              url: detail.url,
+              storeId: detail.storeId,
+            },
+            () => {
+              resolve(undefined);
+            }
+          );
+          break;
+        }
+        case "set": {
+          if (!detail.name) {
+            reject(new Error("must exist name"));
+            return;
+          }
+          if (!detail.url || !detail.domain) {
+            reject(new Error("must have url or domain"));
+            return;
+          }
+          chrome.cookies.set(
+            {
+              url: detail.url,
+              name: detail.name,
+              domain: detail.domain,
+              value: detail.value,
+              expirationDate: detail.expirationDate,
+              path: detail.path,
+              httpOnly: detail.httpOnly,
+              secure: detail.secure,
+              storeId: detail.storeId,
+            },
+            () => {
+              resolve(undefined);
+            }
+          );
+          break;
+        }
+        default: {
+          reject(new Error("action can only be: get, set, delete, store"));
+          break;
+        }
+      }
+    });
+  }
 
   @PermissionVerify.API()
   GM_getCookieStore() {}
