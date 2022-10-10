@@ -1031,7 +1031,7 @@ export class ScriptManager extends Manager {
                         const oldInfo = val[1], newScript = val[0];
                         if (SystemConfig.silence_update_script && this.checkUpdateRule(oldInfo.metadata, newScript.metadata)) {
                             // 之前加载的是updateurl的内容,重载downloadurl
-                            const [newScript, oldScript] = await this.controller.prepareScriptByUrl(script.download_url || script.origin);
+                            const [newScript, oldScript] = await this.controller.prepareScriptByUrl(script.download_url || script.origin || "");
                             if (typeof oldScript == 'string') {
                                 App.Log.Error('check update', '更新脚本下载错误', script.name);
                                 return resolve(false);
@@ -1043,9 +1043,9 @@ export class ScriptManager extends Manager {
                             void this.scriptReinstall(newScript);
                             InfoNotification('脚本更新 - ' + oldInfo.name, newScript.name + ' 更新到了 ' + (newScript.metadata['version'] && newScript.metadata['version'][0]))
                         } else {
-                            const info = await loadScriptByUrl(script.download_url || script.origin);
+                            const info = await loadScriptByUrl(script.download_url || script.origin || "");
                             if (info) {
-                                info.url = script.origin;
+                                info.url = script.origin || "";
                                 info.uuid = uuidv5(info.url, uuidv5.URL)
                                 void App.Cache.set('install:info:' + info.uuid, info);
                                 chrome.tabs.create({
@@ -1143,7 +1143,7 @@ export class ScriptManager extends Manager {
                         code: script!.code,
                         meta_json: JSON.stringify(script!.metadata),
                         self_meta: JSON.stringify(script!.selfMetadata),
-                        origin: script!.origin,
+                        origin: script!.origin || "",
                         sort: script!.sort,
                         subscribe_url: script!.subscribeUrl,
                         type: script!.type,
