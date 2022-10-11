@@ -64,7 +64,7 @@ browserMsg.listen('scripts', (msg) => {
             if (script.metadata['run-at'][0] === 'document-body') {
                 waitBody(() => {
                     if ((<{ [key: string]: () => void }><unknown>window)[script.flag]) {
-                        (<{ [key: string]: (context: ScriptContext) => void }><unknown>window)[script.flag].apply(context, [context]);
+                        (<{ [key: string]: (GM_Info:any,context: ScriptContext) => void }><unknown>window)[script.flag].apply(context, [GMInfo,context]);
                     }
                     Object.defineProperty(window, script.flag, {
                         get: () => { return undefined; },
