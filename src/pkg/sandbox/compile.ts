@@ -1,4 +1,4 @@
-import { FrontenApiValue, SandboxContext, ScriptContext } from '@App/apps/grant/frontend';
+import { FrontenApiValue, FrontendGrant, SandboxContext, ScriptContext } from '@App/apps/grant/frontend';
 import { ScriptCache, Script } from '@App/model/do/script';
 
 // 编译脚本代码字符串
@@ -14,11 +14,11 @@ export function compileScriptCode(script: ScriptCache): string {
 		});
 	code = require + code;
 	return (
-		'with (context) return ((GM_info ,context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
+		'with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n' +
 		code +
 		'\n//# sourceURL=' +
 		chrome.runtime.getURL('/' + encodeURI(script.name) + '.user.js') +
-		'\n})(GM_info, context)'
+		'\n})(context)'
 	);
 }
 
@@ -53,7 +53,7 @@ export function createSandboxContext(script: ScriptCache): SandboxContext {
 	return <SandboxContext>createContext(context, script);
 }
 
-export function createContext(context: ScriptContext, script: Script): ScriptContext {
+export function createContext(context: ScriptContext, script: ScriptCache): ScriptContext {
 	context['postRequest'] = context.postRequest;
 	context['script'] = context.script;
 	if (script.metadata['grant']) {
@@ -72,7 +72,7 @@ export function createContext(context: ScriptContext, script: Script): ScriptCon
 			setDepend(context, apiVal);
 		});
 	}
-	context['GM_info'] = context.GM_info();
+	context['GM_info'] = FrontendGrant.GM_info(script);
 
 	// 去除原型链
 	return Object.assign({}, context);
