@@ -3,46 +3,42 @@ export type HookID =
   | "script:delete"
   | "script:disable"
   | "script:enable";
-export type Handler = (id: HookID, data: any) => Promise<boolean>;
-export default class Hook {
-  static instance: Hook = new Hook();
+export type HookHandler = (...args: any) => any;
 
-  static getInstance() {
-    return Hook.instance;
-  }
+export default class Hook<T = string> {
+  hookMap: { [key: string]: HookHandler[] } = {};
 
-  hookMap: { [key: string]: Handler[] } = {};
-
-  constructor() {
-    if (!Hook.instance) {
-      Hook.instance = this;
+  public dispatchHook(id: T, ...args: any): void {
+    if (!this.hookMap[id as string]) {
+      return;
     }
-  }
-
-  public dispatchHook(id: HookID, data: any) {
-    if (!this.hookMap[id]) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve, reject) => {
-      Promise.all(
-        this.hookMap[id].map((func) => {
-          return func(id, { ...data });
-        })
-      ).then(
-        () => {
-          resolve(true);
-        },
-        (e) => {
-          reject(e);
-        }
-      );
+    const copyArgs: any[] = [];
+    args.forEach((arg: any) => {
+      if (typeof arg === "object") {
+        copyArgs.push({ ...arg });
+      } else {
+        copyArgs.push(arg);
+      }
+    });
+    this.hookMap[id as string].forEach((func) => {
+      func(...copyArgs);
     });
   }
 
-  public addHook(id: HookID, func: Handler) {
-    if (!this.hookMap[id]) {
-      this.hookMap[id] = [];
+  public addHook(id: T, func: HookHandler) {
+    if (!this.hookMap[id as string]) {
+      this.hookMap[id as string] = [];
     }
-    this.hookMap[id].push(func);
+    this.hookMap[id as string].push(func);
+  }
+
+  public removeHook(id: T, func: HookHandler) {
+    if (!this.hookMap[id as string]) {
+      return;
+    }
+    const index = this.hookMap[id as string].indexOf(func);
+    if (index > -1) {
+      this.hookMap[id as string].splice(index, 1);
+    }
   }
 }

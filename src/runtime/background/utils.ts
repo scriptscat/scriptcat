@@ -1,5 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/utils/utils";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
@@ -75,7 +76,7 @@ export function listenerWebRequest(headerFlag: string) {
       details.requestHeaders?.forEach((val) => {
         const lowerCase = val.name.toLowerCase();
         if (lowerCase.startsWith(`${headerFlag}-`)) {
-          const headerKey = lowerCase.substring(0, headerFlag.length + 1);
+          const headerKey = lowerCase.substring(headerFlag.length + 1);
           // 处理unsafeHeaders
           switch (headerKey) {
             case "cookie":
@@ -97,6 +98,7 @@ export function listenerWebRequest(headerFlag: string) {
               preRequestHeaders[headerKey] = val.value || "";
               break;
           }
+          return;
         }
         // 原生header
         switch (lowerCase) {
@@ -209,13 +211,17 @@ export function setXhrUnsafeHeader(
   xhr.setRequestHeader(`${headerFlag}-gm-xhr`, "true");
   if (config.headers) {
     Object.keys(config.headers).forEach((key) => {
+      const lowKey = key.toLowerCase();
       if (
-        unsafeHeaders[key] ||
-        key.startsWith("sec-") ||
-        key.startsWith("proxy-")
+        unsafeHeaders[lowKey] ||
+        lowKey.startsWith("sec-") ||
+        lowKey.startsWith("proxy-")
       ) {
         try {
-          xhr.setRequestHeader(`${headerFlag}-${key}`, config.headers![key]!);
+          xhr.setRequestHeader(
+            `${headerFlag}-${lowKey}`,
+            config.headers![key]!
+          );
         } catch (e) {
           LoggerCore.getLogger(Logger.E(e)).error(
             "GM XHR setRequestHeader error"
@@ -238,11 +244,11 @@ export function setXhrUnsafeHeader(
   }
 }
 
-export function dealXhr(
+export async function dealXhr(
   headerFlag: string,
   config: GMSend.XHRDetails,
   xhr: XMLHttpRequest
-): GMTypes.XHRResponse {
+): Promise<GMTypes.XHRResponse> {
   const removeXCat = new RegExp(`${headerFlag}-`, "g");
   const respond: GMTypes.XHRResponse = {
     finalUrl: xhr.responseURL || config.url,
@@ -254,13 +260,26 @@ export function dealXhr(
   };
   if (xhr.readyState === 4) {
     if (
-      config.responseType === "arraybuffer" ||
-      config.responseType === "blob"
+      config.responseType?.toLowerCase() === "arraybuffer" ||
+      config.responseType?.toLowerCase() === "blob"
     ) {
+      let blob: Blob;
       if (xhr.response instanceof ArrayBuffer) {
-        respond.response = URL.createObjectURL(new Blob([xhr.response]));
+        blob = new Blob([xhr.response]);
+        respond.response = URL.createObjectURL(blob);
       } else {
-        respond.response = URL.createObjectURL(<Blob>xhr.response);
+        blob = <Blob>xhr.response;
+        respond.response = URL.createObjectURL(blob);
+      }
+      try {
+        if (xhr.getResponseHeader("Content-Type")?.indexOf("text") !== -1) {
+          // 如果是文本类型,则尝试转换为文本
+          respond.responseText = await blob.text();
+        }
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error(
+          "GM XHR getResponseHeader error"
+        );
       }
       setTimeout(() => {
         URL.revokeObjectURL(<string>respond.response);
@@ -271,18 +290,33 @@ export function dealXhr(
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR JSON parse error");
       }
+      try {
+        respond.responseText = xhr.responseText;
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error("GM XHR getResponseText error");
+      }
     } else {
       try {
         respond.response = xhr.response;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR response error");
       }
-    }
-    try {
-      respond.responseText = xhr.responseText;
-    } catch (e) {
-      LoggerCore.getLogger(Logger.E(e)).error("GM XHR responseText error");
+      try {
+        respond.responseText = xhr.responseText;
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error("GM XHR getResponseText error");
+      }
     }
   }
-  return respond;
+  return Promise.resolve(respond);
+}
+
+export function getIcon(script: Script): string {
+  return (
+    (script.metadata.icon && script.metadata.icon[0]) ||
+    (script.metadata.iconurl && script.metadata.iconurl[0]) ||
+    (script.metadata.defaulticon && script.metadata.defaulticon[0]) ||
+    (script.metadata.icon64 && script.metadata.icon64[0]) ||
+    (script.metadata.icon64url && script.metadata.icon64url[0])
+  );
 }

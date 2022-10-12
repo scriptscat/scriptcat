@@ -1,8 +1,4 @@
-<h1 align="center">
-ScriptCat
-</h1>
-
-## ScriptCat
+# ScriptCat
 
 > 脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!
 
@@ -70,4 +66,6 @@ ScriptCat
 
 
 ## License
+本项目使用GPLv3协议开源, 请遵守协议规定.	
+
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)

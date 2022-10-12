@@ -2,7 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "@arco-design/web-react/dist/css/arco.css";
 import MessageInternal from "@App/app/message/internal";
-import ScriptController from "@App/app/service/script/controller";
 import migrate from "@App/app/migrate";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import dayjs from "dayjs";
 import LoggerCore, { LogLabel, LogLevel } from "./core";
 
@@ -35,15 +36,24 @@ export default class Logger {
       this.core.writer.write(level, message, buildLabel(this.label, label));
     }
     if (this.core.debug) {
-      // eslint-disable-next-line no-console
-      console.info(
-        "%s [%s] msg=%s label=%s",
-        dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
-        level,
-        message,
-        JSON.stringify(buildLabel(this.label, label))
-      );
+      const msg = `${dayjs(new Date()).format(
+        "YYYY-MM-DD HH:mm:ss"
+      )} [${level}] msg=${message} label=${JSON.stringify(
+        buildLabel(this.label, label)
+      )}`;
+      switch (level) {
+        case "error":
+          console.error(msg);
+          break;
+        case "warn":
+          console.warn(msg);
+          break;
+        default:
+          console.info(msg);
+          break;
+      }
     }
+    LoggerCore.hook.dispatchHook("log", { level, message, label });
   }
 
   with(...label: LogLabel[]) {
@@ -67,8 +77,6 @@ export default class Logger {
   }
 
   static E(e: any): LogLabel {
-    // eslint-disable-next-line no-console
-    console.log(e);
     if (typeof e === "string") {
       return { error: e };
     }

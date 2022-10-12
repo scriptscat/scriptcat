@@ -1,11 +1,13 @@
 /* eslint-disable camelcase */
 /* eslint-disable max-classes-per-file */
-import { Channel } from "@App/app/message/channel";
+import LoggerCore from "@App/app/logger/core";
+import { Channel, ChannelHandler } from "@App/app/message/channel";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { blobToBase64 } from "@App/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
+import { addStyle } from "./utils";
 
 interface ApiParam {
   depend?: string[];
@@ -73,9 +75,10 @@ export default class GMApi {
   }
 
   // 长连接使用,connect只用于接受消息,不能发送消息
-  public connect(api: string, params: any[]): Channel {
+  public connect(api: string, params: any[], handler: ChannelHandler): Channel {
     const uuid = uuidv4();
     const channel = this.message.channel(uuid);
+    channel.setHandler(handler);
     channel.channel("gmApiChannel", {
       api,
       scriptId: this.scriptRes.id,
@@ -199,22 +202,20 @@ export default class GMApi {
   // 辅助GM_xml获取blob数据
   @GMContext.API()
   public CAT_fetchBlob(url: string): Promise<Blob> {
-    return new Promise((resolve) => {
-      resolve(new Blob());
-    });
+    return this.message.syncSend("CAT_fetchBlob", url);
   }
 
   // 辅助GM_xml发送blob数据
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
-    return new Promise((resolve) => {
-      resolve("ok");
-    });
+    return this.message.syncSend("CAT_createBlobUrl", blob);
   }
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
   @GMContext.API({ depend: ["CAT_fetchBlob", "CAT_createBlobUrl"] })
-  public async GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
+  public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
+    let connect: Channel;
+
     const u = new URL(details.url, window.location.href);
     if (details.headers) {
       Object.keys(details.headers).forEach((key) => {
@@ -246,83 +247,393 @@ export default class GMApi {
       param.headers["Cache-Control"] = "no-cache";
     }
 
-    if (details.data) {
-      if (details.data instanceof FormData) {
-        param.dataType = "FormData";
-        const data: Array<GMSend.XHRFormData> = [];
-        const keys: { [key: string]: boolean } = {};
-        details.data.forEach((val, key) => {
-          keys[key] = true;
-        });
-        const asyncArr = Object.keys(keys).map((key) => {
-          const values = (<FormData>details.data).getAll(key);
-          const asyncArr2 = values.map((val) => {
-            return new Promise<void>((resolve) => {
-              if (val instanceof File) {
-                blobToBase64(val).then((base64) => {
+    const handler = async () => {
+      if (details.data) {
+        if (details.data instanceof FormData) {
+          param.dataType = "FormData";
+          const data: Array<GMSend.XHRFormData> = [];
+          const keys: { [key: string]: boolean } = {};
+          details.data.forEach((val, key) => {
+            keys[key] = true;
+          });
+          const asyncArr = Object.keys(keys).map((key) => {
+            const values = (<FormData>details.data).getAll(key);
+            const asyncArr2 = values.map((val) => {
+              return new Promise<void>((resolve) => {
+                if (val instanceof File) {
+                  blobToBase64(val).then((base64) => {
+                    data.push({
+                      key,
+                      type: "file",
+                      val: base64 || "",
+                      filename: val.name,
+                    });
+                    resolve();
+                  });
+                } else {
                   data.push({
                     key,
-                    type: "file",
-                    val: base64 || "",
-                    filename: val.name,
+                    type: "text",
+                    val,
                   });
                   resolve();
-                });
-              } else {
-                data.push({
-                  key,
-                  type: "text",
-                  val,
-                });
-                resolve();
-              }
+                }
+              });
             });
+            return Promise.all(asyncArr2);
           });
-          return Promise.all(asyncArr2);
-        });
-        await Promise.all(asyncArr);
-        param.data = data;
-      } else if (details.data instanceof Blob) {
-        param.dataType = "Blob";
-        param.data = await this.CAT_createBlobUrl(details.data);
-      } else {
-        param.data = details.data;
-      }
-    }
-
-    // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
-    // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
-    if (
-      details.onload &&
-      (details.responseType === "arraybuffer" ||
-        details.responseType === "blob")
-    ) {
-      const old = details.onload;
-      details.onload = async (xhr) => {
-        const resp = await this.CAT_fetchBlob(<string>xhr.response);
-        if (details.responseType === "arraybuffer") {
-          xhr.response = await resp.arrayBuffer();
+          await Promise.all(asyncArr);
+          param.data = data;
+        } else if (details.data instanceof Blob) {
+          param.dataType = "Blob";
+          param.data = await this.CAT_createBlobUrl(details.data);
         } else {
-          xhr.response = resp;
+          param.data = details.data;
         }
-        old(xhr);
-      };
-    }
+      }
 
-    const connect = this.connect("GM_xmlhttpRequest", [param]);
-    connect.setHandler((resp: any) => {
-      console.log(resp, "resp");
+      // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
+      // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
+      const warpResponse = (old: Function) => {
+        return async (xhr: GMTypes.XHRResponse) => {
+          if (xhr.response) {
+            const resp = await this.CAT_fetchBlob(<string>xhr.response);
+            if (details.responseType === "arraybuffer") {
+              xhr.response = await resp.arrayBuffer();
+            } else {
+              xhr.response = resp;
+            }
+          }
+          old(xhr);
+        };
+      };
+      if (
+        details.responseType?.toLowerCase() === "arraybuffer" ||
+        details.responseType?.toLocaleLowerCase() === "blob"
+      ) {
+        if (details.onload) {
+          details.onload = warpResponse(details.onload);
+        }
+        if (details.onreadystatechange) {
+          details.onreadystatechange = warpResponse(details.onreadystatechange);
+        }
+        if (details.onloadend) {
+          details.onloadend = warpResponse(details.onloadend);
+        }
+      }
+
+      connect = this.connect("GM_xmlhttpRequest", [param], (resp: any) => {
+        const data = <GMTypes.XHRResponse>resp.data || {};
+        switch (resp.event) {
+          case "onload":
+            details.onload && details.onload(data);
+            break;
+          case "onloadend":
+            details.onloadend && details.onloadend(data);
+            break;
+          case "onloadstart":
+            details.onloadstart && details.onloadstart(data);
+            break;
+          case "onprogress":
+            details.onprogress && details.onprogress(<GMTypes.XHRProgress>data);
+            break;
+          case "onreadystatechange":
+            details.onreadystatechange && details.onreadystatechange(data);
+            break;
+          case "ontimeout":
+            details.ontimeout && details.ontimeout();
+            break;
+          case "onerror":
+            details.onerror && details.onerror("");
+            break;
+          case "onabort":
+            details.onabort && details.onabort();
+            break;
+          default:
+            LoggerCore.getLogger().warn("GM_xmlhttpRequest resp is error", {
+              resp,
+            });
+            break;
+        }
+      });
+      connect.setCatch((err) => {
+        details.onerror && details.onerror(err);
+      });
+    };
+    handler();
+
+    return {
+      abort: () => {
+        if (connect) {
+          connect.disChannel();
+        }
+      },
+    };
+  }
+
+  @GMContext.API()
+  public async GM_notification(
+    detail: GMTypes.NotificationDetails | string,
+    ondone?: GMTypes.NotificationOnDone | string,
+    image?: string,
+    onclick?: GMTypes.NotificationOnClick
+  ) {
+    let data: GMTypes.NotificationDetails = {};
+    if (typeof detail === "string") {
+      data.text = detail;
+      switch (arguments.length) {
+        case 4:
+          data.onclick = onclick;
+        // eslint-disable-next-line no-fallthrough
+        case 3:
+          data.image = image;
+        // eslint-disable-next-line no-fallthrough
+        case 2:
+          data.title = <string>ondone;
+        // eslint-disable-next-line no-fallthrough
+        default:
+          break;
+      }
+    } else {
+      data = detail;
+      data.ondone = data.ondone || <GMTypes.NotificationOnDone>ondone;
+    }
+    let click: GMTypes.NotificationOnClick;
+    let done: GMTypes.NotificationOnDone;
+    let create: GMTypes.NotificationOnClick;
+    if (data.onclick) {
+      click = data.onclick;
+      delete data.onclick;
+    }
+    if (data.ondone) {
+      done = data.ondone;
+      delete data.ondone;
+    }
+    if (data.oncreate) {
+      create = data.oncreate;
+      delete data.oncreate;
+    }
+    this.connect("GM_notification", [data], (resp: any) => {
+      switch (resp.event) {
+        case "click": {
+          click && click.apply({ id: resp.id }, [resp.id, resp.index]);
+          break;
+        }
+        case "done": {
+          done && done.apply({ id: resp.id }, [resp.user]);
+          break;
+        }
+        case "create": {
+          create && create.apply({ id: resp.id }, [resp.id]);
+          break;
+        }
+        default:
+          LoggerCore.getLogger().warn("GM_notification resp is error", {
+            resp,
+          });
+          break;
+      }
     });
-    connect.setCatch((err) => {
-      console.log(err, "err");
-      connect.disChannel();
+  }
+
+  @GMContext.API()
+  public GM_closeNotification(id: string) {
+    this.sendMessage("GM_closeNotification", [id]);
+  }
+
+  @GMContext.API()
+  public GM_updateNotification(
+    id: string,
+    details: GMTypes.NotificationDetails
+  ): void {
+    this.sendMessage("GM_updateNotification", [id, details]);
+  }
+
+  @GMContext.API()
+  GM_log(
+    message: string,
+    level?: GMTypes.LoggerLevel,
+    labels?: GMTypes.LoggerLabel
+  ) {
+    return this.sendMessage("GM_log", [message, level, labels]);
+  }
+
+  @GMContext.API({ depend: ["GM_closeInTab"] })
+  public GM_openInTab(
+    url: string,
+    options?: GMTypes.OpenTabOptions | boolean
+  ): GMTypes.Tab {
+    let option: GMTypes.OpenTabOptions = {};
+    if (arguments.length === 1) {
+      option.active = true;
+    } else if (typeof options === "boolean") {
+      option.active = options;
+    } else {
+      option = <GMTypes.OpenTabOptions>options;
+    }
+    let tabid: any;
+
+    const ret: GMTypes.Tab = {
+      close: () => {
+        this.GM_closeInTab(tabid);
+      },
+    };
+
+    const connect = this.connect("GM_openInTab", [url, option], (data) => {
+      switch (data.event) {
+        case "oncreate":
+          tabid = data.tabId;
+          break;
+        case "onclose":
+          ret.onclose && ret.onclose();
+          ret.closed = true;
+          connect.disChannel();
+          break;
+        default:
+          break;
+      }
     });
-    // connect.send("GM_xmlhttpRequest", param);
+    return ret;
+  }
+
+  @GMContext.API()
+  public GM_closeInTab(tabid: string) {
+    return this.sendMessage("GM_closeInTab", [tabid]);
+  }
+
+  @GMContext.API()
+  GM_getResourceText(name: string): string | undefined {
+    if (!this.scriptRes.resource) {
+      return undefined;
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      return r.content;
+    }
+    return undefined;
+  }
+
+  @GMContext.API()
+  GM_getResourceURL(name: string): string | undefined {
+    if (!this.scriptRes.resource) {
+      return undefined;
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      return r.base64;
+    }
+    return undefined;
+  }
+
+  @GMContext.API()
+  GM_addStyle(css: string): HTMLElement {
+    return addStyle(css);
+  }
+
+  @GMContext.API()
+  async GM_getTab(callback: (data: any) => void) {
+    const resp = await this.sendMessage("GM_getTab", []);
+    callback(resp);
+  }
+
+  @GMContext.API()
+  GM_saveTab(obj: object) {
+    if (typeof obj === "object") {
+      obj = JSON.parse(JSON.stringify(obj));
+    }
+    return this.sendMessage("GM_saveTab", [obj]);
+  }
+
+  @GMContext.API()
+  async GM_getTabs(
+    callback: (objs: { [key: string | number]: object }) => any
+  ) {
+    const resp = await this.sendMessage("GM_getTabs", []);
+    callback(resp);
+  }
+
+  @GMContext.API()
+  GM_download(
+    url: GMTypes.DownloadDetails | string,
+    filename?: string
+  ): GMTypes.AbortHandle<void> {
+    let details: GMTypes.DownloadDetails;
+    if (typeof url === "string") {
+      details = {
+        name: filename || "",
+        url,
+      };
+    } else {
+      details = url;
+    }
+    const connect = this.connect(
+      "GM_download",
+      [
+        {
+          method: details.method,
+          url: details.url,
+          name: details.name,
+          headers: details.headers,
+          saveAs: details.saveAs,
+          timeout: details.timeout,
+          cookie: details.cookie,
+          anonymous: details.anonymous,
+        },
+      ],
+      (resp: any) => {
+        const data = <GMTypes.XHRResponse>resp.data || {};
+        switch (resp.event) {
+          case "onload":
+            details.onload && details.onload(data);
+            break;
+          case "onprogress":
+            details.onprogress && details.onprogress(<GMTypes.XHRProgress>data);
+            break;
+          case "ontimeout":
+            details.ontimeout && details.ontimeout();
+            break;
+          case "onerror":
+            details.onerror &&
+              details.onerror({
+                error: "unknown",
+              });
+            break;
+          default:
+            LoggerCore.getLogger().warn("GM_download resp is error", {
+              resp,
+            });
+            break;
+        }
+      }
+    );
 
     return {
       abort: () => {
         connect.disChannel();
       },
     };
+  }
+
+  @GMContext.API()
+  GM_setClipboard(
+    data: string,
+    info?: string | { type?: string; minetype?: string }
+  ) {
+    return this.sendMessage("GM_setClipboard", [data, info]);
+  }
+
+  @GMContext.API()
+  GM_cookie(
+    action: string,
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    this.sendMessage("GM_cookie", [action, details])
+      .then((resp: any) => {
+        done && done(resp, undefined);
+      })
+      .catch((err) => {
+        done && done(undefined, err);
+      });
   }
 }

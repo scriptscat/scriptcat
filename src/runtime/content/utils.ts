@@ -1,4 +1,4 @@
-import { Message } from "@App/app/message/message";
+import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
 import GMApi, { ApiValue, GMContext } from "./gm_api";
@@ -51,7 +51,7 @@ function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
 // 构建沙盒上下文
 export function createContext(
   scriptRes: ScriptRunResouce,
-  message: Message
+  message: MessageManager
 ): GMApi {
   // 按照GMApi构建
   const context: { [key: string]: any } = {
@@ -209,4 +209,13 @@ export function proxyContext(global: any, context: any) {
     },
   });
   return proxy;
+}
+
+export function addStyle(css: string): HTMLElement {
+  const dom = document.createElement("style");
+  dom.innerHTML = css;
+  if (document.head) {
+    return document.head.appendChild(dom);
+  }
+  return document.documentElement.appendChild(dom);
 }

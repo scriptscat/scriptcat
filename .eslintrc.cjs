@@ -25,6 +25,7 @@ module.exports = {
   plugins: ["react", "@typescript-eslint", "prettier"],
   rules: {
     "react/jsx-filename-extension": [1, { extensions: [".tsx"] }],
+    "no-unused-expressions": ["error", { allowShortCircuit: true }],
     "import/extensions": [
       "error",
       "ignorePackages",
@@ -57,7 +58,10 @@ module.exports = {
         extensions: [".js", ".jsx", ".ts", ".tsx"],
       },
       alias: {
-        map: [["@App", "./src/"]],
+        map: [
+          ["@App", "./src/"],
+          ["pkg", "./pkg/"],
+        ],
         extensions: [".js", ".jsx", ".ts", ".tsx"],
       },
     },

@@ -1,4 +1,3 @@
-import { Script } from "@App/app/repo/scripts";
 import PermissionController from "@App/app/service/permission/controller";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
@@ -8,14 +7,12 @@ function App() {
   // 从query中获取uuid
   const uuid = window.location.search.split("=")[1];
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
-  const [script, setScript] = React.useState<Script>();
   const [likeNum, setLikeNum] = React.useState(0);
   // 秒数
   const [second, setSecond] = React.useState(30);
   // 超时关闭
   if (second === 0) {
     window.close();
-    return;
   }
   setTimeout(() => {
     setSecond(second - 1);
@@ -33,7 +30,6 @@ function App() {
       .getConfirm(uuid)
       .then((data) => {
         setConfirm(data.confirm);
-        setScript(data.script);
         setLikeNum(data.likeNum);
       })
       .catch((e: any) => {

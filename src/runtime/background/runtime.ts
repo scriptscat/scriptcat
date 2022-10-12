@@ -10,13 +10,13 @@ import {
   ScriptDAO,
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
-import Hook, { HookID } from "@App/app/service/hook";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
 import { dealScript, randomString } from "@App/utils/utils";
 import MessageCenter from "@App/app/message/center";
 import { UrlInclude, UrlMatch } from "@App/utils/match";
 import { MessageSender } from "@App/app/message/message";
+import ScriptManager from "@App/app/service/script/manager";
 import { compileScriptCode } from "../content/utils";
 
 // 后台脚本将会将代码注入到沙盒中
@@ -48,10 +48,10 @@ export default class Runtime {
     this.valueManager = valueManager;
     this.scriptFlag = randomString(8);
     this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
-    Hook.getInstance().addHook("script:upsert", this.scriptUpdate.bind(this));
-    Hook.getInstance().addHook("script:delete", this.scriptDelete.bind(this));
-    Hook.getInstance().addHook("script:enable", this.enable.bind(this));
-    Hook.getInstance().addHook("script:disable", this.disable.bind(this));
+    ScriptManager.hook.addHook("upsert", this.scriptUpdate.bind(this));
+    ScriptManager.hook.addHook("delete", this.scriptDelete.bind(this));
+    ScriptManager.hook.addHook("enable", this.scriptUpdate.bind(this));
+    ScriptManager.hook.addHook("disable", this.scriptUpdate.bind(this));
 
     this.listenPageLoad();
   }
@@ -61,10 +61,10 @@ export default class Runtime {
       items.forEach((item) => {
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
-          this.enable("script:enable", item);
+          this.enable(item);
         } else if (item.type === SCRIPT_TYPE_NORMAL) {
           // 只处理未开启的普通页面脚本
-          this.disable("script:disable", item);
+          this.disable(item);
         }
       });
     });
@@ -191,17 +191,17 @@ export default class Runtime {
   }
 
   // 脚本发生变动
-  scriptUpdate(id: HookID, script: Script): Promise<boolean> {
+  scriptUpdate(script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.enable(id, script as ScriptRunResouce);
+      return this.enable(script as ScriptRunResouce);
     }
-    return this.disable(id, script);
+    return this.disable(script);
   }
 
   // 脚本删除
-  scriptDelete(id: HookID, script: Script): Promise<boolean> {
+  scriptDelete(script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.disable(id, script);
+      return this.disable(script);
     }
     // 清理匹配资源
     this.match.del(<ScriptRunResouce>script);
@@ -210,7 +210,7 @@ export default class Runtime {
   }
 
   // 脚本开启
-  async enable(id: HookID, script: Script): Promise<boolean> {
+  async enable(script: Script): Promise<boolean> {
     // 编译脚本运行资源
     const scriptRes = await this.buildScriptRunResource(script);
     if (script.type !== SCRIPT_TYPE_NORMAL) {
@@ -220,7 +220,7 @@ export default class Runtime {
   }
 
   // 脚本关闭
-  disable(id: HookID, script: Script): Promise<boolean> {
+  disable(script: Script): Promise<boolean> {
     if (script.type !== SCRIPT_TYPE_NORMAL) {
       return this.unloadBackgroundScript(script);
     }

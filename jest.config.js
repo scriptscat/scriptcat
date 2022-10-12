@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: "jsdom",
   moduleNameMapper: {
     "^@App/(.*)$": "<rootDir>/src/$1",
+    "^pkg/(.*)$": "<rootDir>/pkg/$1",
   },
   moduleFileExtensions: ["js", "ts"],
   transform: {

@@ -1,3 +1,4 @@
 dist/
+example/
 *.d.ts
 *.test.ts

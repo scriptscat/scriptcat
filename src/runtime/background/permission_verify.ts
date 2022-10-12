@@ -1,5 +1,4 @@
 // gm api 权限验证
-
 import Cache from "@App/app/cache";
 import MessageCenter from "@App/app/message/center";
 import { PermissionDAO } from "@App/app/repo/permission";
@@ -7,7 +6,6 @@ import { Script } from "@App/app/repo/scripts";
 import CacheKey from "@App/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import MessageQueue from "@App/utils/message_queue";
-import { constants } from "pako";
 import { Api, Request } from "./gm_api";
 
 export interface ConfirmParam {
@@ -29,8 +27,7 @@ export interface ConfirmParam {
 
 export interface UserConfirm {
   allow: boolean;
-  // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
-  type: number;
+  type: number; // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
 }
 
 export interface ApiParam {
@@ -44,6 +41,8 @@ export interface ApiParam {
   listener?: () => void;
   // 别名
   alias?: string[];
+  // 关联
+  link?: string;
 }
 
 export interface ApiValue {
@@ -53,6 +52,8 @@ export interface ApiValue {
 
 export default class PermissionVerify {
   static apis: Map<string, ApiValue> = new Map();
+
+  static textarea: HTMLTextAreaElement = document.createElement("textarea");
 
   public static API(param: ApiParam = {}) {
     return (
@@ -68,13 +69,19 @@ export default class PermissionVerify {
         api: descriptor.value,
         param,
       });
+      // 处理别名
+      if (param.alias) {
+        param.alias.forEach((alias) => {
+          PermissionVerify.apis.set(alias, {
+            api: descriptor.value,
+            param,
+          });
+        });
+      }
+
       // 兼容GM.*
-      let dot = key.replace("_", ".");
+      const dot = key.replace("_", ".");
       if (dot !== key) {
-        // 特殊处理GM.xmlHttpRequest
-        if (dot === "GM.xmlhttpRequest") {
-          dot = "GM.xmlHttpRequest";
-        }
         PermissionVerify.apis.set(dot, {
           api: descriptor.value,
           param,
@@ -149,17 +156,18 @@ export default class PermissionVerify {
     if (api.param.default) {
       return Promise.resolve(true);
     }
-    // 需要用户确认
-    if (api.param.confirm) {
-      return this.pushConfirmQueue(request, api);
-    }
     // 没有其它条件,从metadata.grant中判断
     const { grant } = request.script.metadata;
     if (!grant) {
       return Promise.reject(new Error("grant is undefined"));
     }
+
     for (let i = 0; i < grant.length; i += 1) {
-      if (grant[i] === request.api) {
+      if (grant[i] === request.api || grant[i] === api.param.link) {
+        // 需要用户确认
+        if (api.param.confirm) {
+          return this.pushConfirmQueue(request, api);
+        }
         return Promise.resolve(true);
       }
     }
@@ -185,6 +193,9 @@ export default class PermissionVerify {
   // 确认队列,为了防止一次性打开过多的窗口
   async pushConfirmQueue(request: Request, api: ApiValue): Promise<boolean> {
     const confirm = await api.param.confirm!(request);
+    if (confirm === true) {
+      return Promise.resolve(true);
+    }
     return new Promise((resolve, reject) => {
       this.confirmQueue.push({ request, confirm, resolve, reject });
     });

@@ -73,7 +73,7 @@ declare function GM_getValue(name: string, defaultValue?: any): any;
 declare function GM_log(
   message: string,
   level?: GMTypes.LoggerLevel,
-  labels: GMTypes.LoggerLabel[]
+  labels?: GMTypes.LoggerLabel
 ): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
@@ -87,13 +87,6 @@ declare function GM_registerMenuCommand(
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
-
-declare interface tab {
-  close(): void;
-  onclose?: () => void;
-  closed?: boolean;
-  name?: string;
-}
 
 declare function GM_openInTab(
   url: string,
@@ -115,7 +108,7 @@ declare function GM_download(
 ): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => any): void;
-declare function GM_saveTab(obj: object): void;
+declare function GM_saveTab(obj: object): Promise<void>;
 declare function GM_getTabs(
   callback: (objs: { [key: number]: object }) => any
 ): void;
@@ -147,17 +140,28 @@ declare function GM_cookie(
   details: GMTypes.CookieDetails,
   ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
 ): void;
-// 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
+
+// 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.请注意这是一个实验性质的API,后续可能会改变
 declare function GM_getCookieStore(
   tabid: number,
   ondone: (storeId: number, error: any | undefined) => void
 ): void;
 
-// 正式版中以废弃
+/**
+ * 设置浏览器代理
+ * @deprecated 正式版中以废弃
+ */
 declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
-// 正式版中以废弃
+// @deprecated 正式版中以废弃
+/**
+ * 清理所有代理规则
+ * @deprecated 正式版中以废弃
+ */
 declare function CAT_clearProxy(): void;
-// 正式版中以废弃
+/**
+ * 输入x、y,模拟真实点击
+ * @deprecated 正式版中以废弃
+ */
 declare function CAT_click(x: number, y: number): void;
 
 declare namespace CAT_Types {
@@ -318,11 +322,7 @@ declare namespace GMTypes {
     id: string,
     index?: number
   ) => any;
-  type NotificationOnDone = (
-    this: NotificationThis,
-    clicked: boolean,
-    id: string
-  ) => any;
+  type NotificationOnDone = (this: NotificationThis, user: boolean) => any;
 
   interface NotificationButton {
     title: string;
@@ -341,5 +341,12 @@ declare namespace GMTypes {
     progress?: number;
     oncreate?: NotificationOnClick;
     buttons?: NotificationButton[];
+  }
+
+  interface Tab {
+    close(): void;
+    onclose?: () => void;
+    closed?: boolean;
+    name?: string;
   }
 }
