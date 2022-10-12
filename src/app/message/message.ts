@@ -131,12 +131,10 @@ export abstract class MessageHander {
           if (ret) {
             ret
               .then((data) => {
-                if (data) {
-                  channelManager.nativeSend({
-                    stream: message.stream,
-                    data,
-                  });
-                }
+                channelManager.nativeSend({
+                  stream: message.stream,
+                  data,
+                });
               })
               .catch((err) => {
                 channelManager.nativeSend({

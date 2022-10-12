@@ -193,6 +193,9 @@ export default class PermissionVerify {
   // 确认队列,为了防止一次性打开过多的窗口
   async pushConfirmQueue(request: Request, api: ApiValue): Promise<boolean> {
     const confirm = await api.param.confirm!(request);
+    if (confirm === true) {
+      return Promise.resolve(true);
+    }
     return new Promise((resolve, reject) => {
       this.confirmQueue.push({ request, confirm, resolve, reject });
     });

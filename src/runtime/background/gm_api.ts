@@ -682,13 +682,13 @@ export default class GMApi {
             reject(new Error("must exist name"));
             return;
           }
-          if (!detail.url || !detail.domain) {
-            reject(new Error("must have url or domain"));
+          if (!detail.url) {
+            reject(new Error("must have url"));
             return;
           }
           chrome.cookies.set(
             {
-              url: detail.url,
+              url: detail.url!,
               name: detail.name,
               domain: detail.domain,
               value: detail.value,

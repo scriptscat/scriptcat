@@ -371,15 +371,21 @@ describe("GM notification", () => {
 describe("GM log", () => {
   it("log", () => {
     return new Promise<void>((resolve) => {
-      LoggerCore.hook.addHook(
-        "log",
-        ({ level, message }: { level: string; message: string }) => {
-          expect(level).toBe("info");
-          expect(message).toBe("test");
-          resolve();
-          return Promise.resolve(true);
-        }
-      );
+      const hookFn = ({
+        level,
+        message,
+      }: {
+        level: string;
+        message: string;
+      }) => {
+        expect(level).toBe("info");
+        expect(message).toBe("test");
+        LoggerCore.hook.removeHook("log", hookFn);
+        resolve();
+        return Promise.resolve(true);
+      };
+      LoggerCore.hook.addHook("log", hookFn);
+
       contentApi.GM_log("test");
     });
   });
@@ -464,7 +470,7 @@ describe("GM cookie", () => {
         "list",
         { url: "https://scriptcat.org" },
         (value, err) => {
-          expect(err).toBe("hostname must be in the definition of connect");
+          expect(err).toEqual("hostname must be in the definition of connect");
           resolve();
         }
       );
@@ -484,7 +490,7 @@ describe("GM cookie", () => {
         "list",
         { url: "https://www.example.com" },
         (value, err) => {
-          expect(err).toBe("permission not allowed");
+          expect(err).toEqual("permission not allowed");
           chromeMock.tabs.hook.removeHook("create", hookFn);
           resolve();
         }
@@ -552,9 +558,8 @@ describe("GM cookie", () => {
         },
         (value, err) => {
           chromeMock.tabs.hook.removeHook("create", hookFn);
-          console.log(value, err);
-          expect(value).toBeNull();
-          expect(err).toBeNull();
+          expect(value).toBeUndefined();
+          expect(err).toBeUndefined();
           resolve();
         }
       );
@@ -568,8 +573,8 @@ describe("GM cookie", () => {
           value: "123",
         },
         (value, err) => {
-          expect(value).toBeNull();
-          expect(err).toBeNull();
+          expect(value).toBeUndefined();
+          expect(err).toEqual("must have url");
           resolve();
         }
       );
@@ -584,8 +589,8 @@ describe("GM cookie", () => {
           name: "test",
         },
         (value, err) => {
-          expect(value).toBeNull();
-          expect(err).toBeNull();
+          expect(value).toBeUndefined();
+          expect(err).toBeUndefined();
           resolve();
         }
       );
