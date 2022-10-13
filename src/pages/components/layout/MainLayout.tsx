@@ -15,7 +15,7 @@ import {
 import React, { ReactNode, useState } from "react";
 import "./index.css";
 
-function switchLight(mode: string) {
+export function switchLight(mode: string) {
   if (mode === "auto") {
     const darkThemeMq = window.matchMedia("(prefers-color-scheme: dark)");
     const isMatch = (match: boolean) => {

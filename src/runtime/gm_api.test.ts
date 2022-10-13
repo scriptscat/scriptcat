@@ -15,7 +15,6 @@ import { newMockXhr } from "mock-xmlhttprequest";
 import chromeMock from "pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
-import PermissionVerify from "./background/permission_verify";
 
 migrate();
 
@@ -574,7 +573,7 @@ describe("GM cookie", () => {
         },
         (value, err) => {
           expect(value).toBeUndefined();
-          expect(err).toEqual("must have url");
+          expect(err).toEqual("set operation must have name and value");
           resolve();
         }
       );

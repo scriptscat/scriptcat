@@ -11,6 +11,7 @@ import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/utils/cache_key";
 import { base64ToBlob } from "@App/utils/script";
 import { isFirefox } from "@App/utils/utils";
+import Hook from "@App/app/service/hook";
 import PermissionVerify, { ConfirmParam } from "./permission_verify";
 import {
   dealXhr,
@@ -45,6 +46,8 @@ export default class GMApi {
   logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
 
   headerFlag: string;
+
+  static hook: Hook<"registerMenu" | "unregisterMenu"> = new Hook();
 
   constructor() {
     this.message = MessageCenter.getInstance();
@@ -233,10 +236,6 @@ export default class GMApi {
       xhr.overrideMimeType(config.overrideMimeType);
     }
 
-    channel.disChannelHandler = () => {
-      xhr.abort();
-    };
-
     if (config.dataType === "FormData") {
       const data = new FormData();
       if (config.data && config.data instanceof Array) {
@@ -258,6 +257,10 @@ export default class GMApi {
     } else {
       xhr.send(<string>config.data);
     }
+
+    channel.disChannelHandler = () => {
+      xhr.abort();
+    };
     return Promise.resolve();
   }
 
@@ -528,6 +531,9 @@ export default class GMApi {
     }
 
     xhr.send();
+    channel.setDisChannelHandler(() => {
+      xhr.abort();
+    });
   }
 
   static clipboardData: { type?: string; data: string } | undefined;
@@ -678,17 +684,13 @@ export default class GMApi {
           break;
         }
         case "set": {
-          if (!detail.name) {
-            reject(new Error("must exist name"));
-            return;
-          }
-          if (!detail.url) {
-            reject(new Error("must have url"));
+          if (!detail.url || !detail.name) {
+            reject(new Error("set operation must have name and value"));
             return;
           }
           chrome.cookies.set(
             {
-              url: detail.url!,
+              url: detail.url,
               name: detail.name,
               domain: detail.domain,
               value: detail.value,
@@ -712,13 +714,18 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API()
-  GM_getCookieStore() {}
-
   // TODO: GM_registerMenuCommand
   @PermissionVerify.API()
-  GM_registerMenuCommand() {}
+  GM_registerMenuCommand(request: Request, channel: Channel) {
+    GMApi.hook.dispatchHook("registerMenu", request, channel);
+    channel.setDisChannelHandler(() => {
+      GMApi.hook.dispatchHook("unregisterMenu", request.params[0], request);
+    });
+    return Promise.resolve();
+  }
 
   @PermissionVerify.API()
-  GM_unregisterMenuCommand() {}
+  GM_unregisterMenuCommand(request: Request) {
+    GMApi.hook.dispatchHook("unregisterMenu", request.params[0], request);
+  }
 }

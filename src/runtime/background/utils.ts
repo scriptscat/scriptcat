@@ -1,7 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { Channel } from "@App/app/message/channel";
 import { Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/utils/utils";
+import MessageCenter from "@App/app/message/center";
+import { ScriptMenu } from "./runtime";
+import GMApi, { Request } from "./gm_api";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
   // 部分浏览器中并未允许
@@ -319,4 +323,64 @@ export function getIcon(script: Script): string {
     (script.metadata.icon64 && script.metadata.icon64[0]) ||
     (script.metadata.icon64url && script.metadata.icon64url[0])
   );
+}
+
+// 生成chrome菜单
+export function genScriptMenu(
+  tabId: number,
+  scriptMenu: Map<
+    number,
+    Map<
+      number,
+      {
+        request: Request;
+        channel: Channel;
+      }[]
+    >
+  >
+) {
+  // 移除之前所有的菜单
+  chrome.contextMenus.removeAll();
+  const tabMap = scriptMenu.get(tabId);
+  if (tabMap) {
+    // 创建根菜单
+    chrome.contextMenus.create({
+      id: "scriptMenu",
+      title: "ScriptCat",
+      contexts: ["all"],
+    });
+    tabMap.forEach((menuArr, scriptId) => {
+      // 创建脚本菜单
+      chrome.contextMenus.create({
+        id: `scriptMenu_${scriptId}`,
+        title: menuArr[0].request.script.name,
+        contexts: ["all"],
+        parentId: "scriptMenu",
+      });
+      menuArr.forEach((menu) => {
+        // 创建菜单
+        chrome.contextMenus.create({
+          id: `scriptMenu_menu_${menu.request.params[0]}`,
+          title: menu.request.params[1],
+          contexts: ["all"],
+          parentId: `scriptMenu_${scriptId}`,
+          onclick: () => {
+            MessageCenter.getInstance().sendNative(
+              {
+                tag: menu.request.sender.targetTag,
+                id: [
+                  menu.request.sender.frameId || menu.request.sender.tabId || 0,
+                ],
+              },
+              {
+                stream: menu.channel.flag,
+                channel: true,
+                data: "click",
+              }
+            );
+          },
+        });
+      });
+    });
+  }
 }

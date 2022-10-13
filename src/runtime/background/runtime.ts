@@ -17,7 +17,25 @@ import MessageCenter from "@App/app/message/center";
 import { UrlInclude, UrlMatch } from "@App/utils/match";
 import { MessageSender } from "@App/app/message/message";
 import ScriptManager from "@App/app/service/script/manager";
+import { Channel } from "@App/app/message/channel";
 import { compileScriptCode } from "../content/utils";
+import GMApi, { Request } from "./gm_api";
+import { genScriptMenu } from "./utils";
+
+export type ScriptMenuItem = {
+  id: number;
+  name: string;
+  accessKey: string;
+  sender: MessageSender;
+  channelFlag: string;
+};
+
+export type ScriptMenu = {
+  id: number;
+  name: string;
+  enable: boolean;
+  menus?: ScriptMenuItem[];
+};
 
 // 后台脚本将会将代码注入到沙盒中
 export default class Runtime {
@@ -81,14 +99,111 @@ export default class Runtime {
       });
 
     // 监听菜单创建
+    const scriptMenu: Map<
+      number,
+      Map<
+        number,
+        {
+          request: Request;
+          channel: Channel;
+        }[]
+      >
+    > = new Map();
+    GMApi.hook.addHook("registerMenu", (request: Request, channel: Channel) => {
+      // TODO: 暂时不处理后台脚本的菜单
+      if (!request.sender.tabId) {
+        return;
+      }
+      const senderId = request.sender.tabId;
+      let tabMap = scriptMenu.get(senderId);
+      if (!tabMap) {
+        tabMap = new Map();
+        scriptMenu.set(senderId, tabMap);
+      }
+      let menuArr = tabMap.get(request.scriptId);
+      if (!menuArr) {
+        menuArr = [];
+        tabMap.set(request.scriptId, menuArr);
+      }
+      // 查询菜单是否已经存在
+      for (let i = 0; menuArr.length; i += 1) {
+        // id 相等 跳过,选第一个,并close链接
+        if (menuArr[i].request.params[0] === request.params[0]) {
+          channel.disChannel();
+          return;
+        }
+      }
+      menuArr.push({ request, channel });
+      // 偷懒行为
+      genScriptMenu(senderId, scriptMenu);
+    });
+    GMApi.hook.addHook("unregisterMenu", (id, request: Request) => {
+      if (!request.sender.tabId) {
+        return;
+      }
+      const senderId = request.sender.tabId;
+      const tabMap = scriptMenu.get(senderId);
+      if (tabMap) {
+        const menuArr = tabMap.get(request.scriptId);
+        if (menuArr) {
+          // 从菜单数组中遍历删除
+          for (let i = 0; i < menuArr.length; i += 1) {
+            if (menuArr[i].request.params[0] === id) {
+              menuArr.splice(i, 1);
+              break;
+            }
+          }
+          if (menuArr.length === 0) {
+            tabMap.delete(request.scriptId);
+          }
+        }
+        if (!Object.keys(tabMap).length) {
+          scriptMenu.delete(senderId);
+        }
+      }
+      // 偷懒行为
+      genScriptMenu(senderId, scriptMenu);
+    });
 
-    // 给popup页面获取运行脚本
+    // 监听页面切换加载菜单
+    chrome.tabs.onActivated.addListener((activeInfo) => {
+      genScriptMenu(activeInfo.tabId, scriptMenu);
+    });
+
+    // 给popup页面获取运行脚本,与菜单
     MessageCenter.getInstance().setHandler(
       "queryPageScript",
-      (action: string, url: string) => {
-        return Promise.resolve(this.match.match(url));
+      (action: string, { url, tabId }: any) => {
+        const tabMap = scriptMenu.get(tabId);
+        const matchScripts = this.match.match(url);
+        const scriptList: ScriptMenu[] = [];
+        matchScripts.forEach((item) => {
+          const menus: ScriptMenuItem[] = [];
+          if (tabMap) {
+            tabMap.get(item.id)?.forEach((scriptItem) => {
+              menus.push({
+                name: scriptItem.request.params[1],
+                accessKey: scriptItem.request.params[2],
+                id: scriptItem.request.params[0],
+                sender: scriptItem.request.sender,
+                channelFlag: scriptItem.channel.flag,
+              });
+            });
+          }
+          scriptList.push({
+            id: item.id,
+            name: item.name,
+            enable: item.status === SCRIPT_STATUS_ENABLE,
+            menus,
+          });
+        });
+        return Promise.resolve({
+          scriptList,
+        });
       }
     );
+
+    // content页发送页面加载完成消息,注入脚本
     MessageCenter.getInstance().setHandler(
       "pageLoad",
       (_action: string, data: any, sender: MessageSender) => {

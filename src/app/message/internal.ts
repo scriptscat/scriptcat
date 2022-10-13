@@ -78,10 +78,24 @@ export default class MessageInternal
   }
 
   // 广播
-  public broadcast(_target: Target, action: string, data: any) {
+  public broadcast(target: Target, action: string, data: any) {
     this.nativeSend({
+      target,
       action,
       data,
+      broadcast: true,
+    });
+  }
+
+  // 广播到channel
+  public broadcastChannel(target: Target, channelFlag: string, data: any) {
+    this.nativeSend({
+      target,
+      data: {
+        stream: channelFlag,
+        channel: true,
+        data,
+      },
       broadcast: true,
     });
   }

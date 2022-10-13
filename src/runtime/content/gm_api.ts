@@ -636,4 +636,29 @@ export default class GMApi {
         done && done(undefined, err);
       });
   }
+
+  menuId: number | undefined;
+
+  @GMContext.API()
+  GM_registerMenuCommand(
+    name: string,
+    listener: () => void,
+    accessKey?: string
+  ): number {
+    if (!this.menuId) {
+      this.menuId = 1;
+    } else {
+      this.menuId += 1;
+    }
+    const id = this.menuId;
+    this.connect("GM_registerMenuCommand", [id, name, accessKey], () => {
+      listener();
+    });
+    return id;
+  }
+
+  @GMContext.API()
+  GM_unregisterMenuCommand(id: number): void {
+    this.sendMessage("GM_unregisterMenuCommand", [id]);
+  }
 }

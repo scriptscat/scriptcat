@@ -9,6 +9,8 @@
 // @connect example.com
 // ==/UserScript==
 
+// GM_cookie("store") 方法请看gm_value.js的例子, 可用于隐身窗口的操作
+
 GM_cookie("set", {
     url: "http://example.com/cookie",
     name: "cookie1", value: "value"

@@ -31,7 +31,8 @@ export type TargetTag =
   | "popup"
   | "options"
   | "install"
-  | "confirm";
+  | "confirm"
+  | "all";
 
 export type Target = { tag: TargetTag; id?: number[] };
 
@@ -78,6 +79,9 @@ export class WarpChannelManager {
   }
 
   free() {
+    this.channelMap.forEach((channel) => {
+      channel.disChannelHandler?.("free");
+    });
     this.channelMap.clear();
   }
 }

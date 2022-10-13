@@ -7,7 +7,8 @@ import migrate from "@App/app/migrate";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
 import App from "./App";
-import MainLayout from "../components/layout/MainLayout";
+import "./index.css";
+import MainLayout, { switchLight } from "../components/layout/MainLayout";
 
 migrate();
 
@@ -15,10 +16,15 @@ const con = new MessageInternal("popup");
 
 ScriptController.instance = new ScriptController(con);
 
+switchLight(localStorage.lightMode || "auto");
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div>
-    <MainLayout className="!flex-col !px-4 box-border">
-      <App />
-    </MainLayout>
+  <div
+    style={{
+      height: "50px",
+      borderBottom: "1px solid var(--color-neutral-3)",
+    }}
+  >
+    <App />
   </div>
 );

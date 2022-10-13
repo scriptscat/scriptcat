@@ -73,10 +73,12 @@ export default class MessageCenter extends MessageHander {
       port.onMessage.addListener((message) => {
         if (message.broadcast === true) {
           // 广播
-          const targets = message.target as Target[];
-          targets.forEach((target: Target) => {
+          const target = message.target as Target;
+          if (message.action) {
             this.send(target, message.action, message.data);
-          });
+          } else {
+            this.sendNative(target, message.data);
+          }
           return;
         }
         this.handler(message, portMessage, sender);
@@ -90,38 +92,40 @@ export default class MessageCenter extends MessageHander {
       const message = event.data;
       if (message.broadcast === true) {
         // 广播
-        const targets = message.target as Target[];
-        targets.forEach((target: Target) => {
+        const target = message.target as Target;
+        if (message.action) {
           this.send(target, message.action, message.data);
-        });
+        } else {
+          this.sendNative(target, message.data);
+        }
       }
       this.handler(message, sandboxMessage, { targetTag: "sandbox" });
     });
   }
 
   // 根据目标发送
-  public send(target: Target | "all", action: string, data: any) {
-    if (target === "all") {
+  public send(target: Target, action: string, data: any) {
+    this.sendNative(target, {
+      action,
+      data,
+    });
+  }
+
+  public sendNative(target: Target, data: any) {
+    if (target.tag === "all") {
       this.connectMap.forEach((_, key) => {
-        this.send(
+        this.sendNative(
           {
             tag: key,
           },
-          action,
           data
         );
       });
-      this.send({ tag: "sandbox" }, action, data);
+      this.sendNative({ tag: "sandbox" }, data);
       return;
     }
     if (target.tag === "sandbox") {
-      this.sandbox.postMessage(
-        {
-          action,
-          data,
-        },
-        "*"
-      );
+      this.sandbox.postMessage(data, "*");
       return;
     }
     const connectMap = this.connectMap.get(target.tag);
@@ -131,18 +135,12 @@ export default class MessageCenter extends MessageHander {
     if (target.id) {
       // 指定id
       target.id.forEach((id) => {
-        connectMap.get(id)?.postMessage({
-          action,
-          data,
-        });
+        connectMap.get(id)?.postMessage(data);
       });
     } else {
       // 同tag广播
       connectMap.forEach((port) => {
-        port.postMessage({
-          action,
-          data,
-        });
+        port.postMessage(data);
       });
     }
   }
