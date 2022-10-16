@@ -2,6 +2,10 @@
   width: 100%;
 }
 
+.arco-collapse-item-header-title .arco-space {
+  width: 100%;
+}
+
 .arco-space-item:last-child {
   overflow: hidden;
 }

@@ -34,15 +34,19 @@ center.setHandler("sandboxOnload", () => {
   // 资源管理器
   const resourceManager = new ResourceManager(center);
   // value管理器
-  const valueManager = new ValueManager(center);
-  // 脚本后台处理器
-  const scriptManager = new ScriptManager(
+  const valueManager = new ValueManager(center, center);
+  const runtime = new Runtime(
     center,
-    new Runtime(sandboxConnect, resourceManager, valueManager)
+    sandboxConnect,
+    resourceManager,
+    valueManager
   );
+  // 脚本后台处理器
+  const scriptManager = new ScriptManager(center);
+  runtime.listenEvent();
   scriptManager.start();
 });
 
 // 启动gm api的监听
-const gm = new GMApi();
+const gm = new GMApi(center);
 gm.start();

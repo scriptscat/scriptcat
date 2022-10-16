@@ -1,14 +1,15 @@
 import { fetchScriptInfo } from "@App/utils/script";
-import Runtime from "@App/runtime/background/runtime";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/utils/cache_key";
-import MessageCenter from "../../message/center";
+import { MessageHander } from "@App/app/message/message";
+import IoC from "@App/app/ioc";
 import Manager from "../manager";
-import { ScriptDAO } from "../../repo/scripts";
+import { Script, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
+@IoC.Singleton(MessageHander)
 export class ScriptManager extends Manager {
   static hook = new Hook<"upsert" | "enable" | "disable" | "delete">();
 
@@ -22,16 +23,25 @@ export class ScriptManager extends Manager {
 
   scriptDAO: ScriptDAO;
 
-  runtime: Runtime;
-
-  constructor(center: MessageCenter, runtime: Runtime) {
+  constructor(center: MessageHander) {
     super(center);
     if (!ScriptManager.instance) {
       ScriptManager.instance = this;
     }
     this.event = new ScriptEventListener(this, new ScriptDAO());
     this.scriptDAO = new ScriptDAO();
-    this.runtime = runtime;
+  }
+
+  @CacheKey.Trigger()
+  static CacheManager() {
+    ScriptManager.hook.addHook("upsert", (script: Script) => {
+      Cache.getInstance().del(CacheKey.script(script.id));
+      return Promise.resolve(true);
+    });
+    ScriptManager.hook.addHook("delete", (script: Script) => {
+      Cache.getInstance().del(CacheKey.script(script.id));
+      return Promise.resolve(true);
+    });
   }
 
   // eslint-disable-next-line class-methods-use-this

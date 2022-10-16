@@ -12,12 +12,6 @@ export default class MessageSandbox
   extends MessageHander
   implements MessageManager
 {
-  static instance: MessageSandbox;
-
-  static getInstance() {
-    return MessageSandbox.instance;
-  }
-
   window: Window;
 
   stream: Map<string, Channel> = new Map();
@@ -33,9 +27,6 @@ export default class MessageSandbox
     window.addEventListener("message", (message) => {
       this.handler(message.data, this.channelManager, { targetTag: "sandbox" });
     });
-    if (!MessageSandbox.instance) {
-      MessageSandbox.instance = this;
-    }
   }
 
   nativeSend(data: any): void {

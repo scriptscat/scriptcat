@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
+  Input,
   Message,
+  Space,
   Switch,
   Table,
   Tag,
   Tooltip,
 } from "@arco-design/web-react";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
+import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import {
   Script,
   SCRIPT_STATUS_DISABLE,
@@ -17,33 +20,53 @@ import {
   ScriptDAO,
 } from "@App/app/repo/scripts";
 import {
+  IconBug,
   IconClockCircle,
+  IconCode,
   IconCommon,
+  IconEdit,
+  IconHome,
   IconLink,
+  IconMenu,
+  IconSearch,
+  IconUserAdd,
 } from "@arco-design/web-react/icon";
-import { nextTime } from "@App/utils/utils";
+import { nextTime, semTime } from "@App/utils/utils";
 import {
-  RiBugFill,
   RiDeleteBin5Fill,
-  RiEyeOffLine,
-  RiFileCodeLine,
   RiPencilFill,
   RiPlayFill,
   RiStopFill,
-  RiTerminalBoxLine,
-  RiTimerLine,
 } from "react-icons/ri";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
-import SpeedDial from "@mui/material/SpeedDial";
-import SpeedDialIcon from "@mui/material/SpeedDialIcon";
-import SpeedDialAction from "@mui/material/SpeedDialAction";
+import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import Text from "@arco-design/web-react/es/Typography/text";
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
 
 function ScriptList() {
-  const navigate = useNavigate();
   const [scriptList, setScriptList] = useState<ListType[]>([]);
+  const inputRef = useRef<RefInputType>(null);
+
   const columns: ColumnProps[] = [
     {
       title: "#",
@@ -55,6 +78,17 @@ function ScriptList() {
       sorter(a, b) {
         return a.status - b.status;
       },
+      filters: [
+        {
+          text: "开启",
+          value: SCRIPT_STATUS_ENABLE,
+        },
+        {
+          text: "关闭",
+          value: SCRIPT_STATUS_DISABLE,
+        },
+      ],
+      onFilter: (value, row) => row.status === value,
       render: (col, item: ListType, index) => {
         return (
           <Switch
@@ -93,10 +127,55 @@ function ScriptList() {
       title: "名称",
       dataIndex: "name",
       sorter: (a, b) => a.name.length - b.name.length,
+      filterIcon: <IconSearch />,
+      // eslint-disable-next-line react/no-unstable-nested-components
+      filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+        return (
+          <div className="arco-table-custom-filter">
+            <Input.Search
+              ref={inputRef}
+              searchButton
+              placeholder="请输入脚本名"
+              value={filterKeys[0] || ""}
+              onChange={(value) => {
+                setFilterKeys(value ? [value] : []);
+              }}
+              onSearch={() => {
+                confirm();
+              }}
+            />
+          </div>
+        );
+      },
+      onFilter: (value, row) => (value ? row.name.indexOf(value) !== -1 : true),
+      onFilterDropdownVisibleChange: (visible) => {
+        if (visible) {
+          setTimeout(() => inputRef.current!.focus(), 150);
+        }
+      },
+      className: "max-w-[240px]",
+      render: (col) => {
+        return (
+          <Tooltip content={col} position="tl">
+            <Text
+              style={{
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {col}
+            </Text>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "版本",
       dataIndex: "version",
+      className: "min-w-[100px]",
+      align: "center",
       render(col, item: Script) {
         return item.metadata.version && item.metadata.version[0];
       },
@@ -124,7 +203,7 @@ function ScriptList() {
         }
         return (
           <Tooltip content={tooltip}>
-            <Tag icon={<IconClockCircle />} color="lime" bordered>
+            <Tag icon={<IconClockCircle />} color="blue" bordered>
               运行完毕
             </Tag>
           </Tooltip>
@@ -132,16 +211,167 @@ function ScriptList() {
       },
     },
     {
-      title: "特性",
+      title: "来源",
       dataIndex: "origin",
+      render(col, item: Script) {
+        if (item.subscribeUrl) {
+          return (
+            <Tooltip
+              content={
+                <>
+                  <p style={{ margin: 0 }}>
+                    订阅链接: {decodeURIComponent(item.subscribeUrl)}
+                  </p>
+                  (点击复制)
+                </>
+              }
+            >
+              <Tag
+                icon={<IconLink />}
+                color="orange"
+                bordered
+                style={{
+                  cursor: "pointer",
+                }}
+              >
+                订阅安装
+              </Tag>
+            </Tooltip>
+          );
+        }
+        if (!item.origin) {
+          return (
+            <Tag
+              icon={<IconEdit />}
+              color="purple"
+              bordered
+              style={{
+                cursor: "pointer",
+              }}
+            >
+              手动新建
+            </Tag>
+          );
+        }
+        return (
+          <Tooltip
+            content={
+              <>
+                <p style={{ margin: 0, padding: 0 }}>
+                  脚本链接: {decodeURIComponent(item.origin)}
+                </p>
+                (点击复制)
+              </>
+            }
+          >
+            <Tag
+              icon={<IconUserAdd color="" />}
+              color="green"
+              bordered
+              style={{
+                cursor: "pointer",
+              }}
+            >
+              用户安装
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "主页",
       dataIndex: "home",
+      className: "max-w-[100px] overflow-hidden",
+      align: "center",
+      render(col, item: Script) {
+        return (
+          <Space size="mini">
+            {item.metadata.homepage && (
+              <Tooltip content="脚本主页">
+                <Button
+                  type="text"
+                  iconOnly
+                  icon={<IconHome />}
+                  size="small"
+                  href={item.metadata.homepage[0]}
+                  target="_blank"
+                />
+              </Tooltip>
+            )}
+            {item.metadata.homepageurl && (
+              <Tooltip content="脚本主页">
+                <Button
+                  type="text"
+                  iconOnly
+                  icon={<IconHome />}
+                  size="small"
+                  href={item.metadata.homepageurl[0]}
+                  target="_blank"
+                />
+              </Tooltip>
+            )}
+            {item.metadata.website && (
+              <Tooltip content="脚本站点">
+                <Button
+                  type="text"
+                  iconOnly
+                  icon={<IconHome />}
+                  size="small"
+                  href={item.metadata.website[0]}
+                  target="_blank"
+                />
+              </Tooltip>
+            )}
+            {item.metadata.source && (
+              <Tooltip content="脚本源码">
+                <Button
+                  type="text"
+                  iconOnly
+                  icon={<IconCode />}
+                  size="small"
+                  href={item.metadata.source[0]}
+                  target="_blank"
+                />
+              </Tooltip>
+            )}
+            {item.metadata.supporturl && (
+              <Tooltip content="BUG反馈/脚本支持站点">
+                <Button
+                  type="text"
+                  iconOnly
+                  icon={<IconBug />}
+                  size="small"
+                  href={item.metadata.supporturl[0]}
+                  target="_blank"
+                />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "排序",
+      dataIndex: "sort",
+      sorter: (a, b) => a.sort - b.sort,
+      align: "center",
+      render() {
+        return (
+          <IconMenu
+            style={{
+              cursor: "move",
+            }}
+          />
+        );
+      },
     },
     {
       title: "最后更新",
       dataIndex: "updatetime",
+      align: "center",
+      render(col) {
+        return semTime(new Date(col));
+      },
     },
     {
       title: "操作",
@@ -149,13 +379,6 @@ function ScriptList() {
       render(col, item: Script) {
         return (
           <Button.Group>
-            <Button
-              type="text"
-              icon={<RiBugFill />}
-              style={{
-                color: "var(--color-text-2)",
-              }}
-            />
             <Link to={`/script/editor/${item.id}`}>
               <Button
                 type="text"
@@ -191,83 +414,128 @@ function ScriptList() {
       },
     },
   ];
+
   useEffect(() => {
     const dao = new ScriptDAO();
     dao.table
       .orderBy("sort")
       .toArray()
       .then((scripts) => {
+        // 新脚本加入时是-1,进行一次排序
+        scriptListSort(scripts);
         setScriptList(scripts);
       });
   }, []);
-  // const newScript = (template: string) => {
-  //
-  // };
+
+  // 处理拖拽排序
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // eslint-disable-next-line react/no-unstable-nested-components
+  const SortableWrapper = (props: any) => {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={(event: DragEndEvent) => {
+          const { active, over } = event;
+          if (!over) {
+            return;
+          }
+          if (active.id !== over.id) {
+            setScriptList((items) => {
+              let oldIndex = 0;
+              let newIndex = 0;
+              items.forEach((item, index) => {
+                if (item.id === active.id) {
+                  oldIndex = index;
+                } else if (item.id === over.id) {
+                  newIndex = index;
+                }
+              });
+              const newItems = arrayMove(items, oldIndex, newIndex);
+              scriptListSort(newItems);
+              return newItems;
+            });
+          }
+        }}
+      >
+        <SortableContext
+          items={scriptList}
+          strategy={verticalListSortingStrategy}
+        >
+          <tbody {...props} />
+        </SortableContext>
+      </DndContext>
+    );
+  };
+
+  // eslint-disable-next-line react/no-unstable-nested-components
+  const SortableItem = (props: any) => {
+    const { attributes, listeners, setNodeRef, transform, transition } =
+      useSortable({ id: props!.record.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    // 替换第七列,使其可以拖拽
+    // eslint-disable-next-line react/destructuring-assignment
+    props.children[7] = (
+      <td
+        className="arco-table-td"
+        style={{
+          textAlign: "center",
+        }}
+      >
+        <div className="arco-table-cell">
+          <IconMenu
+            style={{
+              cursor: "move",
+            }}
+            {...listeners}
+          />
+        </div>
+      </td>
+    );
+
+    return (
+      <tr
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        // {...listeners}
+        {...props}
+      />
+    );
+  };
+
+  const components: ComponentsProps = {
+    body: {
+      tbody: SortableWrapper,
+      row: SortableItem,
+    },
+  };
+
   return (
     <div>
       <Table
-        className="p-4"
+        className="arco-drag-table-container"
+        components={components}
         rowKey="id"
         columns={columns}
         data={scriptList}
         pagination={{
           total: scriptList.length,
+          pageSize: scriptList.length,
           hideOnSinglePage: true,
         }}
-        rowSelection={{
-          type: "checkbox",
-        }}
       />
-      <SpeedDial
-        ariaLabel="action"
-        sx={{
-          position: "absolute",
-          bottom: 40,
-          right: 40,
-        }}
-        icon={<SpeedDialIcon />}
-      >
-        <SpeedDialAction
-          className="bg-blue-5! color-light!"
-          icon={<RiEyeOffLine />}
-          tooltipTitle="隐藏按钮"
-        />
-        <SpeedDialAction
-          className="bg-blue-5! color-light!"
-          icon={<RiFileCodeLine />}
-          tooltipTitle="普通脚本"
-          onClick={() => {
-            navigate("/script/editor");
-          }}
-        />
-        <SpeedDialAction
-          className="bg-blue-5! color-light!"
-          icon={<RiTerminalBoxLine />}
-          tooltipTitle="后台脚本"
-          onClick={() => {
-            navigate({
-              pathname: "/script/editor",
-              search: "template=background",
-            });
-          }}
-        />
-        <SpeedDialAction
-          className="bg-blue-5! color-light!"
-          icon={<RiTimerLine />}
-          tooltipTitle="定时脚本"
-          onClick={() => {
-            navigate({
-              pathname: "/script/editor",
-              search: "template=crontab",
-            });
-          }}
-        />
-        <SpeedDialAction
-          className="bg-blue-5! color-light!"
-          icon={<IconLink />}
-          tooltipTitle="链接导入"
-        />
-      </SpeedDial>
     </div>
   );
 }

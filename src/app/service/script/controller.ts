@@ -17,17 +17,15 @@ import {
   ScriptInfo,
 } from "@App/utils/script";
 import { nextTime } from "@App/utils/utils";
+// import Runtime from "@App/runtime/background/runtime";
+import IoC from "@App/app/ioc";
+import Runtime from "@App/runtime/background/runtime";
 import MessageInternal from "../../message/internal";
 import { ScriptEvent } from "./event";
 
 // 脚本控制器,主要负责与manager交互,控制器发送消息给manager,manager进行处理
+@IoC.Singleton(MessageInternal)
 export default class ScriptController {
-  static instance: ScriptController;
-
-  static getInstance() {
-    return ScriptController.instance;
-  }
-
   scriptDAO: ScriptDAO = new ScriptDAO();
 
   subscribeDAO: SubscribeDAO = new SubscribeDAO();
@@ -36,9 +34,6 @@ export default class ScriptController {
 
   constructor(internal: MessageInternal) {
     this.internal = internal;
-    if (!ScriptController.instance) {
-      ScriptController.instance = this;
-    }
   }
 
   public dispatchEvent(event: ScriptEvent, data: any): Promise<any> {
@@ -161,5 +156,14 @@ export default class ScriptController {
       };
       handler();
     });
+  }
+
+  // 调试脚本,需要先启动GM环境
+  async debugScript(script: Script) {
+    // 构建脚本代码
+    const runtime = <Runtime>IoC.instance(Runtime);
+    const resp = await runtime.buildScriptRunResource(script);
+    resp.type = SCRIPT_TYPE_BACKGROUND;
+    return runtime.loadBackgroundScript(resp);
   }
 }

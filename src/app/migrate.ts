@@ -9,7 +9,7 @@ function renameField(): void {
       scripts:
         "++id,&uuid,name,namespace,author,originDomain,subscribeUrl,type,sort,status," +
         "runStatus,createtime,updatetime,checktime",
-      logger: "++id,level,component,message,createtime",
+      logger: "++id,level,createtime",
     })
     .upgrade(async (tx) => {
       await tx

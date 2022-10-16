@@ -8,7 +8,7 @@ import migrate from "@App/app/migrate";
 import "uno.css";
 import App from "./App";
 import "./index.css";
-import MainLayout, { switchLight } from "../components/layout/MainLayout";
+import { switchLight } from "../components/layout/MainLayout";
 
 migrate();
 

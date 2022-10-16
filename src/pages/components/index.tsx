@@ -1,25 +1,32 @@
 import React, { ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const CustomLink: React.FC<{
   children: ReactNode;
   to: string;
   // eslint-disable-next-line react/require-default-props
   className?: string;
-}> = ({ children, to, className }) => {
+  // eslint-disable-next-line react/require-default-props
+  search?: string;
+}> = ({ children, to, search, className }) => {
   const nav = useNavigate();
-  const location = useLocation();
 
   const click = () => {
-    if (location.pathname.startsWith("/script/editor")) {
+    if (window.onbeforeunload) {
       if (
         // eslint-disable-next-line no-restricted-globals, no-alert
         confirm("当前正在编辑状态，跳转其它页面将会丢失当前内容，是否跳转？")
       ) {
-        nav(to);
+        nav({
+          pathname: to,
+          search,
+        });
       }
     } else {
-      nav(to);
+      nav({
+        pathname: to,
+        search,
+      });
     }
   };
 

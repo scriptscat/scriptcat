@@ -4,8 +4,7 @@ import { Channel } from "@App/app/message/channel";
 import { Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/utils/utils";
 import MessageCenter from "@App/app/message/center";
-import { ScriptMenu } from "./runtime";
-import GMApi, { Request } from "./gm_api";
+import { Request } from "./gm_api";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
   // 部分浏览器中并未允许

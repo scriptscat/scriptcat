@@ -1,6 +1,13 @@
 import MessageInternal from "@App/app/message/internal";
 import { ScriptMenu } from "@App/runtime/background/runtime";
-import { Button, Card, Collapse, Dropdown, Menu } from "@arco-design/web-react";
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Dropdown,
+  Menu,
+} from "@arco-design/web-react";
 import {
   IconBook,
   IconBug,
@@ -25,6 +32,7 @@ const iconStyle = {
 
 function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
+  const [showAlert, setShowAlert] = useState(false);
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
@@ -55,38 +63,45 @@ function App() {
               href="/src/options.html"
               target="_blank"
             />
-            <Button type="text" icon={<IconNotification />} iconOnly />
+            <Button
+              type="text"
+              icon={<IconNotification />}
+              iconOnly
+              onClick={() => {
+                setShowAlert(!showAlert);
+              }}
+            />
             <Dropdown
               droplist={
                 <Menu
                   style={{
                     maxHeight: "none",
                   }}
-                  onClickMenuItem={(e) => {
-                    console.log(e);
+                  onClickMenuItem={(key) => {
+                    window.open(key, "_blank");
                   }}
                 >
-                  <Menu.Item key="add">
+                  <Menu.Item key="/src/options.html#/script/editor">
                     <IconPlus style={iconStyle} />
                     新建脚本
                   </Menu.Item>
-                  <Menu.Item key="search">
+                  <Menu.Item key="https://scriptcat.org/">
                     <IconSearch style={iconStyle} />
-                    搜索脚本
+                    获取脚本
                   </Menu.Item>
-                  <Menu.Item key="bug">
+                  <Menu.Item key="https://github.com/scriptscat/scriptcat/issues">
                     <IconBug style={iconStyle} />
                     BUG/问题反馈
                   </Menu.Item>
-                  <Menu.Item key="document">
+                  <Menu.Item key="https://docs.scriptcat.org/">
                     <IconBook style={iconStyle} />
                     项目文档
                   </Menu.Item>
-                  <Menu.Item key="chat">
+                  <Menu.Item key="https://bbs.tampermonkey.net.cn/">
                     <RiMessage2Line style={iconStyle} />
-                    社区交流
+                    交流社区
                   </Menu.Item>
-                  <Menu.Item key="github">
+                  <Menu.Item key="https://github.com/scriptscat/scriptcat">
                     <IconGithub style={iconStyle} />
                     GitHub
                   </Menu.Item>
@@ -101,6 +116,11 @@ function App() {
       }
       bodyStyle={{ padding: 0 }}
     >
+      <Alert
+        style={{ marginBottom: 20, display: showAlert ? "flex" : "none" }}
+        type="info"
+        content="这是一条公告"
+      />
       <Collapse
         bordered={false}
         defaultActiveKey={["script", "background"]}
@@ -119,6 +139,11 @@ function App() {
           <ScriptMenuList script={[]} />
         </CollapseItem>
       </Collapse>
+      <div className="flex flex-row arco-card-header !h-6">
+        <span className="text-1 font-500">
+          v{chrome.runtime.getManifest().version}
+        </span>
+      </div>
     </Card>
   );
 }

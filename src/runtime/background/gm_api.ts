@@ -2,16 +2,16 @@
 import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import MessageCenter from "@App/app/message/center";
 import { Channel } from "@App/app/message/channel";
 import { v4 as uuidv4 } from "uuid";
-import { MessageSender } from "@App/app/message/message";
+import { MessageHander, MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/utils/cache_key";
 import { base64ToBlob } from "@App/utils/script";
 import { isFirefox } from "@App/utils/utils";
 import Hook from "@App/app/service/hook";
+import IoC from "@App/app/ioc";
 import PermissionVerify, { ConfirmParam } from "./permission_verify";
 import {
   dealXhr,
@@ -37,11 +37,13 @@ export type Request = MessageRequest & {
 export type Api = (request: Request, connect?: Channel) => Promise<any>;
 
 export default class GMApi {
-  message: MessageCenter;
+  message: MessageHander;
 
   script: ScriptDAO;
 
   permissionVerify: PermissionVerify;
+
+  valueManager: ValueManager;
 
   logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
 
@@ -49,11 +51,12 @@ export default class GMApi {
 
   static hook: Hook<"registerMenu" | "unregisterMenu"> = new Hook();
 
-  constructor() {
-    this.message = MessageCenter.getInstance();
+  constructor(message: MessageHander) {
+    this.message = message;
     this.script = new ScriptDAO();
     this.permissionVerify = new PermissionVerify();
     this.headerFlag = `x-cat-${uuidv4()}`;
+    this.valueManager = IoC.instance(ValueManager);
   }
 
   start() {
@@ -128,12 +131,7 @@ export default class GMApi {
     const [key, value] = request.params;
     const sender = <MessageSender & { runFlag: string }>request.sender;
     sender.runFlag = request.runFlag;
-    return ValueManager.getInstance().setValue(
-      request.script,
-      key,
-      value,
-      sender
-    );
+    return this.valueManager.setValue(request.script, key, value, sender);
   }
 
   @PermissionVerify.API({
@@ -540,6 +538,7 @@ export default class GMApi {
 
   @PermissionVerify.API({
     listener() {
+      PermissionVerify.textarea.style.display = "none";
       document.body.appendChild(PermissionVerify.textarea);
       document.addEventListener("copy", (e: ClipboardEvent) => {
         if (!GMApi.clipboardData || !e.clipboardData) {

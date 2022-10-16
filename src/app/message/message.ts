@@ -49,6 +49,12 @@ export interface MessageManager extends ChannelManager {
   send(action: string, data: any): void;
 }
 
+export const MessageBroadcast = Symbol("MessageBroadcast");
+
+export interface IMessageBroadcast {
+  broadcast(target: Target, action: string, data: any): void;
+}
+
 // channel管理器,使用组合的方式使用
 export class WarpChannelManager {
   channelMap = new Map<string, Channel>();

@@ -23,10 +23,19 @@ if (!hash.length) {
 
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <HashRouter>
-      <Layout.Sider className="h-full" collapsible breakpoint="xl">
+      <Layout.Sider
+        className="h-full"
+        collapsible
+        collapsed={collapsed}
+        width={200}
+        onCollapse={(c) => {
+          setCollapsed(c);
+        }}
+      >
         <Menu
           style={{ width: "100%", height: "100%" }}
           selectedKeys={[menuSelect]}

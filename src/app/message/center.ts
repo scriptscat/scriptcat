@@ -2,6 +2,7 @@
 import LoggerCore from "../logger/core";
 import Logger from "../logger/logger";
 import {
+  IMessageBroadcast,
   MessageHander,
   MessageSender,
   Target,
@@ -11,16 +12,13 @@ import {
 
 // 连接中心,只有background才能使用,其他环境通过runtime.connect连接到background
 // sandbox的连接也聚合在了一起
-export default class MessageCenter extends MessageHander {
-  static instance: MessageCenter;
-
+export default class MessageCenter
+  extends MessageHander
+  implements IMessageBroadcast
+{
   sandbox: Window;
 
   logger: Logger;
-
-  static getInstance() {
-    return MessageCenter.instance;
-  }
 
   constructor() {
     super();
@@ -29,9 +27,6 @@ export default class MessageCenter extends MessageHander {
     this.logger = LoggerCore.getInstance().logger({
       component: "messageCenter",
     });
-    if (!MessageCenter.instance) {
-      MessageCenter.instance = this;
-    }
   }
 
   connectMap: Map<TargetTag, Map<number, chrome.runtime.Port>> = new Map();
@@ -101,6 +96,10 @@ export default class MessageCenter extends MessageHander {
       }
       this.handler(message, sandboxMessage, { targetTag: "sandbox" });
     });
+  }
+
+  broadcast(target: Target, action: string, data: any): void {
+    return this.send(target, action, data);
   }
 
   // 根据目标发送

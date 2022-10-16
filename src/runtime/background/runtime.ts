@@ -13,11 +13,11 @@ import {
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
 import { dealScript, randomString } from "@App/utils/utils";
-import MessageCenter from "@App/app/message/center";
 import { UrlInclude, UrlMatch } from "@App/utils/match";
-import { MessageSender } from "@App/app/message/message";
+import { MessageHander, MessageSender } from "@App/app/message/message";
 import ScriptManager from "@App/app/service/script/manager";
 import { Channel } from "@App/app/message/channel";
+import IoC from "@App/app/ioc";
 import { compileScriptCode } from "../content/utils";
 import GMApi, { Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
@@ -38,8 +38,9 @@ export type ScriptMenu = {
 };
 
 // 后台脚本将会将代码注入到沙盒中
+@IoC.Singleton(MessageHander, MessageSandbox, ResourceManager, ValueManager)
 export default class Runtime {
-  connectSandbox: MessageSandbox;
+  messageSandbox: MessageSandbox;
 
   scriptDAO: ScriptDAO;
 
@@ -55,13 +56,17 @@ export default class Runtime {
 
   include: UrlInclude<ScriptRunResouce> = new UrlInclude();
 
+  message: MessageHander;
+
   constructor(
-    connectSandbox: MessageSandbox,
+    message: MessageHander,
+    messageSandbox: MessageSandbox,
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
+    this.message = message;
     this.scriptDAO = new ScriptDAO();
-    this.connectSandbox = connectSandbox;
+    this.messageSandbox = messageSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
     this.scriptFlag = randomString(8);
@@ -70,11 +75,9 @@ export default class Runtime {
     ScriptManager.hook.addHook("delete", this.scriptDelete.bind(this));
     ScriptManager.hook.addHook("enable", this.scriptUpdate.bind(this));
     ScriptManager.hook.addHook("disable", this.scriptUpdate.bind(this));
-
-    this.listenPageLoad();
   }
 
-  listenPageLoad(): void {
+  listenEvent(): void {
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 加载所有的脚本
@@ -171,7 +174,7 @@ export default class Runtime {
     });
 
     // 给popup页面获取运行脚本,与菜单
-    MessageCenter.getInstance().setHandler(
+    this.message.setHandler(
       "queryPageScript",
       (action: string, { url, tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
@@ -204,7 +207,7 @@ export default class Runtime {
     );
 
     // content页发送页面加载完成消息,注入脚本
-    MessageCenter.getInstance().setHandler(
+    this.message.setHandler(
       "pageLoad",
       (_action: string, data: any, sender: MessageSender) => {
         return new Promise((resolve) => {
@@ -390,7 +393,7 @@ export default class Runtime {
   // 加载后台脚本
   loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      this.connectSandbox
+      this.messageSandbox
         .syncSend("enable", script)
         .then((resp) => {
           resolve(resp);
@@ -405,7 +408,7 @@ export default class Runtime {
   // 卸载后台脚本
   unloadBackgroundScript(script: Script): Promise<boolean> {
     return new Promise((resolve, reject) => {
-      this.connectSandbox
+      this.messageSandbox
         .syncSend("disable", script.id)
         .then((resp) => {
           resolve(resp);

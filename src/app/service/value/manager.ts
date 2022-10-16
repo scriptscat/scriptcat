@@ -1,5 +1,10 @@
-import MessageCenter from "@App/app/message/center";
-import { MessageSender } from "@App/app/message/message";
+import IoC from "@App/app/ioc";
+import {
+  IMessageBroadcast,
+  MessageBroadcast,
+  MessageHander,
+  MessageSender,
+} from "@App/app/message/message";
 import { Script } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
@@ -9,20 +14,17 @@ import Manager from "../manager";
 import ScriptManager from "../script/manager";
 
 // value管理器,负责value等更新获取等操作
+@IoC.Singleton(MessageHander, MessageBroadcast)
 export class ValueManager extends Manager {
-  static instance: ValueManager;
-
-  static getInstance() {
-    return ValueManager.instance;
-  }
-
   valueDAO: ValueDAO;
 
-  constructor(center: MessageCenter) {
-    super(center);
-    if (!ValueManager.instance) {
-      ValueManager.instance = this;
-    }
+  broadcast: IMessageBroadcast;
+
+  constructor(message: MessageHander, broadcast: IMessageBroadcast) {
+    super(message);
+
+    this.broadcast = broadcast;
+
     this.valueDAO = new ValueDAO();
 
     ScriptManager.hook.addHook("delete", () => {
@@ -117,7 +119,7 @@ export class ValueManager extends Manager {
       value: model,
     };
     // 广播value更新
-    MessageCenter.getInstance().send("all", "valueUpdate", sendData);
+    this.broadcast.broadcast({ tag: "all" }, "valueUpdate", sendData);
 
     return Promise.resolve(true);
   }

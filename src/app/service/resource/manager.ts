@@ -1,31 +1,59 @@
 /* eslint-disable no-await-in-loop */
-import MessageCenter from "@App/app/message/center";
+import IoC from "@App/app/ioc";
+import crypto from "crypto-js";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Resource, ResourceDAO } from "@App/app/repo/resource";
+import { MessageHander } from "@App/app/message/message";
+import { Resource, ResourceDAO, ResourceHash } from "@App/app/repo/resource";
 import { ResourceLinkDAO } from "@App/app/repo/resource_link";
 import { Script } from "@App/app/repo/scripts";
+import axios from "axios";
+import Cache from "@App/app/cache";
+import { blobToBase64 } from "@App/utils/script";
+import CacheKey from "@App/utils/cache_key";
 import Manager from "../manager";
 
 // 资源管理器,负责资源的更新获取等操作
+
+function calculateHash(blob: Blob): Promise<ResourceHash> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsBinaryString(blob);
+    reader.onloadend = () => {
+      if (!reader.result) {
+        resolve({
+          md5: "",
+          sha1: "",
+          sha256: "",
+          sha384: "",
+          sha512: "",
+        });
+      } else {
+        resolve({
+          md5: crypto.MD5(<string>reader.result).toString(),
+          sha1: crypto.SHA1(<string>reader.result).toString(),
+          sha256: crypto.SHA256(<string>reader.result).toString(),
+          sha384: crypto.SHA384(<string>reader.result).toString(),
+          sha512: crypto.SHA512(<string>reader.result).toString(),
+        });
+      }
+    };
+  });
+}
+
+export const ErrResourceNotFound = new Error("资源未找到");
+export const ErrResourceLoadFailed = new Error("资源加载失败");
+
+@IoC.Singleton(MessageHander)
 export class ResourceManager extends Manager {
-  static instance: ResourceManager;
-
-  static getInstance() {
-    return ResourceManager.instance;
-  }
-
   resourceDAO: ResourceDAO;
 
   resourceLinkDAO: ResourceLinkDAO;
 
   logger: Logger;
 
-  constructor(center: MessageCenter) {
-    super(center);
-    if (!ResourceManager.instance) {
-      ResourceManager.instance = this;
-    }
+  constructor(message: MessageHander) {
+    super(message);
     this.resourceDAO = new ResourceDAO();
     this.resourceLinkDAO = new ResourceLinkDAO();
     this.logger = LoggerCore.getInstance().logger({
@@ -37,12 +65,12 @@ export class ResourceManager extends Manager {
     id: number,
     url: string
   ): Promise<Resource | undefined> {
-    let res = await this.resourceDAO.getResource(url);
+    let res = await this.getResourceModel(url);
     if (res) {
       return Promise.resolve(res);
     }
     try {
-      res = await this.resourceDAO.addResource(url, id);
+      res = await this.addResource(url, id);
       if (res) {
         return Promise.resolve(res);
       }
@@ -85,6 +113,130 @@ export class ResourceManager extends Manager {
       }
     }
     return Promise.resolve(ret);
+  }
+
+  public async addResource(url: string, scriptId: number): Promise<Resource> {
+    const u = this.parseUrl(url);
+    let result = await this.getResourceModel(u.url);
+    // 资源不存在,重新加载
+    if (!result) {
+      try {
+        const resource = await this.loadByUrl(u.url);
+        resource.createtime = new Date().getTime();
+        resource.updatetime = new Date().getTime();
+        Cache.getInstance().set(CacheKey.resourceByUrl(u.url), resource);
+        const id = await this.resourceDAO.save(resource);
+        result = resource;
+        this.logger.info("load resource success", { url: u.url, id });
+      } catch (e) {
+        this.logger.error("load resource error", { url: u.url }, Logger.E(e));
+        throw e;
+      }
+    }
+
+    const link = await this.resourceLinkDAO.findOne({
+      url: u.url,
+      scriptId,
+    });
+    if (link) {
+      return Promise.resolve(result);
+    }
+    const id = await this.resourceLinkDAO.save({
+      id: 0,
+      url: u.url,
+      scriptId,
+      createtime: new Date().getTime(),
+    });
+    this.logger.debug("resource link", {
+      url: u.url,
+      resourceID: result.id,
+      id,
+    });
+    return Promise.resolve(result);
+  }
+
+  async getResourceModel(url: string) {
+    const u = this.parseUrl(url);
+    const resource = await this.resourceDAO.findOne({ url: u.url });
+    if (resource) {
+      // 校验hash
+      if (u.hash) {
+        if (
+          (u.hash.md5 && u.hash.md5 !== resource.hash.md5) ||
+          (u.hash.sha1 && u.hash.sha1 !== resource.hash.sha1) ||
+          (u.hash.sha256 && u.hash.sha256 !== resource.hash.sha256) ||
+          (u.hash.sha384 && u.hash.sha384 !== resource.hash.sha384) ||
+          (u.hash.sha512 && u.hash.sha512 !== resource.hash.sha512)
+        ) {
+          resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
+        }
+      }
+      return Promise.resolve(resource);
+    }
+    return Promise.resolve(undefined);
+  }
+
+  // 方便识别text文本储存
+  static textContentTypeMap = new Map<string, boolean>()
+    .set("application/javascript", true)
+    .set("application/x-javascript", true)
+    .set("application/json", true);
+
+  loadByUrl(url: string): Promise<Resource> {
+    return new Promise((resolve, reject) => {
+      const u = this.parseUrl(url);
+      axios
+        .get(u.url, {
+          responseType: "blob",
+        })
+        .then(async (response) => {
+          if (response.status !== 200) {
+            return reject(new Error(`资源状态非200:${response.status}`));
+          }
+          const resource: Resource = {
+            id: 0,
+            url: u.url,
+            content: "",
+            contentType: (
+              response.headers["content-type"] || "application/octet-stream"
+            ).split(";")[0],
+            hash: await calculateHash(<Blob>response.data),
+            base64: "",
+          };
+          if (
+            resource.contentType.startsWith("text/") ||
+            ResourceManager.textContentTypeMap.has(resource.contentType)
+          ) {
+            resource.content = await (<Blob>response.data).text();
+          } else {
+            return reject(
+              new Error(`不允许的资源类型:${resource.contentType}`)
+            );
+          }
+          resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
+          return resolve(resource);
+        });
+    });
+  }
+
+  parseUrl(url: string): {
+    url: string;
+    hash?: { [key: string]: string };
+  } {
+    const urls = url.split("#");
+    if (urls.length < 2) {
+      return { url: urls[0], hash: undefined };
+    }
+    const hashs = urls[1].split(/[,;]/);
+    const hash: { [key: string]: string } = {};
+    hashs.forEach((val) => {
+      const kv = val.split("=");
+      if (kv.length < 2) {
+        return;
+      }
+      hash[kv[0]] = kv[1].toLocaleLowerCase();
+    });
+    return { url: urls[0], hash };
   }
 }
 

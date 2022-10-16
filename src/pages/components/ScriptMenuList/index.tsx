@@ -1,8 +1,15 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import MessageInternal from "@App/app/message/internal";
 import { MessageSender } from "@App/app/message/message";
 import { ScriptMenu } from "@App/runtime/background/runtime";
-import { Button, Collapse, Empty, Space, Switch } from "@arco-design/web-react";
+import {
+  Button,
+  Collapse,
+  Empty,
+  Popconfirm,
+  Space,
+  Switch,
+} from "@arco-design/web-react";
 import {
   IconDelete,
   IconEdit,
@@ -15,6 +22,10 @@ const CollapseItem = Collapse.Item;
 const ScriptMenuList: React.FC<{
   script: ScriptMenu[];
 }> = ({ script }) => {
+  const [list, setList] = useState([] as ScriptMenu[]);
+  useEffect(() => {
+    setList(script);
+  }, [script]);
   const sendMenuAction = (sender: MessageSender, channelFlag: string) => {
     let id = sender.tabId;
     if (sender.frameId) {
@@ -28,17 +39,17 @@ const ScriptMenuList: React.FC<{
       channelFlag,
       "click"
     );
+    window.close();
   };
   // 监听菜单按键
   return (
     <>
-      {script.length === 0 && <Empty />}
-      {script.map((item) => (
+      {list.length === 0 && <Empty />}
+      {list.map((item) => (
         <Collapse bordered={false} expandIconPosition="right" key={item.id}>
           <CollapseItem
             header={
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-
               <div
                 onClick={(e) => {
                   e.stopPropagation();
@@ -46,7 +57,16 @@ const ScriptMenuList: React.FC<{
               >
                 <Space>
                   <Switch size="small" checked={item.enable} />
-                  <span>{item.name}</span>
+                  <span
+                    style={{
+                      display: "block",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {item.name}
+                  </span>
                 </Space>
               </div>
             }
@@ -58,17 +78,32 @@ const ScriptMenuList: React.FC<{
                 className="text-left"
                 type="secondary"
                 icon={<IconEdit />}
+                onClick={() => {
+                  window.open(
+                    `/src/options.html#/script/editor/${item.id}`,
+                    "_blank"
+                  );
+                  window.close();
+                }}
               >
                 编辑
               </Button>
-              <Button
-                className="text-left"
-                status="danger"
-                type="secondary"
+              <Popconfirm
+                title="确定要删除此脚本吗?"
                 icon={<IconDelete />}
+                onOk={() => {
+                  setList(list.filter((i) => i.id !== item.id));
+                }}
               >
-                删除
-              </Button>
+                <Button
+                  className="text-left"
+                  status="danger"
+                  type="secondary"
+                  icon={<IconDelete />}
+                >
+                  删除
+                </Button>
+              </Popconfirm>
             </div>
           </CollapseItem>
           <div

@@ -7,6 +7,7 @@ import {
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
 import { CronJob } from "cron";
+import IoC from "@App/app/ioc";
 import ExecScript from "./exec_script";
 
 type SandboxEvent = "enable" | "disable";
@@ -14,8 +15,9 @@ type SandboxEvent = "enable" | "disable";
 type Handler = (data: any) => Promise<any>;
 
 // 沙盒运行环境
+@IoC.Singleton(MessageSandbox)
 export default class SandboxRuntime {
-  connect: MessageSandbox;
+  message: MessageSandbox;
 
   logger: Logger;
 
@@ -23,13 +25,13 @@ export default class SandboxRuntime {
 
   execScripts: Map<number, ExecScript> = new Map();
 
-  constructor(con: MessageSandbox) {
-    this.connect = con;
+  constructor(message: MessageSandbox) {
+    this.message = message;
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
   }
 
   listenEvent(event: SandboxEvent, handler: Handler) {
-    this.connect.setHandler(event, (_action, data) => {
+    this.message.setHandler(event, (_action, data) => {
       return handler.bind(this)(data);
     });
   }
@@ -75,7 +77,7 @@ export default class SandboxRuntime {
   }
 
   backgroundScript(script: ScriptRunResouce) {
-    const exec = new ExecScript(script, MessageSandbox.getInstance());
+    const exec = new ExecScript(script, this.message);
     this.execScripts.set(script.id, exec);
     return exec.exec();
   }
@@ -86,7 +88,7 @@ export default class SandboxRuntime {
       throw new Error("错误的crontab表达式");
     }
     let flag = false;
-    const exec = new ExecScript(script, MessageSandbox.getInstance());
+    const exec = new ExecScript(script, this.message);
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;

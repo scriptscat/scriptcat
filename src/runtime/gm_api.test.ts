@@ -15,6 +15,7 @@ import { newMockXhr } from "mock-xmlhttprequest";
 import chromeMock from "pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
+import IoC from "@App/app/ioc";
 
 migrate();
 
@@ -30,7 +31,7 @@ global.sandbox = global;
 const center = new MessageCenter();
 center.start();
 
-const backgroundApi = new BgGMApi();
+const backgroundApi = new BgGMApi(center);
 backgroundApi.start();
 
 const internal = new MessageInternal("background");
@@ -76,7 +77,7 @@ const contentApi = exec.sandboxContent;
 beforeAll(async () => {
   const scriptDAO = new ScriptDAO();
   await scriptDAO.save(scriptRes);
-  new ValueManager(center);
+  IoC.registerInstance(ValueManager, new ValueManager(center,center));
   // 监听值变化
   internal.setHandler("valueUpdate", (_action, data: ValueUpdateData) => {
     exec.valueUpdate(data);
