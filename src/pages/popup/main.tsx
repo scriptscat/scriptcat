@@ -2,10 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "@arco-design/web-react/dist/css/arco.css";
 import MessageInternal from "@App/app/message/internal";
-import ScriptController from "@App/app/service/script/controller";
 import migrate from "@App/app/migrate";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
+import { MessageHander, MessageBroadcast } from "@App/app/message/message";
+import IoC from "@App/app/ioc";
 import App from "./App";
 import "./index.css";
 import { switchLight } from "../components/layout/MainLayout";
@@ -14,7 +15,10 @@ migrate();
 
 const con = new MessageInternal("popup");
 
-ScriptController.instance = new ScriptController(con);
+IoC.registerInstance(MessageInternal, con).alias([
+  MessageHander,
+  MessageBroadcast,
+]);
 
 switchLight(localStorage.lightMode || "auto");
 

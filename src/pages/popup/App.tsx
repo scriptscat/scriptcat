@@ -1,3 +1,4 @@
+import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
 import { ScriptMenu } from "@App/runtime/background/runtime";
 import {
@@ -33,12 +34,13 @@ const iconStyle = {
 function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
+  const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
         return;
       }
-      MessageInternal.getInstance()
+      message
         .syncSend("queryPageScript", { url: tabs[0].url, tabId: tabs[0].id })
         .then((resp: { scriptList: ScriptMenu[] }) => {
           // 按照开启状态排序

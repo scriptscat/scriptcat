@@ -76,6 +76,7 @@ const scriptRes = {
   code: "console.log('test')",
   runFlag: "test",
   value: {},
+  grantMap: {},
 } as unknown as ScriptRunResouce;
 
 const exec = new ExecScript(scriptRes, internal);

@@ -71,6 +71,10 @@ export class ScriptManager extends Manager {
               return;
             }
             this.checkUpdate(script.id, "system");
+            // 更新检查时间
+            this.scriptDAO.update(script.id, {
+              checktime: new Date().getTime(),
+            });
           });
         });
     }, 600 * 1000);

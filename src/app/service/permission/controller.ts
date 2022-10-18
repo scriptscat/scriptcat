@@ -1,3 +1,4 @@
+import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
 import { Script } from "@App/app/repo/scripts";
 import {
@@ -5,20 +6,12 @@ import {
   UserConfirm,
 } from "@App/runtime/background/permission_verify";
 
+@IoC.Singleton(MessageInternal)
 export default class PermissionController {
-  static instance: PermissionController;
-
-  static getInstance() {
-    return PermissionController.instance;
-  }
-
   msg: MessageInternal;
 
   constructor(msg: MessageInternal) {
     this.msg = msg;
-    if (!PermissionController.instance) {
-      PermissionController.instance = this;
-    }
   }
 
   // 通过uuid获取确认信息
