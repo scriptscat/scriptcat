@@ -13,6 +13,7 @@ export type SCRIPT_STATUS = 1 | 2 | 3 | 4;
 
 export const SCRIPT_STATUS_ENABLE: SCRIPT_STATUS = 1;
 export const SCRIPT_STATUS_DISABLE: SCRIPT_STATUS = 2;
+// 弃用
 export const SCRIPT_STATUS_ERROR: SCRIPT_STATUS = 3;
 export const SCRIPT_STATUS_DELETE: SCRIPT_STATUS = 4;
 
@@ -20,6 +21,7 @@ export type SCRIPT_RUN_STATUS = "running" | "complete" | "error" | "retry";
 export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = "running";
 export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = "complete";
 export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
+// 弃用
 export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = "retry";
 
 export type Metadata = { [key: string]: string[] };

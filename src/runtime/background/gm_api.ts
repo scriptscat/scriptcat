@@ -12,7 +12,10 @@ import { base64ToBlob } from "@App/utils/script";
 import { isFirefox } from "@App/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
-import PermissionVerify, { ConfirmParam } from "./permission_verify";
+import PermissionVerify, {
+  ConfirmParam,
+  IPermissionVerify,
+} from "./permission_verify";
 import {
   dealXhr,
   getIcon,
@@ -41,7 +44,7 @@ export default class GMApi {
 
   script: ScriptDAO;
 
-  permissionVerify: PermissionVerify;
+  permissionVerify: IPermissionVerify;
 
   valueManager: ValueManager;
 
@@ -51,10 +54,10 @@ export default class GMApi {
 
   static hook: Hook<"registerMenu" | "unregisterMenu"> = new Hook();
 
-  constructor(message: MessageHander) {
+  constructor(message: MessageHander, permissionVerify: IPermissionVerify) {
     this.message = message;
     this.script = new ScriptDAO();
-    this.permissionVerify = new PermissionVerify();
+    this.permissionVerify = permissionVerify;
     this.headerFlag = `x-cat-${uuidv4()}`;
     this.valueManager = IoC.instance(ValueManager);
   }
@@ -71,13 +74,13 @@ export default class GMApi {
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e) {
-          this.logger.error("verify error", Logger.E(e));
+          this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return Promise.reject(e);
         }
         return api.api.call(this, req);
       }
     );
-    this.message.setHandlerWithConnect(
+    this.message.setHandlerWithChannel(
       "gmApiChannel",
       async (
         connect: Channel,
@@ -93,7 +96,7 @@ export default class GMApi {
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e: any) {
-          this.logger.error("verify error", Logger.E(e));
+          this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return connect.throw(e.message);
         }
         return api.api.call(this, req, connect);
@@ -716,15 +719,15 @@ export default class GMApi {
   // TODO: GM_registerMenuCommand
   @PermissionVerify.API()
   GM_registerMenuCommand(request: Request, channel: Channel) {
-    GMApi.hook.dispatchHook("registerMenu", request, channel);
+    GMApi.hook.trigger("registerMenu", request, channel);
     channel.setDisChannelHandler(() => {
-      GMApi.hook.dispatchHook("unregisterMenu", request.params[0], request);
+      GMApi.hook.trigger("unregisterMenu", request.params[0], request);
     });
     return Promise.resolve();
   }
 
   @PermissionVerify.API()
   GM_unregisterMenuCommand(request: Request) {
-    GMApi.hook.dispatchHook("unregisterMenu", request.params[0], request);
+    GMApi.hook.trigger("unregisterMenu", request.params[0], request);
   }
 }

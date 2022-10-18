@@ -1,9 +1,21 @@
-import { v5 as uuidv5 } from "uuid";
-import { Metadata, Script, UserConfig } from "@App/app/repo/scripts";
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import {
+  Metadata,
+  Script,
+  SCRIPT_RUN_STATUS_COMPLETE,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_TYPE_BACKGROUND,
+  SCRIPT_TYPE_CRONTAB,
+  SCRIPT_TYPE_NORMAL,
+  ScriptDAO,
+  UserConfig,
+  SCRIPT_STATUS_ENABLE,
+} from "@App/app/repo/scripts";
 import YAML from "yaml";
 import { Subscribe } from "@App/app/repo/subscribe";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { nextTime } from "./utils";
 
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
@@ -60,13 +72,15 @@ export type ScriptInfo = {
   url: string;
   code: string;
   uuid: string;
-  issub: boolean;
+  isSubscribe: boolean;
+  isUpdate: boolean;
   source: "user" | "system";
 };
 
 export async function fetchScriptInfo(
   url: string,
-  source: "user" | "system"
+  source: "user" | "system",
+  isUpdate: boolean
 ): Promise<ScriptInfo> {
   const resp = await fetch(url, {
     headers: {
@@ -86,11 +100,12 @@ export async function fetchScriptInfo(
     url,
     code: body,
     uuid,
-    issub: false,
+    isSubscribe: false,
+    isUpdate,
     source,
   };
   if (ok.usersubscribe) {
-    ret.issub = true;
+    ret.isSubscribe = true;
   }
   return ret;
 }
@@ -175,4 +190,103 @@ export function strToBase64(str: string): string {
       return String.fromCharCode(parseInt(`0x${p1}`, 16));
     })
   );
+}
+
+// 通过代码解析出脚本信息
+export function prepareScriptByCode(
+  code: string,
+  url: string,
+  uuid?: string
+): Promise<Script & { oldScript?: Script }> {
+  const dao = new ScriptDAO();
+  return new Promise((resolve, reject) => {
+    const metadata = parseMetadata(code);
+    if (metadata == null) {
+      throw new Error("MetaData信息错误");
+    }
+    if (metadata.name === undefined) {
+      throw new Error("脚本名不能为空");
+    }
+    let type = SCRIPT_TYPE_NORMAL;
+    if (metadata.crontab !== undefined) {
+      type = SCRIPT_TYPE_CRONTAB;
+      try {
+        nextTime(metadata.crontab[0]);
+      } catch (e) {
+        throw new Error(`错误的定时表达式,请检查: ${metadata.crontab[0]}`);
+      }
+    } else if (metadata.background !== undefined) {
+      type = SCRIPT_TYPE_BACKGROUND;
+    }
+    let urlSplit: string[];
+    let domain = "";
+    let checkUpdateUrl = "";
+    let downloadUrl = url;
+    if (metadata.updateurl && metadata.downloadurl) {
+      [checkUpdateUrl] = metadata.updateurl;
+      [downloadUrl] = metadata.downloadurl;
+    } else {
+      checkUpdateUrl = url.replace("user.js", "meta.js");
+    }
+    if (url.indexOf("/") !== -1) {
+      urlSplit = url.split("/");
+      if (urlSplit[2]) {
+        [, domain] = urlSplit;
+      }
+    }
+    let script: Script & { oldScript?: Script } = {
+      id: 0,
+      uuid: uuid || uuidv4(),
+      name: metadata.name[0],
+      code,
+      author: metadata.author && metadata.author[0],
+      namespace: metadata.namespace && metadata.namespace[0],
+      originDomain: domain,
+      origin: url,
+      checkUpdateUrl,
+      downloadUrl,
+      config: parseUserConfig(code),
+      metadata,
+      selfMetadata: {},
+      sort: -1,
+      type,
+      status: SCRIPT_STATUS_DISABLE,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: new Date().getTime(),
+      updatetime: new Date().getTime(),
+      checktime: 0,
+    };
+    const handler = async () => {
+      let old: Script | undefined;
+      if (uuid !== undefined) {
+        old = await dao.findByUUID(uuid);
+      } else {
+        old = await dao.findByNameAndNamespace(script.name, script.namespace);
+        if (!old) {
+          old = await dao.findByUUID(script.uuid);
+        }
+      }
+      if (old) {
+        if (
+          (old.type === SCRIPT_TYPE_NORMAL &&
+            script.type !== SCRIPT_TYPE_NORMAL) ||
+          (script.type === SCRIPT_TYPE_NORMAL &&
+            old.type !== SCRIPT_TYPE_NORMAL)
+        ) {
+          reject(new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变"));
+          return;
+        }
+        script.oldScript = old;
+        script = copyScript(script, old);
+      } else {
+        // 前台脚本默认开启
+        if (script.type === SCRIPT_TYPE_NORMAL) {
+          script.status = SCRIPT_STATUS_ENABLE;
+        }
+        script.checktime = new Date().getTime();
+      }
+      resolve(script);
+    };
+    handler();
+  });
 }

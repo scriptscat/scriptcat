@@ -183,7 +183,7 @@ export abstract class MessageHander {
   }
 
   // 长连接的处理
-  setHandlerWithConnect(action: string, handler: HandlerWithChannel) {
+  setHandlerWithChannel(action: string, handler: HandlerWithChannel) {
     this.channelHandlerMap.set(action, handler);
   }
 }

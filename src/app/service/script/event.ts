@@ -10,7 +10,12 @@ import {
 } from "../../repo/scripts";
 import ScriptManager from "./manager";
 
-export type ScriptEvent = "upsert" | "fetch" | "enable" | "disable";
+export type ScriptEvent =
+  | "upsert"
+  | "fetch"
+  | "enable"
+  | "disable"
+  | "checkUpdate";
 
 const events: { [key: string]: (data: any) => Promise<any> } = {};
 
@@ -54,7 +59,7 @@ export default class ScriptEventListener {
       this.dao.save(script).then(
         () => {
           logger.info("脚本安装成功");
-          ScriptManager.hook.dispatchHook("upsert", script);
+          ScriptManager.hook.trigger("upsert", script);
           resolve({ id: script.id });
         },
         (e) => {
@@ -84,7 +89,7 @@ export default class ScriptEventListener {
           if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
             this.dao.save(script);
-            ScriptManager.hook.dispatchHook("enable", script);
+            ScriptManager.hook.trigger("enable", script);
           }
           return resolve(1);
         })
@@ -107,7 +112,7 @@ export default class ScriptEventListener {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_DISABLE;
             this.dao.save(script);
-            ScriptManager.hook.dispatchHook("disable", script);
+            ScriptManager.hook.trigger("disable", script);
           }
           return resolve(1);
         })
@@ -116,5 +121,10 @@ export default class ScriptEventListener {
           reject(e);
         });
     });
+  }
+
+  @ListenEventDecorator("checkUpdate")
+  public checkUpdateHandler(id: number) {
+    return this.manager.checkUpdate(id, "user");
   }
 }

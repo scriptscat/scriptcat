@@ -28,7 +28,7 @@ export default class ContentRuntime {
     });
 
     // 转发长连接的gmApi消息
-    this.contentMessage.setHandlerWithConnect(
+    this.contentMessage.setHandlerWithChannel(
       "gmApiChannel",
       (inject, action, data) => {
         const background = this.internalMessage.channel();

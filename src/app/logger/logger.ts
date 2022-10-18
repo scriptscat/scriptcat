@@ -53,7 +53,7 @@ export default class Logger {
           break;
       }
     }
-    LoggerCore.hook.dispatchHook("log", { level, message, label });
+    LoggerCore.hook.trigger("log", { level, message, label });
   }
 
   with(...label: LogLabel[]) {
@@ -81,7 +81,7 @@ export default class Logger {
       return { error: e };
     }
     if (e instanceof Error) {
-      return { error: e.message, stack: e.stack || "" };
+      return { error: e.message };
     }
     if (typeof e === "object") {
       return e;

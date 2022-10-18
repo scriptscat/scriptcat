@@ -11,7 +11,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import ScriptController from "@App/app/service/script/controller";
-import { ScriptInfo } from "@App/utils/script";
+import { prepareScriptByCode, ScriptInfo } from "@App/utils/script";
 import {
   Metadata,
   Script,
@@ -19,6 +19,7 @@ import {
   SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
 import { nextTime } from "@App/utils/utils";
+import IoC from "@App/app/ioc";
 import CodeEditor from "../components/CodeEditor";
 
 // 不推荐的内容标签与描述
@@ -80,6 +81,7 @@ export default function Description() {
   const [oldScript, setOldScript] = useState<Script>();
   // 脚本开启状态
   const [enable, setEnable] = useState<boolean>(false);
+  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   useEffect(() => {
     if (countdown === -1) {
       return;
@@ -99,90 +101,84 @@ export default function Description() {
   const uuid = url.searchParams.get("uuid");
   if (uuid) {
     useEffect(() => {
-      ScriptController.getInstance()
-        .fetchScriptInfo(uuid)
-        .then(async (resp) => {
-          if (!resp) {
-            return;
-          }
-          if (resp.source === "system") {
-            setCountdown(30);
-          }
-          const script =
-            await ScriptController.getInstance().prepareScriptByCode(
-              resp.code,
-              resp.url
-            );
+      scriptCtrl.fetchScriptInfo(uuid).then(async (resp: any) => {
+        if (!resp) {
+          return;
+        }
+        if (resp.source === "system") {
+          setCountdown(30);
+        }
+        const script = await prepareScriptByCode(resp.code, resp.url);
 
-          const meta = script.metadata;
-          if (!meta) {
-            return;
-          }
-          const perm: Permission = [];
-          if (meta.match) {
-            perm.push({ label: "脚本将在下面的网站中运行", value: meta.match });
-          }
-          if (meta.connect) {
-            perm.push({
-              label: "脚本将获得以下地址的完整访问权限",
-              color: "#F9925A",
-              value: meta.connect,
-            });
-          }
-          if (meta.require) {
-            perm.push({ label: "脚本引用了下列外部资源", value: meta.require });
-          }
-          setUpsertScript(script);
-          if (script.id !== 0) {
-            setIsUpdate(true);
-          }
-          setOldScript(script.oldScript);
-          delete script.oldScript;
-          setEnable(script.status === SCRIPT_STATUS_ENABLE);
-          setPermission(perm);
-          setMetadata(meta);
-          setInfo(resp);
-          const desList = [];
-          let isCookie = false;
-          metadata.grant?.forEach((val) => {
-            if (val === "GM_cookie") {
-              isCookie = true;
-            }
+        const meta = script.metadata;
+        if (!meta) {
+          return;
+        }
+        const perm: Permission = [];
+        if (meta.match) {
+          perm.push({ label: "脚本将在下面的网站中运行", value: meta.match });
+        }
+        if (meta.connect) {
+          perm.push({
+            label: "脚本将获得以下地址的完整访问权限",
+            color: "#F9925A",
+            value: meta.connect,
           });
-          if (isCookie) {
-            desList.push(
-              <Typography.Text type="error" key="cookie">
-                请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
-              </Typography.Text>
-            );
+        }
+        if (meta.require) {
+          perm.push({ label: "脚本引用了下列外部资源", value: meta.require });
+        }
+        setUpsertScript(script);
+        if (script.id !== 0) {
+          setIsUpdate(true);
+        }
+        setOldScript(script.oldScript);
+        delete script.oldScript;
+        setEnable(script.status === SCRIPT_STATUS_ENABLE);
+        setPermission(perm);
+        setMetadata(meta);
+        setInfo(resp);
+        const desList = [];
+        let isCookie = false;
+        metadata.grant?.forEach((val) => {
+          if (val === "GM_cookie") {
+            isCookie = true;
           }
-          if (meta.crontab) {
-            desList.push(
-              <Typography.Text key="crontab">
-                这是一个定时脚本,开启将会在特点时间自动运行,也可以在面板中手动控制运行.
-              </Typography.Text>
-            );
-            desList.push(
-              <Typography.Text key="cronta-nexttime">
-                crontab表达式: {meta.crontab[0]} 最近一次运行时间:{" "}
-                {nextTime(meta.crontab[0])}
-              </Typography.Text>
-            );
-          } else if (meta.background) {
-            desList.push(
-              <Typography.Text key="background">
-                这是一个后台脚本,开启将会在浏览器打开时自动运行一次,也可以在面板中手动控制运行.
-              </Typography.Text>
-            );
-          }
-          if (desList.length) {
-            setDescription(<div>{desList.map((item) => item)}</div>);
-          }
-          // 修改网页显示title
-          document.title = `${script.id === 0 ? "安装" : "更新"}脚本 - ${
-            meta.name
-          } - ScriptCat`;
         });
+        if (isCookie) {
+          desList.push(
+            <Typography.Text type="error" key="cookie">
+              请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
+            </Typography.Text>
+          );
+        }
+        if (meta.crontab) {
+          desList.push(
+            <Typography.Text key="crontab">
+              这是一个定时脚本,开启将会在特点时间自动运行,也可以在面板中手动控制运行.
+            </Typography.Text>
+          );
+          desList.push(
+            <Typography.Text key="cronta-nexttime">
+              crontab表达式: {meta.crontab[0]} 最近一次运行时间:{" "}
+              {nextTime(meta.crontab[0])}
+            </Typography.Text>
+          );
+        } else if (meta.background) {
+          desList.push(
+            <Typography.Text key="background">
+              这是一个后台脚本,开启将会在浏览器打开时自动运行一次,也可以在面板中手动控制运行.
+            </Typography.Text>
+          );
+        }
+        if (desList.length) {
+          setDescription(<div>{desList.map((item) => item)}</div>);
+        }
+        // 修改网页显示title
+        document.title = `${script.id === 0 ? "安装" : "更新"}脚本 - ${
+          meta.name
+        } - ScriptCat`;
+      });
     }, []);
   } else {
     return <p>错误的链接</p>;
@@ -253,7 +249,7 @@ export default function Description() {
                       Message.error("脚本信息加载失败!");
                       return;
                     }
-                    ScriptController.getInstance()
+                    scriptCtrl
                       .upsert(upsertScript)
                       .then(() => {
                         closeWindow();
@@ -370,7 +366,11 @@ export default function Description() {
           </Grid.Row>
         </Grid.Col>
       </Grid.Row>
-      <CodeEditor code={upsertScript?.code || ""} diffCode={oldScript?.code} />
+      <CodeEditor
+        id="show-code"
+        code={upsertScript?.code || ""}
+        diffCode={oldScript?.code}
+      />
     </div>
   );
 }

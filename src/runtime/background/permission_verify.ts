@@ -51,6 +51,10 @@ export interface ApiValue {
   param: ApiParam;
 }
 
+export interface IPermissionVerify {
+  verify(request: Request, api: ApiValue): Promise<boolean>;
+}
+
 export default class PermissionVerify {
   static apis: Map<string, ApiValue> = new Map();
 

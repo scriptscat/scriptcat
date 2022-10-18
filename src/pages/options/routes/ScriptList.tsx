@@ -13,6 +13,8 @@ import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import {
   Script,
+  SCRIPT_RUN_STATUS_COMPLETE,
+  SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
@@ -38,7 +40,7 @@ import {
   RiPlayFill,
   RiStopFill,
 } from "react-icons/ri";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
@@ -59,13 +61,36 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import IoC from "@App/app/ioc";
+import RuntimeController from "@App/runtime/content/runtime";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
 
 function ScriptList() {
+  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   const [scriptList, setScriptList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // 监听脚本运行状态
+    const channel = runtimeCtrl.watchRunStatus();
+    channel.setHandler(([id, status]: any) => {
+      setScriptList((list) => {
+        return list.map((item) => {
+          if (item.id === id) {
+            item.runStatus = status;
+          }
+          return item;
+        });
+      });
+    });
+    return () => {
+      channel.disChannel();
+    };
+  }, []);
 
   const columns: ColumnProps[] = [
     {
@@ -100,17 +125,13 @@ function ScriptList() {
               setScriptList([...scriptList]);
               let p: Promise<any>;
               if (checked) {
-                p = ScriptController.getInstance()
-                  .enable(item.id)
-                  .then(() => {
-                    scriptList[index].status = SCRIPT_STATUS_ENABLE;
-                  });
+                p = scriptCtrl.enable(item.id).then(() => {
+                  scriptList[index].status = SCRIPT_STATUS_ENABLE;
+                });
               } else {
-                p = ScriptController.getInstance()
-                  .disable(item.id)
-                  .then(() => {
-                    scriptList[index].status = SCRIPT_STATUS_DISABLE;
-                  });
+                p = scriptCtrl.disable(item.id).then(() => {
+                  scriptList[index].status = SCRIPT_STATUS_DISABLE;
+                });
               }
               p.catch((err) => {
                 Message.error(err);
@@ -203,8 +224,20 @@ function ScriptList() {
         }
         return (
           <Tooltip content={tooltip}>
-            <Tag icon={<IconClockCircle />} color="blue" bordered>
-              运行完毕
+            <Tag
+              icon={<IconClockCircle />}
+              color="blue"
+              bordered
+              style={{
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                navigate("/logger");
+              }}
+            >
+              {item.runStatus === SCRIPT_RUN_STATUS_RUNNING
+                ? "运行中"
+                : "运行完毕"}
             </Tag>
           </Tooltip>
         );
@@ -369,8 +402,48 @@ function ScriptList() {
       title: "最后更新",
       dataIndex: "updatetime",
       align: "center",
-      render(col) {
-        return semTime(new Date(col));
+      render(col, script: Script) {
+        return (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+          <span
+            style={{
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              if (!script.checkUpdateUrl) {
+                Message.warning("该脚本不支持检查更新");
+                return;
+              }
+              Message.info({
+                id: "checkupdate",
+                content: "检查更新中...",
+              });
+              scriptCtrl
+                .checkUpdate(script.id)
+                .then((res) => {
+                  if (res) {
+                    Message.warning({
+                      id: "checkupdate",
+                      content: "存在新版本",
+                    });
+                  } else {
+                    Message.success({
+                      id: "checkupdate",
+                      content: "已是最新版本",
+                    });
+                  }
+                })
+                .catch((e) => {
+                  Message.error({
+                    id: "checkupdate",
+                    content: `检查更新失败: ${e.message}`,
+                  });
+                });
+            }}
+          >
+            {semTime(new Date(col))}
+          </span>
+        );
       },
     },
     {
@@ -395,20 +468,68 @@ function ScriptList() {
                 color: "var(--color-text-2)",
               }}
             />
-            <Button
-              type="text"
-              icon={<RiPlayFill />}
-              style={{
-                color: "var(--color-text-2)",
-              }}
-            />
-            <Button
-              type="text"
-              icon={<RiStopFill />}
-              style={{
-                color: "var(--color-text-2)",
-              }}
-            />
+            {item.type !== SCRIPT_TYPE_NORMAL &&
+              (item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? (
+                <Button
+                  type="text"
+                  icon={<RiStopFill />}
+                  onClick={async () => {
+                    // 停止脚本
+                    Message.loading({
+                      id: "script-stop",
+                      content: "正在停止脚本",
+                    });
+                    await runtimeCtrl.stopScript(item.id);
+                    Message.success({
+                      id: "script-stop",
+                      content: "脚本已停止",
+                      duration: 3000,
+                    });
+                    setScriptList((list) => {
+                      for (let i = 0; i < list.length; i += 1) {
+                        if (list[i].id === item.id) {
+                          list[i].runStatus = SCRIPT_RUN_STATUS_COMPLETE;
+                          break;
+                        }
+                      }
+                      return [...list];
+                    });
+                  }}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              ) : (
+                <Button
+                  type="text"
+                  icon={<RiPlayFill />}
+                  onClick={async () => {
+                    // 启动脚本
+                    Message.loading({
+                      id: "script-run",
+                      content: "正在启动脚本...",
+                    });
+                    await runtimeCtrl.startScript(item.id);
+                    Message.success({
+                      id: "script-run",
+                      content: "脚本已启动",
+                      duration: 3000,
+                    });
+                    setScriptList((list) => {
+                      for (let i = 0; i < list.length; i += 1) {
+                        if (list[i].id === item.id) {
+                          list[i].runStatus = SCRIPT_RUN_STATUS_RUNNING;
+                          break;
+                        }
+                      }
+                      return [...list];
+                    });
+                  }}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              ))}
           </Button.Group>
         );
       },
@@ -509,8 +630,10 @@ function ScriptList() {
         ref={setNodeRef}
         style={style}
         {...attributes}
-        // {...listeners}
-        {...props}
+        {
+          // {...listeners}
+          ...props
+        }
       />
     );
   };

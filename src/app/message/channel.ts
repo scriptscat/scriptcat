@@ -8,7 +8,7 @@ export type DisChannelHandler = () => void;
 
 export type ChannelCatch = (err: string) => void;
 
-// 信道,作为长连接的载体
+// 信道,作为长连接的载体,需要先使用channel方法建立信道
 export class Channel {
   manager!: ChannelManager;
 
@@ -42,7 +42,7 @@ export class Channel {
   }
 
   // 建立信道
-  channel(action: string, data: any) {
+  channel(action: string, data?: any) {
     this.manager.nativeSend({
       action,
       data,

@@ -10,6 +10,10 @@ import ScriptManager from "./app/service/script/manager";
 import { ValueManager } from "./app/service/value/manager";
 import Runtime from "./runtime/background/runtime";
 import GMApi from "./runtime/background/gm_api";
+import IoC from "./app/ioc";
+import { MessageBroadcast, MessageHander } from "./app/message/message";
+import PermissionVerify from "./runtime/background/permission_verify";
+import { SystemConfig } from "./pkg/config/config";
 // 数据库初始化
 migrate();
 // 初始化日志组件
@@ -26,8 +30,14 @@ const sandboxConnect = new MessageSandbox(sandbox);
 // 通讯中心
 const center = new MessageCenter();
 center.start();
+IoC.registerInstance(MessageCenter, center).alias([
+  MessageHander,
+  MessageBroadcast,
+]);
 // 监听logger messagewriter
 ListenerMessage(new LoggerDAO(), center);
+// 启动系统配置
+IoC.registerInstance(SystemConfig, new SystemConfig(center));
 
 // 等待沙盒启动后再进行后续的步骤
 center.setHandler("sandboxOnload", () => {
@@ -41,12 +51,12 @@ center.setHandler("sandboxOnload", () => {
     resourceManager,
     valueManager
   );
+  IoC.registerInstance(Runtime, runtime);
   // 脚本后台处理器
-  const scriptManager = new ScriptManager(center);
   runtime.listenEvent();
-  scriptManager.start();
+  IoC.instance(ScriptManager).start();
 });
 
 // 启动gm api的监听
-const gm = new GMApi(center);
+const gm = new GMApi(center, new PermissionVerify());
 gm.start();

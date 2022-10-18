@@ -4,6 +4,7 @@ import { Channel } from "@App/app/message/channel";
 import { Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/utils/utils";
 import MessageCenter from "@App/app/message/center";
+import IoC from "@App/app/ioc";
 import { Request } from "./gm_api";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
@@ -364,7 +365,7 @@ export function genScriptMenu(
           contexts: ["all"],
           parentId: `scriptMenu_${scriptId}`,
           onclick: () => {
-            MessageCenter.getInstance().sendNative(
+            (IoC.instance(MessageCenter) as MessageCenter).sendNative(
               {
                 tag: menu.request.sender.targetTag,
                 id: [

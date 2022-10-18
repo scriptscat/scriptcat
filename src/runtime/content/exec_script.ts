@@ -61,8 +61,7 @@ export default class ExecScript {
 
   exec() {
     this.logger.debug("script start");
-    this.scriptFunc(this.proxyContent);
-    return Promise.resolve(true);
+    return this.scriptFunc(this.proxyContent);
   }
 
   // TODO: 实现脚本的停止,资源释放

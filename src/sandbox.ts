@@ -18,7 +18,7 @@ const loggerCore = new LoggerCore({
 
 loggerCore.logger().debug("sandbox start");
 
-IoC.instance(SandboxRuntime).start();
+IoC.instance(SandboxRuntime).init();
 
 window.onload = () => {
   connectSandbox.send("sandboxOnload", {});

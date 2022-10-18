@@ -27,7 +27,7 @@ export class ValueManager extends Manager {
 
     this.valueDAO = new ValueDAO();
 
-    ScriptManager.hook.addHook("delete", () => {
+    ScriptManager.hook.addListener("delete", () => {
       // 清理缓存
     });
   }

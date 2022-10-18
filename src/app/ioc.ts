@@ -27,7 +27,7 @@ export default class IoC {
         opts.depend = depend;
         return this;
       },
-      Lazy() {
+      Nolazy() {
         opts.nolazy = true;
         return this;
       },
@@ -73,11 +73,11 @@ export default class IoC {
   // 注册实例
   static registerInstance(object: any, instance: any) {
     if (IoC.instances.has(object)) {
-      throw new Error("has been registered");
+      throw new Error(`${object.name} has been registered`);
     }
     IoC.instances.set(object, instance);
     return {
-      Alias(alias: any[] | any) {
+      alias(alias: any[] | any) {
         if (!alias) {
           return this;
         }
@@ -96,7 +96,7 @@ export default class IoC {
   // 注册别名
   static registerInstanceAlias(object: any, alias: any): IoC {
     if (!IoC.instances.has(object)) {
-      throw new Error("not registered");
+      throw new Error(`${object.name} not registered`);
     }
     IoC.instances.set(alias, IoC.instances.get(object));
     return IoC;
@@ -116,6 +116,7 @@ export default class IoC {
       switch (typeof item) {
         case "function":
         case "object":
+        case "symbol":
           deps.push(IoC.instance(item));
           break;
         default:
@@ -128,7 +129,7 @@ export default class IoC {
 
     if (params.isSingleton) {
       // 单利, 别名与实例映射
-      IoC.registerInstance(params.object, instance).Alias(params.alias);
+      IoC.registerInstance(params.object, instance).alias(params.alias);
     }
     return instance;
   }

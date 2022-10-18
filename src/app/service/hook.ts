@@ -1,14 +1,9 @@
-export type HookID =
-  | "script:upsert"
-  | "script:delete"
-  | "script:disable"
-  | "script:enable";
 export type HookHandler = (...args: any) => any;
 
 export default class Hook<T = string> {
   hookMap: { [key: string]: HookHandler[] } = {};
 
-  public dispatchHook(id: T, ...args: any): void {
+  public trigger(id: T, ...args: any): void {
     if (!this.hookMap[id as string]) {
       return;
     }
@@ -25,14 +20,14 @@ export default class Hook<T = string> {
     });
   }
 
-  public addHook(id: T, func: HookHandler) {
+  public addListener(id: T, func: HookHandler) {
     if (!this.hookMap[id as string]) {
       this.hookMap[id as string] = [];
     }
     this.hookMap[id as string].push(func);
   }
 
-  public removeHook(id: T, func: HookHandler) {
+  public removeListener(id: T, func: HookHandler) {
     if (!this.hookMap[id as string]) {
       return;
     }

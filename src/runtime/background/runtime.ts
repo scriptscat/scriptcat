@@ -9,6 +9,7 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
+  SCRIPT_RUN_STATUS,
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
@@ -18,9 +19,13 @@ import { MessageHander, MessageSender } from "@App/app/message/message";
 import ScriptManager from "@App/app/service/script/manager";
 import { Channel } from "@App/app/message/channel";
 import IoC from "@App/app/ioc";
+import Manager from "@App/app/service/manager";
+import Hook from "@App/app/service/hook";
 import { compileScriptCode } from "../content/utils";
 import GMApi, { Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
+
+export type RuntimeEvent = "start" | "stop" | "watchRunStatus";
 
 export type ScriptMenuItem = {
   id: number;
@@ -39,7 +44,7 @@ export type ScriptMenu = {
 
 // 后台脚本将会将代码注入到沙盒中
 @IoC.Singleton(MessageHander, MessageSandbox, ResourceManager, ValueManager)
-export default class Runtime {
+export default class Runtime extends Manager {
   messageSandbox: MessageSandbox;
 
   scriptDAO: ScriptDAO;
@@ -56,7 +61,7 @@ export default class Runtime {
 
   include: UrlInclude<ScriptRunResouce> = new UrlInclude();
 
-  message: MessageHander;
+  static hook = new Hook<"runStatus">();
 
   constructor(
     message: MessageHander,
@@ -64,20 +69,54 @@ export default class Runtime {
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
-    this.message = message;
+    super(message);
     this.scriptDAO = new ScriptDAO();
     this.messageSandbox = messageSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
     this.scriptFlag = randomString(8);
     this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
-    ScriptManager.hook.addHook("upsert", this.scriptUpdate.bind(this));
-    ScriptManager.hook.addHook("delete", this.scriptDelete.bind(this));
-    ScriptManager.hook.addHook("enable", this.scriptUpdate.bind(this));
-    ScriptManager.hook.addHook("disable", this.scriptUpdate.bind(this));
+    ScriptManager.hook.addListener("upsert", this.scriptUpdate.bind(this));
+    ScriptManager.hook.addListener("delete", this.scriptDelete.bind(this));
+    ScriptManager.hook.addListener("enable", this.scriptUpdate.bind(this));
+    ScriptManager.hook.addListener("disable", this.scriptUpdate.bind(this));
   }
 
   listenEvent(): void {
+    // 监听前端消息
+    this.message.setHandler("runtime-start", (action, id) => {
+      return this.scriptDAO
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            throw new Error("script not found");
+          }
+          // 因为如果直接引用Runtime,会导致循环依赖,暂时这样处理,后面再梳理梳理
+          return this.startBackgroundScript(script);
+        })
+        .catch((e) => {
+          this.logger.error("run error", Logger.E(e));
+          throw e;
+        });
+    });
+
+    this.message.setHandler("runtime-stop", (action, id) => {
+      return this.scriptDAO
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            throw new Error("script not found");
+          }
+          // 因为如果直接引用Runtime,会导致循环依赖,暂时这样处理
+          return this.stopBackgroundScript(id);
+        })
+        .catch((e) => {
+          this.logger.error("stop error", Logger.E(e));
+          throw e;
+        });
+    });
+    this.listenScriptRunStatus();
+
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 加载所有的脚本
@@ -112,35 +151,38 @@ export default class Runtime {
         }[]
       >
     > = new Map();
-    GMApi.hook.addHook("registerMenu", (request: Request, channel: Channel) => {
-      // TODO: 暂时不处理后台脚本的菜单
-      if (!request.sender.tabId) {
-        return;
-      }
-      const senderId = request.sender.tabId;
-      let tabMap = scriptMenu.get(senderId);
-      if (!tabMap) {
-        tabMap = new Map();
-        scriptMenu.set(senderId, tabMap);
-      }
-      let menuArr = tabMap.get(request.scriptId);
-      if (!menuArr) {
-        menuArr = [];
-        tabMap.set(request.scriptId, menuArr);
-      }
-      // 查询菜单是否已经存在
-      for (let i = 0; menuArr.length; i += 1) {
-        // id 相等 跳过,选第一个,并close链接
-        if (menuArr[i].request.params[0] === request.params[0]) {
-          channel.disChannel();
+    GMApi.hook.addListener(
+      "registerMenu",
+      (request: Request, channel: Channel) => {
+        // TODO: 暂时不处理后台脚本的菜单
+        if (!request.sender.tabId) {
           return;
         }
+        const senderId = request.sender.tabId;
+        let tabMap = scriptMenu.get(senderId);
+        if (!tabMap) {
+          tabMap = new Map();
+          scriptMenu.set(senderId, tabMap);
+        }
+        let menuArr = tabMap.get(request.scriptId);
+        if (!menuArr) {
+          menuArr = [];
+          tabMap.set(request.scriptId, menuArr);
+        }
+        // 查询菜单是否已经存在
+        for (let i = 0; menuArr.length; i += 1) {
+          // id 相等 跳过,选第一个,并close链接
+          if (menuArr[i].request.params[0] === request.params[0]) {
+            channel.disChannel();
+            return;
+          }
+        }
+        menuArr.push({ request, channel });
+        // 偷懒行为, 直接重新生成菜单
+        genScriptMenu(senderId, scriptMenu);
       }
-      menuArr.push({ request, channel });
-      // 偷懒行为
-      genScriptMenu(senderId, scriptMenu);
-    });
-    GMApi.hook.addHook("unregisterMenu", (id, request: Request) => {
+    );
+    GMApi.hook.addListener("unregisterMenu", (id, request: Request) => {
       if (!request.sender.tabId) {
         return;
       }
@@ -308,6 +350,29 @@ export default class Runtime {
     );
   }
 
+  listenScriptRunStatus() {
+    // 监听沙盒发送的脚本运行状态消息
+    this.message.setHandler(
+      "scriptRunStatus",
+      (action, [scriptId, runStatus]: any) => {
+        this.scriptDAO.update(scriptId, {
+          runStatus,
+        });
+        Runtime.hook.trigger("runStatus", scriptId, runStatus);
+      }
+    );
+    // 处理前台发送的脚本运行状态监听请求
+    this.message.setHandlerWithChannel("watchRunStatus", (channel) => {
+      const hook = (scriptId: number, status: SCRIPT_RUN_STATUS) => {
+        channel.send([scriptId, status]);
+      };
+      Runtime.hook.addListener("runStatus", hook);
+      channel.setDisChannelHandler(() => {
+        Runtime.hook.removeListener("runStatus", hook);
+      });
+    });
+  }
+
   // 脚本发生变动
   scriptUpdate(script: Script): Promise<boolean> {
     if (script.status === SCRIPT_STATUS_ENABLE) {
@@ -395,11 +460,11 @@ export default class Runtime {
     return new Promise((resolve, reject) => {
       this.messageSandbox
         .syncSend("enable", script)
-        .then((resp) => {
-          resolve(resp);
+        .then(() => {
+          resolve(true);
         })
         .catch((err) => {
-          this.logger.error("后台脚本加载失败", Logger.E(err));
+          this.logger.error("backscript load error", Logger.E(err));
           reject(err);
         });
     });
@@ -410,11 +475,31 @@ export default class Runtime {
     return new Promise((resolve, reject) => {
       this.messageSandbox
         .syncSend("disable", script.id)
+        .then(() => {
+          resolve(true);
+        })
+        .catch((err) => {
+          this.logger.error("backscript stop error", Logger.E(err));
+          reject(err);
+        });
+    });
+  }
+
+  async startBackgroundScript(script: Script) {
+    const scriptRes = await this.buildScriptRunResource(script);
+    this.messageSandbox.syncSend("start", scriptRes);
+    return Promise.resolve(true);
+  }
+
+  stopBackgroundScript(scriptId: number) {
+    return new Promise((resolve, reject) => {
+      this.messageSandbox
+        .syncSend("stop", scriptId)
         .then((resp) => {
           resolve(resp);
         })
         .catch((err) => {
-          this.logger.error("后台脚本停止失败", Logger.E(err));
+          this.logger.error("backscript stop error", Logger.E(err));
           reject(err);
         });
     });

@@ -2,6 +2,9 @@ import MessageSandbox from "@App/app/message/sandbox";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
+  SCRIPT_RUN_STATUS_COMPLETE,
+  SCRIPT_RUN_STATUS_ERROR,
+  SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   ScriptRunResouce,
@@ -10,7 +13,7 @@ import { CronJob } from "cron";
 import IoC from "@App/app/ioc";
 import ExecScript from "./exec_script";
 
-type SandboxEvent = "enable" | "disable";
+type SandboxEvent = "enable" | "disable" | "start" | "stop";
 
 type Handler = (data: any) => Promise<any>;
 
@@ -37,9 +40,25 @@ export default class SandboxRuntime {
   }
 
   // 开启沙盒运行环境,监听background来的请求
-  start() {
+  init() {
     this.listenEvent("enable", this.enable);
     this.listenEvent("disable", this.disable);
+    this.listenEvent("start", this.start);
+    this.listenEvent("stop", this.stop);
+  }
+
+  // 直接运行脚本
+  start(script: ScriptRunResouce): Promise<boolean> {
+    return this.execScript(script);
+  }
+
+  stop(scriptId: number): Promise<boolean> {
+    const exec = this.execScripts.get(scriptId);
+    if (!exec) {
+      return Promise.resolve(false);
+    }
+    this.execStop(exec);
+    return Promise.resolve(true);
   }
 
   enable(script: ScriptRunResouce): Promise<boolean> {
@@ -49,8 +68,8 @@ export default class SandboxRuntime {
         // 定时脚本
         return this.crontabScript(script);
       case SCRIPT_TYPE_BACKGROUND:
-        // 后台脚本
-        return this.backgroundScript(script);
+        // 后台脚本, 直接执行脚本
+        return this.execScript(script);
       default:
         throw new Error("不支持的脚本类型");
     }
@@ -65,7 +84,7 @@ export default class SandboxRuntime {
     // 后续考虑停止正在运行的脚本的方法
     // 现期对于正在运行的脚本仅仅是在background中判断是否运行
     // 未运行的脚本不处理GMApi的请求
-    exec.stop();
+    this.execStop(exec);
     const list = this.cronJob.get(id);
     if (list) {
       list.forEach((val) => {
@@ -76,10 +95,44 @@ export default class SandboxRuntime {
     return Promise.resolve(true);
   }
 
-  backgroundScript(script: ScriptRunResouce) {
-    const exec = new ExecScript(script, this.message);
-    this.execScripts.set(script.id, exec);
-    return exec.exec();
+  // 执行脚本
+  execScript(script: ScriptRunResouce) {
+    let exec: ExecScript;
+    if (this.execScripts.has(script.id)) {
+      exec = this.execScripts.get(script.id)!;
+    } else {
+      exec = new ExecScript(script, this.message);
+      this.execScripts.set(script.id, exec);
+    }
+    this.message.send("scriptRunStatus", [
+      exec.scriptRes.id,
+      SCRIPT_RUN_STATUS_RUNNING,
+    ]);
+    // 修改掉脚本掉最后运行时间, 数据库也需要修改
+    exec.scriptRes.lastruntime = new Date().getTime();
+    const ret = exec.exec();
+    if (ret instanceof Promise) {
+      ret
+        .then(() => {
+          // 发送执行完成消息
+          this.message.send("scriptRunStatus", [
+            exec.scriptRes.id,
+            SCRIPT_RUN_STATUS_COMPLETE,
+          ]);
+        })
+        .catch((err) => {
+          // 发送执行完成+错误消息
+          this.logger.error(err);
+          this.message.send("scriptRunStatus", [
+            exec.scriptRes.id,
+            SCRIPT_RUN_STATUS_ERROR,
+            Logger.E(err),
+          ]);
+        });
+    } else {
+      this.logger.error("backscript return not promise");
+    }
+    return ret;
   }
 
   crontabScript(script: ScriptRunResouce) {
@@ -106,10 +159,8 @@ export default class SandboxRuntime {
         crontab = crontab.replace(/once/g, "*");
       }
       try {
-        const cron = new CronJob(
-          crontab,
-          SandboxRuntime.crontabExec(script, oncePos, exec)
-        );
+        const cron = new CronJob(crontab, this.crontabExec(script, oncePos));
+        cron.start();
         cronJobList.push(cron);
       } catch (e) {
         flag = true;
@@ -131,16 +182,12 @@ export default class SandboxRuntime {
     return Promise.resolve(!flag);
   }
 
-  static crontabExec(
-    script: ScriptRunResouce,
-    oncePos: number,
-    exec: ExecScript
-  ) {
+  crontabExec(script: ScriptRunResouce, oncePos: number) {
     if (oncePos) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
         if (!script.lastruntime) {
-          exec.exec();
+          this.execScript(script);
           return;
         }
         const now = new Date();
@@ -161,22 +208,30 @@ export default class SandboxRuntime {
             flag = last.getMonth() !== now.getMonth();
             break;
           case 5: // 每周
-            flag = SandboxRuntime.getWeek(last) !== SandboxRuntime.getWeek(now);
+            flag = this.getWeek(last) !== this.getWeek(now);
             break;
           default:
         }
         if (flag) {
-          exec.exec();
+          this.execScript(script);
         }
       };
     }
     return () => {
-      exec.exec();
+      this.execScript(script);
     };
   }
 
+  execStop(exec: ExecScript) {
+    exec.stop();
+    this.message.send("scriptRunStatus", [
+      exec.scriptRes.id,
+      SCRIPT_RUN_STATUS_COMPLETE,
+    ]);
+  }
+
   // 获取本周是第几周
-  static getWeek(date: Date) {
+  getWeek(date: Date) {
     const nowDate = new Date(date);
     const firstDay = new Date(date);
     firstDay.setMonth(0); // 设置1月

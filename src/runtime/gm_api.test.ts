@@ -16,6 +16,8 @@ import chromeMock from "pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
 import IoC from "@App/app/ioc";
+import { MessageBroadcast, MessageHander } from "@App/app/message/message";
+import PermissionVerify from "./background/permission_verify";
 
 migrate();
 
@@ -30,8 +32,13 @@ new LoggerCore({
 global.sandbox = global;
 const center = new MessageCenter();
 center.start();
+IoC.registerInstance(MessageCenter, center).alias([
+  MessageHander,
+  MessageBroadcast,
+]);
+IoC.registerInstance(ValueManager, new ValueManager(center, center));
 
-const backgroundApi = new BgGMApi(center);
+const backgroundApi = new BgGMApi(center, new PermissionVerify());
 backgroundApi.start();
 
 const internal = new MessageInternal("background");
@@ -77,7 +84,6 @@ const contentApi = exec.sandboxContent;
 beforeAll(async () => {
   const scriptDAO = new ScriptDAO();
   await scriptDAO.save(scriptRes);
-  IoC.registerInstance(ValueManager, new ValueManager(center,center));
   // 监听值变化
   internal.setHandler("valueUpdate", (_action, data: ValueUpdateData) => {
     exec.valueUpdate(data);
@@ -206,14 +212,14 @@ describe("GM xmlHttpRequest", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     return new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
         url: "/",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
             expect(resp.responseText).toBe("location");
-            chromeMock.tabs.hook.removeHook("create", hookFn);
+            chromeMock.tabs.hook.removeListener("create", hookFn);
             resolve();
           }
         },
@@ -380,11 +386,11 @@ describe("GM log", () => {
       }) => {
         expect(level).toBe("info");
         expect(message).toBe("test");
-        LoggerCore.hook.removeHook("log", hookFn);
+        LoggerCore.hook.removeListener("log", hookFn);
         resolve();
         return Promise.resolve(true);
       };
-      LoggerCore.hook.addHook("log", hookFn);
+      LoggerCore.hook.addListener("log", hookFn);
 
       contentApi.GM_log("test");
     });
@@ -484,14 +490,14 @@ describe("GM cookie", () => {
         type: 1,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       contentApi.GM_cookie(
         "list",
         { url: "https://www.example.com" },
         (value, err) => {
           expect(err).toEqual("permission not allowed");
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           resolve();
         }
       );
@@ -507,7 +513,7 @@ describe("GM cookie", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       chromeMock.cookies.mockGetAll = (detail, callback) => {
         expect(detail.url).toBe("https://www.example.com");
@@ -518,7 +524,7 @@ describe("GM cookie", () => {
         { url: "https://www.example.com" },
         (value, err) => {
           expect(value).toEqual([{ name: "test" }]);
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           resolve();
         }
       );
@@ -547,7 +553,7 @@ describe("GM cookie", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       contentApi.GM_cookie(
         "set",
@@ -557,7 +563,7 @@ describe("GM cookie", () => {
           value: "123",
         },
         (value, err) => {
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           expect(value).toBeUndefined();
           expect(err).toBeUndefined();
           resolve();

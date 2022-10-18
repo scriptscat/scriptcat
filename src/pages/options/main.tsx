@@ -7,13 +7,14 @@ import "@arco-design/web-react/dist/css/arco.css";
 import MessageInternal from "@App/app/message/internal";
 import migrate from "@App/app/migrate";
 import MessageSandbox from "@App/app/message/sandbox";
-import ScriptManager from "@App/app/service/script/manager";
 import GMApi from "@App/runtime/background/gm_api";
 import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
 import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
+import { IPermissionVerify } from "@App/runtime/background/permission_verify";
+import { SystemConfig } from "@App/pkg/config/config";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
 
@@ -29,22 +30,29 @@ loggerCore.logger().debug("options start");
 registerEditor();
 
 // 注册MessageHandler
-IoC.registerInstance(MessageHander, new MessageInternal("options")).Alias([
+IoC.registerInstance(MessageHander, new MessageInternal("options")).alias([
   MessageInternal,
   MessageBroadcast,
 ]);
+
+IoC.registerInstance(
+  SystemConfig,
+  new SystemConfig(IoC.instance(MessageHander), IoC.instance(MessageInternal))
+);
 
 // 初始化沙盒通讯
 // eslint-disable-next-line no-undef
 const messageSandbox = new MessageSandbox(sandbox);
 IoC.registerInstance(MessageSandbox, messageSandbox);
 // 开启GMApi,用于调试
-const gmapi = new GMApi(messageSandbox);
+class DebugPermissionVerify implements IPermissionVerify {
+  verify(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+}
+const gmapi = new GMApi(messageSandbox, new DebugPermissionVerify());
 gmapi.start();
 IoC.registerInstance(GMApi, gmapi);
-
-const scriptManager = new ScriptManager(messageSandbox);
-ScriptManager.instance = scriptManager;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>

@@ -22,6 +22,8 @@ import "./index.css";
 import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { prepareScriptByCode } from "@App/utils/script";
+import RuntimeController from "@App/runtime/content/runtime";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -84,6 +86,7 @@ type EditorMenu = {
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   const template = useSearchParams()[0].get("template");
   const [editors, setEditors] = useState<
     {
@@ -104,8 +107,7 @@ function ScriptEditor() {
   ): Promise<Script> => {
     // 解析code生成新的script并更新
     return new Promise((resolve) => {
-      scriptCtrl
-        .prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
+      prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
         .then((newScript) => {
           scriptCtrl.upsert(newScript).then(
             () => {
@@ -153,17 +155,18 @@ function ScriptEditor() {
         {
           title: "调试",
           hotKey: KeyMod.CtrlCmd | KeyCode.F5,
-          tooltip: "只有后台脚本/定时脚本才能调试",
-          action: (script, e) => {
+          tooltip:
+            "只有后台脚本/定时脚本才能调试, 且调试模式下不对进行权限校验(例如@connect)",
+          action: async (script, e) => {
             // 保存更新代码之后再调试
-            save(script, e);
+            const newScript = await save(script, e);
             Message.loading({
               id: "debug_script",
               content: "正在准备脚本资源...",
               duration: 3000,
             });
-            scriptCtrl
-              .debugScript({ ...script })
+            runtimeCtrl
+              .debugScript(newScript)
               .then(() => {
                 Message.success({
                   id: "debug_script",
@@ -241,7 +244,7 @@ function ScriptEditor() {
           code = normalTpl;
           break;
       }
-      scriptCtrl.prepareScriptByCode(code, "", uuidv4()).then((script) => {
+      prepareScriptByCode(code, "", uuidv4()).then((script) => {
         editors.push({
           script,
           code: script.code,

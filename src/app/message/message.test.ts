@@ -36,7 +36,7 @@ describe("message center", () => {
 
   it("with connect", async () => {
     const listener = jest.fn();
-    center.setHandlerWithConnect("test-channel", (connect, data) => {
+    center.setHandlerWithChannel("test-channel", (connect, data) => {
       listener(connect, data);
       connect.setHandler(listener);
     });

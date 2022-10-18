@@ -4,7 +4,12 @@ import crypto from "crypto-js";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { MessageHander } from "@App/app/message/message";
-import { Resource, ResourceDAO, ResourceHash } from "@App/app/repo/resource";
+import {
+  Resource,
+  ResourceDAO,
+  ResourceHash,
+  ResourceType,
+} from "@App/app/repo/resource";
 import { ResourceLinkDAO } from "@App/app/repo/resource_link";
 import { Script } from "@App/app/repo/scripts";
 import axios from "axios";
@@ -63,14 +68,15 @@ export class ResourceManager extends Manager {
 
   public async getResource(
     id: number,
-    url: string
+    url: string,
+    type: ResourceType
   ): Promise<Resource | undefined> {
     let res = await this.getResourceModel(url);
     if (res) {
       return Promise.resolve(res);
     }
     try {
-      res = await this.addResource(url, id);
+      res = await this.addResource(url, id, type);
       if (res) {
         return Promise.resolve(res);
       }
@@ -85,19 +91,22 @@ export class ResourceManager extends Manager {
   ): Promise<{ [key: string]: Resource }> {
     const ret: { [key: string]: Resource } = {};
     for (let i = 0; i < script.metadata.require?.length; i += 1) {
-      const res = await this.getResource(script.id, script.metadata.require[i]);
+      const res = await this.getResource(
+        script.id,
+        script.metadata.require[i],
+        "require"
+      );
       if (res) {
-        res.type = "require";
         ret[script.metadata.require[i]] = res;
       }
     }
     for (let i = 0; i < script.metadata["require-css"]?.length; i += 1) {
       const res = await this.getResource(
         script.id,
-        script.metadata["require-css"][i]
+        script.metadata["require-css"][i],
+        "require-css"
       );
       if (res) {
-        res.type = "require-css";
         ret[script.metadata["require-css"][i]] = res;
       }
     }
@@ -105,9 +114,8 @@ export class ResourceManager extends Manager {
     for (let i = 0; i < script.metadata.resource?.length; i += 1) {
       const split = script.metadata.resource[i].split(/\s+/);
       if (split.length === 2) {
-        const res = await this.getResource(script.id, split[1]);
+        const res = await this.getResource(script.id, split[1], "resource");
         if (res) {
-          res.type = "resource";
           ret[split[0]] = res;
         }
       }
@@ -115,13 +123,17 @@ export class ResourceManager extends Manager {
     return Promise.resolve(ret);
   }
 
-  public async addResource(url: string, scriptId: number): Promise<Resource> {
+  public async addResource(
+    url: string,
+    scriptId: number,
+    type: ResourceType
+  ): Promise<Resource> {
     const u = this.parseUrl(url);
     let result = await this.getResourceModel(u.url);
     // 资源不存在,重新加载
     if (!result) {
       try {
-        const resource = await this.loadByUrl(u.url);
+        const resource = await this.loadByUrl(u.url, type);
         resource.createtime = new Date().getTime();
         resource.updatetime = new Date().getTime();
         Cache.getInstance().set(CacheKey.resourceByUrl(u.url), resource);
@@ -182,7 +194,7 @@ export class ResourceManager extends Manager {
     .set("application/x-javascript", true)
     .set("application/json", true);
 
-  loadByUrl(url: string): Promise<Resource> {
+  loadByUrl(url: string, type: ResourceType): Promise<Resource> {
     return new Promise((resolve, reject) => {
       const u = this.parseUrl(url);
       axios
@@ -202,12 +214,16 @@ export class ResourceManager extends Manager {
             ).split(";")[0],
             hash: await calculateHash(<Blob>response.data),
             base64: "",
+            type,
           };
           if (
             resource.contentType.startsWith("text/") ||
             ResourceManager.textContentTypeMap.has(resource.contentType)
           ) {
             resource.content = await (<Blob>response.data).text();
+          } else if (resource.type === "resource") {
+            // 资源不判断类型
+            resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
           } else {
             return reject(
               new Error(`不允许的资源类型:${resource.contentType}`)

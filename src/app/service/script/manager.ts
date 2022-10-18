@@ -1,56 +1,83 @@
-import { fetchScriptInfo } from "@App/utils/script";
+import {
+  fetchScriptInfo,
+  parseMetadata,
+  prepareScriptByCode,
+} from "@App/utils/script";
 import Cache from "@App/app/cache";
+import semver from "semver";
 import CacheKey from "@App/utils/cache_key";
 import { MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
+import axios from "axios";
+import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
+import { SystemConfig } from "@App/pkg/config/config";
 import Manager from "../manager";
-import { Script, ScriptDAO } from "../../repo/scripts";
+import { Script, ScriptDAO, SCRIPT_STATUS_DISABLE } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
-@IoC.Singleton(MessageHander)
+@IoC.Singleton(MessageHander, SystemConfig)
 export class ScriptManager extends Manager {
   static hook = new Hook<"upsert" | "enable" | "disable" | "delete">();
-
-  static instance: ScriptManager;
-
-  static getInstance(): ScriptManager {
-    return ScriptManager.instance;
-  }
 
   event: ScriptEventListener;
 
   scriptDAO: ScriptDAO;
 
-  constructor(center: MessageHander) {
+  logger: Logger;
+
+  systemConfig: SystemConfig;
+
+  constructor(center: MessageHander, systemConfig: SystemConfig) {
     super(center);
-    if (!ScriptManager.instance) {
-      ScriptManager.instance = this;
-    }
     this.event = new ScriptEventListener(this, new ScriptDAO());
     this.scriptDAO = new ScriptDAO();
+    this.systemConfig = systemConfig;
+    this.logger = LoggerCore.getLogger({ component: "scriptManager" });
   }
 
   @CacheKey.Trigger()
   static CacheManager() {
-    ScriptManager.hook.addHook("upsert", (script: Script) => {
+    ScriptManager.hook.addListener("upsert", (script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });
-    ScriptManager.hook.addHook("delete", (script: Script) => {
+    ScriptManager.hook.addListener("delete", (script: Script) => {
       Cache.getInstance().del(CacheKey.script(script.id));
       return Promise.resolve(true);
     });
   }
 
-  // eslint-disable-next-line class-methods-use-this
   public start() {
-    ScriptManager.listenInstallRequest();
+    this.listenInstallRequest();
+    // 启动脚本检查更新
+    // 十分钟对符合要求的脚本进行检查更新
+    setInterval(() => {
+      this.logger.debug("start check update");
+      this.scriptDAO.table
+        .where("checktime")
+        .belowOrEqual(
+          new Date().getTime() - this.systemConfig.checkScriptUpdateCycle * 1000
+        )
+        .toArray()
+        .then((scripts) => {
+          scripts.forEach((script) => {
+            if (
+              !this.systemConfig.updateDisableScript &&
+              script.status === SCRIPT_STATUS_DISABLE
+            ) {
+              return;
+            }
+            this.checkUpdate(script.id, "system");
+          });
+        });
+    }, 600 * 1000);
   }
 
   // 监听脚本安装/更新请求
-  public static listenInstallRequest() {
+  public listenInstallRequest() {
     chrome.webRequest.onBeforeRequest.addListener(
       (req: chrome.webRequest.WebRequestBodyDetails) => {
         if (req.method !== "GET") {
@@ -77,7 +104,7 @@ export class ScriptManager extends Manager {
   }
 
   public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
-    fetchScriptInfo(req.url, "user")
+    fetchScriptInfo(req.url, "user", false)
       .then((info) => {
         Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
         setTimeout(() => {
@@ -92,6 +119,97 @@ export class ScriptManager extends Manager {
         chrome.tabs.update(req.tabId, {
           url: `${req.url}#bypass=true`,
         });
+      });
+  }
+
+  public async checkUpdate(id: number, source: "user" | "system") {
+    // 检查更新
+    const script = await this.scriptDAO.findById(id);
+    if (!script) {
+      return Promise.resolve(false);
+    }
+    if (!script.checkUpdateUrl) {
+      return Promise.resolve(false);
+    }
+    const logger = LoggerCore.getLogger({
+      scriptId: id,
+      name: script.name,
+    });
+    this.scriptDAO.update(id, { checktime: new Date().getTime() });
+    try {
+      const resp = await axios.get(script.checkUpdateUrl, {
+        responseType: "text",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
+      if (resp.status !== 200) {
+        logger.error("check update failed", { status: resp.status });
+        return Promise.resolve(false);
+      }
+      const metadata = parseMetadata(resp.data);
+      if (!metadata) {
+        logger.error("parse metadata failed");
+        return Promise.resolve(false);
+      }
+      const newVersion = metadata.version && metadata.version[0];
+      if (!newVersion) {
+        logger.error("parse version failed", { version: metadata.version[0] });
+        return Promise.resolve(false);
+      }
+      let oldVersion = script.metadata.version && script.metadata.version[0];
+      if (!oldVersion) {
+        oldVersion = "0.0.0";
+      }
+      // 对比版本大小
+      if (semver.lte(newVersion, oldVersion)) {
+        return Promise.resolve(false);
+      }
+      // 进行更新
+      this.openUpdatePage(script, source);
+    } catch (e) {
+      logger.error("check update failed", Logger.E(e));
+      return Promise.resolve(false);
+    }
+    return Promise.resolve(true);
+  }
+
+  // 打开更新窗口
+  public openUpdatePage(script: Script, source: "user" | "system") {
+    const logger = this.logger.with({
+      scriptId: script.id,
+      name: script.name,
+      downloadUrl: script.downloadUrl,
+      checkUpdateUrl: script.checkUpdateUrl,
+    });
+    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true)
+      .then((info) => {
+        // 是否静默更新
+        if (this.systemConfig.silenceUpdateScript) {
+          prepareScriptByCode(
+            info.code,
+            script.downloadUrl || script.checkUpdateUrl!,
+            script.uuid
+          )
+            .then((newScript) => {
+              this.event.upsertHandler(newScript);
+            })
+            .catch((e) => {
+              logger.error("prepare script failed", Logger.E(e));
+            });
+          return;
+        }
+        Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
+        setTimeout(() => {
+          // 清理缓存
+          Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
+        }, 60 * 1000);
+        chrome.tabs.create({
+          url: `src/install.html?uuid=${info.uuid}`,
+        });
+      })
+      .catch((e) => {
+        logger.error("fetch script info failed", Logger.E(e));
       });
   }
 }
