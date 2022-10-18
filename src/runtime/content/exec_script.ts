@@ -27,7 +27,7 @@ export default class ExecScript {
 
   proxyContent: any;
 
-  sandboxContent: GMApi;
+  sandboxContent?: GMApi;
 
   constructor(
     scriptRes: ScriptRunResouce,
@@ -46,22 +46,24 @@ export default class ExecScript {
       // 构建脚本资源
       this.scriptFunc = compileScript(this.scriptRes.code);
     }
-    this.sandboxContent = createContext(scriptRes, message);
-    // 构建脚本上下文
-    this.proxyContent = proxyContext(window, this.sandboxContent);
+    if (scriptRes.grantMap.none) {
+      // 不注入任何GM api
+      this.proxyContent = window;
+    } else {
+      // 构建脚本GM上下文
+      this.sandboxContent = createContext(scriptRes, message);
+      this.proxyContent = proxyContext(window, this.sandboxContent);
+    }
   }
 
   // 触发值更新
   valueUpdate(data: ValueUpdateData) {
-    this.sandboxContent.valueUpdate(data);
+    this.sandboxContent?.valueUpdate(data);
   }
-
-  // 触发菜单点击
-  menuClick() {}
 
   exec() {
     this.logger.debug("script start");
-    return this.scriptFunc(this.proxyContent);
+    return this.scriptFunc(this.proxyContent, GMApi.GM_info(this.scriptRes));
   }
 
   // TODO: 实现脚本的停止,资源释放

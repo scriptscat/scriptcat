@@ -77,6 +77,7 @@ export interface ScriptRunResouce extends Script {
   value: { [key: string]: Value };
   flag: string;
   resource: { [key: string]: Resource };
+  sourceCode: string;
 }
 
 export class ScriptDAO extends DAO<Script> {

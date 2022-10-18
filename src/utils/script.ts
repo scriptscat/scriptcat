@@ -17,6 +17,15 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import { nextTime } from "./utils";
 
+export function getMetadataStr(code: string): string | null {
+  const start = code.indexOf("==UserScript==");
+  const end = code.indexOf("==/UserScript==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `// ${code.substring(start, end + 14)}`;
+}
+
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
   let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;

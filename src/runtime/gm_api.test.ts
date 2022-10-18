@@ -79,7 +79,7 @@ const scriptRes = {
 } as unknown as ScriptRunResouce;
 
 const exec = new ExecScript(scriptRes, internal);
-const contentApi = exec.sandboxContent;
+const contentApi = exec.sandboxContent!;
 
 beforeAll(async () => {
   const scriptDAO = new ScriptDAO();

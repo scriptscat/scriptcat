@@ -21,7 +21,7 @@ import { Channel } from "@App/app/message/channel";
 import IoC from "@App/app/ioc";
 import Manager from "@App/app/service/manager";
 import Hook from "@App/app/service/hook";
-import { compileScriptCode } from "../content/utils";
+import { compileInjectScript, compileScriptCode } from "../content/utils";
 import GMApi, { Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
 
@@ -357,6 +357,7 @@ export default class Runtime extends Manager {
       (action, [scriptId, runStatus]: any) => {
         this.scriptDAO.update(scriptId, {
           runStatus,
+          lastruntime: new Date().getTime(),
         });
         Runtime.hook.trigger("runStatus", scriptId, runStatus);
       }
@@ -413,9 +414,7 @@ export default class Runtime extends Manager {
   // 加载页面脚本
   loadPageScript(script: ScriptRunResouce) {
     // 重构code
-    script.code = dealScript(
-      `window['${script.flag}']=function(context){\n${script.code}\n}`
-    );
+    script.code = dealScript(compileInjectScript(script));
 
     this.match.del(<ScriptRunResouce>script);
     this.include.del(<ScriptRunResouce>script);
@@ -521,6 +520,7 @@ export default class Runtime extends Manager {
     ret.resource = await this.resourceManager.getScriptResources(ret);
 
     ret.flag = randomString(16);
+    ret.sourceCode = ret.code;
     ret.code = compileScriptCode(ret);
 
     ret.grantMap = {};

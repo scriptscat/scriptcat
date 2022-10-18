@@ -4,7 +4,7 @@ import LoggerCore from "@App/app/logger/core";
 import { Channel, ChannelHandler } from "@App/app/message/channel";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { blobToBase64 } from "@App/utils/script";
+import { blobToBase64, getMetadataStr } from "@App/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
 import { addStyle } from "./utils";
@@ -117,19 +117,23 @@ export default class GMApi {
   }
 
   // 获取脚本信息和管理器信息
-  @GMContext.API()
-  public GM_info() {
+  static GM_info(script: ScriptRunResouce) {
+    const metadataStr = getMetadataStr(script.sourceCode);
     return {
+      // downloadMode
+      // isIncognito
       scriptWillUpdate: false,
       scriptHandler: "ScriptCat",
-      scriptUpdateURL: this.scriptRes.checkUpdateUrl,
-      scriptSource: this.scriptRes.code,
+      scriptUpdateURL: script.checkUpdateUrl,
+      scriptMetaStr: metadataStr,
+      scriptSource: script.sourceCode,
+      version: script.metadata.version && script.metadata.version[0],
       script: {
-        name: this.scriptRes.name,
-        namespace: this.scriptRes.namespace,
-        version:
-          this.scriptRes.metadata.version && this.scriptRes.metadata.version[0],
-        author: this.scriptRes.author,
+        // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
+        name: script.name,
+        namespace: script.namespace,
+        version: script.metadata.version && script.metadata.version[0],
+        author: script.author,
       },
     };
   }

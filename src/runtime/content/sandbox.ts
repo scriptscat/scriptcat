@@ -109,7 +109,7 @@ export default class SandboxRuntime {
       SCRIPT_RUN_STATUS_RUNNING,
     ]);
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
-    exec.scriptRes.lastruntime = new Date().getTime();
+    script.lastruntime = new Date().getTime();
     const ret = exec.exec();
     if (ret instanceof Promise) {
       ret
