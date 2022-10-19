@@ -16,12 +16,7 @@ import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
 } from "./permission_verify";
-import {
-  dealXhr,
-  getIcon,
-  listenerWebRequest,
-  setXhrUnsafeHeader,
-} from "./utils";
+import { dealXhr, getIcon, listenerWebRequest, setXhrHeader } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -227,7 +222,7 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrUnsafeHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.headerFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;
@@ -259,9 +254,9 @@ export default class GMApi {
       xhr.send(<string>config.data);
     }
 
-    channel.disChannelHandler = () => {
+    channel.setDisChannelHandler(() => {
       xhr.abort();
-    };
+    });
     return Promise.resolve();
   }
 
@@ -525,7 +520,7 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrUnsafeHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.headerFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;

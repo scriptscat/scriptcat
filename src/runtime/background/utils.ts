@@ -170,11 +170,12 @@ export function listenerWebRequest(headerFlag: string) {
         return {};
       }
       details.responseHeaders?.forEach((val) => {
-        if (responseHeaders[val.name]) {
+        const lowerCase = val.name.toLowerCase();
+        if (responseHeaders[lowerCase]) {
           val.name = `${headerFlag}-${val.name}`;
         }
         // 处理最大重定向次数
-        if (val.name.toLowerCase() === "location") {
+        if (lowerCase === "location") {
           const nums = maxRedirects.get(details.requestId);
           if (nums) {
             nums[0] += 1;
@@ -206,8 +207,8 @@ export function listenerWebRequest(headerFlag: string) {
   );
 }
 
-// 给xhr添加unsafeHeaders
-export function setXhrUnsafeHeader(
+// 给xhr添加headers,包括unsafeHeaders
+export function setXhrHeader(
   headerFlag: string,
   config: GMSend.XHRDetails,
   xhr: XMLHttpRequest
@@ -231,6 +232,9 @@ export function setXhrUnsafeHeader(
             "GM XHR setRequestHeader error"
           );
         }
+      } else {
+        // 直接设置header
+        xhr.setRequestHeader(key, config.headers![key]!);
       }
     });
   }
@@ -324,12 +328,49 @@ export function getIcon(script: Script): string {
     (script.metadata.icon64url && script.metadata.icon64url[0])
   );
 }
+function genScriptMenuByTabMap(
+  tabMap: Map<number, { request: Request; channel: Channel }[]>
+) {
+  tabMap.forEach((menuArr, scriptId) => {
+    // 创建脚本菜单
+    chrome.contextMenus.create({
+      id: `scriptMenu_${scriptId}`,
+      title: menuArr[0].request.script.name,
+      contexts: ["all"],
+      parentId: "scriptMenu",
+    });
+    menuArr.forEach((menu) => {
+      // 创建菜单
+      chrome.contextMenus.create({
+        id: `scriptMenu_menu_${menu.request.params[0]}`,
+        title: menu.request.params[1],
+        contexts: ["all"],
+        parentId: `scriptMenu_${scriptId}`,
+        onclick: () => {
+          (IoC.instance(MessageCenter) as MessageCenter).sendNative(
+            {
+              tag: menu.request.sender.targetTag,
+              id: [
+                menu.request.sender.frameId || menu.request.sender.tabId || 0,
+              ],
+            },
+            {
+              stream: menu.channel.flag,
+              channel: true,
+              data: "click",
+            }
+          );
+        },
+      });
+    });
+  });
+}
 
 // 生成chrome菜单
 export function genScriptMenu(
-  tabId: number,
+  tabId: number | string,
   scriptMenu: Map<
-    number,
+    number | string,
     Map<
       number,
       {
@@ -341,46 +382,21 @@ export function genScriptMenu(
 ) {
   // 移除之前所有的菜单
   chrome.contextMenus.removeAll();
-  const tabMap = scriptMenu.get(tabId);
+  // 创建根菜单
+  chrome.contextMenus.create({
+    id: "scriptMenu",
+    title: "ScriptCat",
+    contexts: ["all"],
+  });
+  let tabMap = scriptMenu.get(tabId);
   if (tabMap) {
-    // 创建根菜单
-    chrome.contextMenus.create({
-      id: "scriptMenu",
-      title: "ScriptCat",
-      contexts: ["all"],
-    });
-    tabMap.forEach((menuArr, scriptId) => {
-      // 创建脚本菜单
-      chrome.contextMenus.create({
-        id: `scriptMenu_${scriptId}`,
-        title: menuArr[0].request.script.name,
-        contexts: ["all"],
-        parentId: "scriptMenu",
-      });
-      menuArr.forEach((menu) => {
-        // 创建菜单
-        chrome.contextMenus.create({
-          id: `scriptMenu_menu_${menu.request.params[0]}`,
-          title: menu.request.params[1],
-          contexts: ["all"],
-          parentId: `scriptMenu_${scriptId}`,
-          onclick: () => {
-            (IoC.instance(MessageCenter) as MessageCenter).sendNative(
-              {
-                tag: menu.request.sender.targetTag,
-                id: [
-                  menu.request.sender.frameId || menu.request.sender.tabId || 0,
-                ],
-              },
-              {
-                stream: menu.channel.flag,
-                channel: true,
-                data: "click",
-              }
-            );
-          },
-        });
-      });
-    });
+    genScriptMenuByTabMap(tabMap);
+  }
+  // 后台脚本的菜单
+  if (tabId !== "sandbox") {
+    tabMap = scriptMenu.get("sandbox");
+    if (tabMap) {
+      genScriptMenuByTabMap(tabMap);
+    }
   }
 }

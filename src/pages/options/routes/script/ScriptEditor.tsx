@@ -1,7 +1,7 @@
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
 import {
   Button,
@@ -83,11 +83,46 @@ type EditorMenu = {
   }[];
 };
 
+const emptyScript = async (template: string, hotKeys: any, target: string) => {
+  let code = "";
+  switch (template) {
+    case "background":
+      code = backgroundTpl;
+      break;
+    case "crontab":
+      code = crontabTpl;
+      break;
+    default:
+      code = normalTpl;
+      if (target === "initial") {
+        const url = await new Promise<string>((resolve) => {
+          chrome.storage.local.get(["activeTabUrl"], (result) => {
+            chrome.storage.local.remove(["activeTabUrl"]);
+            resolve(result.activeTabUrl.url);
+          });
+        });
+        code = code.replace("{{match}}", url);
+      }
+      break;
+  }
+  const script = await prepareScriptByCode(code, "", uuidv4());
+
+  return Promise.resolve({
+    script,
+    code: script.code,
+    active: true,
+    hotKeys,
+    isChanged: false,
+  });
+};
+
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
-  const template = useSearchParams()[0].get("template");
+  const template = useSearchParams()[0].get("template") || "";
+  const target = useSearchParams()[0].get("target") || "";
+  const navigate = useNavigate();
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -232,26 +267,8 @@ function ScriptEditor() {
         }
       });
     if (!id) {
-      let code = "";
-      switch (template) {
-        case "background":
-          code = backgroundTpl;
-          break;
-        case "crontab":
-          code = crontabTpl;
-          break;
-        default:
-          code = normalTpl;
-          break;
-      }
-      prepareScriptByCode(code, "", uuidv4()).then((script) => {
-        editors.push({
-          script,
-          code: script.code,
-          active: true,
-          hotKeys,
-          isChanged: false,
-        });
+      emptyScript(template || "", hotKeys, target).then((e) => {
+        editors.push(e);
         setEditors([...editors]);
       });
     }
@@ -451,6 +468,17 @@ function ScriptEditor() {
                 setEditors([...editors]);
               });
             }}
+            onAddTab={() => {
+              emptyScript(template || "", hotKeys).then((e) => {
+                setEditors((prev) => {
+                  prev.forEach((item) => {
+                    item.active = false;
+                  });
+                  prev.push(e);
+                  return [...prev];
+                });
+              });
+            }}
             onDeleteTab={(index: string) => {
               // 处理删除
               setEditors((prev) => {
@@ -460,6 +488,18 @@ function ScriptEditor() {
                   if (!confirm("脚本已修改, 关闭后会丢失修改, 是否继续?")) {
                     return prev;
                   }
+                }
+                if (prev.length === 1) {
+                  // 如果是id打开的回退到列表
+                  if (id) {
+                    navigate("/");
+                    return prev;
+                  }
+                  // 如果没有打开的了, 则打开一个空白的
+                  emptyScript(template || "", hotKeys).then((e) => {
+                    setEditors([e]);
+                  });
+                  return prev;
                 }
                 if (prev[i].active) {
                   // 如果关闭的是当前激活的, 则激活下一个
@@ -481,8 +521,11 @@ function ScriptEditor() {
                 title={
                   <span
                     style={{
+                      // eslint-disable-next-line no-nested-ternary
                       color: e.isChanged
                         ? "rgb(var(--orange-5))"
+                        : e.script.id === 0
+                        ? "rgb(var(--green-7))"
                         : "var(--color-text-1)",
                     }}
                   >

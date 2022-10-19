@@ -6,6 +6,7 @@ import {
   Button,
   Collapse,
   Empty,
+  Message,
   Popconfirm,
   Space,
   Switch,
@@ -15,6 +16,8 @@ import {
   IconEdit,
   IconSettings,
 } from "@arco-design/web-react/icon";
+import IoC from "@App/app/ioc";
+import ScriptController from "@App/app/service/script/controller";
 
 const CollapseItem = Collapse.Item;
 
@@ -23,6 +26,8 @@ const ScriptMenuList: React.FC<{
   script: ScriptMenu[];
 }> = ({ script }) => {
   const [list, setList] = useState([] as ScriptMenu[]);
+  const message = IoC.instance(MessageInternal) as MessageInternal;
+  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   useEffect(() => {
     setList(script);
   }, [script]);
@@ -31,7 +36,7 @@ const ScriptMenuList: React.FC<{
     if (sender.frameId) {
       id = sender.frameId;
     }
-    MessageInternal.getInstance().broadcastChannel(
+    message.broadcastChannel(
       {
         tag: sender.targetTag,
         id: [id!],
@@ -56,7 +61,27 @@ const ScriptMenuList: React.FC<{
                 }}
               >
                 <Space>
-                  <Switch size="small" checked={item.enable} />
+                  <Switch
+                    size="small"
+                    checked={item.enable}
+                    onChange={(checked) => {
+                      let p: Promise<any>;
+                      if (checked) {
+                        p = scriptCtrl.enable(item.id).then(() => {
+                          item.enable = true;
+                        });
+                      } else {
+                        p = scriptCtrl.disable(item.id).then(() => {
+                          item.enable = false;
+                        });
+                      }
+                      p.catch((err) => {
+                        Message.error(err);
+                      }).finally(() => {
+                        setList([...list]);
+                      });
+                    }}
+                  />
                   <span
                     style={{
                       display: "block",
@@ -93,6 +118,9 @@ const ScriptMenuList: React.FC<{
                 icon={<IconDelete />}
                 onOk={() => {
                   setList(list.filter((i) => i.id !== item.id));
+                  scriptCtrl.delete(item.id).catch((e) => {
+                    Message.error(`删除失败: ${e}`);
+                  });
                 }}
               >
                 <Button

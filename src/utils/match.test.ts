@@ -218,6 +218,7 @@ describe("UrlInclude-1", () => {
     ).toEqual(["ok11"]);
   });
 });
+
 describe("UrlInclude-2", () => {
   it("http*", () => {
     const url = new UrlInclude<string>();
@@ -244,5 +245,13 @@ describe("UrlInclude-2", () => {
     expect(url.match("http://domain2/")).toEqual(["ok3", "ok4"]);
     expect(url.match("http://domain2.com/")).toEqual(["ok4"]);
     expect(url.match("http://domain2/123")).toEqual(["ok4"]);
+  });
+});
+
+describe("match *", () => {
+  const url = new UrlMatch<string>();
+  url.add("*", "ok1");
+  it("ok1", () => {
+    expect(url.match("http://www.baidu.com")).toEqual(["ok1"]);
   });
 });

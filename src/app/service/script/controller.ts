@@ -35,6 +35,10 @@ export default class ScriptController {
     return this.dispatchEvent("disable", id);
   }
 
+  public delete(id: number) {
+    return this.dispatchEvent("delete", id);
+  }
+
   public fetchScriptInfo(uuid: string): Promise<ScriptInfo> {
     return this.dispatchEvent("fetch", uuid);
   }

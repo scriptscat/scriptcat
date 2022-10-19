@@ -5,17 +5,22 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
   Script,
+  SCRIPT_RUN_STATUS,
+  SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
-  SCRIPT_RUN_STATUS,
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
 import { dealScript, randomString } from "@App/utils/utils";
 import { UrlInclude, UrlMatch } from "@App/utils/match";
-import { MessageHander, MessageSender } from "@App/app/message/message";
+import {
+  MessageHander,
+  MessageSender,
+  TargetTag,
+} from "@App/app/message/message";
 import ScriptManager from "@App/app/service/script/manager";
 import { Channel } from "@App/app/message/channel";
 import IoC from "@App/app/ioc";
@@ -142,7 +147,7 @@ export default class Runtime extends Manager {
 
     // 监听菜单创建
     const scriptMenu: Map<
-      number,
+      number | TargetTag,
       Map<
         number,
         {
@@ -154,11 +159,13 @@ export default class Runtime extends Manager {
     GMApi.hook.addListener(
       "registerMenu",
       (request: Request, channel: Channel) => {
-        // TODO: 暂时不处理后台脚本的菜单
+        let senderId: number | TargetTag;
         if (!request.sender.tabId) {
-          return;
+          // 非页面脚本
+          senderId = request.sender.targetTag;
+        } else {
+          senderId = request.sender.tabId;
         }
-        const senderId = request.sender.tabId;
         let tabMap = scriptMenu.get(senderId);
         if (!tabMap) {
           tabMap = new Map();
@@ -183,10 +190,13 @@ export default class Runtime extends Manager {
       }
     );
     GMApi.hook.addListener("unregisterMenu", (id, request: Request) => {
+      let senderId: number | TargetTag;
       if (!request.sender.tabId) {
-        return;
+        // 非页面脚本
+        senderId = request.sender.targetTag;
+      } else {
+        senderId = request.sender.tabId;
       }
-      const senderId = request.sender.tabId;
       const tabMap = scriptMenu.get(senderId);
       if (tabMap) {
         const menuArr = tabMap.get(request.scriptId);
@@ -215,6 +225,23 @@ export default class Runtime extends Manager {
       genScriptMenu(activeInfo.tabId, scriptMenu);
     });
 
+    // 运行中的后台脚本
+    const runningScript: Map<number, Script> = new Map();
+    Runtime.hook.addListener(
+      "runStatus",
+      (script: number, status: SCRIPT_RUN_STATUS) => {
+        if (status === SCRIPT_RUN_STATUS_RUNNING) {
+          this.scriptDAO.findById(script).then((item) => {
+            if (item) {
+              runningScript.set(script, item);
+            }
+          });
+        } else {
+          runningScript.delete(script);
+        }
+      }
+    );
+
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
       "queryPageScript",
@@ -242,8 +269,31 @@ export default class Runtime extends Manager {
             menus,
           });
         });
+        const backScriptList: ScriptMenu[] = [];
+        const sandboxMap = scriptMenu.get("sandbox");
+        runningScript.forEach((item) => {
+          const menus: ScriptMenuItem[] = [];
+          if (sandboxMap) {
+            sandboxMap?.get(item.id)?.forEach((scriptItem) => {
+              menus.push({
+                name: scriptItem.request.params[1],
+                accessKey: scriptItem.request.params[2],
+                id: scriptItem.request.params[0],
+                sender: scriptItem.request.sender,
+                channelFlag: scriptItem.channel.flag,
+              });
+            });
+          }
+          backScriptList.push({
+            id: item.id,
+            name: item.name,
+            enable: item.status === SCRIPT_STATUS_ENABLE,
+            menus,
+          });
+        });
         return Promise.resolve({
           scriptList,
+          backScriptList,
         });
       }
     );
@@ -383,13 +433,13 @@ export default class Runtime extends Manager {
   }
 
   // 脚本删除
-  scriptDelete(script: Script): Promise<boolean> {
-    if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.disable(script);
-    }
+  async scriptDelete(script: Script): Promise<boolean> {
     // 清理匹配资源
     this.match.del(<ScriptRunResouce>script);
     this.include.del(<ScriptRunResouce>script);
+    if (script.status === SCRIPT_STATUS_ENABLE) {
+      await this.disable(script);
+    }
     return Promise.resolve(true);
   }
 

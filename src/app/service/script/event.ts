@@ -15,6 +15,7 @@ export type ScriptEvent =
   | "fetch"
   | "enable"
   | "disable"
+  | "delete"
   | "checkUpdate";
 
 const events: { [key: string]: (data: any) => Promise<any> } = {};
@@ -50,7 +51,7 @@ export default class ScriptEventListener {
   public upsertHandler(script: Script) {
     return new Promise((resolve, reject) => {
       const logger = this.logger.with({
-        id: script.id,
+        scriptId: script.id,
         name: script.name,
         uuid: script.uuid,
         version: script.metadata.version[0],
@@ -58,12 +59,12 @@ export default class ScriptEventListener {
 
       this.dao.save(script).then(
         () => {
-          logger.info("脚本安装成功");
+          logger.info("script upsert success");
           ScriptManager.hook.trigger("upsert", script);
           resolve({ id: script.id });
         },
         (e) => {
-          logger.error("脚本安装失败", Logger.E(e));
+          logger.error("script upsert failed", Logger.E(e));
           reject(e);
         }
       );
@@ -119,6 +120,32 @@ export default class ScriptEventListener {
         .catch((e) => {
           this.logger.error("disable error", Logger.E(e));
           reject(e);
+        });
+    });
+  }
+
+  @ListenEventDecorator("delete")
+  public deleteHandler(id: number) {
+    return this.dao.findById(id).then((script) => {
+      if (!script) {
+        return Promise.reject(new Error("脚本不存在"));
+      }
+      const logger = this.logger.with({
+        scriptId: id,
+        name: script.name,
+        uuid: script.uuid,
+        version: script.metadata.version[0],
+      });
+      return this.dao
+        .delete(script.id)
+        .then(() => {
+          logger.info("script delete success");
+          ScriptManager.hook.trigger("delete", script);
+          return Promise.resolve(1);
+        })
+        .catch((e) => {
+          logger.error("script delete failed", Logger.E(e));
+          return Promise.reject(e);
         });
     });
   }

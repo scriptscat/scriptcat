@@ -75,3 +75,36 @@ describe("unsafeWindow", () => {
     expect(ret).toEqual("ok");
   });
 });
+
+describe("sandbox", () => {
+  it("global", () => {
+    scriptRes2.code = "window.testObj = 'ok';return window.testObj";
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    let ret = sandboxExec.exec();
+    expect(ret).toEqual("ok");
+    scriptRes2.code = "window.testObj = 'ok2';return testObj";
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    ret = sandboxExec.exec();
+    expect(ret).toEqual("ok2");
+  });
+  it("this", () => {
+    scriptRes2.code = "this.testObj='ok2';return testObj;";
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = sandboxExec.exec();
+    expect(ret).toEqual("ok2");
+  });
+  it("this2", () => {
+    scriptRes2.code = `
+    !function(t, e) {
+      "object" == typeof exports ? module.exports = exports = e() : "function" == typeof define && define.amd ? define([], e) : t.CryptoJS = e()
+      console.log("object" == typeof exports,"function" == typeof define)
+  } (this, function () {
+      return { test: "ok3" }
+  });
+  console.log(CryptoJS)
+  return CryptoJS.test;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = sandboxExec.exec();
+    expect(ret).toEqual("ok3");
+  });
+});

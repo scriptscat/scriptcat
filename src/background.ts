@@ -14,6 +14,7 @@ import IoC from "./app/ioc";
 import { MessageBroadcast, MessageHander } from "./app/message/message";
 import PermissionVerify from "./runtime/background/permission_verify";
 import { SystemConfig } from "./pkg/config/config";
+import SystemManager from "./app/service/system/manager";
 // 数据库初始化
 migrate();
 // 初始化日志组件
@@ -38,6 +39,8 @@ IoC.registerInstance(MessageCenter, center).alias([
 ListenerMessage(new LoggerDAO(), center);
 // 启动系统配置
 IoC.registerInstance(SystemConfig, new SystemConfig(center));
+
+IoC.instance(SystemManager).init();
 
 // 等待沙盒启动后再进行后续的步骤
 center.setHandler("sandboxOnload", () => {

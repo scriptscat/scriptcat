@@ -3,6 +3,7 @@ import {
   Button,
   Input,
   Message,
+  Popconfirm,
   Space,
   Switch,
   Table,
@@ -461,13 +462,28 @@ function ScriptList() {
                 }}
               />
             </Link>
-            <Button
-              type="text"
+            <Popconfirm
+              title="确定要删除此脚本吗?"
               icon={<RiDeleteBin5Fill />}
-              style={{
-                color: "var(--color-text-2)",
+              onOk={() => {
+                setScriptList((list) => {
+                  return list.filter((i) => i.id !== item.id);
+                });
+                scriptCtrl.delete(item.id).catch((e) => {
+                  Message.error(`删除失败: ${e}`);
+                });
               }}
-            />
+            >
+              <Button
+                type="text"
+                icon={<RiDeleteBin5Fill />}
+                onClick={() => {}}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            </Popconfirm>
+
             {item.type !== SCRIPT_TYPE_NORMAL &&
               (item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? (
                 <Button

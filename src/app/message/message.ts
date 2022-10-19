@@ -86,7 +86,9 @@ export class WarpChannelManager {
 
   free() {
     this.channelMap.forEach((channel) => {
-      channel.disChannelHandler?.("free");
+      channel.disChannelHandlerArray.forEach((item) => {
+        item("free");
+      });
     });
     this.channelMap.clear();
   }
@@ -185,5 +187,56 @@ export abstract class MessageHander {
   // 长连接的处理
   setHandlerWithChannel(action: string, handler: HandlerWithChannel) {
     this.channelHandlerMap.set(action, handler);
+  }
+}
+
+// 脚本停止后将所有连接断开
+export class ProxyMessageManager implements MessageManager {
+  manager: MessageManager;
+
+  channelMap = new Map<string, Channel>();
+
+  constructor(manager: MessageManager) {
+    this.manager = manager;
+  }
+
+  syncSend(action: string, data: any): Promise<any> {
+    return this.manager.syncSend(action, data);
+  }
+
+  send(action: string, data: any): void {
+    return this.manager.send(action, data);
+  }
+
+  nativeSend(data: any): void {
+    return this.manager.nativeSend(data);
+  }
+
+  channel(flag?: string | undefined): Channel {
+    const channel = this.manager.channel(flag);
+    this.channelMap.set(channel.flag, channel);
+    channel.setHandler(() => {
+      this.channelMap.delete(channel.flag);
+    });
+    return channel;
+  }
+
+  getChannel(flag: string): Channel | undefined {
+    return this.manager.getChannel(flag);
+  }
+
+  disChannel(channel: Channel): void {
+    return this.manager.disChannel(channel);
+  }
+
+  free(): void {
+    return this.manager.free();
+  }
+
+  cleanChannel(): void {
+    this.channelMap.forEach((channel) => {
+      channel.disChannel();
+    });
+    this.channelMap.clear();
   }
 }

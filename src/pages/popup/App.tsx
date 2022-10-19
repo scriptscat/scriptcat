@@ -1,8 +1,10 @@
 import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
+import SystemManager from "@App/app/service/system/manager";
 import { ScriptMenu } from "@App/runtime/background/runtime";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Collapse,
@@ -21,6 +23,7 @@ import {
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useState } from "react";
 import { RiMessage2Line } from "react-icons/ri";
+import semver from "semver";
 import ScriptMenuList from "../components/ScriptMenuList";
 
 const CollapseItem = Collapse.Item;
@@ -33,22 +36,41 @@ const iconStyle = {
 
 function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
+  const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
+  const systemManage = IoC.instance(SystemManager) as SystemManager;
   const [showAlert, setShowAlert] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [isRead, setIsRead] = useState(true);
+  const [version, setVersion] = useState(systemManage.systemConfig.version);
+
   const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
+    systemManage.getNotice().then((res) => {
+      setNotice(res.notice);
+      setIsRead(res.isRead);
+    });
+    systemManage.getVersion().then((res) => {
+      setVersion(res);
+    });
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
         return;
       }
       message
         .syncSend("queryPageScript", { url: tabs[0].url, tabId: tabs[0].id })
-        .then((resp: { scriptList: ScriptMenu[] }) => {
-          // 按照开启状态排序
-          const list = resp.scriptList;
-          list.sort((a, b) => (a.enable ? 0 : 1) - (b.enable ? 0 : 1));
+        .then(
+          (resp: {
+            scriptList: ScriptMenu[];
+            backScriptList: ScriptMenu[];
+          }) => {
+            // 按照开启状态排序
+            const list = resp.scriptList;
+            list.sort((a, b) => (a.enable ? 0 : 1) - (b.enable ? 0 : 1));
 
-          setScriptList(list);
-        });
+            setScriptList(list);
+            setBackScriptList(resp.backScriptList);
+          }
+        );
     });
   }, []);
   return (
@@ -65,14 +87,18 @@ function App() {
               href="/src/options.html"
               target="_blank"
             />
-            <Button
-              type="text"
-              icon={<IconNotification />}
-              iconOnly
-              onClick={() => {
-                setShowAlert(!showAlert);
-              }}
-            />
+            <Badge count={isRead ? 0 : 1} dot offset={[-8, 6]}>
+              <Button
+                type="text"
+                icon={<IconNotification />}
+                iconOnly
+                onClick={() => {
+                  setShowAlert(!showAlert);
+                  setIsRead(true);
+                  systemManage.setRead(true);
+                }}
+              />
+            </Badge>
             <Dropdown
               droplist={
                 <Menu
@@ -80,10 +106,28 @@ function App() {
                     maxHeight: "none",
                   }}
                   onClickMenuItem={(key) => {
-                    window.open(key, "_blank");
+                    switch (key) {
+                      case "newScript":
+                        chrome.tabs.query({ active: true }, (tab) => {
+                          if (tab.length && tab[0].url?.startsWith("http")) {
+                            chrome.storage.local.set({
+                              activeTabUrl: {
+                                url: tab[0].url,
+                              },
+                            });
+                            window.open(
+                              "/src/options.html#/script/editor?target=initial"
+                            );
+                          }
+                        });
+                        break;
+                      default:
+                        window.open(key, "_blank");
+                        break;
+                    }
                   }}
                 >
-                  <Menu.Item key="/src/options.html#/script/editor">
+                  <Menu.Item key="newScript">
                     <IconPlus style={iconStyle} />
                     新建脚本
                   </Menu.Item>
@@ -121,7 +165,7 @@ function App() {
       <Alert
         style={{ marginBottom: 20, display: showAlert ? "flex" : "none" }}
         type="info"
-        content="这是一条公告"
+        content={<div dangerouslySetInnerHTML={{ __html: notice }} />}
       />
       <Collapse
         bordered={false}
@@ -137,14 +181,33 @@ function App() {
           <ScriptMenuList script={scriptList} />
         </CollapseItem>
 
-        <CollapseItem header="正在运行的后台脚本" name="background">
-          <ScriptMenuList script={[]} />
+        <CollapseItem
+          header="正在运行的后台脚本"
+          name="background"
+          style={{ padding: "0" }}
+          contentStyle={{ padding: "0" }}
+        >
+          <ScriptMenuList script={backScriptList} />
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
         <span className="text-1 font-500">
           v{chrome.runtime.getManifest().version}
         </span>
+        {semver.lt(systemManage.systemConfig.version, version) && (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+          <span
+            onClick={() => {
+              window.open(
+                `https://github.com/scriptscat/scriptcat/releases/tag/v${version}`
+              );
+            }}
+            className="text-1 font-500"
+            style={{ cursor: "pointer" }}
+          >
+            有更新的版本
+          </span>
+        )}
       </div>
     </Card>
   );

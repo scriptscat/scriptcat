@@ -156,6 +156,11 @@ describe("GM xmlHttpRequest", () => {
           { "Content-Type": "application/json" },
           JSON.stringify({ test: 1 })
         );
+      case "https://www.example.com/header":
+        if (request.requestHeaders.getHeader("x-nonce") !== "123456") {
+          return request.respond(403, {}, "bad");
+        }
+        return request.respond(200, {}, "header");
       case "https://www.example.com/unsafeHeader":
         if (
           request.requestHeaders.getHeader("Origin") !==
@@ -269,6 +274,21 @@ describe("GM xmlHttpRequest", () => {
         onload: (resp) => {
           expect(resp.response).toBeUndefined();
           expect(resp.responseText).toBe("example");
+          resolve();
+        },
+      });
+    });
+  });
+  it("header", async () => {
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.example.com/header",
+        method: "GET",
+        headers: {
+          "x-nonce": "123456",
+        },
+        onload: (resp) => {
+          expect(resp.responseText).toBe("header");
           resolve();
         },
       });

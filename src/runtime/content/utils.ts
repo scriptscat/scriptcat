@@ -97,7 +97,7 @@ const writables: { [key: string]: any } = {
 };
 
 // 记录初始的
-const init = new Map<string, boolean>();
+export const init = new Map<string, boolean>();
 
 // 复制原有的,防止被前端网页复写
 const descs = Object.getOwnPropertyDescriptors(global);

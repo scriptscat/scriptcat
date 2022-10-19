@@ -48,9 +48,7 @@ export class SystemConfig {
   }
 
   get server() {
-    return process.env.NODE_ENV === "production"
-      ? "https://sc.icodef.com/"
-      : "http://localhost:8080/";
+    return "https://sc.icodef.com/";
   }
 
   get externalWhitelist() {

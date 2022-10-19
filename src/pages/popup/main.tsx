@@ -5,8 +5,9 @@ import MessageInternal from "@App/app/message/internal";
 import migrate from "@App/app/migrate";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
-import { MessageHander, MessageBroadcast } from "@App/app/message/message";
+import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
+import { SystemConfig } from "@App/pkg/config/config";
 import App from "./App";
 import "./index.css";
 import { switchLight } from "../components/layout/MainLayout";
@@ -19,6 +20,8 @@ IoC.registerInstance(MessageInternal, con).alias([
   MessageHander,
   MessageBroadcast,
 ]);
+
+IoC.registerInstance(SystemConfig, new SystemConfig(con));
 
 switchLight(localStorage.lightMode || "auto");
 
