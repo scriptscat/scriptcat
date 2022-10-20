@@ -206,10 +206,26 @@ function ScriptList() {
       title: "应用至/运行状态",
       dataIndex: "status",
       render(col, item: Script) {
+        const toLogger = () => {
+          navigate({
+            pathname: "logger",
+            search: `query=${encodeURIComponent(
+              JSON.stringify([{ key: "scriptId", value: item.id }])
+            )}`,
+          });
+        };
         if (item.type === SCRIPT_TYPE_NORMAL) {
           return (
             <Tooltip content="前台页面脚本,会在指定的页面上运行">
-              <Tag icon={<IconCommon color="" />} color="cyan" bordered>
+              <Tag
+                style={{
+                  cursor: "pointer",
+                }}
+                icon={<IconCommon color="" />}
+                color="cyan"
+                bordered
+                onClick={toLogger}
+              >
                 页面脚本
               </Tag>
             </Tooltip>
@@ -232,9 +248,7 @@ function ScriptList() {
               style={{
                 cursor: "pointer",
               }}
-              onClick={() => {
-                navigate("/logger");
-              }}
+              onClick={toLogger}
             >
               {item.runStatus === SCRIPT_RUN_STATUS_RUNNING
                 ? "运行中"
@@ -662,11 +676,17 @@ function ScriptList() {
   };
 
   return (
-    <div>
+    <div
+      style={{
+        height: "100%",
+        overflowY: "auto",
+      }}
+    >
       <Table
         className="arco-drag-table-container"
         components={components}
         rowKey="id"
+        tableLayoutFixed
         columns={columns}
         data={scriptList}
         pagination={{

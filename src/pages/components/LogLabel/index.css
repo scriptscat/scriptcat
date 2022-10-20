@@ -1,0 +1,26 @@
+.log-query-label .arco-select-view {
+  border-radius: 0;
+}
+
+.log-query-label .arco-select:first-child {
+  border-left: 1px solid var(--color-neutral-3);
+}
+
+.log-query-label .arco-select {
+  width: auto;
+  border-top: 1px solid var(--color-neutral-3);
+  border-bottom: 1px solid var(--color-neutral-3);
+}
+
+.log-query-label .arco-btn {
+  height: 34px;
+  border-left: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--color-neutral-3);
+  border-bottom: 1px solid var(--color-neutral-3);
+  border-right: 1px solid var(--color-neutral-3);
+}
+
+.log-query-label .arco-select {
+  border-right: 1px solid var(--color-neutral-3);
+}

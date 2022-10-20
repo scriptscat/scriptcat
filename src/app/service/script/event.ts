@@ -80,6 +80,7 @@ export default class ScriptEventListener {
 
   @ListenEventDecorator("enable")
   public enableHandler(id: number) {
+    const logger = this.logger.with({ scriptId: id });
     return new Promise((resolve, reject) => {
       this.dao
         .findById(id)
@@ -90,12 +91,13 @@ export default class ScriptEventListener {
           if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
             this.dao.save(script);
+            logger.info("enable script");
             ScriptManager.hook.trigger("enable", script);
           }
           return resolve(1);
         })
         .catch((e) => {
-          this.logger.error("enable error", Logger.E(e));
+          logger.error("enable error", Logger.E(e));
           reject(e);
         });
     });
@@ -103,6 +105,7 @@ export default class ScriptEventListener {
 
   @ListenEventDecorator("disable")
   public disableHandler(id: number) {
+    const logger = this.logger.with({ scriptId: id });
     return new Promise((resolve, reject) => {
       this.dao
         .findById(id)
@@ -113,12 +116,13 @@ export default class ScriptEventListener {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_DISABLE;
             this.dao.save(script);
+            logger.info("disable script");
             ScriptManager.hook.trigger("disable", script);
           }
           return resolve(1);
         })
         .catch((e) => {
-          this.logger.error("disable error", Logger.E(e));
+          logger.error("disable error", Logger.E(e));
           reject(e);
         });
     });
@@ -126,27 +130,29 @@ export default class ScriptEventListener {
 
   @ListenEventDecorator("delete")
   public deleteHandler(id: number) {
-    return this.dao.findById(id).then((script) => {
-      if (!script) {
-        return Promise.reject(new Error("脚本不存在"));
-      }
-      const logger = this.logger.with({
-        scriptId: id,
-        name: script.name,
-        uuid: script.uuid,
-        version: script.metadata.version[0],
-      });
-      return this.dao
-        .delete(script.id)
-        .then(() => {
-          logger.info("script delete success");
-          ScriptManager.hook.trigger("delete", script);
-          return Promise.resolve(1);
-        })
-        .catch((e) => {
-          logger.error("script delete failed", Logger.E(e));
-          return Promise.reject(e);
+    let logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao.findById(id).then((script) => {
+        if (!script) {
+          return Promise.reject(new Error("脚本不存在"));
+        }
+        logger = logger.with({
+          name: script.name,
+          uuid: script.uuid,
+          version: script.metadata.version[0],
         });
+        return this.dao
+          .delete(script.id)
+          .then(() => {
+            logger.info("script delete success");
+            ScriptManager.hook.trigger("delete", script);
+            return resolve(1);
+          })
+          .catch((e) => {
+            logger.error("script delete failed", Logger.E(e));
+            return reject(e);
+          });
+      });
     });
   }
 

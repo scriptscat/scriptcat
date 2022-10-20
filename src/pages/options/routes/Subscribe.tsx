@@ -1,7 +1,6 @@
 import React from "react";
-import { Empty, Menu, ResizeBox } from "@arco-design/web-react";
+import { Empty } from "@arco-design/web-react";
 
-const MenuItem = Menu.Item;
 function Subscribe() {
   return (
     <div>

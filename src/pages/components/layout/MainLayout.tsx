@@ -154,7 +154,12 @@ const MainLayout: React.FC<{
           />
         </Space>
       </Layout.Header>
-      <Layout className={`absolute top-50px bottom-0 w-full ${className}`}>
+      <Layout
+        className={`absolute top-50px bottom-0 w-full ${className}`}
+        style={{
+          background: "var(--color-fill-2)",
+        }}
+      >
         {children}
       </Layout>
     </Layout>

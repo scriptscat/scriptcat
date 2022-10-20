@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import registerEditor from "@App/utils/monaco-editor";
 // eslint-disable-next-line import/no-unresolved
 import "uno.css";
+import "./index.css";
 import "@arco-design/web-react/dist/css/arco.css";
 import MessageInternal from "@App/app/message/internal";
 import migrate from "@App/app/migrate";

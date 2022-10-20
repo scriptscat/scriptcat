@@ -1,3 +1,4 @@
+import Logger from "@App/pages/options/routes/Logger";
 import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
 import Subscribe from "@App/pages/options/routes/Subscribe";
@@ -74,7 +75,10 @@ const Sider: React.FC = () => {
       <Layout.Content
         style={{
           borderLeft: "1px solid var(--color-bg-5)",
-          overflowY: "scroll",
+          overflow: "hidden",
+          padding: 10,
+          height: "100%",
+          boxSizing: "border-box",
         }}
       >
         <Routes>
@@ -84,6 +88,7 @@ const Sider: React.FC = () => {
             <Route path="" element={<ScriptEditor />} />
           </Route>
           <Route path="/subscribe" element={<Subscribe />} />
+          <Route path="/logger" element={<Logger />} />
         </Routes>
       </Layout.Content>
     </HashRouter>
