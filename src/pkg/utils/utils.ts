@@ -61,6 +61,10 @@ export function formatTime(time: Date) {
   return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
 }
 
+export function formatUnixTime(time: number) {
+  return dayjs.unix(time).format("YYYY-MM-DD HH:mm:ss");
+}
+
 export function semTime(time: Date) {
   return dayjs().to(dayjs(time));
 }

@@ -2,22 +2,21 @@
 import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import MessageCenter from "@App/app/message/center";
 import { Channel } from "@App/app/message/channel";
 import { v4 as uuidv4 } from "uuid";
-import { MessageSender } from "@App/app/message/message";
+import { MessageHander, MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
-import CacheKey from "@App/utils/cache_key";
-import { base64ToBlob } from "@App/utils/script";
-import { isFirefox } from "@App/utils/utils";
-import PermissionVerify, { ConfirmParam } from "./permission_verify";
-import {
-  dealXhr,
-  getIcon,
-  listenerWebRequest,
-  setXhrUnsafeHeader,
-} from "./utils";
+import CacheKey from "@App/pkg/utils/cache_key";
+import { base64ToBlob } from "@App/pkg/utils/script";
+import { isFirefox } from "@App/pkg/utils/utils";
+import Hook from "@App/app/service/hook";
+import IoC from "@App/app/ioc";
+import PermissionVerify, {
+  ConfirmParam,
+  IPermissionVerify,
+} from "./permission_verify";
+import { dealXhr, getIcon, listenerWebRequest, setXhrHeader } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -36,21 +35,26 @@ export type Request = MessageRequest & {
 export type Api = (request: Request, connect?: Channel) => Promise<any>;
 
 export default class GMApi {
-  message: MessageCenter;
+  message: MessageHander;
 
   script: ScriptDAO;
 
-  permissionVerify: PermissionVerify;
+  permissionVerify: IPermissionVerify;
+
+  valueManager: ValueManager;
 
   logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
 
   headerFlag: string;
 
-  constructor() {
-    this.message = MessageCenter.getInstance();
+  static hook: Hook<"registerMenu" | "unregisterMenu"> = new Hook();
+
+  constructor(message: MessageHander, permissionVerify: IPermissionVerify) {
+    this.message = message;
     this.script = new ScriptDAO();
-    this.permissionVerify = new PermissionVerify();
+    this.permissionVerify = permissionVerify;
     this.headerFlag = `x-cat-${uuidv4()}`;
+    this.valueManager = IoC.instance(ValueManager);
   }
 
   start() {
@@ -65,13 +69,13 @@ export default class GMApi {
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e) {
-          this.logger.error("verify error", Logger.E(e));
+          this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return Promise.reject(e);
         }
         return api.api.call(this, req);
       }
     );
-    this.message.setHandlerWithConnect(
+    this.message.setHandlerWithChannel(
       "gmApiChannel",
       async (
         connect: Channel,
@@ -87,7 +91,7 @@ export default class GMApi {
         try {
           await this.permissionVerify.verify(req, api);
         } catch (e: any) {
-          this.logger.error("verify error", Logger.E(e));
+          this.logger.error("verify error", { api: data.api }, Logger.E(e));
           return connect.throw(e.message);
         }
         return api.api.call(this, req, connect);
@@ -125,12 +129,7 @@ export default class GMApi {
     const [key, value] = request.params;
     const sender = <MessageSender & { runFlag: string }>request.sender;
     sender.runFlag = request.runFlag;
-    return ValueManager.getInstance().setValue(
-      request.script,
-      key,
-      value,
-      sender
-    );
+    return this.valueManager.setValue(request.script, key, value, sender);
   }
 
   @PermissionVerify.API({
@@ -223,7 +222,7 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrUnsafeHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.headerFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;
@@ -232,10 +231,6 @@ export default class GMApi {
     if (config.overrideMimeType) {
       xhr.overrideMimeType(config.overrideMimeType);
     }
-
-    channel.disChannelHandler = () => {
-      xhr.abort();
-    };
 
     if (config.dataType === "FormData") {
       const data = new FormData();
@@ -258,6 +253,10 @@ export default class GMApi {
     } else {
       xhr.send(<string>config.data);
     }
+
+    channel.setDisChannelHandler(() => {
+      xhr.abort();
+    });
     return Promise.resolve();
   }
 
@@ -521,19 +520,23 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrUnsafeHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.headerFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;
     }
 
     xhr.send();
+    channel.setDisChannelHandler(() => {
+      xhr.abort();
+    });
   }
 
   static clipboardData: { type?: string; data: string } | undefined;
 
   @PermissionVerify.API({
     listener() {
+      PermissionVerify.textarea.style.display = "none";
       document.body.appendChild(PermissionVerify.textarea);
       document.addEventListener("copy", (e: ClipboardEvent) => {
         if (!GMApi.clipboardData || !e.clipboardData) {
@@ -678,17 +681,13 @@ export default class GMApi {
           break;
         }
         case "set": {
-          if (!detail.name) {
-            reject(new Error("must exist name"));
-            return;
-          }
-          if (!detail.url) {
-            reject(new Error("must have url"));
+          if (!detail.url || !detail.name) {
+            reject(new Error("set operation must have name and value"));
             return;
           }
           chrome.cookies.set(
             {
-              url: detail.url!,
+              url: detail.url,
               name: detail.name,
               domain: detail.domain,
               value: detail.value,
@@ -712,13 +711,18 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API()
-  GM_getCookieStore() {}
-
   // TODO: GM_registerMenuCommand
   @PermissionVerify.API()
-  GM_registerMenuCommand() {}
+  GM_registerMenuCommand(request: Request, channel: Channel) {
+    GMApi.hook.trigger("registerMenu", request, channel);
+    channel.setDisChannelHandler(() => {
+      GMApi.hook.trigger("unregisterMenu", request.params[0], request);
+    });
+    return Promise.resolve();
+  }
 
   @PermissionVerify.API()
-  GM_unregisterMenuCommand() {}
+  GM_unregisterMenuCommand(request: Request) {
+    GMApi.hook.trigger("unregisterMenu", request.params[0], request);
+  }
 }

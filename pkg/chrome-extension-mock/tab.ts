@@ -7,19 +7,19 @@ export default class MockTab {
     createProperties: chrome.tabs.CreateProperties,
     callback?: (tab: chrome.tabs.Tab) => void
   ) {
-    this.hook.dispatchHook("create", createProperties);
+    this.hook.trigger("create", createProperties);
     callback?.({
       id: 1,
     } as chrome.tabs.Tab);
   }
 
   remove(tabId: number) {
-    this.hook.dispatchHook("remove", tabId);
+    this.hook.trigger("remove", tabId);
   }
 
   onRemoved = {
     addListener: (callback: HookHandler) => {
-      this.hook.addHook("remove", callback);
+      this.hook.addListener("remove", callback);
     },
   };
 }

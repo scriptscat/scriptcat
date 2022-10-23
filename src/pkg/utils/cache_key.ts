@@ -2,39 +2,33 @@
 // 使用装饰器维护缓存值
 
 import Cache from "@App/app/cache";
-import { Script } from "@App/app/repo/scripts";
-import ScriptManager from "@App/app/service/script/manager";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 
-// 缓存key装饰器
-function Handler(
-  handler: () => void
-): (target: any, propertyName: string, descriptor: PropertyDescriptor) => void {
-  return () => {
-    handler();
-  };
-}
-
 export default class CacheKey {
+  // 缓存触发器
+  static Trigger(): (
+    target: any,
+    propertyName: string,
+    descriptor: PropertyDescriptor
+  ) => void {
+    return (target, propertyName, descriptor) => {
+      descriptor.value();
+    };
+  }
+
   // 脚本缓存
-  @Handler(() => {
-    // 监听并删除
-    ScriptManager.hook.addHook("upsert", (script: Script) => {
-      Cache.getInstance().del(CacheKey.script(script.id));
-      return Promise.resolve(true);
-    });
-    ScriptManager.hook.addHook("delete", (script: Script) => {
-      Cache.getInstance().del(CacheKey.script(script.id));
-      return Promise.resolve(true);
-    });
-  })
   static script(id: number): string {
     return `script:${id.toString()}`;
   }
 
   // 加载脚本信息时的缓存,已处理删除
   static scriptInfo(uuid: string): string {
-    return `script:info:${uuid}`;
+    const key = `scriptInfo:${uuid}`;
+    setTimeout(() => {
+      // 清理缓存
+      Cache.getInstance().del(key);
+    }, 60 * 1000);
+    return key;
   }
 
   // 脚本资源url缓存,可能存在泄漏
@@ -54,5 +48,13 @@ export default class CacheKey {
     return `permission:${scriptId.toString()}:${
       confirm.permissionValue || ""
     }:${confirm.permission || ""}`;
+  }
+
+  static importInfo(uuid: string): string {
+    const key = `import:${uuid}`;
+    setTimeout(() => {
+      Cache.getInstance().del(key);
+    }, 60 * 100000);
+    return key;
   }
 }

@@ -9,7 +9,6 @@ module.exports = {
         useBuiltIns: "entry",
         targets: "> 0.1%, last 2 versions, Firefox ESR, not dead",
       },
-      "@babel/preset-typescript",
     ],
     "@babel/preset-react",
     "@babel/preset-typescript",

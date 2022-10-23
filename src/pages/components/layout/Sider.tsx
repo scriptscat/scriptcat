@@ -1,6 +1,9 @@
+import Logger from "@App/pages/options/routes/Logger";
 import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
+import Setting from "@App/pages/options/routes/Setting";
 import Subscribe from "@App/pages/options/routes/Subscribe";
+import Tools from "@App/pages/options/routes/Tools";
 import { Layout, Menu } from "@arco-design/web-react";
 import {
   IconCode,
@@ -23,10 +26,19 @@ if (!hash.length) {
 
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <HashRouter>
-      <Layout.Sider className="h-full" collapsible breakpoint="xl">
+      <Layout.Sider
+        className="h-full"
+        collapsible
+        collapsed={collapsed}
+        width={200}
+        onCollapse={(c) => {
+          setCollapsed(c);
+        }}
+      >
         <Menu
           style={{ width: "100%", height: "100%" }}
           selectedKeys={[menuSelect]}
@@ -65,7 +77,11 @@ const Sider: React.FC = () => {
       <Layout.Content
         style={{
           borderLeft: "1px solid var(--color-bg-5)",
-          overflowY: "scroll",
+          overflow: "hidden",
+          padding: 10,
+          height: "100%",
+          boxSizing: "border-box",
+          position: "relative",
         }}
       >
         <Routes>
@@ -75,6 +91,9 @@ const Sider: React.FC = () => {
             <Route path="" element={<ScriptEditor />} />
           </Route>
           <Route path="/subscribe" element={<Subscribe />} />
+          <Route path="/logger" element={<Logger />} />
+          <Route path="/tools" element={<Tools />} />
+          <Route path="/setting" element={<Setting />} />
         </Routes>
       </Layout.Content>
     </HashRouter>

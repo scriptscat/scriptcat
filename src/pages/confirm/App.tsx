@@ -1,3 +1,4 @@
+import IoC from "@App/app/ioc";
 import PermissionController from "@App/app/service/permission/controller";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
@@ -8,6 +9,9 @@ function App() {
   const uuid = window.location.search.split("=")[1];
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
+  const permissionCtrl = IoC.instance(
+    PermissionController
+  ) as PermissionController;
   // 秒数
   const [second, setSecond] = React.useState(30);
   // 超时关闭
@@ -20,13 +24,13 @@ function App() {
   useEffect(() => {
     // 拦截关闭
     window.addEventListener("beforeunload", () => {
-      PermissionController.getInstance().sendConfirm(uuid, {
+      permissionCtrl.sendConfirm(uuid, {
         allow: false,
         type: 0,
       });
     });
     // 通过uuid获取确认信息
-    PermissionController.getInstance()
+    permissionCtrl
       .getConfirm(uuid)
       .then((data) => {
         setConfirm(data.confirm);
@@ -39,7 +43,7 @@ function App() {
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
       try {
-        await PermissionController.getInstance().sendConfirm(uuid, {
+        await permissionCtrl.sendConfirm(uuid, {
           allow,
           type,
         });

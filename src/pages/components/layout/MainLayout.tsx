@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Button,
   Dropdown,
   Layout,
@@ -9,13 +8,17 @@ import {
 } from "@arco-design/web-react";
 import {
   IconDesktop,
+  IconDown,
+  IconGithub,
+  IconLink,
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
 import React, { ReactNode, useState } from "react";
+import { RiFileCodeLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import "./index.css";
 
-function switchLight(mode: string) {
+export function switchLight(mode: string) {
   if (mode === "auto") {
     const darkThemeMq = window.matchMedia("(prefers-color-scheme: dark)");
     const isMatch = (match: boolean) => {
@@ -59,7 +62,45 @@ const MainLayout: React.FC<{
             ScriptCat
           </Typography.Title>
         </div>
-        <Space size="large">
+        <Space size="small" className="action-tools">
+          <Dropdown
+            droplist={
+              <Menu>
+                <Menu.Item key="/script/editor">
+                  <a href="#/script/editor">
+                    <Space>
+                      <RiFileCodeLine /> 添加普通脚本
+                    </Space>
+                  </a>
+                </Menu.Item>
+                <Menu.Item key="dark">
+                  <a href="#/script/editor?template=background">
+                    <RiTerminalBoxLine /> 添加后台脚本
+                  </a>
+                </Menu.Item>
+                <Menu.Item key="auto">
+                  <a href="#/script/editor?template=crontab">
+                    <RiTimerLine /> 添加定时脚本
+                  </a>
+                </Menu.Item>
+                <Menu.Item key="auto">
+                  <IconLink /> 链接导入
+                </Menu.Item>
+              </Menu>
+            }
+            position="bl"
+          >
+            <Button
+              type="text"
+              size="small"
+              style={{
+                color: "var(--color-text-1)",
+              }}
+              className="!text-size-sm"
+            >
+              新建脚本 <IconDown />
+            </Button>
+          </Dropdown>
           <Dropdown
             droplist={
               <Menu
@@ -82,7 +123,6 @@ const MainLayout: React.FC<{
               </Menu>
             }
             position="bl"
-            trigger="click"
           >
             <Button
               type="text"
@@ -100,10 +140,26 @@ const MainLayout: React.FC<{
               className="!text-size-lg"
             />
           </Dropdown>
-          <Avatar size={32}>王</Avatar>
+          <Button
+            type="text"
+            size="small"
+            icon={<IconGithub />}
+            iconOnly
+            style={{
+              color: "var(--color-text-1)",
+            }}
+            className="!text-size-lg"
+            href="https://github.com/scriptscat/scriptcat"
+            target="_blank"
+          />
         </Space>
       </Layout.Header>
-      <Layout className={`absolute top-50px bottom-0 w-full ${className}`}>
+      <Layout
+        className={`absolute top-50px bottom-0 w-full ${className}`}
+        style={{
+          background: "var(--color-fill-2)",
+        }}
+      >
         {children}
       </Layout>
     </Layout>

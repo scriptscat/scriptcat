@@ -16,16 +16,21 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
     });
   }
   code = require + code;
-  return `with (context) return ((context, fapply, CDATA, uneval, define, module, exports)=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
+  return `with (context) return (()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
     `/${encodeURI(scriptRes.name)}.user.js`
-  )}\n})(context)`;
+  )}\n})()`;
 }
 
-export type ScriptFunc = (context: any) => any;
+// eslint-disable-next-line camelcase
+export type ScriptFunc = (context: any, GM_info: any) => any;
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
   // eslint-disable-next-line no-new-func
-  return <ScriptFunc>new Function("context", code);
+  return <ScriptFunc>new Function("context", "GM_info", code);
+}
+
+export function compileInjectScript(script: ScriptRunResouce): string {
+  return `window['${script.flag}']=function(context,GM_info){\n${script.code}\n}`;
 }
 
 // 设置api依赖
@@ -81,6 +86,7 @@ export function createContext(
       setDepend(context, api);
     });
   }
+  context.unsafeWindow = window;
   return <GMApi>context;
 }
 
@@ -91,7 +97,7 @@ const writables: { [key: string]: any } = {
 };
 
 // 记录初始的
-const init = new Map<string, boolean>();
+export const init = new Map<string, boolean>();
 
 // 复制原有的,防止被前端网页复写
 const descs = Object.getOwnPropertyDescriptors(global);
@@ -167,7 +173,10 @@ export function proxyContext(global: any, context: any) {
       }
       return undefined;
     },
-    has() {
+    has(_, name) {
+      if (name === "GM_info") {
+        return false;
+      }
       return true;
     },
     set(_, name: string, val) {

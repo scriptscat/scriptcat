@@ -1,3 +1,11 @@
 .arco-dropdown-menu-selected {
   background-color: var(--color-fill-2) !important;
 }
+
+.action-tools .arco-dropdown-popup-visible .arco-icon-down {
+  transform: rotate(180deg);
+}
+
+.action-tools > .arco-btn {
+  padding: 0 8px;
+}

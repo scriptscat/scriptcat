@@ -31,7 +31,8 @@ export type TargetTag =
   | "popup"
   | "options"
   | "install"
-  | "confirm";
+  | "confirm"
+  | "all";
 
 export type Target = { tag: TargetTag; id?: number[] };
 
@@ -46,6 +47,12 @@ export interface ChannelManager {
 export interface MessageManager extends ChannelManager {
   syncSend(action: string, data: any): Promise<any>;
   send(action: string, data: any): void;
+}
+
+export const MessageBroadcast = Symbol("MessageBroadcast");
+
+export interface IMessageBroadcast {
+  broadcast(target: Target, action: string, data: any): void;
 }
 
 // channel管理器,使用组合的方式使用
@@ -78,6 +85,11 @@ export class WarpChannelManager {
   }
 
   free() {
+    this.channelMap.forEach((channel) => {
+      channel.disChannelHandlerArray.forEach((item) => {
+        item("free");
+      });
+    });
     this.channelMap.clear();
   }
 }
@@ -173,7 +185,58 @@ export abstract class MessageHander {
   }
 
   // 长连接的处理
-  setHandlerWithConnect(action: string, handler: HandlerWithChannel) {
+  setHandlerWithChannel(action: string, handler: HandlerWithChannel) {
     this.channelHandlerMap.set(action, handler);
+  }
+}
+
+// 脚本停止后将所有连接断开
+export class ProxyMessageManager implements MessageManager {
+  manager: MessageManager;
+
+  channelMap = new Map<string, Channel>();
+
+  constructor(manager: MessageManager) {
+    this.manager = manager;
+  }
+
+  syncSend(action: string, data: any): Promise<any> {
+    return this.manager.syncSend(action, data);
+  }
+
+  send(action: string, data: any): void {
+    return this.manager.send(action, data);
+  }
+
+  nativeSend(data: any): void {
+    return this.manager.nativeSend(data);
+  }
+
+  channel(flag?: string | undefined): Channel {
+    const channel = this.manager.channel(flag);
+    this.channelMap.set(channel.flag, channel);
+    channel.setHandler(() => {
+      this.channelMap.delete(channel.flag);
+    });
+    return channel;
+  }
+
+  getChannel(flag: string): Channel | undefined {
+    return this.manager.getChannel(flag);
+  }
+
+  disChannel(channel: Channel): void {
+    return this.manager.disChannel(channel);
+  }
+
+  free(): void {
+    return this.manager.free();
+  }
+
+  cleanChannel(): void {
+    this.channelMap.forEach((channel) => {
+      channel.disChannel();
+    });
+    this.channelMap.clear();
   }
 }

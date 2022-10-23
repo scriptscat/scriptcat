@@ -1,6 +1,7 @@
 import { Channel } from "./channel";
 import {
   ChannelManager,
+  MessageBroadcast,
   MessageHander,
   MessageManager,
   Target,
@@ -11,14 +12,8 @@ import {
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
 export default class MessageInternal
   extends MessageHander
-  implements MessageManager
+  implements MessageManager, MessageBroadcast
 {
-  static instance: MessageInternal;
-
-  static getInstance() {
-    return MessageInternal.instance;
-  }
-
   port: chrome.runtime.Port;
 
   channelManager: ChannelManager;
@@ -38,9 +33,6 @@ export default class MessageInternal
     this.port.onDisconnect.addListener(() => {
       this.channelManager.free();
     });
-    if (!MessageInternal.instance) {
-      MessageInternal.instance = this;
-    }
   }
 
   // 组合ChannelManager
@@ -78,10 +70,24 @@ export default class MessageInternal
   }
 
   // 广播
-  public broadcast(_target: Target, action: string, data: any) {
+  public broadcast(target: Target, action: string, data: any) {
     this.nativeSend({
+      target,
       action,
       data,
+      broadcast: true,
+    });
+  }
+
+  // 广播到channel
+  public broadcastChannel(target: Target, channelFlag: string, data: any) {
+    this.nativeSend({
+      target,
+      data: {
+        stream: channelFlag,
+        channel: true,
+        data,
+      },
       broadcast: true,
     });
   }

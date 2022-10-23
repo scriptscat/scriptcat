@@ -6,7 +6,6 @@ import HtmlWebpackPlugin from "html-webpack-plugin";
 import ESLintPlugin from "eslint-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
-import CompressionPlugin from "compression-webpack-plugin";
 import { presetAttributify, presetUno } from "unocss";
 
 const UnoCSS = require("@unocss/webpack").default;
@@ -26,10 +25,7 @@ const config: Configuration = {
     sandbox: `${src}/sandbox.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
-    content: `${src}/content.ts`,
-    inject: `${src}/inject.ts`,
-    "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
-    "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker",
+    import: `${src}/pages/import/main.tsx`,
   },
   output: {
     path: `${dist}/ext/src`,
@@ -97,6 +93,16 @@ const config: Configuration = {
       },
       chunks: ["confirm"],
     }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/import.html`,
+      template: `${template}/import.html`,
+      inject: "head",
+      title: "Import - ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["import"],
+    }),
     new ESLintPlugin({
       extensions: [".ts", ".tsx"],
     }),
@@ -109,10 +115,6 @@ const config: Configuration = {
     }),
     new CleanWebpackPlugin(),
     new ProgressBarPlugin({}),
-    new CompressionPlugin({
-      test: /ts.worker.js/,
-      deleteOriginalAssets: true,
-    }),
     new MonacoLocalesPlugin({
       languages: ["es", "zh-cn"],
       defaultLanguage: "zh-cn",
@@ -126,6 +128,7 @@ const config: Configuration = {
     extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl"],
     alias: {
       "@App": path.resolve(__dirname, "src/"),
+      "@Pkg": path.resolve(__dirname, "pkg/"),
     },
   },
   module: {

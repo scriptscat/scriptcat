@@ -1,37 +1,34 @@
 // gm api 单元测试
 // 初始化runtime环境
-import "fake-indexeddb/auto";
+import initTestEnv from "@App/pkg/utils/test_utils";
 import BgGMApi from "./background/gm_api";
-import migrate from "@App/app/migrate";
 import LoggerCore from "@App/app/logger/core";
-import DBWriter from "@App/app/logger/db_writer";
-import { LoggerDAO } from "@App/app/repo/logger";
 import MessageCenter from "@App/app/message/center";
 import { ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
 import MessageInternal from "@App/app/message/internal";
 import ValueManager from "@App/app/service/value/manager";
 import ExecScript, { ValueUpdateData } from "./content/exec_script";
 import { newMockXhr } from "mock-xmlhttprequest";
-import chromeMock from "pkg/chrome-extension-mock";
+import chromeMock from "@Pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
+import IoC from "@App/app/ioc";
+import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import PermissionVerify from "./background/permission_verify";
 
-migrate();
-
-new LoggerCore({
-  level: "debug",
-  writer: new DBWriter(new LoggerDAO()),
-  labels: { env: "tests" },
-  debug: true,
-});
+initTestEnv();
 
 // @ts-ignore
 global.sandbox = global;
 const center = new MessageCenter();
 center.start();
+IoC.registerInstance(MessageCenter, center).alias([
+  MessageHander,
+  MessageBroadcast,
+]);
+IoC.registerInstance(ValueManager, new ValueManager(center, center));
 
-const backgroundApi = new BgGMApi();
+const backgroundApi = new BgGMApi(center, new PermissionVerify());
 backgroundApi.start();
 
 const internal = new MessageInternal("background");
@@ -69,15 +66,15 @@ const scriptRes = {
   code: "console.log('test')",
   runFlag: "test",
   value: {},
+  grantMap: {},
 } as unknown as ScriptRunResouce;
 
 const exec = new ExecScript(scriptRes, internal);
-const contentApi = exec.sandboxContent;
+const contentApi = exec.sandboxContent!;
 
 beforeAll(async () => {
   const scriptDAO = new ScriptDAO();
   await scriptDAO.save(scriptRes);
-  new ValueManager(center);
   // 监听值变化
   internal.setHandler("valueUpdate", (_action, data: ValueUpdateData) => {
     exec.valueUpdate(data);
@@ -149,6 +146,11 @@ describe("GM xmlHttpRequest", () => {
           { "Content-Type": "application/json" },
           JSON.stringify({ test: 1 })
         );
+      case "https://www.example.com/header":
+        if (request.requestHeaders.getHeader("x-nonce") !== "123456") {
+          return request.respond(403, {}, "bad");
+        }
+        return request.respond(200, {}, "header");
       case "https://www.example.com/unsafeHeader":
         if (
           request.requestHeaders.getHeader("Origin") !==
@@ -206,14 +208,14 @@ describe("GM xmlHttpRequest", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     return new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
         url: "/",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
             expect(resp.responseText).toBe("location");
-            chromeMock.tabs.hook.removeHook("create", hookFn);
+            chromeMock.tabs.hook.removeListener("create", hookFn);
             resolve();
           }
         },
@@ -262,6 +264,21 @@ describe("GM xmlHttpRequest", () => {
         onload: (resp) => {
           expect(resp.response).toBeUndefined();
           expect(resp.responseText).toBe("example");
+          resolve();
+        },
+      });
+    });
+  });
+  it("header", async () => {
+    await new Promise<void>((resolve) => {
+      contentApi.GM_xmlhttpRequest({
+        url: "https://www.example.com/header",
+        method: "GET",
+        headers: {
+          "x-nonce": "123456",
+        },
+        onload: (resp) => {
+          expect(resp.responseText).toBe("header");
           resolve();
         },
       });
@@ -380,11 +397,11 @@ describe("GM log", () => {
       }) => {
         expect(level).toBe("info");
         expect(message).toBe("test");
-        LoggerCore.hook.removeHook("log", hookFn);
+        LoggerCore.hook.removeListener("log", hookFn);
         resolve();
         return Promise.resolve(true);
       };
-      LoggerCore.hook.addHook("log", hookFn);
+      LoggerCore.hook.addListener("log", hookFn);
 
       contentApi.GM_log("test");
     });
@@ -484,14 +501,14 @@ describe("GM cookie", () => {
         type: 1,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       contentApi.GM_cookie(
         "list",
         { url: "https://www.example.com" },
         (value, err) => {
           expect(err).toEqual("permission not allowed");
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           resolve();
         }
       );
@@ -507,7 +524,7 @@ describe("GM cookie", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       chromeMock.cookies.mockGetAll = (detail, callback) => {
         expect(detail.url).toBe("https://www.example.com");
@@ -518,7 +535,7 @@ describe("GM cookie", () => {
         { url: "https://www.example.com" },
         (value, err) => {
           expect(value).toEqual([{ name: "test" }]);
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           resolve();
         }
       );
@@ -547,7 +564,7 @@ describe("GM cookie", () => {
         type: 3,
       });
     };
-    chromeMock.tabs.hook.addHook("create", hookFn);
+    chromeMock.tabs.hook.addListener("create", hookFn);
     await new Promise<void>((resolve) => {
       contentApi.GM_cookie(
         "set",
@@ -557,7 +574,7 @@ describe("GM cookie", () => {
           value: "123",
         },
         (value, err) => {
-          chromeMock.tabs.hook.removeHook("create", hookFn);
+          chromeMock.tabs.hook.removeListener("create", hookFn);
           expect(value).toBeUndefined();
           expect(err).toBeUndefined();
           resolve();
@@ -574,7 +591,7 @@ describe("GM cookie", () => {
         },
         (value, err) => {
           expect(value).toBeUndefined();
-          expect(err).toEqual("must have url");
+          expect(err).toEqual("set operation must have name and value");
           resolve();
         }
       );

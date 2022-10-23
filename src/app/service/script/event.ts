@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import {
   Script,
@@ -10,7 +10,13 @@ import {
 } from "../../repo/scripts";
 import ScriptManager from "./manager";
 
-export type ScriptEvent = "upsert" | "fetch" | "enable" | "disable";
+export type ScriptEvent =
+  | "upsert"
+  | "fetch"
+  | "enable"
+  | "disable"
+  | "delete"
+  | "checkUpdate";
 
 const events: { [key: string]: (data: any) => Promise<any> } = {};
 
@@ -45,7 +51,7 @@ export default class ScriptEventListener {
   public upsertHandler(script: Script) {
     return new Promise((resolve, reject) => {
       const logger = this.logger.with({
-        id: script.id,
+        scriptId: script.id,
         name: script.name,
         uuid: script.uuid,
         version: script.metadata.version[0],
@@ -53,12 +59,12 @@ export default class ScriptEventListener {
 
       this.dao.save(script).then(
         () => {
-          logger.info("脚本安装成功");
-          ScriptManager.hook.dispatchHook("upsert", script);
+          logger.info("script upsert success");
+          ScriptManager.hook.trigger("upsert", script);
           resolve({ id: script.id });
         },
         (e) => {
-          logger.error("脚本安装失败", Logger.E(e));
+          logger.error("script upsert failed", Logger.E(e));
           reject(e);
         }
       );
@@ -74,6 +80,7 @@ export default class ScriptEventListener {
 
   @ListenEventDecorator("enable")
   public enableHandler(id: number) {
+    const logger = this.logger.with({ scriptId: id });
     return new Promise((resolve, reject) => {
       this.dao
         .findById(id)
@@ -84,12 +91,13 @@ export default class ScriptEventListener {
           if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
             this.dao.save(script);
-            ScriptManager.hook.dispatchHook("enable", script);
+            logger.info("enable script");
+            ScriptManager.hook.trigger("enable", script);
           }
           return resolve(1);
         })
         .catch((e) => {
-          this.logger.error("enable error", Logger.E(e));
+          logger.error("enable error", Logger.E(e));
           reject(e);
         });
     });
@@ -97,6 +105,7 @@ export default class ScriptEventListener {
 
   @ListenEventDecorator("disable")
   public disableHandler(id: number) {
+    const logger = this.logger.with({ scriptId: id });
     return new Promise((resolve, reject) => {
       this.dao
         .findById(id)
@@ -107,14 +116,48 @@ export default class ScriptEventListener {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_DISABLE;
             this.dao.save(script);
-            ScriptManager.hook.dispatchHook("disable", script);
+            logger.info("disable script");
+            ScriptManager.hook.trigger("disable", script);
           }
           return resolve(1);
         })
         .catch((e) => {
-          this.logger.error("disable error", Logger.E(e));
+          logger.error("disable error", Logger.E(e));
           reject(e);
         });
     });
+  }
+
+  @ListenEventDecorator("delete")
+  public deleteHandler(id: number) {
+    let logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao.findById(id).then((script) => {
+        if (!script) {
+          return Promise.reject(new Error("脚本不存在"));
+        }
+        logger = logger.with({
+          name: script.name,
+          uuid: script.uuid,
+          version: script.metadata.version[0],
+        });
+        return this.dao
+          .delete(script.id)
+          .then(() => {
+            logger.info("script delete success");
+            ScriptManager.hook.trigger("delete", script);
+            return resolve(1);
+          })
+          .catch((e) => {
+            logger.error("script delete failed", Logger.E(e));
+            return reject(e);
+          });
+      });
+    });
+  }
+
+  @ListenEventDecorator("checkUpdate")
+  public checkUpdateHandler(id: number) {
+    return this.manager.checkUpdate(id, "user");
   }
 }

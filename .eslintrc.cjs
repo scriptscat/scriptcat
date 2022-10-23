@@ -26,6 +26,7 @@ module.exports = {
   rules: {
     "react/jsx-filename-extension": [1, { extensions: [".tsx"] }],
     "no-unused-expressions": ["error", { allowShortCircuit: true }],
+    "react/jsx-props-no-spreading": "off",
     "import/extensions": [
       "error",
       "ignorePackages",
@@ -60,7 +61,7 @@ module.exports = {
       alias: {
         map: [
           ["@App", "./src/"],
-          ["pkg", "./pkg/"],
+          ["@Pkg", "./pkg/"],
         ],
         extensions: [".js", ".jsx", ".ts", ".tsx"],
       },

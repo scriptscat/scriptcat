@@ -8,7 +8,7 @@ export type DisChannelHandler = () => void;
 
 export type ChannelCatch = (err: string) => void;
 
-// 信道,作为长连接的载体
+// 信道,作为长连接的载体,需要先使用channel方法建立信道
 export class Channel {
   manager!: ChannelManager;
 
@@ -16,7 +16,8 @@ export class Channel {
 
   handler!: ChannelHandler;
 
-  disChannelHandler?: ChannelHandler;
+  // 为了处理ProxyMessageManager,这里用数组
+  disChannelHandlerArray: ChannelHandler[] = [];
 
   catch!: ChannelCatch;
 
@@ -42,7 +43,7 @@ export class Channel {
   }
 
   // 建立信道
-  channel(action: string, data: any) {
+  channel(action: string, data?: any) {
     this.manager.nativeSend({
       action,
       data,
@@ -93,9 +94,9 @@ export class Channel {
     this.handler = function warp(data): void {
       if (data === "dischannel") {
         this.manager.disChannel(this);
-        if (this.disChannelHandler) {
-          this.disChannelHandler("dischannel");
-        }
+        this.disChannelHandlerArray.forEach((item) => {
+          item("dischannel");
+        });
         return;
       }
       handler(data);
@@ -106,14 +107,14 @@ export class Channel {
     this.catch = function warp(err): void {
       catchError(err);
       this.manager.disChannel(this);
-      if (this.disChannelHandler) {
-        this.disChannelHandler("dischannel");
-      }
+      this.disChannelHandlerArray.forEach((item) => {
+        item("dischannel");
+      });
     };
   }
 
   setDisChannelHandler(handler: ChannelHandler) {
-    this.disChannelHandler = handler;
+    this.disChannelHandlerArray.push(handler);
   }
 
   public disChannel() {

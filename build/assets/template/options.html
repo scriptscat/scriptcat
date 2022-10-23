@@ -7,9 +7,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <iframe
+      src="/src/sandbox.html"
+      name="sandbox"
+      sandbox="allow-scripts"
+      style="display: none"
+    ></iframe>
   </body>
   <style>
     body {
+      height: 100%;
+      overflow: hidden;
       background-color: var(--color-bg-2);
       color: var(--color-text-1);
     }

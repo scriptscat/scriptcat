@@ -1,0 +1,19 @@
+.arco-collapse-item-header-title {
+  width: 100%;
+}
+
+.arco-collapse-item-header-title .arco-space {
+  width: 100%;
+}
+
+.arco-space-item:last-child {
+  overflow: hidden;
+}
+
+.arco-collapse {
+  border-bottom: 1px solid var(--color-neutral-3) !important;
+}
+
+.arco-collapse-item {
+  border: 0;
+}

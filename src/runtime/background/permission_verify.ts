@@ -1,11 +1,12 @@
 // gm api 权限验证
 import Cache from "@App/app/cache";
-import MessageCenter from "@App/app/message/center";
 import { PermissionDAO } from "@App/app/repo/permission";
 import { Script } from "@App/app/repo/scripts";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import MessageQueue from "@App/utils/message_queue";
+import MessageQueue from "@App/pkg/utils/message_queue";
+import IoC from "@App/app/ioc";
+import { MessageHander } from "@App/app/message/message";
 import { Api, Request } from "./gm_api";
 
 export interface ConfirmParam {
@@ -48,6 +49,10 @@ export interface ApiParam {
 export interface ApiValue {
   api: Api;
   param: ApiParam;
+}
+
+export interface IPermissionVerify {
+  verify(request: Request, api: ApiValue): Promise<boolean>;
 }
 
 export default class PermissionVerify {
@@ -103,7 +108,8 @@ export default class PermissionVerify {
   constructor() {
     this.permissionDAO = new PermissionDAO();
     // 监听用户确认消息
-    MessageCenter.getInstance().setHandler(
+    const message = <MessageHander>IoC.instance(MessageHander);
+    message.setHandler(
       "permissionConfirm",
       (_action, data: { uuid: string; userConfirm: UserConfirm }) => {
         const confirm = this.confirmMap.get(data.uuid);
@@ -120,34 +126,31 @@ export default class PermissionVerify {
       }
     );
     // 监听获取用户确认消息
-    MessageCenter.getInstance().setHandler(
-      "getConfirm",
-      (_action, uuid: string) => {
-        const data = this.confirmMap.get(uuid);
-        if (!data) {
-          return Promise.reject(new Error("uuid not found"));
-        }
-        // 查询允许统配的有多少个相同等待确认权限
-        let likeNum = 0;
-        if (data.confirm.wildcard) {
-          this.confirmQueue.list.forEach((value) => {
-            const confirm = value.confirm as ConfirmParam;
-            if (
-              confirm.wildcard &&
-              value.request.scriptId === data.script.id &&
-              confirm.permission === data.confirm.permission
-            ) {
-              likeNum += 1;
-            }
-          });
-        }
-        return Promise.resolve({
-          script: data.script,
-          confirm: data.confirm,
-          likeNum,
+    message.setHandler("getConfirm", (_action, uuid: string) => {
+      const data = this.confirmMap.get(uuid);
+      if (!data) {
+        return Promise.reject(new Error("uuid not found"));
+      }
+      // 查询允许统配的有多少个相同等待确认权限
+      let likeNum = 0;
+      if (data.confirm.wildcard) {
+        this.confirmQueue.list.forEach((value) => {
+          const confirm = value.confirm as ConfirmParam;
+          if (
+            confirm.wildcard &&
+            value.request.scriptId === data.script.id &&
+            confirm.permission === data.confirm.permission
+          ) {
+            likeNum += 1;
+          }
         });
       }
-    );
+      return Promise.resolve({
+        script: data.script,
+        confirm: data.confirm,
+        likeNum,
+      });
+    });
     this.dealConfirmQueue();
   }
 

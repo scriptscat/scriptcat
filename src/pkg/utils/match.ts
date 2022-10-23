@@ -15,6 +15,17 @@ export default class Match<T> {
         search: match[5],
       };
     }
+    // 处理一些特殊情况
+    switch (url) {
+      case "*":
+        return {
+          scheme: "*",
+          host: "*",
+          path: "*",
+          search: "*",
+        };
+      default:
+    }
     return undefined;
   }
 

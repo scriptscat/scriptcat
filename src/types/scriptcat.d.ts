@@ -141,30 +141,39 @@ declare function GM_cookie(
   ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
 ): void;
 
-// 通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.请注意这是一个实验性质的API,后续可能会改变
+/**
+ * 可以通过GM_addValueChangeListener获取tabid
+ * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
+ * 请注意这是一个实验性质的API,后续可能会改变
+ * @param tabid 页面的tabid
+ * @param callback 回调函数
+ * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
+ * @param callback.error 错误信息
+ * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
+ */
 declare function GM_getCookieStore(
   tabid: number,
-  ondone: (storeId: number, error: any | undefined) => void
+  ondone: (storeId: number | undefined, error: any | undefined) => void
 ): void;
 
 /**
  * 设置浏览器代理
- * @deprecated 正式版中以废弃
+ * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
-declare function CAT_setProxy(rule: CAT_Types.ProxyRule[] | string): void;
+declare function CAT_setProxy(rule: CATType.ProxyRule[] | string): void;
 // @deprecated 正式版中以废弃
 /**
  * 清理所有代理规则
- * @deprecated 正式版中以废弃
+ * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_clearProxy(): void;
 /**
  * 输入x、y,模拟真实点击
- * @deprecated 正式版中以废弃
+ * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_click(x: number, y: number): void;
 
-declare namespace CAT_Types {
+declare namespace CATType {
   interface ProxyRule {
     proxyServer: ProxyServer;
     matchUrl: string[];
@@ -178,7 +187,9 @@ declare namespace CAT_Types {
 }
 
 declare namespace GMTypes {
-  // store为获取隐身窗口之类的cookie
+  /*
+   * store为获取隐身窗口之类的cookie,这是一个实验性质的API,后续可能会改变
+   */
   type CookieAction = "list" | "delete" | "set" | "store";
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";

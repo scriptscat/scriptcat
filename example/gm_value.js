@@ -11,11 +11,13 @@
 // @grant GM_addValueChangeListener
 // @grant GM_listValues
 // @grant GM_deleteValue
+// @grant GM_cookie
 // ==/UserScript==
 
-GM_addValueChangeListener("test_set", function () {
-  console.log("set_ok");
-  console.log(arguments);
+GM_addValueChangeListener("test_set", function (name, oldval, newval, remote, tabid) {
+  GM_cookie("store", tabid,(storeId) => {
+    console.log("store",storeId);
+  });
 });
 
 setInterval(() => {
