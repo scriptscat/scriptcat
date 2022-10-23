@@ -1,4 +1,4 @@
-import { FileSystem } from "pkg/filesystem/filesystem";
+import { FileSystem } from "@Pkg/filesystem/filesystem";
 import crypto from "crypto-js";
 import ResourceManager from "@App/app/service/resource/manager";
 import { base64ToBlob } from "../utils/script";

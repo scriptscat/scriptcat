@@ -44,7 +44,7 @@ export class SystemConfig {
   }
 
   get version() {
-    return chrome.runtime.getManifest().version;
+    return /* version */ "0.10.0-alpha";
   }
 
   get server() {

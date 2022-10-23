@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import ResourceManager from "@App/app/service/resource/manager";
-import { File, FileSystem } from "pkg/filesystem/filesystem";
+import { File, FileSystem } from "@Pkg/filesystem/filesystem";
 import {
   Resource,
   ResourceMeta,

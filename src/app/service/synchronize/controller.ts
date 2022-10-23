@@ -1,7 +1,7 @@
 import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
 import JSZip from "jszip";
-import ZipFileSystem from "pkg/filesystem/zip/zip";
+import ZipFileSystem from "@Pkg/filesystem/zip/zip";
 import { SynchronizeEvent } from "./event";
 
 @IoC.Singleton(MessageInternal)

@@ -1,32 +1,22 @@
 // gm api 单元测试
 // 初始化runtime环境
-import "fake-indexeddb/auto";
+import initTestEnv from "@App/pkg/utils/test_utils";
 import BgGMApi from "./background/gm_api";
-import migrate from "@App/app/migrate";
 import LoggerCore from "@App/app/logger/core";
-import DBWriter from "@App/app/logger/db_writer";
-import { LoggerDAO } from "@App/app/repo/logger";
 import MessageCenter from "@App/app/message/center";
 import { ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
 import MessageInternal from "@App/app/message/internal";
 import ValueManager from "@App/app/service/value/manager";
 import ExecScript, { ValueUpdateData } from "./content/exec_script";
 import { newMockXhr } from "mock-xmlhttprequest";
-import chromeMock from "pkg/chrome-extension-mock";
+import chromeMock from "@Pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
 import ContentRuntime from "./content/content";
 import IoC from "@App/app/ioc";
 import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import PermissionVerify from "./background/permission_verify";
 
-migrate();
-
-new LoggerCore({
-  level: "debug",
-  writer: new DBWriter(new LoggerDAO()),
-  labels: { env: "tests" },
-  debug: true,
-});
+initTestEnv();
 
 // @ts-ignore
 global.sandbox = global;

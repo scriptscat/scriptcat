@@ -61,7 +61,7 @@ module.exports = {
       alias: {
         map: [
           ["@App", "./src/"],
-          ["pkg", "./pkg/"],
+          ["@Pkg", "./pkg/"],
         ],
         extensions: [".js", ".jsx", ".ts", ".tsx"],
       },

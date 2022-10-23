@@ -1,20 +1,9 @@
-import "fake-indexeddb/auto";
-import LoggerCore from "@App/app/logger/core";
-import DBWriter from "@App/app/logger/db_writer";
-import migrate from "@App/app/migrate";
-import { LoggerDAO } from "@App/app/repo/logger";
+import initTestEnv from "@App/pkg/utils/test_utils";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 
-migrate();
-// 沙盒单元测试
-new LoggerCore({
-  level: "debug",
-  writer: new DBWriter(new LoggerDAO()),
-  labels: { env: "tests" },
-  debug: true,
-});
+initTestEnv();
 
 const scriptRes = {
   id: 0,

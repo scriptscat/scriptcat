@@ -165,6 +165,7 @@ function App() {
       <Alert
         style={{ marginBottom: 20, display: showAlert ? "flex" : "none" }}
         type="info"
+        // eslint-disable-next-line react/no-danger
         content={<div dangerouslySetInnerHTML={{ __html: notice }} />}
       />
       <Collapse

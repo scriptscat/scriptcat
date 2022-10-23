@@ -1,6 +1,6 @@
 {
   "name": "scriptcat",
-  "version": "0.10.0",
+  "version": "0.10.0-alpha",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
@@ -8,7 +8,8 @@
     "test": "jest --coverage",
     "lint": "eslint --ext .js,.ts,.tsx src/",
     "dev": "webpack --mode development --config webpack.dev.ts",
-    "build": "webpack --mode production --config webpack.prod.ts",
+    "build": "webpack --mode production --config webpack.prod.ts && npm run build:no-split",
+    "build:no-split": "webpack --mode production --config webpack.no.split.ts",
     "pack": "node ./build/pack.js"
   },
   "dependencies": {
@@ -18,7 +19,6 @@
     "@dnd-kit/utilities": "^3.2.0",
     "@emotion/react": "^11.10.4",
     "@emotion/styled": "^11.10.4",
-    "adm-zip": "^0.5.9",
     "axios": "^0.27.2",
     "cron": "^2.1.0",
     "crx": "^5.0.1",

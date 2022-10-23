@@ -1,6 +1,3 @@
-import Hook from "@App/app/service/hook";
-import Utils from "mock-xmlhttprequest/dist/cjs/Utils.cjs";
-
 export default class WebRequest {
   sendHeader?: (
     details: chrome.webRequest.WebRequestHeadersDetails
