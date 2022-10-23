@@ -14,8 +14,8 @@ import { ResourceLinkDAO } from "@App/app/repo/resource_link";
 import { Script } from "@App/app/repo/scripts";
 import axios from "axios";
 import Cache from "@App/app/cache";
-import { blobToBase64 } from "@App/utils/script";
-import CacheKey from "@App/utils/cache_key";
+import { blobToBase64 } from "@App/pkg/utils/script";
+import CacheKey from "@App/pkg/utils/cache_key";
 import Manager from "../manager";
 
 // 资源管理器,负责资源的更新获取等操作

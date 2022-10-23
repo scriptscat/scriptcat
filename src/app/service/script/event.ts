@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import {
   Script,

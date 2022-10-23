@@ -4,7 +4,7 @@ import Logger from "./logger";
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogLabel {
-  [key: string]: string | boolean | number | undefined;
+  [key: string]: string | string[] | boolean | number | undefined;
   component?: string;
 }
 

@@ -15,6 +15,7 @@ import { MessageBroadcast, MessageHander } from "./app/message/message";
 import PermissionVerify from "./runtime/background/permission_verify";
 import { SystemConfig } from "./pkg/config/config";
 import SystemManager from "./app/service/system/manager";
+import SynchronizeManager from "./app/service/synchronize/manager";
 // 数据库初始化
 migrate();
 // 初始化日志组件
@@ -58,6 +59,8 @@ center.setHandler("sandboxOnload", () => {
   // 脚本后台处理器
   runtime.listenEvent();
   IoC.instance(ScriptManager).start();
+  // 同步处理器
+  IoC.instance(SynchronizeManager).start();
 });
 
 // 启动gm api的监听

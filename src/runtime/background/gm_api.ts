@@ -7,9 +7,9 @@ import { v4 as uuidv4 } from "uuid";
 import { MessageHander, MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
-import CacheKey from "@App/utils/cache_key";
-import { base64ToBlob } from "@App/utils/script";
-import { isFirefox } from "@App/utils/utils";
+import CacheKey from "@App/pkg/utils/cache_key";
+import { base64ToBlob } from "@App/pkg/utils/script";
+import { isFirefox } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
 import PermissionVerify, {

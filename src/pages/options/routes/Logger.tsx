@@ -14,7 +14,7 @@ import { Logger, LoggerDAO } from "@App/app/repo/logger";
 import LogLabel, { Labels, Query } from "@App/pages/components/LogLabel";
 import { IconPlus } from "@arco-design/web-react/icon";
 import { useSearchParams } from "react-router-dom";
-import { formatUnixTime } from "@App/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/utils";
 
 function Subscribe() {
   const [labels, setLabels] = React.useState<Labels>({});
@@ -81,6 +81,7 @@ function Subscribe() {
       }
       newQueryLogs.push(log);
     });
+    setInit(4);
     setQueryLogs(newQueryLogs);
   };
 
@@ -269,7 +270,10 @@ function Subscribe() {
           >
             <Text>
               {formatUnixTime(startTime)} 到 {formatUnixTime(endTime)} 共查询到
-              {logs.length}条日志,筛选后{queryLogs.length}条日志
+              {logs.length}条日志
+              {init === 4
+                ? `,筛选后${queryLogs.length}条日志`
+                : ",请输入筛选条件进行查询"}
             </Text>
             <List
               style={{

@@ -1,7 +1,7 @@
 import MessageInternal from "@App/app/message/internal";
 import Cache from "@App/app/cache";
 import { Script } from "@App/app/repo/scripts";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import IoC from "@App/app/ioc";
 import Runtime, { RuntimeEvent } from "../background/runtime";
 

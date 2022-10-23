@@ -2,10 +2,10 @@ import {
   fetchScriptInfo,
   parseMetadata,
   prepareScriptByCode,
-} from "@App/utils/script";
+} from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
 import semver from "semver";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import { MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
 import axios from "axios";
@@ -13,7 +13,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { SystemConfig } from "@App/pkg/config/config";
 import Manager from "../manager";
-import { Script, ScriptDAO, SCRIPT_STATUS_DISABLE } from "../../repo/scripts";
+import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
 
@@ -204,10 +204,7 @@ export class ScriptManager extends Manager {
           return;
         }
         Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
-        setTimeout(() => {
-          // 清理缓存
-          Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
-        }, 60 * 1000);
+
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });

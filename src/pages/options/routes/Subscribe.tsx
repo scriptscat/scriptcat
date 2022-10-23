@@ -4,7 +4,7 @@ import { Empty } from "@arco-design/web-react";
 function Subscribe() {
   return (
     <div>
-      <Empty />
+      <Empty description="建设中" />
     </div>
   );
 }

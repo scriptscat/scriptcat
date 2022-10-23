@@ -14,8 +14,8 @@ import {
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
-import { dealScript, randomString } from "@App/utils/utils";
-import { UrlInclude, UrlMatch } from "@App/utils/match";
+import { dealScript, randomString } from "@App/pkg/utils/utils";
+import { UrlInclude, UrlMatch } from "@App/pkg/utils/match";
 import {
   MessageHander,
   MessageSender,

@@ -34,7 +34,7 @@ import {
   IconSearch,
   IconUserAdd,
 } from "@arco-design/web-react/icon";
-import { nextTime, semTime } from "@App/utils/utils";
+import { nextTime, semTime } from "@App/pkg/utils/utils";
 import {
   RiDeleteBin5Fill,
   RiPencilFill,

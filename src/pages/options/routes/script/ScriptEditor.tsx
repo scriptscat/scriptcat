@@ -5,7 +5,9 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
 import {
   Button,
+  Drawer,
   Dropdown,
+  Empty,
   Grid,
   Menu,
   Message,
@@ -22,7 +24,7 @@ import "./index.css";
 import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { prepareScriptByCode } from "@App/utils/script";
+import { prepareScriptByCode } from "@App/pkg/utils/script";
 import RuntimeController from "@App/runtime/content/runtime";
 
 const { Row } = Grid;
@@ -78,7 +80,7 @@ type EditorMenu = {
   items: {
     title: string;
     tooltip?: string;
-    hotKey: number;
+    hotKey?: number;
     action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
   }[];
 };
@@ -116,6 +118,11 @@ const emptyScript = async (template: string, hotKeys: any, target: string) => {
   });
 };
 
+type ScriptSetting = {
+  visible: boolean;
+  script?: Script;
+};
+
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
@@ -123,6 +130,9 @@ function ScriptEditor() {
   const template = useSearchParams()[0].get("template") || "";
   const target = useSearchParams()[0].get("target") || "";
   const navigate = useNavigate();
+  const [scriptSetting, setScriptSetting] = useState<ScriptSetting>({
+    visible: false,
+  });
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -221,6 +231,21 @@ function ScriptEditor() {
         },
       ],
     },
+    {
+      title: "设置",
+      items: [
+        {
+          title: "脚本设置",
+          tooltip: "对脚本进行一些自定义设置",
+          action: async (script) => {
+            setScriptSetting({
+              visible: true,
+              script,
+            });
+          },
+        },
+      ],
+    },
   ];
 
   // 根据菜单生产快捷键
@@ -298,7 +323,33 @@ function ScriptEditor() {
   }, [editors]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div
+      className="h-full flex flex-col"
+      style={{
+        position: "relative",
+        left: -10,
+        top: -10,
+        width: "calc(100% + 20px)",
+        height: "calc(100% + 20px)",
+      }}
+    >
+      <Drawer
+        width={332}
+        title={<span>脚本设置</span>}
+        visible={scriptSetting.visible}
+        onOk={() => {
+          setScriptSetting({
+            visible: false,
+          });
+        }}
+        onCancel={() => {
+          setScriptSetting({
+            visible: false,
+          });
+        }}
+      >
+        <Empty description="建设中" />
+      </Drawer>
       <div
         className="h-6"
         style={{

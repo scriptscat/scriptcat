@@ -26,6 +26,7 @@ const config: Configuration = {
     sandbox: `${src}/sandbox.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
+    import: `${src}/pages/import/main.tsx`,
     content: `${src}/content.ts`,
     inject: `${src}/inject.ts`,
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
@@ -96,6 +97,16 @@ const config: Configuration = {
         removeComments: true,
       },
       chunks: ["confirm"],
+    }),
+    new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/import.html`,
+      template: `${template}/import.html`,
+      inject: "head",
+      title: "Import - ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["import"],
     }),
     new ESLintPlugin({
       extensions: [".ts", ".tsx"],

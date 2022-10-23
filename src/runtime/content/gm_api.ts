@@ -4,7 +4,7 @@ import LoggerCore from "@App/app/logger/core";
 import { Channel, ChannelHandler } from "@App/app/message/channel";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { blobToBase64, getMetadataStr } from "@App/utils/script";
+import { blobToBase64, getMetadataStr } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
 import { addStyle } from "./utils";

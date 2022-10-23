@@ -2,9 +2,9 @@
 import Cache from "@App/app/cache";
 import { PermissionDAO } from "@App/app/repo/permission";
 import { Script } from "@App/app/repo/scripts";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import MessageQueue from "@App/utils/message_queue";
+import MessageQueue from "@App/pkg/utils/message_queue";
 import IoC from "@App/app/ioc";
 import { MessageHander } from "@App/app/message/message";
 import { Api, Request } from "./gm_api";

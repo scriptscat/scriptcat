@@ -1,3 +1,12 @@
 .show-log-card .arco-list-item {
   border-bottom: 0 !important;
 }
+
+h1.arco-typography,
+h2.arco-typography,
+h3.arco-typography,
+h4.arco-typography,
+h5.arco-typography,
+h6.arco-typography {
+  margin-top: 0 !important;
+}

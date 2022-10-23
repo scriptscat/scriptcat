@@ -8,7 +8,7 @@ import {
 import { Script } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
-import CacheKey from "@App/utils/cache_key";
+import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";

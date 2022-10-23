@@ -11,14 +11,14 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import ScriptController from "@App/app/service/script/controller";
-import { prepareScriptByCode, ScriptInfo } from "@App/utils/script";
+import { prepareScriptByCode, ScriptInfo } from "@App/pkg/utils/script";
 import {
   Metadata,
   Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
-import { nextTime } from "@App/utils/utils";
+import { nextTime } from "@App/pkg/utils/utils";
 import IoC from "@App/app/ioc";
 import CodeEditor from "../components/CodeEditor";
 

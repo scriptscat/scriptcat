@@ -1,6 +1,6 @@
 import { MessageHander } from "../message/message";
 
-type Handler = (data: any) => void | Promise<any>;
+export type Handler = (data: any) => void | Promise<any>;
 
 export default class Manager {
   message: MessageHander;
