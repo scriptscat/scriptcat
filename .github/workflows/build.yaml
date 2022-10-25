@@ -30,7 +30,7 @@ jobs:
       env:
         CHROME_PEM: ${{ secrets.CHROME_PEM }}
       run: |
-        echo "$CHROME_PEM" > ./build/scriptcat.pem
-        chmod 600 ./build/scriptcat.pem
+        echo "$CHROME_PEM" > ./dist/scriptcat.pem
+        chmod 600 ./dist/scriptcat.pem
         npm ci
         npm run pack

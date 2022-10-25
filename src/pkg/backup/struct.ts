@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 
+import { Metadata } from "@App/app/repo/scripts";
+
 export type ResourceMeta = {
   name: string;
   url: string;
@@ -47,16 +49,18 @@ export type ScriptOptions = {
   run_at: string | null;
 };
 
+export type ScriptMeta = {
+  name: string;
+  uuid: string;
+  modified: number;
+  file_url: string;
+  subscribe_url?: string;
+};
+
 export type ScriptOptionsFile = {
   options: ScriptOptions;
   settings: { enabled: boolean; position: number };
-  meta: {
-    name: string;
-    // uuid: script.script.uuid,
-    modified: number;
-    file_url: string;
-    subscribe_url?: string;
-  };
+  meta: ScriptMeta;
 };
 
 export type ScriptInfo = {
@@ -66,10 +70,8 @@ export type ScriptInfo = {
 
 export type ScriptBackupData = {
   code: string;
-  options: ScriptOptionsFile;
+  options?: ScriptOptionsFile;
   storage: ValueStorage;
-  enabled: boolean;
-  position: number;
   requires: Resource[];
   requiresCss: Resource[];
   resources: Resource[];
@@ -80,19 +82,21 @@ export type SubscribeScript = {
   url: string;
 };
 
+export type SubscribeMeta = {
+  name: string;
+  modified: number;
+  url: string;
+};
+
 export type SubscribeOptionsFile = {
   settings: { enabled: boolean };
   scripts: { [key: string]: SubscribeScript };
-  meta: {
-    name: string;
-    modified: number;
-    url: string;
-  };
+  meta: SubscribeMeta;
 };
 
 export type SubscribeBackupData = {
   source: string;
-  options: SubscribeOptionsFile;
+  options?: SubscribeOptionsFile;
 };
 
 export type BackupData = {

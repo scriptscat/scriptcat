@@ -51,10 +51,6 @@ export default class CacheKey {
   }
 
   static importInfo(uuid: string): string {
-    const key = `import:${uuid}`;
-    setTimeout(() => {
-      Cache.getInstance().del(key);
-    }, 60 * 100000);
-    return key;
+    return `import:${uuid}`;
   }
 }

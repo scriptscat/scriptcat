@@ -57,7 +57,7 @@ IoC.registerInstance(GMApi, gmapi);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
-    <MainLayout className="!flex-row">
+    <MainLayout className="!flex-row" pageName="options">
       <Sider />
     </MainLayout>
   </div>

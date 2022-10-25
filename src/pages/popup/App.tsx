@@ -193,7 +193,7 @@ function App() {
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
         <span className="text-1 font-500">
-          v{chrome.runtime.getManifest().version}
+          v{systemManage.systemConfig.version}
         </span>
         {semver.lt(systemManage.systemConfig.version, version) && (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions

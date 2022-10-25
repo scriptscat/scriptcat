@@ -40,7 +40,8 @@ export function switchLight(mode: string) {
 const MainLayout: React.FC<{
   children: ReactNode;
   className: string;
-}> = ({ children, className }) => {
+  pageName: string;
+}> = ({ children, className, pageName }) => {
   const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
   switchLight(lightMode);
   return (
@@ -63,44 +64,46 @@ const MainLayout: React.FC<{
           </Typography.Title>
         </div>
         <Space size="small" className="action-tools">
-          <Dropdown
-            droplist={
-              <Menu>
-                <Menu.Item key="/script/editor">
-                  <a href="#/script/editor">
-                    <Space>
-                      <RiFileCodeLine /> 添加普通脚本
-                    </Space>
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="dark">
-                  <a href="#/script/editor?template=background">
-                    <RiTerminalBoxLine /> 添加后台脚本
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="auto">
-                  <a href="#/script/editor?template=crontab">
-                    <RiTimerLine /> 添加定时脚本
-                  </a>
-                </Menu.Item>
-                <Menu.Item key="auto">
-                  <IconLink /> 链接导入
-                </Menu.Item>
-              </Menu>
-            }
-            position="bl"
-          >
-            <Button
-              type="text"
-              size="small"
-              style={{
-                color: "var(--color-text-1)",
-              }}
-              className="!text-size-sm"
+          {pageName === "options" && (
+            <Dropdown
+              droplist={
+                <Menu>
+                  <Menu.Item key="/script/editor">
+                    <a href="#/script/editor">
+                      <Space>
+                        <RiFileCodeLine /> 添加普通脚本
+                      </Space>
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="dark">
+                    <a href="#/script/editor?template=background">
+                      <RiTerminalBoxLine /> 添加后台脚本
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="auto">
+                    <a href="#/script/editor?template=crontab">
+                      <RiTimerLine /> 添加定时脚本
+                    </a>
+                  </Menu.Item>
+                  <Menu.Item key="auto">
+                    <IconLink /> 链接导入
+                  </Menu.Item>
+                </Menu>
+              }
+              position="bl"
             >
-              新建脚本 <IconDown />
-            </Button>
-          </Dropdown>
+              <Button
+                type="text"
+                size="small"
+                style={{
+                  color: "var(--color-text-1)",
+                }}
+                className="!text-size-sm"
+              >
+                新建脚本 <IconDown />
+              </Button>
+            </Dropdown>
+          )}
           <Dropdown
             droplist={
               <Menu

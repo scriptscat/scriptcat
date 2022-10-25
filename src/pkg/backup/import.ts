@@ -1,7 +1,9 @@
 import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
 import ResourceManager from "@App/app/service/resource/manager";
 import { File, FileSystem } from "@Pkg/filesystem/filesystem";
 import {
+  BackupData,
   Resource,
   ResourceMeta,
   ScriptBackupData,
@@ -16,15 +18,15 @@ import {
 export default class BackupImport {
   fs: FileSystem;
 
+  logger: Logger;
+
   constructor(fileSystem: FileSystem) {
     this.fs = fileSystem;
+    this.logger = LoggerCore.getLogger({ component: "backupImport" });
   }
 
-  // 解析出脚本
-  async parse(): Promise<{
-    script: ScriptBackupData[];
-    subscribe: SubscribeBackupData[];
-  }> {
+  // 解析出备份数据
+  async parse(): Promise<BackupData> {
     const map = new Map<string, ScriptBackupData>();
     const subscribe = new Map<string, SubscribeBackupData>();
     let files = await this.fs.list();
@@ -48,7 +50,7 @@ export default class BackupImport {
       if (!name.endsWith(".user.sub.options.json")) {
         return Promise.resolve(false);
       }
-      const key = name.substring(0, name.length - 23);
+      const key = name.substring(0, name.length - 22);
       const data = <SubscribeOptionsFile>(
         JSON.parse(await (await this.fs.open(name)).read())
       );
@@ -65,12 +67,12 @@ export default class BackupImport {
       // 遍历与脚本同名的文件
       const key = name.substring(0, name.length - 8);
       const backupData = {
+        code: await (await this.fs.open(name)).read(),
+        storage: {},
         requires: [],
         requiresCss: [],
         resources: [],
       } as unknown as ScriptBackupData;
-      const data = await (await this.fs.open(name)).read();
-      backupData.code = data;
       map.set(key, backupData);
       return Promise.resolve(true);
     });
@@ -173,7 +175,7 @@ export default class BackupImport {
     });
 
     files.length &&
-      LoggerCore.getLogger().warn("unhandled files", {
+      this.logger.warn("unhandled files", {
         num: files.length,
         files: files.map((f) => f.name),
       });

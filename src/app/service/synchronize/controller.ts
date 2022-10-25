@@ -2,6 +2,8 @@ import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
 import JSZip from "jszip";
 import ZipFileSystem from "@Pkg/filesystem/zip/zip";
+import BackupImport from "@App/pkg/backup/import";
+import { BackupData } from "@App/pkg/backup/struct";
 import { SynchronizeEvent } from "./event";
 
 @IoC.Singleton(MessageInternal)
@@ -49,9 +51,15 @@ export default class SynchronizeController {
     return this.dispatchEvent("fetchImportInfo", uuid);
   }
 
-  import(zip: JSZip) {
-    const system = new ZipFileSystem(zip);
+  // 解析备份文件
+  parseBackup(zip: JSZip) {
+    const fs = new ZipFileSystem(zip);
     // 解析文件
-    system.list();
+    return new BackupImport(fs).parse();
+  }
+
+  // 导入数据
+  import(data: BackupData) {
+
   }
 }

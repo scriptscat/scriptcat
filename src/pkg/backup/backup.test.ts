@@ -26,7 +26,16 @@ describe("backup", () => {
     const data: BackupData = {
       script: [
         {
-          code: "console.log('hello world')",
+          code: `// ==UserScript==
+          // @name         New Userscript
+          // @namespace    https://bbs.tampermonkey.net.cn/
+          // @version      0.1.0
+          // @description  try to take over the world!
+          // @author       You
+          // @match        {{match}}
+          // ==/UserScript==
+          
+          console.log('hello world')`,
           options: {
             options: {},
             meta: {
@@ -68,7 +77,26 @@ describe("backup", () => {
           },
         },
       ],
-      subscribe: [],
+      subscribe: [
+        {
+          source: `// ==UserSubscribe==
+          // @name         New Usersubscribe
+          // @namespace    https://bbs.tampermonkey.net.cn/
+          // @version      0.1.0
+          // @description  try to take over the world!
+          // @author       You
+          // ==/UserSubscribe==
+          
+          console.log('hello world')`,
+          options: {
+            meta: {
+              name: "test",
+              modified: 1,
+              url: "",
+            },
+          },
+        },
+      ],
     } as unknown as BackupData;
     await new BackupExport(fs).export(data);
     const resp = await new BackupImport(fs).parse();

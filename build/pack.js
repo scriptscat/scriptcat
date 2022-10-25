@@ -24,6 +24,7 @@ if (version.prerelease) {
       throw new Error("未知的版本类型");
   }
   manifest.version = `${version.major.toString()}.${version.minor.toString()}.${version.patch.toString()}.${betaVersion.toString()}`;
+  manifest.name = `${manifest.name} Beta`;
 }
 
 // 处理manifest version
@@ -63,10 +64,10 @@ function addDir(zip, localDir, toDir, filters) {
   const files = fs.readdirSync(localDir);
   files.forEach((file) => {
     const localPath = `${localDir}/${file}`;
-    const toPath = `${toDir}/${file}`;
+    const toPath = `${toDir}${file}`;
     const stats = fs.statSync(localPath);
     if (stats.isDirectory()) {
-      addDir(zip, localPath, toPath, filters);
+      addDir(zip, localPath, `${toPath}/`, filters);
     } else {
       if (filters && filters.includes(file)) {
         return;
@@ -79,8 +80,8 @@ function addDir(zip, localDir, toDir, filters) {
 chrome.file("manifest.json", JSON.stringify(chromeManifest));
 firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
-addDir(chrome, "./dist/ext", ".", ["manifest.json"]);
-addDir(firefox, "./dist/ext", ".", ["manifest.json"]);
+addDir(chrome, "./dist/ext", "", ["manifest.json"]);
+addDir(firefox, "./dist/ext", "", ["manifest.json"]);
 
 // 导出zip包
 chrome

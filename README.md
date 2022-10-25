@@ -62,8 +62,7 @@
 #### 交流
 
 - [Telegram](https://t.me/scriptscat)
-- [QQ 群 887697472](https://jq.qq.com/?_wv=1027&k=3qXMfJ92)
-
+- [油猴中文网](https://bbs.tampermonkey.net.cn/)
 
 ## License
 本项目使用GPLv3协议开源, 请遵守协议规定.	
