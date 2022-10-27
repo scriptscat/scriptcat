@@ -4,34 +4,42 @@ on:
   push:
     branches:
       - main
-      - develop/*
+      - test/*
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
-
+    name: Build
     steps:
-    - uses: actions/checkout@v2
-    - name: Use Node.js
-      uses: actions/setup-node@v1
-      with:
-        node-version: '16.x'
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '16.x'
 
-    - name: Cache Node.js modules
-      uses: actions/cache@v2
-      with:
-        path: ~/.npm 
-        key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.OS }}-node-
-          ${{ runner.OS }}-
+      - name: Cache Node.js modules
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm 
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-
 
-    - name: Package with Node
-      env:
-        CHROME_PEM: ${{ secrets.CHROME_PEM }}
-      run: |
-        mkdir dist
-        echo "$CHROME_PEM" > ./dist/scriptcat.pem
-        chmod 600 ./dist/scriptcat.pem
-        npm ci
-        npm run pack
+      - name: Package with Node
+        env:
+          CHROME_PEM: ${{ secrets.CHROME_PEM }}
+        run: |
+          mkdir dist
+          echo "$CHROME_PEM" > ./dist/scriptcat.pem
+          chmod 600 ./dist/scriptcat.pem
+          npm ci
+          npm run pack
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: scriptcat-extension
+          path: |
+            dist/*.zip
+            dist/*.crx
