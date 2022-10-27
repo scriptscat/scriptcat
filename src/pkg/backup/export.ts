@@ -4,7 +4,7 @@ import ResourceManager from "@App/app/service/resource/manager";
 import { base64ToBlob } from "../utils/script";
 import {
   BackupData,
-  Resource,
+  ResourceBackup,
   ScriptBackupData,
   SubscribeBackupData,
 } from "./struct";
@@ -30,7 +30,7 @@ export default class BackupExport {
   }
 
   async writeScript(script: ScriptBackupData) {
-    const { name } = script.options.meta;
+    const { name } = script.options!.meta;
     // 写脚本文件
     await (await this.fs.create(`${name}.user.js`)).write(script.code);
     // 写入脚本options.json
@@ -51,19 +51,19 @@ export default class BackupExport {
 
   async writeResource(
     name: string,
-    resources: Resource[],
+    resources: ResourceBackup[],
     type: "resources" | "requires" | "requires.css"
   ): Promise<void[]> {
     const results: Promise<void>[] = resources.map(async (item) => {
       // md5是tm的导出规则
       const md5 = crypto.MD5(`${type}{val.meta.url}`).toString();
       if (
-        item.meta.mimetype.startsWith("text/") ||
-        ResourceManager.textContentTypeMap.has(item.meta.mimetype)
+        item.meta.mimetype?.startsWith("text/") ||
+        ResourceManager.textContentTypeMap.has(item.meta.mimetype || "")
       ) {
         await (
           await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)
-        ).write(item.source);
+        ).write(item.source!);
       } else {
         await (
           await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)
@@ -79,7 +79,7 @@ export default class BackupExport {
   }
 
   async writeSubscribe(subscribe: SubscribeBackupData) {
-    const { name } = subscribe.options.meta;
+    const { name } = subscribe.options!.meta;
     // 写入订阅文件
     await (await this.fs.create(`${name}.user.sub.js`)).write(subscribe.source);
     // 写入订阅options.json

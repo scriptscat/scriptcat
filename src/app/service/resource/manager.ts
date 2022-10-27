@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 import IoC from "@App/app/ioc";
 import crypto from "crypto-js";
 import LoggerCore from "@App/app/logger/core";
@@ -89,37 +88,67 @@ export class ResourceManager extends Manager {
   public async getScriptResources(
     script: Script
   ): Promise<{ [key: string]: Resource }> {
-    const ret: { [key: string]: Resource } = {};
-    for (let i = 0; i < script.metadata.require?.length; i += 1) {
-      const res = await this.getResource(
-        script.id,
-        script.metadata.require[i],
-        "require"
-      );
-      if (res) {
-        ret[script.metadata.require[i]] = res;
-      }
-    }
-    for (let i = 0; i < script.metadata["require-css"]?.length; i += 1) {
-      const res = await this.getResource(
-        script.id,
-        script.metadata["require-css"][i],
-        "require-css"
-      );
-      if (res) {
-        ret[script.metadata["require-css"][i]] = res;
-      }
-    }
+    return Promise.resolve({
+      ...((await this.getRequireResource(script)) || {}),
+      ...((await this.getRequireCssResource(script)) || {}),
+      ...((await this.getResourceResource(script)) || {}),
+    });
+  }
 
-    for (let i = 0; i < script.metadata.resource?.length; i += 1) {
-      const split = script.metadata.resource[i].split(/\s+/);
-      if (split.length === 2) {
-        const res = await this.getResource(script.id, split[1], "resource");
-        if (res) {
-          ret[split[0]] = res;
-        }
-      }
+  async getRequireResource(
+    script: Script
+  ): Promise<{ [key: string]: Resource }> {
+    if (!script.metadata.require) {
+      return Promise.resolve({});
     }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.all(
+      script.metadata.require.map(async (u) => {
+        const res = await this.getResource(script.id, u, "require");
+        if (res) {
+          ret[u] = res;
+        }
+      })
+    );
+    return Promise.resolve(ret);
+  }
+
+  async getRequireCssResource(
+    script: Script
+  ): Promise<{ [key: string]: Resource }> {
+    if (!script.metadata["require-css"]) {
+      return Promise.resolve({});
+    }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.all(
+      script.metadata.require.map(async (u) => {
+        const res = await this.getResource(script.id, u, "require-css");
+        if (res) {
+          ret[u] = res;
+        }
+      })
+    );
+    return Promise.resolve(ret);
+  }
+
+  async getResourceResource(
+    script: Script
+  ): Promise<{ [key: string]: Resource }> {
+    if (!script.metadata.resource) {
+      return Promise.resolve({});
+    }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.all(
+      script.metadata.resource.map(async (u) => {
+        const split = u.split(/\s+/);
+        if (split.length === 2) {
+          const res = await this.getResource(script.id, split[1], "resource");
+          if (res) {
+            ret[u] = res;
+          }
+        }
+      })
+    );
     return Promise.resolve(ret);
   }
 
@@ -203,7 +232,9 @@ export class ResourceManager extends Manager {
         })
         .then(async (response) => {
           if (response.status !== 200) {
-            return reject(new Error(`资源状态非200:${response.status}`));
+            return reject(
+              new Error(`resource response status not 200:${response.status}`)
+            );
           }
           const resource: Resource = {
             id: 0,
@@ -215,6 +246,7 @@ export class ResourceManager extends Manager {
             hash: await calculateHash(<Blob>response.data),
             base64: "",
             type,
+            createtime: new Date().getTime(),
           };
           if (
             resource.contentType.startsWith("text/") ||
@@ -226,12 +258,13 @@ export class ResourceManager extends Manager {
             resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
           } else {
             return reject(
-              new Error(`不允许的资源类型:${resource.contentType}`)
+              new Error(`not allow resource:${resource.contentType}`)
             );
           }
           resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
           return resolve(resource);
-        });
+        })
+        .catch((e) => reject(e));
     });
   }
 

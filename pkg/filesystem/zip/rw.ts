@@ -10,7 +10,7 @@ export class ZipFileReader implements FileReader {
     this.zipObject = zipObject;
   }
 
-  read(type?: "base64" | "string"): Promise<string> {
+  read(type?: "string" | "blob"): Promise<string | Blob> {
     return this.zipObject.async(type || "string");
   }
 }

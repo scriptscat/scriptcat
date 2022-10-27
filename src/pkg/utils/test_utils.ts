@@ -12,6 +12,17 @@ export default function initTestEnv() {
   }
   // @ts-ignore
   global.initTest = true;
+
+  const OldBlob = Blob;
+  // @ts-ignore
+  global.Blob = function Blob(data, options) {
+    const blob = new OldBlob(data, options);
+    blob.text = () => {
+      return Promise.resolve(data[0]);
+    };
+    return blob;
+  };
+
   migrate();
 
   const logger = new LoggerCore({

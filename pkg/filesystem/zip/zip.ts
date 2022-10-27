@@ -1,5 +1,9 @@
 import JSZip from "jszip";
-import { File, FileReader, FileSystem, FileWriter } from "../filesystem";
+import FileSystem, {
+  File,
+  FileReader,
+  FileWriter,
+} from "@Pkg/filesystem/filesystem";
 import { ZipFileReader, ZipFileWriter } from "./rw";
 
 export default class ZipFileSystem implements FileSystem {
@@ -20,6 +24,11 @@ export default class ZipFileSystem implements FileSystem {
 
   create(path: string): Promise<FileWriter> {
     return Promise.resolve(new ZipFileWriter(this.zip, path));
+  }
+
+  delete(path: string): Promise<void> {
+    this.zip.remove(path);
+    return Promise.resolve();
   }
 
   list(path?: string): Promise<File[]> {

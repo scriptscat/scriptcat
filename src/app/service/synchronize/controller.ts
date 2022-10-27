@@ -3,7 +3,7 @@ import MessageInternal from "@App/app/message/internal";
 import JSZip from "jszip";
 import ZipFileSystem from "@Pkg/filesystem/zip/zip";
 import BackupImport from "@App/pkg/backup/import";
-import { BackupData } from "@App/pkg/backup/struct";
+import { FileSystemType } from "@Pkg/filesystem/factory";
 import { SynchronizeEvent } from "./event";
 
 @IoC.Singleton(MessageInternal)
@@ -34,16 +34,20 @@ export default class SynchronizeController {
           URL.revokeObjectURL(url);
         }, 60 * 100000);
         try {
-          const resp = await this.dispatchEvent("openImportWindow", {
-            filename: file.name,
-            url,
-          });
+          const resp = await this.openImportWindow(file.name, url);
           return resolve(resp);
         } catch (e) {
           return reject(e);
         }
       };
       el.click();
+    });
+  }
+
+  openImportWindow(filename: string, url: string) {
+    return this.dispatchEvent("openImportWindow", {
+      filename,
+      url,
     });
   }
 
@@ -58,8 +62,11 @@ export default class SynchronizeController {
     return new BackupImport(fs).parse();
   }
 
-  // 导入数据
-  import(data: BackupData) {
+  backup() {
+    return this.dispatchEvent("backup", null);
+  }
 
+  backupToCloud(type: FileSystemType, params: any) {
+    return this.dispatchEvent("backupToCloud", { type, params });
   }
 }

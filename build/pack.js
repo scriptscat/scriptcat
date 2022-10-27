@@ -91,7 +91,9 @@ chrome
     compression: "DEFLATE",
   })
   .pipe(
-    fs.createWriteStream(`./dist/${package.name}-chrome-${package.version}.zip`)
+    fs.createWriteStream(
+      `./dist/${package.name}-v${package.version}-chrome.zip`
+    )
   );
 
 firefox
@@ -102,7 +104,7 @@ firefox
   })
   .pipe(
     fs.createWriteStream(
-      `./dist/${package.name}-firefox-${package.version}.zip`
+      `./dist/${package.name}-v${package.version}-firefox.zip`
     )
   );
 
@@ -116,7 +118,7 @@ crx
   .then((crxFile) => crxFile.pack())
   .then((crxBuffer) => {
     fs.writeFileSync(
-      `./dist/${package.name}-chrome-${package.version}.crx`,
+      `./dist/${package.name}-v${package.version}-chrome.crx`,
       crxBuffer
     );
   })

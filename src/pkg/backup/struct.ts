@@ -1,17 +1,16 @@
 /* eslint-disable camelcase */
-
 import { Metadata } from "@App/app/repo/scripts";
 
 export type ResourceMeta = {
   name: string;
   url: string;
   ts: number;
-  mimetype: string;
+  mimetype?: string;
 };
 
-export type Resource = {
+export type ResourceBackup = {
   meta: ResourceMeta;
-  source: string;
+  source?: string;
   base64: string;
 };
 
@@ -51,7 +50,7 @@ export type ScriptOptions = {
 
 export type ScriptMeta = {
   name: string;
-  uuid: string;
+  uuid?: string;
   modified: number;
   file_url: string;
   subscribe_url?: string;
@@ -72,9 +71,9 @@ export type ScriptBackupData = {
   code: string;
   options?: ScriptOptionsFile;
   storage: ValueStorage;
-  requires: Resource[];
-  requiresCss: Resource[];
-  resources: Resource[];
+  requires: ResourceBackup[];
+  requiresCss: ResourceBackup[];
+  resources: ResourceBackup[];
 };
 
 export type SubscribeScript = {

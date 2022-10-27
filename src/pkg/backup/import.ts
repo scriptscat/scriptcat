@@ -4,7 +4,7 @@ import ResourceManager from "@App/app/service/resource/manager";
 import { File, FileSystem } from "@Pkg/filesystem/filesystem";
 import {
   BackupData,
-  Resource,
+  ResourceBackup,
   ResourceMeta,
   ScriptBackupData,
   ScriptOptionsFile,
@@ -152,7 +152,7 @@ export default class BackupImport {
       );
       map.get(key)![type].push({
         meta: data,
-      } as never as Resource);
+      } as never as ResourceBackup);
       return Promise.resolve(true);
     });
     // 处理资源文件的内容
@@ -165,8 +165,8 @@ export default class BackupImport {
       resource.base64 = await (await this.fs.open(file.name)).read("base64");
       if (
         resource.meta &&
-        (resource.meta.mimetype.startsWith("text/") ||
-          ResourceManager.textContentTypeMap.has(resource.meta.mimetype))
+        (resource.meta.mimetype?.startsWith("text/") ||
+          ResourceManager.textContentTypeMap.has(resource.meta.mimetype || ""))
       ) {
         // 存在meta
         resource.source = await (await this.fs.open(file.name)).read();

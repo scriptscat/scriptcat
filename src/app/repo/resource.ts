@@ -10,7 +10,7 @@ export interface Resource {
   hash: ResourceHash;
   type: ResourceType;
   contentType: string;
-  createtime?: number;
+  createtime: number;
   updatetime?: number;
 }
 

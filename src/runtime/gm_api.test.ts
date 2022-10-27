@@ -169,7 +169,7 @@ describe("GM xmlHttpRequest", () => {
     if (request.method === "POST") {
       switch (request.url) {
         case "https://example.com/form":
-          if (request.body.get("blob") instanceof Blob) {
+          if (request.body.get("blob")) {
             return request.respond(
               200,
               { "Content-Type": "text/html" },
@@ -224,7 +224,7 @@ describe("GM xmlHttpRequest", () => {
   });
   it("post数据和blob", () => {
     const form = new FormData();
-    form.append("blob", new Blob(["blob"]));
+    form.append("blob", new Blob(["blob"], { type: "text/html" }));
     return new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
         url: "https://example.com/form",

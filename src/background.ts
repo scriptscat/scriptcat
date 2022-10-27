@@ -38,8 +38,8 @@ IoC.registerInstance(MessageCenter, center).alias([
 ]);
 // 监听logger messagewriter
 ListenerMessage(new LoggerDAO(), center);
-// 启动系统配置
-IoC.registerInstance(SystemConfig, new SystemConfig(center));
+
+IoC.instance(SystemConfig).init();
 
 IoC.instance(SystemManager).init();
 

@@ -1,33 +1,48 @@
+import IoC from "@App/app/ioc";
+import MessageCenter from "@App/app/message/center";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander } from "@App/app/message/message";
+import { FileSystemType } from "@Pkg/filesystem/factory";
 import ChromeStorage from "./chrome_storage";
 
 export const SystamConfigChange = "systemConfigChange";
 
+@IoC.Singleton(MessageHander)
 export class SystemConfig {
   public cache = new Map<string, any>();
 
   public storage = new ChromeStorage("system");
 
-  public message: MessageHander;
+  public message?: MessageCenter;
 
   public internal?: MessageInternal;
 
-  constructor(message: MessageHander, internal?: MessageInternal) {
-    this.message = message;
-    this.internal = internal;
-    this.init();
+  constructor(message: MessageHander) {
+    if (message instanceof MessageCenter) {
+      this.message = message;
+    }
+    if (message instanceof MessageInternal) {
+      this.internal = message;
+    }
+    this.syncConfig();
   }
 
-  public async init() {
+  public async syncConfig() {
     const list = await this.storage.keys();
     Object.keys(list).forEach((key) => {
       this.cache.set(key, list[key]);
     });
+  }
+
+  public async init() {
     // 监听消息设置变化
-    this.message.setHandler(SystamConfigChange, (action: string, data: any) => {
-      console.log("systemConfigChange", action, data);
-    });
+    this.message?.setHandler(
+      SystamConfigChange,
+      (action: string, data: any) => {
+        this.storage.set(data.key, data.val);
+        this.cache.set(data.key, data.val);
+      }
+    );
   }
 
   public set(key: string, val: any) {
@@ -119,5 +134,26 @@ export class SystemConfig {
 
   public set vscodeReconnect(val: boolean) {
     this.set("vscode_reconnect", val);
+  }
+
+  public get backup(): {
+    filesystem: FileSystemType;
+    params: { [key: string]: any };
+  } {
+    return (
+      <{ filesystem: FileSystemType; params: { [key: string]: any } }>(
+        this.cache.get("backup")
+      ) || {
+        filesystem: "webdav",
+        params: {},
+      }
+    );
+  }
+
+  public set backup(data: {
+    filesystem: FileSystemType;
+    params: { [key: string]: any };
+  }) {
+    this.set("backup", data);
   }
 }

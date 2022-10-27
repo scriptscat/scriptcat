@@ -36,10 +36,7 @@ IoC.registerInstance(MessageHander, new MessageInternal("options")).alias([
   MessageBroadcast,
 ]);
 
-IoC.registerInstance(
-  SystemConfig,
-  new SystemConfig(IoC.instance(MessageHander), IoC.instance(MessageInternal))
-);
+IoC.instance(SystemConfig);
 
 // 初始化沙盒通讯
 // eslint-disable-next-line no-undef

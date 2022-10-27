@@ -13,7 +13,7 @@ export interface File {
 
 export interface FileReader {
   // 读取文件内容
-  read<T extends "string" | "base64">(type?: T): Promise<string>;
+  read<T extends "string" | "blob">(type?: T): Promise<string | Blob>;
 }
 
 export interface FileWriter {
@@ -24,11 +24,13 @@ export interface FileWriter {
 export type FileReadWriter = FileReader & FileWriter;
 
 // 文件读取
-export interface FileSystem {
+export default interface FileSystem {
   // 打开文件
   open(path: string): Promise<FileReader>;
   // 创建文件
   create(path: string): Promise<FileWriter>;
+  // 删除文件
+  delete(path: string): Promise<void>;
   // 文件列表
   list(path?: string): Promise<File[]>;
 }
