@@ -49,8 +49,8 @@ if (version.prerelease) {
 
 // 处理firefox和chrome的zip压缩包
 
-const firefoxManifest = manifest;
-const chromeManifest = manifest;
+const firefoxManifest = { ...manifest };
+const chromeManifest = { ...manifest };
 
 delete firefoxManifest.sandbox;
 firefoxManifest.browser_specific_settings = {

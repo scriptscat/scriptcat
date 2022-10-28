@@ -35,7 +35,7 @@
 
 ### 安装脚本
 
-可以从各大用户脚本市场[获取脚本](https://docs.scriptcat.org/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC)进行安装,脚本猫所支持的后台脚本专门建立了一个市场:[后台脚本](https://bbs.tampermonkey.net.cn/forum-68-1.html).
+可以从各大用户脚本市场[获取脚本](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC)进行安装,脚本猫所支持的后台脚本专门建立了一个市场:[后台脚本](https://bbs.tampermonkey.net.cn/forum-68-1.html).
 
 安装方式与油猴一样,同时也是兼容绝大部分油猴脚本的,如果遇到未兼容的脚本,你可以通过[issue](https://github.com/scriptscat/scriptcat/issues)反馈给我们.
 
@@ -43,9 +43,9 @@
 
 ### 开发文档
 
-> [开发指南:https://docs.scriptcat.org/dev/](https://docs.scriptcat.org/dev/)
+> [开发指南:https://docs.scriptcat.org/docs/dev/](https://docs.scriptcat.org/docs/dev/)
 
-[开发文档](https://docs.scriptcat.org/dev/)尽力完善中,因为是参考油猴的设计,与油猴脚本相通的地方很多,就算你使用其它油猴管理器,你也可以参考脚本猫的文档来开发\!
+[开发文档](https://docs.scriptcat.org/docs/dev/)尽力完善中,因为是参考油猴的设计,与油猴脚本相通的地方很多,就算你使用其它油猴管理器,你也可以参考脚本猫的文档来开发\!
 
 如果开发文档有什么错误,或者你想进行补全,你可以点击下方的`在 GitHub 上编辑此页`提`pull request`给我们.
 

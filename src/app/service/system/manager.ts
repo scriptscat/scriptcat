@@ -45,7 +45,7 @@ export class SystemManager extends Manager {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
           chrome.tabs.create({
-            url: "https://docs.scriptcat.org/change/",
+            url: "https://docs.scriptcat.org/docs/change/",
           });
         }
       });
