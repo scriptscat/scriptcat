@@ -169,10 +169,13 @@ export function listenerWebRequest(headerFlag: string) {
       if (!isExtensionRequest(details)) {
         return {};
       }
+      const appendHeaders: chrome.webRequest.HttpHeader[] = [];
       details.responseHeaders?.forEach((val) => {
         const lowerCase = val.name.toLowerCase();
         if (responseHeaders[lowerCase]) {
-          val.name = `${headerFlag}-${val.name}`;
+          const copy = { ...val };
+          copy.name = `${headerFlag}-${val.name}`;
+          appendHeaders.push(copy);
         }
         // 处理最大重定向次数
         if (lowerCase === "location") {
@@ -186,6 +189,7 @@ export function listenerWebRequest(headerFlag: string) {
           }
         }
       });
+      details.responseHeaders?.push(...appendHeaders);
       return {
         responseHeaders: details.responseHeaders,
       };

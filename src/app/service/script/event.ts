@@ -4,6 +4,7 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import {
   Script,
+  SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   ScriptDAO,
@@ -90,6 +91,7 @@ export default class ScriptEventListener {
           }
           if (script.status !== SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_ENABLE;
+            script.updatetime = new Date().getTime();
             this.dao.save(script);
             logger.info("enable script");
             ScriptManager.hook.trigger("enable", script);
@@ -115,6 +117,7 @@ export default class ScriptEventListener {
           }
           if (script.status === SCRIPT_STATUS_ENABLE) {
             script.status = SCRIPT_STATUS_DISABLE;
+            script.updatetime = new Date().getTime();
             this.dao.save(script);
             logger.info("disable script");
             ScriptManager.hook.trigger("disable", script);

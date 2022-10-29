@@ -8,7 +8,6 @@ import {
   List,
   Message,
   Modal,
-  Select,
   Space,
 } from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
@@ -18,20 +17,20 @@ import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
 import { SystemConfig } from "@App/pkg/config/config";
 import { File, FileReader } from "@Pkg/filesystem/filesystem";
 import { formatUnixTime } from "@App/pkg/utils/utils";
+import FileSystemParams from "@App/pages/components/FileSystemParams";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
   const syncCtrl = IoC.instance(SynchronizeController) as SynchronizeController;
   const fileRef = useRef<HTMLInputElement>(null);
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
-  const [filesystemType, setFilesystemType] = useState<FileSystemType>(
+  const [fileSystemType, setFilesystemType] = useState<FileSystemType>(
     systemConfig.backup.filesystem
   );
-  const [filesystemParam, setFilesystemParam] = useState<{
+  const [fileSystemParams, setFilesystemParam] = useState<{
     [key: string]: any;
-  }>(systemConfig.backup.params[filesystemType] || {});
+  }>(systemConfig.backup.params[fileSystemType] || {});
   const [backupFileList, setBackupFileList] = useState<File[]>([]);
-  const fsParams = FileSystemFactory.params();
 
   return (
     <Space
@@ -78,193 +77,151 @@ function Tools() {
             </Button>
           </Space>
           <Title heading={6}>云端</Title>
-          <Space>
-            备份至:
-            <Select
-              value="webdav"
-              style={{ width: 120 }}
-              onChange={(value) => {
-                setFilesystemType(value as FileSystemType);
-              }}
-            >
-              <Select.Option value="webdav">WebDAV</Select.Option>
-            </Select>
-            <Button
-              type="primary"
-              loading={loading.cloud}
-              onClick={() => {
-                // 储存参数
-                const params = { ...systemConfig.backup.params };
-                params[filesystemType] = filesystemParam;
-                systemConfig.backup = {
-                  filesystem: filesystemType,
-                  params,
-                };
-                setLoading((prev) => ({ ...prev, cloud: true }));
-                Message.info("正在准备备份到云端");
-                syncCtrl
-                  .backupToCloud(filesystemType, filesystemParam)
-                  .then(() => {
-                    Message.success("备份成功");
-                  })
-                  .catch((e) => {
-                    Message.error(`备份失败: ${e}`);
-                  })
-                  .finally(() => {
-                    setLoading((prev) => ({ ...prev, cloud: false }));
-                  });
-              }}
-            >
-              备份
-            </Button>
-            <Button
-              type="primary"
-              onClick={async () => {
-                const fs = await FileSystemFactory.create(
-                  filesystemType,
-                  filesystemParam
-                );
-                const list = await fs.list();
-                list.sort((a, b) => b.updatetime - a.updatetime);
-                setBackupFileList(list);
-              }}
-            >
-              备份列表
-            </Button>
-            <Drawer
-              width={400}
-              title={<span>备份列表</span>}
-              visible={backupFileList.length !== 0}
-              onOk={() => {
-                setBackupFileList([]);
-              }}
-              onCancel={() => {
-                setBackupFileList([]);
-              }}
-            >
-              <List
-                bordered={false}
-                dataSource={backupFileList}
-                render={(item: File) => (
-                  <List.Item key={item.name}>
-                    <List.Item.Meta
-                      title={item.name}
-                      description={formatUnixTime(item.updatetime / 1000)}
-                    />
-                    <Space className="w-full justify-end">
-                      <Button
-                        type="primary"
-                        size="small"
-                        onClick={async () => {
-                          Message.info("正在从云端拉取数据");
-                          const fs = await FileSystemFactory.create(
-                            filesystemType,
-                            filesystemParam
-                          );
-                          let file: FileReader;
-                          let data: Blob;
-                          try {
-                            file = await fs.open(item.name);
-                            data = (await file.read("blob")) as Blob;
-                          } catch (e) {
-                            Message.error(`拉取失败: ${e}`);
-                            return;
-                          }
-                          const url = URL.createObjectURL(data);
-                          setTimeout(() => {
-                            URL.revokeObjectURL(url);
-                          }, 60 * 100000);
-                          syncCtrl
-                            .openImportWindow(item.name, url)
-                            .then(() => {
-                              Message.success("请在新页面中选择要导入的脚本");
-                            })
-                            .then((e) => {
-                              Message.error(`导入错误${e}`);
-                            });
-                        }}
-                      >
-                        恢复
-                      </Button>
-                      <Button
-                        type="primary"
-                        status="danger"
-                        size="small"
-                        onClick={() => {
-                          Modal.confirm({
-                            title: "确认删除",
-                            content: `确认删除备份文件${item.name}?`,
-                            onOk: async () => {
-                              const fs = await FileSystemFactory.create(
-                                filesystemType,
-                                filesystemParam
-                              );
-                              try {
-                                await fs.delete(item.name);
-                                setBackupFileList(
-                                  backupFileList.filter(
-                                    (i) => i.name !== item.name
-                                  )
-                                );
-                                Message.success("删除成功");
-                              } catch (e) {
-                                Message.error(`删除失败${e}`);
-                              }
-                            },
+          <FileSystemParams
+            preNode="备份至"
+            onChangeFileSystemType={(type) => {
+              setFilesystemType(type);
+            }}
+            onChangeFileSystemParams={(params) => {
+              setFilesystemParam(params);
+            }}
+            actionButton={[
+              <Button
+                type="primary"
+                loading={loading.cloud}
+                onClick={() => {
+                  // 储存参数
+                  const params = { ...systemConfig.backup.params };
+                  params[fileSystemType] = fileSystemParams;
+                  systemConfig.backup = {
+                    filesystem: fileSystemType,
+                    params,
+                  };
+                  setLoading((prev) => ({ ...prev, cloud: true }));
+                  Message.info("正在准备备份到云端");
+                  syncCtrl
+                    .backupToCloud(fileSystemType, fileSystemParams)
+                    .then(() => {
+                      Message.success("备份成功");
+                    })
+                    .catch((e) => {
+                      Message.error(`备份失败: ${e}`);
+                    })
+                    .finally(() => {
+                      setLoading((prev) => ({ ...prev, cloud: false }));
+                    });
+                }}
+              >
+                备份
+              </Button>,
+              <Button
+                type="primary"
+                onClick={async () => {
+                  const fs = await FileSystemFactory.create(
+                    fileSystemType,
+                    fileSystemParams
+                  );
+                  const list = await fs.list();
+                  list.sort((a, b) => b.updatetime - a.updatetime);
+                  setBackupFileList(list);
+                }}
+              >
+                备份列表
+              </Button>,
+            ]}
+            fileSystemType={fileSystemType}
+            fileSystemParams={fileSystemParams}
+          />
+          <Drawer
+            width={400}
+            title={<span>备份列表</span>}
+            visible={backupFileList.length !== 0}
+            onOk={() => {
+              setBackupFileList([]);
+            }}
+            onCancel={() => {
+              setBackupFileList([]);
+            }}
+          >
+            <List
+              bordered={false}
+              dataSource={backupFileList}
+              render={(item: File) => (
+                <List.Item key={item.name}>
+                  <List.Item.Meta
+                    title={item.name}
+                    description={formatUnixTime(item.updatetime / 1000)}
+                  />
+                  <Space className="w-full justify-end">
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={async () => {
+                        Message.info("正在从云端拉取数据");
+                        const fs = await FileSystemFactory.create(
+                          fileSystemType,
+                          fileSystemParams
+                        );
+                        let file: FileReader;
+                        let data: Blob;
+                        try {
+                          file = await fs.open(item.name);
+                          data = (await file.read("blob")) as Blob;
+                        } catch (e) {
+                          Message.error(`拉取失败: ${e}`);
+                          return;
+                        }
+                        const url = URL.createObjectURL(data);
+                        setTimeout(() => {
+                          URL.revokeObjectURL(url);
+                        }, 60 * 100000);
+                        syncCtrl
+                          .openImportWindow(item.name, url)
+                          .then(() => {
+                            Message.success("请在新页面中选择要导入的脚本");
+                          })
+                          .then((e) => {
+                            Message.error(`导入错误${e}`);
                           });
-                        }}
-                      >
-                        删除
-                      </Button>
-                    </Space>
-                  </List.Item>
-                )}
-              />
-            </Drawer>
-          </Space>
-          <Space>
-            {Object.keys(fsParams[filesystemType]).map((key) => (
-              <div key={key}>
-                {fsParams[filesystemType][key].type === "select" && (
-                  <>
-                    <span>{fsParams[filesystemType][key].title}</span>
-                    <Select
-                      value={
-                        filesystemParam[key] ||
-                        fsParams[filesystemType][key].options![0]
-                      }
-                      onChange={(value) => {
-                        setFilesystemParam((prev) => ({
-                          ...prev,
-                          [key]: value,
-                        }));
                       }}
                     >
-                      {fsParams[filesystemType][key].options!.map((option) => (
-                        <Select.Option value={option} key={option}>
-                          {option}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </>
-                )}
-                {!fsParams[filesystemType][key].type && (
-                  <>
-                    <span>{fsParams[filesystemType][key].title}</span>
-                    <Input
-                      value={filesystemParam[key]}
-                      onChange={(value) => {
-                        setFilesystemParam((prev) => ({
-                          ...prev,
-                          [key]: value,
-                        }));
+                      恢复
+                    </Button>
+                    <Button
+                      type="primary"
+                      status="danger"
+                      size="small"
+                      onClick={() => {
+                        Modal.confirm({
+                          title: "确认删除",
+                          content: `确认删除备份文件${item.name}?`,
+                          onOk: async () => {
+                            const fs = await FileSystemFactory.create(
+                              fileSystemType,
+                              fileSystemParams
+                            );
+                            try {
+                              await fs.delete(item.name);
+                              setBackupFileList(
+                                backupFileList.filter(
+                                  (i) => i.name !== item.name
+                                )
+                              );
+                              Message.success("删除成功");
+                            } catch (e) {
+                              Message.error(`删除失败${e}`);
+                            }
+                          },
+                        });
                       }}
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-          </Space>
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </Drawer>
           <Title heading={6}>备份策略</Title>
           <Empty description="建设中" />
         </Space>

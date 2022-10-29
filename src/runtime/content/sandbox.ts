@@ -49,6 +49,10 @@ export default class SandboxRuntime {
 
   // 直接运行脚本
   start(script: ScriptRunResouce): Promise<boolean> {
+    // 存在先将资源释放
+    if (this.execScripts.has(script.id)) {
+      this.stop(script.id);
+    }
     return this.execScript(script);
   }
 
@@ -62,6 +66,10 @@ export default class SandboxRuntime {
   }
 
   enable(script: ScriptRunResouce): Promise<boolean> {
+    // 如果正在运行,先释放
+    if (this.execScripts.has(script.id)) {
+      this.disable(script.id);
+    }
     // 开启脚本在沙盒环境中运行
     switch (script.type) {
       case SCRIPT_TYPE_CRONTAB:
@@ -97,6 +105,7 @@ export default class SandboxRuntime {
 
   // 执行脚本
   execScript(script: ScriptRunResouce) {
+    const logger = this.logger.with({ scriptId: script.id, name: script.name });
     let exec: ExecScript;
     if (this.execScripts.has(script.id)) {
       exec = this.execScripts.get(script.id)!;
@@ -122,7 +131,7 @@ export default class SandboxRuntime {
         })
         .catch((err) => {
           // 发送执行完成+错误消息
-          this.logger.error(err);
+          logger.error(err);
           this.message.send("scriptRunStatus", [
             exec.scriptRes.id,
             SCRIPT_RUN_STATUS_ERROR,
@@ -130,7 +139,7 @@ export default class SandboxRuntime {
           ]);
         });
     } else {
-      this.logger.error("backscript return not promise");
+      logger.warn("backscript return not promise");
     }
     return ret;
   }
@@ -224,6 +233,7 @@ export default class SandboxRuntime {
 
   execStop(exec: ExecScript) {
     exec.stop();
+    this.execScripts.delete(exec.scriptRes.id);
     this.message.send("scriptRunStatus", [
       exec.scriptRes.id,
       SCRIPT_RUN_STATUS_COMPLETE,

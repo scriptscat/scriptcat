@@ -2,16 +2,26 @@ import IoC from "@App/app/ioc";
 import MessageCenter from "@App/app/message/center";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander } from "@App/app/message/message";
+import Hook from "@App/app/service/hook";
 import { FileSystemType } from "@Pkg/filesystem/factory";
 import ChromeStorage from "./chrome_storage";
 
 export const SystamConfigChange = "systemConfigChange";
 
+export type CloudSyncConfig = {
+  enable: boolean;
+  syncDelete: boolean;
+  filesystem: FileSystemType;
+  params: { [key: string]: any };
+};
+
 @IoC.Singleton(MessageHander)
 export class SystemConfig {
+  static hook = new Hook<"update">();
+
   public cache = new Map<string, any>();
 
-  public storage = new ChromeStorage("system");
+  public storage = new ChromeStorage("system", chrome.storage.sync);
 
   public message?: MessageCenter;
 
@@ -41,13 +51,18 @@ export class SystemConfig {
       (action: string, data: any) => {
         this.storage.set(data.key, data.val);
         this.cache.set(data.key, data.val);
+        SystemConfig.hook.trigger("update", data.key, data.val);
       }
     );
   }
 
   public set(key: string, val: any) {
     this.cache.set(key, val);
-    this.internal?.send(SystamConfigChange, { key, val });
+    if (this.internal) {
+      this.internal.send(SystamConfigChange, { key, val });
+    } else {
+      this.storage.set(key, val);
+    }
   }
 
   public list() {
@@ -59,7 +74,7 @@ export class SystemConfig {
   }
 
   get version() {
-    return /* version */ "0.10.0-alpha";
+    return /* version */ "0.10.0-alpha.1";
   }
 
   get server() {
@@ -141,9 +156,7 @@ export class SystemConfig {
     params: { [key: string]: any };
   } {
     return (
-      <{ filesystem: FileSystemType; params: { [key: string]: any } }>(
-        this.cache.get("backup")
-      ) || {
+      this.cache.get("backup") || {
         filesystem: "webdav",
         params: {},
       }
@@ -155,5 +168,28 @@ export class SystemConfig {
     params: { [key: string]: any };
   }) {
     this.set("backup", data);
+  }
+
+  get cloudSync(): CloudSyncConfig {
+    return (
+      this.cache.get("cloud_sync") || {
+        enable: false,
+        syncDelete: true,
+        filesystem: "webdav",
+        params: {},
+      }
+    );
+  }
+
+  set cloudSync(data: CloudSyncConfig) {
+    this.set("cloud_sync", data);
+  }
+
+  get scriptCatFlag() {
+    return <string>this.cache.get("script_cat_flag");
+  }
+
+  set scriptCatFlag(val: string) {
+    this.set("script_cat_flag", val);
   }
 }

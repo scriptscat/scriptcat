@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import MessageInternal from "@App/app/message/internal";
 import { MessageSender } from "@App/app/message/message";
-import { ScriptMenu } from "@App/runtime/background/runtime";
+import { ScriptMenu, ScriptMenuItem } from "@App/runtime/background/runtime";
 import {
   Button,
   Collapse,
@@ -18,6 +18,7 @@ import {
 } from "@arco-design/web-react/icon";
 import IoC from "@App/app/ioc";
 import ScriptController from "@App/app/service/script/controller";
+import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 
 const CollapseItem = Collapse.Item;
 
@@ -88,6 +89,11 @@ const ScriptMenuList: React.FC<{
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
+                      color:
+                        item.runStatus &&
+                        item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
+                          ? "rgb(var(--gray-5))"
+                          : "",
                     }}
                   >
                     {item.name}
@@ -141,7 +147,7 @@ const ScriptMenuList: React.FC<{
             {item.menus?.map((menu) => {
               if (menu.accessKey) {
                 document.addEventListener("keypress", (e) => {
-                  if (e.key.toUpperCase() === menu.accessKey.toUpperCase()) {
+                  if (e.key.toUpperCase() === menu.accessKey!.toUpperCase()) {
                     sendMenuAction(menu.sender, menu.channelFlag);
                   }
                 });

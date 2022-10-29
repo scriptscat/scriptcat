@@ -36,6 +36,9 @@ export default class Logger {
       this.core.writer.write(level, message, buildLabel(this.label, label));
     }
     if (this.core.debug) {
+      if (typeof message === "object") {
+        message = JSON.stringify(message);
+      }
       const msg = `${dayjs(new Date()).format(
         "YYYY-MM-DD HH:mm:ss"
       )} [${level}] msg=${message} label=${JSON.stringify(

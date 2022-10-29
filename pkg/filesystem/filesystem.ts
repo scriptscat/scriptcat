@@ -5,6 +5,8 @@ export interface File {
   path: string;
   // 文件大小
   size: number;
+  // 文件摘要
+  digest: string;
   // 文件创建时间
   createtime: number;
   // 文件修改时间
@@ -25,6 +27,8 @@ export type FileReadWriter = FileReader & FileWriter;
 
 // 文件读取
 export default interface FileSystem {
+  // 授权验证
+  verify(): Promise<void>;
   // 打开文件
   open(path: string): Promise<FileReader>;
   // 创建文件

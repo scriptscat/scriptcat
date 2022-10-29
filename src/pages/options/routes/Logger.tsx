@@ -297,7 +297,10 @@ function Subscribe() {
                         : "var(--color-primary-light-1)",
                   }}
                 >
-                  {formatUnixTime(item.createtime / 1000)} {item.message}{" "}
+                  {formatUnixTime(item.createtime / 1000)}{" "}
+                  {typeof item.message === "object"
+                    ? JSON.stringify(item.message)
+                    : item.message}{" "}
                   {JSON.stringify(item.label)}
                 </List.Item>
               )}

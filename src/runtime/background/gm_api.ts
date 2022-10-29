@@ -3,15 +3,16 @@ import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { Channel } from "@App/app/message/channel";
-import { v4 as uuidv4 } from "uuid";
 import { MessageHander, MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/pkg/utils/cache_key";
+import { v4 as uuidv4 } from "uuid";
 import { base64ToBlob } from "@App/pkg/utils/script";
 import { isFirefox } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
+import { SystemConfig } from "@App/pkg/config/config";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -45,15 +46,19 @@ export default class GMApi {
 
   logger: Logger = LoggerCore.getLogger({ component: "GMApi" });
 
-  headerFlag: string;
-
   static hook: Hook<"registerMenu" | "unregisterMenu"> = new Hook();
+
+  systemConfig: SystemConfig;
 
   constructor(message: MessageHander, permissionVerify: IPermissionVerify) {
     this.message = message;
     this.script = new ScriptDAO();
     this.permissionVerify = permissionVerify;
-    this.headerFlag = `x-cat-${uuidv4()}`;
+    this.systemConfig = IoC.instance(SystemConfig) as SystemConfig;
+    // 证明是后台运行的,生成一个随机的headerFlag
+    if (permissionVerify instanceof PermissionVerify) {
+      this.systemConfig.scriptCatFlag = `x-cat-${uuidv4()}`;
+    }
     this.valueManager = IoC.instance(ValueManager);
   }
 
@@ -97,8 +102,10 @@ export default class GMApi {
         return api.api.call(this, req, connect);
       }
     );
-    // 监听web请求
-    listenerWebRequest(this.headerFlag);
+    // 只有background页才监听web请求
+    if (this.permissionVerify instanceof PermissionVerify) {
+      listenerWebRequest(this.systemConfig.scriptCatFlag);
+    }
   }
 
   // 解析请求
@@ -180,7 +187,11 @@ export default class GMApi {
     }
 
     const deal = async (event: string, data?: any) => {
-      const response: any = await dealXhr(this.headerFlag, config, xhr);
+      const response: any = await dealXhr(
+        this.systemConfig.scriptCatFlag,
+        config,
+        xhr
+      );
       if (data) {
         Object.keys(data).forEach((key) => {
           response[key] = data[key];
@@ -222,7 +233,7 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.systemConfig.scriptCatFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;
@@ -477,7 +488,7 @@ export default class GMApi {
     xhr.open(config.method || "GET", config.url, true);
     xhr.responseType = "blob";
     const deal = (event: string, data?: any) => {
-      const removeXCat = new RegExp(`${this.headerFlag}-`, "g");
+      const removeXCat = new RegExp(`${this.systemConfig.scriptCatFlag}-`, "g");
       const respond: any = {
         finalUrl: xhr.responseURL || config.url,
         readyState: <any>xhr.readyState,
@@ -520,7 +531,7 @@ export default class GMApi {
     xhr.ontimeout = () => {
       channel.send({ event: "ontimeout" });
     };
-    setXhrHeader(this.headerFlag, config, xhr);
+    setXhrHeader(this.systemConfig.scriptCatFlag, config, xhr);
 
     if (config.timeout) {
       xhr.timeout = config.timeout;

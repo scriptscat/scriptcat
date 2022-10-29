@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
+  Card,
   Input,
   Message,
   Popconfirm,
@@ -655,17 +656,7 @@ function ScriptList() {
       </td>
     );
 
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {
-          // {...listeners}
-          ...props
-        }
-      />
-    );
+    return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
   };
 
   const components: ComponentsProps = {
@@ -676,7 +667,8 @@ function ScriptList() {
   };
 
   return (
-    <div
+    <Card
+      className="script-list"
       style={{
         height: "100%",
         overflowY: "auto",
@@ -695,7 +687,7 @@ function ScriptList() {
           hideOnSinglePage: true,
         }}
       />
-    </div>
+    </Card>
   );
 }
 

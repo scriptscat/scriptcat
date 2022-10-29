@@ -1,4 +1,6 @@
 import IoC from "@App/app/ioc";
+import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
 import { MessageHander } from "@App/app/message/message";
 import { Resource } from "@App/app/repo/resource";
 import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
@@ -10,21 +12,40 @@ import {
   ScriptOptions,
   ValueStorage,
 } from "@App/pkg/backup/struct";
-import { SystemConfig } from "@App/pkg/config/config";
-import FileSystem from "@Pkg/filesystem/filesystem";
+import ChromeStorage from "@App/pkg/config/chrome_storage";
+import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
+import { prepareScriptByCode } from "@App/pkg/utils/script";
+import FileSystemFactory from "@Pkg/filesystem/factory";
+import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import Manager from "../manager";
 import ResourceManager from "../resource/manager";
+import ScriptManager from "../script/manager";
 import ValueManager from "../value/manager";
 import SynchronizeEventListener from "./event";
 
 export type SynchronizeTarget = "local";
 
+export type SyncMeta = {
+  uuid: string;
+  origin?: string; // 脚本来源
+  downloadUrl?: string;
+  checkUpdateUrl?: string;
+};
+
 // 同步控件
-@IoC.Singleton(MessageHander, SystemConfig, ValueManager, ResourceManager)
+@IoC.Singleton(
+  MessageHander,
+  SystemConfig,
+  ValueManager,
+  ResourceManager,
+  ScriptManager
+)
 export default class SynchronizeManager extends Manager {
   systemConfig: SystemConfig;
 
   event: SynchronizeEventListener;
+
+  scriptManager: ScriptManager;
 
   scriptDAO: ScriptDAO = new ScriptDAO();
 
@@ -32,80 +53,311 @@ export default class SynchronizeManager extends Manager {
 
   resourceManager: ResourceManager;
 
+  logger: Logger;
+
+  storage: ChromeStorage;
+
   constructor(
     center: MessageHander,
     systemConfig: SystemConfig,
     valueManager: ValueManager,
-    resourceManager: ResourceManager
+    resourceManager: ResourceManager,
+    scriptManager: ScriptManager
   ) {
     super(center);
     this.systemConfig = systemConfig;
     this.event = new SynchronizeEventListener(this);
     this.valueManager = valueManager;
     this.resourceManager = resourceManager;
+    this.scriptManager = scriptManager;
+    this.storage = new ChromeStorage("sync", chrome.storage.local);
+    this.logger = LoggerCore.getLogger({ component: "SynchronizeManager" });
   }
 
-  start() {}
+  async start() {
+    // 监听同步事件决定是否开启同步
+    let freeSync: () => void | undefined;
+    if (this.systemConfig.cloudSync.enable) {
+      freeSync = await this.enableCloudSync(this.systemConfig.cloudSync);
+    }
+    SystemConfig.hook.addListener(
+      "update",
+      async (key, value: CloudSyncConfig) => {
+        if (key === "cloud_sync") {
+          freeSync?.();
+          if (value.enable) {
+            // 每次开启前进行一次全量同步,删除文件摘要
+            await this.storage.set("file_digest", {});
+            freeSync = await this.enableCloudSync(value);
+          }
+        }
+      }
+    );
+  }
+
+  // 开启云同步
+  async enableCloudSync(config: CloudSyncConfig) {
+    const logger = this.logger.with({ syncDelete: config.syncDelete });
+    logger.info("start cloud sync");
+
+    let fs: FileSystem;
+    try {
+      fs = await FileSystemFactory.create(
+        config.filesystem,
+        config.params[config.filesystem]
+      );
+    } catch (e) {
+      logger.error("create filesystem error", Logger.E(e), {
+        type: config.filesystem,
+      });
+      this.systemConfig.cloudSync = {
+        ...this.systemConfig.cloudSync,
+        enable: false,
+      };
+      throw e;
+    }
+
+    const freeFn: (() => void)[] = [];
+    // 监听脚本更新事件
+    const upsertFn = async (script: Script) => {
+      await this.pushScript(fs, script);
+      this.updateFileDigest(fs);
+    };
+    freeFn.push(() => ScriptManager.hook.removeListener("upsert", upsertFn));
+    ScriptManager.hook.addListener("upsert", upsertFn);
+    if (config.syncDelete) {
+      // 监听脚本删除事件
+      const deleteFn = (script: Script) => {
+        this.deleteCloudScript(fs, script);
+      };
+      ScriptManager.hook.addListener("delete", deleteFn);
+      freeFn.push(() => ScriptManager.hook.removeListener("delete", deleteFn));
+    }
+
+    // 先设置死半小时同步一次吧
+    const ts = setInterval(() => {
+      this.syncOnce(fs);
+    }, 60 * 30 * 1000);
+    freeFn.push(() => {
+      clearInterval(ts);
+    });
+
+    this.syncOnce(fs);
+    return Promise.resolve(() => {
+      logger.info("stop cloud sync");
+      // 当停止云同步时,移除监听
+      freeFn.forEach((fn) => fn());
+    });
+  }
+
+  // 同步一次
+  async syncOnce(fs: FileSystem) {
+    this.logger.info("start sync once");
+    // 首次同步
+    const list = await fs.list();
+    // 根据文件名生成一个map
+    const uuidMap = new Map<string, File>();
+    // 储存文件摘要,用于检测文件是否有变化
+    const fileDigestMap =
+      ((await this.storage.get("file_digest")) as {
+        [key: string]: string;
+      }) || {};
+
+    list.forEach((file) => {
+      if (file.name.endsWith(".user.js")) {
+        const uuid = file.name.substring(0, file.name.length - 8);
+        uuidMap.set(uuid, file);
+      }
+    });
+
+    // 获取脚本列表
+    const scriptList = await this.scriptDAO.table.toArray();
+    // 遍历脚本列表生成一个map
+    const scriptMap = new Map<string, Script>();
+    scriptList.forEach((script) => {
+      scriptMap.set(script.uuid, script);
+    });
+    // 对比脚本列表和文件列表,进行同步
+    const result: Promise<void>[] = [];
+    uuidMap.forEach((file, uuid) => {
+      const script = scriptMap.get(uuid);
+      // 获取脚本数据
+      if (script) {
+        // 过滤掉无变动的文件
+        if (fileDigestMap[file.name] === file.digest) {
+          // 删除了之后,剩下的就是需要上传的脚本了
+          scriptMap.delete(uuid);
+          return;
+        }
+        const updatetime = script.updatetime || script.createtime;
+        // 对比脚本更新时间和文件更新时间
+        if (updatetime > file.updatetime) {
+          // 如果脚本更新时间大于文件更新时间,则上传文件
+          result.push(this.pushScript(fs, script));
+        } else {
+          // 如果脚本更新时间小于文件更新时间,则更新脚本
+          result.push(this.pullScript(fs, file, script));
+        }
+        scriptMap.delete(uuid);
+        return;
+      }
+      // 如果脚本不存在,则安装脚本
+      result.push(this.pullScript(fs, file));
+    });
+    // 上传剩下的脚本
+    scriptMap.forEach((script) => {
+      result.push(this.pushScript(fs, script));
+    });
+    // 忽略错误
+    await Promise.allSettled(result);
+    // 重新获取文件列表,保存文件摘要
+    this.logger.info("sync complete");
+    await this.updateFileDigest(fs);
+  }
+
+  async updateFileDigest(fs: FileSystem) {
+    const newList = await fs.list();
+    const newFileDigestMap: { [key: string]: string } = {};
+    newList.forEach((file) => {
+      newFileDigestMap[file.name] = file.digest;
+    });
+    await this.storage.set("file_digest", newFileDigestMap);
+    return Promise.resolve();
+  }
+
+  // 删除云端脚本数据
+  async deleteCloudScript(fs: FileSystem, script: Script) {
+    const filename = `${script.uuid}.user.js`;
+    const logger = this.logger.with({
+      scriptId: script.id,
+      name: script.name,
+      file: filename,
+    });
+    try {
+      await fs.delete(filename);
+      await fs.delete(`${script.uuid}.meta.json`);
+    } catch (e) {
+      logger.error("delete file error", Logger.E(e));
+    }
+    return Promise.resolve();
+  }
+
+  // 上传脚本
+  async pushScript(fs: FileSystem, script: Script) {
+    const filename = `${script.uuid}.user.js`;
+    const logger = this.logger.with({
+      scriptId: script.id,
+      name: script.name,
+      file: filename,
+    });
+    try {
+      const w = await fs.create(filename);
+      await w.write(script.code);
+      const meta = await fs.create(`${script.uuid}.meta.json`);
+      await meta.write(
+        JSON.stringify(<SyncMeta>{
+          uuid: script.uuid,
+          origin: script.origin,
+          downloadUrl: script.downloadUrl,
+          checkUpdateUrl: script.checkUpdateUrl,
+        })
+      );
+      logger.info("push script success");
+    } catch (e) {
+      logger.error("push script error", Logger.E(e));
+      throw e;
+    }
+    return Promise.resolve();
+  }
+
+  async pullScript(fs: FileSystem, file: File, script?: Script) {
+    const logger = this.logger.with({
+      scriptId: script?.id || -1,
+      name: script?.name || "",
+      file: file.name,
+    });
+    try {
+      const uuid = file.name.substring(0, file.name.length - 8);
+      // 读取代码文件
+      const r = await fs.open(file.name);
+      const code = (await r.read("string")) as string;
+      const newScript = await prepareScriptByCode(
+        code,
+        script?.downloadUrl || "",
+        script?.uuid || uuid || undefined
+      );
+      this.scriptManager.event.upsertHandler(newScript);
+      logger.info("pull script success");
+    } catch (e) {
+      logger.error("pull script error", Logger.E(e));
+    }
+    return Promise.resolve();
+  }
 
   // 生成备份文件到文件系统
   async backup(fs: FileSystem) {
     // 生成导出数据
     const data: BackupData = {
-      script: await this.generateScriptBackupData(),
+      script: await this.getScriptBackupData(),
       subscribe: [],
     };
 
     await new BackupExport(fs).export(data);
   }
 
-  async generateScriptBackupData() {
+  async getScriptBackupData() {
     // 获取所有脚本
     const list = await this.scriptDAO.table.toArray();
-    const result = list.map(async (script): Promise<ScriptBackupData> => {
-      const ret = {
-        code: script.code,
-        options: {
-          options: this.scriptOption(script),
-          settings: {
-            enabled: script.status === SCRIPT_STATUS_ENABLE,
-            position: script.sort,
-          },
-          meta: {
-            name: script.name,
-            // NOTE: tm会对同名的uuid校验,先屏蔽了
-            // uuid: script.uuid,
-            modified: script.updatetime,
-            file_url: script.downloadUrl,
-            subscribe_url: script.subscribeUrl,
-          },
-        },
-        // storage,
-        requires: [],
-        requiresCss: [],
-        resources: [],
-      } as unknown as ScriptBackupData;
-      const storage: ValueStorage = {
-        data: {},
-        ts: new Date().getTime(),
-      };
-      const values = await this.valueManager.getValues(script);
-      Object.keys(values).forEach((key) => {
-        storage.data[key] = values[key].value;
-      });
-      const requires = await this.resourceManager.getRequireResource(script);
-      const requiresCss = await this.resourceManager.getRequireCssResource(
-        script
-      );
-      const resources = await this.resourceManager.getResourceResource(script);
-
-      ret.requires = this.resourceToBackdata(requires);
-      ret.requiresCss = this.resourceToBackdata(requiresCss);
-      ret.resources = this.resourceToBackdata(resources);
-
-      ret.storage = storage;
-      return Promise.resolve(ret);
-    });
+    const result = list.map(
+      async (script): Promise<ScriptBackupData> =>
+        this.generateScriptBackupData(script)
+    );
     return Promise.all(result);
+  }
+
+  async generateScriptBackupData(script: Script): Promise<ScriptBackupData> {
+    const ret = {
+      code: script.code,
+      options: {
+        options: this.scriptOption(script),
+        settings: {
+          enabled: script.status === SCRIPT_STATUS_ENABLE,
+          position: script.sort,
+        },
+        meta: {
+          name: script.name,
+          // NOTE: tm会对同名的uuid校验,先屏蔽了
+          // uuid: script.uuid,
+          modified: script.updatetime,
+          file_url: script.downloadUrl,
+          subscribe_url: script.subscribeUrl,
+        },
+      },
+      // storage,
+      requires: [],
+      requiresCss: [],
+      resources: [],
+    } as unknown as ScriptBackupData;
+    const storage: ValueStorage = {
+      data: {},
+      ts: new Date().getTime(),
+    };
+    const values = await this.valueManager.getValues(script);
+    Object.keys(values).forEach((key) => {
+      storage.data[key] = values[key].value;
+    });
+    const requires = await this.resourceManager.getRequireResource(script);
+    const requiresCss = await this.resourceManager.getRequireCssResource(
+      script
+    );
+    const resources = await this.resourceManager.getResourceResource(script);
+
+    ret.requires = this.resourceToBackdata(requires);
+    ret.requiresCss = this.resourceToBackdata(requiresCss);
+    ret.resources = this.resourceToBackdata(resources);
+
+    ret.storage = storage;
+    return Promise.resolve(ret);
   }
 
   resourceToBackdata(resource: { [key: string]: Resource }) {

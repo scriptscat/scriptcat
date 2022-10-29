@@ -14,6 +14,10 @@ export default class ZipFileSystem implements FileSystem {
     this.zip = zip || new JSZip();
   }
 
+  verify(): Promise<void> {
+    return Promise.resolve();
+  }
+
   open(path: string): Promise<FileReader> {
     const file = this.zip.file(path);
     if (file) {
@@ -41,6 +45,7 @@ export default class ZipFileSystem implements FileSystem {
         name: key,
         path: key,
         size: 0,
+        digest: "",
         createtime: this.zip.files[key].date.getTime(),
         updatetime: this.zip.files[key].date.getTime(),
       });

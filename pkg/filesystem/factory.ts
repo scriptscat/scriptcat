@@ -14,21 +14,23 @@ export type FileSystemParams = {
 
 export default class FileSystemFactory {
   static create(type: FileSystemType, params: any): Promise<FileSystem> {
+    let fs: FileSystem;
     switch (type) {
       case "zip":
-        return Promise.resolve(new ZipFileSystem(params));
+        fs = new ZipFileSystem(params);
+        break;
       case "webdav":
-        return Promise.resolve(
-          new WebDAVFileSystem(
-            params.authType,
-            params.url,
-            params.username,
-            params.password
-          )
+        fs = new WebDAVFileSystem(
+          params.authType,
+          params.url,
+          params.username,
+          params.password
         );
+        break;
       default:
         throw new Error("not found filesystem");
     }
+    return fs.verify().then(() => fs);
   }
 
   static params(): { [key: string]: FileSystemParams } {

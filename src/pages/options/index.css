@@ -10,3 +10,7 @@ h5.arco-typography,
 h6.arco-typography {
   margin-top: 0 !important;
 }
+
+.script-list .arco-card-body {
+  padding: 0 !important;
+}

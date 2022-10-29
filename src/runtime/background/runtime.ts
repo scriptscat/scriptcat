@@ -35,7 +35,7 @@ export type RuntimeEvent = "start" | "stop" | "watchRunStatus";
 export type ScriptMenuItem = {
   id: number;
   name: string;
-  accessKey: string;
+  accessKey?: string;
   sender: MessageSender;
   channelFlag: string;
 };
@@ -44,6 +44,8 @@ export type ScriptMenu = {
   id: number;
   name: string;
   enable: boolean;
+  updatetime: number;
+  runStatus?: SCRIPT_RUN_STATUS;
   menus?: ScriptMenuItem[];
 };
 
@@ -89,6 +91,7 @@ export default class Runtime extends Manager {
 
   listenEvent(): void {
     // 监听前端消息
+    // 此处是处理执行单次脚本的消息
     this.message.setHandler("runtime-start", (action, id) => {
       return this.scriptDAO
         .findById(id)
@@ -120,13 +123,19 @@ export default class Runtime extends Manager {
           throw e;
         });
     });
+    // 监听脚本运行状态
     this.listenScriptRunStatus();
 
+    // 运行中和开启的后台脚本
+    const runningScript: Map<number, Script> = new Map();
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
           this.enable(item);
+          if (item.type !== SCRIPT_TYPE_NORMAL) {
+            runningScript.set(item.id, item);
+          }
         } else if (item.type === SCRIPT_TYPE_NORMAL) {
           // 只处理未开启的普通页面脚本
           this.disable(item);
@@ -225,19 +234,26 @@ export default class Runtime extends Manager {
       genScriptMenu(activeInfo.tabId, scriptMenu);
     });
 
-    // 运行中的后台脚本
-    const runningScript: Map<number, Script> = new Map();
+    ScriptManager.hook.addListener("enable", (script: Script) => {
+      runningScript.set(script.id, script);
+    });
+    ScriptManager.hook.addListener("disable", (script: Script) => {
+      runningScript.delete(script.id);
+    });
+
     Runtime.hook.addListener(
       "runStatus",
-      (script: number, status: SCRIPT_RUN_STATUS) => {
-        if (status === SCRIPT_RUN_STATUS_RUNNING) {
-          this.scriptDAO.findById(script).then((item) => {
-            if (item) {
-              runningScript.set(script, item);
-            }
-          });
+      async (scriptId: number, status: SCRIPT_RUN_STATUS) => {
+        const script = await this.scriptDAO.findById(scriptId);
+        if (!script) {
+          return;
+        }
+        if (script.status !== SCRIPT_STATUS_ENABLE) {
+          // 没开启并且不是运行中的脚本,删除
+          runningScript.delete(scriptId);
         } else {
-          runningScript.delete(script);
+          // 否则进行一次更新
+          runningScript.set(scriptId, script);
         }
       }
     );
@@ -266,15 +282,16 @@ export default class Runtime extends Manager {
             id: item.id,
             name: item.name,
             enable: item.status === SCRIPT_STATUS_ENABLE,
+            updatetime: item.updatetime || item.createtime,
             menus,
           });
         });
         const backScriptList: ScriptMenu[] = [];
-        const sandboxMap = scriptMenu.get("sandbox");
+        const sandboxMenuMap = scriptMenu.get("sandbox");
         runningScript.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
-          if (sandboxMap) {
-            sandboxMap?.get(item.id)?.forEach((scriptItem) => {
+          if (sandboxMenuMap) {
+            sandboxMenuMap?.get(item.id)?.forEach((scriptItem) => {
               menus.push({
                 name: scriptItem.request.params[1],
                 accessKey: scriptItem.request.params[2],
@@ -288,6 +305,8 @@ export default class Runtime extends Manager {
             id: item.id,
             name: item.name,
             enable: item.status === SCRIPT_STATUS_ENABLE,
+            updatetime: item.updatetime || item.createtime,
+            runStatus: item.runStatus,
             menus,
           });
         });

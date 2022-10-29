@@ -63,10 +63,14 @@ function App() {
             scriptList: ScriptMenu[];
             backScriptList: ScriptMenu[];
           }) => {
-            // 按照开启状态排序
+            // 按照开启状态和更新时间排序
             const list = resp.scriptList;
-            list.sort((a, b) => (a.enable ? 0 : 1) - (b.enable ? 0 : 1));
-
+            list.sort((a, b) => {
+              if (a.enable === b.enable) {
+                return b.updatetime - a.updatetime;
+              }
+              return a.enable ? -1 : 1;
+            });
             setScriptList(list);
             setBackScriptList(resp.backScriptList);
           }
@@ -183,7 +187,7 @@ function App() {
         </CollapseItem>
 
         <CollapseItem
-          header="正在运行的后台脚本"
+          header="开启和运行的后台脚本"
           name="background"
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}

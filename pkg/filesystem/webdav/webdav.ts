@@ -18,6 +18,11 @@ export default class WebDAVFileSystem implements FileSystem {
     });
   }
 
+  async verify(): Promise<void> {
+    await this.client.getQuota();
+    return Promise.resolve();
+  }
+
   open(path: string): Promise<FileReader> {
     return Promise.resolve(new WebDAVFileReader(this.client, path));
   }
@@ -36,7 +41,7 @@ export default class WebDAVFileSystem implements FileSystem {
     )) as FileStat[];
     const ret: File[] = [];
     dir.forEach((item: FileStat) => {
-      if (item.type !== "file" || !item.basename.endsWith(".zip")) {
+      if (item.type !== "file") {
         return;
       }
       ret.push({
@@ -45,6 +50,7 @@ export default class WebDAVFileSystem implements FileSystem {
           0,
           item.filename.length - item.basename.length
         ),
+        digest: item.etag || "",
         size: item.size,
         createtime: new Date(item.lastmod).getTime(),
         updatetime: new Date(item.lastmod).getTime(),
