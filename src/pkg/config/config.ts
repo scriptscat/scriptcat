@@ -128,7 +128,8 @@ export class SystemConfig {
 
   // 更新已经禁用的脚本
   public get updateDisableScript(): boolean {
-    return <boolean>this.cache.get("update_disable_script");
+    const value = <boolean>this.cache.get("update_disable_script");
+    return value === undefined ? true : value;
   }
 
   public set updateDisableScript(enable: boolean) {

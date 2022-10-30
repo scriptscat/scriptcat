@@ -125,6 +125,8 @@ function Tools() {
                     fs = await fs.openDir("ScriptCat");
                     const list = await fs.list();
                     list.sort((a, b) => b.updatetime - a.updatetime);
+                    // 过滤掉非zip文件
+                    list.filter((file) => file.name.endsWith(".zip"));
                     if (list.length === 0) {
                       Message.info("没有备份文件");
                       return;

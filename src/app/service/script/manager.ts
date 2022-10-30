@@ -13,7 +13,12 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { SystemConfig } from "@App/pkg/config/config";
 import Manager from "../manager";
-import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
+import {
+  Metadata,
+  Script,
+  SCRIPT_STATUS_DISABLE,
+  ScriptDAO,
+} from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
 
@@ -187,24 +192,30 @@ export class ScriptManager extends Manager {
       checkUpdateUrl: script.checkUpdateUrl,
     });
     fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true)
-      .then((info) => {
+      .then(async (info) => {
         // 是否静默更新
         if (this.systemConfig.silenceUpdateScript) {
-          prepareScriptByCode(
-            info.code,
-            script.downloadUrl || script.checkUpdateUrl!,
-            script.uuid
-          )
-            .then((newScript) => {
+          try {
+            const newScript = await prepareScriptByCode(
+              info.code,
+              script.downloadUrl || script.checkUpdateUrl!,
+              script.uuid
+            );
+            if (
+              this.checkUpdateRule(
+                newScript.oldScript!.metadata,
+                newScript.metadata
+              )
+            ) {
+              logger.info("silence update script");
               this.event.upsertHandler(newScript);
-            })
-            .catch((e) => {
-              logger.error("prepare script failed", Logger.E(e));
-            });
-          return;
+            }
+          } catch (e) {
+            logger.error("prepare script failed", Logger.E(e));
+            return;
+          }
         }
         Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
-
         chrome.tabs.create({
           url: `src/install.html?uuid=${info.uuid}`,
         });
@@ -212,6 +223,30 @@ export class ScriptManager extends Manager {
       .catch((e) => {
         logger.error("fetch script info failed", Logger.E(e));
       });
+  }
+
+  // 检查订阅规则是否改变,是否能够静默更新
+  public checkUpdateRule(oldMeta: Metadata, newMeta: Metadata): boolean {
+    // 判断connect是否改变
+    const oldConnect = new Map();
+    const newConnect = new Map();
+    oldMeta.connect &&
+      oldMeta.connect.forEach((val) => {
+        oldConnect.set(val, 1);
+      });
+    newMeta.connect &&
+      newMeta.connect.forEach((val) => {
+        newConnect.set(val, 1);
+      });
+    // 老的里面没有新的就需要用户确认了
+    const keys = Object.keys(newConnect);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (!oldConnect.has(key)) {
+        return false;
+      }
+    }
+    return true;
   }
 }
 

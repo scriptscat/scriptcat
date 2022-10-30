@@ -93,8 +93,22 @@ function Setting() {
       </Card>
       <Card title="更新" bordered={false}>
         <Space direction="vertical">
-          <Checkbox>更新已禁用脚本</Checkbox>
-          <Checkbox>非重要变更静默更新脚本</Checkbox>
+          <Checkbox
+            onChange={(checked) => {
+              systemConfig.updateDisableScript = checked;
+            }}
+            defaultChecked={systemConfig.updateDisableScript}
+          >
+            更新已禁用脚本
+          </Checkbox>
+          <Checkbox
+            onChange={(checked) => {
+              systemConfig.silenceUpdateScript = checked;
+            }}
+            defaultChecked={systemConfig.silenceUpdateScript}
+          >
+            非重要变更静默更新脚本
+          </Checkbox>
         </Space>
       </Card>
     </Space>
