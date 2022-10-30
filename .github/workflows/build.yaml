@@ -35,3 +35,10 @@ jobs:
           path: |
             dist/*.zip
             dist/*.crx
+
+      - name: Archive extension
+        uses: actions/upload-artifact@v3
+        with:
+          name: scriptcat
+          path: |
+            dist/ext/*
