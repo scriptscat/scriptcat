@@ -5,7 +5,7 @@ import {
   MessageHander,
   MessageSender,
 } from "@App/app/message/message";
-import { Script } from "@App/app/repo/scripts";
+import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
 import CacheKey from "@App/pkg/utils/cache_key";
@@ -13,19 +13,38 @@ import Cache from "../../cache";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
 
+export type ValueEvent = "upsert";
+
 // value管理器,负责value等更新获取等操作
 @IoC.Singleton(MessageHander, MessageBroadcast)
 export class ValueManager extends Manager {
   valueDAO: ValueDAO;
 
+  scriptDAO: ScriptDAO;
+
   broadcast: IMessageBroadcast;
 
   constructor(message: MessageHander, broadcast: IMessageBroadcast) {
-    super(message);
+    super(message, "value");
 
     this.broadcast = broadcast;
-
+    this.scriptDAO = new ScriptDAO();
     this.valueDAO = new ValueDAO();
+  }
+
+  start() {
+    // 监听消息
+    this.listenEvent(
+      "upsert",
+      async (data: { scriptId: number; key: string; value: any }, sender) => {
+        const { scriptId, key, value } = data;
+        const script = await this.scriptDAO.findById(scriptId);
+        if (!script) {
+          return Promise.reject(new Error("script not found"));
+        }
+        return this.setValue(script, key, value, sender);
+      }
+    );
 
     ScriptManager.hook.addListener("delete", () => {
       // 清理缓存

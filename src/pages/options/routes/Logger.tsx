@@ -6,6 +6,7 @@ import {
   DatePicker,
   Input,
   List,
+  Message,
   Space,
 } from "@arco-design/web-react";
 import dayjs from "dayjs";
@@ -262,6 +263,36 @@ function Subscribe() {
             className="show-log-card"
             bordered={false}
             title="日志"
+            extra={
+              <Space>
+                <Button
+                  type="primary"
+                  status="warning"
+                  onClick={() => {
+                    queryLogs.forEach((log) => {
+                      loggerDAO.delete(log.id);
+                    });
+                    setQueryLogs([]);
+                    setLogs([]);
+                    Message.info("删除完成");
+                  }}
+                >
+                  删除当前日志
+                </Button>
+                <Button
+                  type="primary"
+                  status="danger"
+                  onClick={() => {
+                    loggerDAO.clear();
+                    setQueryLogs([]);
+                    setLogs([]);
+                    Message.info("清空完成");
+                  }}
+                >
+                  清空日志
+                </Button>
+              </Space>
+            }
             style={{
               padding: 8,
               height: "100%",

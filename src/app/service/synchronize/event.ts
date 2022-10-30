@@ -30,7 +30,7 @@ export default class SynchronizeEventListener {
   }
 
   listenEvent(event: SynchronizeEvent, handler: Handler) {
-    this.manager.listenEvent(`sync-${event}`, handler);
+    this.manager.listenEvent(event, handler);
   }
 
   init() {

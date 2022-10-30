@@ -15,6 +15,7 @@ import {
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
+import { InfoNotification } from "@App/pkg/utils/utils";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import Manager from "../manager";
@@ -64,7 +65,7 @@ export default class SynchronizeManager extends Manager {
     resourceManager: ResourceManager,
     scriptManager: ScriptManager
   ) {
-    super(center);
+    super(center, "sync");
     this.systemConfig = systemConfig;
     this.event = new SynchronizeEventListener(this);
     this.valueManager = valueManager;
@@ -123,7 +124,10 @@ export default class SynchronizeManager extends Manager {
 
     const freeFn: (() => void)[] = [];
     // 监听脚本更新事件
-    const upsertFn = async (script: Script) => {
+    const upsertFn = async (script: Script, upsertBy: string) => {
+      if (upsertBy === "sync") {
+        return;
+      }
       await this.pushScript(fs, script);
       this.updateFileDigest(fs);
     };
@@ -139,14 +143,22 @@ export default class SynchronizeManager extends Manager {
     }
 
     // 先设置死半小时同步一次吧
-    const ts = setInterval(() => {
-      this.syncOnce(fs);
+    const ts = setInterval(async () => {
+      try {
+        await this.syncOnce(fs);
+      } catch (e: any) {
+        InfoNotification("同步失败,请检查同步配置", e);
+      }
     }, 60 * 30 * 1000);
     freeFn.push(() => {
       clearInterval(ts);
     });
 
-    this.syncOnce(fs);
+    try {
+      await this.syncOnce(fs);
+    } catch (e: any) {
+      InfoNotification("同步失败,请检查同步配置", e);
+    }
     return Promise.resolve(() => {
       logger.info("stop cloud sync");
       // 当停止云同步时,移除监听
@@ -155,7 +167,7 @@ export default class SynchronizeManager extends Manager {
   }
 
   // 同步一次
-  async syncOnce(fs: FileSystem) {
+  async syncOnce(fs: FileSystem): Promise<void> {
     this.logger.info("start sync once");
     // 首次同步
     const list = await fs.list();
@@ -217,6 +229,7 @@ export default class SynchronizeManager extends Manager {
     // 重新获取文件列表,保存文件摘要
     this.logger.info("sync complete");
     await this.updateFileDigest(fs);
+    return Promise.resolve();
   }
 
   async updateFileDigest(fs: FileSystem) {
@@ -285,12 +298,17 @@ export default class SynchronizeManager extends Manager {
       // 读取代码文件
       const r = await fs.open(file.name);
       const code = (await r.read("string")) as string;
+      // 读取meta文件
+      const meta = await fs.open(`${uuid}.meta.json`);
+      const metaJson = (await meta.read("string")) as string;
+      const metaObj = JSON.parse(metaJson) as SyncMeta;
       const newScript = await prepareScriptByCode(
         code,
-        script?.downloadUrl || "",
-        script?.uuid || uuid || undefined
+        script?.downloadUrl || metaObj.downloadUrl || "",
+        script?.uuid || metaObj.uuid || undefined
       );
-      this.scriptManager.event.upsertHandler(newScript);
+      newScript.origin = newScript.origin || metaObj.origin;
+      this.scriptManager.event.upsertHandler(newScript, "sync");
       logger.info("pull script success");
     } catch (e) {
       logger.error("pull script error", Logger.E(e));

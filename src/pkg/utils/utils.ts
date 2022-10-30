@@ -96,3 +96,12 @@ export function isFirefox() {
   }
   return false;
 }
+
+export function InfoNotification(title: string, msg: string) {
+  chrome.notifications.create({
+    type: "basic",
+    title,
+    message: msg,
+    iconUrl: chrome.runtime.getURL("assets/logo.png"),
+  });
+}

@@ -22,6 +22,7 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
+  UserConfig,
 } from "@App/app/repo/scripts";
 import {
   IconBug,
@@ -40,9 +41,10 @@ import {
   RiDeleteBin5Fill,
   RiPencilFill,
   RiPlayFill,
+  RiSettings3Fill,
   RiStopFill,
 } from "react-icons/ri";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
@@ -65,16 +67,46 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import IoC from "@App/app/ioc";
 import RuntimeController from "@App/runtime/content/runtime";
+import UserConfigPanel from "@App/pages/components/UserConfigPanel";
+import ValueManager from "@App/app/service/value/manager";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
 
+function getValues(script: Script) {
+  const { config } = script;
+  return (IoC.instance(ValueManager) as ValueManager)
+    .getValues(script)
+    .then((data) => {
+      const newValues: { [key: string]: any } = {};
+      Object.keys(config!).forEach((tabKey) => {
+        const tab = config![tabKey];
+        Object.keys(tab).forEach((key) => {
+          newValues[`${tabKey}.${key}`] =
+            data[`${tabKey}.${key}`] === undefined
+              ? config![tabKey][key].default
+              : data[`${tabKey}.${key}`].value;
+        });
+      });
+      return newValues;
+    });
+}
+
 function ScriptList() {
+  const [userConfig, setUserConfig] = useState<{
+    script: Script;
+    userConfig: UserConfig;
+    values: { [key: string]: any };
+  }>();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   const [scriptList, setScriptList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
+  const openUserConfig = parseInt(
+    useSearchParams()[0].get("userConfig") || "",
+    10
+  );
 
   useEffect(() => {
     // 监听脚本运行状态
@@ -98,10 +130,12 @@ function ScriptList() {
     {
       title: "#",
       dataIndex: "id",
+      width: 70,
       sorter: (a, b) => a.id - b.id,
     },
     {
       title: "开启",
+      width: 100,
       sorter(a, b) {
         return a.status - b.status;
       },
@@ -197,7 +231,7 @@ function ScriptList() {
     {
       title: "版本",
       dataIndex: "version",
-      className: "min-w-[100px]",
+      width: 100,
       align: "center",
       render(col, item: Script) {
         return item.metadata.version && item.metadata.version[0];
@@ -206,6 +240,7 @@ function ScriptList() {
     {
       title: "应用至/运行状态",
       dataIndex: "status",
+      width: 140,
       render(col, item: Script) {
         const toLogger = () => {
           navigate({
@@ -262,6 +297,7 @@ function ScriptList() {
     {
       title: "来源",
       dataIndex: "origin",
+      width: 80,
       render(col, item: Script) {
         if (item.subscribeUrl) {
           return (
@@ -330,7 +366,6 @@ function ScriptList() {
     {
       title: "主页",
       dataIndex: "home",
-      className: "max-w-[100px] overflow-hidden",
       align: "center",
       render(col, item: Script) {
         return (
@@ -402,6 +437,7 @@ function ScriptList() {
     {
       title: "排序",
       dataIndex: "sort",
+      width: 80,
       sorter: (a, b) => a.sort - b.sort,
       align: "center",
       render() {
@@ -498,7 +534,25 @@ function ScriptList() {
                 }}
               />
             </Popconfirm>
-
+            {item.config && (
+              <Button
+                type="text"
+                icon={<RiSettings3Fill />}
+                onClick={() => {
+                  // 获取value
+                  getValues(item).then((newValues) => {
+                    setUserConfig({
+                      userConfig: { ...item.config! },
+                      script: item,
+                      values: newValues,
+                    });
+                  });
+                }}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            )}
             {item.type !== SCRIPT_TYPE_NORMAL &&
               (item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? (
                 <Button
@@ -572,9 +626,20 @@ function ScriptList() {
     dao.table
       .orderBy("sort")
       .toArray()
-      .then((scripts) => {
+      .then(async (scripts) => {
         // 新脚本加入时是-1,进行一次排序
         scriptListSort(scripts);
+        // 打开用户配置面板
+        if (openUserConfig) {
+          const script = scripts.find((item) => item.id === openUserConfig);
+          if (script && script.config) {
+            setUserConfig({
+              script,
+              userConfig: script.config,
+              values: await getValues(script),
+            });
+          }
+        }
         setScriptList(scripts);
       });
   }, []);
@@ -687,6 +752,13 @@ function ScriptList() {
           hideOnSinglePage: true,
         }}
       />
+      {userConfig && (
+        <UserConfigPanel
+          script={userConfig.script}
+          userConfig={userConfig.userConfig}
+          values={userConfig.values}
+        />
+      )}
     </Card>
   );
 }

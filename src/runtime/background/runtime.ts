@@ -44,6 +44,7 @@ export type ScriptMenu = {
   name: string;
   enable: boolean;
   updatetime: number;
+  hasUserConfig: boolean;
   runStatus?: SCRIPT_RUN_STATUS;
   menus?: ScriptMenuItem[];
 };
@@ -75,7 +76,7 @@ export default class Runtime extends Manager {
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
-    super(message);
+    super(message, "runtime");
     this.scriptDAO = new ScriptDAO();
     this.messageSandbox = messageSandbox;
     this.resourceManager = resourceManager;
@@ -88,10 +89,10 @@ export default class Runtime extends Manager {
     ScriptManager.hook.addListener("disable", this.scriptUpdate.bind(this));
   }
 
-  listenEvent(): void {
+  start(): void {
     // 监听前端消息
     // 此处是处理执行单次脚本的消息
-    this.message.setHandler("runtime-start", (action, id) => {
+    this.listenEvent("start", (id) => {
       return this.scriptDAO
         .findById(id)
         .then((script) => {
@@ -107,7 +108,7 @@ export default class Runtime extends Manager {
         });
     });
 
-    this.message.setHandler("runtime-stop", (action, id) => {
+    this.listenEvent("stop", (id) => {
       return this.scriptDAO
         .findById(id)
         .then((script) => {
@@ -279,6 +280,7 @@ export default class Runtime extends Manager {
             name: item.name,
             enable: item.status === SCRIPT_STATUS_ENABLE,
             updatetime: item.updatetime || item.createtime,
+            hasUserConfig: !!item.config,
             menus,
           });
         });
@@ -303,6 +305,7 @@ export default class Runtime extends Manager {
             enable: item.status === SCRIPT_STATUS_ENABLE,
             updatetime: item.updatetime || item.createtime,
             runStatus: item.runStatus,
+            hasUserConfig: !!item.config,
             menus,
           });
         });

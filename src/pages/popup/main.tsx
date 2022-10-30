@@ -8,11 +8,21 @@ import "uno.css";
 import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
-import App from "./App";
 import "./index.css";
+import LoggerCore from "@App/app/logger/core";
+import DBWriter from "@App/app/logger/db_writer";
+import { LoggerDAO } from "@App/app/repo/logger";
 import { switchLight } from "../components/layout/MainLayout";
+import App from "./App";
 
 migrate();
+// 初始化日志组件
+const loggerCore = new LoggerCore({
+  debug: process.env.NODE_ENV === "development",
+  writer: new DBWriter(new LoggerDAO()),
+  labels: { env: "options" },
+});
+loggerCore.logger().debug("popup start");
 
 const con = new MessageInternal("popup");
 

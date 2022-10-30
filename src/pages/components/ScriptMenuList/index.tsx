@@ -14,6 +14,7 @@ import {
 import {
   IconDelete,
   IconEdit,
+  IconMenu,
   IconSettings,
 } from "@arco-design/web-react/icon";
 import IoC from "@App/app/ioc";
@@ -157,7 +158,7 @@ const ScriptMenuList: React.FC<{
                   className="text-left"
                   key={menu.id}
                   type="secondary"
-                  icon={<IconSettings />}
+                  icon={<IconMenu />}
                   onClick={() => {
                     sendMenuAction(menu.sender, menu.channelFlag);
                   }}
@@ -167,6 +168,23 @@ const ScriptMenuList: React.FC<{
                 </Button>
               );
             })}
+            {item.hasUserConfig && (
+              <Button
+                className="text-left"
+                key="config"
+                type="secondary"
+                icon={<IconSettings />}
+                onClick={() => {
+                  window.open(
+                    `/src/options.html#/?userConfig=${item.id}`,
+                    "_blank"
+                  );
+                  window.close();
+                }}
+              >
+                用户配置
+              </Button>
+            )}
           </div>
         </Collapse>
       ))}

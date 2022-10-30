@@ -4,12 +4,12 @@ import {
   Script,
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   UserConfig,
-  SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
 import YAML from "yaml";
 import { Subscribe } from "@App/app/repo/subscribe";

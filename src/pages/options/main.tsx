@@ -30,12 +30,12 @@ loggerCore.logger().debug("options start");
 // 注册编辑器需要的资源
 registerEditor();
 
+const message = new MessageInternal("options");
 // 注册MessageHandler
-IoC.registerInstance(MessageHander, new MessageInternal("options")).alias([
+IoC.registerInstance(MessageHander, message).alias([
   MessageInternal,
   MessageBroadcast,
 ]);
-
 IoC.instance(SystemConfig);
 
 // 初始化沙盒通讯

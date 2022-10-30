@@ -26,6 +26,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import RuntimeController from "@App/runtime/content/runtime";
+import ScriptStorage from "@App/pages/components/ScriptStorage";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -77,7 +78,9 @@ const Editor: React.FC<{
 
 type EditorMenu = {
   title: string;
-  items: {
+  tooltip?: string;
+  action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+  items?: {
     title: string;
     tooltip?: string;
     hotKey?: number;
@@ -85,7 +88,7 @@ type EditorMenu = {
   }[];
 };
 
-const emptyScript = async (template: string, hotKeys: any, target: string) => {
+const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   let code = "";
   switch (template) {
     case "background":
@@ -118,11 +121,6 @@ const emptyScript = async (template: string, hotKeys: any, target: string) => {
   });
 };
 
-type ScriptSetting = {
-  visible: boolean;
-  script?: Script;
-};
-
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
@@ -130,8 +128,12 @@ function ScriptEditor() {
   const template = useSearchParams()[0].get("template") || "";
   const target = useSearchParams()[0].get("target") || "";
   const navigate = useNavigate();
-  const [scriptSetting, setScriptSetting] = useState<ScriptSetting>({
-    visible: false,
+  const [visible, setVisible] = useState<{
+    scriptStorage: boolean;
+    scriptSetting: boolean;
+  }>({
+    scriptStorage: false,
+    scriptSetting: false,
   });
   const [editors, setEditors] = useState<
     {
@@ -144,6 +146,7 @@ function ScriptEditor() {
     }[]
   >([]);
   const [scriptList, setScriptList] = useState<Script[]>([]);
+  const [currentScript, setCurrentScript] = useState<Script>();
 
   const { id } = useParams();
   const save = (
@@ -232,19 +235,31 @@ function ScriptEditor() {
       ],
     },
     {
-      title: "设置",
+      title: "工具",
       items: [
         {
-          title: "脚本设置",
-          tooltip: "对脚本进行一些自定义设置",
-          action: async (script) => {
-            setScriptSetting({
-              visible: true,
-              script,
+          title: "脚本储存",
+          tooltip: "可以管理脚本GM_value的储存数据",
+          action(script) {
+            setVisible({
+              scriptStorage: true,
+              scriptSetting: false,
             });
+            setCurrentScript(script);
           },
         },
       ],
+    },
+    {
+      title: "设置",
+      tooltip: "对脚本进行一些自定义设置",
+      action(script) {
+        setVisible({
+          scriptStorage: false,
+          scriptSetting: true,
+        });
+        setCurrentScript(script);
+      },
     },
   ];
 
@@ -258,14 +273,15 @@ function ScriptEditor() {
     }
   }
   menu.forEach((item) => {
-    item.items.forEach((menuItem) => {
-      if (menuItem.hotKey) {
-        hotKeys.push({
-          hotKey: menuItem.hotKey,
-          action: menuItem.action,
-        });
-      }
-    });
+    item.items &&
+      item.items.forEach((menuItem) => {
+        if (menuItem.hotKey) {
+          hotKeys.push({
+            hotKey: menuItem.hotKey,
+            action: menuItem.action,
+          });
+        }
+      });
   });
   useEffect(() => {
     scriptDAO.table
@@ -333,18 +349,36 @@ function ScriptEditor() {
         height: "calc(100% + 20px)",
       }}
     >
-      <Drawer
-        width={332}
-        title={<span>脚本设置</span>}
-        visible={scriptSetting.visible}
+      <ScriptStorage
+        visible={visible.scriptStorage}
+        script={currentScript}
         onOk={() => {
-          setScriptSetting({
-            visible: false,
+          setVisible({
+            scriptStorage: false,
+            scriptSetting: false,
           });
         }}
         onCancel={() => {
-          setScriptSetting({
-            visible: false,
+          setVisible({
+            scriptStorage: false,
+            scriptSetting: false,
+          });
+        }}
+      />
+      <Drawer
+        width={332}
+        title={<span>{currentScript?.name} 脚本设置</span>}
+        visible={visible.scriptSetting}
+        onOk={() => {
+          setVisible({
+            scriptStorage: false,
+            scriptSetting: false,
+          });
+        }}
+        onCancel={() => {
+          setVisible({
+            scriptStorage: false,
+            scriptSetting: false,
           });
         }}
       >
@@ -358,37 +392,77 @@ function ScriptEditor() {
         }}
       >
         <div className="flex flex-row">
-          {menu.map((item, index) => (
-            <Dropdown
-              key={`d_${index.toString()}`}
-              droplist={
-                <Menu
-                  style={{
-                    backgroundColor: "var(--color-bg-2)",
-                    padding: "0",
-                    margin: "0",
-                    borderRadius: "0",
+          {menu.map((item, index) => {
+            if (!item.items) {
+              // 没有子菜单
+              return (
+                <Button
+                  size="mini"
+                  onClick={() => {
+                    setEditors((prev) => {
+                      prev.forEach((e) => {
+                        if (e.active) {
+                          item.action && item.action(e.script, e.editor!);
+                        }
+                      });
+                      return prev;
+                    });
                   }}
                 >
-                  {item.items.map((menuItem, i) => {
-                    const btn = (
-                      <Button
-                        size="mini"
-                        onClick={() => {
-                          setEditors((prev) => {
-                            prev.forEach((e) => {
-                              if (e.active) {
-                                menuItem.action(e.script, e.editor!);
-                              }
+                  {item.title}
+                </Button>
+              );
+            }
+            return (
+              <Dropdown
+                key={`d_${index.toString()}`}
+                droplist={
+                  <Menu
+                    style={{
+                      backgroundColor: "var(--color-bg-2)",
+                      padding: "0",
+                      margin: "0",
+                      borderRadius: "0",
+                    }}
+                  >
+                    {item.items.map((menuItem, i) => {
+                      const btn = (
+                        <Button
+                          size="mini"
+                          onClick={() => {
+                            setEditors((prev) => {
+                              prev.forEach((e) => {
+                                if (e.active) {
+                                  menuItem.action(e.script, e.editor!);
+                                }
+                              });
+                              return prev;
                             });
-                            return prev;
-                          });
-                        }}
-                      >
-                        {menuItem.title}
-                      </Button>
-                    );
-                    if (menuItem.tooltip) {
+                          }}
+                        >
+                          {menuItem.title}
+                        </Button>
+                      );
+                      if (menuItem.tooltip) {
+                        return (
+                          <Menu.Item
+                            key={`m_${i.toString()}`}
+                            style={{
+                              height: "unset",
+                              padding: "0",
+                              lineHeight: "unset",
+                            }}
+                          >
+                            <Tooltip
+                              key={`m${i.toString()}`}
+                              position="right"
+                              content={menuItem.tooltip}
+                            >
+                              {btn}
+                            </Tooltip>
+                          </Menu.Item>
+                        );
+                      }
                       return (
                         <Menu.Item
                           key={`m_${i.toString()}`}
@@ -398,37 +472,19 @@ function ScriptEditor() {
                             lineHeight: "unset",
                           }}
                         >
-                          <Tooltip
-                            key={`m${i.toString()}`}
-                            position="right"
-                            content={menuItem.tooltip}
-                          >
-                            {btn}
-                          </Tooltip>
+                          {btn}
                         </Menu.Item>
                       );
-                    }
-                    return (
-                      <Menu.Item
-                        key={`m_${i.toString()}`}
-                        style={{
-                          height: "unset",
-                          padding: "0",
-                          lineHeight: "unset",
-                        }}
-                      >
-                        {btn}
-                      </Menu.Item>
-                    );
-                  })}
-                </Menu>
-              }
-              trigger="click"
-              position="bl"
-            >
-              <Button size="mini">{item.title}</Button>
-            </Dropdown>
-          ))}
+                    })}
+                  </Menu>
+                }
+                trigger="click"
+                position="bl"
+              >
+                <Button size="mini">{item.title}</Button>
+              </Dropdown>
+            );
+          })}
         </div>
       </div>
       <Row

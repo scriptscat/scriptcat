@@ -45,6 +45,12 @@ export default class SandboxRuntime {
     this.listenEvent("disable", this.disable);
     this.listenEvent("start", this.start);
     this.listenEvent("stop", this.stop);
+    // 监听值更新
+    this.message.setHandler("valueUpdate", (action, data) => {
+      this.execScripts.forEach((val) => {
+        val.valueUpdate(data);
+      });
+    });
   }
 
   // 直接运行脚本
@@ -122,21 +128,26 @@ export default class SandboxRuntime {
     const ret = exec.exec();
     if (ret instanceof Promise) {
       ret
-        .then(() => {
+        .then((resp) => {
           // 发送执行完成消息
           this.message.send("scriptRunStatus", [
             exec.scriptRes.id,
             SCRIPT_RUN_STATUS_COMPLETE,
           ]);
+          logger.info("exec script complete", {
+            value: resp,
+          });
         })
         .catch((err) => {
           // 发送执行完成+错误消息
-          logger.error(err);
+          logger.error("exec script error", Logger.E(err));
           this.message.send("scriptRunStatus", [
             exec.scriptRes.id,
             SCRIPT_RUN_STATUS_ERROR,
             Logger.E(err),
           ]);
+          // 错误还是抛出,方便排查
+          throw err;
         });
     } else {
       logger.warn("backscript return not promise");

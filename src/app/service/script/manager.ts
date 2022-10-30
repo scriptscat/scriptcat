@@ -36,7 +36,7 @@ export class ScriptManager extends Manager {
   systemConfig: SystemConfig;
 
   constructor(center: MessageHander, systemConfig: SystemConfig) {
-    super(center);
+    super(center, "script");
     this.event = new ScriptEventListener(this, new ScriptDAO());
     this.scriptDAO = new ScriptDAO();
     this.systemConfig = systemConfig;

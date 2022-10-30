@@ -1,7 +1,7 @@
 import { Channel } from "./channel";
 import {
   ChannelManager,
-  MessageBroadcast,
+  IMessageBroadcast,
   MessageHander,
   MessageManager,
   Target,
@@ -12,26 +12,32 @@ import {
 // 扩展内部页用连接,除background页使用,使用runtime.connect连接到background
 export default class MessageInternal
   extends MessageHander
-  implements MessageManager, MessageBroadcast
+  implements MessageManager, IMessageBroadcast
 {
-  port: chrome.runtime.Port;
+  port!: chrome.runtime.Port;
 
-  channelManager: ChannelManager;
+  channelManager!: ChannelManager;
+
+  onDisconnect?: () => void;
 
   constructor(tag: TargetTag) {
     super();
+    this.reconnect(tag);
+  }
+
+  reconnect(tag: TargetTag) {
     this.port = chrome.runtime.connect({
       name: tag,
     });
     this.channelManager = new WarpChannelManager((data) => {
       this.nativeSend(data);
     });
-
     this.port.onMessage.addListener((message) => {
       this.handler(message, this.channelManager, { targetTag: "content" });
     });
     this.port.onDisconnect.addListener(() => {
       this.channelManager.free();
+      this.onDisconnect?.();
     });
   }
 

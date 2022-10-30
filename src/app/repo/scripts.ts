@@ -41,6 +41,10 @@ export interface Config {
   type?: ConfigType;
   bind?: string;
   values?: any[];
+  password?: boolean;
+  // 文本类型时是字符串长度,数字类型时是最大值
+  max?: number;
+  min?: number;
 }
 
 export type UserConfig = { [key: string]: { [key: string]: Config } };

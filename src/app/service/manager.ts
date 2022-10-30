@@ -1,19 +1,30 @@
-import { MessageHander } from "../message/message";
+import LoggerCore from "../logger/core";
+import Logger from "../logger/logger";
+import { MessageHander, MessageSender } from "../message/message";
 
-export type Handler = (data: any) => void | Promise<any>;
+export type Handler = (data: any, sender: MessageSender) => void | Promise<any>;
 
-export default class Manager {
+export default abstract class Manager {
   message: MessageHander;
 
-  constructor(message: MessageHander) {
+  name: string;
+
+  logger: Logger;
+
+  constructor(message: MessageHander, name: string) {
     this.message = message;
+    this.name = name;
+    this.logger = LoggerCore.getLogger({ component: this.name, manager: true });
   }
 
   public listenEvent(action: string, func: Handler) {
-    this.message.setHandler(action, (_action: string, data: any) => {
-      return new Promise((resolve) => {
-        resolve(func(data));
-      });
-    });
+    this.message.setHandler(
+      `${this.name}-${action}`,
+      (_action: string, data: any, sender: MessageSender) => {
+        return new Promise((resolve) => {
+          resolve(func(data, sender));
+        });
+      }
+    );
   }
 }

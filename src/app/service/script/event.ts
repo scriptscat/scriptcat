@@ -42,13 +42,13 @@ export default class ScriptEventListener {
     this.cache = Cache.getInstance();
     this.logger = LoggerCore.getInstance().logger({ component: "script" });
     Object.keys(events).forEach((event) => {
-      this.manager.listenEvent(`script-${event}`, events[event].bind(this));
+      this.manager.listenEvent(event, events[event].bind(this));
     });
   }
 
   // 安装或者更新脚本,将数据保存到数据库
   @ListenEventDecorator("upsert")
-  public upsertHandler(script: Script) {
+  public upsertHandler(script: Script, upsertBy: "user" | "sync" = "user") {
     return new Promise((resolve, reject) => {
       const logger = this.logger.with({
         scriptId: script.id,
@@ -60,7 +60,7 @@ export default class ScriptEventListener {
       this.dao.save(script).then(
         () => {
           logger.info("script upsert success");
-          ScriptManager.hook.trigger("upsert", script);
+          ScriptManager.hook.trigger("upsert", script, upsertBy);
           resolve({ id: script.id });
         },
         (e) => {

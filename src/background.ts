@@ -57,8 +57,10 @@ center.setHandler("sandboxOnload", () => {
   );
   IoC.registerInstance(Runtime, runtime);
   // 脚本后台处理器
-  runtime.listenEvent();
-  IoC.instance(ScriptManager).start();
+  runtime.start();
+  // 值后台处理器
+  valueManager.start();
+  (IoC.instance(ScriptManager) as ScriptManager).start();
   // 同步处理器
   IoC.instance(SynchronizeManager).start();
 });
