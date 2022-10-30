@@ -12,6 +12,7 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
+import Hook from "../hook";
 
 export type ValueEvent = "upsert";
 
@@ -23,6 +24,8 @@ export class ValueManager extends Manager {
   scriptDAO: ScriptDAO;
 
   broadcast: IMessageBroadcast;
+
+  static hook: Hook = new Hook<"upsert">();
 
   constructor(message: MessageHander, broadcast: IMessageBroadcast) {
     super(message, "value");
@@ -43,6 +46,27 @@ export class ValueManager extends Manager {
           return Promise.reject(new Error("script not found"));
         }
         return this.setValue(script, key, value, sender);
+      }
+    );
+
+    this.message.setHandlerWithChannel(
+      "watchValue",
+      async (channel, _action, script: Script) => {
+        const hook = (value: Value) => {
+          // 判断是否是当前脚本关注的value
+          if (script.metadata.storagename) {
+            if (value.storageName !== script.metadata.storagename[0]) {
+              return;
+            }
+          } else if (value.scriptId !== script.id) {
+            return;
+          }
+          channel.send(value);
+        };
+        ValueManager.hook.addListener("upsert", hook);
+        channel.setDisChannelHandler(() => {
+          ValueManager.hook.removeListener("upsert", hook);
+        });
       }
     );
 
@@ -140,6 +164,8 @@ export class ValueManager extends Manager {
     // 广播value更新
     this.broadcast.broadcast({ tag: "all" }, "valueUpdate", sendData);
 
+    // 触发hook
+    ValueManager.hook.trigger("upsert", model);
     return Promise.resolve(true);
   }
 }

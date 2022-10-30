@@ -1,4 +1,4 @@
-import { FileSystem } from "@Pkg/filesystem/filesystem";
+import FileSystem from "@Pkg/filesystem/filesystem";
 import crypto from "crypto-js";
 import ResourceManager from "@App/app/service/resource/manager";
 import { base64ToBlob } from "../utils/script";
@@ -38,6 +38,7 @@ export default class BackupExport {
       await this.fs.create(`${name}.options.json`)
     ).write(JSON.stringify(script.options));
     // 写入脚本storage.json
+    // 不想兼容tm的导出规则了,直接写入storage.json
     await (
       await this.fs.create(`${name}.storage.json`)
     ).write(JSON.stringify(script.storage));

@@ -72,6 +72,7 @@ const UserConfigPanel: React.FC<{
           return (
             <TabPane key={itemKey} title={itemKey}>
               <Form
+                key={script.id}
                 style={{
                   width: "100%",
                 }}

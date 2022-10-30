@@ -105,3 +105,15 @@ export function InfoNotification(title: string, msg: string) {
     iconUrl: chrome.runtime.getURL("assets/logo.png"),
   });
 }
+
+export function valueType(val: any) {
+  switch (typeof val) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "object":
+      return typeof val;
+    default:
+      return "unknown";
+  }
+}
