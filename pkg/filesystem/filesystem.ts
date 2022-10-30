@@ -31,8 +31,12 @@ export default interface FileSystem {
   verify(): Promise<void>;
   // 打开文件
   open(path: string): Promise<FileReader>;
+  // 打开目录
+  openDir(path: string): Promise<FileSystem>;
   // 创建文件
   create(path: string): Promise<FileWriter>;
+  // 创建目录
+  createDir(dir: string): Promise<void>;
   // 删除文件
   delete(path: string): Promise<void>;
   // 文件列表

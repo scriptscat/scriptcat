@@ -4,7 +4,6 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import Cache from "../../cache";
 import {
   Script,
-  SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   ScriptDAO,

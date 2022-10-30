@@ -6,7 +6,6 @@ import Logger from "@App/app/logger/logger";
 import {
   Script,
   SCRIPT_RUN_STATUS,
-  SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
@@ -241,22 +240,19 @@ export default class Runtime extends Manager {
       runningScript.delete(script.id);
     });
 
-    Runtime.hook.addListener(
-      "runStatus",
-      async (scriptId: number, status: SCRIPT_RUN_STATUS) => {
-        const script = await this.scriptDAO.findById(scriptId);
-        if (!script) {
-          return;
-        }
-        if (script.status !== SCRIPT_STATUS_ENABLE) {
-          // 没开启并且不是运行中的脚本,删除
-          runningScript.delete(scriptId);
-        } else {
-          // 否则进行一次更新
-          runningScript.set(scriptId, script);
-        }
+    Runtime.hook.addListener("runStatus", async (scriptId: number) => {
+      const script = await this.scriptDAO.findById(scriptId);
+      if (!script) {
+        return;
       }
-    );
+      if (script.status !== SCRIPT_STATUS_ENABLE) {
+        // 没开启并且不是运行中的脚本,删除
+        runningScript.delete(scriptId);
+      } else {
+        // 否则进行一次更新
+        runningScript.set(scriptId, script);
+      }
+    });
 
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(

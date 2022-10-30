@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  Button,
-  Card,
-  Checkbox,
-  Message,
-  Select,
-  Space,
-} from "@arco-design/web-react";
+import { Button, Card, Checkbox, Message, Space } from "@arco-design/web-react";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { SystemConfig } from "@App/pkg/config/config";
 import IoC from "@App/app/ioc";

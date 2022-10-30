@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import MessageInternal from "@App/app/message/internal";
 import { MessageSender } from "@App/app/message/message";
-import { ScriptMenu, ScriptMenuItem } from "@App/runtime/background/runtime";
+import { ScriptMenu } from "@App/runtime/background/runtime";
 import {
   Button,
   Collapse,

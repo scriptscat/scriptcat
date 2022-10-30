@@ -106,6 +106,10 @@ export default class SynchronizeManager extends Manager {
         config.filesystem,
         config.params[config.filesystem]
       );
+      // 创建base目录
+      await fs.createDir("ScriptCat");
+      await fs.createDir("ScriptCat/sync");
+      fs = await fs.openDir("ScriptCat/sync");
     } catch (e) {
       logger.error("create filesystem error", Logger.E(e), {
         type: config.filesystem,

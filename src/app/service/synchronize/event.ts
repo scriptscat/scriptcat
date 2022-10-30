@@ -98,12 +98,14 @@ export default class SynchronizeEventListener {
     await this.manager.backup(fs);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
-    const cloudFs = await FileSystemFactory.create(type, params);
-    // 云端文件系统写入文件
-    const file = await cloudFs.create(
-      `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`
-    );
+    let cloudFs = await FileSystemFactory.create(type, params);
     try {
+      await cloudFs.createDir("ScriptCat");
+      cloudFs = await cloudFs.openDir("ScriptCat");
+      // 云端文件系统写入文件
+      const file = await cloudFs.create(
+        `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`
+      );
       await file.write(
         await zip.generateAsync({
           type: "blob",

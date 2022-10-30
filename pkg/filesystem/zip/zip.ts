@@ -9,9 +9,12 @@ import { ZipFileReader, ZipFileWriter } from "./rw";
 export default class ZipFileSystem implements FileSystem {
   zip: JSZip;
 
+  basePath: string;
+
   // zip为空时，创建一个空的zip
-  constructor(zip?: JSZip) {
+  constructor(zip?: JSZip, basePath?: string) {
     this.zip = zip || new JSZip();
+    this.basePath = basePath || "";
   }
 
   verify(): Promise<void> {
@@ -26,8 +29,16 @@ export default class ZipFileSystem implements FileSystem {
     return Promise.reject(new Error("File not found"));
   }
 
+  openDir(path: string): Promise<FileSystem> {
+    return Promise.resolve(new ZipFileSystem(this.zip, path));
+  }
+
   create(path: string): Promise<FileWriter> {
     return Promise.resolve(new ZipFileWriter(this.zip, path));
+  }
+
+  createDir(): Promise<void> {
+    return Promise.resolve();
   }
 
   delete(path: string): Promise<void> {

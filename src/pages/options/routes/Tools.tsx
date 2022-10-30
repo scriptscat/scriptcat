@@ -117,13 +117,22 @@ function Tools() {
               <Button
                 type="primary"
                 onClick={async () => {
-                  const fs = await FileSystemFactory.create(
+                  let fs = await FileSystemFactory.create(
                     fileSystemType,
                     fileSystemParams
                   );
-                  const list = await fs.list();
-                  list.sort((a, b) => b.updatetime - a.updatetime);
-                  setBackupFileList(list);
+                  try {
+                    fs = await fs.openDir("ScriptCat");
+                    const list = await fs.list();
+                    list.sort((a, b) => b.updatetime - a.updatetime);
+                    if (list.length === 0) {
+                      Message.info("没有备份文件");
+                      return;
+                    }
+                    setBackupFileList(list);
+                  } catch (e) {
+                    Message.error(`获取备份文件失败: ${e}`);
+                  }
                 }}
               >
                 备份列表

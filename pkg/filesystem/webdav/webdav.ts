@@ -5,17 +5,24 @@ import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
 
+  basePath: string = "";
+
   constructor(
-    authType: AuthType,
-    url: string,
-    username: string,
-    password: string
+    authType: AuthType | WebDAVClient,
+    url?: string,
+    username?: string,
+    password?: string
   ) {
-    this.client = createClient(url, {
-      authType,
-      username,
-      password,
-    });
+    if (typeof authType === "object") {
+      this.client = authType;
+      this.basePath = url || "";
+    } else {
+      this.client = createClient(url!, {
+        authType,
+        username,
+        password,
+      });
+    }
   }
 
   async verify(): Promise<void> {
@@ -24,20 +31,39 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   open(path: string): Promise<FileReader> {
-    return Promise.resolve(new WebDAVFileReader(this.client, path));
+    return Promise.resolve(
+      new WebDAVFileReader(this.client, this.getPath(path))
+    );
+  }
+
+  openDir(path: string): Promise<FileSystem> {
+    if (!path.endsWith("/")) {
+      path += "/";
+    }
+    return Promise.resolve(new WebDAVFileSystem(this.client, path));
   }
 
   create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new WebDAVFileWriter(this.client, path));
+    return Promise.resolve(
+      new WebDAVFileWriter(this.client, this.getPath(path))
+    );
+  }
+
+  createDir(path: string): Promise<void> {
+    return this.client.createDirectory(this.getPath(path));
   }
 
   async delete(path: string): Promise<void> {
-    return this.client.deleteFile(path);
+    return this.client.deleteFile(this.getPath(path));
+  }
+
+  getPath(path: string): string {
+    return this.basePath + path;
   }
 
   async list(path?: string | undefined): Promise<File[]> {
     const dir = (await this.client.getDirectoryContents(
-      path || ""
+      this.getPath(path || "")
     )) as FileStat[];
     const ret: File[] = [];
     dir.forEach((item: FileStat) => {
