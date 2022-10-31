@@ -45,7 +45,6 @@ const ScriptStorage: React.FC<{
     // 监听值变化
     const channel = valueCtrl.watchValue(script);
     channel.setHandler((value: Value) => {
-      console.log("value changed", value);
       setData((prev) => {
         const index = prev.findIndex((item) => item.key === value.key);
         if (index === -1) {

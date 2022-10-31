@@ -147,9 +147,6 @@ function Subscribe() {
           <Card
             bordered={false}
             title="运行日志"
-            style={{
-              padding: 8,
-            }}
             extra={
               <Space size="large">
                 <DatePicker.RangePicker

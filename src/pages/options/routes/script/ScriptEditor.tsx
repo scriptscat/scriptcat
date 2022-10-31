@@ -397,6 +397,7 @@ function ScriptEditor() {
               // 没有子菜单
               return (
                 <Button
+                  key={`m_${item.title}`}
                   size="mini"
                   onClick={() => {
                     setEditors((prev) => {
@@ -428,6 +429,7 @@ function ScriptEditor() {
                     {item.items.map((menuItem, i) => {
                       const btn = (
                         <Button
+                          key={`sm_${menuItem.title}`}
                           size="mini"
                           onClick={() => {
                             setEditors((prev) => {
@@ -481,7 +483,9 @@ function ScriptEditor() {
                 trigger="click"
                 position="bl"
               >
-                <Button size="mini">{item.title}</Button>
+                <Button key={`m_${item.title}`} size="mini">
+                  {item.title}
+                </Button>
               </Dropdown>
             );
           })}
@@ -517,9 +521,9 @@ function ScriptEditor() {
             >
               已安装脚本
             </Button>
-            {scriptList.map((script, index) => (
+            {scriptList.map((script) => (
               <Button
-                key={`s_${index.toString()}`}
+                key={`s_${script.id}`}
                 size="mini"
                 className="text-left"
                 style={{

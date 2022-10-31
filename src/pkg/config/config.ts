@@ -73,23 +73,6 @@ export class SystemConfig {
     return ret;
   }
 
-  get version() {
-    return /* version */ "0.10.0-alpha.1";
-  }
-
-  get server() {
-    return "https://sc.icodef.com/";
-  }
-
-  get externalWhitelist() {
-    return [
-      "greasyfork.org",
-      "scriptcat.org",
-      "tampermonkey.net.cn",
-      "openuserjs.org",
-    ];
-  }
-
   public get changetime() {
     return <number>this.cache.get("changetime") || 0;
   }

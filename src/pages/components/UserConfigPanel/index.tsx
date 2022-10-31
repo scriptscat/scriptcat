@@ -159,7 +159,7 @@ const UserConfigPanel: React.FC<{
                               placeholder={item.description}
                             >
                               {options!.map((option) => (
-                                <Select.Option value={option}>
+                                <Select.Option key={option} value={option}>
                                   {option}
                                 </Select.Option>
                               ))}

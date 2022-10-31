@@ -43,6 +43,7 @@ import {
   RiPlayFill,
   RiSettings3Fill,
   RiStopFill,
+  RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ScriptController from "@App/app/service/script/controller";
@@ -615,6 +616,13 @@ function ScriptList() {
                   }}
                 />
               ))}
+            <Button
+              type="text"
+              icon={<RiUploadCloudFill />}
+              style={{
+                color: "var(--color-text-2)",
+              }}
+            />
           </Button.Group>
         );
       },

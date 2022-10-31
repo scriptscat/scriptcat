@@ -260,7 +260,7 @@ export default class Runtime extends Manager {
       "queryPageScript",
       (action: string, { url, tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
-        const matchScripts = this.match.match(url);
+        const matchScripts = this.matchUrl(url, false);
         const scriptList: ScriptMenu[] = [];
         matchScripts.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
@@ -328,25 +328,10 @@ export default class Runtime extends Manager {
             return;
           }
 
-          const scripts = this.match.match(sender.url);
-          const filter: ScriptRunResouce[] = [];
-
-          scripts.forEach((script) => {
-            if (script.status !== SCRIPT_STATUS_ENABLE) {
-              return;
-            }
-            if (script.metadata.noframes) {
-              if (sender.frameId !== 0) {
-                return;
-              }
-            }
-            filter.push(script);
-          });
-          if (!filter.length) {
-            return;
-          }
-
-          resolve({ flag: scriptFlag, scripts: filter });
+          const filter: ScriptRunResouce[] = this.matchUrl(
+            sender.url,
+            sender.frameId !== 0
+          );
 
           // 注入运行框架
           chrome.tabs.executeScript(sender.tabId, {
@@ -361,6 +346,14 @@ export default class Runtime extends Manager {
                 }())`,
             runAt: "document_start",
           });
+
+          if (!filter.length) {
+            resolve({ flag: scriptFlag, scripts: [] });
+            return;
+          }
+
+          resolve({ flag: scriptFlag, scripts: filter });
+
           // 注入脚本
           filter.forEach((script) => {
             let runAt = "document_idle";
@@ -448,6 +441,25 @@ export default class Runtime extends Manager {
       return this.enable(script as ScriptRunResouce);
     }
     return this.disable(script);
+  }
+
+  matchUrl(url: string, frame: boolean) {
+    const scripts = this.match.match(url);
+    // 再include中匹配
+    scripts.push(...this.include.match(url));
+    const filter: { [key: string]: ScriptRunResouce } = {};
+    // 去重
+    scripts.forEach((script) => {
+      if (script.status !== SCRIPT_STATUS_ENABLE) {
+        return;
+      }
+      if (frame && script.metadata.noframes) {
+        return;
+      }
+      filter[script.id] = script;
+    });
+    // 转换成数组
+    return Object.keys(filter).map((key) => filter[key]);
   }
 
   // 脚本删除

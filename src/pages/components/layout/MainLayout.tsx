@@ -75,17 +75,17 @@ const MainLayout: React.FC<{
                       </Space>
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="dark">
+                  <Menu.Item key="background">
                     <a href="#/script/editor?template=background">
                       <RiTerminalBoxLine /> 添加后台脚本
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="auto">
+                  <Menu.Item key="crontab">
                     <a href="#/script/editor?template=crontab">
                       <RiTimerLine /> 添加定时脚本
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="auto">
+                  <Menu.Item key="link">
                     <IconLink /> 链接导入
                   </Menu.Item>
                 </Menu>

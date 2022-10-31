@@ -70,6 +70,7 @@ export function createContext(
     connect: GMApi.prototype.connect,
     runFlag: uuidv4(),
     valueUpdate: GMApi.prototype.valueUpdate,
+    GM: {},
   };
   if (scriptRes.metadata.grant) {
     scriptRes.metadata.grant.forEach((val) => {

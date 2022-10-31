@@ -246,6 +246,13 @@ describe("UrlInclude-2", () => {
     expect(url.match("http://domain2.com/")).toEqual(["ok4"]);
     expect(url.match("http://domain2/123")).toEqual(["ok4"]);
   });
+  it("nomral", () => {
+    const url = new UrlInclude<string>();
+    url.add("*://*.bilibili.com/bangumi/play/*", "ok1");
+    expect(url.match("https://www.bilibili.com/bangumi/play/ep691613")).toEqual(
+      ["ok1"]
+    );
+  });
 });
 
 describe("match *", () => {

@@ -1,5 +1,7 @@
+import { ExternalMessage, ExtVersion, Server } from "@App/app/const";
 import IoC from "@App/app/ioc";
 import { MessageHander } from "@App/app/message/message";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
 import Manager from "../manager";
 
@@ -8,17 +10,18 @@ import Manager from "../manager";
 export class SystemManager extends Manager {
   systemConfig: SystemConfig;
 
+  scriptDAO: ScriptDAO;
+
   constructor(message: MessageHander, systemConfig: SystemConfig) {
-    super(message);
+    super(message, "system");
+    this.scriptDAO = new ScriptDAO();
     this.systemConfig = systemConfig;
   }
 
   init() {
     // 两小时检查一次更新
     const checkUpdate = () => {
-      fetch(
-        `${this.systemConfig.server}api/v1/system/version?version=${this.systemConfig.version}`
-      )
+      fetch(`${Server}api/v1/system/version?version=${ExtVersion}`)
         .then((resp) => resp.json())
         .then((resp: { data: { notice: string; version: string } }) => {
           chrome.storage.local.get(["notice"], (items) => {
@@ -50,6 +53,33 @@ export class SystemManager extends Manager {
         }
       });
     }
+    // 处理
+    this.message.setHandler(
+      ExternalMessage,
+      async (
+        _action,
+        {
+          action,
+          name,
+          namespace,
+        }: { action: string; name: string; namespace: string }
+      ) => {
+        if (action === "isInstalled") {
+          const script = await this.scriptDAO.findByNameAndNamespace(
+            name,
+            namespace
+          );
+          if (script) {
+            return Promise.resolve({
+              installed: true,
+              version: script.metadata.version && script.metadata.version[0],
+            });
+          }
+          return Promise.resolve({ installed: false });
+        }
+        return Promise.resolve(false);
+      }
+    );
   }
 
   getNotice(): Promise<{ notice: string; isRead: boolean }> {

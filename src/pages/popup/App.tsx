@@ -1,3 +1,4 @@
+import { ExtVersion } from "@App/app/const";
 import IoC from "@App/app/ioc";
 import MessageInternal from "@App/app/message/internal";
 import SystemManager from "@App/app/service/system/manager";
@@ -41,7 +42,7 @@ function App() {
   const [showAlert, setShowAlert] = useState(false);
   const [notice, setNotice] = useState("");
   const [isRead, setIsRead] = useState(true);
-  const [version, setVersion] = useState(systemManage.systemConfig.version);
+  const [version, setVersion] = useState(ExtVersion);
 
   const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
@@ -196,10 +197,8 @@ function App() {
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
-        <span className="text-1 font-500">
-          v{systemManage.systemConfig.version}
-        </span>
-        {semver.lt(systemManage.systemConfig.version, version) && (
+        <span className="text-1 font-500">v{ExtVersion}</span>
+        {semver.lt(ExtVersion, version) && (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span
             onClick={() => {

@@ -50,6 +50,7 @@ function Setting() {
             }
             actionButton={[
               <Button
+                key="save"
                 type="primary"
                 onClick={async () => {
                   // 保存到配置中去

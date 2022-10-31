@@ -614,3 +614,34 @@ describe("GM cookie", () => {
     });
   });
 });
+
+describe("GM.*", () => {
+  const scriptRes = {
+    id: 0,
+    name: "test",
+    metadata: {
+      grant: [
+        // gm xhr
+        "GM.xmlHttpRequest",
+        // gm notification
+        "GM.notification",
+      ],
+    },
+    code: "console.log('test')",
+    runFlag: "test",
+    value: {},
+    grantMap: {},
+  } as unknown as ScriptRunResouce;
+
+  const exec = new ExecScript(scriptRes, internal);
+  const contentApi = exec.sandboxContent! as any;
+  it("GM.xmlHttpRequest", async () => {
+    expect(contentApi.GM.xmlHttpRequest).not.toBeUndefined();
+  });
+  it("GM.notification", async () => {
+    expect(contentApi.GM.notification).not.toBeUndefined();
+  });
+  it("undefined", async () => {
+    expect(contentApi.GM.undefined).toBeUndefined();
+  });
+});

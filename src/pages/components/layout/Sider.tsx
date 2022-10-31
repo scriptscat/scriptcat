@@ -26,7 +26,7 @@ if (!hash.length) {
 
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <HashRouter>

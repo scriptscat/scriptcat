@@ -33,16 +33,16 @@ str = str.replace(/"version": "(.*?)"/, `"version": "${manifest.version}"`);
 fs.writeFileSync("./src/manifest.json", str);
 
 // 处理configSystem version
-let configSystem = fs.readFileSync("./src/pkg/config/config.ts").toString();
+let configSystem = fs.readFileSync("./src/app/const.ts").toString();
 // 如果是由github action的分支触发的构建,在版本中再加上commit id
 if (process.env.GITHUB_REF_TYPE === "branch") {
   package.version += `+${process.env.GITHUB_SHA.substring(0, 7)}`;
 }
 configSystem = configSystem.replace(
-  /\/\* version \*\/ "(.*?)"/,
-  `/* version */ "${package.version}"`
+  /ExtVersion = "(.*?)";/,
+  `ExtVersion = "${package.version}";`
 );
-fs.writeFileSync("./src/pkg/config/config.ts", configSystem);
+fs.writeFileSync("./src/app/const.ts", configSystem);
 
 execSync("npm run build", { stdio: "inherit" });
 

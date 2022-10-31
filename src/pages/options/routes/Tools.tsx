@@ -87,6 +87,7 @@ function Tools() {
             }}
             actionButton={[
               <Button
+                key="backup"
                 type="primary"
                 loading={loading.cloud}
                 onClick={() => {
@@ -115,6 +116,7 @@ function Tools() {
                 备份
               </Button>,
               <Button
+                key="list"
                 type="primary"
                 onClick={async () => {
                   let fs = await FileSystemFactory.create(

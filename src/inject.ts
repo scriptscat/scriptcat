@@ -18,8 +18,6 @@ const logger = new LoggerCore({
 
 message.setHandler("pageLoad", (_action, data) => {
   logger.logger().debug("inject start");
-
-  const runtime = new InjectRuntime(data.scripts, flag);
-
+  const runtime = new InjectRuntime(message, data.scripts, flag);
   runtime.start();
 });

@@ -1,3 +1,4 @@
+import { ExternalMessage } from "@App/app/const";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander, MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
@@ -25,6 +26,10 @@ export default class ContentRuntime {
     // 转发log消息
     this.contentMessage.setHandler("log", (action, data) => {
       this.internalMessage.send(action, data);
+    });
+    // 转发externalMessage消息
+    this.contentMessage.setHandler(ExternalMessage, (action, data) => {
+      return this.internalMessage.syncSend(action, data);
     });
 
     // 转发长连接的gmApi消息

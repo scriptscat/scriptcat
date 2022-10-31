@@ -1,3 +1,4 @@
+import { ExternalMessage, ExternalWhitelist } from "@App/app/const";
 import MessageContent from "@App/app/message/content";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript, { ValueUpdateData } from "./exec_script";
@@ -9,7 +10,14 @@ export default class InjectRuntime {
 
   flag: string;
 
-  constructor(scripts: ScriptRunResouce[], flag: string) {
+  message: MessageContent;
+
+  constructor(
+    message: MessageContent,
+    scripts: ScriptRunResouce[],
+    flag: string
+  ) {
+    this.message = message;
     this.scripts = scripts;
     this.flag = flag;
   }
@@ -56,5 +64,47 @@ export default class InjectRuntime {
         });
       }
     );
+
+    // 注入允许外部调用
+    this.externalMessage();
+  }
+
+  externalMessage() {
+    const { message } = this;
+    // 对外接口白名单
+    for (let i = 0; i < ExternalWhitelist.length; i += 1) {
+      if (window.location.host.endsWith(ExternalWhitelist[i])) {
+        // 注入
+        (<{ external: any }>(<unknown>window)).external = window.external || {};
+        (<
+          {
+            external: {
+              Scriptcat: {
+                isInstalled: (
+                  name: string,
+                  namespace: string,
+                  callback: any
+                ) => void;
+              };
+            };
+          }
+        >(<unknown>window)).external.Scriptcat = {
+          async isInstalled(name: string, namespace: string, callback: any) {
+            const resp = await message.syncSend(ExternalMessage, {
+              action: "isInstalled",
+              name,
+              namespace,
+            });
+            callback(resp);
+          },
+        };
+        (<{ external: { Tampermonkey: any } }>(
+          (<unknown>window)
+        )).external.Tampermonkey = (<{ external: { Scriptcat: any } }>(
+          (<unknown>window)
+        )).external.Scriptcat;
+        break;
+      }
+    }
   }
 }
