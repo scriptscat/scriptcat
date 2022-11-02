@@ -20,14 +20,17 @@ export default class MessageInternal
 
   onDisconnect?: () => void;
 
+  tag: TargetTag;
+
   constructor(tag: TargetTag) {
     super();
-    this.reconnect(tag);
+    this.tag = tag;
+    this.reconnect();
   }
 
-  reconnect(tag: TargetTag) {
+  reconnect() {
     this.port = chrome.runtime.connect({
-      name: tag,
+      name: this.tag,
     });
     this.channelManager = new WarpChannelManager((data) => {
       this.nativeSend(data);

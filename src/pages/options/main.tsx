@@ -16,6 +16,8 @@ import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
 import { IPermissionVerify } from "@App/runtime/background/permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
+import { tryConnect } from "@App/pkg/utils/utils";
+import { Message } from "@arco-design/web-react";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
 
@@ -51,6 +53,14 @@ class DebugPermissionVerify implements IPermissionVerify {
 const gmapi = new GMApi(messageSandbox, new DebugPermissionVerify());
 gmapi.start();
 IoC.registerInstance(GMApi, gmapi);
+
+tryConnect(message, (ok: boolean) => {
+  if (ok) {
+    Message.success("重新连接成功");
+  } else {
+    Message.error("后台通信连接失败,请注意保存当前页面数据,尝试重新连接中...");
+  }
+});
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>

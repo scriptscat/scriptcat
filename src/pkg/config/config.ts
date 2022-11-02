@@ -40,7 +40,9 @@ export class SystemConfig {
   public async syncConfig() {
     const list = await this.storage.keys();
     Object.keys(list).forEach((key) => {
-      this.cache.set(key, list[key]);
+      if (!this.cache.has(key)) {
+        this.cache.set(key, list[key]);
+      }
     });
   }
 

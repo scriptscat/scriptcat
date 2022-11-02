@@ -70,6 +70,7 @@ import IoC from "@App/app/ioc";
 import RuntimeController from "@App/runtime/content/runtime";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import ValueManager from "@App/app/service/value/manager";
+import CloudScript from "@App/pages/components/CloudScript";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
@@ -99,6 +100,7 @@ function ScriptList() {
     userConfig: UserConfig;
     values: { [key: string]: any };
   }>();
+  const [cloudScript, setCloudScript] = useState<Script>();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   const [scriptList, setScriptList] = useState<ListType[]>([]);
@@ -232,7 +234,7 @@ function ScriptList() {
     {
       title: "版本",
       dataIndex: "version",
-      width: 100,
+      width: 120,
       align: "center",
       render(col, item: Script) {
         return item.metadata.version && item.metadata.version[0];
@@ -247,7 +249,13 @@ function ScriptList() {
           navigate({
             pathname: "logger",
             search: `query=${encodeURIComponent(
-              JSON.stringify([{ key: "scriptId", value: item.id }])
+              JSON.stringify([
+                { key: "scriptId", value: item.id },
+                {
+                  key: "component",
+                  value: "GM_log",
+                },
+              ])
             )}`,
           });
         };
@@ -368,6 +376,7 @@ function ScriptList() {
       title: "主页",
       dataIndex: "home",
       align: "center",
+      width: 100,
       render(col, item: Script) {
         return (
           <Space size="mini">
@@ -455,6 +464,7 @@ function ScriptList() {
       title: "最后更新",
       dataIndex: "updatetime",
       align: "center",
+      width: 100,
       render(col, script: Script) {
         return (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
@@ -502,6 +512,7 @@ function ScriptList() {
     {
       title: "操作",
       dataIndex: "action",
+      width: 160,
       render(col, item: Script) {
         return (
           <Button.Group>
@@ -616,13 +627,18 @@ function ScriptList() {
                   }}
                 />
               ))}
-            <Button
-              type="text"
-              icon={<RiUploadCloudFill />}
-              style={{
-                color: "var(--color-text-2)",
-              }}
-            />
+            {item.metadata.cloudcat && (
+              <Button
+                type="text"
+                icon={<RiUploadCloudFill />}
+                onClick={() => {
+                  setCloudScript(item);
+                }}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            )}
           </Button.Group>
         );
       },
@@ -759,6 +775,9 @@ function ScriptList() {
           pageSize: scriptList.length,
           hideOnSinglePage: true,
         }}
+        style={{
+          minWidth: "1240px",
+        }}
       />
       {userConfig && (
         <UserConfigPanel
@@ -767,6 +786,12 @@ function ScriptList() {
           values={userConfig.values}
         />
       )}
+      <CloudScript
+        script={cloudScript}
+        onClose={() => {
+          setCloudScript(undefined);
+        }}
+      />
     </Card>
   );
 }

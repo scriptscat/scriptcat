@@ -127,14 +127,14 @@ export default class Runtime extends Manager {
     this.listenScriptRunStatus();
 
     // 运行中和开启的后台脚本
-    const runningScript: Map<number, Script> = new Map();
+    const runBackScript: Map<number, Script> = new Map();
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
           this.enable(item);
           if (item.type !== SCRIPT_TYPE_NORMAL) {
-            runningScript.set(item.id, item);
+            runBackScript.set(item.id, item);
           }
         } else if (item.type === SCRIPT_TYPE_NORMAL) {
           // 只处理未开启的普通页面脚本
@@ -235,10 +235,15 @@ export default class Runtime extends Manager {
     });
 
     ScriptManager.hook.addListener("enable", (script: Script) => {
-      runningScript.set(script.id, script);
+      // 只处理后台脚本
+      if (script.type !== SCRIPT_TYPE_NORMAL) {
+        runBackScript.set(script.id, script);
+      }
     });
     ScriptManager.hook.addListener("disable", (script: Script) => {
-      runningScript.delete(script.id);
+      if (script.type !== SCRIPT_TYPE_NORMAL) {
+        runBackScript.delete(script.id);
+      }
     });
 
     Runtime.hook.addListener("runStatus", async (scriptId: number) => {
@@ -248,10 +253,10 @@ export default class Runtime extends Manager {
       }
       if (script.status !== SCRIPT_STATUS_ENABLE) {
         // 没开启并且不是运行中的脚本,删除
-        runningScript.delete(scriptId);
+        runBackScript.delete(scriptId);
       } else {
         // 否则进行一次更新
-        runningScript.set(scriptId, script);
+        runBackScript.set(scriptId, script);
       }
     });
 
@@ -286,7 +291,7 @@ export default class Runtime extends Manager {
         });
         const backScriptList: ScriptMenu[] = [];
         const sandboxMenuMap = scriptMenu.get("sandbox");
-        runningScript.forEach((item) => {
+        runBackScript.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
           if (sandboxMenuMap) {
             sandboxMenuMap?.get(item.id)?.forEach((scriptItem) => {

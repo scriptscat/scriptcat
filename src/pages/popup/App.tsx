@@ -184,7 +184,7 @@ function App() {
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList script={scriptList} />
+          <ScriptMenuList script={scriptList} isBackscript={false} />
         </CollapseItem>
 
         <CollapseItem
@@ -193,7 +193,7 @@ function App() {
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList script={backScriptList} />
+          <ScriptMenuList script={backScriptList} isBackscript />
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">

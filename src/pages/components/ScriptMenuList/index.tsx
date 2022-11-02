@@ -20,19 +20,42 @@ import {
 import IoC from "@App/app/ioc";
 import ScriptController from "@App/app/service/script/controller";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import { RiPlayFill, RiStopFill } from "react-icons/ri";
+import RuntimeController from "@App/runtime/content/runtime";
 
 const CollapseItem = Collapse.Item;
 
 // 用于popup页的脚本操作列表
 const ScriptMenuList: React.FC<{
   script: ScriptMenu[];
-}> = ({ script }) => {
+  isBackscript: boolean;
+}> = ({ script, isBackscript }) => {
   const [list, setList] = useState([] as ScriptMenu[]);
   const message = IoC.instance(MessageInternal) as MessageInternal;
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   useEffect(() => {
     setList(script);
   }, [script]);
+
+  useEffect(() => {
+    // 监听脚本运行状态
+    const channel = runtimeCtrl.watchRunStatus();
+    channel.setHandler(([id, status]: any) => {
+      setList((prev) => {
+        const newList = [...prev];
+        const index = newList.findIndex((item) => item.id === id);
+        if (index !== -1) {
+          newList[index].runStatus = status;
+        }
+        return newList;
+      });
+    });
+    return () => {
+      channel.disChannel();
+    };
+  }, []);
+
   const sendMenuAction = (sender: MessageSender, channelFlag: string) => {
     let id = sender.tabId;
     if (sender.frameId) {
@@ -106,6 +129,30 @@ const ScriptMenuList: React.FC<{
             contentStyle={{ padding: "0 0 0 40px" }}
           >
             <div className="flex flex-col">
+              {isBackscript && (
+                <Button
+                  className="text-left"
+                  type="secondary"
+                  icon={
+                    item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? (
+                      <RiPlayFill />
+                    ) : (
+                      <RiStopFill />
+                    )
+                  }
+                  onClick={() => {
+                    if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+                      runtimeCtrl.startScript(item.id);
+                    } else {
+                      runtimeCtrl.stopScript(item.id);
+                    }
+                  }}
+                >
+                  {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
+                    ? "运行一次"
+                    : "停止"}
+                </Button>
+              )}
               <Button
                 className="text-left"
                 type="secondary"

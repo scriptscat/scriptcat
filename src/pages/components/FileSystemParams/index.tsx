@@ -8,7 +8,6 @@ const fileSystemList = [
   {
     key: "webdav",
     name: "WebDAV",
-    params: fsParams.webdav,
   },
 ];
 const FileSystemParams: React.FC<{

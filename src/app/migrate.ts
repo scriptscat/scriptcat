@@ -2,7 +2,7 @@
 import { db } from "./repo/dao";
 import { Script } from "./repo/scripts";
 
-// 重命名字段,统一使用小峰驼
+// 0.10.0重构,重命名字段,统一使用小峰驼
 function renameField(): void {
   db.version(16)
     .stores({
@@ -10,6 +10,7 @@ function renameField(): void {
         "++id,&uuid,name,namespace,author,originDomain,subscribeUrl,type,sort,status," +
         "runStatus,createtime,updatetime,checktime",
       logger: "++id,level,createtime",
+      export: "++id,&scriptId",
     })
     .upgrade(async (tx) => {
       await tx
@@ -18,15 +19,12 @@ function renameField(): void {
         .modify((script: { [key: string]: any }) => {
           if (script.origin_domain) {
             script.originDomain = script.origin_domain;
-            delete script.origin_domain;
           }
           if (script.checkupdate_url) {
             script.checkUpdateUrl = script.checkupdate_url;
-            delete script.checkupdate_url;
           }
           if (script.download_url) {
             script.downloadUrl = script.download_url;
-            delete script.download_url;
           }
         });
     });

@@ -26,7 +26,7 @@ if (!hash.length) {
 
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(localStorage.collapsed === "true");
 
   return (
     <HashRouter>
@@ -36,6 +36,7 @@ const Sider: React.FC = () => {
         collapsed={collapsed}
         width={200}
         onCollapse={(c) => {
+          localStorage.collapsed = c;
           setCollapsed(c);
         }}
       >

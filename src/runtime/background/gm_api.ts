@@ -59,6 +59,7 @@ export default class GMApi {
     if (permissionVerify instanceof PermissionVerify) {
       this.systemConfig.scriptCatFlag = `x-cat-${uuidv4()}`;
     }
+    console.log(this.systemConfig.scriptCatFlag);
     this.valueManager = IoC.instance(ValueManager);
   }
 

@@ -5,15 +5,19 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import IoC from "@App/app/ioc";
 import Runtime, { RuntimeEvent } from "../background/runtime";
 
-@IoC.Singleton(MessageInternal, Runtime)
+@IoC.Singleton(MessageInternal)
 export default class RuntimeController {
   internal: MessageInternal;
 
-  runtime: Runtime;
+  runtime!: Runtime;
 
-  constructor(internal: MessageInternal, runtime: Runtime) {
+  constructor(internal: MessageInternal) {
     this.internal = internal;
-    this.runtime = runtime;
+    try {
+      this.runtime = IoC.instance(Runtime) as Runtime;
+    } catch (e) {
+      // ignore
+    }
   }
 
   public dispatchEvent(event: RuntimeEvent, data: any): Promise<any> {

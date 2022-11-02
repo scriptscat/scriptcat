@@ -3,6 +3,7 @@ import IoC from "@App/app/ioc";
 import { MessageHander } from "@App/app/message/message";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
+import semver from "semver";
 import Manager from "../manager";
 
 // value管理器,负责value等更新获取等操作
@@ -47,13 +48,24 @@ export class SystemManager extends Manager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
-          chrome.tabs.create({
-            url: "https://docs.scriptcat.org/docs/change/",
-          });
+          const version = semver.parse(ExtVersion);
+          if (version && version.prerelease) {
+            chrome.tabs.create({
+              url: "https://docs.scriptcat.org/docs/change/",
+            });
+          } else {
+            chrome.tabs.create({
+              url: "https://docs.scriptcat.org/docs/change/pre-release",
+            });
+          }
         }
       });
     }
-    // 处理
+    // 处理pingpong
+    this.message.setHandler("ping", () => {
+      return Promise.resolve("pong");
+    });
+    // 处理外部网站调用
     this.message.setHandler(
       ExternalMessage,
       async (

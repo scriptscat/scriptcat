@@ -1,5 +1,8 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
+import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
+import MessageInternal from "@App/app/message/internal";
 import { CronTime } from "cron";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
@@ -116,4 +119,45 @@ export function valueType(val: any) {
     default:
       return "unknown";
   }
+}
+
+// 尝试重新链接和超时通知
+export function tryConnect(
+  message: MessageInternal,
+  callback: (ok: boolean) => void
+) {
+  const ping = () => {
+    return new Promise((resolve) => {
+      const t = setTimeout(() => {
+        resolve(false);
+      }, 1000);
+      message
+        .syncSend("ping", null)
+        .then(() => {
+          clearTimeout(t);
+          resolve(true);
+        })
+        .catch(() => {
+          clearTimeout(t);
+          resolve(false);
+        });
+    });
+  };
+  setInterval(async () => {
+    const ok = await ping();
+    if (!ok) {
+      // 不ok回调并重试连接
+      callback(false);
+      try {
+        message.reconnect();
+        callback(true);
+      } catch (e) {
+        // ignore
+        LoggerCore.getLogger({ component: "utils" }).error(
+          "re connect failed",
+          Logger.E(e)
+        );
+      }
+    }
+  }, 5000);
 }

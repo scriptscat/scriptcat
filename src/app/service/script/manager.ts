@@ -212,13 +212,13 @@ export class ScriptManager extends Manager {
             }
           } catch (e) {
             logger.error("prepare script failed", Logger.E(e));
-            return;
           }
+        } else {
+          Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
+          chrome.tabs.create({
+            url: `src/install.html?uuid=${info.uuid}`,
+          });
         }
-        Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
-        chrome.tabs.create({
-          url: `src/install.html?uuid=${info.uuid}`,
-        });
       })
       .catch((e) => {
         logger.error("fetch script info failed", Logger.E(e));
