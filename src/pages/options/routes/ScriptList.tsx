@@ -70,7 +70,7 @@ import IoC from "@App/app/ioc";
 import RuntimeController from "@App/runtime/content/runtime";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import ValueManager from "@App/app/service/value/manager";
-import CloudScript from "@App/pages/components/CloudScript";
+import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
@@ -786,7 +786,7 @@ function ScriptList() {
           values={userConfig.values}
         />
       )}
-      <CloudScript
+      <CloudScriptPlan
         script={cloudScript}
         onClose={() => {
           setCloudScript(undefined);

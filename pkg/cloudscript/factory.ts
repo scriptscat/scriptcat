@@ -1,3 +1,7 @@
+import { ExportTarget } from "@App/app/repo/export";
+import { ExportParams } from "./cloudscript";
+import LocalCloudScript from "./local";
+
 export interface CloudScriptParams {
   [key: string]: {
     title: string;
@@ -7,7 +11,14 @@ export interface CloudScriptParams {
 }
 
 export default class CloudScriptFactory {
-  static create() {}
+  static create(type: ExportTarget, params: ExportParams) {
+    switch (type) {
+      case "local":
+        return new LocalCloudScript(params);
+      default:
+        throw new Error(`unknown type ${type}`);
+    }
+  }
 
   static params(): { [key: string]: CloudScriptParams } {
     return {
