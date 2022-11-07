@@ -1,7 +1,5 @@
 // 缓存key,所有缓存相关的key都需要定义在此
 // 使用装饰器维护缓存值
-
-import Cache from "@App/app/cache";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 
 export default class CacheKey {
@@ -23,12 +21,7 @@ export default class CacheKey {
 
   // 加载脚本信息时的缓存,已处理删除
   static scriptInfo(uuid: string): string {
-    const key = `scriptInfo:${uuid}`;
-    setTimeout(() => {
-      // 清理缓存
-      Cache.getInstance().del(key);
-    }, 60 * 1000);
-    return key;
+    return `scriptInfo:${uuid}`;
   }
 
   // 脚本资源url缓存,可能存在泄漏

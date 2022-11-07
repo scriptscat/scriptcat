@@ -2,6 +2,8 @@ declare let sandbox: Window;
 
 declare let ScriptFlag: string;
 
+declare let cloneInto: ((detail: any, view: any) => any) | undefined;
+
 declare module "@App/types/scriptcat.d.ts";
 declare module "*.tpl";
 
@@ -33,5 +35,3 @@ declare namespace GMSend {
     filename?: string;
   }
 }
-
-

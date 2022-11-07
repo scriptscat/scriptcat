@@ -77,18 +77,10 @@ export default class MessageContent
 
   nativeSend(data: any): void {
     let detail = data;
-    if ((<{ cloneInto: any }>(<unknown>window)).cloneInto) {
+    if (typeof cloneInto !== "undefined") {
       try {
-        detail = (<
-          {
-            cloneInto: (
-              // eslint-disable-next-line no-unused-vars, no-shadow
-              detail: any,
-              // eslint-disable-next-line no-unused-vars
-              view: any
-            ) => { action: string; data: any };
-          }
-        >(<unknown>global)).cloneInto(detail, document.defaultView);
+        // eslint-disable-next-line no-undef
+        detail = cloneInto(detail, document.defaultView);
       } catch (e) {
         // eslint-disable-next-line no-console
         console.log(e);

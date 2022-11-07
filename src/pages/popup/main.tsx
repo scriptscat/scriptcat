@@ -38,7 +38,6 @@ switchLight(localStorage.lightMode || "auto");
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div
     style={{
-      height: "50px",
       borderBottom: "1px solid var(--color-neutral-3)",
     }}
   >
