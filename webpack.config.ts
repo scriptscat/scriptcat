@@ -8,6 +8,7 @@ import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import { presetAttributify, presetUno } from "unocss";
 
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
 const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
@@ -123,6 +124,7 @@ const config: Configuration = {
     UnoCSS({
       presets: [presetUno(), presetAttributify()],
     }),
+    new NodePolyfillPlugin(),
   ],
   resolve: {
     extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl"],
@@ -130,6 +132,7 @@ const config: Configuration = {
       "@App": path.resolve(__dirname, "src/"),
       "@Pkg": path.resolve(__dirname, "pkg/"),
     },
+    mainFields: ["browser", "main", "module"],
   },
   module: {
     rules: [

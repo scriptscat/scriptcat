@@ -1,8 +1,12 @@
 // @ts-ignore
 // eslint-disable-next-line import/no-unresolved
 import dts from "@App/types/scriptcat";
+import Hook from "@App/app/service/hook";
 import { languages } from "monaco-editor";
 import pako from "pako";
+
+// 注册eslint
+const linterWorker = new Worker("/src/linter.worker.js");
 
 export default function registerEditor() {
   // @ts-ignore
@@ -59,3 +63,15 @@ export default function registerEditor() {
     },
   });
 }
+
+export class LinterWorker {
+  static hook = new Hook<"message">();
+
+  static sendLinterMessage(data: any) {
+    linterWorker.postMessage(data);
+  }
+}
+
+linterWorker.onmessage = (event) => {
+  LinterWorker.hook.trigger("message", event.data);
+};

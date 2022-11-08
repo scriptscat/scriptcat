@@ -1,3 +1,4 @@
+import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 import { editor } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useState } from "react";
 
@@ -16,7 +17,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
   { editor: editor.ICodeEditor | undefined },
   Props
 > = ({ id, className, code, diffCode, editable }, ref) => {
-  const [monacoEditor, setEditor] = useState<any>();
+  const [monacoEditor, setEditor] = useState<editor.ICodeEditor>();
   useImperativeHandle(ref, () => ({
     editor: monacoEditor,
   }));
@@ -64,6 +65,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
           readOnly: !editable,
         });
         edit.setValue(code);
+
         setEditor(edit);
       }
     }, ts);
@@ -73,6 +75,43 @@ const CodeEditor: React.ForwardRefRenderFunction<
       }
     };
   }, [code, diffCode]);
+
+  useEffect(() => {
+    if (!monacoEditor) {
+      return () => {};
+    }
+    const model = monacoEditor.getModel();
+    if (!model) {
+      return () => {};
+    }
+    let timer: any;
+    const lint = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        LinterWorker.sendLinterMessage({
+          code: model.getValue(),
+          id,
+        });
+      }, 500);
+    };
+    // 加载完成就检测一次
+    lint();
+    model.onDidChangeContent(() => {
+      lint();
+    });
+    const handler = (message: any) => {
+      if (id !== message.id) {
+        return;
+      }
+      editor.setModelMarkers(model, "ESLint", message.markers);
+    };
+    LinterWorker.hook.addListener("message", handler);
+    return () => {
+      LinterWorker.hook.removeListener("message", handler);
+    };
+  }, [monacoEditor]);
+
   return (
     <div
       id={id}

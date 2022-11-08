@@ -305,7 +305,7 @@ export default class SynchronizeManager extends Manager {
       const newScript = await prepareScriptByCode(
         code,
         script?.downloadUrl || metaObj.downloadUrl || "",
-        script?.uuid || metaObj.uuid || undefined
+        script?.uuid || metaObj.uuid
       );
       newScript.origin = newScript.origin || metaObj.origin;
       this.scriptManager.event.upsertHandler(newScript, "sync");

@@ -10,6 +10,7 @@ common.entry = {
   ...common.entry,
   content: `${src}/content.ts`,
   inject: `${src}/inject.ts`,
+  "linter.worker": `${src}/linter.worker.ts`,
   "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
   "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
 };
