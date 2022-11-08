@@ -9,11 +9,11 @@ const linter = new Linter();
 
 const rules = linter.getRules();
 
-const rule = {
+const config = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "script",
-    ecmaFeatures: {},
+    ecmaFeatures: { globalReturn: true },
   },
   rules: {
     "constructor-super": ["error"],
@@ -92,22 +92,29 @@ const severityMap = {
 
 self.addEventListener("message", (event) => {
   const { code, id } = event.data;
-  const errs = linter.verify(code, rule);
-  const markers = errs.map((err: any) => ({
-    code: {
-      value: err.ruleId,
-      target: rules.get(err.ruleId).meta.docs.url,
-    },
-    startLineNumber: err.line,
-    endLineNumber: err.endLine,
-    startColumn: err.column,
-    endColumn: err.endColumn,
-    message: err.message,
-    // 设置错误的等级，此处ESLint与monaco的存在差异，做一层映射
-    // @ts-ignore
-    severity: severityMap[err.severity],
-    source: "ESLint",
-  }));
+  const errs = linter.verify(code, config);
+  const markers = errs.map((err: any) => {
+    const rule = rules.get(err.ruleId);
+    let target = "";
+    if (rule) {
+      target = rule.meta.docs.url;
+    }
+    return {
+      code: {
+        value: err.ruleId,
+        target,
+      },
+      startLineNumber: err.line,
+      endLineNumber: err.endLine,
+      startColumn: err.column,
+      endColumn: err.endColumn,
+      message: err.message,
+      // 设置错误的等级，此处ESLint与monaco的存在差异，做一层映射
+      // @ts-ignore
+      severity: severityMap[err.severity],
+      source: "ESLint",
+    };
+  });
   // 发回主进程
   self.postMessage({ markers, id });
 });
