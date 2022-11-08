@@ -20,7 +20,9 @@ GM_xmlhttpRequest({
   data: data,
   headers: {
     "referer": "http://www.example.com/",
-    "origin": "www.example.com"
+    "origin": "www.example.com",
+    // 为空将不会发送此header
+    "sec-ch-ua-mobile": "",
   },
   onload(resp) {
     console.log("onload", resp);

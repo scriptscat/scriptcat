@@ -40,10 +40,7 @@ const UserConfigPanel: React.FC<{
           const valueCtrl = IoC.instance(ValueController) as ValueController;
           Object.keys(saveValues).forEach((key) => {
             Object.keys(saveValues[key]).forEach((valueKey) => {
-              if (
-                saveValues[key][valueKey] === undefined ||
-                saveValues[key][valueKey] === values[`${key}.${valueKey}`]
-              ) {
+              if (saveValues[key][valueKey] === undefined) {
                 return;
               }
               valueCtrl.setValue(

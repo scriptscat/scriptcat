@@ -275,7 +275,7 @@ export function prepareScriptByCode(
       let flag = true;
       if (uuid !== undefined) {
         old = await dao.findByUUID(uuid);
-        if (!old) {
+        if (old) {
           flag = false;
         }
       }

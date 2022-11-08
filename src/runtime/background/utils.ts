@@ -76,7 +76,7 @@ export function listenerWebRequest(headerFlag: string) {
       let anonymous = false;
       let isGmXhr = false;
       const requestHeaders: chrome.webRequest.HttpHeader[] = [];
-      const preRequestHeaders: { [key: string]: string } = {};
+      const preRequestHeaders: { [key: string]: string | null } = {};
       details.requestHeaders?.forEach((val) => {
         const lowerCase = val.name.toLowerCase();
         if (lowerCase.startsWith(`${headerFlag}-`)) {
@@ -99,7 +99,7 @@ export function listenerWebRequest(headerFlag: string) {
               isGmXhr = true;
               break;
             default:
-              preRequestHeaders[headerKey] = val.value || "";
+              preRequestHeaders[headerKey] = val.value || null;
               break;
           }
           return;
@@ -116,8 +116,11 @@ export function listenerWebRequest(headerFlag: string) {
               lowerCase.startsWith("sec-") ||
               lowerCase.startsWith("proxy-")
             ) {
-              preRequestHeaders[lowerCase] =
-                preRequestHeaders[lowerCase] || val.value || "";
+              // null表示不发送此header
+              if (preRequestHeaders[lowerCase] !== null) {
+                preRequestHeaders[lowerCase] =
+                  preRequestHeaders[lowerCase] || val.value || "";
+              }
             } else {
               requestHeaders.push(val);
             }
@@ -149,10 +152,13 @@ export function listenerWebRequest(headerFlag: string) {
         });
       }
       Object.keys(preRequestHeaders).forEach((key) => {
-        requestHeaders.push({
-          name: key,
-          value: preRequestHeaders[key],
-        });
+        // null表示不发送此header
+        if (preRequestHeaders[key] !== null) {
+          requestHeaders.push({
+            name: key,
+            value: preRequestHeaders[key]!,
+          });
+        }
       });
       return {
         requestHeaders,
