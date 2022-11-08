@@ -1,12 +1,14 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
 import LoggerCore from "@App/app/logger/core";
+import { Metadata } from "@App/app/repo/scripts";
 import Logger from "@App/app/logger/logger";
 import MessageInternal from "@App/app/message/internal";
 import { CronTime } from "cron";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
+import semver from "semver";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -160,4 +162,59 @@ export function tryConnect(
       }
     }
   }, 5000);
+}
+
+// 对比版本大小
+export function ltever(
+  newVersion: string,
+  oldVersion: string,
+  logger?: Logger
+) {
+  // 先验证符不符合语义化版本规范
+  try {
+    return semver.lte(newVersion, oldVersion);
+  } catch (e) {
+    logger?.warn(
+      "does not conform to the Semantic Versioning specification",
+      Logger.E(e)
+    );
+  }
+  const newVer = newVersion.split(".");
+  const oldVer = oldVersion.split(".");
+  for (let i = 0; i < newVer.length; i += 1) {
+    if (Number(newVer[i]) > Number(oldVer[i])) {
+      return false;
+    }
+    if (Number(newVer[i]) < Number(oldVer[i])) {
+      return true;
+    }
+  }
+  return true;
+}
+
+// 检查订阅规则是否改变,是否能够静默更新
+export function checkSilenceUpdate(
+  oldMeta: Metadata,
+  newMeta: Metadata
+): boolean {
+  // 判断connect是否改变
+  const oldConnect: { [key: string]: boolean } = {};
+  const newConnect: { [key: string]: boolean } = {};
+  oldMeta.connect &&
+    oldMeta.connect.forEach((val) => {
+      oldConnect[val] = true;
+    });
+  newMeta.connect &&
+    newMeta.connect.forEach((val) => {
+      newConnect[val] = true;
+    });
+  // 老的里面没有新的就需要用户确认了
+  const keys = Object.keys(newConnect);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    if (!oldConnect[key]) {
+      return false;
+    }
+  }
+  return true;
 }

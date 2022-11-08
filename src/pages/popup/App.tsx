@@ -114,7 +114,7 @@ function App() {
                     switch (key) {
                       case "newScript":
                         chrome.tabs.query({ active: true }, (tab) => {
-                          if (tab.length && tab[0].url?.startsWith("http")) {
+                          if (tab.length) {
                             chrome.storage.local.set({
                               activeTabUrl: {
                                 url: tab[0].url,
@@ -197,7 +197,7 @@ function App() {
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
-        <span className="text-1 font-500">v{ExtVersion}</span>
+        <span className="text-[12px] font-500">v{ExtVersion}</span>
         {semver.lt(ExtVersion, version) && (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span

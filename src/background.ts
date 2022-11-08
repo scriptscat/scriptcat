@@ -16,6 +16,8 @@ import PermissionVerify from "./runtime/background/permission_verify";
 import { SystemConfig } from "./pkg/config/config";
 import SystemManager from "./app/service/system/manager";
 import SynchronizeManager from "./app/service/synchronize/manager";
+import SubscribeManager from "./app/service/subscribe/manager";
+
 // 数据库初始化
 migrate();
 // 初始化日志组件
@@ -44,7 +46,7 @@ IoC.instance(SystemConfig).init();
 IoC.instance(SystemManager).init();
 
 // 等待沙盒启动后再进行后续的步骤
-center.setHandler("sandboxOnload", () => {
+const sandboxOnload = () => {
   // 资源管理器
   const resourceManager = new ResourceManager(center);
   // value管理器
@@ -61,10 +63,13 @@ center.setHandler("sandboxOnload", () => {
   // 值后台处理器
   valueManager.start();
   (IoC.instance(ScriptManager) as ScriptManager).start();
+  (IoC.instance(SubscribeManager) as SubscribeManager).start();
   // 同步处理器
   IoC.instance(SynchronizeManager).start();
-});
+  return Promise.resolve(true);
+};
 
+center.setHandler("sandboxOnload", sandboxOnload);
 // 启动gm api的监听
 const gm = new GMApi(center, new PermissionVerify());
 gm.start();

@@ -1,6 +1,6 @@
 import IoC from "@App/app/ioc";
 import { Script } from "@App/app/repo/scripts";
-import { Value, ValueDAO } from "@App/app/repo/value";
+import { Value } from "@App/app/repo/value";
 import ValueManager from "@App/app/service/value/manager";
 
 export type ExportCookies = {

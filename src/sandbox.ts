@@ -20,6 +20,16 @@ loggerCore.logger().debug("sandbox start");
 
 IoC.instance(SandboxRuntime).init();
 
+// 为了确认能与background通讯
+const retry = () => {
+  const t = setTimeout(() => {
+    retry();
+  }, 1000);
+  connectSandbox.syncSend("sandboxOnload", {}).then(() => {
+    clearTimeout(t);
+  });
+};
+
 window.onload = () => {
-  connectSandbox.send("sandboxOnload", {});
+  retry();
 };

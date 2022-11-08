@@ -265,7 +265,7 @@ export default class Runtime extends Manager {
       "queryPageScript",
       (action: string, { url, tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
-        const matchScripts = this.matchUrl(url, false);
+        const matchScripts = this.matchUrl(url);
         const scriptList: ScriptMenu[] = [];
         matchScripts.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
@@ -335,7 +335,13 @@ export default class Runtime extends Manager {
 
           const filter: ScriptRunResouce[] = this.matchUrl(
             sender.url,
-            sender.frameId !== 0
+            (script) => {
+              // 开启并且不是iframe
+              return (
+                script.status !== SCRIPT_STATUS_ENABLE ||
+                (sender.frameId !== undefined && !!script.metadata.noframes)
+              );
+            }
           );
 
           // 注入运行框架
@@ -448,17 +454,14 @@ export default class Runtime extends Manager {
     return this.disable(script);
   }
 
-  matchUrl(url: string, frame: boolean) {
+  matchUrl(url: string, filterFunc?: (script: Script) => boolean) {
     const scripts = this.match.match(url);
     // 再include中匹配
     scripts.push(...this.include.match(url));
     const filter: { [key: string]: ScriptRunResouce } = {};
     // 去重
     scripts.forEach((script) => {
-      if (script.status !== SCRIPT_STATUS_ENABLE) {
-        return;
-      }
-      if (frame && script.metadata.noframes) {
+      if (filterFunc && filterFunc(script)) {
         return;
       }
       filter[script.id] = script;

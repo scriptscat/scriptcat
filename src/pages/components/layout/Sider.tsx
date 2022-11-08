@@ -2,7 +2,7 @@ import Logger from "@App/pages/options/routes/Logger";
 import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
 import ScriptList from "@App/pages/options/routes/ScriptList";
 import Setting from "@App/pages/options/routes/Setting";
-import Subscribe from "@App/pages/options/routes/Subscribe";
+import SubscribeList from "@App/pages/options/routes/SubscribeList";
 import Tools from "@App/pages/options/routes/Tools";
 import { Layout, Menu } from "@arco-design/web-react";
 import {
@@ -91,7 +91,7 @@ const Sider: React.FC = () => {
             <Route path=":id" element={<ScriptEditor />} />
             <Route path="" element={<ScriptEditor />} />
           </Route>
-          <Route path="/subscribe" element={<Subscribe />} />
+          <Route path="/subscribe" element={<SubscribeList />} />
           <Route path="/logger" element={<Logger />} />
           <Route path="/tools" element={<Tools />} />
           <Route path="/setting" element={<Setting />} />

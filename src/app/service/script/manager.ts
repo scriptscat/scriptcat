@@ -1,26 +1,18 @@
-import {
-  fetchScriptInfo,
-  parseMetadata,
-  prepareScriptByCode,
-} from "@App/pkg/utils/script";
+import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
-import semver from "semver";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { MessageHander } from "@App/app/message/message";
 import IoC from "@App/app/ioc";
-import axios from "axios";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { SystemConfig } from "@App/pkg/config/config";
+import { checkSilenceUpdate, ltever } from "@App/pkg/utils/utils";
 import Manager from "../manager";
-import {
-  Metadata,
-  Script,
-  SCRIPT_STATUS_DISABLE,
-  ScriptDAO,
-} from "../../repo/scripts";
+import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
+
+export type InstallSource = "user" | "system" | "sync" | "subscribe";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 @IoC.Singleton(MessageHander, SystemConfig)
@@ -76,10 +68,6 @@ export class ScriptManager extends Manager {
               return;
             }
             this.checkUpdate(script.id, "system");
-            // 更新检查时间
-            this.scriptDAO.update(script.id, {
-              checktime: new Date().getTime(),
-            });
           });
         });
     }, 600 * 1000);
@@ -121,7 +109,7 @@ export class ScriptManager extends Manager {
           Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
         }, 60 * 1000);
         chrome.tabs.create({
-          url: `src/install.html?uuid=${info.uuid}`,
+          url: `/src/install.html?uuid=${info.uuid}`,
         });
       })
       .catch(() => {
@@ -137,6 +125,7 @@ export class ScriptManager extends Manager {
     if (!script) {
       return Promise.resolve(false);
     }
+    this.scriptDAO.update(id, { checktime: new Date().getTime() });
     if (!script.checkUpdateUrl) {
       return Promise.resolve(false);
     }
@@ -144,19 +133,9 @@ export class ScriptManager extends Manager {
       scriptId: id,
       name: script.name,
     });
-    this.scriptDAO.update(id, { checktime: new Date().getTime() });
     try {
-      const resp = await axios.get(script.checkUpdateUrl, {
-        responseType: "text",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      });
-      if (resp.status !== 200) {
-        logger.error("check update failed", { status: resp.status });
-        return Promise.resolve(false);
-      }
-      const metadata = parseMetadata(resp.data);
+      const info = await fetchScriptInfo(script.checkUpdateUrl, source, false);
+      const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
         return Promise.resolve(false);
@@ -171,7 +150,7 @@ export class ScriptManager extends Manager {
         oldVersion = "0.0.0";
       }
       // 对比版本大小
-      if (semver.lte(newVersion, oldVersion)) {
+      if (ltever(newVersion, oldVersion, logger)) {
         return Promise.resolve(false);
       }
       // 进行更新
@@ -202,51 +181,40 @@ export class ScriptManager extends Manager {
               script.uuid
             );
             if (
-              this.checkUpdateRule(
+              checkSilenceUpdate(
                 newScript.oldScript!.metadata,
                 newScript.metadata
               )
             ) {
               logger.info("silence update script");
               this.event.upsertHandler(newScript);
+              return;
             }
           } catch (e) {
             logger.error("prepare script failed", Logger.E(e));
           }
-        } else {
-          Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
-          chrome.tabs.create({
-            url: `src/install.html?uuid=${info.uuid}`,
-          });
         }
+        Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
+        chrome.tabs.create({
+          url: `src/install.html?uuid=${info.uuid}`,
+        });
       })
       .catch((e) => {
         logger.error("fetch script info failed", Logger.E(e));
       });
   }
 
-  // 检查订阅规则是否改变,是否能够静默更新
-  public checkUpdateRule(oldMeta: Metadata, newMeta: Metadata): boolean {
-    // 判断connect是否改变
-    const oldConnect = new Map();
-    const newConnect = new Map();
-    oldMeta.connect &&
-      oldMeta.connect.forEach((val) => {
-        oldConnect.set(val, 1);
-      });
-    newMeta.connect &&
-      newMeta.connect.forEach((val) => {
-        newConnect.set(val, 1);
-      });
-    // 老的里面没有新的就需要用户确认了
-    const keys = Object.keys(newConnect);
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i];
-      if (!oldConnect.has(key)) {
-        return false;
-      }
-    }
-    return true;
+  // 直接通过url静默安装脚本
+  async installByUrl(
+    url: string,
+    source: InstallSource,
+    subscribeUrl?: string
+  ) {
+    const info = await fetchScriptInfo(url, "system", false);
+    const script = await prepareScriptByCode(info.code, url, info.uuid);
+    script.subscribeUrl = subscribeUrl;
+    await this.event.upsertHandler(script, "system");
+    return Promise.resolve(script);
   }
 }
 

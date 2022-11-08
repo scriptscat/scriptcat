@@ -306,7 +306,7 @@ function ScriptList() {
     {
       title: "来源",
       dataIndex: "origin",
-      width: 80,
+      width: 120,
       render(col, item: Script) {
         if (item.subscribeUrl) {
           return (
@@ -350,12 +350,9 @@ function ScriptList() {
         return (
           <Tooltip
             content={
-              <>
-                <p style={{ margin: 0, padding: 0 }}>
-                  脚本链接: {decodeURIComponent(item.origin)}
-                </p>
-                (点击复制)
-              </>
+              <p style={{ margin: 0, padding: 0 }}>
+                脚本链接: {decodeURIComponent(item.origin)}
+              </p>
             }
           >
             <Tag

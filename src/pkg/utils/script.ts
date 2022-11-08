@@ -12,9 +12,14 @@ import {
   UserConfig,
 } from "@App/app/repo/scripts";
 import YAML from "yaml";
-import { Subscribe } from "@App/app/repo/subscribe";
+import {
+  Subscribe,
+  SUBSCRIBE_STATUS_ENABLE,
+  SubscribeDAO,
+} from "@App/app/repo/subscribe";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { InstallSource } from "@App/app/service/script/manager";
 import { nextTime } from "./utils";
 
 export function getMetadataStr(code: string): string | null {
@@ -83,12 +88,13 @@ export type ScriptInfo = {
   uuid: string;
   isSubscribe: boolean;
   isUpdate: boolean;
-  source: "user" | "system";
+  metadata: Metadata;
+  source: InstallSource;
 };
 
 export async function fetchScriptInfo(
   url: string,
-  source: "user" | "system",
+  source: InstallSource,
   isUpdate: boolean
 ): Promise<ScriptInfo> {
   const resp = await fetch(url, {
@@ -111,6 +117,7 @@ export async function fetchScriptInfo(
     uuid,
     isSubscribe: false,
     isUpdate,
+    metadata: ok,
     source,
   };
   if (ok.usersubscribe) {
@@ -124,7 +131,6 @@ export function copyScript(script: Script, old: Script): Script {
   ret.id = old.id;
   ret.uuid = old.uuid;
   ret.createtime = old.createtime;
-  ret.checktime = old.checktime;
   ret.lastruntime = old.lastruntime;
   // ret.delayruntime = old.delayruntime;
   ret.error = old.error;
@@ -142,7 +148,6 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   ret.id = old.id;
   ret.createtime = old.createtime;
   ret.status = old.status;
-  ret.checktime = old.checktime;
   ret.error = old.error;
   return ret;
 }
@@ -261,15 +266,20 @@ export function prepareScriptByCode(
       type,
       status: SCRIPT_STATUS_DISABLE,
       runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-      createtime: new Date().getTime(),
-      updatetime: new Date().getTime(),
-      checktime: 0,
+      createtime: Date.now(),
+      updatetime: Date.now(),
+      checktime: Date.now(),
     };
     const handler = async () => {
       let old: Script | undefined;
+      let flag = true;
       if (uuid !== undefined) {
         old = await dao.findByUUID(uuid);
-      } else {
+        if (!old) {
+          flag = false;
+        }
+      }
+      if (flag) {
         old = await dao.findByNameAndNamespace(script.name, script.namespace);
         if (!old) {
           old = await dao.findByUUID(script.uuid);
@@ -298,4 +308,37 @@ export function prepareScriptByCode(
     };
     handler();
   });
+}
+
+export async function prepareSubscribeByCode(
+  code: string,
+  url: string
+): Promise<Subscribe & { oldSubscribe?: Subscribe }> {
+  const dao = new SubscribeDAO();
+  const metadata = parseMetadata(code);
+  if (metadata == null) {
+    throw new Error("MetaData信息错误");
+  }
+  if (metadata.name === undefined) {
+    throw new Error("订阅名不能为空");
+  }
+  let subscribe: Subscribe & { oldSubscribe?: Subscribe } = {
+    id: 0,
+    url,
+    name: metadata.name[0],
+    code,
+    author: metadata.author && metadata.author[0],
+    scripts: {},
+    metadata,
+    status: SUBSCRIBE_STATUS_ENABLE,
+    createtime: Date.now(),
+    updatetime: Date.now(),
+    checktime: Date.now(),
+  };
+  const old = await dao.findByUrl(url);
+  if (old) {
+    subscribe.oldSubscribe = old;
+    subscribe = copySubscribe(subscribe, old);
+  }
+  return Promise.resolve(subscribe);
 }

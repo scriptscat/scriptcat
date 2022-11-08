@@ -11,7 +11,11 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import ScriptController from "@App/app/service/script/controller";
-import { prepareScriptByCode, ScriptInfo } from "@App/pkg/utils/script";
+import {
+  prepareScriptByCode,
+  prepareSubscribeByCode,
+  ScriptInfo,
+} from "@App/pkg/utils/script";
 import {
   Metadata,
   Script,
@@ -20,6 +24,8 @@ import {
 } from "@App/app/repo/scripts";
 import { nextTime } from "@App/pkg/utils/utils";
 import IoC from "@App/app/ioc";
+import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/app/repo/subscribe";
+import SubscribeController from "@App/app/service/subscribe/controller";
 import CodeEditor from "../components/CodeEditor";
 
 // 不推荐的内容标签与描述
@@ -76,12 +82,16 @@ export default function Description() {
   // 是否为更新
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   // 脚本信息
-  const [upsertScript, setUpsertScript] = useState<Script>();
+  const [upsertScript, setUpsertScript] = useState<Script | Subscribe>();
   // 更新的情况下会有老版本的脚本信息
-  const [oldScript, setOldScript] = useState<Script>();
+  const [oldScript, setOldScript] = useState<Script | Subscribe>();
   // 脚本开启状态
   const [enable, setEnable] = useState<boolean>(false);
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const subscribeCtrl = IoC.instance(
+    SubscribeController
+  ) as SubscribeController;
+  const [isSub, setIsSub] = useState<boolean>(false);
   useEffect(() => {
     if (countdown === -1) {
       return;
@@ -99,90 +109,105 @@ export default function Description() {
 
   const url = new URL(window.location.href);
   const uuid = url.searchParams.get("uuid");
-  if (uuid) {
-    useEffect(() => {
-      scriptCtrl.fetchScriptInfo(uuid).then(async (resp: any) => {
-        if (!resp) {
-          return;
-        }
-        if (resp.source === "system") {
-          setCountdown(30);
-        }
-        const script = await prepareScriptByCode(resp.code, resp.url);
-
-        const meta = script.metadata;
-        if (!meta) {
-          return;
-        }
-        const perm: Permission = [];
-        if (meta.match) {
-          perm.push({ label: "脚本将在下面的网站中运行", value: meta.match });
-        }
-        if (meta.connect) {
-          perm.push({
-            label: "脚本将获得以下地址的完整访问权限",
-            color: "#F9925A",
-            value: meta.connect,
-          });
-        }
-        if (meta.require) {
-          perm.push({ label: "脚本引用了下列外部资源", value: meta.require });
-        }
-        setUpsertScript(script);
-        if (script.id !== 0) {
-          setIsUpdate(true);
-        }
-        setOldScript(script.oldScript);
-        delete script.oldScript;
-        setEnable(script.status === SCRIPT_STATUS_ENABLE);
-        setPermission(perm);
-        setMetadata(meta);
-        setInfo(resp);
-        const desList = [];
-        let isCookie = false;
-        metadata.grant?.forEach((val) => {
-          if (val === "GM_cookie") {
-            isCookie = true;
-          }
-        });
-        if (isCookie) {
-          desList.push(
-            <Typography.Text type="error" key="cookie">
-              请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
-            </Typography.Text>
-          );
-        }
-        if (meta.crontab) {
-          desList.push(
-            <Typography.Text key="crontab">
-              这是一个定时脚本,开启将会在特点时间自动运行,也可以在面板中手动控制运行.
-            </Typography.Text>
-          );
-          desList.push(
-            <Typography.Text key="cronta-nexttime">
-              crontab表达式: {meta.crontab[0]} 最近一次运行时间:{" "}
-              {nextTime(meta.crontab[0])}
-            </Typography.Text>
-          );
-        } else if (meta.background) {
-          desList.push(
-            <Typography.Text key="background">
-              这是一个后台脚本,开启将会在浏览器打开时自动运行一次,也可以在面板中手动控制运行.
-            </Typography.Text>
-          );
-        }
-        if (desList.length) {
-          setDescription(<div>{desList.map((item) => item)}</div>);
-        }
-        // 修改网页显示title
-        document.title = `${script.id === 0 ? "安装" : "更新"}脚本 - ${
-          meta.name
-        } - ScriptCat`;
-      });
-    }, []);
-  } else {
+  if (!uuid) {
     return <p>错误的链接</p>;
   }
+  useEffect(() => {
+    scriptCtrl.fetchScriptInfo(uuid).then(async (resp: ScriptInfo) => {
+      if (!resp) {
+        return;
+      }
+      let script:
+        | (Script & { oldScript?: Script })
+        | (Subscribe & { oldSubscribe?: Subscribe });
+      if (resp.isSubscribe) {
+        setIsSub(true);
+        script = await prepareSubscribeByCode(resp.code, resp.url);
+        setOldScript(script.oldSubscribe);
+        delete script.oldSubscribe;
+      } else {
+        script = await prepareScriptByCode(resp.code, resp.url, resp.uuid);
+        setOldScript(script.oldScript);
+        delete script.oldScript;
+      }
+      setEnable(script.status === SUBSCRIBE_STATUS_ENABLE);
+      if (resp.source === "system") {
+        setCountdown(30);
+      }
+      const meta = script.metadata;
+      if (!meta) {
+        return;
+      }
+      const perm: Permission = [];
+      if (resp.isSubscribe) {
+        perm.push({
+          label: "该订阅将会安装下面的脚本",
+          color: "#ff0000",
+          value: meta.scripturl,
+        });
+      }
+      if (meta.match) {
+        perm.push({ label: "脚本将在下面的网站中运行", value: meta.match });
+      }
+      if (meta.connect) {
+        perm.push({
+          label: "脚本将获得以下地址的完整访问权限",
+          color: "#F9925A",
+          value: meta.connect,
+        });
+      }
+      if (meta.require) {
+        perm.push({ label: "脚本引用了下列外部资源", value: meta.require });
+      }
+      setUpsertScript(script);
+      if (script.id !== 0) {
+        setIsUpdate(true);
+      }
+      setPermission(perm);
+      setMetadata(meta);
+      setInfo(resp);
+      const desList = [];
+      let isCookie = false;
+      metadata.grant?.forEach((val) => {
+        if (val === "GM_cookie") {
+          isCookie = true;
+        }
+      });
+      if (isCookie) {
+        desList.push(
+          <Typography.Text type="error" key="cookie">
+            请注意,本脚本会申请cookie的操作权限,这是一个危险的权限,请确认脚本的安全性.
+          </Typography.Text>
+        );
+      }
+      if (meta.crontab) {
+        desList.push(
+          <Typography.Text key="crontab">
+            这是一个定时脚本,开启将会在特点时间自动运行,也可以在面板中手动控制运行.
+          </Typography.Text>
+        );
+        desList.push(
+          <Typography.Text key="cronta-nexttime">
+            crontab表达式: {meta.crontab[0]} 最近一次运行时间:{" "}
+            {nextTime(meta.crontab[0])}
+          </Typography.Text>
+        );
+      } else if (meta.background) {
+        desList.push(
+          <Typography.Text key="background">
+            这是一个后台脚本,开启将会在浏览器打开时自动运行一次,也可以在面板中手动控制运行.
+          </Typography.Text>
+        );
+      }
+      if (desList.length) {
+        setDescription(<div>{desList.map((item) => item)}</div>);
+      }
+      // 修改网页显示title
+      document.title = `${script.id === 0 ? "安装" : "更新"}脚本 - ${
+        meta.name
+      } - ScriptCat`;
+    });
+  }, []);
   return (
     <div className="h-full">
       <Grid.Row gutter={8}>
@@ -199,7 +224,13 @@ export default function Description() {
               )}
               <Typography.Text bold className="text-size-lg">
                 {metadata.name}
-                <Tooltip content="可以控制脚本开启状态，普通油猴脚本默认开启，后台脚本、定时脚本默认关闭">
+                <Tooltip
+                  content={
+                    isSub
+                      ? "这是一个订阅源，当你开启订阅后会自动安装订阅的脚本"
+                      : "可以控制脚本开启状态，普通油猴脚本默认开启，后台脚本、定时脚本默认关闭"
+                  }
+                >
                   <Switch
                     style={{ marginLeft: "8px" }}
                     checked={enable}
@@ -249,17 +280,29 @@ export default function Description() {
                       Message.error("脚本信息加载失败!");
                       return;
                     }
+                    if (isSub) {
+                      subscribeCtrl
+                        .upsert(upsertScript as Subscribe)
+                        .then(() => {
+                          closeWindow();
+                        })
+                        .catch((e) => {
+                          Message.error(`订阅失败: ${e}`);
+                        });
+                      return;
+                    }
                     scriptCtrl
-                      .upsert(upsertScript)
+                      .upsert(upsertScript as Script)
                       .then(() => {
                         closeWindow();
                       })
                       .catch((e) => {
-                        Message.error(e.message);
+                        Message.error(`安装失败: ${e}`);
                       });
                   }}
                 >
-                  {isUpdate ? "更新" : "安装"}
+                  {isSub && (isUpdate ? "更新订阅" : "订阅")}
+                  {!isSub && (isUpdate ? "更新" : "安装")}
                 </Button>
                 <Button
                   type="primary"
@@ -354,8 +397,7 @@ export default function Description() {
                 {item.value.map((v) => (
                   <div key={v}>
                     <Typography.Text
-                      style={{ wordBreak: "unset" }}
-                      color={item.color}
+                      style={{ wordBreak: "unset", color: item.color }}
                     >
                       {v}
                     </Typography.Text>
@@ -369,7 +411,7 @@ export default function Description() {
       <CodeEditor
         id="show-code"
         code={upsertScript?.code || ""}
-        diffCode={oldScript?.code}
+        diffCode={oldScript?.code || ""}
       />
     </div>
   );

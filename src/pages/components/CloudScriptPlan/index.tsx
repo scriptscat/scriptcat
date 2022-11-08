@@ -47,7 +47,7 @@ const CloudScriptPlan: React.FC<{
   const [visible, setVisible] = React.useState(false);
   const [cloudScriptType, setCloudScriptType] =
     React.useState<ExportTarget>("local");
-  const [model, setModel] = React.useState<Export>();
+  const [, setModel] = React.useState<Export>();
 
   useEffect(() => {
     if (script) {

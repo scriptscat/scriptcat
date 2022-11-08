@@ -20,7 +20,6 @@ export interface Subscribe {
   scripts: { [key: string]: SubscribeScript };
   metadata: Metadata;
   status: SUBSCRIBE_STATUS;
-  error?: string;
   createtime: number;
   updatetime?: number;
   checktime: number;

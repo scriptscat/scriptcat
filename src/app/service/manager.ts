@@ -2,7 +2,7 @@ import LoggerCore from "../logger/core";
 import Logger from "../logger/logger";
 import { MessageHander, MessageSender } from "../message/message";
 
-export type Handler = (data: any, sender: MessageSender) => void | Promise<any>;
+export type Handler = (data: any, sender: any) => void | Promise<any>;
 
 export default abstract class Manager {
   message: MessageHander;

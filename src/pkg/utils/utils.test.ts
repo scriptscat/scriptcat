@@ -1,4 +1,4 @@
-import { formatTime, nextTime } from "./utils";
+import { formatTime, nextTime, ltever, checkSilenceUpdate } from "./utils";
 import dayjs from "dayjs";
 describe("nextTime", () => {
   test("每分钟表达式", () => {
@@ -32,5 +32,65 @@ describe("nextTime", () => {
     expect(nextTime("* * * * once")).toEqual(
       dayjs(new Date()).add(1, "week").format("YYYY-MM-DD 每星期运行一次")
     );
+  });
+});
+
+describe("ltever", () => {
+  it("semver", () => {
+    expect(ltever("1.0.0", "1.0.1")).toBe(true);
+    expect(ltever("1.0.0", "1.0.0")).toBe(true);
+    expect(ltever("1.0.1", "1.0.0")).toBe(false);
+  });
+  it("any", () => {
+    expect(ltever("1.2.3.4", "1.2.3.4")).toBe(true);
+    expect(ltever("1.2.3.4", "1.2.3.5")).toBe(true);
+    expect(ltever("1.2.3.4", "1.2.3.3")).toBe(false);
+  });
+});
+
+describe("checkSilenceUpdate", () => {
+  it("true", () => {
+    expect(
+      checkSilenceUpdate(
+        {
+          connect: ["www.baidu.com"],
+        },
+        {
+          connect: ["www.baidu.com"],
+        }
+      )
+    ).toBe(true);
+    expect(
+      checkSilenceUpdate(
+        {
+          connect: ["www.baidu.com", "scriptcat.org"],
+        },
+        {
+          connect: ["scriptcat.org"],
+        }
+      )
+    ).toBe(true);
+  });
+  it("false", () => {
+    expect(
+      checkSilenceUpdate(
+        {
+          connect: ["www.baidu.com"],
+        },
+        {
+          connect: ["www.google.com"],
+        }
+      )
+    ).toBe(false);
+    expect(
+      checkSilenceUpdate(
+        {
+          connect: ["www.baidu.com"],
+        },
+        {
+          connect: ["www.baidu.com", "scriptcat.org"],
+        }
+      )
+    ).toBe(false);
   });
 });
