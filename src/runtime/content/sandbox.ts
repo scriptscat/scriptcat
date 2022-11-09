@@ -55,10 +55,6 @@ export default class SandboxRuntime {
 
   // 直接运行脚本
   start(script: ScriptRunResouce): Promise<boolean> {
-    // 存在先将资源释放
-    if (this.execScripts.has(script.id)) {
-      this.stop(script.id);
-    }
     return this.execScript(script);
   }
 
@@ -112,13 +108,13 @@ export default class SandboxRuntime {
   // 执行脚本
   execScript(script: ScriptRunResouce) {
     const logger = this.logger.with({ scriptId: script.id, name: script.name });
-    let exec: ExecScript;
     if (this.execScripts.has(script.id)) {
-      exec = this.execScripts.get(script.id)!;
-    } else {
-      exec = new ExecScript(script, this.message);
-      this.execScripts.set(script.id, exec);
+      // 释放掉资源
+      // 暂未实现执行完成后立马释放,会在下一次执行时释放
+      this.stop(script.id);
     }
+    const exec = new ExecScript(script, this.message);
+    this.execScripts.set(script.id, exec);
     this.message.send("scriptRunStatus", [
       exec.scriptRes.id,
       SCRIPT_RUN_STATUS_RUNNING,
@@ -161,7 +157,6 @@ export default class SandboxRuntime {
       throw new Error("错误的crontab表达式");
     }
     let flag = false;
-    const exec = new ExecScript(script, this.message);
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;
@@ -196,7 +191,6 @@ export default class SandboxRuntime {
         crontab.stop();
       });
     } else {
-      this.execScripts.set(script.id, exec);
       this.cronJob.set(script.id, cronJobList);
     }
     return Promise.resolve(!flag);
