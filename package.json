@@ -1,15 +1,17 @@
 {
   "name": "scriptcat",
-  "version": "0.10.0-beta",
+  "version": "0.10.0-beta.1",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
   "scripts": {
     "test": "jest --coverage",
     "lint": "eslint --ext .js,.ts,.tsx src/",
-    "dev": "webpack --mode development --config webpack.dev.ts",
-    "build": "webpack --mode production --config webpack.prod.ts && npm run build:no-split",
-    "build:no-split": "webpack --mode production --config webpack.no.split.ts",
+    "dev": "concurrently \"webpack --mode development --config ./webpack/webpack.dev.ts\" \"npm run dev:linter\"",
+    "build": "webpack --mode production --config ./webpack/webpack.prod.ts && concurrently \"npm run build:linter\" \"npm run build:no-split\"",
+    "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",
+    "build:no-split": "webpack --mode production --config ./webpack/webpack.no.split.ts",
+    "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.ts --watch",
     "pack": "node ./build/pack.js"
   },
   "dependencies": {
@@ -63,6 +65,7 @@
     "babel-loader": "^8.2.5",
     "clean-webpack-plugin": "^4.0.0",
     "compression-webpack-plugin": "^10.0.0",
+    "concurrently": "^7.5.0",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.7.1",
     "eslint": "^7.32.0",
