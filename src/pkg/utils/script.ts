@@ -209,8 +209,7 @@ export function strToBase64(str: string): string {
 export function prepareScriptByCode(
   code: string,
   url: string,
-  uuid?: string,
-  newScript?: boolean
+  uuid?: string
 ): Promise<Script & { oldScript?: Script }> {
   const dao = new ScriptDAO();
   return new Promise((resolve, reject) => {
@@ -272,19 +271,12 @@ export function prepareScriptByCode(
     };
     const handler = async () => {
       let old: Script | undefined;
-      if (!newScript) {
-        let flag = true;
-        if (uuid !== undefined) {
-          old = await dao.findByUUID(uuid);
-          if (old) {
-            flag = false;
-          }
-        }
-        if (flag) {
-          old = await dao.findByNameAndNamespace(script.name, script.namespace);
-          if (!old) {
-            old = await dao.findByUUID(script.uuid);
-          }
+      if (uuid !== undefined) {
+        old = await dao.findByUUID(uuid);
+      } else {
+        old = await dao.findByNameAndNamespace(script.name, script.namespace);
+        if (!old) {
+          old = await dao.findByUUID(script.uuid);
         }
       }
       if (old) {

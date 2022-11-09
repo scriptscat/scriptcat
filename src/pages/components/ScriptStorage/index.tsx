@@ -48,7 +48,14 @@ const ScriptStorage: React.FC<{
       setData((prev) => {
         const index = prev.findIndex((item) => item.key === value.key);
         if (index === -1) {
+          if (value.value === undefined) {
+            return prev;
+          }
           return [value, ...prev];
+        }
+        if (value.value === undefined) {
+          prev.splice(index, 1);
+          return [...prev];
         }
         prev[index] = value;
         return [...prev];
@@ -64,6 +71,7 @@ const ScriptStorage: React.FC<{
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
+      width: 140,
       // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
@@ -106,6 +114,8 @@ const ScriptStorage: React.FC<{
     {
       title: "类型",
       dataIndex: "value",
+      width: 90,
+      key: "type",
       render(col) {
         return valueType(col);
       },
@@ -241,13 +251,15 @@ const ScriptStorage: React.FC<{
             focusLock
             title="你真的要清空这个储存空间吗?"
             onOk={() => {
-              data.forEach((v) => {
-                valueCtrl.setValue(script!.id, v.key, undefined);
+              setData((prev) => {
+                prev.forEach((v) => {
+                  valueCtrl.setValue(script!.id, v.key, undefined);
+                });
+                Message.info({
+                  content: "清空成功",
+                });
+                return [];
               });
-              Message.info({
-                content: "清空成功",
-              });
-              setData([]);
             }}
           >
             <Button type="primary" status="warning">
@@ -264,7 +276,7 @@ const ScriptStorage: React.FC<{
             新增
           </Button>
         </Space>
-        <Table columns={columns} data={data} />
+        <Table columns={columns} data={data} rowKey="id" />
       </Space>
     </Drawer>
   );

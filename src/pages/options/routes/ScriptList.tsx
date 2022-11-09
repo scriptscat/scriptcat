@@ -134,11 +134,13 @@ function ScriptList() {
       title: "#",
       dataIndex: "id",
       width: 70,
+      key: "id",
       sorter: (a, b) => a.id - b.id,
     },
     {
       title: "开启",
       width: 100,
+      key: "enable",
       sorter(a, b) {
         return a.status - b.status;
       },
@@ -188,6 +190,7 @@ function ScriptList() {
       dataIndex: "name",
       sorter: (a, b) => a.name.length - b.name.length,
       filterIcon: <IconSearch />,
+      key: "name",
       // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
@@ -234,6 +237,7 @@ function ScriptList() {
     {
       title: "版本",
       dataIndex: "version",
+      key: "version",
       width: 120,
       align: "center",
       render(col, item: Script) {
@@ -244,6 +248,7 @@ function ScriptList() {
       title: "应用至/运行状态",
       dataIndex: "status",
       width: 140,
+      key: "status",
       render(col, item: Script) {
         const toLogger = () => {
           navigate({
@@ -306,7 +311,8 @@ function ScriptList() {
     {
       title: "来源",
       dataIndex: "origin",
-      width: 120,
+      key: "origin",
+      width: 100,
       render(col, item: Script) {
         if (item.subscribeUrl) {
           return (
@@ -373,6 +379,7 @@ function ScriptList() {
       title: "主页",
       dataIndex: "home",
       align: "center",
+      key: "home",
       width: 100,
       render(col, item: Script) {
         return (
@@ -444,6 +451,7 @@ function ScriptList() {
     {
       title: "排序",
       dataIndex: "sort",
+      key: "sort",
       width: 80,
       sorter: (a, b) => a.sort - b.sort,
       align: "center",
@@ -461,6 +469,7 @@ function ScriptList() {
       title: "最后更新",
       dataIndex: "updatetime",
       align: "center",
+      key: "updatetime",
       width: 100,
       render(col, script: Script) {
         return (
@@ -509,6 +518,7 @@ function ScriptList() {
     {
       title: "操作",
       dataIndex: "action",
+      key: "action",
       width: 160,
       render(col, item: Script) {
         return (
@@ -730,6 +740,7 @@ function ScriptList() {
         style={{
           textAlign: "center",
         }}
+        key="drag"
       >
         <div className="arco-table-cell">
           <IconMenu
@@ -773,7 +784,7 @@ function ScriptList() {
           hideOnSinglePage: true,
         }}
         style={{
-          minWidth: "1240px",
+          minWidth: "1200px",
         }}
       />
       {userConfig && (

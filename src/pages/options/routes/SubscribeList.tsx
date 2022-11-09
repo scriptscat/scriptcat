@@ -49,11 +49,13 @@ function SubscribeList() {
       title: "#",
       dataIndex: "id",
       width: 70,
+      key: "#",
       sorter: (a, b) => a.id - b.id,
     },
     {
       title: "开启",
       width: 100,
+      key: "enable",
       sorter(a, b) {
         return a.status - b.status;
       },
@@ -103,6 +105,7 @@ function SubscribeList() {
       dataIndex: "name",
       sorter: (a, b) => a.name.length - b.name.length,
       filterIcon: <IconSearch />,
+      key: "name",
       // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
@@ -151,6 +154,7 @@ function SubscribeList() {
       dataIndex: "version",
       width: 120,
       align: "center",
+      key: "version",
       render(col, item: Subscribe) {
         return item.metadata.version && item.metadata.version[0];
       },
@@ -159,6 +163,7 @@ function SubscribeList() {
       title: "权限",
       width: 120,
       align: "center",
+      key: "permission",
       render(_, item: Subscribe) {
         if (item.metadata.connect) {
           return <div />;
@@ -177,8 +182,9 @@ function SubscribeList() {
     },
     {
       title: "来源",
-      width: 120,
+      width: 100,
       align: "center",
+      key: "source",
       render(_, item: Subscribe) {
         return (
           <Tooltip
@@ -206,6 +212,7 @@ function SubscribeList() {
       title: "最后更新",
       dataIndex: "updatetime",
       align: "center",
+      key: "updatetime",
       width: 100,
       render(col, subscribe: Subscribe) {
         return (
@@ -251,6 +258,7 @@ function SubscribeList() {
       title: "操作",
       width: 120,
       align: "center",
+      key: "action",
       render(_, item: Subscribe) {
         return (
           <Button.Group>
@@ -299,7 +307,7 @@ function SubscribeList() {
           hideOnSinglePage: true,
         }}
         style={{
-          minWidth: "1240px",
+          minWidth: "1200px",
         }}
       />
     </Card>
