@@ -1,4 +1,4 @@
-export const ExtVersion = "0.10.0-beta.1";
+export const ExtVersion = "0.10.0-beta.2";
 
 export const Server = "https://sc.icodef.com/";
 
