@@ -9,6 +9,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import semver from "semver";
+import { enc, MD5 } from "crypto-js";
 
 dayjs.locale("zh-cn");
 dayjs.extend(relativeTime);
@@ -217,4 +218,16 @@ export function checkSilenceUpdate(
     }
   }
   return true;
+}
+
+export function calculateMd5(blob: Blob) {
+  const reader = new FileReader();
+  reader.readAsBinaryString(blob);
+  return new Promise<string>((resolve) => {
+    reader.onloadend = () => {
+      // @ts-ignore
+      const hash = MD5(enc.Latin1.parse(reader.result)).toString();
+      resolve(hash);
+    };
+  });
 }

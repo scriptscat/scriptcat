@@ -1,11 +1,17 @@
+import IoC from "@App/app/ioc";
+import ScriptController from "@App/app/service/script/controller";
 import {
   Button,
   Dropdown,
+  Input,
   Layout,
   Menu,
+  Message,
+  Modal,
   Space,
   Typography,
 } from "@arco-design/web-react";
+import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import {
   IconDesktop,
   IconDown,
@@ -14,7 +20,7 @@ import {
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useRef, useState } from "react";
 import { RiFileCodeLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import "./index.css";
 
@@ -43,6 +49,8 @@ const MainLayout: React.FC<{
   pageName: string;
 }> = ({ children, className, pageName }) => {
   const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
+  const importRef = useRef<RefInputType>(null);
+  const [importVisible, setImportVisible] = useState(false);
   switchLight(lightMode);
   return (
     <Layout>
@@ -53,6 +61,29 @@ const MainLayout: React.FC<{
         }}
         className="flex items-center justify-between p-x-4"
       >
+        <Modal
+          title="链接导入"
+          visible={importVisible}
+          onOk={async () => {
+            const scriptCtl = IoC.instance(
+              ScriptController
+            ) as ScriptController;
+            try {
+              await scriptCtl.importByUrl(importRef.current!.dom.value);
+            } catch (e) {
+              Message.error(`链接导入失败: ${e}`);
+            }
+            setImportVisible(false);
+          }}
+          onCancel={() => {
+            setImportVisible(false);
+          }}
+        >
+          <Input
+            ref={importRef}
+            defaultValue="https://scriptcat.org/scripts/code/336/%F0%9F%90%A4%E3%80%90%E8%B6%85%E6%98%9F%E7%BD%91%E8%AF%BE%E5%B0%8F%E5%8A%A9%E6%89%8B%E3%80%91%E3%80%90%E6%94%AF%E6%8C%81%E5%9B%BE%E7%89%87%E9%A2%98%E3%80%91%E8%A7%86%E9%A2%91-%E7%AB%A0%E8%8A%82%E6%B5%8B%E8%AF%95%7C%E8%87%AA%E5%8A%A8%E6%8C%82%E6%9C%BA%7C%E5%8F%AF%E5%A4%9A%E5%BC%80%E4%B8%8D%E5%8D%A0%E7%BD%91%E9%80%9F%7C%E9%98%B2%E6%B8%85%E8%BF%9B%E5%BA%A6%E3%80%90%E7%94%A8%E8%BF%87%E9%83%BD%E8%AF%B4%E5%A5%BD%E3%80%91.user.js"
+          />
+        </Modal>
         <div className="flex row items-center">
           <img
             style={{ height: "40px" }}
@@ -85,7 +116,12 @@ const MainLayout: React.FC<{
                       <RiTimerLine /> 添加定时脚本
                     </a>
                   </Menu.Item>
-                  <Menu.Item key="link">
+                  <Menu.Item
+                    key="link"
+                    onClick={() => {
+                      setImportVisible(true);
+                    }}
+                  >
                     <IconLink /> 链接导入
                   </Menu.Item>
                 </Menu>

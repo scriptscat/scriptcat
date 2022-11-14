@@ -1,13 +1,14 @@
+import BaiduFileSystem from "./baidu/baidu";
 import FileSystem from "./filesystem";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
 
-export type FileSystemType = "zip" | "webdav";
+export type FileSystemType = "zip" | "webdav" | "baidu-netdsik";
 
 export type FileSystemParams = {
   [key: string]: {
     title: string;
-    type?: "select";
+    type?: "select" | "authorize";
     options?: string[];
   };
 };
@@ -27,6 +28,9 @@ export default class FileSystemFactory {
           params.password
         );
         break;
+      case "baidu-netdsik":
+        fs = new BaiduFileSystem();
+        break;
       default:
         throw new Error("not found filesystem");
     }
@@ -45,6 +49,7 @@ export default class FileSystemFactory {
         username: { title: "用户名" },
         password: { title: "密码" },
       },
+      "baidu-netdsik": {},
     };
   }
 }

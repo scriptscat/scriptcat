@@ -30,7 +30,8 @@ export default class WebDAVFileSystem implements FileSystem {
     return Promise.resolve();
   }
 
-  open(path: string): Promise<FileReader> {
+  open(file: File): Promise<FileReader> {
+    const path = file.name;
     return Promise.resolve(
       new WebDAVFileReader(this.client, this.getPath(path))
     );

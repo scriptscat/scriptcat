@@ -46,4 +46,8 @@ export default class ScriptController {
   checkUpdate(id: number) {
     return this.dispatchEvent("checkUpdate", id);
   }
+
+  importByUrl(url: string) {
+    return this.dispatchEvent("importByUrl", url);
+  }
 }

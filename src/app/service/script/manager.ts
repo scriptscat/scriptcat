@@ -84,7 +84,7 @@ export class ScriptManager extends Manager {
         if (hash.indexOf("bypass=true") !== -1) {
           return {};
         }
-        ScriptManager.openInstallPage(req);
+        this.openInstallPage(req);
         // eslint-disable-next-line no-script-url
         return { redirectUrl: "javascript:void 0" };
       },
@@ -100,23 +100,25 @@ export class ScriptManager extends Manager {
     );
   }
 
-  public static openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
-    fetchScriptInfo(req.url, "user", false)
-      .then((info) => {
-        Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
-        setTimeout(() => {
-          // 清理缓存
-          Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
-        }, 60 * 1000);
-        chrome.tabs.create({
-          url: `/src/install.html?uuid=${info.uuid}`,
-        });
-      })
-      .catch(() => {
-        chrome.tabs.update(req.tabId, {
-          url: `${req.url}#bypass=true`,
-        });
+  public openInstallPage(req: chrome.webRequest.WebRequestBodyDetails) {
+    this.openInstallPageByUrl(req.url).catch(() => {
+      chrome.tabs.update(req.tabId, {
+        url: `${req.url}#bypass=true`,
       });
+    });
+  }
+
+  public openInstallPageByUrl(url: string) {
+    return fetchScriptInfo(url, "user", false).then((info) => {
+      Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
+      setTimeout(() => {
+        // 清理缓存
+        Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
+      }, 60 * 1000);
+      chrome.tabs.create({
+        url: `/src/install.html?uuid=${info.uuid}`,
+      });
+    });
   }
 
   public async checkUpdate(id: number, source: "user" | "system") {

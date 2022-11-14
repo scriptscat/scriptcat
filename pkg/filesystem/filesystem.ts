@@ -1,4 +1,5 @@
 export interface File {
+  fsid?: number;
   // 文件名
   name: string;
   // 文件路径
@@ -30,7 +31,7 @@ export default interface FileSystem {
   // 授权验证
   verify(): Promise<void>;
   // 打开文件
-  open(path: string): Promise<FileReader>;
+  open(file: File): Promise<FileReader>;
   // 打开目录
   openDir(path: string): Promise<FileSystem>;
   // 创建文件

@@ -11,7 +11,7 @@
     "build": "webpack --mode production --config ./webpack/webpack.prod.ts && concurrently \"npm run build:linter\" \"npm run build:no-split\"",
     "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",
     "build:no-split": "webpack --mode production --config ./webpack/webpack.no.split.ts",
-    "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.ts --watch",
+    "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.dev.ts",
     "pack": "node ./build/pack.js"
   },
   "dependencies": {

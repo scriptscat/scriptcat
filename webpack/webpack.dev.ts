@@ -19,6 +19,9 @@ common.optimization = {};
 
 common.optimization = {};
 export default merge(common, {
+  output: {
+    clean: false,
+  },
   watch: true,
   devtool: "inline-source-map",
   plugins: [

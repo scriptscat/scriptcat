@@ -178,7 +178,7 @@ function Tools() {
                         let file: FileReader;
                         let data: Blob;
                         try {
-                          file = await fs.open(item.name);
+                          file = await fs.open(item);
                           data = (await file.read("blob")) as Blob;
                         } catch (e) {
                           Message.error(`拉取失败: ${e}`);

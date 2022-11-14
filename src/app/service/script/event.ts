@@ -16,7 +16,8 @@ export type ScriptEvent =
   | "enable"
   | "disable"
   | "delete"
-  | "checkUpdate";
+  | "checkUpdate"
+  | "importByUrl";
 
 const events: { [key: string]: (data: any) => Promise<any> } = {};
 
@@ -164,5 +165,10 @@ export default class ScriptEventListener {
   @ListenEventDecorator("checkUpdate")
   public checkUpdateHandler(id: number) {
     return this.manager.checkUpdate(id, "user");
+  }
+
+  @ListenEventDecorator("importByUrl")
+  public importByUrlHandler(url: string) {
+    return this.manager.openInstallPageByUrl(url);
   }
 }

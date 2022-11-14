@@ -4,10 +4,17 @@ import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
 
 const fsParams = FileSystemFactory.params();
 
-const fileSystemList = [
+const fileSystemList: {
+  key: FileSystemType;
+  name: string;
+}[] = [
   {
     key: "webdav",
     name: "WebDAV",
+  },
+  {
+    key: "baidu-netdsik",
+    name: "百度网盘",
   },
 ];
 const FileSystemParams: React.FC<{
@@ -30,7 +37,7 @@ const FileSystemParams: React.FC<{
       <Space>
         {preNode}
         <Select
-          value="webdav"
+          value={fileSystemType}
           style={{ width: 120 }}
           onChange={(value) => {
             onChangeFileSystemType(value as FileSystemType);

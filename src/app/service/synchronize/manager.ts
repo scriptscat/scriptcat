@@ -26,6 +26,11 @@ import SynchronizeEventListener from "./event";
 
 export type SynchronizeTarget = "local";
 
+type SyncFiles = {
+  script: File;
+  meta: File;
+};
+
 export type SyncMeta = {
   uuid: string;
   origin?: string; // 脚本来源
@@ -172,7 +177,13 @@ export default class SynchronizeManager extends Manager {
     // 首次同步
     const list = await fs.list();
     // 根据文件名生成一个map
-    const uuidMap = new Map<string, File>();
+    const uuidMap = new Map<
+      string,
+      {
+        script?: File;
+        meta?: File;
+      }
+    >();
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap =
       ((await this.storage.get("file_digest")) as {
@@ -182,7 +193,20 @@ export default class SynchronizeManager extends Manager {
     list.forEach((file) => {
       if (file.name.endsWith(".user.js")) {
         const uuid = file.name.substring(0, file.name.length - 8);
-        uuidMap.set(uuid, file);
+        let files = uuidMap.get(uuid);
+        if (!files) {
+          files = {};
+          uuidMap.set(uuid, files);
+        }
+        files.script = file;
+      } else if (file.name.endsWith(".meta.js")) {
+        const uuid = file.name.substring(0, file.name.length - 8);
+        let files = uuidMap.get(uuid);
+        if (!files) {
+          files = {};
+          uuidMap.set(uuid, files);
+        }
+        files.meta = file;
       }
     });
 
@@ -200,25 +224,25 @@ export default class SynchronizeManager extends Manager {
       // 获取脚本数据
       if (script) {
         // 过滤掉无变动的文件
-        if (fileDigestMap[file.name] === file.digest) {
+        if (fileDigestMap[file.script!.name] === file.script!.digest) {
           // 删除了之后,剩下的就是需要上传的脚本了
           scriptMap.delete(uuid);
           return;
         }
         const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
-        if (updatetime > file.updatetime) {
+        if (updatetime > file.script!.updatetime) {
           // 如果脚本更新时间大于文件更新时间,则上传文件
           result.push(this.pushScript(fs, script));
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
-          result.push(this.pullScript(fs, file, script));
+          result.push(this.pullScript(fs, file as SyncFiles, script));
         }
         scriptMap.delete(uuid);
         return;
       }
       // 如果脚本不存在,则安装脚本
-      result.push(this.pullScript(fs, file));
+      result.push(this.pullScript(fs, file as SyncFiles));
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
@@ -287,19 +311,18 @@ export default class SynchronizeManager extends Manager {
     return Promise.resolve();
   }
 
-  async pullScript(fs: FileSystem, file: File, script?: Script) {
+  async pullScript(fs: FileSystem, file: SyncFiles, script?: Script) {
     const logger = this.logger.with({
       scriptId: script?.id || -1,
       name: script?.name || "",
-      file: file.name,
+      file: file.script.name,
     });
     try {
-      const uuid = file.name.substring(0, file.name.length - 8);
       // 读取代码文件
-      const r = await fs.open(file.name);
+      const r = await fs.open(file.script);
       const code = (await r.read("string")) as string;
       // 读取meta文件
-      const meta = await fs.open(`${uuid}.meta.json`);
+      const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
       const newScript = await prepareScriptByCode(

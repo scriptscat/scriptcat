@@ -1,4 +1,4 @@
-import { ExternalMessage, ExtVersion, Server } from "@App/app/const";
+import { ExternalMessage, ExtVersion, ExtServer } from "@App/app/const";
 import IoC from "@App/app/ioc";
 import { MessageHander } from "@App/app/message/message";
 import { ScriptDAO } from "@App/app/repo/scripts";
@@ -22,7 +22,7 @@ export class SystemManager extends Manager {
   init() {
     // 两小时检查一次更新
     const checkUpdate = () => {
-      fetch(`${Server}api/v1/system/version?version=${ExtVersion}`)
+      fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
         .then((resp) => resp.json())
         .then((resp: { data: { notice: string; version: string } }) => {
           chrome.storage.local.get(["notice"], (items) => {

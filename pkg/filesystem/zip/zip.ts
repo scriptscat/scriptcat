@@ -21,7 +21,8 @@ export default class ZipFileSystem implements FileSystem {
     return Promise.resolve();
   }
 
-  open(path: string): Promise<FileReader> {
+  open(info: File): Promise<FileReader> {
+    const path = info.name;
     const file = this.zip.file(path);
     if (file) {
       return Promise.resolve(new ZipFileReader(file));
