@@ -1,4 +1,6 @@
 /* eslint-disable no-unused-vars */
+import IoC from "@App/app/ioc";
+import { SystemConfig } from "@App/pkg/config/config";
 import { AuthVerify } from "../auth";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
@@ -8,9 +10,12 @@ export default class BaiduFileSystem implements FileSystem {
 
   path: string;
 
+  systemConfig: SystemConfig;
+
   constructor(path?: string, accessToken?: string) {
     this.path = path || "/apps";
     this.accessToken = accessToken;
+    this.systemConfig = IoC.instance(SystemConfig) as SystemConfig;
   }
 
   async verify(): Promise<void> {
@@ -53,7 +58,7 @@ export default class BaiduFileSystem implements FileSystem {
       }
     ).then((data) => {
       if (data.errno) {
-        throw new Error(data);
+        throw new Error(JSON.stringify(data));
       }
       return Promise.resolve();
     });
@@ -61,6 +66,12 @@ export default class BaiduFileSystem implements FileSystem {
 
   // eslint-disable-next-line no-undef
   request(url: string, config?: RequestInit) {
+    config = config || {};
+    const headers = <Headers>config.headers || new Headers();
+    // 利用GM函数的匿名实现不发送cookie,因为某些情况cookie会导致-6错误
+    // headers.append(`${this.systemConfig.scriptCatFlag}-gm-xhr`, "true");
+    // headers.append(`${this.systemConfig.scriptCatFlag}-anonymous`, "true");
+    config.headers = headers;
     return fetch(url, config)
       .then((data) => data.json())
       .then(async (data) => {
@@ -70,7 +81,7 @@ export default class BaiduFileSystem implements FileSystem {
             .then((data2) => data2.json())
             .then((data2) => {
               if (data2.errno === 111) {
-                throw new Error(data2);
+                throw new Error(JSON.stringify(data2));
               }
               return data2;
             });
@@ -80,7 +91,21 @@ export default class BaiduFileSystem implements FileSystem {
   }
 
   delete(path: string): Promise<void> {
-    throw new Error("Delete Method not implemented.");
+    const filelist = [`${this.path}/${path}`];
+    return this.request(
+      `https://pan.baidu.com/rest/2.0/xpan/file?method=filemanager&access_token=${this.accessToken}&opera=delete`,
+      {
+        method: "POST",
+        body: `async=0&filelist=${encodeURIComponent(
+          JSON.stringify(filelist)
+        )}`,
+      }
+    ).then((data) => {
+      if (data.errno) {
+        throw new Error(JSON.stringify(data));
+      }
+      return data;
+    });
   }
 
   list(path?: string | undefined): Promise<File[]> {
@@ -95,7 +120,7 @@ export default class BaiduFileSystem implements FileSystem {
           this.createDir(path || "");
           return [];
         }
-        throw new Error(data);
+        throw new Error(JSON.stringify(data));
       }
       const list: File[] = [];
       data.list.forEach((val: any) => {

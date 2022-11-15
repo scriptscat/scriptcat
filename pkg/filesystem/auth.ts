@@ -41,7 +41,7 @@ export async function AuthVerify(netDiskType: NetDiskType, refresh?: boolean) {
     const data = Cache.getInstance().get(`netDiskToken:${netDiskType}`);
     // 大于一小时进行刷新
     if (data && Date.now() - data.time < 3600000) {
-      return data.token;
+      return Promise.resolve(data.data);
     }
   }
   // 调用API查看是否已经验证过,否则进行重定向
@@ -55,7 +55,7 @@ export async function AuthVerify(netDiskType: NetDiskType, refresh?: boolean) {
     return Promise.reject(new Error(token.msg));
   }
   Cache.getInstance().set(`netDiskToken:${netDiskType}`, {
-    token: token.data.accessToken,
+    data: token.data,
     time: Date.now(),
   });
   return Promise.resolve(token.data);

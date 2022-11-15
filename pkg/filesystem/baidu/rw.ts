@@ -16,16 +16,24 @@ export class BaiduFileReader implements FileReader {
   }
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
+    // 查询文件信息获取dlink
+    const data = await this.fs.request(
+      `https://pan.baidu.com/rest/2.0/xpan/multimedia?method=filemetas&access_token=${
+        this.fs.accessToken
+      }&fsids=[${this.file.fsid!}]&dlink=1`
+    );
+    if (!data.list.length) {
+      return Promise.reject(new Error("file not found"));
+    }
     switch (type) {
       case "string":
-        return this.client.getFileContents(this.path, {
-          format: "text",
-        }) as Promise<string>;
+        return fetch(
+          `${data.list[0].dlink}&access_token=${this.fs.accessToken}`
+        ).then((resp) => resp.text());
       default: {
-        const resp = (await this.client.getFileContents(this.path, {
-          format: "binary",
-        })) as ArrayBuffer;
-        return Promise.resolve(new Blob([resp]));
+        return fetch(
+          `${data.list[0].dlink}&access_token=${this.fs.accessToken}`
+        ).then((resp) => resp.blob());
       }
     }
   }
@@ -45,7 +53,7 @@ export class BaiduFileWriter implements FileWriter {
     if (content instanceof Blob) {
       return content.size;
     }
-    return content.length;
+    return new Blob([content]).size;
   }
 
   async md5(content: string | Blob) {
@@ -80,7 +88,7 @@ export class BaiduFileWriter implements FileWriter {
       )
       .then((data) => {
         if (data.errno) {
-          throw new Error(data);
+          throw new Error(JSON.stringify(data));
         }
         return data.uploadid;
       });
@@ -97,7 +105,7 @@ export class BaiduFileWriter implements FileWriter {
         `${
           `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&access_token=${this.fs.accessToken}` +
           `&type=tmpfile&path=`
-        }${this.path}&uploadid=${uploadid}&partseq=0`,
+        }${encodeURIComponent(this.path)}&uploadid=${uploadid}&partseq=0`,
         {
           method: "POST",
           body,
@@ -105,7 +113,7 @@ export class BaiduFileWriter implements FileWriter {
       )
       .then((data) => {
         if (data.errno) {
-          throw new Error(data);
+          throw new Error(JSON.stringify(data));
         }
         return data;
       });
@@ -128,9 +136,17 @@ export class BaiduFileWriter implements FileWriter {
       )
       .then((data) => {
         if (data.errno) {
-          throw new Error(data);
+          throw new Error(JSON.stringify(data));
         }
         return Promise.resolve();
       });
+  }
+
+  sleep() {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 1000);
+    });
   }
 }

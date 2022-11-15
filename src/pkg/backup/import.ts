@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import ResourceManager from "@App/app/service/resource/manager";
-import { File, FileSystem } from "@Pkg/filesystem/filesystem";
+import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import {
   BackupData,
   ResourceBackup,
@@ -39,7 +39,7 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 12);
       const subData = {
-        source: await (await this.fs.open(name)).read(),
+        source: await (await this.fs.open(file)).read(),
       } as SubscribeBackupData;
       subscribe.set(key, subData);
       return Promise.resolve(true);
@@ -52,7 +52,7 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 22);
       const data = <SubscribeOptionsFile>(
-        JSON.parse(await (await this.fs.open(name)).read())
+        JSON.parse(await (await this.fs.open(file)).read())
       );
       subscribe.get(key)!.options = data;
       return Promise.resolve(true);
@@ -67,7 +67,7 @@ export default class BackupImport {
       // 遍历与脚本同名的文件
       const key = name.substring(0, name.length - 8);
       const backupData = {
-        code: await (await this.fs.open(name)).read(),
+        code: await (await this.fs.open(file)).read(),
         storage: {},
         requires: [],
         requiresCss: [],
@@ -84,7 +84,7 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 13);
       const data = <ScriptOptionsFile>(
-        JSON.parse(await (await this.fs.open(name)).read())
+        JSON.parse(await (await this.fs.open(file)).read())
       );
       map.get(key)!.options = data;
       return Promise.resolve(true);
@@ -97,7 +97,7 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 13);
       const data = <ValueStorage>(
-        JSON.parse(await (await this.fs.open(name)).read())
+        JSON.parse(await (await this.fs.open(file)).read())
       );
       map.get(key)!.storage = data;
       return Promise.resolve(true);
@@ -148,7 +148,7 @@ export default class BackupImport {
         });
       }
       const data = <ResourceMeta>(
-        JSON.parse(await (await this.fs.open(name)).read())
+        JSON.parse(await (await this.fs.open(file)).read())
       );
       map.get(key)![type].push({
         meta: data,
@@ -162,14 +162,14 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const resource = map.get(info.key)![info.type][info.index];
-      resource.base64 = await (await this.fs.open(file.name)).read("base64");
+      resource.base64 = await (await this.fs.open(file)).read("base64");
       if (
         resource.meta &&
         (resource.meta.mimetype?.startsWith("text/") ||
           ResourceManager.textContentTypeMap.has(resource.meta.mimetype || ""))
       ) {
         // 存在meta
-        resource.source = await (await this.fs.open(file.name)).read();
+        resource.source = await (await this.fs.open(file)).read();
       }
       return Promise.resolve(true);
     });

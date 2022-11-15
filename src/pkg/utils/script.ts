@@ -247,6 +247,8 @@ export function prepareScriptByCode(
         [, domain] = urlSplit;
       }
     }
+    // N1-MTIwLjIyOC4wLjE4ODoxNjY4NTIyOTgyOjQ3OTYzNDc5NTMxMzQ1MzM0OQ==
+    // N1-MTIwLjIyOC4wLjE4ODoxNjY4NTIyOTgyOjQ3OTYzNDc5NTMxMzQ1MzM0OQ==
     let script: Script & { oldScript?: Script } = {
       id: 0,
       uuid: uuid || uuidv4(),
@@ -298,7 +300,6 @@ export function prepareScriptByCode(
         }
         script.checktime = new Date().getTime();
       }
-
       resolve(script);
     };
     handler();

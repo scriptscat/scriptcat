@@ -199,8 +199,8 @@ export default class SynchronizeManager extends Manager {
           uuidMap.set(uuid, files);
         }
         files.script = file;
-      } else if (file.name.endsWith(".meta.js")) {
-        const uuid = file.name.substring(0, file.name.length - 8);
+      } else if (file.name.endsWith(".meta.json")) {
+        const uuid = file.name.substring(0, file.name.length - 10);
         let files = uuidMap.get(uuid);
         if (!files) {
           files = {};

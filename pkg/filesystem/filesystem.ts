@@ -14,9 +14,10 @@ export interface File {
   updatetime: number;
 }
 
+type ReadType = "string" | "blob" | "base64";
 export interface FileReader {
   // 读取文件内容
-  read<T extends "string" | "blob">(type?: T): Promise<string | Blob>;
+  read(type?: ReadType): Promise<any>;
 }
 
 export interface FileWriter {

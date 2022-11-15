@@ -30,6 +30,7 @@ import ScriptController from "@App/app/service/script/controller";
 type ScriptData = ScriptBackupData & {
   script?: Script & { oldScript?: Script };
   install: boolean;
+  error?: string;
 };
 
 type SubscribeData = SubscribeBackupData & {
@@ -59,13 +60,18 @@ function App() {
         // 获取各个脚本现在已经存在的信息
         const result = await Promise.all(
           backDataScript.map(async (item) => {
-            item.script = await prepareScriptByCode(
-              item.code,
-              item.options?.meta.file_url || "",
-              item.options?.meta.file_url
-                ? undefined
-                : item.options?.meta.uuid || undefined
-            );
+            try {
+              item.script = await prepareScriptByCode(
+                item.code,
+                item.options?.meta.file_url || "",
+                item.options?.meta.file_url
+                  ? undefined
+                  : item.options?.meta.uuid || undefined
+              );
+            } catch (e: any) {
+              item.error = e.toString();
+              return Promise.resolve(item);
+            }
             if (!item.options) {
               item.options = {
                 options: {} as ScriptOptions,
@@ -113,7 +119,7 @@ function App() {
                 setLoading(true);
                 const result = scripts.map(async (item) => {
                   let resp = true;
-                  if (item.install) {
+                  if (item.install && !item.error) {
                     resp = await scriptCtrl.upsert(item.script!);
                   }
                   setInstallNum((prev) => {
@@ -186,7 +192,12 @@ function App() {
                 className="flex flex-row justify-between p-2"
                 key={`e_${index}`}
                 style={{
-                  background: item.install ? "rgb(var(--arcoblue-1))" : "",
+                  // eslint-disable-next-line no-nested-ternary
+                  background: item.error
+                    ? "rgb(var(--red-1))"
+                    : item.install
+                    ? "rgb(var(--arcoblue-1))"
+                    : "",
                   borderBottom: "1px solid rgb(var(--gray-3))",
                   cursor: "pointer",
                 }}
@@ -210,7 +221,7 @@ function App() {
                       color: "rgb(var(--blue-5))",
                     }}
                   >
-                    {item.script?.name || "-"}
+                    {item.script?.name || item.error || "unknown"}
                   </Typography.Title>
                   <span className="text-sm color-gray-5">
                     作者:{" "}
@@ -229,7 +240,9 @@ function App() {
                     操作:{" "}
                     {(item.install &&
                       (item.script?.oldScript ? "更新" : "新增")) ||
-                      "不做操作"}
+                      (item.error
+                        ? `错误: ${item.options?.meta.name} - ${item.options?.meta.uuid}`
+                        : "不做操作")}
                   </span>
                 </Space>
                 <div
