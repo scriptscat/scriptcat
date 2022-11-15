@@ -106,6 +106,17 @@ export default class GMApi {
     if (this.permissionVerify instanceof PermissionVerify) {
       listenerWebRequest(this.systemConfig.scriptCatFlag);
     }
+    // 处理sandbox来的CAT_fetchBlob和CAT_createBlobUrl
+    this.message.setHandler("CAT_createBlobUrl", (_: string, blob: Blob) => {
+      const url = URL.createObjectURL(blob);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60 * 1000);
+      return Promise.resolve(url);
+    });
+    this.message.setHandler("CAT_fetchBlob", (_: string, url: string) => {
+      return fetch(url).then((data) => data.blob());
+    });
   }
 
   // 解析请求

@@ -81,7 +81,11 @@ export default class ContentRuntime {
     this.contentMessage.setHandler(
       "CAT_createBlobUrl",
       (_action, data: Blob) => {
-        return Promise.resolve(URL.createObjectURL(data));
+        const url = URL.createObjectURL(data);
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 60 * 1000);
+        return Promise.resolve(url);
       }
     );
   }
