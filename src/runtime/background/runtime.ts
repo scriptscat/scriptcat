@@ -372,8 +372,6 @@ export default class Runtime extends Manager {
               [runAt] = script.metadata["run-at"];
             }
             switch (runAt) {
-              case "document-body":
-              case "document-menu":
               case "document-start":
                 runAt = "document_start";
                 break;
@@ -381,8 +379,6 @@ export default class Runtime extends Manager {
                 runAt = "document_end";
                 break;
               case "document-idle":
-                runAt = "document_idle";
-                break;
               default:
                 runAt = "document_idle";
                 break;

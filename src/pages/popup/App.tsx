@@ -47,11 +47,13 @@ function App() {
   const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
     systemManage.getNotice().then((res) => {
-      setNotice(res.notice);
-      setIsRead(res.isRead);
+      if (res) {
+        setNotice(res.notice);
+        setIsRead(res.isRead);
+      }
     });
     systemManage.getVersion().then((res) => {
-      setVersion(res);
+      res && setVersion(res);
     });
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
@@ -89,8 +91,10 @@ function App() {
               type="text"
               icon={<IconHome />}
               iconOnly
-              href="/src/options.html"
-              target="_blank"
+              onClick={() => {
+                // 用a链接的方式,vivaldi竟然会直接崩溃
+                window.open("/src/options.html", "_blank");
+              }}
             />
             <Badge count={isRead ? 0 : 1} dot offset={[-8, 6]}>
               <Button
@@ -121,7 +125,8 @@ function App() {
                               },
                             });
                             window.open(
-                              "/src/options.html#/script/editor?target=initial"
+                              "/src/options.html#/script/editor?target=initial",
+                              "_blank"
                             );
                           }
                         });
