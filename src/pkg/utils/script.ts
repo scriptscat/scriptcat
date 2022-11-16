@@ -129,7 +129,7 @@ export async function fetchScriptInfo(
 export function copyScript(script: Script, old: Script): Script {
   const ret = script;
   ret.id = old.id;
-  ret.uuid = old.uuid;
+  // ret.uuid = old.uuid;
   ret.createtime = old.createtime;
   ret.lastruntime = old.lastruntime;
   // ret.delayruntime = old.delayruntime;
@@ -247,11 +247,16 @@ export function prepareScriptByCode(
         [, domain] = urlSplit;
       }
     }
-    // N1-MTIwLjIyOC4wLjE4ODoxNjY4NTIyOTgyOjQ3OTYzNDc5NTMxMzQ1MzM0OQ==
-    // N1-MTIwLjIyOC4wLjE4ODoxNjY4NTIyOTgyOjQ3OTYzNDc5NTMxMzQ1MzM0OQ==
+    if (!uuid) {
+      if (url) {
+        uuid = uuidv5(url, uuidv5.URL);
+      } else {
+        uuid = uuidv4();
+      }
+    }
     let script: Script & { oldScript?: Script } = {
       id: 0,
-      uuid: uuid || uuidv4(),
+      uuid,
       name: metadata.name[0],
       code,
       author: metadata.author && metadata.author[0],
@@ -273,8 +278,11 @@ export function prepareScriptByCode(
     };
     const handler = async () => {
       let old: Script | undefined;
-      if (uuid !== undefined) {
+      if (uuid) {
         old = await dao.findByUUID(uuid);
+        if (!old && url) {
+          old = await dao.findByNameAndNamespace(script.name, script.namespace);
+        }
       } else {
         old = await dao.findByNameAndNamespace(script.name, script.namespace);
         if (!old) {

@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import {
   Button,
   Card,
+  Checkbox,
   Drawer,
   Empty,
   Input,
@@ -18,6 +19,9 @@ import { SystemConfig } from "@App/pkg/config/config";
 import { File, FileReader } from "@Pkg/filesystem/filesystem";
 import { formatUnixTime } from "@App/pkg/utils/utils";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
+import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
+import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import SystemController from "@App/app/service/system/controller";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
@@ -31,6 +35,8 @@ function Tools() {
     [key: string]: any;
   }>(systemConfig.backup.params[fileSystemType] || {});
   const [backupFileList, setBackupFileList] = useState<File[]>([]);
+
+  const vscodeRef = useRef<RefInputType>(null);
 
   return (
     <Space
@@ -240,10 +246,63 @@ function Tools() {
         </Space>
       </Card>
 
-      <Card title="开发调试" bordered={false}>
+      <Card
+        title={
+          <>
+            <span>开发调试</span>
+            <Button
+              type="text"
+              style={{
+                height: 24,
+              }}
+              icon={
+                <IconQuestionCircleFill
+                  style={{
+                    margin: 0,
+                  }}
+                />
+              }
+              href="https://www.bilibili.com/video/BV16q4y157CP"
+              target="_blank"
+              iconOnly
+            />
+          </>
+        }
+        bordered={false}
+      >
         <Space direction="vertical">
           <Title heading={6}>VSCode地址</Title>
-          <Input />
+          <Input
+            ref={vscodeRef}
+            defaultValue={systemConfig.vscodeUrl}
+            onChange={(value) => {
+              systemConfig.vscodeUrl = value;
+            }}
+          />
+          <Checkbox
+            onChange={(checked) => {
+              systemConfig.vscodeReconnect = checked;
+            }}
+            defaultChecked={systemConfig.vscodeReconnect}
+          >
+            自动连接vscode服务
+          </Checkbox>
+          <Button
+            type="primary"
+            onClick={() => {
+              const ctrl = IoC.instance(SystemController) as SystemController;
+              ctrl
+                .connectVSCode()
+                .then(() => {
+                  Message.success("连接成功");
+                })
+                .catch((e) => {
+                  Message.error(`连接失败: ${e}`);
+                });
+            }}
+          >
+            连接
+          </Button>
         </Space>
       </Card>
     </Space>

@@ -12,7 +12,7 @@ import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
 import Hook from "../hook";
 
-export type InstallSource = "user" | "system" | "sync" | "subscribe";
+export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
 // 脚本管理器,负责脚本实际的安装、卸载、更新等操作
 @IoC.Singleton(MessageHander, SystemConfig)
@@ -52,6 +52,9 @@ export class ScriptManager extends Manager {
     // 启动脚本检查更新
     // 十分钟对符合要求的脚本进行检查更新
     setInterval(() => {
+      if (!this.systemConfig.checkScriptUpdateCycle) {
+        return;
+      }
       this.logger.debug("start check update");
       this.scriptDAO.table
         .where("checktime")

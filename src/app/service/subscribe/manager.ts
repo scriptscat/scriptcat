@@ -58,6 +58,9 @@ export default class SubscribeManager extends Manager {
     // 启动订阅检查更新
     // 十分钟对符合要求的订阅进行检查更新
     setInterval(() => {
+      if (!this.systemConfig.checkScriptUpdateCycle) {
+        return;
+      }
       this.logger.debug("start check update");
       this.subscribeDAO.table
         .where("checktime")

@@ -647,7 +647,7 @@ function ScriptEditor() {
             ))}
           </Tabs>
           <div className="flex flex-grow flex-1">
-            {editors.map((item, index) => {
+            {editors.map((item) => {
               // 先这样吧
               setTimeout(() => {
                 if (item.active && item.editor) {
@@ -668,7 +668,11 @@ function ScriptEditor() {
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {
                       setEditors((prev) => {
-                        prev[index].editor = e;
+                        prev.forEach((v) => {
+                          if (v.script.uuid === item.script.uuid) {
+                            v.editor = e;
+                          }
+                        });
                         return [...prev];
                       });
                     }}
@@ -676,7 +680,11 @@ function ScriptEditor() {
                       const isChanged = !(item.code === code);
                       if (isChanged !== item.isChanged) {
                         setEditors((prev) => {
-                          prev[index].isChanged = isChanged;
+                          prev.forEach((v) => {
+                            if (v.script.id === item.script.id) {
+                              v.isChanged = isChanged;
+                            }
+                          });
                           return [...prev];
                         });
                       }

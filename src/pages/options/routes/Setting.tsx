@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { Button, Card, Checkbox, Message, Space } from "@arco-design/web-react";
+import {
+  Button,
+  Card,
+  Checkbox,
+  Message,
+  Select,
+  Space,
+} from "@arco-design/web-react";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { SystemConfig } from "@App/pkg/config/config";
 import IoC from "@App/app/ioc";
@@ -94,6 +101,24 @@ function Setting() {
       </Card>
       <Card title="更新" bordered={false}>
         <Space direction="vertical">
+          <Space>
+            <span>脚本/订阅检查更新间隔:</span>
+            <Select
+              defaultValue={systemConfig.checkScriptUpdateCycle.toString()}
+              style={{
+                width: 100,
+              }}
+              onChange={(value) => {
+                systemConfig.checkScriptUpdateCycle = parseInt(value, 10);
+              }}
+            >
+              <Select.Option value="0">从不</Select.Option>
+              <Select.Option value="21600">6小时</Select.Option>
+              <Select.Option value="43200">12小时</Select.Option>
+              <Select.Option value="86400">每天</Select.Option>
+              <Select.Option value="604800">每周</Select.Option>
+            </Select>
+          </Space>
           <Checkbox
             onChange={(checked) => {
               systemConfig.updateDisableScript = checked;

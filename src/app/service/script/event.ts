@@ -8,7 +8,7 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptDAO,
 } from "../../repo/scripts";
-import ScriptManager from "./manager";
+import ScriptManager, { InstallSource } from "./manager";
 
 export type ScriptEvent =
   | "upsert"
@@ -49,10 +49,7 @@ export default class ScriptEventListener {
 
   // 安装或者更新脚本,将数据保存到数据库
   @ListenEventDecorator("upsert")
-  public upsertHandler(
-    script: Script,
-    upsertBy: "user" | "system" | "sync" = "user"
-  ) {
+  public upsertHandler(script: Script, upsertBy: InstallSource = "user") {
     return new Promise((resolve, reject) => {
       const logger = this.logger.with({
         scriptId: script.id,

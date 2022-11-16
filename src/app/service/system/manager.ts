@@ -1,10 +1,13 @@
 import { ExternalMessage, ExtVersion, ExtServer } from "@App/app/const";
 import IoC from "@App/app/ioc";
+import { v5 as uuidv5 } from "uuid";
 import { MessageHander } from "@App/app/message/message";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
+import { prepareScriptByCode } from "@App/pkg/utils/script";
 import semver from "semver";
 import Manager from "../manager";
+import ScriptManager from "../script/manager";
 
 // value管理器,负责value等更新获取等操作
 @IoC.Singleton(MessageHander, SystemConfig)
@@ -13,10 +16,15 @@ export class SystemManager extends Manager {
 
   scriptDAO: ScriptDAO;
 
+  scriptManager: ScriptManager;
+
+  wsVscode?: WebSocket;
+
   constructor(message: MessageHander, systemConfig: SystemConfig) {
     super(message, "system");
     this.scriptDAO = new ScriptDAO();
     this.systemConfig = systemConfig;
+    this.scriptManager = IoC.instance(ScriptManager) as ScriptManager;
   }
 
   init() {
@@ -92,6 +100,75 @@ export class SystemManager extends Manager {
         return Promise.resolve(false);
       }
     );
+    this.listenEvent("connectVSCode", this.connectVSCode.bind(this));
+
+    this.reconnectVSCode();
+  }
+
+  reconnectVSCode() {
+    let connectVSCodeTimer: any;
+    const handler = () => {
+      if (!this.wsVscode) {
+        this.connectVSCode();
+      }
+    };
+    if (this.systemConfig.vscodeReconnect) {
+      connectVSCodeTimer = setInterval(() => {
+        handler();
+      }, 30 * 1000);
+    }
+
+    SystemConfig.hook.addListener("update", (key, val) => {
+      if (key === "vscodeReconnect") {
+        if (val) {
+          connectVSCodeTimer = setInterval(() => {
+            handler();
+          }, 30 * 1000);
+        } else {
+          clearInterval(connectVSCodeTimer);
+        }
+      }
+    });
+  }
+
+  connectVSCode() {
+    return new Promise<void>((resolve, reject) => {
+      // 与vsc扩展建立连接
+      if (this.wsVscode) {
+        this.wsVscode.close();
+      }
+      try {
+        this.wsVscode = new WebSocket(this.systemConfig.vscodeUrl);
+      } catch (e: any) {
+        reject(e);
+        return;
+      }
+      this.wsVscode.addEventListener("open", () => {
+        this.wsVscode!.send('{"action":"hello"}');
+        resolve();
+      });
+      this.wsVscode.addEventListener("message", async (ev) => {
+        const data = JSON.parse(ev.data);
+        switch (data.action) {
+          case "onchange": {
+            const code = data.data.script;
+            const script = await prepareScriptByCode(
+              code,
+              "",
+              uuidv5(code.data.uri, uuidv5.URL)
+            );
+            this.scriptManager.event.upsertHandler(script, "vscode");
+            break;
+          }
+          default:
+        }
+      });
+
+      this.wsVscode.addEventListener("error", () => {
+        reject(new Error("VSCode连接失败"));
+        this.wsVscode = undefined;
+      });
+    });
   }
 
   getNotice(): Promise<{ notice: string; isRead: boolean }> {
