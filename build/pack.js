@@ -25,6 +25,8 @@ if (version.prerelease.length) {
   }
   manifest.version = `${version.major.toString()}.${version.minor.toString()}.${version.patch.toString()}.${betaVersion.toString()}`;
   manifest.name = `${manifest.name} Beta`;
+} else {
+  manifest.version = package.version;
 }
 
 // 处理manifest version
