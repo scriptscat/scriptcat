@@ -57,7 +57,7 @@ export class SystemManager extends Manager {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
           const version = semver.parse(ExtVersion);
-          if (version && !version.prerelease) {
+          if (version && !version.prerelease.length) {
             chrome.tabs.create({
               url: "https://docs.scriptcat.org/docs/change/",
             });

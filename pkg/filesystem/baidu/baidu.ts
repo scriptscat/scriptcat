@@ -20,7 +20,7 @@ export default class BaiduFileSystem implements FileSystem {
 
   async verify(): Promise<void> {
     const token = await AuthVerify("baidu");
-    this.accessToken = token.accessToken;
+    this.accessToken = token;
     return Promise.resolve();
   }
 
@@ -69,8 +69,8 @@ export default class BaiduFileSystem implements FileSystem {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
     // 利用GM函数的匿名实现不发送cookie,因为某些情况cookie会导致-6错误
-    // headers.append(`${this.systemConfig.scriptCatFlag}-gm-xhr`, "true");
-    // headers.append(`${this.systemConfig.scriptCatFlag}-anonymous`, "true");
+    headers.append(`${this.systemConfig.scriptCatFlag}-gm-xhr`, "true");
+    headers.append(`${this.systemConfig.scriptCatFlag}-anonymous`, "true");
     config.headers = headers;
     return fetch(url, config)
       .then((data) => data.json())

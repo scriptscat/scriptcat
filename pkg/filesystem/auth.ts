@@ -1,5 +1,4 @@
 /* eslint-disable import/prefer-default-export */
-import Cache from "@App/app/cache";
 import { ExtServer } from "@App/app/const";
 import { api } from "@App/pkg/axios";
 
@@ -8,10 +7,28 @@ type NetDiskType = "baidu";
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
   msg: string;
-  data: { accessToken: string };
+  data: { token: { accessToken: string; refreshToken: string } };
 }> {
   return api
     .get(`/auth/net-disk/token?netDiskType=${netDiskType}`)
+    .then((resp) => {
+      return resp.data;
+    });
+}
+
+export function RefreshToken(
+  netDiskType: NetDiskType,
+  refreshToken: string
+): Promise<{
+  code: number;
+  msg: string;
+  data: { token: { accessToken: string; refreshToken: string } };
+}> {
+  return api
+    .post(`/auth/net-disk/token/refresh?netDiskType=${netDiskType}`, {
+      netDiskType,
+      refreshToken,
+    })
     .then((resp) => {
       return resp.data;
     });
@@ -36,27 +53,49 @@ export function NetDisk(netDiskType: NetDiskType) {
   });
 }
 
-export async function AuthVerify(netDiskType: NetDiskType, refresh?: boolean) {
-  if (!refresh) {
-    const data = Cache.getInstance().get(`netDiskToken:${netDiskType}`);
-    // 大于一小时进行刷新
-    if (data && Date.now() - data.time < 3600000) {
-      return Promise.resolve(data.data);
-    }
+export type Token = {
+  accessToken: string;
+  refreshToken: string;
+  createtime: number;
+};
+
+export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
+  let token: Token | undefined;
+  try {
+    token = JSON.parse(localStorage[`netdisk:token:${netDiskType}`]);
+  } catch (e) {
+    // ignore
   }
-  // 调用API查看是否已经验证过,否则进行重定向
-  let token = await GetNetDiskToken(netDiskType);
-  if (token.code !== 0) {
-    // 申请
+  if (reapply || !token || !token.accessToken) {
+    // 强制重新获取token
     await NetDisk(netDiskType);
-    token = await GetNetDiskToken(netDiskType);
+    const resp = await GetNetDiskToken(netDiskType);
+    if (resp.code !== 0) {
+      return Promise.reject(new Error(resp.msg));
+    }
+    token = {
+      accessToken: resp.data.token.accessToken,
+      refreshToken: resp.data.token.refreshToken,
+      createtime: Date.now(),
+    };
   }
-  if (token.code !== 0) {
-    return Promise.reject(new Error(token.msg));
+  token.createtime = 0;
+  if (Date.now() > token.createtime + 3600000) {
+    // 大于一小时刷新token
+    const resp = await RefreshToken(netDiskType, token.refreshToken);
+    if (resp.code !== 0) {
+      // 刷新失败删除token
+      localStorage.removeItem(`netdisk:token:${netDiskType}`);
+      return Promise.reject(new Error(resp.msg));
+    }
+    token = {
+      accessToken: resp.data.token.accessToken,
+      refreshToken: resp.data.token.refreshToken,
+      createtime: Date.now(),
+    };
+  } else {
+    return Promise.resolve(token.accessToken);
   }
-  Cache.getInstance().set(`netDiskToken:${netDiskType}`, {
-    data: token.data,
-    time: Date.now(),
-  });
-  return Promise.resolve(token.data);
+  localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
+  return Promise.resolve(token.accessToken);
 }

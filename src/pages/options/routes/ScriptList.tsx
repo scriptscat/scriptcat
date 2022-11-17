@@ -318,12 +318,9 @@ function ScriptList() {
           return (
             <Tooltip
               content={
-                <>
-                  <p style={{ margin: 0 }}>
-                    订阅链接: {decodeURIComponent(item.subscribeUrl)}
-                  </p>
-                  (点击复制)
-                </>
+                <p style={{ margin: 0 }}>
+                  订阅链接: {decodeURIComponent(item.subscribeUrl)}
+                </p>
               }
             >
               <Tag

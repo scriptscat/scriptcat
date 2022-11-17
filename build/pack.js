@@ -8,7 +8,7 @@ const package = require("../package.json");
 
 // 判断是否为beta版本
 const version = semver.parse(package.version);
-if (version.prerelease) {
+if (version.prerelease.length) {
   // 替换manifest中的版本
   let betaVersion = 1000;
   switch (version.prerelease[0]) {
@@ -46,7 +46,7 @@ fs.writeFileSync("./src/app/const.ts", configSystem);
 
 execSync("npm run build", { stdio: "inherit" });
 
-if (version.prerelease) {
+if (version.prerelease.length) {
   // 替换蓝猫logo
   fs.copyFileSync("./build/assets/logo-beta.png", "./dist/ext/assets/logo.png");
 }

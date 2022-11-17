@@ -498,6 +498,10 @@ export default class Runtime extends Manager {
   // 加载页面脚本
   loadPageScript(script: ScriptRunResouce) {
     // 重构code
+    const logger = this.logger.with({
+      scriptId: script.id,
+      name: script.name,
+    });
     script.code = dealScript(compileInjectScript(script));
 
     this.match.del(<ScriptRunResouce>script);
@@ -507,7 +511,7 @@ export default class Runtime extends Manager {
         try {
           this.match.add(url, script);
         } catch (e) {
-          this.logger.error("url加载错误", Logger.E(e));
+          logger.error("url加载错误", Logger.E(e));
         }
       });
     }
@@ -516,7 +520,7 @@ export default class Runtime extends Manager {
         try {
           this.include.add(url, script);
         } catch (e) {
-          this.logger.error("url加载错误", Logger.E(e));
+          logger.error("url加载错误", Logger.E(e));
         }
       });
     }
@@ -526,7 +530,7 @@ export default class Runtime extends Manager {
           this.include.exclude(url, script);
           this.match.exclude(url, script);
         } catch (e) {
-          this.logger.error("url加载错误", Logger.E(e));
+          logger.error("url加载错误", Logger.E(e));
         }
       });
     }
