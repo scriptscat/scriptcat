@@ -410,7 +410,7 @@ export default function Description() {
       </Grid.Row>
       <CodeEditor
         id="show-code"
-        code={upsertScript?.code || ""}
+        code={upsertScript?.code || undefined}
         diffCode={oldScript?.code || ""}
       />
     </div>

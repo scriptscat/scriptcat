@@ -10,7 +10,8 @@ type Props = {
   // eslint-disable-next-line react/require-default-props
   editable?: boolean;
   id: string;
-  code: string;
+  // eslint-disable-next-line react/require-default-props
+  code?: string;
 };
 
 const CodeEditor: React.ForwardRefRenderFunction<
@@ -22,7 +23,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
     editor: monacoEditor,
   }));
   useEffect(() => {
-    if (diffCode === undefined) {
+    if (diffCode === undefined || code === undefined) {
       return () => {};
     }
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
