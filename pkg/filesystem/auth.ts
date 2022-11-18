@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 /* eslint-disable import/prefer-default-export */
 import { ExtServer } from "@App/app/const";
 import { api } from "@App/pkg/axios";
@@ -7,7 +8,7 @@ type NetDiskType = "baidu";
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
   msg: string;
-  data: { token: { accessToken: string; refreshToken: string } };
+  data: { token: { access_token: string; refresh_token: string } };
 }> {
   return api
     .get(`/auth/net-disk/token?netDiskType=${netDiskType}`)
@@ -22,7 +23,7 @@ export function RefreshToken(
 ): Promise<{
   code: number;
   msg: string;
-  data: { token: { accessToken: string; refreshToken: string } };
+  data: { token: { access_token: string; refresh_token: string } };
 }> {
   return api
     .post(`/auth/net-disk/token/refresh?netDiskType=${netDiskType}`, {
@@ -74,12 +75,12 @@ export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
       return Promise.reject(new Error(resp.msg));
     }
     token = {
-      accessToken: resp.data.token.accessToken,
-      refreshToken: resp.data.token.refreshToken,
+      accessToken: resp.data.token.access_token,
+      refreshToken: resp.data.token.refresh_token,
       createtime: Date.now(),
     };
+    localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   }
-  token.createtime = 0;
   if (Date.now() > token.createtime + 3600000) {
     // 大于一小时刷新token
     const resp = await RefreshToken(netDiskType, token.refreshToken);
@@ -89,13 +90,13 @@ export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
       return Promise.reject(new Error(resp.msg));
     }
     token = {
-      accessToken: resp.data.token.accessToken,
-      refreshToken: resp.data.token.refreshToken,
+      accessToken: resp.data.token.access_token,
+      refreshToken: resp.data.token.refresh_token,
       createtime: Date.now(),
     };
+    localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   } else {
     return Promise.resolve(token.accessToken);
   }
-  localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   return Promise.resolve(token.accessToken);
 }
