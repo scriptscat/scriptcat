@@ -144,7 +144,7 @@ export class ResourceManager extends Manager {
         if (split.length === 2) {
           const res = await this.getResource(script.id, split[1], "resource");
           if (res) {
-            ret[u] = res;
+            ret[split[0]] = res;
           }
         }
       })
