@@ -665,4 +665,9 @@ export default class GMApi {
   GM_unregisterMenuCommand(id: number): void {
     this.sendMessage("GM_unregisterMenuCommand", [id]);
   }
+
+  @GMContext.API()
+  CAT_userConfig() {
+    return this.sendMessage("CAT_userConfig", []);
+  }
 }
