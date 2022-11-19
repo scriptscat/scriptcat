@@ -25,6 +25,7 @@ const UserConfigPanel: React.FC<{
   const [visible, setVisible] = React.useState(true);
   const [tab, setTab] = React.useState(Object.keys(userConfig)[0]);
   useEffect(() => {
+    setTab(Object.keys(userConfig)[0]);
     setVisible(true);
   }, [script, userConfig]);
   return (
@@ -132,7 +133,13 @@ const UserConfigPanel: React.FC<{
                             />
                           );
                         case "checkbox":
-                          return <Checkbox>{item.description}</Checkbox>;
+                          return (
+                            <Checkbox
+                              defaultChecked={values[`${itemKey}.${key}`]}
+                            >
+                              {item.description}
+                            </Checkbox>
+                          );
                         case "select":
                         case "mult-select":
                           // eslint-disable-next-line no-case-declarations
