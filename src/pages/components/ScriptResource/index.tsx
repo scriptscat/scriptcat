@@ -1,29 +1,22 @@
 import IoC from "@App/app/ioc";
 import { Resource } from "@App/app/repo/resource";
 import { Script } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
 import ResourceController from "@App/app/service/resource/controller";
 import { base64ToBlob } from "@App/pkg/utils/script";
-import { valueType } from "@App/pkg/utils/utils";
 import {
   Button,
   Drawer,
-  Form,
   Input,
   Message,
-  Modal,
   Popconfirm,
-  Select,
   Space,
   Table,
 } from "@arco-design/web-react";
-import FormItem from "@arco-design/web-react/es/Form/form-item";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import {
   IconDelete,
   IconDownload,
-  IconEdit,
   IconSearch,
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
