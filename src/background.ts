@@ -62,6 +62,8 @@ const sandboxOnload = () => {
   runtime.start();
   // 值后台处理器
   valueManager.start();
+  // 资源后台处理器
+  resourceManager.start();
   (IoC.instance(ScriptManager) as ScriptManager).start();
   (IoC.instance(SubscribeManager) as SubscribeManager).start();
   // 同步处理器

@@ -27,6 +27,7 @@ import Logger from "@App/app/logger/logger";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import RuntimeController from "@App/runtime/content/runtime";
 import ScriptStorage from "@App/pages/components/ScriptStorage";
+import ScriptResource from "@App/pages/components/ScriptResource";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -103,7 +104,11 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
         const url = await new Promise<string>((resolve) => {
           chrome.storage.local.get(["activeTabUrl"], (result) => {
             chrome.storage.local.remove(["activeTabUrl"]);
-            resolve(result.activeTabUrl.url);
+            if (result.activeTabUrl) {
+              resolve(result.activeTabUrl.url);
+            } else {
+              resolve("undefind");
+            }
           });
         });
         code = code.replace("{{match}}", url);
@@ -121,6 +126,8 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   });
 };
 
+type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
+
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
@@ -128,13 +135,7 @@ function ScriptEditor() {
   const template = useSearchParams()[0].get("template") || "";
   const target = useSearchParams()[0].get("target") || "";
   const navigate = useNavigate();
-  const [visible, setVisible] = useState<{
-    scriptStorage: boolean;
-    scriptSetting: boolean;
-  }>({
-    scriptStorage: false,
-    scriptSetting: false,
-  });
+  const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -147,6 +148,14 @@ function ScriptEditor() {
   >([]);
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
+
+  const setShow = (key: visibleItem, show: boolean) => {
+    Object.keys(visible).forEach((k) => {
+      visible[k] = false;
+    });
+    visible[key] = show;
+    setVisible({ ...visible });
+  };
 
   const { id } = useParams();
   const save = (
@@ -241,10 +250,15 @@ function ScriptEditor() {
           title: "脚本储存",
           tooltip: "可以管理脚本GM_value的储存数据",
           action(script) {
-            setVisible({
-              scriptStorage: true,
-              scriptSetting: false,
-            });
+            setShow("scriptStorage", true);
+            setCurrentScript(script);
+          },
+        },
+        {
+          title: "脚本资源",
+          tooltip: "管理@resource,@require下载的资源",
+          action(script) {
+            setShow("scriptResource", true);
             setCurrentScript(script);
           },
         },
@@ -254,10 +268,7 @@ function ScriptEditor() {
       title: "设置",
       tooltip: "对脚本进行一些自定义设置",
       action(script) {
-        setVisible({
-          scriptStorage: false,
-          scriptSetting: true,
-        });
+        setShow("scriptSetting", true);
         setCurrentScript(script);
       },
     },
@@ -353,16 +364,20 @@ function ScriptEditor() {
         visible={visible.scriptStorage}
         script={currentScript}
         onOk={() => {
-          setVisible({
-            scriptStorage: false,
-            scriptSetting: false,
-          });
+          setShow("scriptStorage", false);
         }}
         onCancel={() => {
-          setVisible({
-            scriptStorage: false,
-            scriptSetting: false,
-          });
+          setShow("scriptStorage", false);
+        }}
+      />
+      <ScriptResource
+        visible={visible.scriptResource}
+        script={currentScript}
+        onOk={() => {
+          setShow("scriptResource", false);
+        }}
+        onCancel={() => {
+          setShow("scriptResource", false);
         }}
       />
       <Drawer
@@ -370,16 +385,10 @@ function ScriptEditor() {
         title={<span>{currentScript?.name} 脚本设置</span>}
         visible={visible.scriptSetting}
         onOk={() => {
-          setVisible({
-            scriptStorage: false,
-            scriptSetting: false,
-          });
+          setShow("scriptSetting", false);
         }}
         onCancel={() => {
-          setVisible({
-            scriptStorage: false,
-            scriptSetting: false,
-          });
+          setShow("scriptSetting", false);
         }}
       >
         <Empty description="建设中" />

@@ -49,7 +49,7 @@ export default class SynchronizeEventListener {
       Cache.getInstance().del(key);
     }, 60 * 100000);
     chrome.tabs.create({
-      url: `src/import.html?uuid=${uuid}`,
+      url: `/src/import.html?uuid=${uuid}`,
     });
     return Promise.resolve({ uuid });
   }

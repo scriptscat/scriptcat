@@ -34,7 +34,7 @@ const Sider: React.FC = () => {
         className="h-full"
         collapsible
         collapsed={collapsed}
-        width={200}
+        width={170}
         onCollapse={(c) => {
           localStorage.collapsed = c;
           setCollapsed(c);

@@ -57,11 +57,20 @@ export class ResourceManager extends Manager {
   logger: Logger;
 
   constructor(message: MessageHander) {
-    super(message);
+    super(message, "resource");
     this.resourceDAO = new ResourceDAO();
     this.resourceLinkDAO = new ResourceLinkDAO();
     this.logger = LoggerCore.getInstance().logger({
       component: "resource",
+    });
+  }
+
+  start() {
+    this.listenEvent("getScriptResources", (script: Script) => {
+      return this.getScriptResources(script);
+    });
+    this.listenEvent("deleteResource", (id: number) => {
+      return this.resourceDAO.delete(id);
     });
   }
 
@@ -80,7 +89,8 @@ export class ResourceManager extends Manager {
         return Promise.resolve(res);
       }
     } catch (e) {
-      this.logger.debug("get resource failed", { id, url }, Logger.E(e));
+      // ignore
+      // this.logger.error("get resource failed", { id, url }, Logger.E(e));
     }
     return Promise.resolve(undefined);
   }
@@ -102,7 +112,7 @@ export class ResourceManager extends Manager {
       return Promise.resolve({});
     }
     const ret: { [key: string]: Resource } = {};
-    await Promise.all(
+    await Promise.allSettled(
       script.metadata.require.map(async (u) => {
         const res = await this.getResource(script.id, u, "require");
         if (res) {
@@ -120,7 +130,7 @@ export class ResourceManager extends Manager {
       return Promise.resolve({});
     }
     const ret: { [key: string]: Resource } = {};
-    await Promise.all(
+    await Promise.allSettled(
       script.metadata.require.map(async (u) => {
         const res = await this.getResource(script.id, u, "require-css");
         if (res) {
@@ -138,7 +148,7 @@ export class ResourceManager extends Manager {
       return Promise.resolve({});
     }
     const ret: { [key: string]: Resource } = {};
-    await Promise.all(
+    await Promise.allSettled(
       script.metadata.resource.map(async (u) => {
         const split = u.split(/\s+/);
         if (split.length === 2) {

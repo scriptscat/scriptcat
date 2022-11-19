@@ -110,4 +110,7 @@ export default function migrate() {
   });
   // 使用小峰驼统一命名规范
   renameField();
+  // db.version(17).stores({
+  // resource: "++id,&url,type,createtime,updatetime",
+  // });
 }

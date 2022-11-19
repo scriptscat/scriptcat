@@ -117,9 +117,9 @@ function App() {
                   onClickMenuItem={(key) => {
                     switch (key) {
                       case "newScript":
-                        chrome.tabs.query({ active: true }, (tab) => {
+                        chrome.tabs.query({ active: true }, async (tab) => {
                           if (tab.length) {
-                            chrome.storage.local.set({
+                            await chrome.storage.local.set({
                               activeTabUrl: {
                                 url: tab[0].url,
                               },

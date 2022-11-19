@@ -781,7 +781,7 @@ function ScriptList() {
           hideOnSinglePage: true,
         }}
         style={{
-          minWidth: "1200px",
+          minWidth: "1100px",
         }}
       />
       {userConfig && (

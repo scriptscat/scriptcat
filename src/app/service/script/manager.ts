@@ -201,7 +201,7 @@ export class ScriptManager extends Manager {
         }
         Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
         chrome.tabs.create({
-          url: `src/install.html?uuid=${info.uuid}`,
+          url: `/src/install.html?uuid=${info.uuid}`,
         });
       })
       .catch((e) => {
