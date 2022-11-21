@@ -1,4 +1,4 @@
-export const ExtVersion = "0.10.0";
+export const ExtVersion = "0.10.2";
 
 export const ExtServer =
   process.env.NODE_ENV === "development"

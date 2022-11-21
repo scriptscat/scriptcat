@@ -10,10 +10,11 @@ function renameField(): void {
         "++id,&uuid,name,namespace,author,originDomain,subscribeUrl,type,sort,status," +
         "runStatus,createtime,updatetime,checktime",
       logger: "++id,level,createtime",
-      export: "++id,&scriptId",
+      // export: "++id,&scriptId",
     })
     .upgrade(async (tx) => {
-      await tx
+      await tx.table("export").clear();
+      return tx
         .table("scripts")
         .toCollection()
         .modify((script: { [key: string]: any }) => {
@@ -28,6 +29,10 @@ function renameField(): void {
           }
         });
     });
+  db.version(17).stores({
+    // export是0.10.x时的兼容性处理
+    export: "++id,&scriptId",
+  });
 }
 
 export default function migrate() {
@@ -110,7 +115,4 @@ export default function migrate() {
   });
   // 使用小峰驼统一命名规范
   renameField();
-  // db.version(17).stores({
-  // resource: "++id,&url,type,createtime,updatetime",
-  // });
 }
