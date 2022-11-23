@@ -46,7 +46,7 @@
 
 [开发文档](https://docs.scriptcat.org/docs/dev/)尽力完善中,因为是参考油猴的设计,与油猴脚本相通的地方很多,就算你使用其它油猴管理器,你也可以参考脚本猫的文档来开发!  
 
-如果开发文档有什么错误,或者你想进行补全,你可以点击下方的`在 GitHub 上编辑此页`提`pull request`给我们.
+如果开发文档有什么错误,或者你想进行补全,你可以点击下方的`编辑此页`进行修改.
 
 ### 安装扩展
 
@@ -60,7 +60,8 @@
 
 ### 交流
 
-[Telegram](https://t.me/scriptscat)
+- [Telegram](https://t.me/scriptscat)
+- [油猴中文网](https://bbs.tampermonkey.net.cn/)
 
 ## License
 本项目使用GPLv3协议开源, 请遵守协议规定.	

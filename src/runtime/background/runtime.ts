@@ -240,7 +240,6 @@ export default class Runtime extends Manager {
       if (!script) {
         return;
       }
-      console.log(script);
       if (
         script.status !== SCRIPT_STATUS_ENABLE &&
         script.runStatus !== "running"
