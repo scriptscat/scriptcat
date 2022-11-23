@@ -70,6 +70,9 @@ export default class Runtime extends Manager {
 
   static hook = new Hook<"runStatus">();
 
+  // 运行中和开启的后台脚本
+  runBackScript: Map<number, Script> = new Map();
+
   constructor(
     message: MessageHander,
     messageSandbox: MessageSandbox,
@@ -126,15 +129,13 @@ export default class Runtime extends Manager {
     // 监听脚本运行状态
     this.listenScriptRunStatus();
 
-    // 运行中和开启的后台脚本
-    const runBackScript: Map<number, Script> = new Map();
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
           this.enable(item);
           if (item.type !== SCRIPT_TYPE_NORMAL) {
-            runBackScript.set(item.id, item);
+            this.runBackScript.set(item.id, item);
           }
         } else if (item.type === SCRIPT_TYPE_NORMAL) {
           // 只处理未开启的普通页面脚本
@@ -234,29 +235,20 @@ export default class Runtime extends Manager {
       genScriptMenu(activeInfo.tabId, scriptMenu);
     });
 
-    ScriptManager.hook.addListener("enable", (script: Script) => {
-      // 只处理后台脚本
-      if (script.type !== SCRIPT_TYPE_NORMAL) {
-        runBackScript.set(script.id, script);
-      }
-    });
-    ScriptManager.hook.addListener("disable", (script: Script) => {
-      if (script.type !== SCRIPT_TYPE_NORMAL) {
-        runBackScript.delete(script.id);
-      }
-    });
-
     Runtime.hook.addListener("runStatus", async (scriptId: number) => {
       const script = await this.scriptDAO.findById(scriptId);
       if (!script) {
         return;
       }
-      if (script.status !== SCRIPT_STATUS_ENABLE) {
+      if (
+        script.status !== SCRIPT_STATUS_ENABLE &&
+        script.runStatus !== "running"
+      ) {
         // 没开启并且不是运行中的脚本,删除
-        runBackScript.delete(scriptId);
+        this.runBackScript.delete(scriptId);
       } else {
         // 否则进行一次更新
-        runBackScript.set(scriptId, script);
+        this.runBackScript.set(scriptId, script);
       }
     });
 
@@ -291,7 +283,7 @@ export default class Runtime extends Manager {
         });
         const backScriptList: ScriptMenu[] = [];
         const sandboxMenuMap = scriptMenu.get("sandbox");
-        runBackScript.forEach((item) => {
+        this.runBackScript.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
           if (sandboxMenuMap) {
             sandboxMenuMap?.get(item.id)?.forEach((scriptItem) => {
@@ -469,10 +461,11 @@ export default class Runtime extends Manager {
   // 脚本删除
   async scriptDelete(script: Script): Promise<boolean> {
     // 清理匹配资源
-    this.match.del(<ScriptRunResouce>script);
-    this.include.del(<ScriptRunResouce>script);
-    if (script.status === SCRIPT_STATUS_ENABLE) {
-      await this.disable(script);
+    if (script.type === SCRIPT_TYPE_NORMAL) {
+      this.match.del(<ScriptRunResouce>script);
+      this.include.del(<ScriptRunResouce>script);
+    } else {
+      this.unloadBackgroundScript(script);
     }
     return Promise.resolve(true);
   }
@@ -542,8 +535,9 @@ export default class Runtime extends Manager {
     return this.loadPageScript(<ScriptRunResouce>script);
   }
 
-  // 加载后台脚本
+  // 加载并启动后台脚本
   loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
+    this.runBackScript.set(script.id, script);
     return new Promise((resolve, reject) => {
       this.messageSandbox
         .syncSend("enable", script)
@@ -557,8 +551,9 @@ export default class Runtime extends Manager {
     });
   }
 
-  // 卸载后台脚本
+  // 卸载并停止后台脚本
   unloadBackgroundScript(script: Script): Promise<boolean> {
+    this.runBackScript.delete(script.id);
     return new Promise((resolve, reject) => {
       this.messageSandbox
         .syncSend("disable", script.id)
