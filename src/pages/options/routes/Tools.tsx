@@ -131,10 +131,10 @@ function Tools() {
                   );
                   try {
                     fs = await fs.openDir("ScriptCat");
-                    const list = await fs.list();
+                    let list = await fs.list();
                     list.sort((a, b) => b.updatetime - a.updatetime);
                     // 过滤掉非zip文件
-                    list.filter((file) => file.name.endsWith(".zip"));
+                    list = list.filter((file) => file.name.endsWith(".zip"));
                     if (list.length === 0) {
                       Message.info("没有备份文件");
                       return;
@@ -177,13 +177,14 @@ function Tools() {
                       size="small"
                       onClick={async () => {
                         Message.info("正在从云端拉取数据");
-                        const fs = await FileSystemFactory.create(
+                        let fs = await FileSystemFactory.create(
                           fileSystemType,
                           fileSystemParams
                         );
                         let file: FileReader;
                         let data: Blob;
                         try {
+                          fs = await fs.openDir("ScriptCat");
                           file = await fs.open(item);
                           data = (await file.read("blob")) as Blob;
                         } catch (e) {
@@ -215,11 +216,12 @@ function Tools() {
                           title: "确认删除",
                           content: `确认删除备份文件${item.name}?`,
                           onOk: async () => {
-                            const fs = await FileSystemFactory.create(
+                            let fs = await FileSystemFactory.create(
                               fileSystemType,
                               fileSystemParams
                             );
                             try {
+                              fs = await fs.openDir("ScriptCat");
                               await fs.delete(item.name);
                               setBackupFileList(
                                 backupFileList.filter(
