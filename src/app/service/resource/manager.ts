@@ -1,5 +1,6 @@
 import IoC from "@App/app/ioc";
 import crypto from "crypto-js";
+import { isText } from "istextorbinary";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { MessageHander } from "@App/app/message/message";
@@ -258,18 +259,8 @@ export class ResourceManager extends Manager {
             type,
             createtime: new Date().getTime(),
           };
-          if (
-            resource.contentType.startsWith("text/") ||
-            ResourceManager.textContentTypeMap.has(resource.contentType)
-          ) {
+          if (isText(null, response.data)) {
             resource.content = await (<Blob>response.data).text();
-          } else if (resource.type === "resource") {
-            // 资源不判断类型
-            resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
-          } else {
-            return reject(
-              new Error(`not allow resource:${resource.contentType}`)
-            );
           }
           resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
           return resolve(resource);

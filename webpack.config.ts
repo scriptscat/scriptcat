@@ -130,6 +130,9 @@ const config: Configuration = {
       "@App": path.resolve(__dirname, "src/"),
       "@Pkg": path.resolve(__dirname, "pkg/"),
     },
+    fallback: {
+      path: require.resolve("path-browserify"),
+    },
   },
   module: {
     rules: [

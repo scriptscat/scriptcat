@@ -2,7 +2,7 @@ import { ExternalMessage, ExternalWhitelist } from "@App/app/const";
 import MessageContent from "@App/app/message/content";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript, { ValueUpdateData } from "./exec_script";
-import { ScriptFunc } from "./utils";
+import { addStyle, ScriptFunc } from "./utils";
 
 // 注入脚本的沙盒环境
 export default class InjectRuntime {
@@ -11,6 +11,8 @@ export default class InjectRuntime {
   flag: string;
 
   message: MessageContent;
+
+  execList: ExecScript[] = [];
 
   constructor(
     message: MessageContent,
@@ -23,34 +25,17 @@ export default class InjectRuntime {
   }
 
   start() {
-    const execList = <ExecScript[]>[];
     this.scripts.forEach((script) => {
       // @ts-ignore
       const scriptFunc = window[script.flag];
       if (scriptFunc) {
-        // @ts-ignore
-        delete window[script.flag];
-        const exec = new ExecScript(
-          script,
-          MessageContent.getInstance(),
-          scriptFunc
-        );
-        execList.push(exec);
-        exec.exec();
+        this.execScript(script, scriptFunc);
       } else {
         // 监听脚本加载,和屏蔽读取
         Object.defineProperty(window, script.flag, {
           configurable: true,
           set: (val: ScriptFunc) => {
-            // @ts-ignore
-            delete window[script.flag];
-            const exec = new ExecScript(
-              script,
-              MessageContent.getInstance(),
-              val
-            );
-            execList.push(exec);
-            exec.exec();
+            this.execScript(script, val);
           },
         });
       }
@@ -59,7 +44,7 @@ export default class InjectRuntime {
     MessageContent.getInstance().setHandler(
       "valueUpdate",
       (_action, data: ValueUpdateData) => {
-        execList.forEach((exec) => {
+        this.execList.forEach((exec) => {
           exec.valueUpdate(data);
         });
       }
@@ -67,6 +52,54 @@ export default class InjectRuntime {
 
     // 注入允许外部调用
     this.externalMessage();
+  }
+
+  execScript(script: ScriptRunResouce, scriptFunc: ScriptFunc) {
+    // @ts-ignore
+    delete window[script.flag];
+    const exec = new ExecScript(
+      script,
+      MessageContent.getInstance(),
+      scriptFunc
+    );
+    this.execList.push(exec);
+    // 注入css
+    if (script.metadata["require-css"]) {
+      script.metadata["require-css"].forEach((val) => {
+        const res = script.resource[val];
+        if (res) {
+          addStyle(res.content);
+        }
+      });
+    }
+    if (
+      script.metadata["run-at"] &&
+      script.metadata["run-at"][0] === "document-body"
+    ) {
+      // 等待页面加载完成
+      this.waitBody(() => {
+        exec.exec();
+      });
+    } else {
+      exec.exec();
+    }
+  }
+
+  // 参考了tm的实现
+  waitBody(callback: () => void) {
+    if (document.body) {
+      callback();
+      return;
+    }
+    const listen = () => {
+      document.removeEventListener("load", listen, false);
+      document.removeEventListener("DOMNodeInserted", listen, false);
+      document.removeEventListener("DOMContentLoaded", listen, false);
+      this.waitBody(callback);
+    };
+    document.addEventListener("load", listen, false);
+    document.addEventListener("DOMNodeInserted", listen, false);
+    document.addEventListener("DOMContentLoaded", listen, false);
   }
 
   externalMessage() {

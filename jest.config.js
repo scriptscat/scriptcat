@@ -13,4 +13,6 @@ module.exports = {
   },
   transformIgnorePatterns: ["node_modules/(?!(uuid|dexi|yaml))"],
   setupFiles: ["./pkg/chrome-extension-mock/index.ts"],
+  moduleDirectories: ["node_modules", "src"],
+  watch: false,
 };

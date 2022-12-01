@@ -364,6 +364,7 @@ export default class Runtime extends Manager {
               [runAt] = script.metadata["run-at"];
             }
             switch (runAt) {
+              case "document-body":
               case "document-start":
                 runAt = "document_start";
                 break;
