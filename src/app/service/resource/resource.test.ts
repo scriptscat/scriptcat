@@ -35,16 +35,18 @@ describe("resource manager", () => {
     expect(resource).not.toBeUndefined();
     expect(resource).toEqual(resource2);
   });
-  it("not allow", async () => {
-    mock.onGet("http://localhost/require").reply(200, new Blob(["test"]), {
-      "content-type": "application/octet-stream",
-    });
+  it("not text", async () => {
+    mock
+      .onGet("http://localhost/require")
+      .reply(200, new Blob([String.fromCharCode(1) + String.fromCharCode(2)]), {
+        "content-type": "application/octet-stream",
+      });
     const require = await manager.getResource(
       1,
       "http://localhost/require",
       "require"
     );
-    expect(require).toBeUndefined();
+    expect(require!.content).toEqual("");
   });
   it("bad resource", async () => {
     mock
