@@ -85,7 +85,10 @@ export class SystemConfig {
 
   // 检查更新周期,单位为秒
   public get checkScriptUpdateCycle(): number {
-    return <number>this.cache.get("check_script_update_cycle") || 86400;
+    if (this.cache.get("check_script_update_cycle") === undefined) {
+      return 86400;
+    }
+    return <number>this.cache.get("check_script_update_cycle");
   }
 
   public set checkScriptUpdateCycle(n: number) {
