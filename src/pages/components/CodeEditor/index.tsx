@@ -1,3 +1,5 @@
+import IoC from "@App/app/ioc";
+import { SystemConfig } from "@App/pkg/config/config";
 import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 import { editor } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useState } from "react";
@@ -78,6 +80,10 @@ const CodeEditor: React.ForwardRefRenderFunction<
   }, [code, diffCode]);
 
   useEffect(() => {
+    const config = IoC.instance(SystemConfig) as SystemConfig;
+    if (!config.enableEslint) {
+      return () => {};
+    }
     if (!monacoEditor) {
       return () => {};
     }

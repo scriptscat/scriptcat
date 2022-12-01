@@ -178,4 +178,20 @@ export class SystemConfig {
   set scriptCatFlag(val: string) {
     this.set("script_cat_flag", val);
   }
+
+  get enableEslint() {
+    return <boolean>this.cache.get("enable_eslint");
+  }
+
+  set enableEslint(val: boolean) {
+    this.set("enable_eslint", val);
+  }
+
+  get eslintConfig() {
+    return <string>this.cache.get("eslint_config") || "";
+  }
+
+  set eslintConfig(v: string) {
+    this.set("eslint_config", v);
+  }
 }
