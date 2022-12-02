@@ -26,6 +26,7 @@ import {
 } from "@App/app/repo/scripts";
 import { Subscribe } from "@App/app/repo/subscribe";
 import ScriptController from "@App/app/service/script/controller";
+import ValueController from "@App/app/service/value/controller";
 
 type ScriptData = ScriptBackupData & {
   script?: Script & { oldScript?: Script };
@@ -45,6 +46,7 @@ function App() {
   const [installNum, setInstallNum] = useState([0, 0]);
   const [loading, setLoading] = useState(true);
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const valueCtrl = IoC.instance(ValueController) as ValueController;
   const syncCtrl = IoC.instance(SynchronizeController) as SynchronizeController;
   const url = new URL(window.location.href);
   const uuid = url.searchParams.get("uuid") || "";
@@ -118,14 +120,19 @@ function App() {
               onClick={async () => {
                 setLoading(true);
                 const result = scripts.map(async (item) => {
-                  let resp = true;
+                  const ok = true;
                   if (item.install && !item.error) {
-                    resp = await scriptCtrl.upsert(item.script!);
+                    const resp = await scriptCtrl.upsert(item.script!);
+                    // 导入数据
+                    const { data } = item.storage;
+                    Object.keys(data).forEach((key) => {
+                      valueCtrl.setValue(resp.id, key, data[key]);
+                    });
                   }
                   setInstallNum((prev) => {
                     return [prev[0] + 1, prev[1]];
                   });
-                  return Promise.resolve(resp);
+                  return Promise.resolve(ok);
                 });
                 await Promise.all(result);
                 setLoading(false);

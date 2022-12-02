@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import { Metadata } from "@App/app/repo/scripts";
 
 export type ResourceMeta = {
   name: string;
@@ -10,12 +9,14 @@ export type ResourceMeta = {
 
 export type ResourceBackup = {
   meta: ResourceMeta;
+  // text数据
   source?: string;
+  // 二进制数据
   base64: string;
 };
 
 export type ValueStorage = {
-  data: { [key: string]: string };
+  data: { [key: string]: any };
   ts: number;
 };
 

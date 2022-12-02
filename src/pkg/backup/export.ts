@@ -1,7 +1,7 @@
 import FileSystem from "@Pkg/filesystem/filesystem";
 import crypto from "crypto-js";
-import ResourceManager from "@App/app/service/resource/manager";
 import { base64ToBlob } from "../utils/script";
+import { toStorageValueStr } from "../utils/utils";
 import {
   BackupData,
   ResourceBackup,
@@ -39,9 +39,13 @@ export default class BackupExport {
     ).write(JSON.stringify(script.options));
     // 写入脚本storage.json
     // 不想兼容tm的导出规则了,直接写入storage.json
+    const storage = { ...script.storage };
+    Object.keys(storage.data).forEach((key: string) => {
+      storage.data[key] = toStorageValueStr(storage.data[key]);
+    });
     await (
       await this.fs.create(`${name}.storage.json`)
-    ).write(JSON.stringify(script.storage));
+    ).write(JSON.stringify(storage));
     // 写入脚本资源文件
     await this.writeResource(name, script.resources, "resources");
     await this.writeResource(name, script.requires, "requires");
@@ -58,10 +62,7 @@ export default class BackupExport {
     const results: Promise<void>[] = resources.map(async (item) => {
       // md5是tm的导出规则
       const md5 = crypto.MD5(`${type}{val.meta.url}`).toString();
-      if (
-        item.meta.mimetype?.startsWith("text/") ||
-        ResourceManager.textContentTypeMap.has(item.meta.mimetype || "")
-      ) {
+      if (item.source) {
         await (
           await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)
         ).write(item.source!);

@@ -124,6 +124,47 @@ export function valueType(val: any) {
   }
 }
 
+export function toStorageValueStr(val: any): string {
+  switch (typeof val) {
+    case "string":
+      return `s${val}`;
+    case "number":
+      return `n${val.toString()}`;
+    case "boolean":
+      return `b${val ? "true" : "false"}`;
+    default:
+      try {
+        return `o${JSON.stringify(val)}`;
+      } catch (e) {
+        return "";
+      }
+  }
+}
+
+export function parseStorageValue(str: string): any {
+  if (str === "") {
+    return undefined;
+  }
+  const t = str[0];
+  const s = str.substring(1);
+  switch (t) {
+    case "b":
+      return s === "true";
+    case "n":
+      return parseFloat(s);
+    case "o":
+      try {
+        return JSON.parse(s);
+      } catch (e) {
+        return str;
+      }
+    case "s":
+      return s;
+    default:
+      return str;
+  }
+}
+
 // 尝试重新链接和超时通知
 export function tryConnect(
   message: MessageInternal,

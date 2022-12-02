@@ -1,7 +1,9 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import ResourceManager from "@App/app/service/resource/manager";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
+import { isText } from "../utils/istextorbinary";
+import { blobToBase64 } from "../utils/script";
+import { parseStorageValue } from "../utils/utils";
 import {
   BackupData,
   ResourceBackup,
@@ -99,6 +101,9 @@ export default class BackupImport {
       const data = <ValueStorage>(
         JSON.parse(await (await this.fs.open(file)).read())
       );
+      Object.keys(data.data).forEach((dataKey) => {
+        data.data[dataKey] = parseStorageValue(data.data[dataKey]);
+      });
       map.get(key)!.storage = data;
       return Promise.resolve(true);
     });
@@ -162,14 +167,21 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const resource = map.get(info.key)![info.type][info.index];
-      resource.base64 = await (await this.fs.open(file)).read("base64");
-      if (
-        resource.meta &&
-        (resource.meta.mimetype?.startsWith("text/") ||
-          ResourceManager.textContentTypeMap.has(resource.meta.mimetype || ""))
-      ) {
+      resource.base64 = await blobToBase64(
+        await (await this.fs.open(file)).read("blob")
+      );
+      if (resource.meta) {
         // 存在meta
-        resource.source = await (await this.fs.open(file)).read();
+        // 替换base64前缀
+        if (resource.meta.mimetype) {
+          resource.base64 = resource.base64.replace(
+            /^data:.*?;base64,/,
+            `data:${resource.meta.mimetype};base64,`
+          );
+        }
+        if (isText(await (await this.fs.open(file)).read("blob"))) {
+          resource.source = await (await this.fs.open(file)).read();
+        }
       }
       return Promise.resolve(true);
     });
