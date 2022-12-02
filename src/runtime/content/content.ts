@@ -1,4 +1,5 @@
 import { ExternalMessage } from "@App/app/const";
+import MessageContent from "@App/app/message/content";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander, MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
@@ -30,6 +31,44 @@ export default class ContentRuntime {
     // 转发externalMessage消息
     this.contentMessage.setHandler(ExternalMessage, (action, data) => {
       return this.internalMessage.syncSend(action, data);
+    });
+    // 处理GM_addElement
+    // @ts-ignore
+    this.contentMessage.setHandler("GM_addElement", (action, data) => {
+      const parma = data.param;
+      let attr: { [x: string]: any; textContent?: any };
+      let textContent = "";
+      if (!parma[1]) {
+        attr = {};
+      } else {
+        attr = { ...parma[1] };
+        if (attr.textContent) {
+          textContent = attr.textContent;
+          delete attr.textContent;
+        }
+      }
+      const el = <Element>document.createElement(parma[0]);
+      Object.keys(attr).forEach((key) => {
+        el.setAttribute(key, attr[key]);
+      });
+      if (textContent) {
+        el.innerHTML = textContent;
+      }
+      let parentNode;
+      if (data.relatedTarget) {
+        parentNode = (<MessageContent>(
+          this.contentMessage
+        )).getAndDelRelatedTarget(data.relatedTarget);
+      }
+      (
+        <Element>parentNode ||
+        document.head ||
+        document.body ||
+        document.querySelector("*")
+      ).appendChild(el);
+      return {
+        relatedTarget: el,
+      };
     });
 
     // 转发长连接的gmApi消息

@@ -2,12 +2,12 @@
 /* eslint-disable max-classes-per-file */
 import LoggerCore from "@App/app/logger/core";
 import { Channel, ChannelHandler } from "@App/app/message/channel";
+import MessageContent from "@App/app/message/content";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { blobToBase64, getMetadataStr } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
-import { addStyle } from "./utils";
 
 interface ApiParam {
   depend?: string[];
@@ -530,8 +530,27 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_addStyle(css: string): HTMLElement {
-    return addStyle(css);
+  GM_addStyle(css: string) {
+    let el: Element | undefined;
+    // 与content页的消息通讯实际是同步,此方法不需要经过background
+    // 所以可以直接在then中赋值el再返回
+    (<MessageContent>this.message).sendCallback(
+      "GM_addElement",
+      {
+        param: [
+          "style",
+          {
+            textContent: css,
+          },
+        ],
+      },
+      (resp) => {
+        el = (<MessageContent>this.message).getAndDelRelatedTarget(
+          resp.relatedTarget
+        );
+      }
+    );
+    return el;
   }
 
   @GMContext.API()
@@ -669,5 +688,29 @@ export default class GMApi {
   @GMContext.API()
   CAT_userConfig() {
     return this.sendMessage("CAT_userConfig", []);
+  }
+
+  // 此API在content页实现
+  @GMContext.API()
+  GM_addElement(parentNode: Element | string, tagName: any, attrs?: any) {
+    let el: Element | undefined;
+    // 与content页的消息通讯实际是同步,此方法不需要经过background
+    // 所以可以直接在then中赋值el再返回
+    (<MessageContent>this.message).sendCallback(
+      "GM_addElement",
+      {
+        param: [
+          typeof parentNode === "string" ? parentNode : tagName,
+          typeof parentNode === "string" ? tagName : attrs,
+        ],
+        relatedTarget: typeof parentNode === "string" ? null : parentNode,
+      },
+      (resp) => {
+        el = (<MessageContent>this.message).getAndDelRelatedTarget(
+          resp.relatedTarget
+        );
+      }
+    );
+    return el;
   }
 }

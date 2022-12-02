@@ -23,6 +23,8 @@ export default class MessageContent
 
   channelManager: ChannelManager;
 
+  relatedTarget: Map<number, Element>;
+
   constructor(eventId: string, isContent: boolean) {
     super();
     this.eventId = eventId;
@@ -30,9 +32,14 @@ export default class MessageContent
     this.channelManager = new WarpChannelManager((data) => {
       this.nativeSend(data);
     });
+    this.relatedTarget = new Map<number, Element>();
     document.addEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
+        if (event instanceof MouseEvent) {
+          this.relatedTarget.set(event.detail, <Element>event.relatedTarget);
+          return;
+        }
         const message = (<
           {
             detail: {
@@ -75,6 +82,24 @@ export default class MessageContent
     return channel.syncSend(action, data);
   }
 
+  // content与inject通讯为阻塞可以实现真同步,使用回调的方式返回参数
+  sendCallback(action: string, data: any, callback: (resp: any) => void) {
+    const channel = this.channelManager.channel();
+    channel.handler = callback;
+    this.nativeSend({
+      action,
+      data,
+      stream: channel.flag,
+      channel: false,
+    });
+  }
+
+  getAndDelRelatedTarget(id: number) {
+    const target = this.relatedTarget.get(id);
+    this.relatedTarget.delete(id);
+    return target;
+  }
+
   nativeSend(data: any): void {
     let detail = data;
     if (typeof cloneInto !== "undefined") {
@@ -86,6 +111,21 @@ export default class MessageContent
         console.log(e);
       }
     }
+
+    // 特殊处理relatedTarget
+    if (typeof detail.data.relatedTarget === "object") {
+      // 先将relatedTarget转换成id发送过去
+      const target = detail.data.relatedTarget;
+      delete detail.data.relatedTarget;
+      detail.data.relatedTarget = Math.ceil(Math.random() * 1000000);
+      // 可以使用此种方式交互element
+      const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.eventId, {
+        detail: detail.data.relatedTarget,
+        relatedTarget: target,
+      });
+      document.dispatchEvent(ev);
+    }
+
     const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.eventId, {
       detail,
     });

@@ -134,6 +134,9 @@ declare function GM_setClipboard(
   info?: string | { type?: string; minetype?: string }
 ): void;
 
+declare function GM_addElement(tag: string, attribubutes: any);
+declare function GM_addElement(parentNode: Element, tag: string, attrs: any);
+
 // name和domain不能都为空
 declare function GM_cookie(
   action: GMTypes.CookieAction,
