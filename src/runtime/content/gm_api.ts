@@ -5,7 +5,11 @@ import { Channel, ChannelHandler } from "@App/app/message/channel";
 import MessageContent from "@App/app/message/content";
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { blobToBase64, getMetadataStr } from "@App/pkg/utils/script";
+import {
+  base64ToBlob,
+  blobToBase64,
+  getMetadataStr,
+} from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
 
@@ -518,12 +522,15 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_getResourceURL(name: string): string | undefined {
+  GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined {
     if (!this.scriptRes.resource) {
       return undefined;
     }
     const r = this.scriptRes.resource[name];
     if (r) {
+      if (isBlobUrl) {
+        return URL.createObjectURL(base64ToBlob(r.base64));
+      }
       return r.base64;
     }
     return undefined;

@@ -78,7 +78,10 @@ declare function GM_log(
 
 declare function GM_getResourceText(name: string): string | undefined;
 
-declare function GM_getResourceURL(name: string): string | undefined;
+declare function GM_getResourceURL(
+  name: string,
+  isBlobUrl?: boolean = false
+): string | undefined;
 
 declare function GM_registerMenuCommand(
   name: string,
