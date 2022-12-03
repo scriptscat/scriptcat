@@ -81,6 +81,24 @@ export function createContext(
       if (val.startsWith("GM.")) {
         const [, t] = val.split(".");
         (<{ [key: string]: any }>context.GM)[t] = api.api.bind(context);
+      } else if (val === "GM_cookie") {
+        // 特殊处理GM_cookie.list之类
+        context[val] = api.api.bind(context);
+        // eslint-disable-next-line func-names, camelcase
+        const GM_cookie = function (action: string) {
+          return (
+            details: GMTypes.CookieDetails,
+            done: (
+              cookie: GMTypes.Cookie[] | any,
+              error: any | undefined
+            ) => void
+          ) => {
+            return context[val](action, details, done);
+          };
+        };
+        context[val].list = GM_cookie("list");
+        context[val].delete = GM_cookie("delete");
+        context[val].set = GM_cookie("set");
       } else {
         context[val] = api.api.bind(context);
       }
