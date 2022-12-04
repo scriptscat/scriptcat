@@ -2,6 +2,7 @@
 import { v4 as uuidv4 } from "uuid";
 import LoggerCore from "../logger/core";
 import { Channel } from "./channel";
+import MessageContent from "./content";
 
 export type MessageSender = {
   tabId?: number;
@@ -141,19 +142,26 @@ export abstract class MessageHander {
         if (handler) {
           const ret = handler(message.action!, message.data, sender);
           if (ret) {
-            ret
-              .then((data) => {
-                channelManager.nativeSend({
-                  stream: message.stream,
-                  data,
+            if (ret instanceof Promise) {
+              ret
+                .then((data) => {
+                  channelManager.nativeSend({
+                    stream: message.stream,
+                    data,
+                  });
+                })
+                .catch((err) => {
+                  channelManager.nativeSend({
+                    error: err.message,
+                    stream: message.stream,
+                  });
                 });
-              })
-              .catch((err) => {
-                channelManager.nativeSend({
-                  error: err.message,
-                  stream: message.stream,
-                });
+            } else {
+              channelManager.nativeSend({
+                stream: message.stream,
+                data: ret,
               });
+            }
           } else {
             LoggerCore.getLogger({ component: "message" }).warn(
               "handler return is null"
@@ -238,5 +246,14 @@ export class ProxyMessageManager implements MessageManager {
       channel.disChannel();
     });
     this.channelMap.clear();
+  }
+
+  // content与inject通讯录可以实现真同步,使用回调的方式返回参数
+  sendCallback(action: string, data: any, callback: (resp: any) => void) {
+    (<MessageContent>this.manager).sendCallback(action, data, callback);
+  }
+
+  getAndDelRelatedTarget(id: number) {
+    return (<MessageContent>this.manager).getAndDelRelatedTarget(id);
   }
 }

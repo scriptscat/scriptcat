@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Input,
   Message,
   Select,
   Space,
@@ -11,6 +12,8 @@ import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { SystemConfig } from "@App/pkg/config/config";
 import IoC from "@App/app/ioc";
 import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
+import Title from "@arco-design/web-react/es/Typography/title";
+import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -32,6 +35,9 @@ function Setting() {
       direction="vertical"
       style={{
         width: "100%",
+        height: "100%",
+        overflow: "auto",
+        position: "relative",
       }}
     >
       <Card title="脚本同步" bordered={false}>
@@ -135,6 +141,48 @@ function Setting() {
           >
             非重要变更静默更新脚本
           </Checkbox>
+        </Space>
+      </Card>
+      <Card title="ESLint" bordered={false}>
+        <Space direction="vertical" className="w-full">
+          <Checkbox
+            onChange={(checked) => {
+              systemConfig.enableEslint = checked;
+            }}
+            defaultChecked={systemConfig.enableEslint}
+          >
+            开启ESLint
+          </Checkbox>
+          <Title heading={5}>
+            ESLint规则{" "}
+            <Button
+              type="text"
+              style={{
+                height: 24,
+              }}
+              icon={
+                <IconQuestionCircleFill
+                  style={{
+                    margin: 0,
+                  }}
+                />
+              }
+              href="https://eslint.org/play/"
+              target="_blank"
+              iconOnly
+            />
+          </Title>
+          <Input.TextArea
+            placeholder="请输入eslint规则,可以从https://eslint.org/play/下载配置"
+            autoSize={{
+              minRows: 4,
+              maxRows: 8,
+            }}
+            defaultValue={systemConfig.eslintConfig}
+            onBlur={(v) => {
+              systemConfig.eslintConfig = v.target.value;
+            }}
+          />
         </Space>
       </Card>
     </Space>

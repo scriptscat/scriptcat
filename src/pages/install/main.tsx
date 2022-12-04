@@ -10,6 +10,7 @@ import IoC from "@App/app/ioc";
 import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
+import { MessageHander } from "@App/app/message/message";
 import MainLayout from "../components/layout/MainLayout";
 import App from "./App";
 
@@ -26,7 +27,7 @@ loggerCore.logger().debug("install start");
 
 const con = new MessageInternal("install");
 
-IoC.registerInstance(MessageInternal, con);
+IoC.registerInstance(MessageInternal, con).alias(MessageHander);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>

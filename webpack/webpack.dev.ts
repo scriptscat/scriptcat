@@ -4,6 +4,7 @@ import CompressionPlugin from "compression-webpack-plugin";
 import common from "../webpack.config";
 
 const src = `${__dirname}/../src`;
+const dist = `${__dirname}/../dist`;
 
 common.entry = {
   // @ts-ignore
@@ -14,14 +15,16 @@ common.entry = {
   "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
 };
 
+common.output = {
+  path: `${dist}/ext/src`,
+  filename: "[name].js",
+  clean: false,
+};
+
 // 取消splitChunks
 common.optimization = {};
 
-common.optimization = {};
 export default merge(common, {
-  output: {
-    clean: false,
-  },
   watch: true,
   devtool: "inline-source-map",
   plugins: [

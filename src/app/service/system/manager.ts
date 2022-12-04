@@ -5,7 +5,6 @@ import { MessageHander } from "@App/app/message/message";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import semver from "semver";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
 
@@ -56,16 +55,9 @@ export class SystemManager extends Manager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
-          const version = semver.parse(ExtVersion);
-          if (version && !version.prerelease.length) {
-            chrome.tabs.create({
-              url: "https://docs.scriptcat.org/docs/change/",
-            });
-          } else {
-            chrome.tabs.create({
-              url: "https://docs.scriptcat.org/docs/change/pre-release/",
-            });
-          }
+          chrome.tabs.create({
+            url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+          });
         }
       });
     }

@@ -13,7 +13,9 @@ const config = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "script",
-    ecmaFeatures: { globalReturn: true },
+    ecmaFeatures: {
+      globalReturn: true,
+    },
   },
   rules: {
     "constructor-super": ["error"],

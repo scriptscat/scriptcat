@@ -78,7 +78,10 @@ declare function GM_log(
 
 declare function GM_getResourceText(name: string): string | undefined;
 
-declare function GM_getResourceURL(name: string): string | undefined;
+declare function GM_getResourceURL(
+  name: string,
+  isBlobUrl?: boolean = false
+): string | undefined;
 
 declare function GM_registerMenuCommand(
   name: string,
@@ -133,6 +136,9 @@ declare function GM_setClipboard(
   data: string,
   info?: string | { type?: string; minetype?: string }
 ): void;
+
+declare function GM_addElement(tag: string, attribubutes: any);
+declare function GM_addElement(parentNode: Element, tag: string, attrs: any);
 
 // name和domain不能都为空
 declare function GM_cookie(

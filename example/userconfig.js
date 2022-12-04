@@ -6,6 +6,7 @@
 // @author       You
 // @background
 // @grant GM_getValue
+// @grant CAT_userConfig
 // ==/UserScript==
 
 /* ==UserConfig==
@@ -62,6 +63,8 @@ group2:
     type: text
  ==/UserConfig== */
 
- setInterval(() => {
+setInterval(() => {
   console.log(GM_getValue("group1.configA"));
 }, 5000)
+
+CAT_userConfig();

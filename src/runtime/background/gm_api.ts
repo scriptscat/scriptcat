@@ -747,4 +747,12 @@ export default class GMApi {
   GM_unregisterMenuCommand(request: Request) {
     GMApi.hook.trigger("unregisterMenu", request.params[0], request);
   }
+
+  @PermissionVerify.API()
+  CAT_userConfig(request: Request) {
+    chrome.tabs.create({
+      url: `/src/options.html#/?userConfig=${request.scriptId}`,
+      active: true,
+    });
+  }
 }
