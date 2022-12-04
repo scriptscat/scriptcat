@@ -20,6 +20,17 @@ export default function initTestEnv() {
     blob.text = () => {
       return Promise.resolve(data[0]);
     };
+    blob.arrayBuffer = () => {
+      return new Promise<ArrayBuffer>((resolve) => {
+        const str = data[0];
+        const buf = new ArrayBuffer(str.length * 2); // 每个字符占用2个字节
+        const bufView = new Uint16Array(buf);
+        for (let i = 0, strLen = str.length; i < strLen; i += 1) {
+          bufView[i] = str.charCodeAt(i);
+        }
+        resolve(buf);
+      });
+    };
     return blob;
   };
 

@@ -151,10 +151,10 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   return ret;
 }
 
-export function blobToBase64(blob: Blob): Promise<string | null> {
+export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.onloadend = () => resolve(<string>reader.result);
     reader.readAsDataURL(blob);
   });
 }

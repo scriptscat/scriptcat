@@ -492,6 +492,18 @@ describe("GM cookie", () => {
         }
       );
     });
+    // 测试GM_cookie.list
+    await new Promise<void>((resolve) => {
+      // @ts-ignore
+      contentApi.GM_cookie.list(
+        { url: "https://scriptcat.org" },
+        // @ts-ignore
+        (value, err) => {
+          expect(err).toEqual("hostname must be in the definition of connect");
+          resolve();
+        }
+      );
+    });
     // 在@connect中,但被拒绝
     const hookFn = (createProperties: chrome.tabs.CreateProperties) => {
       // 模拟确认

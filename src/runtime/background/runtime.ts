@@ -187,7 +187,7 @@ export default class Runtime extends Manager {
           tabMap.set(request.scriptId, menuArr);
         }
         // 查询菜单是否已经存在
-        for (let i = 0; menuArr.length; i += 1) {
+        for (let i = 0; i < menuArr.length; i += 1) {
           // id 相等 跳过,选第一个,并close链接
           if (menuArr[i].request.params[0] === request.params[0]) {
             channel.disChannel();
@@ -364,6 +364,7 @@ export default class Runtime extends Manager {
               [runAt] = script.metadata["run-at"];
             }
             switch (runAt) {
+              case "document-body":
               case "document-start":
                 runAt = "document_start";
                 break;

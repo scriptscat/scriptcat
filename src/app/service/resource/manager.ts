@@ -15,6 +15,7 @@ import axios from "axios";
 import Cache from "@App/app/cache";
 import { blobToBase64 } from "@App/pkg/utils/script";
 import CacheKey from "@App/pkg/utils/cache_key";
+import { isText } from "@App/pkg/utils/istextorbinary";
 import Manager from "../manager";
 
 // 资源管理器,负责资源的更新获取等操作
@@ -227,12 +228,6 @@ export class ResourceManager extends Manager {
     return Promise.resolve(undefined);
   }
 
-  // 方便识别text文本储存
-  static textContentTypeMap = new Map<string, boolean>()
-    .set("application/javascript", true)
-    .set("application/x-javascript", true)
-    .set("application/json", true);
-
   loadByUrl(url: string, type: ResourceType): Promise<Resource> {
     return new Promise((resolve, reject) => {
       const u = this.parseUrl(url);
@@ -258,18 +253,10 @@ export class ResourceManager extends Manager {
             type,
             createtime: new Date().getTime(),
           };
-          if (
-            resource.contentType.startsWith("text/") ||
-            ResourceManager.textContentTypeMap.has(resource.contentType)
-          ) {
+          const arrayBuffer = await (<Blob>response.data).arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          if (isText(uint8Array)) {
             resource.content = await (<Blob>response.data).text();
-          } else if (resource.type === "resource") {
-            // 资源不判断类型
-            resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
-          } else {
-            return reject(
-              new Error(`not allow resource:${resource.contentType}`)
-            );
           }
           resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
           return resolve(resource);

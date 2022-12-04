@@ -23,7 +23,7 @@ export default class ScriptController {
   }
 
   // 安装或者更新脚本
-  public upsert(script: Script) {
+  public upsert(script: Script): Promise<{ id: number }> {
     return this.dispatchEvent("upsert", script);
   }
 

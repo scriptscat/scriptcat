@@ -14,7 +14,7 @@ export interface File {
   updatetime: number;
 }
 
-type ReadType = "string" | "blob" | "base64";
+type ReadType = "string" | "blob";
 export interface FileReader {
   // 读取文件内容
   read(type?: ReadType): Promise<any>;
