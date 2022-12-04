@@ -148,7 +148,8 @@ function ScriptEditor() {
   >([]);
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
-
+  const [selectSciptButtonAndTab, setSelectSciptButtonAndTab] =
+    useState<string>();
   const setShow = (key: visibleItem, show: boolean) => {
     Object.keys(visible).forEach((k) => {
       visible[k] = false;
@@ -539,8 +540,11 @@ function ScriptEditor() {
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
+                  backgroundColor:
+                    selectSciptButtonAndTab === script.uuid ? "gray" : "",
                 }}
                 onClick={() => {
+                  setSelectSciptButtonAndTab(script.uuid);
                   // 如果已经打开则激活
                   let flag = false;
                   for (let i = 0; i < editors.length; i += 1) {
@@ -581,6 +585,7 @@ function ScriptEditor() {
             onChange={(index: string) => {
               editors.forEach((_, i) => {
                 if (i.toString() === index) {
+                  setSelectSciptButtonAndTab(editors[i].script.uuid);
                   editors[i].active = true;
                 } else {
                   editors[i].active = false;
@@ -594,6 +599,7 @@ function ScriptEditor() {
                   prev.forEach((item) => {
                     item.active = false;
                   });
+                  setSelectSciptButtonAndTab(e.script.uuid);
                   prev.push(e);
                   return [...prev];
                 });
@@ -643,8 +649,10 @@ function ScriptEditor() {
                     style={{
                       // eslint-disable-next-line no-nested-ternary
                       color: e.isChanged
-                        ? "rgb(var(--orange-5))"
-                        : e.script.id === 0
+                        ? "rgb(var(--orange-5))" // eslint-disable-next-line no-nested-ternary
+                        : e.script.uuid === selectSciptButtonAndTab
+                        ? "rgb(var(--green-7))"
+                        : e.active
                         ? "rgb(var(--green-7))"
                         : "var(--color-text-1)",
                     }}
