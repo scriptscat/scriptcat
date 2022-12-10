@@ -169,9 +169,27 @@ function ScriptEditor() {
         .then((newScript) => {
           scriptCtrl.upsert(newScript).then(
             () => {
+              if (!newScript.name) {
+                Message.warning("脚本name不可以设置为空");
+                return;
+              }
               if (newScript.id === 0) {
                 Message.success("新建成功,请注意后台脚本不会默认开启");
+                // 保存的时候如何左侧没有脚本即新建
+                setScriptList((prev) => {
+                  setSelectSciptButtonAndTab(newScript.uuid);
+                  return [newScript, ...prev];
+                });
               } else {
+                setScriptList((prev) => {
+                  // eslint-disable-next-line no-shadow, array-callback-return
+                  prev.map((script: Script) => {
+                    if (script.uuid === newScript.uuid) {
+                      script.name = newScript.name;
+                    }
+                  });
+                  return [...prev];
+                });
                 Message.success("保存成功");
               }
               setEditors((prev) => {
@@ -179,6 +197,7 @@ function ScriptEditor() {
                   if (prev[i].script.uuid === newScript.uuid) {
                     prev[i].code = newScript.code;
                     prev[i].isChanged = false;
+                    prev[i].script.name = newScript.name;
                     break;
                   }
                 }
@@ -313,6 +332,7 @@ function ScriptEditor() {
                 hotKeys,
                 isChanged: false,
               });
+              setSelectSciptButtonAndTab(scripts[i].uuid);
               setEditors([...editors]);
               break;
             }
@@ -533,7 +553,7 @@ function ScriptEditor() {
             </Button>
             {scriptList.map((script) => (
               <Button
-                key={`s_${script.id}`}
+                key={`s_${script.uuid}`}
                 size="mini"
                 className="text-left"
                 style={{
@@ -698,7 +718,7 @@ function ScriptEditor() {
                       if (isChanged !== item.isChanged) {
                         setEditors((prev) => {
                           prev.forEach((v) => {
-                            if (v.script.id === item.script.id) {
+                            if (v.script.uuid === item.script.uuid) {
                               v.isChanged = isChanged;
                             }
                           });
