@@ -149,7 +149,8 @@ function ScriptEditor() {
   const [scriptList, setScriptList] = useState<Script[]>([]);
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectSciptButtonAndTab, setSelectSciptButtonAndTab] =
-    useState<string>();
+    useState<string>("");
+  const [rightOperationTab, setRightOperationTab] = useState();
   const setShow = (key: visibleItem, show: boolean) => {
     Object.keys(visible).forEach((k) => {
       visible[k] = false;
@@ -370,6 +371,81 @@ function ScriptEditor() {
     };
   }, [editors]);
 
+  // 对tab点击右键进行的操作
+  useEffect(() => {
+    let newEditors = [];
+    let selectEditorIndex;
+    // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
+    if (rightOperationTab) {
+      // eslint-disable-next-line default-case
+      switch (rightOperationTab.key) {
+        case "1":
+          newEditors = editors.filter(
+            (item) => item.script.uuid !== rightOperationTab.uuid
+          );
+          if (newEditors.length > 0) {
+            // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
+            if (
+              rightOperationTab.selectSciptButtonAndTab ===
+              rightOperationTab.uuid
+            ) {
+              if (newEditors.length > 0) {
+                newEditors[0].active = true;
+                setSelectSciptButtonAndTab(newEditors[0].script.uuid);
+              }
+            } else {
+              setSelectSciptButtonAndTab(
+                rightOperationTab.selectSciptButtonAndTab
+              );
+              // 之前选中的tab
+              editors.filter((item) => {
+                if (
+                  item.script.uuid === rightOperationTab.selectSciptButtonAndTab
+                ) {
+                  item.active = true;
+                } else {
+                  item.active = false;
+                }
+                return (
+                  item.script.uuid === rightOperationTab.selectSciptButtonAndTab
+                );
+              });
+            }
+          }
+          setEditors([...newEditors]);
+          break;
+        // eslint-disable-next-line no-fallthrough
+        case "2":
+          // eslint-disable-next-line no-case-declarations, no-redeclare
+          newEditors = editors.filter(
+            (item) => item.script.uuid === rightOperationTab.uuid
+          );
+          setSelectSciptButtonAndTab(rightOperationTab.uuid);
+          setEditors([...newEditors]);
+          break;
+        case "3":
+          // eslint-disable-next-line array-callback-return
+          editors.map((item, index) => {
+            if (item.script.uuid === rightOperationTab.uuid) {
+              selectEditorIndex = index;
+            }
+          });
+          newEditors = editors.splice(selectEditorIndex);
+          setEditors([...newEditors]);
+          break;
+        case "4":
+          // eslint-disable-next-line array-callback-return
+          editors.map((item, index) => {
+            if (item.script.uuid === rightOperationTab.uuid) {
+              selectEditorIndex = index;
+            }
+          });
+          newEditors = editors.splice(0, selectEditorIndex + 1);
+          setEditors([...newEditors]);
+      }
+    }
+  }, [rightOperationTab]);
+
   return (
     <div
       className="h-full flex flex-col"
@@ -568,7 +644,7 @@ function ScriptEditor() {
                   // 如果已经打开则激活
                   let flag = false;
                   for (let i = 0; i < editors.length; i += 1) {
-                    if (editors[i].script.id === script.id) {
+                    if (editors[i].script.uuid === script.uuid) {
                       editors[i].active = true;
                       flag = true;
                     } else {
@@ -651,8 +727,10 @@ function ScriptEditor() {
                   // 如果关闭的是当前激活的, 则激活下一个
                   if (i === prev.length - 1) {
                     prev[i - 1].active = true;
+                    setSelectSciptButtonAndTab(prev[i - 1].script.uuid);
                   } else {
                     prev[i + 1].active = true;
+                    setSelectSciptButtonAndTab(prev[i - 1].script.uuid);
                   }
                 }
                 prev.splice(i, 1);
@@ -665,20 +743,43 @@ function ScriptEditor() {
                 destroyOnHide
                 key={index!.toString()}
                 title={
-                  <span
-                    style={{
-                      // eslint-disable-next-line no-nested-ternary
-                      color: e.isChanged
-                        ? "rgb(var(--orange-5))" // eslint-disable-next-line no-nested-ternary
-                        : e.script.uuid === selectSciptButtonAndTab
-                        ? "rgb(var(--green-7))"
-                        : e.active
-                        ? "rgb(var(--green-7))"
-                        : "var(--color-text-1)",
-                    }}
+                  <Dropdown
+                    trigger="contextMenu"
+                    position="bl"
+                    droplist={
+                      <Menu
+                        // eslint-disable-next-line no-shadow
+                        onClickMenuItem={(key) => {
+                          setRightOperationTab({
+                            ...rightOperationTab,
+                            key,
+                            uuid: e.script.uuid,
+                            selectSciptButtonAndTab,
+                          });
+                        }}
+                      >
+                        <Menu.Item key="1">关闭当前标签页</Menu.Item>
+                        <Menu.Item key="2">关闭其他标签页</Menu.Item>
+                        <Menu.Item key="3">关闭左侧标签页</Menu.Item>
+                        <Menu.Item key="4">关闭右侧标签页</Menu.Item>
+                      </Menu>
+                    }
                   >
-                    {e.script.name}
-                  </span>
+                    <span
+                      style={{
+                        // eslint-disable-next-line no-nested-ternary
+                        color: e.isChanged
+                          ? "rgb(var(--orange-5))" // eslint-disable-next-line no-nested-ternary
+                          : e.script.uuid === selectSciptButtonAndTab
+                          ? "rgb(var(--green-7))"
+                          : e.active
+                          ? "rgb(var(--green-7))"
+                          : "var(--color-text-1)",
+                      }}
+                    >
+                      {e.script.name}
+                    </span>
+                  </Dropdown>
                 }
               />
             ))}
