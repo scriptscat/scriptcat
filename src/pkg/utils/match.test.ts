@@ -135,6 +135,20 @@ describe("UrlMatch-port2", () => {
   });
 });
 
+describe("特殊情况", () => {
+  it("**", () => {
+    const url = new UrlMatch<string>();
+    url.add("*://**/*", "ok1");
+    expect(url.match("http://www.example.com/")).toEqual(["ok1"]);
+  });
+
+  it("prefix *",()=>{
+    const url=new UrlMatch<string>();
+    url.add("*https://www.baidu.com*","ok1");
+    expect(url.match("https://www.baidu.com")).toEqual(["ok1"]);
+  })
+});
+
 // --- include
 describe("UrlInclude-1", () => {
   const url = new UrlInclude<string>();

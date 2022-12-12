@@ -1,11 +1,16 @@
-// eslint-disable-next-line max-classes-per-file
+/* eslint-disable max-classes-per-file */
+
+import Logger from "@App/app/logger/logger";
+
 export default class Match<T> {
   protected cache = new Map<string, T[]>();
 
   protected rule = new Map<string, T[]>();
 
-  // eslint-disable-next-line class-methods-use-this
   protected parseURL(url: string): Url | undefined {
+    if (url.indexOf("*http") === 0) {
+      url = url.substring(1);
+    }
     const match = /^(.+?):\/\/(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
     if (match) {
       return {
@@ -44,7 +49,7 @@ export default class Match<T> {
       default:
     }
     let pos = u.host.indexOf("*");
-    if (u.host === "*") {
+    if (u.host === "*" || u.host === "**") {
       pos = -1;
     } else if (u.host.endsWith("*")) {
       // 处理*结尾
@@ -104,12 +109,21 @@ export default class Match<T> {
       return ret;
     }
     ret = [];
-    this.rule.forEach((val, key) => {
-      const re = new RegExp(key);
-      if (re.test(url) && ret) {
-        ret.push(...val);
-      }
-    });
+    try {
+      this.rule.forEach((val, key) => {
+        const re = new RegExp(key);
+        if (re.test(url) && ret) {
+          ret.push(...val);
+        }
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("bad match rule", Logger.E(e));
+      // LoggerCore.getLogger({ component: "match" }).warn(
+      //   "bad match rule",
+      //   Logger.E(e)
+      // );
+    }
     this.cache.set(url, ret);
     return ret;
   }

@@ -83,18 +83,23 @@ export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
   }
   if (Date.now() > token.createtime + 3600000) {
     // 大于一小时刷新token
-    const resp = await RefreshToken(netDiskType, token.refreshToken);
-    if (resp.code !== 0) {
-      // 刷新失败删除token
-      localStorage.removeItem(`netdisk:token:${netDiskType}`);
-      return Promise.reject(new Error(resp.msg));
+    try {
+      const resp = await RefreshToken(netDiskType, token.refreshToken);
+      if (resp.code !== 0) {
+        // 刷新失败删除token
+        localStorage.removeItem(`netdisk:token:${netDiskType}`);
+        return Promise.reject(new Error(resp.msg));
+      }
+      token = {
+        accessToken: resp.data.token.access_token,
+        refreshToken: resp.data.token.refresh_token,
+        createtime: Date.now(),
+      };
+      localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
+    } catch (e) {
+      // 报错返回原token
+      return Promise.resolve(token.accessToken);
     }
-    token = {
-      accessToken: resp.data.token.access_token,
-      refreshToken: resp.data.token.refresh_token,
-      createtime: Date.now(),
-    };
-    localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   } else {
     return Promise.resolve(token.accessToken);
   }
