@@ -102,6 +102,7 @@ const ScriptStorage: React.FC<{
       title: "value",
       dataIndex: "value",
       key: "value",
+      className: "max-table-cell",
       render(col) {
         switch (typeof col) {
           case "string":
@@ -224,7 +225,10 @@ const ScriptStorage: React.FC<{
             form={form}
             initialValues={{
               key: currentValue?.key,
-              value: currentValue?.value,
+              value:
+                typeof currentValue?.value === "string"
+                  ? currentValue?.value
+                  : JSON.stringify(currentValue?.value),
               type: valueType(currentValue?.value || "string"),
             }}
           >

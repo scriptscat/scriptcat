@@ -14,3 +14,9 @@ h6.arco-typography {
 .script-list .arco-card-body {
   padding: 0 !important;
 }
+
+.max-table-cell .arco-table-cell {
+  display: block;
+  max-height: 100px;
+  overflow: auto;
+}

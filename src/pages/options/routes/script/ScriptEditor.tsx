@@ -150,7 +150,11 @@ function ScriptEditor() {
   const [currentScript, setCurrentScript] = useState<Script>();
   const [selectSciptButtonAndTab, setSelectSciptButtonAndTab] =
     useState<string>("");
-  const [rightOperationTab, setRightOperationTab] = useState();
+  const [rightOperationTab, setRightOperationTab] = useState<{
+    key: string;
+    uuid: string;
+    selectSciptButtonAndTab: string;
+  }>();
   const setShow = (key: visibleItem, show: boolean) => {
     Object.keys(visible).forEach((k) => {
       visible[k] = false;
@@ -374,7 +378,7 @@ function ScriptEditor() {
   // 对tab点击右键进行的操作
   useEffect(() => {
     let newEditors = [];
-    let selectEditorIndex;
+    let selectEditorIndex: number = 0;
     // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
     if (rightOperationTab) {
       // eslint-disable-next-line default-case
@@ -414,9 +418,7 @@ function ScriptEditor() {
           }
           setEditors([...newEditors]);
           break;
-        // eslint-disable-next-line no-fallthrough
         case "2":
-          // eslint-disable-next-line no-case-declarations, no-redeclare
           newEditors = editors.filter(
             (item) => item.script.uuid === rightOperationTab.uuid
           );
@@ -424,21 +426,21 @@ function ScriptEditor() {
           setEditors([...newEditors]);
           break;
         case "3":
-          // eslint-disable-next-line array-callback-return
           editors.map((item, index) => {
             if (item.script.uuid === rightOperationTab.uuid) {
               selectEditorIndex = index;
             }
+            return null;
           });
           newEditors = editors.splice(selectEditorIndex);
           setEditors([...newEditors]);
           break;
         case "4":
-          // eslint-disable-next-line array-callback-return
           editors.map((item, index) => {
             if (item.script.uuid === rightOperationTab.uuid) {
               selectEditorIndex = index;
             }
+            return null;
           });
           newEditors = editors.splice(0, selectEditorIndex + 1);
           setEditors([...newEditors]);
