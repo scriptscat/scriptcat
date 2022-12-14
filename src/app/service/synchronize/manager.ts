@@ -373,6 +373,7 @@ export default class SynchronizeManager extends Manager {
           name: script.name,
           // NOTE: tm会对同名的uuid校验,先屏蔽了
           // uuid: script.uuid,
+          sc_uuid: script.uuid,
           modified: script.updatetime,
           file_url: script.downloadUrl,
           subscribe_url: script.subscribeUrl,

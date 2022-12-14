@@ -66,9 +66,9 @@ function App() {
               item.script = await prepareScriptByCode(
                 item.code,
                 item.options?.meta.file_url || "",
-                item.options?.meta.file_url
-                  ? undefined
-                  : item.options?.meta.uuid || undefined
+                item.options?.meta.sc_uuid ||
+                  item.options?.meta.uuid ||
+                  undefined
               );
             } catch (e: any) {
               item.error = e.toString();
@@ -80,6 +80,7 @@ function App() {
                 meta: {
                   name: item.script.name,
                   uuid: item.script.uuid,
+                  sc_uuid: item.script.uuid,
                   file_url: item.script.downloadUrl || "",
                   modified: item.script.createtime,
                   subscribe_url: item.script.subscribeUrl,
