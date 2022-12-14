@@ -188,7 +188,7 @@ function ScriptList() {
     {
       title: "名称",
       dataIndex: "name",
-      sorter: (a, b) => a.name.length - b.name.length,
+      sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
       key: "name",
       // eslint-disable-next-line react/no-unstable-nested-components
