@@ -56,6 +56,7 @@ function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
 // 构建沙盒上下文
 export function createContext(
   scriptRes: ScriptRunResouce,
+  GMInfo: any,
   message: MessageManager
 ): GMApi {
   // 按照GMApi构建
@@ -70,7 +71,8 @@ export function createContext(
     connect: GMApi.prototype.connect,
     runFlag: uuidv4(),
     valueUpdate: GMApi.prototype.valueUpdate,
-    GM: {},
+    GM: { Info: GMInfo },
+    GM_info: GMInfo,
   };
   if (scriptRes.metadata.grant) {
     scriptRes.metadata.grant.forEach((val) => {
@@ -193,9 +195,6 @@ export function proxyContext(global: any, context: any) {
       return undefined;
     },
     has(_, name) {
-      if (name === "GM_info") {
-        return false;
-      }
       return true;
     },
     set(_, name: string, val) {
