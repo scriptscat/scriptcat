@@ -59,7 +59,7 @@ declare function GM_listValues(): string[];
 
 declare function GM_addValueChangeListener(
   name: string,
-  listener: GMTypes.ValueChangeListener
+  listener: GMTypes.ValueChangeListener,
 ): number;
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
@@ -73,68 +73,72 @@ declare function GM_getValue(name: string, defaultValue?: any): any;
 declare function GM_log(
   message: string,
   level?: GMTypes.LoggerLevel,
-  labels?: GMTypes.LoggerLabel
+  labels?: GMTypes.LoggerLabel,
 ): any;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
 declare function GM_getResourceURL(
   name: string,
-  isBlobUrl?: boolean = false
+  isBlobUrl?: boolean = false,
 ): string | undefined;
 
 declare function GM_registerMenuCommand(
   name: string,
   listener: () => void,
-  accessKey?: string
+  accessKey?: string,
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
 declare function GM_openInTab(
   url: string,
-  options: GMTypes.OpenTabOptions
+  options: GMTypes.OpenTabOptions,
 ): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
 declare function GM_openInTab(url: string): tab;
 
 declare function GM_xmlhttpRequest(
-  details: GMTypes.XHRDetails
+  details: GMTypes.XHRDetails,
 ): GMTypes.AbortHandle<void>;
 
 declare function GM_download(
-  details: GMTypes.DownloadDetails
+  details: GMTypes.DownloadDetails,
 ): GMTypes.AbortHandle<boolean>;
 declare function GM_download(
   url: string,
-  filename: string
+  filename: string,
 ): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => any): void;
+
 declare function GM_saveTab(obj: object): Promise<void>;
+
 declare function GM_getTabs(
-  callback: (objs: { [key: number]: object }) => any
+  callback: (objs: { [key: number]: object }) => any,
 ): void;
 
 declare function GM_notification(
   details: GMTypes.NotificationDetails,
-  ondone?: GMTypes.NotificationOnDone
+  ondone?: GMTypes.NotificationOnDone,
 ): void;
 declare function GM_notification(
   text: string,
   title: string,
   image: string,
-  onclick?: GMTypes.NotificationOnClick
+  onclick?: GMTypes.NotificationOnClick,
 ): void;
+
 declare function GM_closeNotification(id: string): void;
+
 declare function GM_updateNotification(
   id: string,
-  details: GMTypes.NotificationDetails
+  details: GMTypes.NotificationDetails,
 ): void;
 
 declare function GM_setClipboard(
   data: string,
-  info?: string | { type?: string; minetype?: string }
+  info?: string | { type?: string; minetype?: string },
 ): void;
 
 declare function GM_addElement(tag: string, attribubutes: any);
@@ -144,7 +148,7 @@ declare function GM_addElement(parentNode: Element, tag: string, attrs: any);
 declare function GM_cookie(
   action: GMTypes.CookieAction,
   details: GMTypes.CookieDetails,
-  ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
+  ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void,
 ): void;
 
 /**
@@ -152,14 +156,14 @@ declare function GM_cookie(
  * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
  * 请注意这是一个实验性质的API,后续可能会改变
  * @param tabid 页面的tabid
- * @param callback 回调函数
+ * @param ondone 完成事件
  * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
  * @param callback.error 错误信息
  * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
  */
 declare function GM_getCookieStore(
   tabid: number,
-  ondone: (storeId: number | undefined, error: any | undefined) => void
+  ondone: (storeId: number | undefined, error: any | undefined) => void,
 ): void;
 
 /**
@@ -167,28 +171,99 @@ declare function GM_getCookieStore(
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_setProxy(rule: CATType.ProxyRule[] | string): void;
-// @deprecated 正式版中以废弃
+
 /**
  * 清理所有代理规则
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_clearProxy(): void;
+
 /**
  * 输入x、y,模拟真实点击
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_click(x: number, y: number): void;
 
+/**
+ * 打开脚本的用户配置页面
+ */
+declare function CAT_userConfig(): void;
+
+/**
+ * 操控脚本同步配置的文件储存源,将会在同步目录下创建一个app/(uuid或者storageName)目录供此 API 使用
+ * 当声明了@storageName时,可以使用public参数,将创建一个公共的储存空间,可以将文件数据储存至公共的储存空间
+ * 否则默认储存在私有储存空间下(app/uuid),使用公共储存空间时,会弹出权限确认用户页面由用户授权
+ * 多个脚本也可用此声明共用一个储存空间,上传时默认覆盖同名文件
+ * 请注意,当前版本还未支持公共空间
+ * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件
+ * @param details
+ */
+declare function CAT_fileStorage(
+  action: "list",
+  details: {
+    path?: string;
+    onload?: (files: CATType.FileStorageFileInfo[]) => void;
+    onerror?: (error: FileStorageError) => void;
+    // public?: boolean;
+  },
+): void;
+declare function CAT_fileStorage(
+  action: "download",
+  details: {
+    filename: string;
+    onload: (data: Blob) => void;
+    onprogress?: (progress: number) => void;
+    onerror?: (error: FileStorageError) => void;
+    // public?: boolean;
+  },
+): void;
+declare function CAT_fileStorage(
+  action: "delete",
+  details: {
+    filename: string;
+    onload?: () => void;
+    onerror?: (error: FileStorageError) => void;
+    // public?: boolean;
+  },
+): void;
+declare function CAT_fileStorage(
+  action: "upload",
+  details: {
+    filename: string;
+    data: Blob;
+    onload?: () => void;
+    onprogress?: (progress: number) => void;
+    onerror?: (error: FileStorageError) => void;
+    // public?: boolean;
+  },
+): void;
+
 declare namespace CATType {
   interface ProxyRule {
     proxyServer: ProxyServer;
     matchUrl: string[];
   }
+
   type ProxyScheme = "http" | "https" | "quic" | "socks4" | "socks5";
+
   interface ProxyServer {
     scheme?: ProxyScheme;
     host: string;
     port?: number;
+  }
+
+  interface FileStorageError {
+    // 错误码 1 用户未配置文件储存源 2 文件储存源配置错误 3 路径不存在
+    // 4 文件不存在 5 文件已存在 6 上传失败 7 下载失败 8 删除失败
+    code: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+    msg: string;
+  }
+
+  interface FileStorageFileInfo {
+    path: string;
+    name: string;
+    size: number;
+    isDir: boolean;
   }
 }
 
@@ -238,7 +313,7 @@ declare namespace GMTypes {
     oldValue: any,
     newValue: any,
     remote: boolean,
-    tabid?: number
+    tabid?: number,
   ) => any;
 
   interface OpenTabOptions {
@@ -337,7 +412,7 @@ declare namespace GMTypes {
   type NotificationOnClick = (
     this: NotificationThis,
     id: string,
-    index?: number
+    index?: number,
   ) => any;
   type NotificationOnDone = (this: NotificationThis, user: boolean) => any;
 
@@ -362,6 +437,7 @@ declare namespace GMTypes {
 
   interface Tab {
     close(): void;
+
     onclose?: () => void;
     closed?: boolean;
     name?: string;
