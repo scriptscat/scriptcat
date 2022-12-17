@@ -52,4 +52,27 @@ export default class FileSystemFactory {
       "baidu-netdsik": {},
     };
   }
+
+  static async mkdirAll(fs: FileSystem, path: string) {
+    return new Promise<void>((resolve, reject) => {
+      const dirs = path.split("/");
+      let i = 0;
+      const mkdir = () => {
+        if (i >= dirs.length) {
+          resolve();
+          return;
+        }
+        const dir = dirs.slice(0, i + 1).join("/");
+        fs.createDir(dir)
+          .then(() => {
+            i += 1;
+            mkdir();
+          })
+          .catch(() => {
+            reject();
+          });
+      };
+      mkdir();
+    });
+  }
 }

@@ -780,4 +780,42 @@ export default class GMApi {
     );
     return el;
   }
+
+  @GMContext.API({
+    depend: ["CAT_fetchBlob", "CAT_createBlobUrl"],
+  })
+  async CAT_fileStorage(
+    action: "list" | "download" | "upload" | "delete",
+    details: any
+  ) {
+    const sendDetails: { [key: string]: string } = {
+      path: details.path || "",
+      filename: details.filename,
+      file: details.file,
+    };
+    if (action === "upload") {
+      const url = await this.CAT_createBlobUrl(details.data);
+      sendDetails.data = url;
+    }
+    const channel = this.connect(
+      "CAT_fileStorage",
+      [action, sendDetails],
+      async (resp: any) => {
+        if (action === "download") {
+          // 读取blob
+          const blob = await this.CAT_fetchBlob(resp.data);
+          details.onload && details.onload(blob);
+        } else {
+          details.onload && details.onload(resp.data);
+        }
+      }
+    );
+    channel.setCatch((err) => {
+      if (typeof err.code === "undefined") {
+        details.onerror && details.onerror({ code: -1, message: err.message });
+        return;
+      }
+      details.onerror && details.onerror(err);
+    });
+  }
 }

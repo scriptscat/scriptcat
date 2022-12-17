@@ -111,7 +111,9 @@ declare function GM_download(
 ): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => any): void;
+
 declare function GM_saveTab(obj: object): Promise<void>;
+
 declare function GM_getTabs(
   callback: (objs: { [key: number]: object }) => any
 ): void;
@@ -126,7 +128,9 @@ declare function GM_notification(
   image: string,
   onclick?: GMTypes.NotificationOnClick
 ): void;
+
 declare function GM_closeNotification(id: string): void;
+
 declare function GM_updateNotification(
   id: string,
   details: GMTypes.NotificationDetails
@@ -152,7 +156,7 @@ declare function GM_cookie(
  * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
  * 请注意这是一个实验性质的API,后续可能会改变
  * @param tabid 页面的tabid
- * @param callback 回调函数
+ * @param ondone 完成事件
  * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
  * @param callback.error 错误信息
  * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
@@ -167,28 +171,106 @@ declare function GM_getCookieStore(
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_setProxy(rule: CATType.ProxyRule[] | string): void;
-// @deprecated 正式版中以废弃
+
 /**
  * 清理所有代理规则
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_clearProxy(): void;
+
 /**
  * 输入x、y,模拟真实点击
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
 declare function CAT_click(x: number, y: number): void;
 
+/**
+ * 打开脚本的用户配置页面
+ */
+declare function CAT_userConfig(): void;
+
+/**
+ * 操控脚本同步配置的文件储存源,将会在同步目录下创建一个app/uuid目录供此 API 使用
+ * 上传时默认覆盖同名文件, 请注意这是一个试验性质的 API, 后续可能会改变
+ * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件, 暂时不提供move/mkdir等操作
+ * @param details
+ */
+declare function CAT_fileStorage(
+  action: "list",
+  details: {
+    // path?: string; // 暂时只允许操作根目录,所以屏蔽list的path
+    onload?: (files: CATType.FileStorageFileInfo[]) => void;
+    onerror?: (error: CATType.FileStorageError) => void;
+    // public?: boolean;
+  }
+): void;
+declare function CAT_fileStorage(
+  action: "download",
+  details: {
+    file: CATType.FileStorageFileInfo; // 某些平台需要提供文件的hash值,所以需要传入文件信息
+    onload: (data: Blob) => void;
+    // onprogress?: (progress: number) => void;
+    onerror?: (error: CATType.FileStorageError) => void;
+    // public?: boolean;
+  }
+): void;
+declare function CAT_fileStorage(
+  action: "delete",
+  details: {
+    path: string;
+    onload?: () => void;
+    onerror?: (error: CATType.FileStorageError) => void;
+    // public?: boolean;
+  }
+): void;
+declare function CAT_fileStorage(
+  action: "upload",
+  details: {
+    path: string;
+    data: Blob;
+    onload?: () => void;
+    // onprogress?: (progress: number) => void;
+    onerror?: (error: CATType.FileStorageError) => void;
+    // public?: boolean;
+  }
+): void;
+
 declare namespace CATType {
   interface ProxyRule {
     proxyServer: ProxyServer;
     matchUrl: string[];
   }
+
   type ProxyScheme = "http" | "https" | "quic" | "socks4" | "socks5";
+
   interface ProxyServer {
     scheme?: ProxyScheme;
     host: string;
     port?: number;
+  }
+
+  interface FileStorageError {
+    // 错误码 -1 未知错误 1 用户未配置文件储存源 2 文件储存源配置错误 3 路径不存在
+    // 4 上传失败 5 下载失败 6 删除失败 7 不允许的文件路径
+    code: -1 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+    error: string;
+  }
+
+  interface FileStorageFileInfo {
+    // 文件名
+    name: string;
+    // 文件路径
+    path: string;
+    // 储存空间绝对路径
+    absPath: string;
+    // 文件大小
+    size: number;
+    // 文件摘要
+    digest: string;
+    // 文件创建时间
+    createtime: number;
+    // 文件修改时间
+    updatetime: number;
   }
 }
 
@@ -374,6 +456,7 @@ declare namespace GMTypes {
 
   interface Tab {
     close(): void;
+
     onclose?: () => void;
     closed?: boolean;
     name?: string;

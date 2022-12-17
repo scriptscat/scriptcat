@@ -94,7 +94,7 @@ export default class SynchronizeManager extends Manager {
           if (value.enable) {
             // 每次开启前进行一次全量同步,删除文件摘要
             await this.storage.set("file_digest", {});
-            freeSync = await this.enableCloudSync(value);
+            freeSync = await this.enableCloudSync(value, true);
           }
         }
       }
@@ -102,7 +102,7 @@ export default class SynchronizeManager extends Manager {
   }
 
   // 开启云同步
-  async enableCloudSync(config: CloudSyncConfig) {
+  async enableCloudSync(config: CloudSyncConfig, autoDisable: boolean = false) {
     const logger = this.logger.with({ syncDelete: config.syncDelete });
     logger.info("start cloud sync");
 
@@ -113,17 +113,19 @@ export default class SynchronizeManager extends Manager {
         config.params[config.filesystem]
       );
       // 创建base目录
-      await fs.createDir("ScriptCat");
-      await fs.createDir("ScriptCat/sync");
+      await FileSystemFactory.mkdirAll(fs, "ScriptCat/sync");
       fs = await fs.openDir("ScriptCat/sync");
-    } catch (e) {
+    } catch (e: any) {
       logger.error("create filesystem error", Logger.E(e), {
         type: config.filesystem,
       });
-      this.systemConfig.cloudSync = {
-        ...this.systemConfig.cloudSync,
-        enable: false,
-      };
+      InfoNotification("同步系统连接失败", e);
+      if (autoDisable) {
+        this.systemConfig.cloudSync = {
+          ...this.systemConfig.cloudSync,
+          enable: false,
+        };
+      }
       throw e;
     }
 
@@ -147,14 +149,14 @@ export default class SynchronizeManager extends Manager {
       freeFn.push(() => ScriptManager.hook.removeListener("delete", deleteFn));
     }
 
-    // 先设置死半小时同步一次吧
+    // 先设置固定一小时同步一次吧
     const ts = setInterval(async () => {
       try {
         await this.syncOnce(fs);
       } catch (e: any) {
         InfoNotification("同步失败,请检查同步配置", e);
       }
-    }, 60 * 30 * 1000);
+    }, 60 * 60 * 1000);
     freeFn.push(() => {
       clearInterval(ts);
     });

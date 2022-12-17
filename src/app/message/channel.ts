@@ -6,7 +6,7 @@ export type ChannelHandler = (data: any) => void;
 
 export type DisChannelHandler = () => void;
 
-export type ChannelCatch = (err: string) => void;
+export type ChannelCatch = (err: any) => void;
 
 // 信道,作为长连接的载体,需要先使用channel方法建立信道
 export class Channel {

@@ -79,10 +79,7 @@ const MainLayout: React.FC<{
             setImportVisible(false);
           }}
         >
-          <Input
-            ref={importRef}
-            defaultValue="https://scriptcat.org/scripts/code/336/%F0%9F%90%A4%E3%80%90%E8%B6%85%E6%98%9F%E7%BD%91%E8%AF%BE%E5%B0%8F%E5%8A%A9%E6%89%8B%E3%80%91%E3%80%90%E6%94%AF%E6%8C%81%E5%9B%BE%E7%89%87%E9%A2%98%E3%80%91%E8%A7%86%E9%A2%91-%E7%AB%A0%E8%8A%82%E6%B5%8B%E8%AF%95%7C%E8%87%AA%E5%8A%A8%E6%8C%82%E6%9C%BA%7C%E5%8F%AF%E5%A4%9A%E5%BC%80%E4%B8%8D%E5%8D%A0%E7%BD%91%E9%80%9F%7C%E9%98%B2%E6%B8%85%E8%BF%9B%E5%BA%A6%E3%80%90%E7%94%A8%E8%BF%87%E9%83%BD%E8%AF%B4%E5%A5%BD%E3%80%91.user.js"
-          />
+          <Input ref={importRef} defaultValue="" />
         </Modal>
         <div className="flex row items-center">
           <img
