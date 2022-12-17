@@ -262,6 +262,39 @@ export function setXhrHeader(
   }
 }
 
+export function getFetchHeader(
+  headerFlag: string,
+  config: GMSend.XHRDetails
+): any {
+  const headers: { [key: string]: string } = {};
+  headers[`${headerFlag}-gm-xhr`] = "true";
+  if (config.headers) {
+    Object.keys(config.headers).forEach((key) => {
+      const lowKey = key.toLowerCase();
+      if (
+        unsafeHeaders[lowKey] ||
+        lowKey.startsWith("sec-") ||
+        lowKey.startsWith("proxy-")
+      ) {
+        headers[`${headerFlag}-${lowKey}`] = config.headers![key]!;
+      } else {
+        // 直接设置header
+        headers[key] = config.headers![key]!;
+      }
+    });
+  }
+  if (config.maxRedirects !== undefined) {
+    headers[`${headerFlag}-max-redirects`] = config.maxRedirects.toString();
+  }
+  if (config.cookie) {
+    headers[`${headerFlag}-cookie`] = config.cookie;
+  }
+  if (config.anonymous) {
+    headers[`${headerFlag}-anonymous`] = "true";
+  }
+  return headers;
+}
+
 export async function dealXhr(
   headerFlag: string,
   config: GMSend.XHRDetails,
@@ -327,6 +360,29 @@ export async function dealXhr(
     }
   }
   return Promise.resolve(respond);
+}
+
+export function dealFetch(
+  headerFlag: string,
+  config: GMSend.XHRDetails,
+  response: Response,
+  readyState: 0 | 1 | 2 | 3 | 4
+) {
+  const removeXCat = new RegExp(`${headerFlag}-`, "g");
+  let respHeader = "";
+  response.headers &&
+    response.headers.forEach((value, key) => {
+      respHeader += `${key.replace(removeXCat, "")}: ${value}\n`;
+    });
+  const respond: GMTypes.XHRResponse = {
+    finalUrl: response.url || config.url,
+    readyState,
+    status: response.status,
+    statusText: response.statusText,
+    responseHeaders: respHeader,
+    responseType: config.responseType,
+  };
+  return respond;
 }
 
 export function getIcon(script: Script): string {

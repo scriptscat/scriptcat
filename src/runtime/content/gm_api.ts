@@ -213,6 +213,27 @@ export default class GMApi {
     return this.message.syncSend("CAT_fetchBlob", url);
   }
 
+  @GMContext.API()
+  public CAT_fetchDocument(url: string): Promise<Document | undefined> {
+    return new Promise((resolve) => {
+      let el: Document | undefined;
+      (<MessageContent>this.message).sendCallback(
+        "CAT_fetchDocument",
+        url,
+        (resp) => {
+          el = <Document>(
+            (<unknown>(
+              (<MessageContent>this.message).getAndDelRelatedTarget(
+                resp.relatedTarget
+              )
+            ))
+          );
+          resolve(el);
+        }
+      );
+    });
+  }
+
   // 辅助GM_xml发送blob数据
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
@@ -220,7 +241,9 @@ export default class GMApi {
   }
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
-  @GMContext.API({ depend: ["CAT_fetchBlob", "CAT_createBlobUrl"] })
+  @GMContext.API({
+    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
+  })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
     let connect: Channel;
 
@@ -300,24 +323,45 @@ export default class GMApi {
         }
       }
 
+      let readerStream: ReadableStream<Uint8Array> | undefined;
+      let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
       // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
       // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
+      const responseType = details.responseType?.toLocaleLowerCase();
       const warpResponse = (old: Function) => {
+        if (responseType === "stream") {
+          readerStream = new ReadableStream<Uint8Array>({
+            start(ctrl) {
+              controller = ctrl;
+            },
+          });
+        }
         return async (xhr: GMTypes.XHRResponse) => {
           if (xhr.response) {
-            const resp = await this.CAT_fetchBlob(<string>xhr.response);
-            if (details.responseType === "arraybuffer") {
-              xhr.response = await resp.arrayBuffer();
+            if (responseType === "document") {
+              xhr.response = await this.CAT_fetchDocument(<string>xhr.response);
+              xhr.responseXML = xhr.response;
+              xhr.responseType = "document";
             } else {
-              xhr.response = resp;
+              const resp = await this.CAT_fetchBlob(<string>xhr.response);
+              if (responseType === "arraybuffer") {
+                xhr.response = await resp.arrayBuffer();
+              } else {
+                xhr.response = resp;
+              }
             }
+          }
+          if (responseType === "stream") {
+            xhr.response = readerStream;
           }
           old(xhr);
         };
       };
       if (
-        details.responseType?.toLowerCase() === "arraybuffer" ||
-        details.responseType?.toLocaleLowerCase() === "blob"
+        responseType === "arraybuffer" ||
+        responseType === "blob" ||
+        responseType === "document" ||
+        responseType === "stream"
       ) {
         if (details.onload) {
           details.onload = warpResponse(details.onload);
@@ -327,6 +371,15 @@ export default class GMApi {
         }
         if (details.onloadend) {
           details.onloadend = warpResponse(details.onloadend);
+        }
+        // document类型读取blob,然后在content页转化为document对象
+        if (responseType === "document") {
+          param.responseType = "blob";
+        }
+        if (responseType === "stream") {
+          if (details.onloadstart) {
+            details.onloadstart = warpResponse(details.onloadstart);
+          }
         }
       }
 
@@ -338,6 +391,9 @@ export default class GMApi {
             break;
           case "onloadend":
             details.onloadend && details.onloadend(data);
+            if (readerStream) {
+              controller?.close();
+            }
             break;
           case "onloadstart":
             details.onloadstart && details.onloadstart(data);
@@ -356,6 +412,9 @@ export default class GMApi {
             break;
           case "onabort":
             details.onabort && details.onabort();
+            break;
+          case "onstream":
+            controller?.enqueue(new Uint8Array(resp.data));
             break;
           default:
             LoggerCore.getLogger().warn("GM_xmlhttpRequest resp is error", {

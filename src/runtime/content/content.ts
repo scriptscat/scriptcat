@@ -127,5 +127,19 @@ export default class ContentRuntime {
         return Promise.resolve(url);
       }
     );
+    // 处理CAT_fetchDocument
+    this.contentMessage.setHandler("CAT_fetchDocument", (_action, data) => {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.responseType = "document";
+        xhr.open("GET", data);
+        xhr.onload = () => {
+          resolve({
+            relatedTarget: xhr.response,
+          });
+        };
+        xhr.send();
+      });
+    });
   }
 }

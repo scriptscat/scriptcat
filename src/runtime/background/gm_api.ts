@@ -17,7 +17,15 @@ import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
 } from "./permission_verify";
-import { dealXhr, getIcon, listenerWebRequest, setXhrHeader } from "./utils";
+import {
+  dealFetch,
+  dealXhr,
+  getFetchHeader,
+  getIcon,
+  listenerWebRequest,
+  setXhrHeader,
+  uint8ToArray,
+} from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -150,6 +158,49 @@ export default class GMApi {
     return this.valueManager.setValue(request.script, key, value, sender);
   }
 
+  // 处理GM_xmlhttpRequest fetch的情况,先只处理ReadableStream的情况
+  // 且不考虑复杂的情况
+  CAT_fetch(request: Request, channel: Channel): Promise<any> {
+    const config = <GMSend.XHRDetails>request.params[0];
+    const { url } = config;
+    return fetch(url, {
+      method: config.method || "GET",
+      body: <any>config.data,
+      headers: getFetchHeader(this.systemConfig.scriptCatFlag, config),
+    })
+      .then((resp) => {
+        const send = dealFetch(
+          this.systemConfig.scriptCatFlag,
+          config,
+          resp,
+          1
+        );
+        const reader = resp.body?.getReader();
+        if (!reader) {
+          throw new Error("read is not found");
+        }
+        const { scriptCatFlag } = this.systemConfig;
+        reader.read().then(function read({ done, value }) {
+          if (done) {
+            const data = dealFetch(scriptCatFlag, config, resp, 4);
+            channel.send({ event: "onreadystatechange", data });
+            channel.send({ event: "onload", data });
+            channel.send({ event: "onloadend", data });
+            channel.disChannel();
+          } else {
+            channel.send({ event: "onstream", data: Array.from(value) });
+            reader.read().then(read);
+          }
+        });
+        channel.send({ event: "onloadstart", data: send });
+        send.readyState = 2;
+        channel.send({ event: "onreadystatechange", data: send });
+      })
+      .catch((e) => {
+        channel.throw(e);
+      });
+  }
+
   @PermissionVerify.API({
     confirm: (request: Request) => {
       const config = <GMSend.XHRDetails>request.params[0];
@@ -181,7 +232,10 @@ export default class GMApi {
   })
   async GM_xmlhttpRequest(request: Request, channel: Channel): Promise<any> {
     const config = <GMSend.XHRDetails>request.params[0];
-
+    if (config.responseType === "stream") {
+      // 只有fetch支持ReadableStream
+      return this.CAT_fetch(request, channel);
+    }
     const xhr = new XMLHttpRequest();
     xhr.open(
       config.method || "GET",

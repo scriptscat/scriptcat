@@ -253,10 +253,16 @@ declare namespace GMTypes {
     responseHeaders?: string;
     status?: number;
     statusText?: string;
-    response?: any;
+    response?: string | Blob | ArrayBuffer | Document | ReadableStream | null;
     responseText?: string;
     responseXML?: Document | null;
-    responseType?: "text" | "arraybuffer" | "blob" | "json";
+    responseType?:
+      | "text"
+      | "arraybuffer"
+      | "blob"
+      | "json"
+      | "document"
+      | "stream";
   }
 
   interface XHRProgress extends XHRResponse {
@@ -280,7 +286,13 @@ declare namespace GMTypes {
     binary?: boolean;
     timeout?: number;
     context?: ContextType;
-    responseType?: "text" | "arraybuffer" | "blob" | "json";
+    responseType?:
+      | "text"
+      | "arraybuffer"
+      | "blob"
+      | "json"
+      | "document"
+      | "stream"; // stream 在当前版本是一个较为简陋的实现
     overrideMimeType?: string;
     anonymous?: boolean;
     fetch?: boolean;
