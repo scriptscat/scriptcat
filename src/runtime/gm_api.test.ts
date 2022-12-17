@@ -244,7 +244,7 @@ describe("GM xmlHttpRequest", () => {
         onreadystatechange: async (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
             expect(resp.responseText).toBe("form");
-            expect(await resp.response.text()).toBe("form");
+            expect(await (<Blob>resp.response).text()).toBe("form");
             resolve();
           }
         },
@@ -259,6 +259,7 @@ describe("GM xmlHttpRequest", () => {
         method: "GET",
         responseType: "json",
         onload: (resp) => {
+          // @ts-ignore
           expect(resp.response.test).toBe(1);
           expect(resp.responseText).toBe('{"test":1}');
           resolve();

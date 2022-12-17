@@ -194,7 +194,7 @@ export function proxyContext(global: any, context: any) {
       }
       return undefined;
     },
-    has(_, name) {
+    has() {
       return true;
     },
     set(_, name: string, val) {

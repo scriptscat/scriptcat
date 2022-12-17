@@ -24,7 +24,6 @@ import {
   getIcon,
   listenerWebRequest,
   setXhrHeader,
-  uint8ToArray,
 } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求

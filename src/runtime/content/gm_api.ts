@@ -324,6 +324,7 @@ export default class GMApi {
       }
 
       let readerStream: ReadableStream<Uint8Array> | undefined;
+      // eslint-disable-next-line no-undef
       let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
       // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
       // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
