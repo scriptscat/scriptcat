@@ -113,7 +113,7 @@ export default class MessageContent
     }
 
     // 特殊处理relatedTarget
-    if (typeof detail.data.relatedTarget === "object") {
+    if (detail.data && typeof detail.data.relatedTarget === "object") {
       // 先将relatedTarget转换成id发送过去
       const target = detail.data.relatedTarget;
       delete detail.data.relatedTarget;

@@ -13,6 +13,8 @@ import { isFirefox } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
+import FileSystemFactory from "@Pkg/filesystem/factory";
+import FileSystem from "@Pkg/filesystem/filesystem";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -754,5 +756,109 @@ export default class GMApi {
       url: `/src/options.html#/?userConfig=${request.scriptId}`,
       active: true,
     });
+  }
+
+  @PermissionVerify.API({
+    confirm: (request: Request) => {
+      return Promise.resolve({
+        permission: "file_storage",
+        permissionValue: "*",
+        title: "脚本正在试图操作脚本同步储存空间",
+        metadata: {
+          脚本名称: request.script.name,
+        },
+        describe: `请您确认是否允许脚本进行此操作,允许后将允许脚本操作你的脚本同步储存空间,会在储存空间下创建一个app/${request.script.uuid}的目录供给脚本使用`,
+        wildcard: true,
+        permissionContent: "脚本",
+      } as ConfirmParam);
+    },
+    alias: ["GM.xmlHttpRequest"],
+  })
+  // eslint-disable-next-line consistent-return
+  async CAT_fileStorage(request: Request, channel: Channel) {
+    const config = this.systemConfig.cloudSync;
+    if (!config.enable) {
+      return channel.throw({ code: 1, error: "is disable" });
+    }
+    const [action, details] = request.params;
+    let fs: FileSystem;
+    const baseDir = `ScriptCat/app/${request.script.uuid}`;
+    try {
+      fs = await FileSystemFactory.create(
+        config.filesystem,
+        config.params[config.filesystem]
+      );
+      await FileSystemFactory.mkdirAll(fs, baseDir);
+    } catch (e: any) {
+      return channel.throw({ code: 2, error: e.message });
+    }
+    switch (action) {
+      case "list":
+        fs.list(`${baseDir}/${details.path}`)
+          .then((list) => {
+            list.forEach((file) => {
+              (<any>file).absPath = file.path;
+              file.path = file.path.substring(baseDir.length + 1);
+            });
+            channel.send({ action: "onload", data: list });
+            channel.disChannel();
+          })
+          .catch((e) => {
+            channel.throw({ code: 3, error: e.message });
+          });
+        break;
+      case "upload":
+        // eslint-disable-next-line no-case-declarations
+        const w = await fs.create(`${baseDir}/${details.path}`);
+        w.write(await (await fetch(<string>details.data)).blob())
+          .then(() => {
+            channel.send({ action: "onload", data: true });
+            channel.disChannel();
+          })
+          .catch((e) => {
+            channel.throw({ code: 4, error: e.message });
+          });
+        break;
+      case "download":
+        // eslint-disable-next-line no-case-declarations, no-undef
+        const info = <CATType.FileStorageFileInfo>details.file;
+        fs = await fs.openDir(`${baseDir}${info.path}`);
+        // eslint-disable-next-line no-case-declarations
+        const r = await fs.open({
+          fsid: (<any>info).fsid,
+          name: info.name,
+          path: `${baseDir}/${info.path}`,
+          size: info.size,
+          digest: info.digest,
+          createtime: info.createtime,
+          updatetime: info.updatetime,
+        });
+        r.read("blob")
+          .then((blob) => {
+            const url = URL.createObjectURL(blob);
+            setTimeout(() => {
+              URL.revokeObjectURL(url);
+            }, 6000);
+            channel.send({ action: "onload", data: url });
+            channel.disChannel();
+          })
+          .catch((e) => {
+            channel.throw({ code: 5, error: e.message });
+          });
+        break;
+      case "delete":
+        fs.delete(`${baseDir}/${details.path}`)
+          .then(() => {
+            channel.send({ action: "onload", data: true });
+            channel.disChannel();
+          })
+          .catch((e) => {
+            channel.throw({ code: 6, error: e.message });
+          });
+        break;
+      default:
+        channel.disChannel();
+        break;
+    }
   }
 }
