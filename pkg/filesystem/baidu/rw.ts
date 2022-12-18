@@ -141,12 +141,4 @@ export class BaiduFileWriter implements FileWriter {
         return Promise.resolve();
       });
   }
-
-  sleep() {
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 1000);
-    });
-  }
 }

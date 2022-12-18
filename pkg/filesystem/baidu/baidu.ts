@@ -14,6 +14,9 @@ export default class BaiduFileSystem implements FileSystem {
 
   constructor(path?: string, accessToken?: string) {
     this.path = path || "/apps";
+    if (!this.path.endsWith("/")) {
+      this.path += "/";
+    }
     this.accessToken = accessToken;
     this.systemConfig = IoC.instance(SystemConfig) as SystemConfig;
   }
@@ -31,12 +34,12 @@ export default class BaiduFileSystem implements FileSystem {
 
   openDir(path: string): Promise<FileSystem> {
     return Promise.resolve(
-      new BaiduFileSystem(`${this.path}/${path}`, this.accessToken)
+      new BaiduFileSystem(`${this.path}${path}`, this.accessToken)
     );
   }
 
   create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new BaiduFileWriter(this, `${this.path}/${path}`));
+    return Promise.resolve(new BaiduFileWriter(this, `${this.path}${path}`));
   }
 
   createDir(dir: string): Promise<void> {
@@ -108,16 +111,14 @@ export default class BaiduFileSystem implements FileSystem {
     });
   }
 
-  list(path?: string | undefined): Promise<File[]> {
+  list(): Promise<File[]> {
     return this.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=list&dir=${encodeURIComponent(
-        `${this.path}${path ? `/${path}` : ""}`
+        this.path
       )}&order=time&access_token=${this.accessToken}`
     ).then((data) => {
-      // 创建文件夹
       if (data.errno) {
         if (data.errno === -9) {
-          this.createDir(path || "");
           return [];
         }
         throw new Error(JSON.stringify(data));

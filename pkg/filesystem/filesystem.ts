@@ -42,5 +42,5 @@ export default interface FileSystem {
   // 删除文件
   delete(path: string): Promise<void>;
   // 文件列表
-  list(path?: string): Promise<File[]>;
+  list(): Promise<File[]>;
 }

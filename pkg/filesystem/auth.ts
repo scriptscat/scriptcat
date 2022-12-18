@@ -3,7 +3,7 @@
 import { ExtServer } from "@App/app/const";
 import { api } from "@App/pkg/axios";
 
-type NetDiskType = "baidu";
+type NetDiskType = "baidu" | "onedrive";
 
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
@@ -81,7 +81,7 @@ export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
     };
     localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   }
-  if (Date.now() > token.createtime + 3600000) {
+  if (Date.now() >= token.createtime + 3600000) {
     // 大于一小时刷新token
     try {
       const resp = await RefreshToken(netDiskType, token.refreshToken);

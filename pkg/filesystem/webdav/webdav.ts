@@ -16,6 +16,9 @@ export default class WebDAVFileSystem implements FileSystem {
     if (typeof authType === "object") {
       this.client = authType;
       this.basePath = url || "";
+      if (!this.basePath.endsWith("/")) {
+        this.basePath += "/";
+      }
     } else {
       this.client = createClient(url!, {
         authType,
@@ -38,9 +41,6 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   openDir(path: string): Promise<FileSystem> {
-    if (!path.endsWith("/")) {
-      path += "/";
-    }
     return Promise.resolve(new WebDAVFileSystem(this.client, path));
   }
 
@@ -62,9 +62,9 @@ export default class WebDAVFileSystem implements FileSystem {
     return this.basePath + path;
   }
 
-  async list(path?: string | undefined): Promise<File[]> {
+  async list(): Promise<File[]> {
     const dir = (await this.client.getDirectoryContents(
-      this.getPath(path || "")
+      this.getPath(this.basePath)
     )) as FileStat[];
     const ret: File[] = [];
     dir.forEach((item: FileStat) => {
