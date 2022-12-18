@@ -15,6 +15,7 @@ import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem from "@Pkg/filesystem/filesystem";
+import { joinPath } from "@Pkg/filesystem/utils";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -788,7 +789,6 @@ export default class GMApi {
     });
   }
 
-  // TODO: GM_registerMenuCommand
   @PermissionVerify.API()
   GM_registerMenuCommand(request: Request, channel: Channel) {
     GMApi.hook.trigger("registerMenu", request, channel);
@@ -842,16 +842,19 @@ export default class GMApi {
         config.params[config.filesystem]
       );
       await FileSystemFactory.mkdirAll(fs, baseDir);
+      fs = await fs.openDir(baseDir);
     } catch (e: any) {
       return channel.throw({ code: 2, error: e.message });
     }
     switch (action) {
       case "list":
-        fs.list(`${baseDir}/${details.path}`)
+        fs.list()
           .then((list) => {
             list.forEach((file) => {
               (<any>file).absPath = file.path;
-              file.path = file.path.substring(baseDir.length + 1);
+              file.path = joinPath(
+                file.path.substring(file.path.indexOf(baseDir) + baseDir.length)
+              );
             });
             channel.send({ action: "onload", data: list });
             channel.disChannel();
@@ -862,7 +865,7 @@ export default class GMApi {
         break;
       case "upload":
         // eslint-disable-next-line no-case-declarations
-        const w = await fs.create(`${baseDir}/${details.path}`);
+        const w = await fs.create(details.path);
         w.write(await (await fetch(<string>details.data)).blob())
           .then(() => {
             channel.send({ action: "onload", data: true });
@@ -875,12 +878,12 @@ export default class GMApi {
       case "download":
         // eslint-disable-next-line no-case-declarations, no-undef
         const info = <CATType.FileStorageFileInfo>details.file;
-        fs = await fs.openDir(`${baseDir}${info.path}`);
+        fs = await fs.openDir(`${info.path}`);
         // eslint-disable-next-line no-case-declarations
         const r = await fs.open({
           fsid: (<any>info).fsid,
           name: info.name,
-          path: `${baseDir}/${info.path}`,
+          path: info.absPath,
           size: info.size,
           digest: info.digest,
           createtime: info.createtime,
@@ -900,7 +903,7 @@ export default class GMApi {
           });
         break;
       case "delete":
-        fs.delete(`${baseDir}/${details.path}`)
+        fs.delete(`${details.path}`)
           .then(() => {
             channel.send({ action: "onload", data: true });
             channel.disChannel();

@@ -3,6 +3,7 @@
 import { calculateMd5 } from "@App/pkg/utils/utils";
 import { MD5 } from "crypto-js";
 import { File, FileReader, FileWriter } from "../filesystem";
+import { joinPath } from "../utils";
 import OneDriveFileSystem from "./onedrive";
 
 export class OneDriveFileReader implements FileReader {
@@ -17,7 +18,10 @@ export class OneDriveFileReader implements FileReader {
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
     const data = await this.fs.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.file.path}/${this.file.name}:/content`,
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(
+        this.file.path,
+        this.file.name
+      )}:/content`,
       {},
       true
     );

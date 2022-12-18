@@ -1,11 +1,12 @@
 import { AuthType, createClient, FileStat, WebDAVClient } from "webdav/web";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
+import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
 
-  basePath: string = "";
+  basePath: string = "/";
 
   constructor(
     authType: AuthType | WebDAVClient,
@@ -15,10 +16,7 @@ export default class WebDAVFileSystem implements FileSystem {
   ) {
     if (typeof authType === "object") {
       this.client = authType;
-      this.basePath = url || "";
-      if (!this.basePath.endsWith("/")) {
-        this.basePath += "/";
-      }
+      this.basePath = joinPath(url || "");
     } else {
       this.client = createClient(url!, {
         authType,
@@ -34,37 +32,34 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   open(file: File): Promise<FileReader> {
-    const path = file.name;
     return Promise.resolve(
-      new WebDAVFileReader(this.client, this.getPath(path))
+      new WebDAVFileReader(this.client, joinPath(file.path, file.name))
     );
   }
 
   openDir(path: string): Promise<FileSystem> {
-    return Promise.resolve(new WebDAVFileSystem(this.client, path));
+    return Promise.resolve(
+      new WebDAVFileSystem(this.client, joinPath(this.basePath, path))
+    );
   }
 
   create(path: string): Promise<FileWriter> {
     return Promise.resolve(
-      new WebDAVFileWriter(this.client, this.getPath(path))
+      new WebDAVFileWriter(this.client, joinPath(this.basePath, path))
     );
   }
 
   createDir(path: string): Promise<void> {
-    return this.client.createDirectory(this.getPath(path));
+    return this.client.createDirectory(joinPath(this.basePath, path));
   }
 
   async delete(path: string): Promise<void> {
-    return this.client.deleteFile(this.getPath(path));
-  }
-
-  getPath(path: string): string {
-    return this.basePath + path;
+    return this.client.deleteFile(joinPath(this.basePath, path));
   }
 
   async list(): Promise<File[]> {
     const dir = (await this.client.getDirectoryContents(
-      this.getPath(this.basePath)
+      this.basePath
     )) as FileStat[];
     const ret: File[] = [];
     dir.forEach((item: FileStat) => {
@@ -73,10 +68,7 @@ export default class WebDAVFileSystem implements FileSystem {
       }
       ret.push({
         name: item.basename,
-        path: item.filename.substring(
-          0,
-          item.filename.length - item.basename.length
-        ),
+        path: this.basePath,
         digest: item.etag || "",
         size: item.size,
         createtime: new Date(item.lastmod).getTime(),

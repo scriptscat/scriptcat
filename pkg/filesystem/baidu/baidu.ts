@@ -3,6 +3,7 @@ import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import { AuthVerify } from "../auth";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
+import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 
 export default class BaiduFileSystem implements FileSystem {
@@ -14,9 +15,6 @@ export default class BaiduFileSystem implements FileSystem {
 
   constructor(path?: string, accessToken?: string) {
     this.path = path || "/apps";
-    if (!this.path.endsWith("/")) {
-      this.path += "/";
-    }
     this.accessToken = accessToken;
     this.systemConfig = IoC.instance(SystemConfig) as SystemConfig;
   }
@@ -34,16 +32,18 @@ export default class BaiduFileSystem implements FileSystem {
 
   openDir(path: string): Promise<FileSystem> {
     return Promise.resolve(
-      new BaiduFileSystem(`${this.path}${path}`, this.accessToken)
+      new BaiduFileSystem(joinPath(this.path, path), this.accessToken)
     );
   }
 
   create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new BaiduFileWriter(this, `${this.path}${path}`));
+    return Promise.resolve(
+      new BaiduFileWriter(this, joinPath(this.path, path))
+    );
   }
 
   createDir(dir: string): Promise<void> {
-    dir = dir ? `${this.path}/${dir}` : this.path;
+    dir = joinPath(this.path, dir);
     const urlencoded = new URLSearchParams();
     urlencoded.append("path", dir);
     urlencoded.append("size", "0");
@@ -94,7 +94,7 @@ export default class BaiduFileSystem implements FileSystem {
   }
 
   delete(path: string): Promise<void> {
-    const filelist = [`${this.path}/${path}`];
+    const filelist = [joinPath(this.path, path)];
     return this.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=filemanager&access_token=${this.accessToken}&opera=delete`,
       {
@@ -128,7 +128,7 @@ export default class BaiduFileSystem implements FileSystem {
         list.push({
           fsid: val.fs_id,
           name: val.server_filename,
-          path: val.path.substring(0, val.path.length - val.server_filename),
+          path: this.path,
           size: val.size,
           digest: val.md5,
           createtime: val.server_ctime * 1000,

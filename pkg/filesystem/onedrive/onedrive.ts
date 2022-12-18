@@ -3,6 +3,7 @@ import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import { AuthVerify } from "../auth";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
+import { joinPath } from "../utils";
 import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
 
 export default class OneDriveFileSystem implements FileSystem {
@@ -13,13 +14,7 @@ export default class OneDriveFileSystem implements FileSystem {
   systemConfig: SystemConfig;
 
   constructor(path?: string, accessToken?: string) {
-    this.path = path || "";
-    if (!this.path.startsWith("/")) {
-      this.path = `/${this.path}`;
-    }
-    if (this.path === "/") {
-      this.path = "";
-    }
+    this.path = path || "/";
     this.accessToken = accessToken;
     this.systemConfig = IoC.instance(SystemConfig) as SystemConfig;
   }
@@ -39,13 +34,13 @@ export default class OneDriveFileSystem implements FileSystem {
       path = path.substring(9);
     }
     return Promise.resolve(
-      new OneDriveFileSystem(`${this.path}${path}`, this.accessToken)
+      new OneDriveFileSystem(joinPath(this.path, path), this.accessToken)
     );
   }
 
   create(path: string): Promise<FileWriter> {
     return Promise.resolve(
-      new OneDriveFileWriter(this, `${this.path}/${path}`)
+      new OneDriveFileWriter(this, joinPath(this.path, path))
     );
   }
 
@@ -59,7 +54,7 @@ export default class OneDriveFileSystem implements FileSystem {
     if (!dir) {
       return Promise.resolve();
     }
-    dir = dir ? `${this.path}/${dir}` : this.path;
+    dir = joinPath(this.path, dir);
     const dirs = dir.split("/");
     let parent = "";
     if (dirs.length > 2) {
@@ -111,7 +106,10 @@ export default class OneDriveFileSystem implements FileSystem {
 
   delete(path: string): Promise<void> {
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}${path}`,
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(
+        this.path,
+        path
+      )}`,
       {
         method: "DELETE",
       },
@@ -139,7 +137,6 @@ export default class OneDriveFileSystem implements FileSystem {
           updatetime: new Date(val.lastModifiedDateTime).getTime(),
         });
       });
-      console.log(list);
       return list;
     });
   }
