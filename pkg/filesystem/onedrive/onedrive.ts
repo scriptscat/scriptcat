@@ -123,8 +123,12 @@ export default class OneDriveFileSystem implements FileSystem {
   }
 
   list(): Promise<File[]> {
+    let { path } = this;
+    if (path === "/") {
+      path = "";
+    }
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/children`
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${path}:/children`
     ).then((data) => {
       const list: File[] = [];
       data.value.forEach((val: any) => {
