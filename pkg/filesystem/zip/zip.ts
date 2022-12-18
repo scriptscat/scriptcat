@@ -47,12 +47,9 @@ export default class ZipFileSystem implements FileSystem {
     return Promise.resolve();
   }
 
-  list(path?: string): Promise<File[]> {
+  list(): Promise<File[]> {
     const files: File[] = [];
     Object.keys(this.zip.files).forEach((key) => {
-      if (path && !key.startsWith(path)) {
-        return;
-      }
       files.push({
         name: key,
         path: key,

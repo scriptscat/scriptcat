@@ -1,9 +1,10 @@
 import BaiduFileSystem from "./baidu/baidu";
 import FileSystem from "./filesystem";
+import OneDriveFileSystem from "./onedrive/onedrive";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
 
-export type FileSystemType = "zip" | "webdav" | "baidu-netdsik";
+export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive";
 
 export type FileSystemParams = {
   [key: string]: {
@@ -31,6 +32,9 @@ export default class FileSystemFactory {
       case "baidu-netdsik":
         fs = new BaiduFileSystem();
         break;
+      case "onedrive":
+        fs = new OneDriveFileSystem();
+        break;
       default:
         throw new Error("not found filesystem");
     }
@@ -50,6 +54,7 @@ export default class FileSystemFactory {
         password: { title: "密码" },
       },
       "baidu-netdsik": {},
+      onedrive: {},
     };
   }
 }

@@ -16,6 +16,10 @@ const fileSystemList: {
     key: "baidu-netdsik",
     name: "百度网盘",
   },
+  {
+    key: "onedrive",
+    name: "OneDrive",
+  },
 ];
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
