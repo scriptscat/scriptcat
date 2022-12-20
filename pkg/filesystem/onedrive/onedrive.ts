@@ -58,14 +58,12 @@ export default class OneDriveFileSystem implements FileSystem {
     const dirs = dir.split("/");
     let parent = "";
     if (dirs.length > 2) {
-      parent = dirs.slice(0, dirs.length - 2).join("/");
+      parent = dirs.slice(0, dirs.length - 1).join("/");
     }
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${parent}/${
-        dirs[dirs.length - 1]
-      }:/children`,
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${parent}:/children`,
       {
         method: "POST",
         headers: myHeaders,
