@@ -43,10 +43,9 @@ ListenerMessage(new LoggerDAO(), center);
 
 IoC.instance(SystemConfig).init();
 
-IoC.instance(SystemManager).init();
-
 // 等待沙盒启动后再进行后续的步骤
 const sandboxOnload = () => {
+  IoC.instance(SystemManager).init();
   // 资源管理器
   const resourceManager = new ResourceManager(center);
   // value管理器

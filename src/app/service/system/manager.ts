@@ -105,6 +105,7 @@ export class SystemManager extends Manager {
       }
     };
     if (this.systemConfig.vscodeReconnect) {
+      handler();
       connectVSCodeTimer = setInterval(() => {
         handler();
       }, 30 * 1000);
@@ -147,8 +148,9 @@ export class SystemManager extends Manager {
             const script = await prepareScriptByCode(
               code,
               "",
-              uuidv5(code.data.uri, uuidv5.URL)
+              uuidv5(data.data.uri, uuidv5.URL)
             );
+            console.log(script);
             this.scriptManager.event.upsertHandler(script, "vscode");
             break;
           }
