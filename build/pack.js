@@ -61,8 +61,8 @@ const chromeManifest = { ...manifest };
 delete chromeManifest.content_security_policy;
 
 delete firefoxManifest.sandbox;
-firefoxManifest.content_security_policy =
-  "script-src 'self' blob:; object-src 'self' blob:";
+// firefoxManifest.content_security_policy =
+// "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: { strict_min_version: "91.1.0" },
 };

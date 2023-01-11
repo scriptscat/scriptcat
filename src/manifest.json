@@ -41,6 +41,5 @@
   ],
   "sandbox": {
     "pages": ["src/sandbox.html"]
-  },
-  "content_security_policy": "script-src 'self' blob:; object-src 'self' blob:"
+  }
 }

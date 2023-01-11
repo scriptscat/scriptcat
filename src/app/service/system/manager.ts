@@ -150,7 +150,6 @@ export class SystemManager extends Manager {
               "",
               uuidv5(data.data.uri, uuidv5.URL)
             );
-            console.log(script);
             this.scriptManager.event.upsertHandler(script, "vscode");
             break;
           }

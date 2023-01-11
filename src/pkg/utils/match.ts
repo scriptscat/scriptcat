@@ -44,7 +44,7 @@ export default class Match<T> {
         u.scheme = ".+?";
         break;
       case "http*":
-        u.scheme = "http[s]";
+        u.scheme = "http[s]?";
         break;
       default:
     }
@@ -236,7 +236,7 @@ export class UrlInclude<T> extends UrlMatch<T> {
         u.scheme = ".+?";
         break;
       case "http*":
-        u.scheme = "http[s]";
+        u.scheme = "http[s]?";
         break;
       default:
     }

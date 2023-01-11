@@ -142,11 +142,17 @@ describe("特殊情况", () => {
     expect(url.match("http://www.example.com/")).toEqual(["ok1"]);
   });
 
-  it("prefix *",()=>{
-    const url=new UrlMatch<string>();
-    url.add("*https://www.baidu.com*","ok1");
+  it("prefix *", () => {
+    const url = new UrlMatch<string>();
+    url.add("*https://www.baidu.com*", "ok1");
     expect(url.match("https://www.baidu.com")).toEqual(["ok1"]);
-  })
+  });
+  it("http*", () => {
+    const url = new UrlMatch<string>();
+    url.add("http*://example.com/*", "ok1");
+    expect(url.match("https://example.com/")).toEqual(["ok1"]);
+    expect(url.match("http://example.com/")).toEqual(["ok1"]);
+  });
 });
 
 // --- include
@@ -245,6 +251,9 @@ describe("UrlInclude-2", () => {
       )
     ).toEqual(["ok1", "ok2"]);
     expect(url.match("https://github.com/CodFrm")).toEqual(["ok1", "ok2"]);
+    url.add("http*://example.com/*", "ok3");
+    expect(url.match("https://example.com/")).toEqual(["ok1", "ok2", "ok3"]);
+    expect(url.match("http://example.com/")).toEqual(["ok1", "ok2", "ok3"]);
   });
   it("port", () => {
     const url = new UrlInclude<string>();
