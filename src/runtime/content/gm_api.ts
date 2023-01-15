@@ -172,6 +172,7 @@ export default class GMApi {
         key,
         value,
         createtime: new Date().getTime(),
+        updatetime: 0,
       };
     }
     if (value === undefined) {

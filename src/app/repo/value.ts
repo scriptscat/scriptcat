@@ -7,6 +7,7 @@ export interface Value {
   key: string;
   value: any;
   createtime: number;
+  updatetime: number;
 }
 
 export class ValueDAO extends DAO<Value> {

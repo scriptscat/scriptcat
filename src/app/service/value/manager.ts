@@ -129,10 +129,16 @@ export class ValueManager extends Manager {
         key,
         value,
         createtime: new Date().getTime(),
+        updatetime: 0,
       };
     } else {
+      // 值未发生改变
+      if (model.value === value) {
+        return Promise.resolve(true);
+      }
       oldValue = model.value;
       model.value = value;
+      model.updatetime = new Date().getTime();
     }
     let changeNum = 0;
     // 更新缓存
