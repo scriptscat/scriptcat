@@ -132,7 +132,7 @@ export default function Description() {
       }
       setEnable(script.status === SUBSCRIBE_STATUS_ENABLE);
       if (resp.source === "system") {
-        setCountdown(30);
+        setCountdown(60);
       }
       const meta = script.metadata;
       if (!meta) {

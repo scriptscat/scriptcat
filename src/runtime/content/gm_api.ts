@@ -123,6 +123,18 @@ export default class GMApi {
   // 获取脚本信息和管理器信息
   static GM_info(script: ScriptRunResouce) {
     const metadataStr = getMetadataStr(script.sourceCode);
+    const options = {
+      description:
+        (script.metadata.description && script.metadata.description[0]) || null,
+      matches: script.metadata.match || [],
+      includes: script.metadata.include || [],
+      "run-at":
+        (script.metadata["run-at"] && script.metadata["run-at"][0]) ||
+        "document-idle",
+      icon: (script.metadata.icon && script.metadata.icon[0]) || null,
+      icon64: (script.metadata.icon64 && script.metadata.icon64[0]) || null,
+      header: metadataStr,
+    };
     return {
       // downloadMode
       // isIncognito
@@ -138,6 +150,7 @@ export default class GMApi {
         namespace: script.namespace,
         version: script.metadata.version && script.metadata.version[0],
         author: script.author,
+        ...options,
       },
     };
   }

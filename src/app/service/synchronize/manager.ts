@@ -279,6 +279,7 @@ export default class SynchronizeManager extends Manager {
     try {
       await fs.delete(filename);
       await fs.delete(`${script.uuid}.meta.json`);
+      logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
     }
