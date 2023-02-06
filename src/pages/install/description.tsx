@@ -101,8 +101,10 @@ export default function Description() {
         if (t > 0) {
           return t - 1;
         }
-        closeWindow();
-        return 0;
+        if (t === 0) {
+          closeWindow();
+        }
+        return t;
       });
     }, 1000);
   }, [countdown]);
@@ -308,9 +310,15 @@ export default function Description() {
                   type="primary"
                   status="danger"
                   size="small"
-                  onClick={closeWindow}
+                  onClick={() => {
+                    if (countdown === -1) {
+                      closeWindow();
+                    } else {
+                      setCountdown(-1);
+                    }
+                  }}
                 >
-                  关闭{countdown !== -1 && <>({countdown})</>}
+                  {countdown === -1 ? "关闭" : `停止(${countdown})`}
                 </Button>
               </Space>
             </div>

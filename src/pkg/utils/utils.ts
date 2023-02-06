@@ -272,3 +272,24 @@ export function calculateMd5(blob: Blob) {
     };
   });
 }
+
+// 在当前页后打开一个新页面
+export function openInCurrentTab(url: string) {
+  chrome.tabs.query(
+    {
+      active: true,
+    },
+    (tabs) => {
+      if (tabs.length) {
+        chrome.tabs.create({
+          url,
+          index: tabs[0].index + 1,
+        });
+      } else {
+        chrome.tabs.create({
+          url,
+        });
+      }
+    }
+  );
+}

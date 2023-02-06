@@ -6,7 +6,11 @@ import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { SystemConfig } from "@App/pkg/config/config";
-import { checkSilenceUpdate, ltever } from "@App/pkg/utils/utils";
+import {
+  checkSilenceUpdate,
+  ltever,
+  openInCurrentTab,
+} from "@App/pkg/utils/utils";
 import Manager from "../manager";
 import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";
@@ -118,9 +122,7 @@ export class ScriptManager extends Manager {
         // 清理缓存
         Cache.getInstance().del(CacheKey.scriptInfo(info.uuid));
       }, 60 * 1000);
-      chrome.tabs.create({
-        url: `/src/install.html?uuid=${info.uuid}`,
-      });
+      openInCurrentTab(`/src/install.html?uuid=${info.uuid}`);
     });
   }
 

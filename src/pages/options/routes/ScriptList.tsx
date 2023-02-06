@@ -217,11 +217,11 @@ function ScriptList() {
         }
       },
       className: "max-w-[240px]",
-      render: (col) => {
+      render: (col, item: ListType) => {
         return (
           <Tooltip content={col} position="tl">
             <Link
-              to={`/script/editor/${col.id}`}
+              to={`/script/editor/${item.id}`}
               style={{
                 textDecoration: "none",
               }}
