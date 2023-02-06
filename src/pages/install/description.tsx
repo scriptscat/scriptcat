@@ -128,7 +128,11 @@ export default function Description() {
         setOldScript(script.oldSubscribe);
         delete script.oldSubscribe;
       } else {
-        script = await prepareScriptByCode(resp.code, resp.url);
+        if (resp.isUpdate) {
+          script = await prepareScriptByCode(resp.code, resp.url, resp.uuid);
+        } else {
+          script = await prepareScriptByCode(resp.code, resp.url);
+        }
         setOldScript(script.oldScript);
         delete script.oldScript;
       }

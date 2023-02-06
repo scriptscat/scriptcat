@@ -1,4 +1,4 @@
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import {
   Metadata,
   Script,
@@ -95,7 +95,8 @@ export type ScriptInfo = {
 export async function fetchScriptInfo(
   url: string,
   source: InstallSource,
-  isUpdate: boolean
+  isUpdate: boolean,
+  uuid: string
 ): Promise<ScriptInfo> {
   const resp = await fetch(url, {
     headers: {
@@ -110,7 +111,6 @@ export async function fetchScriptInfo(
   if (!ok) {
     throw new Error("parse script info failed");
   }
-  const uuid = uuidv5(url, uuidv5.URL);
   const ret: ScriptInfo = {
     url,
     code: body,
@@ -129,7 +129,7 @@ export async function fetchScriptInfo(
 export function copyScript(script: Script, old: Script): Script {
   const ret = script;
   ret.id = old.id;
-  // ret.uuid = old.uuid;
+  ret.uuid = old.uuid;
   ret.createtime = old.createtime;
   ret.lastruntime = old.lastruntime;
   // ret.delayruntime = old.delayruntime;
@@ -247,16 +247,15 @@ export function prepareScriptByCode(
         [, domain] = urlSplit;
       }
     }
-    if (!uuid) {
-      if (url) {
-        uuid = uuidv5(url, uuidv5.URL);
-      } else {
-        uuid = uuidv4();
-      }
+    let newUUID = "";
+    if (uuid) {
+      newUUID = uuid;
+    } else {
+      newUUID = uuidv4();
     }
     let script: Script & { oldScript?: Script } = {
       id: 0,
-      uuid,
+      uuid: newUUID,
       name: metadata.name[0],
       code,
       author: metadata.author && metadata.author[0],

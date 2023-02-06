@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/pkg/utils/cache_key";
@@ -97,8 +98,11 @@ export class ScriptManager extends Manager {
       },
       {
         urls: [
+          "*://*/*.user.js",
           "*://*/*.user.js?*",
+          "https://*/*.user.sub.js",
           "https://*/*.user.sub.js?*",
+          "https://*/*.user.bg.js",
           "https://*/*.user.bg.js?*",
         ],
         types: ["main_frame"],
@@ -116,7 +120,7 @@ export class ScriptManager extends Manager {
   }
 
   public openInstallPageByUrl(url: string) {
-    return fetchScriptInfo(url, "user", false).then((info) => {
+    return fetchScriptInfo(url, "user", false, uuidv4()).then((info) => {
       Cache.getInstance().set(CacheKey.scriptInfo(info.uuid), info);
       setTimeout(() => {
         // 清理缓存
@@ -141,7 +145,12 @@ export class ScriptManager extends Manager {
       name: script.name,
     });
     try {
-      const info = await fetchScriptInfo(script.checkUpdateUrl, source, false);
+      const info = await fetchScriptInfo(
+        script.checkUpdateUrl,
+        source,
+        false,
+        script.uuid
+      );
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
@@ -177,7 +186,12 @@ export class ScriptManager extends Manager {
       downloadUrl: script.downloadUrl,
       checkUpdateUrl: script.checkUpdateUrl,
     });
-    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true)
+    fetchScriptInfo(
+      script.downloadUrl || script.checkUpdateUrl!,
+      source,
+      true,
+      script.uuid
+    )
       .then(async (info) => {
         // 是否静默更新
         if (this.systemConfig.silenceUpdateScript) {
@@ -217,7 +231,7 @@ export class ScriptManager extends Manager {
     source: InstallSource,
     subscribeUrl?: string
   ) {
-    const info = await fetchScriptInfo(url, "system", false);
+    const info = await fetchScriptInfo(url, "system", false, uuidv4());
     const script = await prepareScriptByCode(info.code, url, info.uuid);
     script.subscribeUrl = subscribeUrl;
     await this.event.upsertHandler(script, "system");
