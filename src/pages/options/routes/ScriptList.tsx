@@ -220,16 +220,23 @@ function ScriptList() {
       render: (col) => {
         return (
           <Tooltip content={col} position="tl">
-            <Text
+            <Link
+              to={`/script/editor/${col.id}`}
               style={{
-                display: "block",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                textDecoration: "none",
               }}
             >
-              {col}
-            </Text>
+              <Text
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {col}
+              </Text>
+            </Link>
           </Tooltip>
         );
       },

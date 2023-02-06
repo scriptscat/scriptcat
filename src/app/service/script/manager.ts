@@ -93,9 +93,9 @@ export class ScriptManager extends Manager {
       },
       {
         urls: [
-          "*://*/*.user.js",
-          "https://*/*.user.sub.js",
-          "https://*/*.user.bg.js",
+          "*://*/*.user.js?*",
+          "https://*/*.user.sub.js?*",
+          "https://*/*.user.bg.js?*",
         ],
         types: ["main_frame"],
       },
