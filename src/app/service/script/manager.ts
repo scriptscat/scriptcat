@@ -104,6 +104,7 @@ export class ScriptManager extends Manager {
           "https://*/*.user.sub.js?*",
           "https://*/*.user.bg.js",
           "https://*/*.user.bg.js?*",
+          "file:///*/*.user.js",
         ],
         types: ["main_frame"],
       },
