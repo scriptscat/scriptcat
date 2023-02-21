@@ -133,7 +133,12 @@ export default class SubscribeManager extends Manager {
     });
     this.subscribeDAO.update(id, { checktime: new Date().getTime() });
     try {
-      const info = await fetchScriptInfo(subscribe.url, source, false);
+      const info = await fetchScriptInfo(
+        subscribe.url,
+        source,
+        false,
+        subscribe.url
+      );
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");

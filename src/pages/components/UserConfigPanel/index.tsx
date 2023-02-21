@@ -145,8 +145,9 @@ const UserConfigPanel: React.FC<{
                           // eslint-disable-next-line no-case-declarations
                           let options: any[];
                           if (item.bind) {
-                            if (values[item.bind]) {
-                              options = values[item.bind]!;
+                            const bindKey = item.bind.substring(1);
+                            if (values[bindKey]) {
+                              options = values[bindKey]!;
                             } else {
                               options = [];
                             }

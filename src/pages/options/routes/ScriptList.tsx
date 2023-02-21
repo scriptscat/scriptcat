@@ -84,6 +84,12 @@ function getValues(script: Script) {
       Object.keys(config!).forEach((tabKey) => {
         const tab = config![tabKey];
         Object.keys(tab).forEach((key) => {
+          // 动态变量
+          if (tab[key].bind) {
+            const bindKey = tab[key].bind!.substring(1);
+            newValues[bindKey] =
+              data[bindKey] === undefined ? undefined : data[bindKey].value;
+          }
           newValues[`${tabKey}.${key}`] =
             data[`${tabKey}.${key}`] === undefined
               ? config![tabKey][key].default
