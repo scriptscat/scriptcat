@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 /* eslint-disable max-classes-per-file */
+import { ExtVersion } from "@App/app/const";
 import LoggerCore from "@App/app/logger/core";
 import { Channel, ChannelHandler } from "@App/app/message/channel";
 import MessageContent from "@App/app/message/content";
@@ -134,16 +135,18 @@ export default class GMApi {
       icon: (script.metadata.icon && script.metadata.icon[0]) || null,
       icon64: (script.metadata.icon64 && script.metadata.icon64[0]) || null,
       header: metadataStr,
+      grant: script.metadata.grant || [],
     };
+
     return {
       // downloadMode
       // isIncognito
-      scriptWillUpdate: false,
+      scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
-      scriptUpdateURL: script.checkUpdateUrl,
+      scriptUpdateURL: script.downloadUrl,
       scriptMetaStr: metadataStr,
-      scriptSource: script.sourceCode,
-      version: script.metadata.version && script.metadata.version[0],
+      // scriptSource: script.sourceCode,
+      version: ExtVersion,
       script: {
         // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
         name: script.name,
