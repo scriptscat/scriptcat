@@ -139,7 +139,7 @@ export function proxyContext(global: any, context: any) {
   // @ts-ignore
   const proxy = new Proxy(context, {
     defineProperty(_, name, desc) {
-      if (Object.defineProperty(context, name, desc)) {
+      if (Object.defineProperty(thisContext, name, desc)) {
         return true;
       }
       return false;
@@ -163,13 +163,11 @@ export function proxyContext(global: any, context: any) {
           break;
       }
       if (typeof name === "string" && name !== "undefined") {
-        if (context[name]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-          return context[name];
-        }
         if (thisContext[name]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return thisContext[name];
+        }
+        if (context[name]) {
+          return context[name];
         }
         if (special[name] !== undefined) {
           if (
@@ -178,7 +176,6 @@ export function proxyContext(global: any, context: any) {
           ) {
             return (<{ bind: any }>special[name]).bind(global);
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return special[name];
         }
         if (global[name] !== undefined) {
@@ -188,7 +185,6 @@ export function proxyContext(global: any, context: any) {
           ) {
             return (<{ bind: any }>global[name]).bind(global);
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return global[name];
         }
       }
@@ -199,26 +195,24 @@ export function proxyContext(global: any, context: any) {
         case "window":
         case "self":
         case "globalThis":
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         case "top":
         case "parent":
           if (global[name] === global.self) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
             return true;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         default:
           break;
       }
       if (typeof name === "string" && name !== "undefined") {
+        if (thisContext[name]) {
+          return true;
+        }
         if (context[name]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         }
         if (thisContext[name]) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         }
         if (special[name] !== undefined) {
@@ -228,7 +222,6 @@ export function proxyContext(global: any, context: any) {
           ) {
             return true;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         }
         if (global[name] !== undefined) {
@@ -238,7 +231,6 @@ export function proxyContext(global: any, context: any) {
           ) {
             return true;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return true;
         }
       }
@@ -266,12 +258,16 @@ export function proxyContext(global: any, context: any) {
         global[name] = val;
         return true;
       }
-      context[name] = val;
+      thisContext[name] = val;
       return true;
     },
     getOwnPropertyDescriptor(_, name) {
       try {
-        let ret = Object.getOwnPropertyDescriptor(context, name);
+        let ret = Object.getOwnPropertyDescriptor(thisContext, name);
+        if (ret) {
+          return ret;
+        }
+        ret = Object.getOwnPropertyDescriptor(context, name);
         if (ret) {
           return ret;
         }

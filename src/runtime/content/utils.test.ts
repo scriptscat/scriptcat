@@ -16,7 +16,6 @@ describe('proxy context', () => {
 	it('set contenxt', () => {
 		_this['md5'] = 'ok';
 		expect(_this['md5']).toEqual('ok');
-		expect(context['md5']).toEqual('ok');
 		expect(global['md5']).toEqual(undefined);
 	});
 
@@ -30,11 +29,9 @@ describe('proxy context', () => {
 	it('update', () => {
 		_this['okk'] = 'ok';
 		expect(_this['okk']).toEqual('ok');
-		expect(context['okk']).toEqual('ok');
 		expect(global['okk']).toEqual(undefined);
 		_this['okk'] = 'ok2';
 		expect(_this['okk']).toEqual('ok2');
-		expect(context['okk']).toEqual('ok2');
 		expect(global['okk']).toEqual(undefined);
 	});
 
