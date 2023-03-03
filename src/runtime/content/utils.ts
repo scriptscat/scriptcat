@@ -144,7 +144,7 @@ export function proxyContext(global: any, context: any) {
       }
       return false;
     },
-    get(_, name) {
+    get(_, name): any {
       switch (name) {
         case "window":
         case "self":
@@ -194,8 +194,55 @@ export function proxyContext(global: any, context: any) {
       }
       return undefined;
     },
-    has() {
-      return true;
+    has(_, name) {
+      switch (name) {
+        case "window":
+        case "self":
+        case "globalThis":
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        case "top":
+        case "parent":
+          if (global[name] === global.self) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return true;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        default:
+          break;
+      }
+      if (typeof name === "string" && name !== "undefined") {
+        if (context[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        }
+        if (thisContext[name]) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        }
+        if (special[name] !== undefined) {
+          if (
+            typeof special[name] === "function" &&
+            !(<{ prototype: any }>special[name]).prototype
+          ) {
+            return true;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        }
+        if (global[name] !== undefined) {
+          if (
+            typeof global[name] === "function" &&
+            !(<{ prototype: any }>global[name]).prototype
+          ) {
+            return true;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+          return true;
+        }
+      }
+      return false;
     },
     set(_, name: string, val) {
       switch (name) {

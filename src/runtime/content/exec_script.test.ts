@@ -2,6 +2,7 @@ import initTestEnv from "@App/pkg/utils/test_utils";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
+import { ExtVersion } from "@App/app/const";
 
 initTestEnv();
 
@@ -42,15 +43,15 @@ describe("GM_info", () => {
     scriptRes.code = "return GM_info";
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
     const ret = noneExec.exec();
-    expect(ret.version).toEqual("1.0.0");
-    expect(ret.scriptSource).toEqual("sourceCode");
+    expect(ret.version).toEqual(ExtVersion);
+    expect(ret.script.version).toEqual("1.0.0");
   });
   it("sandbox", () => {
     scriptRes2.code = "return GM_info";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = sandboxExec.exec();
-    expect(ret.version).toEqual("1.0.0");
-    expect(ret.scriptSource).toEqual("sourceCode");
+    expect(ret.version).toEqual(ExtVersion);
+    expect(ret.script.version).toEqual("1.0.0");
   });
 });
 
