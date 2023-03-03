@@ -135,7 +135,19 @@ Object.keys(descs).forEach((key) => {
 export function proxyContext(global: any, context: any) {
   const special = Object.assign(writables);
   // 后台脚本要不要考虑不能使用eval?
-  const thisContext: { [key: string]: any } = { eval: global.eval };
+  const thisContext: { [key: string]: any } = {
+    eval: global.eval,
+  };
+  // keyword是与createContext时同步的,避免访问到context的内部变量
+  const contextKeyword: { [key: string]: any } = {
+    message: 1,
+    valueChangeListener: 1,
+    connect: 1,
+    runFlag: 1,
+    valueUpdate: 1,
+    sendMessage: 1,
+    scriptRes: 1,
+  };
   // @ts-ignore
   const proxy = new Proxy(context, {
     defineProperty(_, name, desc) {
@@ -167,6 +179,9 @@ export function proxyContext(global: any, context: any) {
           return thisContext[name];
         }
         if (context[name]) {
+          if (contextKeyword[name]) {
+            return undefined;
+          }
           return context[name];
         }
         if (special[name] !== undefined) {
@@ -210,9 +225,9 @@ export function proxyContext(global: any, context: any) {
           return true;
         }
         if (context[name]) {
-          return true;
-        }
-        if (thisContext[name]) {
+          if (contextKeyword[name]) {
+            return false;
+          }
           return true;
         }
         if (special[name] !== undefined) {
