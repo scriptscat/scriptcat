@@ -108,7 +108,15 @@ const ScriptStorage: React.FC<{
           case "string":
             return col;
           default:
-            return JSON.stringify(col);
+            return (
+              <span
+                style={{
+                  whiteSpace: "break-spaces",
+                }}
+              >
+                {JSON.stringify(col, null, 2)}
+              </span>
+            );
         }
       },
     },
@@ -211,6 +219,7 @@ const ScriptStorage: React.FC<{
                     key: value.key,
                     value: value.value,
                     createtime: Date.now(),
+                    updatetime: 0,
                   },
                   ...data,
                 ]);
@@ -228,7 +237,7 @@ const ScriptStorage: React.FC<{
               value:
                 typeof currentValue?.value === "string"
                   ? currentValue?.value
-                  : JSON.stringify(currentValue?.value),
+                  : JSON.stringify(currentValue?.value, null, 2),
               type: valueType(currentValue?.value || "string"),
             }}
           >
@@ -236,7 +245,10 @@ const ScriptStorage: React.FC<{
               <Input placeholder="key" disabled={!!currentValue} />
             </FormItem>
             <FormItem label="Value" field="value" rules={[{ required: true }]}>
-              <Input placeholder="当类型为object时,请输入可以JSON解析的数据" />
+              <Input.TextArea
+                rows={6}
+                placeholder="当类型为object时,请输入可以JSON解析的数据"
+              />
             </FormItem>
             <FormItem label="类型" field="type" rules={[{ required: true }]}>
               <Select>
