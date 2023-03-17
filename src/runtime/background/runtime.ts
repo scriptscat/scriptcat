@@ -222,7 +222,7 @@ export default class Runtime extends Manager {
             tabMap.delete(request.scriptId);
           }
         }
-        if (!Object.keys(tabMap).length) {
+        if (!tabMap.size) {
           scriptMenu.delete(senderId);
         }
       }

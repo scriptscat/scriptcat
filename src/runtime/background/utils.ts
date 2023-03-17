@@ -408,7 +408,7 @@ function genScriptMenuByTabMap(
     menuArr.forEach((menu) => {
       // 创建菜单
       chrome.contextMenus.create({
-        id: `scriptMenu_menu_${menu.request.params[0]}`,
+        id: `scriptMenu_menu_${scriptId}_${menu.request.params[0]}`,
         title: menu.request.params[1],
         contexts: ["all"],
         parentId: `scriptMenu_${scriptId}`,
