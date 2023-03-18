@@ -1,4 +1,4 @@
-export const ExtVersion = "0.11.3";
+export const ExtVersion = "0.11.4";
 
 export const ExtServer = "https://ext.scriptcat.org/";
 

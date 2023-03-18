@@ -84,6 +84,9 @@ const ScriptMenuList: React.FC<{
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
+                title={
+                  item.enable ? `该脚本运行了${item.runNum}次` : "该脚本未开启"
+                }
               >
                 <Space>
                   <Switch

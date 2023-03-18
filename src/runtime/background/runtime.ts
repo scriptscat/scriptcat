@@ -46,6 +46,7 @@ export type ScriptMenu = {
   updatetime: number;
   hasUserConfig: boolean;
   runStatus?: SCRIPT_RUN_STATUS;
+  runNum: number;
   menus?: ScriptMenuItem[];
 };
 
@@ -252,17 +253,45 @@ export default class Runtime extends Manager {
       }
     });
 
+    // 记录运行次数与iframe运行
+    const runScript = new Map<
+      number,
+      Map<number, { script: Script; runNum: number }>
+    >();
+    const addRunScript = (tabId: number, script: Script) => {
+      let scripts = runScript.get(tabId);
+      if (!scripts) {
+        scripts = new Map();
+        runScript.set(tabId, scripts);
+      }
+      let scriptNum = scripts.get(script.id);
+      if (!scriptNum) {
+        scriptNum = { script, runNum: 0 };
+        scripts.set(script.id, scriptNum);
+      }
+      if (script.status === SCRIPT_STATUS_ENABLE) {
+        scriptNum.runNum += 1;
+      }
+    };
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+      if (changeInfo.status === "loading") {
+        runScript.delete(tabId);
+      }
+    });
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      runScript.delete(tabId);
+    });
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
       "queryPageScript",
-      (action: string, { url, tabId }: any) => {
+      (action: string, { tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
-        const matchScripts = this.matchUrl(url);
+        const matchScripts = runScript.get(tabId) || [];
         const scriptList: ScriptMenu[] = [];
         matchScripts.forEach((item) => {
           const menus: ScriptMenuItem[] = [];
           if (tabMap) {
-            tabMap.get(item.id)?.forEach((scriptItem) => {
+            tabMap.get(item.script.id)?.forEach((scriptItem) => {
               menus.push({
                 name: scriptItem.request.params[1],
                 accessKey: scriptItem.request.params[2],
@@ -273,11 +302,12 @@ export default class Runtime extends Manager {
             });
           }
           scriptList.push({
-            id: item.id,
-            name: item.name,
-            enable: item.status === SCRIPT_STATUS_ENABLE,
-            updatetime: item.updatetime || item.createtime,
-            hasUserConfig: !!item.config,
+            id: item.script.id,
+            name: item.script.name,
+            enable: item.script.status === SCRIPT_STATUS_ENABLE,
+            updatetime: item.script.updatetime || item.script.createtime,
+            hasUserConfig: !!item.script.config,
+            runNum: item.runNum,
             menus,
           });
         });
@@ -303,6 +333,7 @@ export default class Runtime extends Manager {
             updatetime: item.updatetime || item.createtime,
             runStatus: item.runStatus,
             hasUserConfig: !!item.config,
+            runNum: item.status === SCRIPT_STATUS_ENABLE ? 1 : 0,
             menus,
           });
         });
@@ -328,11 +359,16 @@ export default class Runtime extends Manager {
           const filter: ScriptRunResouce[] = this.matchUrl(
             sender.url,
             (script) => {
-              // 开启并且不是iframe
-              return (
-                script.status !== SCRIPT_STATUS_ENABLE ||
-                (sender.frameId !== undefined && !!script.metadata.noframes)
-              );
+              // 如果是iframe,判断是否允许在iframe里运行
+              if (sender.frameId !== undefined) {
+                if (script.metadata.noframes) {
+                  return false;
+                }
+                addRunScript(sender.tabId!, script);
+                return script.status === SCRIPT_STATUS_ENABLE;
+              }
+              addRunScript(sender.tabId!, script);
+              return script.status === SCRIPT_STATUS_ENABLE;
             }
           );
 

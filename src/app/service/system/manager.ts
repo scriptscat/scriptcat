@@ -48,7 +48,7 @@ export class SystemManager extends Manager {
     checkUpdate();
     setInterval(() => {
       checkUpdate();
-    }, 7200 * 1000);
+    }, 3600 * 1000 * 6);
 
     if (process.env.NODE_ENV === "production") {
       chrome.runtime.onInstalled.addListener((details) => {
