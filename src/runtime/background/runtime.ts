@@ -273,44 +273,56 @@ export default class Runtime extends Manager {
         scriptNum.runNum += 1;
       }
     };
-    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-      if (changeInfo.status === "loading") {
-        runScript.delete(tabId);
-      }
-    });
     chrome.tabs.onRemoved.addListener((tabId) => {
       runScript.delete(tabId);
     });
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
       "queryPageScript",
-      (action: string, { tabId }: any) => {
+      async (action: string, { tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
         const matchScripts = runScript.get(tabId) || [];
-        const scriptList: ScriptMenu[] = [];
-        matchScripts.forEach((item) => {
-          const menus: ScriptMenuItem[] = [];
-          if (tabMap) {
-            tabMap.get(item.script.id)?.forEach((scriptItem) => {
-              menus.push({
-                name: scriptItem.request.params[1],
-                accessKey: scriptItem.request.params[2],
-                id: scriptItem.request.params[0],
-                sender: scriptItem.request.sender,
-                channelFlag: scriptItem.channel.flag,
+        const allPromise: Promise<ScriptMenu>[] = Array.from(
+          matchScripts,
+          async ([, item]: [number, { script: Script; runNum: number }]) => {
+            const menus: ScriptMenuItem[] = [];
+            if (tabMap) {
+              tabMap.get(item.script.id)?.forEach((scriptItem) => {
+                menus.push({
+                  name: scriptItem.request.params[1],
+                  accessKey: scriptItem.request.params[2],
+                  id: scriptItem.request.params[0],
+                  sender: scriptItem.request.sender,
+                  channelFlag: scriptItem.channel.flag,
+                });
               });
-            });
+            }
+            const script = await this.scriptDAO.findById(item.script.id);
+            if (!script) {
+              return {
+                id: item.script.id,
+                name: item.script.name,
+                enable: item.script.status === SCRIPT_STATUS_ENABLE,
+                updatetime: item.script.updatetime || item.script.createtime,
+                hasUserConfig: !!item.script.config,
+                runNum: item.runNum,
+                menus,
+              };
+            }
+            return {
+              id: script.id,
+              name: script.name,
+              enable: script.status === SCRIPT_STATUS_ENABLE,
+              updatetime: script.updatetime || script.createtime,
+              hasUserConfig: !!script?.config,
+              runNum: item.runNum,
+              menus,
+            };
           }
-          scriptList.push({
-            id: item.script.id,
-            name: item.script.name,
-            enable: item.script.status === SCRIPT_STATUS_ENABLE,
-            updatetime: item.script.updatetime || item.script.createtime,
-            hasUserConfig: !!item.script.config,
-            runNum: item.runNum,
-            menus,
-          });
-        });
+        );
+
+        const scriptList: ScriptMenu[] = await Promise.all(allPromise);
+
         const backScriptList: ScriptMenu[] = [];
         const sandboxMenuMap = scriptMenu.get("sandbox");
         this.runBackScript.forEach((item) => {
@@ -355,20 +367,23 @@ export default class Runtime extends Manager {
           if (!(sender.url && sender.tabId)) {
             return;
           }
-
+          if (sender.frameId === undefined) {
+            // 清理之前的数据
+            runScript.delete(sender.tabId);
+          }
           const filter: ScriptRunResouce[] = this.matchUrl(
             sender.url,
             (script) => {
               // 如果是iframe,判断是否允许在iframe里运行
               if (sender.frameId !== undefined) {
                 if (script.metadata.noframes) {
-                  return false;
+                  return true;
                 }
                 addRunScript(sender.tabId!, script);
-                return script.status === SCRIPT_STATUS_ENABLE;
+                return script.status !== SCRIPT_STATUS_ENABLE;
               }
               addRunScript(sender.tabId!, script);
-              return script.status === SCRIPT_STATUS_ENABLE;
+              return script.status !== SCRIPT_STATUS_ENABLE;
             }
           );
 
