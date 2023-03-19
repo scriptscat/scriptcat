@@ -746,12 +746,26 @@ export default class GMApi {
 
   menuId: number | undefined;
 
+  menuMap: Map<number, string> | undefined;
+
   @GMContext.API()
   GM_registerMenuCommand(
     name: string,
     listener: () => void,
     accessKey?: string
   ): number {
+    if (!this.menuMap) {
+      this.menuMap = new Map();
+    }
+    let flag = 0;
+    this.menuMap.forEach((val, key) => {
+      if (val === name) {
+        flag = key;
+      }
+    });
+    if (flag) {
+      return flag;
+    }
     if (!this.menuId) {
       this.menuId = 1;
     } else {
@@ -761,11 +775,16 @@ export default class GMApi {
     this.connect("GM_registerMenuCommand", [id, name, accessKey], () => {
       listener();
     });
+    this.menuMap.set(id, name);
     return id;
   }
 
   @GMContext.API()
   GM_unregisterMenuCommand(id: number): void {
+    if (!this.menuMap) {
+      this.menuMap = new Map();
+    }
+    this.menuMap.delete(id);
     this.sendMessage("GM_unregisterMenuCommand", [id]);
   }
 
