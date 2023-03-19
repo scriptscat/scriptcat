@@ -204,8 +204,8 @@ const ScriptMenuList: React.FC<{
                       });
                   }}
                 >
-                  {isExclude(item, url.host) ? "恢复" : "排除"}
-                  {` ${url.host} 在上执行`}
+                  {isExclude(item, url.host) ? "恢复在" : "排除在"}
+                  {` ${url.host} 上执行`}
                 </Button>
               )}
               <Popconfirm

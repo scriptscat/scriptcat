@@ -45,6 +45,13 @@ function App() {
   const [version, setVersion] = useState(ExtVersion);
   const [currentUrl, setCurrentUrl] = useState("");
 
+  let url: URL | undefined;
+  try {
+    url = new URL(currentUrl);
+  } catch (e) {
+    // ignore error
+  }
+
   const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
     systemManage.getNotice().then((res) => {
@@ -142,7 +149,11 @@ function App() {
                     <IconPlus style={iconStyle} />
                     新建脚本
                   </Menu.Item>
-                  <Menu.Item key="https://scriptcat.org/">
+                  <Menu.Item
+                    key={`https://scriptcat.org/search?domain=${
+                      url && url.host
+                    }`}
+                  >
                     <IconSearch style={iconStyle} />
                     获取脚本
                   </Menu.Item>
