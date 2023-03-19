@@ -43,6 +43,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [isRead, setIsRead] = useState(true);
   const [version, setVersion] = useState(ExtVersion);
+  const [currentUrl, setCurrentUrl] = useState("");
 
   const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
@@ -59,6 +60,7 @@ function App() {
       if (!tabs.length) {
         return;
       }
+      setCurrentUrl(tabs[0].url || "");
       message
         .syncSend("queryPageScript", { url: tabs[0].url, tabId: tabs[0].id })
         .then(
@@ -70,6 +72,9 @@ function App() {
             const list = resp.scriptList;
             list.sort((a, b) => {
               if (a.enable === b.enable) {
+                if (a.runNum !== b.runNum) {
+                  return b.runNum - a.runNum;
+                }
                 return b.updatetime - a.updatetime;
               }
               return a.enable ? -1 : 1;
@@ -114,22 +119,18 @@ function App() {
                   style={{
                     maxHeight: "none",
                   }}
-                  onClickMenuItem={(key) => {
+                  onClickMenuItem={async (key) => {
                     switch (key) {
                       case "newScript":
-                        chrome.tabs.query({ active: true }, async (tab) => {
-                          if (tab.length) {
-                            await chrome.storage.local.set({
-                              activeTabUrl: {
-                                url: tab[0].url,
-                              },
-                            });
-                            window.open(
-                              "/src/options.html#/script/editor?target=initial",
-                              "_blank"
-                            );
-                          }
+                        await chrome.storage.local.set({
+                          activeTabUrl: {
+                            url: currentUrl,
+                          },
                         });
+                        window.open(
+                          "/src/options.html#/script/editor?target=initial",
+                          "_blank"
+                        );
                         break;
                       default:
                         window.open(key, "_blank");
@@ -189,7 +190,11 @@ function App() {
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList script={scriptList} isBackscript={false} />
+          <ScriptMenuList
+            script={scriptList}
+            isBackscript={false}
+            currentUrl={currentUrl}
+          />
         </CollapseItem>
 
         <CollapseItem
@@ -198,7 +203,11 @@ function App() {
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList script={backScriptList} isBackscript />
+          <ScriptMenuList
+            script={backScriptList}
+            isBackscript
+            currentUrl={currentUrl}
+          />
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">

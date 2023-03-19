@@ -16,6 +16,7 @@ export type ScriptEvent =
   | "enable"
   | "disable"
   | "delete"
+  | "exclude"
   | "checkUpdate"
   | "importByUrl";
 
@@ -167,5 +168,55 @@ export default class ScriptEventListener {
   @ListenEventDecorator("importByUrl")
   public importByUrlHandler(url: string) {
     return this.manager.openInstallPageByUrl(url);
+  }
+
+  @ListenEventDecorator("exclude")
+  public excludeHandler({
+    id,
+    exclude,
+    remove,
+  }: {
+    id: number;
+    exclude: string;
+    remove: boolean;
+  }) {
+    const logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          script.selfMetadata = script.selfMetadata || {};
+          const excludes = script.selfMetadata.exclude || [];
+          if (remove) {
+            for (let i = 0; i < excludes.length; i += 1) {
+              if (excludes[i] === exclude) {
+                excludes.splice(i, 1);
+              }
+            }
+          } else {
+            excludes.push(exclude);
+          }
+          script.selfMetadata.exclude = excludes;
+          this.dao.save(script).then(
+            () => {
+              logger.info("script exclude success");
+              ScriptManager.hook.trigger("upsert", script, "system");
+              resolve({ id: script.id });
+            },
+            (e) => {
+              logger.error("script exclude failed", Logger.E(e));
+              reject(e);
+            }
+          );
+          return resolve(1);
+        })
+        .catch((e) => {
+          logger.error("exclude error", Logger.E(e));
+          reject(e);
+        });
+    });
   }
 }

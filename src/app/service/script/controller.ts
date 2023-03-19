@@ -50,4 +50,8 @@ export default class ScriptController {
   importByUrl(url: string) {
     return this.dispatchEvent("importByUrl", url);
   }
+
+  exclude(id: number, exclude: string, remove: boolean) {
+    return this.dispatchEvent("exclude", { id, exclude, remove });
+  }
 }

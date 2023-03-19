@@ -10,6 +10,7 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
+  SCRIPT_RUN_STATUS_RUNNING,
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
@@ -48,6 +49,7 @@ export type ScriptMenu = {
   runStatus?: SCRIPT_RUN_STATUS;
   runNum: number;
   menus?: ScriptMenuItem[];
+  customExclude?: string[];
 };
 
 // 后台脚本将会将代码注入到沙盒中
@@ -68,6 +70,9 @@ export default class Runtime extends Manager {
   match: UrlMatch<ScriptRunResouce> = new UrlMatch();
 
   include: UrlInclude<ScriptRunResouce> = new UrlInclude();
+
+  // 自定义排除
+  customizeExclude: UrlMatch<ScriptRunResouce> = new UrlMatch();
 
   static hook = new Hook<"runStatus">();
 
@@ -258,7 +263,7 @@ export default class Runtime extends Manager {
       number,
       Map<number, { script: Script; runNum: number }>
     >();
-    const addRunScript = (tabId: number, script: Script) => {
+    const addRunScript = (tabId: number, script: Script, num: number = 1) => {
       let scripts = runScript.get(tabId);
       if (!scripts) {
         scripts = new Map();
@@ -270,7 +275,7 @@ export default class Runtime extends Manager {
         scripts.set(script.id, scriptNum);
       }
       if (script.status === SCRIPT_STATUS_ENABLE) {
-        scriptNum.runNum += 1;
+        scriptNum.runNum += num;
       }
     };
     chrome.tabs.onRemoved.addListener((tabId) => {
@@ -279,12 +284,19 @@ export default class Runtime extends Manager {
     // 给popup页面获取运行脚本,与菜单
     this.message.setHandler(
       "queryPageScript",
-      async (action: string, { tabId }: any) => {
+      async (action: string, { url, tabId }: any) => {
         const tabMap = scriptMenu.get(tabId);
-        const matchScripts = runScript.get(tabId) || [];
-        const allPromise: Promise<ScriptMenu>[] = Array.from(
-          matchScripts,
-          async ([, item]: [number, { script: Script; runNum: number }]) => {
+        const run = runScript.get(tabId);
+        let matchScripts = [];
+        if (!run) {
+          matchScripts = this.matchUrl(url).map((item) => {
+            return { runNum: 0, script: item };
+          });
+        } else {
+          matchScripts = Array.from(run.values());
+        }
+        const allPromise: Promise<ScriptMenu>[] = matchScripts.map(
+          async (item) => {
             const menus: ScriptMenuItem[] = [];
             if (tabMap) {
               tabMap.get(item.script.id)?.forEach((scriptItem) => {
@@ -306,6 +318,8 @@ export default class Runtime extends Manager {
                 updatetime: item.script.updatetime || item.script.createtime,
                 hasUserConfig: !!item.script.config,
                 runNum: item.runNum,
+                customExclude:
+                  item.script.selfMetadata && item.script.selfMetadata.exclude,
                 menus,
               };
             }
@@ -316,6 +330,7 @@ export default class Runtime extends Manager {
               updatetime: script.updatetime || script.createtime,
               hasUserConfig: !!script?.config,
               runNum: item.runNum,
+              customExclude: script.selfMetadata && script.selfMetadata.exclude,
               menus,
             };
           }
@@ -338,6 +353,7 @@ export default class Runtime extends Manager {
               });
             });
           }
+
           backScriptList.push({
             id: item.id,
             name: item.name,
@@ -345,7 +361,10 @@ export default class Runtime extends Manager {
             updatetime: item.updatetime || item.createtime,
             runStatus: item.runStatus,
             hasUserConfig: !!item.config,
-            runNum: item.status === SCRIPT_STATUS_ENABLE ? 1 : 0,
+            runNum:
+              item.runStatus && item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
+                ? 1
+                : 0,
             menus,
           });
         });
@@ -371,6 +390,11 @@ export default class Runtime extends Manager {
             // 清理之前的数据
             runScript.delete(sender.tabId);
           }
+          const exclude = this.customizeExclude.match(sender.url);
+          // 自定义排除的
+          exclude.forEach((val) => {
+            addRunScript(sender.tabId!, val, 0);
+          });
           const filter: ScriptRunResouce[] = this.matchUrl(
             sender.url,
             (script) => {
@@ -574,6 +598,15 @@ export default class Runtime extends Manager {
         try {
           this.include.exclude(url, script);
           this.match.exclude(url, script);
+        } catch (e) {
+          logger.error("url加载错误", Logger.E(e));
+        }
+      });
+    }
+    if (script.selfMetadata && script.selfMetadata.exclude) {
+      script.selfMetadata.exclude.forEach((url) => {
+        try {
+          this.customizeExclude.add(url, script);
         } catch (e) {
           logger.error("url加载错误", Logger.E(e));
         }

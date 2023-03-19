@@ -15,6 +15,7 @@ import {
   IconDelete,
   IconEdit,
   IconMenu,
+  IconMinus,
   IconSettings,
 } from "@arco-design/web-react/icon";
 import IoC from "@App/app/ioc";
@@ -25,15 +26,34 @@ import RuntimeController from "@App/runtime/content/runtime";
 
 const CollapseItem = Collapse.Item;
 
+function isExclude(script: ScriptMenu, host: string) {
+  if (!script.customExclude) {
+    return false;
+  }
+  for (let i = 0; i < script.customExclude.length; i += 1) {
+    if (script.customExclude[i] === `*://${host}*`) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // 用于popup页的脚本操作列表
 const ScriptMenuList: React.FC<{
   script: ScriptMenu[];
   isBackscript: boolean;
-}> = ({ script, isBackscript }) => {
+  currentUrl: string;
+}> = ({ script, isBackscript, currentUrl }) => {
   const [list, setList] = useState([] as ScriptMenu[]);
   const message = IoC.instance(MessageInternal) as MessageInternal;
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
+  let url: URL;
+  try {
+    url = new URL(currentUrl);
+  } catch (e) {
+    // ignore error
+  }
   useEffect(() => {
     setList(script);
   }, [script]);
@@ -116,11 +136,7 @@ const ScriptMenuList: React.FC<{
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      color:
-                        item.runStatus &&
-                        item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
-                          ? "rgb(var(--gray-5))"
-                          : "",
+                      color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
                     }}
                   >
                     {item.name}
@@ -170,6 +186,28 @@ const ScriptMenuList: React.FC<{
               >
                 编辑
               </Button>
+              {url && (
+                <Button
+                  className="text-left"
+                  status="warning"
+                  type="secondary"
+                  icon={<IconMinus />}
+                  onClick={() => {
+                    scriptCtrl
+                      .exclude(
+                        item.id,
+                        `*://${url.host}*`,
+                        isExclude(item, url.host)
+                      )
+                      .finally(() => {
+                        window.close();
+                      });
+                  }}
+                >
+                  {isExclude(item, url.host) ? "恢复" : "排除"}
+                  {` ${url.host} 在上执行`}
+                </Button>
+              )}
               <Popconfirm
                 title="确定要删除此脚本吗?"
                 icon={<IconDelete />}
