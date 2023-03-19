@@ -111,6 +111,7 @@ const config: Configuration = {
         { from: `${src}/manifest.json`, to: `${dist}/ext` },
         { from: `${assets}/_locales`, to: `${dist}/ext/_locales` },
         { from: `${assets}/logo.png`, to: `${dist}/ext/assets` },
+        { from: `${assets}/logo`, to: `${dist}/ext/assets/logo` },
       ],
     }),
     new CleanWebpackPlugin(),

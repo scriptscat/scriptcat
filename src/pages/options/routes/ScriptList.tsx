@@ -30,6 +30,7 @@ import {
   IconCode,
   IconCommon,
   IconEdit,
+  IconGithub,
   IconHome,
   IconLink,
   IconMenu,
@@ -74,6 +75,60 @@ import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
+
+// 安装url转home主页
+function installUrlToHome(installUrl: string) {
+  try {
+    // 解析scriptcat
+    if (installUrl.indexOf("scriptcat.org") !== -1) {
+      const id = installUrl.split("/")[5];
+      return (
+        <Button
+          type="text"
+          iconOnly
+          size="small"
+          target="_blank"
+          href={`https://scriptcat.org/script-show-page/${id}`}
+        >
+          <img width={16} height={16} src="/assets/logo.png" alt="" />
+        </Button>
+      );
+    }
+    if (installUrl.indexOf("greasyfork.org") !== -1) {
+      const id = installUrl.split("/")[4];
+      return (
+        <Button
+          type="text"
+          iconOnly
+          size="small"
+          target="_blank"
+          href={`https://greasyfork.org/scripts/${id}`}
+        >
+          <img width={16} height={16} src="/assets/logo/gf.png" alt="" />
+        </Button>
+      );
+    }
+    if (installUrl.indexOf("raw.githubusercontent.com") !== -1) {
+      const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
+      return (
+        <Button
+          type="text"
+          iconOnly
+          size="small"
+          target="_blank"
+          href={`https://github.com/${repo}`}
+          style={{
+            color: "var(--color-text-1)",
+          }}
+          icon={<IconGithub />}
+        />
+      );
+    }
+  } catch (e) {
+    // ignore error
+  }
+  return undefined;
+}
 
 function getValues(script: Script) {
   const { config } = script;
@@ -392,8 +447,13 @@ function ScriptList() {
       key: "home",
       width: 100,
       render(col, item: Script) {
+        let home;
+        if (!item.metadata.homepageurl) {
+          home = installUrlToHome(item.downloadUrl || "");
+        }
         return (
           <Space size="mini">
+            {home && <Tooltip content="脚本主页">{home}</Tooltip>}
             {item.metadata.homepage && (
               <Tooltip content="脚本主页">
                 <Button
