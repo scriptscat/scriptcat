@@ -124,6 +124,22 @@ function installUrlToHome(installUrl: string) {
         />
       );
     }
+    if (installUrl.indexOf("github.com") !== -1) {
+      const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
+      return (
+        <Button
+          type="text"
+          iconOnly
+          size="small"
+          target="_blank"
+          href={`https://github.com/${repo}`}
+          style={{
+            color: "var(--color-text-1)",
+          }}
+          icon={<IconGithub />}
+        />
+      );
+    }
   } catch (e) {
     // ignore error
   }

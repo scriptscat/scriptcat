@@ -106,6 +106,10 @@ export async function fetchScriptInfo(
   if (resp.status !== 200) {
     throw new Error("fetch script info failed");
   }
+  if (resp.headers.get("content-type")?.indexOf("text/html") !== -1) {
+    throw new Error("url is html");
+  }
+
   const body = await resp.text();
   const ok = parseMetadata(body);
   if (!ok) {

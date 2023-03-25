@@ -299,11 +299,11 @@ export default function Description() {
                       subscribeCtrl
                         .upsert(upsertScript as Subscribe)
                         .then(() => {
-                          Message.success("订阅成功,1秒后关闭窗口");
+                          Message.success("订阅成功");
                           setBtnText("订阅成功");
                           setTimeout(() => {
                             closeWindow();
-                          }, 1000);
+                          }, 200);
                         })
                         .catch((e) => {
                           Message.error(`订阅失败: ${e}`);
@@ -314,15 +314,15 @@ export default function Description() {
                       .upsert(upsertScript as Script)
                       .then(() => {
                         if (isUpdate) {
-                          Message.success("更新成功,1秒后关闭窗口");
+                          Message.success("更新成功");
                           setBtnText("更新成功");
                         } else {
-                          Message.success("安装成功,1秒后关闭窗口");
+                          Message.success("安装成功");
                           setBtnText("安装成功");
                         }
                         setTimeout(() => {
                           closeWindow();
-                        }, 1000);
+                        }, 200);
                       })
                       .catch((e) => {
                         Message.error(`安装失败: ${e}`);
