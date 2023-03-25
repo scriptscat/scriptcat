@@ -448,21 +448,24 @@ export function genScriptMenu(
 ) {
   // 移除之前所有的菜单
   chrome.contextMenus.removeAll();
+  const tabMap = scriptMenu.get(tabId);
+  const backTabMap = scriptMenu.get("sandbox");
+  if (!tabMap && !backTabMap) {
+    return;
+  }
   // 创建根菜单
   chrome.contextMenus.create({
     id: "scriptMenu",
     title: "ScriptCat",
     contexts: ["all"],
   });
-  let tabMap = scriptMenu.get(tabId);
   if (tabMap) {
     genScriptMenuByTabMap(tabMap);
   }
   // 后台脚本的菜单
   if (tabId !== "sandbox") {
-    tabMap = scriptMenu.get("sandbox");
-    if (tabMap) {
-      genScriptMenuByTabMap(tabMap);
+    if (backTabMap) {
+      genScriptMenuByTabMap(backTabMap);
     }
   }
 }
