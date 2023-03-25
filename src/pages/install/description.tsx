@@ -92,6 +92,15 @@ export default function Description() {
     SubscribeController
   ) as SubscribeController;
   const [isSub, setIsSub] = useState<boolean>(false);
+  // 按钮文案
+  const [btnText, setBtnText] = useState<string>();
+  useEffect(() => {
+    if (isSub) {
+      setBtnText(isUpdate ? "更新订阅" : "安装订阅");
+    } else {
+      setBtnText(isUpdate ? "更新" : "安装");
+    }
+  }, [isSub, isUpdate]);
   useEffect(() => {
     if (countdown === -1) {
       return;
@@ -290,7 +299,11 @@ export default function Description() {
                       subscribeCtrl
                         .upsert(upsertScript as Subscribe)
                         .then(() => {
-                          closeWindow();
+                          Message.success("订阅成功,1秒后关闭窗口");
+                          setBtnText("订阅成功");
+                          setTimeout(() => {
+                            closeWindow();
+                          }, 1000);
                         })
                         .catch((e) => {
                           Message.error(`订阅失败: ${e}`);
@@ -300,15 +313,23 @@ export default function Description() {
                     scriptCtrl
                       .upsert(upsertScript as Script)
                       .then(() => {
-                        closeWindow();
+                        if (isUpdate) {
+                          Message.success("更新成功,1秒后关闭窗口");
+                          setBtnText("更新成功");
+                        } else {
+                          Message.success("安装成功,1秒后关闭窗口");
+                          setBtnText("安装成功");
+                        }
+                        setTimeout(() => {
+                          closeWindow();
+                        }, 1000);
                       })
                       .catch((e) => {
                         Message.error(`安装失败: ${e}`);
                       });
                   }}
                 >
-                  {isSub && (isUpdate ? "更新订阅" : "订阅")}
-                  {!isSub && (isUpdate ? "更新" : "安装")}
+                  {btnText}
                 </Button>
                 <Button
                   type="primary"

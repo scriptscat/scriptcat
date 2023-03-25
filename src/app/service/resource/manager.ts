@@ -163,6 +163,138 @@ export class ResourceManager extends Manager {
     return Promise.resolve(ret);
   }
 
+  // 更新资源
+  async checkScriptResource(script: Script) {
+    return Promise.resolve({
+      ...((await this.checkRequireResource(script)) || {}),
+      ...((await this.checkRequireCssResource(script)) || {}),
+      ...((await this.checkResourceResource(script)) || {}),
+    });
+  }
+
+  async checkRequireResource(script: Script) {
+    if (!script.metadata.require) {
+      return Promise.resolve({});
+    }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.allSettled(
+      script.metadata.require.map(async (u) => {
+        const res = await this.checkResource(script.id, u, "require");
+        if (res) {
+          ret[u] = res;
+        }
+      })
+    );
+    return Promise.resolve(ret);
+  }
+
+  async checkRequireCssResource(script: Script) {
+    if (!script.metadata["require-css"]) {
+      return Promise.resolve({});
+    }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.allSettled(
+      script.metadata.require.map(async (u) => {
+        const res = await this.checkResource(script.id, u, "require-css");
+        if (res) {
+          ret[u] = res;
+        }
+      })
+    );
+    return Promise.resolve(ret);
+  }
+
+  async checkResourceResource(script: Script) {
+    if (!script.metadata.resource) {
+      return Promise.resolve({});
+    }
+    const ret: { [key: string]: Resource } = {};
+    await Promise.allSettled(
+      script.metadata.resource.map(async (u) => {
+        const split = u.split(/\s+/);
+        if (split.length === 2) {
+          const res = await this.checkResource(script.id, split[1], "resource");
+          if (res) {
+            ret[split[0]] = res;
+          }
+        }
+      })
+    );
+    return Promise.resolve(ret);
+  }
+
+  async checkResource(id: number, url: string, type: ResourceType) {
+    let res = await this.getResourceModel(url);
+    if (res) {
+      // 判断1分钟过期
+      if ((res.updatetime || 0) > new Date().getTime() - 1000 * 60) {
+        return Promise.resolve(res);
+      }
+    }
+    try {
+      res = await this.updateResource(url, id, type);
+      if (res) {
+        return Promise.resolve(res);
+      }
+    } catch (e) {
+      // ignore
+      // this.logger.error("get resource failed", { id, url }, Logger.E(e));
+    }
+    return Promise.resolve(undefined);
+  }
+
+  async updateResource(url: string, scriptId: number, type: ResourceType) {
+    // 重新加载
+    const u = this.parseUrl(url);
+    let result = await this.getResourceModel(u.url);
+    try {
+      const resource = await this.loadByUrl(u.url, type);
+      resource.updatetime = new Date().getTime();
+      Cache.getInstance().set(CacheKey.resourceByUrl(u.url), resource);
+      if (!result) {
+        // 资源不存在,保存
+        resource.createtime = new Date().getTime();
+        const id = await this.resourceDAO.save(resource);
+        result = resource;
+        this.logger.info("reload new resource success", { url: u.url, id });
+      } else {
+        result.base64 = resource.base64;
+        result.content = resource.content;
+        result.contentType = resource.contentType;
+        result.hash = resource.hash;
+        result.updatetime = resource.updatetime;
+        await this.resourceDAO.update(result.id, result);
+        this.logger.info("reload resource success", {
+          url: u.url,
+          id: result.id,
+        });
+      }
+    } catch (e) {
+      this.logger.error("load resource error", { url: u.url }, Logger.E(e));
+      throw e;
+    }
+
+    const link = await this.resourceLinkDAO.findOne({
+      url: u.url,
+      scriptId,
+    });
+    if (link) {
+      return Promise.resolve(result);
+    }
+    const id = await this.resourceLinkDAO.save({
+      id: 0,
+      url: u.url,
+      scriptId,
+      createtime: new Date().getTime(),
+    });
+    this.logger.debug("resource link", {
+      url: u.url,
+      resourceID: result.id,
+      id,
+    });
+    return Promise.resolve(result);
+  }
+
   public async addResource(
     url: string,
     scriptId: number,

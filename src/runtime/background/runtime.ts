@@ -511,7 +511,9 @@ export default class Runtime extends Manager {
   }
 
   // 脚本发生变动
-  scriptUpdate(script: Script): Promise<boolean> {
+  async scriptUpdate(script: Script): Promise<boolean> {
+    // 脚本更新先更新资源
+    await this.resourceManager.checkScriptResource(script);
     if (script.status === SCRIPT_STATUS_ENABLE) {
       return this.enable(script as ScriptRunResouce);
     }
