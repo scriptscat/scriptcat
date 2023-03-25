@@ -193,10 +193,13 @@ function ScriptList() {
   const columns: ColumnProps[] = [
     {
       title: "#",
-      dataIndex: "id",
+      dataIndex: "sort",
       width: 70,
-      key: "id",
+      key: "sort",
       sorter: (a, b) => a.id - b.id,
+      render(col) {
+        return col + 1;
+      },
     },
     {
       title: "开启",

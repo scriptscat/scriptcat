@@ -20,6 +20,7 @@ import {
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
+import { editor } from "monaco-editor";
 import React, { ReactNode, useRef, useState } from "react";
 import { RiFileCodeLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import "./index.css";
@@ -30,8 +31,10 @@ export function switchLight(mode: string) {
     const isMatch = (match: boolean) => {
       if (match) {
         document.body.setAttribute("arco-theme", "dark");
+        editor.setTheme("vs-dark");
       } else {
         document.body.removeAttribute("arco-theme");
+        editor.setTheme("vs");
       }
     };
     darkThemeMq.addEventListener("change", (e) => {
@@ -40,6 +43,7 @@ export function switchLight(mode: string) {
     isMatch(darkThemeMq.matches);
   } else {
     document.body.setAttribute("arco-theme", mode);
+    editor.setTheme(mode === "dark" ? "vs-dark" : "vs");
   }
 }
 

@@ -35,10 +35,6 @@ const CodeEditor: React.ForwardRefRenderFunction<
       const div = document.getElementById(id) as HTMLDivElement;
       if (diffCode) {
         edit = editor.createDiffEditor(div, {
-          theme:
-            document.body.getAttribute("arco-theme") === "dark"
-              ? "vs-dark"
-              : "vs",
           enableSplitViewResizing: false,
           renderSideBySide: false,
           folding: true,
