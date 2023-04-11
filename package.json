@@ -36,7 +36,7 @@
     "react-icons": "^4.4.0",
     "react-router-dom": "^6.3.0",
     "semver": "^7.3.8",
-    "unocss": "^0.45.26",
+    "unocss": "^0.51.2",
     "uuid": "^8.3.2",
     "webdav": "^4.11.0",
     "yaml": "^2.1.1"
@@ -60,7 +60,7 @@
     "@types/uuid": "^8.3.4",
     "@types/webpack-bundle-analyzer": "^4.4.1",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
-    "@unocss/webpack": "^0.45.26",
+    "@unocss/webpack": "^0.51.2",
     "axios-mock-adapter": "^1.21.2",
     "babel-loader": "^8.2.5",
     "clean-webpack-plugin": "^4.0.0",
