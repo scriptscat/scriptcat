@@ -3,6 +3,8 @@ import merge from "webpack-merge";
 import CompressionPlugin from "compression-webpack-plugin";
 import common from "../webpack.config";
 
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+
 const src = `${__dirname}/../src`;
 const dist = `${__dirname}/../dist`;
 
@@ -13,6 +15,7 @@ common.entry = {
   inject: `${src}/inject.ts`,
   "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
   "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
+  "linter.worker": `${src}/linter.worker.ts`,
 };
 
 common.output = {
@@ -33,5 +36,9 @@ export default merge(common, {
       test: /ts.worker.js/,
       deleteOriginalAssets: true,
     }),
+    new NodePolyfillPlugin(),
   ],
+  resolve: {
+    mainFields: ["browser", "main", "module"],
+  },
 });

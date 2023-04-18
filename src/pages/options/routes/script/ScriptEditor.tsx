@@ -32,6 +32,9 @@ import ScriptResource from "@App/pages/components/ScriptResource";
 const { Row } = Grid;
 const { Col } = Grid;
 
+// 声明一个Map存储Script
+const ScriptMap = new Map();
+
 type HotKey = {
   hotKey: number;
   action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
@@ -46,7 +49,8 @@ const Editor: React.FC<{
 }> = ({ id, script, hotKeys, callbackEditor, onChange }) => {
   const [init, setInit] = useState(false);
   const codeEditor = useRef<{ editor: editor.IStandaloneCodeEditor }>(null);
-
+  // Script.uuid为key，Script为value，储存Script
+  ScriptMap.has(script.uuid) || ScriptMap.set(script.uuid, script);
   useEffect(() => {
     if (!codeEditor.current || !codeEditor.current.editor) {
       setTimeout(() => {
@@ -54,9 +58,25 @@ const Editor: React.FC<{
       }, 200);
       return () => {};
     }
+    // 初始化editor时将Script的uuid绑定到editor上
+    // @ts-ignore
+    if (!codeEditor.current.editor.uuid) {
+      // @ts-ignore
+      codeEditor.current.editor.uuid = script.uuid;
+    }
     hotKeys.forEach((item) => {
       codeEditor.current?.editor.addCommand(item.hotKey, () => {
-        item.action(script, codeEditor.current!.editor);
+        // 获取当前激活的editor（通过editor._focusTracker._hasFocus判断editor激活状态 可能有更好的方法）
+        const activeEditor = editor
+          .getEditors()
+          // @ts-ignore
+          // eslint-disable-next-line no-underscore-dangle
+          .find((i) => i._focusTracker._hasFocus);
+
+        // 仅在获取到激活的editor时，通过editor上绑定的uuid获取Script，并指定激活的editor执行快捷键action
+        activeEditor &&
+          // @ts-ignore
+          item.action(ScriptMap.get(activeEditor.uuid), activeEditor);
       });
     });
     codeEditor.current.editor.onKeyUp(() => {
