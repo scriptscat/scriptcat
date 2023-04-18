@@ -7,7 +7,7 @@
   "scripts": {
     "test": "jest --coverage",
     "lint": "eslint --ext .js,.ts,.tsx src/",
-    "dev": "concurrently \"webpack --mode development --config ./webpack/webpack.dev.ts\" \"npm run dev:linter\"",
+    "dev": "webpack --mode development --config ./webpack/webpack.dev.ts",
     "build": "webpack --mode production --config ./webpack/webpack.prod.ts && concurrently \"npm run build:linter\" \"npm run build:no-split\"",
     "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",
     "build:no-split": "webpack --mode production --config ./webpack/webpack.no.split.ts",
@@ -28,7 +28,7 @@
     "dayjs": "^1.11.4",
     "dexie": "^3.2.2",
     "jszip": "^3.10.1",
-    "monaco-editor": "^0.31.0",
+    "monaco-editor": "^0.37.1",
     "monaco-vim": "^0.3.4",
     "pako": "^2.0.4",
     "react": "^18.2.0",
