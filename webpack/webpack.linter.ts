@@ -2,6 +2,7 @@
 import merge from "webpack-merge";
 import common from "../webpack.config";
 
+const path = require("path");
 const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 
 const src = `${__dirname}/../src`;
@@ -28,5 +29,13 @@ export default merge(common, {
   plugins: [new NodePolyfillPlugin()],
   resolve: {
     mainFields: ["browser", "main", "module"],
+    // 改写eslint-plugin-userscripts以适配脚本猫，打包时重定义模块路径
+    alias: {
+      "../data/compat-grant": path.resolve(__dirname, "../eslint/compat-grant"),
+      "../data/compat-headers": path.resolve(
+        __dirname,
+        "../eslint/compat-headers"
+      ),
+    },
   },
 });

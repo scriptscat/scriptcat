@@ -14,6 +14,10 @@ import IoC from "@App/app/ioc";
 import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
 import Title from "@arco-design/web-react/es/Typography/title";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
+// eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
+import { format } from "prettier";
+// eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
+import babel from "prettier/parser-babel";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -178,7 +182,10 @@ function Setting() {
               minRows: 4,
               maxRows: 8,
             }}
-            defaultValue={systemConfig.eslintConfig}
+            defaultValue={format(systemConfig.eslintConfig, {
+              parser: "json",
+              plugins: [babel],
+            })}
             onBlur={(v) => {
               systemConfig.eslintConfig = v.target.value;
             }}

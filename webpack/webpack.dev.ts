@@ -4,6 +4,7 @@ import CompressionPlugin from "compression-webpack-plugin";
 import common from "../webpack.config";
 
 const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
+const path = require("path");
 
 const src = `${__dirname}/../src`;
 const dist = `${__dirname}/../dist`;
@@ -40,5 +41,13 @@ export default merge(common, {
   ],
   resolve: {
     mainFields: ["browser", "main", "module"],
+    // 改写eslint-plugin-userscripts以适配脚本猫，打包时重定义模块路径
+    alias: {
+      "../data/compat-grant": path.resolve(__dirname, "../eslint/compat-grant"),
+      "../data/compat-headers": path.resolve(
+        __dirname,
+        "../eslint/compat-headers"
+      ),
+    },
   },
 });
