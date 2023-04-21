@@ -40,6 +40,18 @@ export default function registerEditor() {
     version: "脚本版本",
     author: "脚本作者",
     background: "后台脚本",
+    crontab: `定时脚本 crontab 参考（不适用于云端脚本）
+    * * * * * * 每秒运行一次
+    * * * * * 每分钟运行一次
+    0 */6 * * * 每6小时的0分时执行一次
+    15 */6 * * * 每6小时的15分时执行一次
+    * once * * * 每小时运行一次
+    * * once * * 每天运行一次
+    * 10 once * * 每天10点-10:59中运行一次,假设当10:04时运行了一次,10:05-10:59的后续的时间将不会再运行
+    * 1,3,5 once * * 每天1点3点5点中运行一次,假设当1点时运行了一次,3,5点将不会再运行
+    * */4 once * * 每天每隔4小时检测运行一次,假设当4点时运行了一次,8,12,16,20,24点等后续的时间将不会再运行
+    * 10-23 once * * 每天10点-23:59中运行一次,假设当10:04时运行了一次,10:05-23:59的后续时间将不会再运行
+    * once 13 * * 每个月的13号的每小时运行一次`.replace(/\n/g, "<br>"),
   };
 
   languages.registerHoverProvider("javascript", {
@@ -49,7 +61,7 @@ export default function registerEditor() {
         const flag = /^\/\/\s*@(\w+?)(\s+(.*?)|)$/.exec(line);
         if (flag) {
           resolve({
-            contents: [{ value: prompt[flag[1]] }],
+            contents: [{ value: prompt[flag[1]], supportHtml: true }],
           });
         } else if (/==UserScript==/.test(line)) {
           // 匹配==UserScript==

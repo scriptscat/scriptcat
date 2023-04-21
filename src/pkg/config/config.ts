@@ -2,9 +2,12 @@ import IoC from "@App/app/ioc";
 import MessageCenter from "@App/app/message/center";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander } from "@App/app/message/message";
+import { Message } from "@arco-design/web-react";
 import Hook from "@App/app/service/hook";
 import { FileSystemType } from "@Pkg/filesystem/factory";
 import ChromeStorage from "./chrome_storage";
+// @ts-ignore
+import { defaultConfig } from "../../../eslint/linter-config";
 
 export const SystamConfigChange = "systemConfigChange";
 
@@ -191,10 +194,21 @@ export class SystemConfig {
   }
 
   get eslintConfig() {
-    return <string>this.cache.get("eslint_config") || "";
+    return <string>this.cache.get("eslint_config") || defaultConfig;
   }
 
   set eslintConfig(v: string) {
-    this.set("eslint_config", v);
+    if (v === "") {
+      this.set("eslint_config", v);
+      Message.success("ESLint规则已重置");
+      return;
+    }
+    try {
+      JSON.parse(v);
+      this.set("eslint_config", v);
+      Message.success("ESLint规则已保存");
+    } catch (err: any) {
+      Message.error(err.toString());
+    }
   }
 }
