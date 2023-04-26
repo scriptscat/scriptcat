@@ -327,6 +327,7 @@ declare namespace GMTypes {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
+    useOpen?: boolean;
   }
 
   interface XHRResponse {

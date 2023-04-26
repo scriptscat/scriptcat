@@ -469,10 +469,25 @@ export default class GMApi {
   GM_openInTab(request: Request, channel: Channel) {
     const url = request.params[0];
     const options = request.params[1] || {};
-    chrome.tabs.create({ url, active: options.active }, (tab) => {
-      Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
-      channel.send({ event: "oncreate", tabId: tab.id });
-    });
+    if (options.useOpen === true) {
+      const newWindow = window.open(url);
+      if (newWindow) {
+        // 使用onunload监听新tab关闭
+        newWindow.window.onunload = () => {
+          channel.send({ event: "onclose" });
+          channel.disChannel();
+        };
+      } else {
+        // 当新tab被浏览器阻止时window.open()会返回null 视为已经关闭
+        channel.send({ event: "onclose" });
+        channel.disChannel();
+      }
+    } else {
+      chrome.tabs.create({ url, active: options.active }, (tab) => {
+        Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
+        channel.send({ event: "oncreate", tabId: tab.id });
+      });
+    }
   }
 
   @PermissionVerify.API({
