@@ -19,6 +19,52 @@ const severityMap = {
   1: 4, // 1 for ESLint is warning
 };
 
+function getTextBlock(
+  text: string,
+  startPosition: number,
+  endPosition: number
+) {
+  if (
+    startPosition > endPosition ||
+    startPosition < 0 ||
+    endPosition > text.length
+  ) {
+    throw new Error("Invalid positions provided");
+  }
+
+  let startLineNumber = 1;
+  let startColumn = 1;
+  let endLineNumber = 1;
+  let endColumn = 1;
+
+  for (let i = 0, currentLine = 1, currentColumn = 1; i < text.length; i += 1) {
+    if (i === startPosition) {
+      startLineNumber = currentLine;
+      startColumn = currentColumn;
+    }
+
+    if (i === endPosition) {
+      endLineNumber = currentLine;
+      endColumn = currentColumn;
+      break;
+    }
+
+    if (text[i] === "\n") {
+      currentLine += 1;
+      currentColumn = 0;
+    }
+
+    currentColumn += 1;
+  }
+
+  return {
+    startLineNumber,
+    startColumn,
+    endLineNumber,
+    endColumn,
+  };
+}
+
 self.addEventListener("message", (event) => {
   const { code, id, config } = event.data;
   const errs = linter.verify(code, config);
@@ -28,6 +74,14 @@ self.addEventListener("message", (event) => {
     if (rule) {
       target = rule.meta.docs.url;
     }
+    let fix: any;
+    if (err.fix) {
+      fix = {
+        range: getTextBlock(code, err.fix.range[0], err.fix.range[1]),
+        text: err.fix.text,
+      };
+    }
+    console.log(err);
     return {
       code: {
         value: err.ruleId || "",
@@ -42,6 +96,7 @@ self.addEventListener("message", (event) => {
       // @ts-ignore
       severity: severityMap[err.severity],
       source: "ESLint",
+      fix,
     };
   });
   // 发回主进程

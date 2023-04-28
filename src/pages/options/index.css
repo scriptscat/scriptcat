@@ -35,3 +35,7 @@ h6.arco-typography {
   background-position: center;
   left: 10px!important;
 }
+
+.actionList{
+  height: auto !important;
+}

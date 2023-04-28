@@ -136,7 +136,6 @@ const ScriptMenuList: React.FC<{
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      width: "calc(100% + 1px)",
                       color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
                     }}
                   >

@@ -4,6 +4,7 @@ import dts from "@App/types/scriptcat";
 import Hook from "@App/app/service/hook";
 import { languages } from "monaco-editor";
 import pako from "pako";
+import Cache from "@App/app/cache";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
@@ -72,6 +73,73 @@ export default function registerEditor() {
           resolve(null);
         }
       });
+    },
+  });
+
+  // 处理quick fix
+  languages.registerCodeActionProvider("javascript", {
+    provideCodeActions: (
+      model /** ITextModel */,
+      range /** Range */,
+      context /** CodeActionContext */
+    ) => {
+      const actions: languages.CodeAction[] = [];
+      const eslintFix = <Map<string, any>>Cache.getInstance().get("eslint-fix");
+      for (let i = 0; i < context.markers.length; i += 1) {
+        // 判断有没有修复方案
+        const val = context.markers[i];
+        const code = typeof val.code === "string" ? val.code : val.code!.value;
+        const fix = eslintFix.get(
+          `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
+        );
+        console.log(
+          fix,
+          `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
+        );
+        if (fix) {
+          const edit: languages.IWorkspaceTextEdit = {
+            resource: model.uri,
+            textEdit: {
+              range: fix.range,
+              text: fix.text,
+            },
+            versionId: undefined,
+          };
+          actions.push(<languages.CodeAction>{
+            title: `修复 ${code} 问题`,
+            diagnostics: [val],
+            kind: "quickfix",
+            edit: {
+              edits: [edit],
+            },
+            isPreferred: true,
+          });
+        }
+      }
+
+      // const actions = context.markers.map((error) => {
+      //   const edit: languages.IWorkspaceTextEdit = {
+      //     resource: model.uri,
+      //     textEdit: {
+      //       range,
+      //       text: "console.log(1)",
+      //     },
+      //     versionId: undefined,
+      //   };
+      //   return <languages.CodeAction>{
+      //     title: ``,
+      //     diagnostics: [error],
+      //     kind: "quickfix",
+      //     edit: {
+      //       edits: [edit],
+      //     },
+      //     isPreferred: true,
+      //   };
+      // });
+      return {
+        actions,
+        dispose: () => {},
+      };
     },
   });
 }

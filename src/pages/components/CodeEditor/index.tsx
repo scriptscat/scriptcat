@@ -1,3 +1,4 @@
+import Cache from "@App/app/cache";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import { LinterWorker } from "@App/pkg/utils/monaco-editor";
@@ -174,6 +175,26 @@ const CodeEditor: React.ForwardRefRenderFunction<
         return;
       }
       editor.setModelMarkers(model, "ESLint", message.markers);
+      const fix = new Map();
+      // 设置fix
+      message.markers.forEach(
+        (val: {
+          code: { value: any };
+          startLineNumber: any;
+          endLineNumber: any;
+          startColumn: any;
+          endColumn: any;
+          fix: any;
+        }) => {
+          if (val.fix) {
+            fix.set(
+              `${val.code.value}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`,
+              val.fix
+            );
+          }
+        }
+      );
+      Cache.getInstance().set("eslint-fix", fix);
 
       // 在行号旁显示ESLint错误/警告图标
       const formatMarkers = message.markers.map(
