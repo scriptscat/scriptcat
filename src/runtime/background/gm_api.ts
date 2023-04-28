@@ -469,10 +469,27 @@ export default class GMApi {
   GM_openInTab(request: Request, channel: Channel) {
     const url = request.params[0];
     const options = request.params[1] || {};
-    chrome.tabs.create({ url, active: options.active }, (tab) => {
-      Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
-      channel.send({ event: "oncreate", tabId: tab.id });
-    });
+    if (options.useOpen === true) {
+      const newWindow = window.open(url);
+      if (newWindow) {
+        // 由于不符合同源策略无法直接监听newWindow关闭事件，因此改用CDP方法监听
+        // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
+        chrome.tabs.query({ active: true }, ([tab]) => {
+          Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
+          channel.send({ event: "oncreate", tabId: tab.id });
+        });
+      } else {
+        // 当新tab被浏览器阻止时window.open()会返回null 视为已经关闭
+        // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
+        channel.send({ event: "onclose" });
+        channel.disChannel();
+      }
+    } else {
+      chrome.tabs.create({ url, active: options.active }, (tab) => {
+        Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
+        channel.send({ event: "oncreate", tabId: tab.id });
+      });
+    }
   }
 
   @PermissionVerify.API({

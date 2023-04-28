@@ -327,6 +327,7 @@ declare namespace GMTypes {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
+    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 
   }
 
   interface XHRResponse {
