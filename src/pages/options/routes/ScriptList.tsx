@@ -212,7 +212,7 @@ function ScriptList() {
       dataIndex: "sort",
       width: 70,
       key: "sort",
-      sorter: (a, b) => a.id - b.id,
+      sorter: (a, b) => a.sort - b.sort,
       render(col) {
         return col + 1;
       },
