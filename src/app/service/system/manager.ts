@@ -7,6 +7,7 @@ import { SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
+import Logger from "@App/app/logger/logger";
 
 // value管理器,负责value等更新获取等操作
 @IoC.Singleton(MessageHander, SystemConfig)
@@ -125,42 +126,44 @@ export class SystemManager extends Manager {
   }
 
   connectVSCode() {
-    return new Promise<void>((resolve, reject) => {
-      // 与vsc扩展建立连接
-      if (this.wsVscode) {
-        this.wsVscode.close();
-      }
-      try {
-        this.wsVscode = new WebSocket(this.systemConfig.vscodeUrl);
-      } catch (e: any) {
-        reject(e);
-        return;
-      }
-      this.wsVscode.addEventListener("open", () => {
-        this.wsVscode!.send('{"action":"hello"}');
-        resolve();
-      });
-      this.wsVscode.addEventListener("message", async (ev) => {
-        const data = JSON.parse(ev.data);
-        switch (data.action) {
-          case "onchange": {
-            const code = data.data.script;
-            const script = await prepareScriptByCode(
-              code,
-              "",
-              uuidv5(data.data.uri, uuidv5.URL)
-            );
-            this.scriptManager.event.upsertHandler(script, "vscode");
-            break;
-          }
-          default:
+    // 与vsc扩展建立连接
+    if (this.wsVscode) {
+      this.wsVscode.close();
+    }
+    try {
+      this.wsVscode = new WebSocket(this.systemConfig.vscodeUrl);
+    } catch (e: any) {
+      this.logger.debug("vscode连接失败", Logger.E(e));
+      return;
+    }
+    this.wsVscode.addEventListener("open", () => {
+      this.wsVscode!.send('{"action":"hello"}');
+    });
+    this.wsVscode.addEventListener("message", async (ev) => {
+      const data = JSON.parse(ev.data);
+      switch (data.action) {
+        case "onchange": {
+          const code = data.data.script;
+          const script = await prepareScriptByCode(
+            code,
+            "",
+            uuidv5(data.data.uri, uuidv5.URL)
+          );
+          this.scriptManager.event.upsertHandler(script, "vscode");
+          break;
         }
-      });
+        default:
+      }
+    });
 
-      this.wsVscode.addEventListener("error", () => {
-        reject(new Error("VSCode连接失败"));
-        this.wsVscode = undefined;
-      });
+    this.wsVscode.addEventListener("error", (e) => {
+      this.wsVscode = undefined;
+      this.logger.debug("vscode连接失败", Logger.E(e));
+    });
+
+    this.wsVscode.addEventListener("close", () => {
+      this.wsVscode = undefined;
+      this.logger.debug("vscode连接关闭");
     });
   }
 
