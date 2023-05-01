@@ -50,15 +50,22 @@ export default class ScriptEventListener {
 
   // 安装或者更新脚本,将数据保存到数据库
   @ListenEventDecorator("upsert")
-  public upsertHandler(script: Script, upsertBy: InstallSource = "user") {
+  public async upsertHandler(script: Script, upsertBy: InstallSource = "user") {
+    const logger = this.logger.with({
+      scriptId: script.id,
+      name: script.name,
+      uuid: script.uuid,
+      version: script.metadata.version[0],
+      upsertBy,
+    });
+    // 判断是否有selfMetedata
+    if (script.id) {
+      const oldScript = await this.dao.findById(script.id);
+      if (oldScript) {
+        script.selfMetadata = oldScript.selfMetadata;
+      }
+    }
     return new Promise((resolve, reject) => {
-      const logger = this.logger.with({
-        scriptId: script.id,
-        name: script.name,
-        uuid: script.uuid,
-        version: script.metadata.version[0],
-        upsertBy,
-      });
       this.dao.save(script).then(
         () => {
           logger.info("script upsert success");

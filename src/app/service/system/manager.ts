@@ -5,9 +5,9 @@ import { MessageHander } from "@App/app/message/message";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
+import Logger from "@App/app/logger/logger";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
-import Logger from "@App/app/logger/logger";
 
 // value管理器,负责value等更新获取等操作
 @IoC.Singleton(MessageHander, SystemConfig)
