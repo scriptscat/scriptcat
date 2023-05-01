@@ -224,6 +224,12 @@ export function prepareScriptByCode(
     if (metadata.name === undefined) {
       throw new Error("脚本名不能为空");
     }
+    if (metadata.version === undefined) {
+      throw new Error("脚本@version版本不能为空");
+    }
+    if (metadata.namespace === undefined) {
+      throw new Error("脚本@namespace命名空间不能为空");
+    }
     let type = SCRIPT_TYPE_NORMAL;
     if (metadata.crontab !== undefined) {
       type = SCRIPT_TYPE_CRONTAB;
