@@ -105,7 +105,12 @@ const ScriptMenuList: React.FC<{
                   e.stopPropagation();
                 }}
                 title={
-                  item.enable ? `该脚本运行了${item.runNum}次` : "该脚本未开启"
+                  // eslint-disable-next-line no-nested-ternary
+                  item.enable
+                    ? item.runNumByIframe
+                      ? `该脚本总共运行了${item.runNum}次,在iframe上运行了${item.runNumByIframe}次`
+                      : `该脚本运行了${item.runNum}次`
+                    : "该脚本未开启"
                 }
               >
                 <Space>

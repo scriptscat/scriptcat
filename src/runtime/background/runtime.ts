@@ -48,6 +48,7 @@ export type ScriptMenu = {
   hasUserConfig: boolean;
   runStatus?: SCRIPT_RUN_STATUS;
   runNum: number;
+  runNumByIframe: number;
   menus?: ScriptMenuItem[];
   customExclude?: string[];
 };
@@ -261,9 +262,14 @@ export default class Runtime extends Manager {
     // 记录运行次数与iframe运行
     const runScript = new Map<
       number,
-      Map<number, { script: Script; runNum: number }>
+      Map<number, { script: Script; runNum: number; runNumByIframe: number }>
     >();
-    const addRunScript = (tabId: number, script: Script, num: number = 1) => {
+    const addRunScript = (
+      tabId: number,
+      script: Script,
+      iframe: boolean,
+      num: number = 1
+    ) => {
       let scripts = runScript.get(tabId);
       if (!scripts) {
         scripts = new Map();
@@ -271,11 +277,14 @@ export default class Runtime extends Manager {
       }
       let scriptNum = scripts.get(script.id);
       if (!scriptNum) {
-        scriptNum = { script, runNum: 0 };
+        scriptNum = { script, runNum: 0, runNumByIframe: 0 };
         scripts.set(script.id, scriptNum);
       }
       if (script.status === SCRIPT_STATUS_ENABLE) {
         scriptNum.runNum += num;
+        if (iframe) {
+          scriptNum.runNumByIframe += num;
+        }
       }
     };
     chrome.tabs.onRemoved.addListener((tabId) => {
@@ -290,7 +299,7 @@ export default class Runtime extends Manager {
         let matchScripts = [];
         if (!run) {
           matchScripts = this.matchUrl(url).map((item) => {
-            return { runNum: 0, script: item };
+            return { runNum: 0, runNumByIframe: 0, script: item };
           });
         } else {
           matchScripts = Array.from(run.values());
@@ -318,6 +327,7 @@ export default class Runtime extends Manager {
                 updatetime: item.script.updatetime || item.script.createtime,
                 hasUserConfig: !!item.script.config,
                 runNum: item.runNum,
+                runNumByIframe: item.runNumByIframe,
                 customExclude:
                   item.script.selfMetadata && item.script.selfMetadata.exclude,
                 menus,
@@ -330,6 +340,7 @@ export default class Runtime extends Manager {
               updatetime: script.updatetime || script.createtime,
               hasUserConfig: !!script?.config,
               runNum: item.runNum,
+              runNumByIframe: item.runNumByIframe,
               customExclude: script.selfMetadata && script.selfMetadata.exclude,
               menus,
             };
@@ -366,6 +377,7 @@ export default class Runtime extends Manager {
                 ? 1
                 : 0,
             menus,
+            runNumByIframe: 0,
           });
         });
         return Promise.resolve({
@@ -393,7 +405,7 @@ export default class Runtime extends Manager {
           const exclude = this.customizeExclude.match(sender.url);
           // 自定义排除的
           exclude.forEach((val) => {
-            addRunScript(sender.tabId!, val, 0);
+            addRunScript(sender.tabId!, val, false, 0);
           });
           const filter: ScriptRunResouce[] = this.matchUrl(
             sender.url,
@@ -403,10 +415,10 @@ export default class Runtime extends Manager {
                 if (script.metadata.noframes) {
                   return true;
                 }
-                addRunScript(sender.tabId!, script);
+                addRunScript(sender.tabId!, script, true);
                 return script.status !== SCRIPT_STATUS_ENABLE;
               }
-              addRunScript(sender.tabId!, script);
+              addRunScript(sender.tabId!, script, false);
               return script.status !== SCRIPT_STATUS_ENABLE;
             }
           );
