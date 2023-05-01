@@ -211,4 +211,13 @@ export class SystemConfig {
       Message.error(err.toString());
     }
   }
+
+  // 日志清理周期
+  get logCleanCycle() {
+    return <number>this.cache.get("log_clean_cycle") || 7;
+  }
+
+  set logCleanCycle(val: number) {
+    this.set("log_clean_cycle", val);
+  }
 }

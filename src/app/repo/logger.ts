@@ -25,4 +25,8 @@ export class LoggerDAO extends DAO<Logger> {
 
     return ret.sort((a, b) => b.createtime - a.createtime);
   }
+
+  deleteBefore(time: number) {
+    return this.table.where("createtime").below(time).delete();
+  }
 }

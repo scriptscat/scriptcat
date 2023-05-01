@@ -16,6 +16,8 @@ import LogLabel, { Labels, Query } from "@App/pages/components/LogLabel";
 import { IconPlus } from "@arco-design/web-react/icon";
 import { useSearchParams } from "react-router-dom";
 import { formatUnixTime } from "@App/pkg/utils/utils";
+import { SystemConfig } from "@App/pkg/config/config";
+import IoC from "@App/app/ioc";
 
 function Subscribe() {
   const [labels, setLabels] = React.useState<Labels>({});
@@ -30,6 +32,7 @@ function Subscribe() {
   );
   const [endTime, setEndTime] = React.useState(dayjs().unix());
   const loggerDAO = new LoggerDAO();
+  const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
 
   const onQueryLog = () => {
     const newQueryLogs: Logger[] = [];
@@ -262,6 +265,20 @@ function Subscribe() {
             title="日志"
             extra={
               <Space>
+                <Space>
+                  <span>定时清理</span>
+                  <Input
+                    defaultValue={systemConfig.logCleanCycle.toString()}
+                    style={{
+                      width: "60px",
+                    }}
+                    type="number"
+                    onChange={(e) => {
+                      systemConfig.logCleanCycle = parseInt(e, 10);
+                    }}
+                  />
+                  <span>天前的日志</span>
+                </Space>
                 <Button
                   type="primary"
                   status="warning"

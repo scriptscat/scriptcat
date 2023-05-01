@@ -6,6 +6,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import Logger from "@App/app/logger/logger";
+import { LoggerDAO } from "@App/app/repo/logger";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
 
@@ -20,11 +21,14 @@ export class SystemManager extends Manager {
 
   wsVscode?: WebSocket;
 
+  loggerDAO: LoggerDAO;
+
   constructor(message: MessageHander, systemConfig: SystemConfig) {
     super(message, "system");
     this.scriptDAO = new ScriptDAO();
     this.systemConfig = systemConfig;
     this.scriptManager = IoC.instance(ScriptManager) as ScriptManager;
+    this.loggerDAO = new LoggerDAO();
   }
 
   init() {
@@ -96,6 +100,9 @@ export class SystemManager extends Manager {
     this.listenEvent("connectVSCode", this.connectVSCode.bind(this));
 
     this.reconnectVSCode();
+
+    // 定时清理日志
+    this.clearLogger();
   }
 
   reconnectVSCode() {
@@ -188,6 +195,25 @@ export class SystemManager extends Manager {
         resolve(items.version);
       });
     });
+  }
+
+  clearLogger() {
+    setInterval(() => {
+      // 取出上一次清理时间
+      chrome.storage.local.get(["lastClearLoggerTime"], (items) => {
+        const lastClearLoggerTime = items.lastClearLoggerTime || 0;
+        const now = new Date().getTime();
+        if (now - lastClearLoggerTime > 60 * 60 * 1000) {
+          chrome.storage.local.set({ lastClearLoggerTime: now });
+          // 清理7天前的日志
+          this.loggerDAO.deleteBefore(
+            new Date(
+              now - this.systemConfig.logCleanCycle * 24 * 60 * 60 * 1000
+            ).getTime()
+          );
+        }
+      });
+    }, 60 * 1000);
   }
 }
 
