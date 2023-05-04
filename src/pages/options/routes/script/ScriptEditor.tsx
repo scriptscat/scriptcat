@@ -242,23 +242,30 @@ function ScriptEditor() {
   };
   const saveAs = (script: Script, e: editor.IStandaloneCodeEditor) => {
     return new Promise<void>((resolve) => {
-      try {
-        chrome.downloads.download(
-          {
-            url: URL.createObjectURL(
-              new Blob([e.getValue()], { type: "text/javascript" })
-            ),
-            saveAs: true, // true直接弹出对话框；false弹出下载选项
-            filename: `${script.name}.user.js`,
-          },
-          () => {
+      chrome.downloads.download(
+        {
+          url: URL.createObjectURL(
+            new Blob([e.getValue()], { type: "text/javascript" })
+          ),
+          saveAs: true, // true直接弹出对话框；false弹出下载选项
+          filename: `${script.name}.user.js`,
+        },
+        () => {
+          /*
+            chrome扩展api发生错误无法通过try/catch捕获，必须在api回调函数中访问chrome.runtime.lastError进行获取
+            var chrome.runtime.lastError: chrome.runtime.LastError | undefined
+            This will be defined during an API method callback if there was an error
+          */
+          if (chrome.runtime.lastError) {
+            // eslint-disable-next-line no-console
+            console.log("另存为失败: ", chrome.runtime.lastError);
+            Message.error(`另存为失败: ${chrome.runtime.lastError.message}`);
+          } else {
             Message.success("另存为成功");
-            resolve();
           }
-        );
-      } catch (err) {
-        Message.error(`另存为失败: ${err}`);
-      }
+          resolve();
+        }
+      );
     });
   };
   const menu: EditorMenu[] = [
