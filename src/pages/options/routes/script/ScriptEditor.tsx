@@ -240,6 +240,27 @@ function ScriptEditor() {
         });
     });
   };
+  const saveAs = (script: Script, e: editor.IStandaloneCodeEditor) => {
+    return new Promise<void>((resolve) => {
+      try {
+        chrome.downloads.download(
+          {
+            url: URL.createObjectURL(
+              new Blob([e.getValue()], { type: "text/javascript" })
+            ),
+            saveAs: true, // true直接弹出对话框；false弹出下载选项
+            filename: `${script.name}.user.js`,
+          },
+          () => {
+            Message.success("另存为成功");
+            resolve();
+          }
+        );
+      } catch (err) {
+        Message.error(`另存为失败: ${err}`);
+      }
+    });
+  };
   const menu: EditorMenu[] = [
     {
       title: "文件",
@@ -248,6 +269,11 @@ function ScriptEditor() {
           title: "保存",
           hotKey: KeyMod.CtrlCmd | KeyCode.KeyS,
           action: save,
+        },
+        {
+          title: "另存为",
+          hotKey: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
+          action: saveAs,
         },
       ],
     },
@@ -557,6 +583,10 @@ function ScriptEditor() {
                     {item.items.map((menuItem, i) => {
                       const btn = (
                         <Button
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                          }}
                           key={`sm_${menuItem.title}`}
                           size="mini"
                           onClick={() => {
