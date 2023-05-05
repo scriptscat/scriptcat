@@ -105,6 +105,7 @@ type EditorMenu = {
     title: string;
     tooltip?: string;
     hotKey?: number;
+    hotKeyString?: string;
     action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
   }[];
 };
@@ -275,11 +276,13 @@ function ScriptEditor() {
         {
           title: "保存",
           hotKey: KeyMod.CtrlCmd | KeyCode.KeyS,
+          hotKeyString: "Ctrl+S",
           action: save,
         },
         {
           title: "另存为",
           hotKey: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
+          hotKeyString: "Ctrl+Shift+S",
           action: saveAs,
         },
       ],
@@ -290,6 +293,7 @@ function ScriptEditor() {
         {
           title: "调试",
           hotKey: KeyMod.CtrlCmd | KeyCode.F5,
+          hotKeyString: "Ctrl+F5",
           tooltip:
             "只有后台脚本/定时脚本才能调试, 且调试模式下不对进行权限校验(例如@connect)",
           action: async (script, e) => {
@@ -581,7 +585,7 @@ function ScriptEditor() {
                 droplist={
                   <Menu
                     style={{
-                      backgroundColor: "var(--color-bg-2)",
+                      backgroundColor: "var(--color-secondary)",
                       padding: "0",
                       margin: "0",
                       borderRadius: "0",
@@ -593,6 +597,8 @@ function ScriptEditor() {
                           style={{
                             width: "100%",
                             textAlign: "left",
+                            alignSelf: "center",
+                            verticalAlign: "middle",
                           }}
                           key={`sm_${menuItem.title}`}
                           size="mini"
@@ -607,29 +613,28 @@ function ScriptEditor() {
                             });
                           }}
                         >
-                          {menuItem.title}
-                        </Button>
-                      );
-                      if (menuItem.tooltip) {
-                        return (
-                          <Menu.Item
-                            key={`m_${i.toString()}`}
+                          <div
                             style={{
-                              height: "unset",
-                              padding: "0",
-                              lineHeight: "unset",
+                              minWidth: "70px",
+                              float: "left",
+                              fontSize: "14px",
                             }}
                           >
-                            <Tooltip
-                              key={`m${i.toString()}`}
-                              position="right"
-                              content={menuItem.tooltip}
-                            >
-                              {btn}
-                            </Tooltip>
-                          </Menu.Item>
-                        );
-                      }
+                            {menuItem.title}
+                          </div>
+                          <div
+                            style={{
+                              minWidth: "50px",
+                              float: "left",
+                              color: "rgb(165 165 165)",
+                              fontSize: "12px",
+                              lineHeight: "22px", // 不知道除此以外怎么垂直居中
+                            }}
+                          >
+                            {menuItem.hotKeyString}
+                          </div>
+                        </Button>
+                      );
                       return (
                         <Menu.Item
                           key={`m_${i.toString()}`}
@@ -639,7 +644,17 @@ function ScriptEditor() {
                             lineHeight: "unset",
                           }}
                         >
-                          {btn}
+                          {menuItem.tooltip ? (
+                            <Tooltip
+                              key={`m${i.toString()}`}
+                              position="right"
+                              content={menuItem.tooltip}
+                            >
+                              {btn}
+                            </Tooltip>
+                          ) : (
+                            btn
+                          )}
                         </Menu.Item>
                       );
                     })}
