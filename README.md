@@ -67,3 +67,15 @@
 本项目使用GPLv3协议开源, 请遵守协议规定.	
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
+
+## 贡献
+
+请参考 [贡献指南](./CONTRIBUTING.md)
+
+### 鸣谢
+
+感谢以下开发者对 ScriptCat 作出的贡献，有你们 ScriptCat 才能变得更好！
+
+<a href="https://github.com/scriptscat/scriptcat/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=scriptscat/scriptcat&max=1000" />
+</a>
