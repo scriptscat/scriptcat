@@ -194,9 +194,21 @@ export function proxyContext(global: any, context: any) {
           return context[name];
         }
         if (special[name] !== undefined) {
+          if (
+            typeof special[name] === "function" &&
+            !(<{ prototype: any }>special[name]).prototype
+          ) {
+            return (<{ bind: any }>special[name]).bind(global);
+          }
           return special[name];
         }
         if (global[name] !== undefined) {
+          if (
+            typeof global[name] === "function" &&
+            !(<{ prototype: any }>global[name]).prototype
+          ) {
+            return (<{ bind: any }>global[name]).bind(global);
+          }
           return global[name];
         }
       }
