@@ -111,7 +111,7 @@ export function createContext(
   return <GMApi>context;
 }
 
-const writables: { [key: string]: any } = {
+export const writables: { [key: string]: any } = {
   addEventListener: global.addEventListener,
   removeEventListener: global.removeEventListener,
   dispatchEvent: global.dispatchEvent,
@@ -125,7 +125,16 @@ const descs = Object.getOwnPropertyDescriptors(global);
 Object.keys(descs).forEach((key) => {
   const desc = descs[key];
   if (desc && desc.writable && !writables[key]) {
-    writables[key] = desc.value;
+    if (typeof desc.value === "function") {
+      // 判断是否需要bind，例如Object、Function这些就不需要bind
+      if (desc.value.prototype) {
+        writables[key] = desc.value;
+      } else {
+        writables[key] = desc.value.bind(global);
+      }
+    } else {
+      writables[key] = desc.value;
+    }
   } else {
     init.set(key, true);
   }
@@ -185,21 +194,9 @@ export function proxyContext(global: any, context: any) {
           return context[name];
         }
         if (special[name] !== undefined) {
-          if (
-            typeof special[name] === "function" &&
-            !(<{ prototype: any }>special[name]).prototype
-          ) {
-            return (<{ bind: any }>special[name]).bind(global);
-          }
           return special[name];
         }
         if (global[name] !== undefined) {
-          if (
-            typeof global[name] === "function" &&
-            !(<{ prototype: any }>global[name]).prototype
-          ) {
-            return (<{ bind: any }>global[name]).bind(global);
-          }
           return global[name];
         }
       }
@@ -231,21 +228,9 @@ export function proxyContext(global: any, context: any) {
           return true;
         }
         if (special[name] !== undefined) {
-          if (
-            typeof special[name] === "function" &&
-            !(<{ prototype: any }>special[name]).prototype
-          ) {
-            return true;
-          }
           return true;
         }
         if (global[name] !== undefined) {
-          if (
-            typeof global[name] === "function" &&
-            !(<{ prototype: any }>global[name]).prototype
-          ) {
-            return true;
-          }
           return true;
         }
       }

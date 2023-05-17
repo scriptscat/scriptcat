@@ -81,7 +81,6 @@ self.addEventListener("message", (event) => {
         text: err.fix.text,
       };
     }
-    console.log(err);
     return {
       code: {
         value: err.ruleId || "",

@@ -92,10 +92,6 @@ export default function registerEditor() {
         const fix = eslintFix.get(
           `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
         );
-        console.log(
-          fix,
-          `${code}|${val.startLineNumber}|${val.endLineNumber}|${val.startColumn}|${val.endColumn}`
-        );
         if (fix) {
           const edit: languages.IWorkspaceTextEdit = {
             resource: model.uri,
