@@ -61,4 +61,8 @@ export default class ZipFileSystem implements FileSystem {
     });
     return Promise.resolve(files);
   }
+
+  getDirUrl(): Promise<string> {
+    throw new Error("Method not implemented.");
+  }
 }

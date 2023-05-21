@@ -6,6 +6,8 @@ import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
 
+  url: string;
+
   basePath: string = "/";
 
   constructor(
@@ -17,7 +19,9 @@ export default class WebDAVFileSystem implements FileSystem {
     if (typeof authType === "object") {
       this.client = authType;
       this.basePath = joinPath(url || "");
+      this.url = username!;
     } else {
+      this.url = url!;
       this.client = createClient(url!, {
         authType,
         username,
@@ -39,7 +43,7 @@ export default class WebDAVFileSystem implements FileSystem {
 
   openDir(path: string): Promise<FileSystem> {
     return Promise.resolve(
-      new WebDAVFileSystem(this.client, joinPath(this.basePath, path))
+      new WebDAVFileSystem(this.client, joinPath(this.basePath, path), this.url)
     );
   }
 
@@ -76,5 +80,9 @@ export default class WebDAVFileSystem implements FileSystem {
       });
     });
     return Promise.resolve(ret);
+  }
+
+  getDirUrl(): Promise<string> {
+    return Promise.resolve(this.url + this.basePath);
   }
 }

@@ -43,4 +43,6 @@ export default interface FileSystem {
   delete(path: string): Promise<void>;
   // 文件列表
   list(): Promise<File[]>;
+  // getDirUrl 获取目录的url
+  getDirUrl(): Promise<string>;
 }

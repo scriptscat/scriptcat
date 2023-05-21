@@ -153,7 +153,32 @@ function Tools() {
           />
           <Drawer
             width={400}
-            title={<span>备份列表</span>}
+            title={
+              <div className="flex flex-row justify-between w-full gap-10">
+                <span>备份列表</span>
+                <Button
+                  type="secondary"
+                  size="mini"
+                  onClick={async () => {
+                    let fs = await FileSystemFactory.create(
+                      fileSystemType,
+                      fileSystemParams
+                    );
+                    try {
+                      fs = await fs.openDir("ScriptCat");
+                      const url = await fs.getDirUrl();
+                      if (url) {
+                        window.open(url, "_black");
+                      }
+                    } catch (e) {
+                      Message.error(`获取备份目录链接失败: ${e}`);
+                    }
+                  }}
+                >
+                  打开备份目录
+                </Button>
+              </div>
+            }
             visible={backupFileList.length !== 0}
             onOk={() => {
               setBackupFileList([]);

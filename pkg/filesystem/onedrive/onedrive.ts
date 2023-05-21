@@ -142,4 +142,8 @@ export default class OneDriveFileSystem implements FileSystem {
       return list;
     });
   }
+
+  getDirUrl(): Promise<string> {
+    throw new Error("Method not implemented.");
+  }
 }

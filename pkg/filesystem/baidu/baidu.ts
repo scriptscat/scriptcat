@@ -138,4 +138,12 @@ export default class BaiduFileSystem implements FileSystem {
       return list;
     });
   }
+
+  getDirUrl(): Promise<string> {
+    return Promise.resolve(
+      `https://pan.baidu.com/disk/main#/index?category=all&path=${encodeURIComponent(
+        this.path
+      )}`
+    );
+  }
 }
