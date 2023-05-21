@@ -56,7 +56,7 @@ export type ScriptMenu = {
 // 后台脚本将会将代码注入到沙盒中
 @IoC.Singleton(MessageHander, MessageSandbox, ResourceManager, ValueManager)
 export default class Runtime extends Manager {
-  messageSandbox: MessageSandbox;
+  messageSandbox?: MessageSandbox;
 
   scriptDAO: ScriptDAO;
 
@@ -82,13 +82,11 @@ export default class Runtime extends Manager {
 
   constructor(
     message: MessageHander,
-    messageSandbox: MessageSandbox,
     resourceManager: ResourceManager,
     valueManager: ValueManager
   ) {
     super(message, "runtime");
     this.scriptDAO = new ScriptDAO();
-    this.messageSandbox = messageSandbox;
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
     this.scriptFlag = randomString(8);
@@ -136,6 +134,7 @@ export default class Runtime extends Manager {
     // 监听脚本运行状态
     this.listenScriptRunStatus();
 
+    // 启动普通脚本
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
         // 容错处理
@@ -143,18 +142,19 @@ export default class Runtime extends Manager {
           this.logger.error("script is null");
           return;
         }
+        if (item.type !== SCRIPT_TYPE_NORMAL) {
+          return;
+        }
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
           this.enable(item);
-          if (item.type !== SCRIPT_TYPE_NORMAL) {
-            this.runBackScript.set(item.id, item);
-          }
-        } else if (item.type === SCRIPT_TYPE_NORMAL) {
+        } else {
           // 只处理未开启的普通页面脚本
           this.disable(item);
         }
       });
     });
+
     // 接受消息,注入脚本
     // 获取注入源码
     const { scriptFlag } = this;
@@ -503,6 +503,28 @@ export default class Runtime extends Manager {
     );
   }
 
+  // 启动沙盒相关脚本
+  startSandbox(messageSandbox: MessageSandbox) {
+    this.messageSandbox = messageSandbox;
+    this.scriptDAO.table.toArray((items) => {
+      items.forEach((item) => {
+        // 容错处理
+        if (!item) {
+          this.logger.error("script is null");
+          return;
+        }
+        if (item.type === SCRIPT_TYPE_NORMAL) {
+          return;
+        }
+        // 加载所有的脚本
+        if (item.status === SCRIPT_STATUS_ENABLE) {
+          this.enable(item);
+          this.runBackScript.set(item.id, item);
+        }
+      });
+    });
+  }
+
   listenScriptRunStatus() {
     // 监听沙盒发送的脚本运行状态消息
     this.message.setHandler(
@@ -644,7 +666,7 @@ export default class Runtime extends Manager {
     this.runBackScript.set(script.id, script);
     return new Promise((resolve, reject) => {
       this.messageSandbox
-        .syncSend("enable", script)
+        ?.syncSend("enable", script)
         .then(() => {
           resolve(true);
         })
@@ -660,7 +682,7 @@ export default class Runtime extends Manager {
     this.runBackScript.delete(script.id);
     return new Promise((resolve, reject) => {
       this.messageSandbox
-        .syncSend("disable", script.id)
+        ?.syncSend("disable", script.id)
         .then(() => {
           resolve(true);
         })
@@ -673,14 +695,14 @@ export default class Runtime extends Manager {
 
   async startBackgroundScript(script: Script) {
     const scriptRes = await this.buildScriptRunResource(script);
-    this.messageSandbox.syncSend("start", scriptRes);
+    this.messageSandbox?.syncSend("start", scriptRes);
     return Promise.resolve(true);
   }
 
   stopBackgroundScript(scriptId: number) {
     return new Promise((resolve, reject) => {
       this.messageSandbox
-        .syncSend("stop", scriptId)
+        ?.syncSend("stop", scriptId)
         .then((resp) => {
           resolve(resp);
         })

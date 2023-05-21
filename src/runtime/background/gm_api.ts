@@ -632,7 +632,7 @@ export default class GMApi {
   @PermissionVerify.API({
     listener() {
       PermissionVerify.textarea.style.display = "none";
-      document.body.appendChild(PermissionVerify.textarea);
+      document.documentElement.appendChild(PermissionVerify.textarea);
       document.addEventListener("copy", (e: ClipboardEvent) => {
         if (!GMApi.clipboardData || !e.clipboardData) {
           return;

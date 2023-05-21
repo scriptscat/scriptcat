@@ -82,6 +82,7 @@ const config: Configuration = {
         removeComments: true,
       },
       chunks: ["background"],
+      scriptLoading: "blocking",
     }),
     new HtmlWebpackPlugin({
       filename: `${dist}/ext/src/confirm.html`,
