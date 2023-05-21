@@ -151,6 +151,30 @@ export default class PermissionVerify {
         likeNum,
       });
     });
+    // 监听删除权限
+    message.setHandler(
+      "deletePermission",
+      async (_action, data: { scriptId: number; confirm: ConfirmParam }) => {
+        // 先删除缓存
+        const cacheKey = CacheKey.permissionConfirm(
+          data.scriptId,
+          data.confirm
+        );
+        // 从数据库中查询是否有此权限
+        await Cache.getInstance().del(cacheKey);
+        //  再删除数据库
+        const m = await this.permissionDAO.findOne({
+          scriptId: data.scriptId,
+          permission: data.confirm.permission,
+          permissionValue: data.confirm.permissionValue || "",
+        });
+        if (!m) {
+          return Promise.resolve(true);
+        }
+        await this.permissionDAO.delete(m.id);
+        return Promise.resolve(true);
+      }
+    );
     this.dealConfirmQueue();
   }
 

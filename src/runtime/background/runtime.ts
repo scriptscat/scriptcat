@@ -54,7 +54,7 @@ export type ScriptMenu = {
 };
 
 // 后台脚本将会将代码注入到沙盒中
-@IoC.Singleton(MessageHander, MessageSandbox, ResourceManager, ValueManager)
+@IoC.Singleton(MessageHander, ResourceManager, ValueManager)
 export default class Runtime extends Manager {
   messageSandbox?: MessageSandbox;
 
@@ -505,6 +505,10 @@ export default class Runtime extends Manager {
         });
       }
     );
+  }
+
+  setMessageSandbox(messageSandbox: MessageSandbox) {
+    this.messageSandbox = messageSandbox;
   }
 
   // 启动沙盒相关脚本

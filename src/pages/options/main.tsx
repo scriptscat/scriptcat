@@ -18,6 +18,7 @@ import { IPermissionVerify } from "@App/runtime/background/permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { tryConnect } from "@App/pkg/utils/utils";
 import { Message } from "@arco-design/web-react";
+import Runtime from "@App/runtime/background/runtime";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
 
@@ -44,6 +45,8 @@ IoC.instance(SystemConfig);
 // eslint-disable-next-line no-undef
 const messageSandbox = new MessageSandbox(sandbox);
 IoC.registerInstance(MessageSandbox, messageSandbox);
+// 给runtime设置沙盒
+(IoC.instance(Runtime) as Runtime).setMessageSandbox(messageSandbox);
 // 开启GMApi,用于调试
 class DebugPermissionVerify implements IPermissionVerify {
   verify(): Promise<boolean> {

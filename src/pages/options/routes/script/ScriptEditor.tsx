@@ -5,9 +5,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
 import {
   Button,
-  Drawer,
   Dropdown,
-  Empty,
   Grid,
   Menu,
   Message,
@@ -28,6 +26,7 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import RuntimeController from "@App/runtime/content/runtime";
 import ScriptStorage from "@App/pages/components/ScriptStorage";
 import ScriptResource from "@App/pages/components/ScriptResource";
+import ScriptSetting from "@App/pages/components/ScriptSetting";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -536,19 +535,16 @@ function ScriptEditor() {
           setShow("scriptResource", false);
         }}
       />
-      <Drawer
-        width={332}
-        title={<span>{currentScript?.name} 脚本设置</span>}
+      <ScriptSetting
         visible={visible.scriptSetting}
+        script={currentScript}
         onOk={() => {
           setShow("scriptSetting", false);
         }}
         onCancel={() => {
           setShow("scriptSetting", false);
         }}
-      >
-        <Empty description="建设中" />
-      </Drawer>
+      />
       <div
         className="h-6"
         style={{
