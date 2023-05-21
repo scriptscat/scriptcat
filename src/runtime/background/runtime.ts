@@ -407,6 +407,10 @@ export default class Runtime extends Manager {
             // 清理之前的数据
             runScript.delete(sender.tabId);
           }
+          // 未开启
+          if (localStorage.enable_script === "false") {
+            return;
+          }
           const exclude = this.customizeExclude.match(sender.url);
           // 自定义排除的
           exclude.forEach((val) => {

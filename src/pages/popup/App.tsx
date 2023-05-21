@@ -11,6 +11,7 @@ import {
   Collapse,
   Dropdown,
   Menu,
+  Switch,
 } from "@arco-design/web-react";
 import {
   IconBook,
@@ -44,6 +45,9 @@ function App() {
   const [isRead, setIsRead] = useState(true);
   const [version, setVersion] = useState(ExtVersion);
   const [currentUrl, setCurrentUrl] = useState("");
+  const [isEnableScript, setIsEnableScript] = useState(
+    localStorage.enable_script !== "false"
+  );
 
   let url: URL | undefined;
   try {
@@ -98,7 +102,19 @@ function App() {
       title={
         <div className="flex justify-between">
           <span className="text-xl">ScriptCat</span>
-          <div className="flex flex-row">
+          <div className="flex flex-row items-center">
+            <Switch
+              size="small"
+              checked={isEnableScript}
+              onChange={(val) => {
+                setIsEnableScript(val);
+                if (val) {
+                  localStorage.enable_script = "true";
+                } else {
+                  localStorage.enable_script = "false";
+                }
+              }}
+            />
             <Button
               type="text"
               icon={<IconHome />}

@@ -25,3 +25,5 @@ dist-ssr
 
 coverage
 CHANGELOG.md
+
+tailwind.config.js

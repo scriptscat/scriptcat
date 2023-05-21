@@ -18,8 +18,6 @@ import SystemManager from "./app/service/system/manager";
 import SynchronizeManager from "./app/service/synchronize/manager";
 import SubscribeManager from "./app/service/subscribe/manager";
 
-console.log(new Date().getTime(), "bg");
-
 // 数据库初始化
 migrate();
 // 初始化日志组件
@@ -33,7 +31,6 @@ loggerCore.logger().debug("background start");
 // 通讯中心
 const center = new MessageCenter();
 center.start();
-console.log(new Date().getTime(), "bg");
 
 IoC.registerInstance(MessageCenter, center).alias([
   MessageHander,
