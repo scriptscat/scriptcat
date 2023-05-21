@@ -15,7 +15,7 @@ import {
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { InfoNotification } from "@App/pkg/utils/utils";
+import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import Manager from "../manager";
@@ -36,6 +36,7 @@ export type SyncMeta = {
   origin?: string; // 脚本来源
   downloadUrl?: string;
   checkUpdateUrl?: string;
+  isDeleted?: boolean;
 };
 
 // 同步控件
@@ -76,7 +77,7 @@ export default class SynchronizeManager extends Manager {
     this.valueManager = valueManager;
     this.resourceManager = resourceManager;
     this.scriptManager = scriptManager;
-    this.storage = new ChromeStorage("sync", chrome.storage.local);
+    this.storage = new ChromeStorage("sync", false);
     this.logger = LoggerCore.getLogger({ component: "SynchronizeManager" });
   }
 
@@ -119,7 +120,7 @@ export default class SynchronizeManager extends Manager {
       logger.error("create filesystem error", Logger.E(e), {
         type: config.filesystem,
       });
-      InfoNotification("同步系统连接失败", e);
+      InfoNotification("同步系统连接失败", errorMsg(e));
       if (autoDisable) {
         this.systemConfig.cloudSync = {
           ...this.systemConfig.cloudSync,
@@ -154,7 +155,7 @@ export default class SynchronizeManager extends Manager {
       try {
         await this.syncOnce(fs);
       } catch (e: any) {
-        InfoNotification("同步失败,请检查同步配置", e);
+        InfoNotification("同步失败,请检查同步配置", errorMsg(e));
       }
     }, 60 * 60 * 1000);
     freeFn.push(() => {
@@ -164,7 +165,7 @@ export default class SynchronizeManager extends Manager {
     try {
       await this.syncOnce(fs);
     } catch (e: any) {
-      InfoNotification("同步失败,请检查同步配置", e);
+      InfoNotification("同步失败,请检查同步配置", errorMsg(e));
     }
     return Promise.resolve(() => {
       logger.info("stop cloud sync");
@@ -176,7 +177,7 @@ export default class SynchronizeManager extends Manager {
   // 同步一次
   async syncOnce(fs: FileSystem): Promise<void> {
     this.logger.info("start sync once");
-    // 首次同步
+    // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
     const uuidMap = new Map<
@@ -223,8 +224,35 @@ export default class SynchronizeManager extends Manager {
     const result: Promise<void>[] = [];
     uuidMap.forEach((file, uuid) => {
       const script = scriptMap.get(uuid);
-      // 获取脚本数据
       if (script) {
+        // 脚本存在但是文件不存在,则读取.meta.json内容判断是否需要删除脚本
+        if (!file.script) {
+          result.push(
+            new Promise((resolve) => {
+              const handler = async () => {
+                // 读取meta文件
+                const meta = await fs.open(file.meta!);
+                const metaJson = (await meta.read("string")) as string;
+                const metaObj = JSON.parse(metaJson) as SyncMeta;
+                if (metaObj.isDeleted) {
+                  if (script) {
+                    this.scriptManager.event.deleteHandler(script.id);
+                    InfoNotification(
+                      "脚本删除同步",
+                      `脚本${script.name}已被删除`
+                    );
+                  }
+                } else {
+                  // 否则认为是一个无效的.meta文件,进行删除
+                  await fs.delete(file.meta!.path);
+                }
+                resolve();
+              };
+              handler();
+            })
+          );
+          return;
+        }
         // 过滤掉无变动的文件
         if (fileDigestMap[file.script!.name] === file.script!.digest) {
           // 删除了之后,剩下的就是需要上传的脚本了
@@ -243,8 +271,10 @@ export default class SynchronizeManager extends Manager {
         scriptMap.delete(uuid);
         return;
       }
-      // 如果脚本不存在,则安装脚本
-      result.push(this.pullScript(fs, file as SyncFiles));
+      // 如果脚本不存在,且文件存在,则安装脚本
+      if (file.script) {
+        result.push(this.pullScript(fs, file as SyncFiles));
+      }
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
@@ -278,7 +308,17 @@ export default class SynchronizeManager extends Manager {
     });
     try {
       await fs.delete(filename);
-      await fs.delete(`${script.uuid}.meta.json`);
+      // 留下一个.meta.json删除标记
+      const meta = await fs.create(`${script.uuid}.meta.json`);
+      await meta.write(
+        JSON.stringify(<SyncMeta>{
+          uuid: script.uuid,
+          origin: script.origin,
+          downloadUrl: script.downloadUrl,
+          checkUpdateUrl: script.checkUpdateUrl,
+          isDeleted: true,
+        })
+      );
       logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));

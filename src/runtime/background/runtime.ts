@@ -138,6 +138,11 @@ export default class Runtime extends Manager {
 
     this.scriptDAO.table.toArray((items) => {
       items.forEach((item) => {
+        // 容错处理
+        if (!item) {
+          this.logger.error("script is null");
+          return;
+        }
         // 加载所有的脚本
         if (item.status === SCRIPT_STATUS_ENABLE) {
           this.enable(item);

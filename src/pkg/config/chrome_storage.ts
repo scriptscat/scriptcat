@@ -3,9 +3,9 @@ export default class ChromeStorage {
 
   private storage: chrome.storage.StorageArea;
 
-  constructor(prefix: string, storage: chrome.storage.StorageArea) {
+  constructor(prefix: string, sync: boolean) {
     this.prefix = `${prefix}_`;
-    this.storage = storage;
+    this.storage = sync ? chrome.storage.sync : chrome.storage.local;
   }
 
   public buildKey(key: string): string {

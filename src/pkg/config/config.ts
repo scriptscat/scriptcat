@@ -24,7 +24,7 @@ export class SystemConfig {
 
   public cache = new Map<string, any>();
 
-  public storage = new ChromeStorage("system", chrome.storage.sync);
+  public storage = new ChromeStorage("system", true);
 
   public message?: MessageCenter;
 

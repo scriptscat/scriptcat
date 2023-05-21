@@ -293,3 +293,16 @@ export function openInCurrentTab(url: string) {
     }
   );
 }
+
+export function errorMsg(e: any): string {
+  if (typeof e === "string") {
+    return e;
+  }
+  if (e instanceof Error) {
+    return e.message;
+  }
+  if (typeof e === "object") {
+    return JSON.stringify(e);
+  }
+  return "";
+}
