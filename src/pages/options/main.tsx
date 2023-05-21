@@ -50,6 +50,7 @@ class DebugPermissionVerify implements IPermissionVerify {
     return Promise.resolve(true);
   }
 }
+
 const gmapi = new GMApi(messageSandbox, new DebugPermissionVerify());
 gmapi.start();
 IoC.registerInstance(GMApi, gmapi);
@@ -60,6 +61,16 @@ tryConnect(message, (ok: boolean) => {
   } else {
     Message.error("后台通信连接失败,请注意保存当前页面数据,尝试重新连接中...");
   }
+});
+
+// 处理沙盒加载消息
+messageSandbox.setHandler("sandboxOnload", () => {
+  return Promise.resolve(true);
+});
+
+// 转发value变更消息给沙盒
+message.setHandler("valueUpdate", (action, value) => {
+  messageSandbox.send("valueUpdate", value);
 });
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

@@ -585,7 +585,6 @@ function ScriptEditor() {
                 droplist={
                   <Menu
                     style={{
-                      backgroundColor: "var(--color-secondary)",
                       padding: "0",
                       margin: "0",
                       borderRadius: "0",

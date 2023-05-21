@@ -28,6 +28,9 @@ export default class RuntimeController {
   async debugScript(script: Script) {
     // 清理脚本缓存,避免GMApi中的缓存影响
     Cache.getInstance().del(CacheKey.script(script.id));
+    Cache.getInstance().del(
+      CacheKey.scriptValue(script.id, script.metadata.storagename)
+    );
     // 构建脚本代码
     return this.runtime.startBackgroundScript(script);
   }
