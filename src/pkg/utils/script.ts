@@ -59,6 +59,9 @@ export function parseMetadata(code: string): Metadata | null {
   if (ret.name === undefined) {
     return null;
   }
+  if (!ret.namespace) {
+    ret.namespace = [""];
+  }
   if (issub) {
     ret.usersubscribe = [];
   }
