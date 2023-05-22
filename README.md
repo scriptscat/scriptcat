@@ -1,7 +1,7 @@
-# ScriptCat
+<img src="./build/assets/logo.png"/>
+<center><h1>ScriptCat</h1></center>
 
 > 脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!
-
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
 [![Build Status](https://github.com/scriptscat/scriptcat/workflows/build/badge.svg?branch=main)](https://github.com/scriptscat/scriptcat)
