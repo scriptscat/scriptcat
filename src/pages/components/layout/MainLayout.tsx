@@ -24,6 +24,7 @@ import { editor } from "monaco-editor";
 import React, { ReactNode, useRef, useState } from "react";
 import { RiFileCodeLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import "./index.css";
+import { useTranslation } from "react-i18next";
 
 export function switchLight(mode: string) {
   if (mode === "auto") {
@@ -55,6 +56,8 @@ const MainLayout: React.FC<{
   const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
   const importRef = useRef<RefInputType>(null);
   const [importVisible, setImportVisible] = useState(false);
+  const { t } = useTranslation();
+
   switchLight(lightMode);
   return (
     <Layout>
@@ -103,18 +106,18 @@ const MainLayout: React.FC<{
                   <Menu.Item key="/script/editor">
                     <a href="#/script/editor">
                       <Space>
-                        <RiFileCodeLine /> 添加普通脚本
+                        <RiFileCodeLine /> {t("create_user_script")}
                       </Space>
                     </a>
                   </Menu.Item>
                   <Menu.Item key="background">
                     <a href="#/script/editor?template=background">
-                      <RiTerminalBoxLine /> 添加后台脚本
+                      <RiTerminalBoxLine /> {t("create_background_script")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="crontab">
                     <a href="#/script/editor?template=crontab">
-                      <RiTimerLine /> 添加定时脚本
+                      <RiTimerLine /> {t("create_scheduled_script")}
                     </a>
                   </Menu.Item>
                   <Menu.Item
@@ -137,7 +140,7 @@ const MainLayout: React.FC<{
                 }}
                 className="!text-size-sm"
               >
-                新建脚本 <IconDown />
+                {t("create_script")} <IconDown />
               </Button>
             </Dropdown>
           )}

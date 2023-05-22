@@ -8,6 +8,7 @@ declare let cloneInto: ((detail: any, view: any) => any) | undefined;
 
 declare module "@App/types/scriptcat.d.ts";
 declare module "*.tpl";
+declare module "*.json";
 
 declare namespace GMSend {
   interface XHRDetails {

@@ -127,7 +127,7 @@ const config: Configuration = {
     }),
   ],
   resolve: {
-    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl"],
+    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl", ".json"],
     alias: {
       "@App": path.resolve(__dirname, "src/"),
       "@Pkg": path.resolve(__dirname, "pkg/"),
