@@ -1,7 +1,16 @@
-<img src="./build/assets/logo.png"/>
-<center><h1>ScriptCat</h1></center>
+<h1 align="center">ScriptCat</h1>
 
-> 脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!
+<p align="center">
+<img src="./build/assets/logo.png"/>
+</p>
+
+<p align="center">脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!</p>
+
+<p align="center">
+<a href="https://docs.scriptcat.org/">文档</a> ·
+<a href="https://bbs.tampermonkey.net.cn/">社区</a> ·
+<a href="https://scriptcat.org/search">脚本站</a>
+</p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
 [![Build Status](https://github.com/scriptscat/scriptcat/workflows/build/badge.svg?branch=main)](https://github.com/scriptscat/scriptcat)
@@ -14,21 +23,21 @@
 
 ## 关于脚本猫
 
-参考了油猴的设计思路并且支持油猴脚本,实现了一个后台脚本运行的框架,提供了一些特殊的API,让脚本能够做更多的事情.并且提供了一个优秀的编辑器,让脚本代码编写开发更加舒服流畅.
+参考了油猴的设计思路并且支持油猴脚本,实现了一个后台脚本运行的框架,提供了一些特殊的 API,让脚本能够做更多的事情.并且提供了一个优秀的编辑器,让脚本代码编写开发更加舒服流畅.
 
 **如果觉得好用，顺手点个 Star 吧 ❤❤❤**
 
 ## 特性
 
-* 脚本云同步,更换浏览器/重装,脚本恢复更方便.
-* 脚本订阅,创建自己的脚本合集或者让多个脚本配合使用.
-* 支持油猴脚本,无缝从其它油猴脚本管理器迁移.
-* 后台脚本,可以使你的脚本持续的运行在后台.
-* 定时脚本,可以每日定时执行,每天通过脚本定时处理事务.可用于自动签到,定时提醒等功能.
-* 丰富的API,相比于油猴,扩展出了更多强大的API,可以实现更多的功能.
-* 通过沙盒机制确保了用户的安全,用户确定后才会给脚本授予权限.
-* 优秀的编辑器,且提供了API的自动补全和ESLint.
-* 美观的UI
+- 脚本云同步,更换浏览器/重装,脚本恢复更方便.
+- 脚本订阅,创建自己的脚本合集或者让多个脚本配合使用.
+- 支持油猴脚本,无缝从其它油猴脚本管理器迁移.
+- 后台脚本,可以使你的脚本持续的运行在后台.
+- 定时脚本,可以每日定时执行,每天通过脚本定时处理事务.可用于自动签到,定时提醒等功能.
+- 丰富的 API,相比于油猴,扩展出了更多强大的 API,可以实现更多的功能.
+- 通过沙盒机制确保了用户的安全,用户确定后才会给脚本授予权限.
+- 优秀的编辑器,且提供了 API 的自动补全和 ESLint.
+- 美观的 UI
 
 ...更多丰富功能加入中
 
@@ -44,19 +53,19 @@
 
 ### 开发文档
 
-[开发文档](https://docs.scriptcat.org/docs/dev/)尽力完善中,因为是参考油猴的设计,与油猴脚本相通的地方很多,就算你使用其它油猴管理器,你也可以参考脚本猫的文档来开发!  
+[开发文档](https://docs.scriptcat.org/docs/dev/)尽力完善中,因为是参考油猴的设计,与油猴脚本相通的地方很多,就算你使用其它油猴管理器,你也可以参考脚本猫的文档来开发!
 
 如果开发文档有什么错误,或者你想进行补全,你可以点击下方的`编辑此页`进行修改.
 
 ### 安装扩展
 
-我们已经上架了扩展商店,如果你无法访问商店内容,请在[release](https://github.com/scriptscat/scriptcat/releases)中下载zip包手动进行安装
+我们已经上架了扩展商店,如果你无法访问商店内容,请在[release](https://github.com/scriptscat/scriptcat/releases)中下载 zip 包手动进行安装
 
 #### 扩展商城
 
-* [Chrome商店](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
-* [Edge商店](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
-* [FireFox商店](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
+- [Chrome 商店](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
+- [Edge 商店](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
+- [FireFox 商店](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 
 ### 交流
 
@@ -64,7 +73,8 @@
 - [油猴中文网](https://bbs.tampermonkey.net.cn/)
 
 ## License
-本项目使用GPLv3协议开源, 请遵守协议规定.	
+
+本项目使用 GPLv3 协议开源, 请遵守协议规定.
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
 
