@@ -9,6 +9,7 @@ import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
 import CacheKey from "@App/pkg/utils/cache_key";
+import { isEqual } from "lodash";
 import Cache from "../../cache";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
@@ -133,7 +134,7 @@ export class ValueManager extends Manager {
       };
     } else {
       // 值未发生改变
-      if (model.value === value) {
+      if (isEqual(model.value, value)) {
         return Promise.resolve(true);
       }
       oldValue = model.value;
