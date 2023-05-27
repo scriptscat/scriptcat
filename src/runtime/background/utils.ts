@@ -1,11 +1,12 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { Channel } from "@App/app/message/channel";
-import { Script } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_ENABLE, Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/pkg/utils/utils";
 import MessageCenter from "@App/app/message/center";
 import IoC from "@App/app/ioc";
 import { Request } from "./gm_api";
+import Runtime from "./runtime";
 
 export const unsafeHeaders: { [key: string]: boolean } = {
   // 部分浏览器中并未允许
@@ -173,6 +174,37 @@ export function listenerWebRequest(headerFlag: string) {
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
       if (!isExtensionRequest(details)) {
+        // 判断是否为页面请求
+        if (!(details.type === "main_frame" || details.type === "sub_frame")) {
+          return {};
+        }
+        // 判断页面上是否有脚本会运行,如果有判断是否有csp,有则移除csp策略
+        const runtime = IoC.instance(Runtime) as Runtime;
+        // 这块代码与runtime里的pageLoad一样,考虑后面要不要优化
+        const result = runtime.matchUrl(details.url, (script) => {
+          // 如果是iframe,判断是否允许在iframe里运行
+          if (details.type === "sub_frame") {
+            if (script.metadata.noframes) {
+              return true;
+            }
+            return script.status !== SCRIPT_STATUS_ENABLE;
+          }
+          return script.status !== SCRIPT_STATUS_ENABLE;
+        });
+        if (result.length > 0 && details.responseHeaders) {
+          // 移除csp
+          for (let i = 0; i < details.responseHeaders.length; i += 1) {
+            if (
+              details.responseHeaders[i].name.toLowerCase() ===
+              "content-security-policy"
+            ) {
+              details.responseHeaders[i].value = "";
+            }
+          }
+          return {
+            responseHeaders: details.responseHeaders,
+          };
+        }
         return {};
       }
       const appendHeaders: chrome.webRequest.HttpHeader[] = [];

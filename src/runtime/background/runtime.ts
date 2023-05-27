@@ -412,7 +412,7 @@ export default class Runtime extends Manager {
             return;
           }
           const exclude = this.customizeExclude.match(sender.url);
-          // 自定义排除的
+          // 自定义排除的, buildScriptRunResource时会将selfMetadata合并,所以后续不需要再处理metadata.exclude,这算是一个隐性的坑,后面看看要不要处理
           exclude.forEach((val) => {
             addRunScript(sender.tabId!, val, false, 0);
           });
