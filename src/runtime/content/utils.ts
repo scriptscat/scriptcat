@@ -1,6 +1,7 @@
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
+import { has } from "lodash";
 import GMApi, { ApiValue, GMContext } from "./gm_api";
 
 // 构建脚本运行代码
@@ -143,9 +144,11 @@ Object.keys(descs).forEach((key) => {
 // 拦截上下文
 export function proxyContext(global: any, context: any) {
   const special = Object.assign(writables);
+  // 处理某些特殊的属性
   // 后台脚本要不要考虑不能使用eval?
   const thisContext: { [key: string]: any } = {
     eval: global.eval,
+    define: undefined,
   };
   // keyword是与createContext时同步的,避免访问到context的内部变量
   const contextKeyword: { [key: string]: any } = {
@@ -184,7 +187,7 @@ export function proxyContext(global: any, context: any) {
           break;
       }
       if (typeof name === "string" && name !== "undefined") {
-        if (thisContext[name]) {
+        if (has(thisContext, name)) {
           return thisContext[name];
         }
         if (context[name]) {
@@ -230,7 +233,7 @@ export function proxyContext(global: any, context: any) {
           break;
       }
       if (typeof name === "string" && name !== "undefined") {
-        if (thisContext[name]) {
+        if (has(thisContext, name)) {
           return true;
         }
         if (context[name]) {
