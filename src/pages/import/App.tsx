@@ -66,9 +66,7 @@ function App() {
               item.script = await prepareScriptByCode(
                 item.code,
                 item.options?.meta.file_url || "",
-                item.options?.meta.sc_uuid ||
-                  item.options?.meta.uuid ||
-                  undefined
+                item.options?.meta.sc_uuid || undefined
               );
             } catch (e: any) {
               item.error = e.toString();
@@ -79,6 +77,7 @@ function App() {
                 options: {} as ScriptOptions,
                 meta: {
                   name: item.script.name,
+                  // 此uuid是对tm的兼容处理
                   uuid: item.script.uuid,
                   sc_uuid: item.script.uuid,
                   file_url: item.script.downloadUrl || "",
