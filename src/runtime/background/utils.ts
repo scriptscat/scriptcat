@@ -175,7 +175,10 @@ export function listenerWebRequest(headerFlag: string) {
     (details) => {
       if (!isExtensionRequest(details)) {
         // 判断是否为页面请求
-        if (!(details.type === "main_frame" || details.type === "sub_frame")) {
+        if (
+          !(details.type === "main_frame" || details.type === "sub_frame") ||
+          !isFirefox()
+        ) {
           return {};
         }
         // 判断页面上是否有脚本会运行,如果有判断是否有csp,有则移除csp策略

@@ -113,9 +113,9 @@ export function createContext(
 }
 
 export const writables: { [key: string]: any } = {
-  addEventListener: global.addEventListener,
-  removeEventListener: global.removeEventListener,
-  dispatchEvent: global.dispatchEvent,
+  addEventListener: global.addEventListener.bind(global),
+  removeEventListener: global.removeEventListener.bind(global),
+  dispatchEvent: global.dispatchEvent.bind(global),
 };
 
 // 记录初始的
