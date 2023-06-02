@@ -41,7 +41,6 @@ ListenerMessage(new LoggerDAO(), center);
 
 IoC.instance(SystemConfig).init();
 
-// 等待沙盒启动后再进行后续的步骤
 IoC.instance(SystemManager).init();
 // 资源管理器
 const resourceManager = new ResourceManager(center);
@@ -66,6 +65,8 @@ window.onload = () => {
   // eslint-disable-next-line no-undef
   const sandboxConnect = new MessageSandbox(sandbox);
   runtime.startSandbox(sandboxConnect);
+  // eslint-disable-next-line no-undef
+  center.setSandbox(sandbox);
 };
 center.setHandler("sandboxOnload", () => {
   return Promise.resolve(true);
