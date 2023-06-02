@@ -59,6 +59,9 @@ export function parseMetadata(code: string): Metadata | null {
   if (ret.name === undefined) {
     return null;
   }
+  if (Object.keys(ret).length < 3) {
+    return null;
+  }
   if (!ret.namespace) {
     ret.namespace = [""];
   }
