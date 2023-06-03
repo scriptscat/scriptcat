@@ -4,13 +4,11 @@ import {
   Button,
   Checkbox,
   Form,
-  FormInstance,
   Input,
   Message,
   Modal,
   Select,
 } from "@arco-design/web-react";
-import FormItem from "@arco-design/web-react/es/Form/form-item";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import {
   ExportParams,
@@ -19,7 +17,9 @@ import {
 } from "@Pkg/cloudscript/cloudscript";
 import CloudScriptFactory from "@Pkg/cloudscript/factory";
 import JSZip from "jszip";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
+
+const FormItem = Form.Item;
 
 const cloudScriptParams = CloudScriptFactory.params();
 
@@ -43,7 +43,7 @@ const CloudScriptPlan: React.FC<{
   script?: Script;
   onClose: () => void;
 }> = ({ script, onClose }) => {
-  const formRef = useRef<FormInstance>(null);
+  const [form] = Form.useForm();
   const [visible, setVisible] = React.useState(false);
   const [cloudScriptType, setCloudScriptType] =
     React.useState<ExportTarget>("local");
@@ -59,10 +59,10 @@ const CloudScriptPlan: React.FC<{
         setModel(data);
         if (data && data.params[data.target]) {
           setCloudScriptType(data.target);
-          formRef.current?.setFieldsValue(data.params[data.target]);
+          form.setFieldsValue(data.params[data.target]);
         } else {
           setCloudScriptType("local");
-          formRef.current?.setFieldsValue(defaultParams(script));
+          form.setFieldsValue(defaultParams(script));
         }
       });
     }
@@ -103,8 +103,7 @@ const CloudScriptPlan: React.FC<{
       onConfirm={async () => {
         // 保存并导出
         const dao = new ExportDAO();
-        const params =
-          formRef.current?.getFieldsValue() as unknown as ExportParams;
+        const params = form.getFieldsValue() as unknown as ExportParams;
         if (!params || !script) {
           return;
         }
@@ -162,7 +161,7 @@ const CloudScriptPlan: React.FC<{
           width: "100%",
         }}
         layout="vertical"
-        ref={formRef}
+        form={form}
       >
         <FormItem label="上传至">
           <Select
@@ -202,7 +201,7 @@ const CloudScriptPlan: React.FC<{
           type="primary"
           onClick={() => {
             if (script) {
-              formRef.current?.setFieldsValue(defaultParams(script));
+              form.setFieldsValue(defaultParams(script));
             }
           }}
         >

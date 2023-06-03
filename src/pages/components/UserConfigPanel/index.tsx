@@ -12,9 +12,10 @@ import {
   Tabs,
 } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
-import FormItem from "@arco-design/web-react/es/Form/form-item";
 import IoC from "@App/app/ioc";
 import ValueController from "@App/app/service/value/controller";
+
+const FormItem = Form.Item;
 
 const UserConfigPanel: React.FC<{
   script: Script;
