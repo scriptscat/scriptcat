@@ -540,6 +540,9 @@ export default class GMApi {
     level?: GMTypes.LoggerLevel,
     labels?: GMTypes.LoggerLabel
   ) {
+    if (typeof message !== "string") {
+      message = JSON.stringify(message);
+    }
     return this.sendMessage("GM_log", [message, level, labels]);
   }
 
