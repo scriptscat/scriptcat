@@ -383,24 +383,45 @@ export default class SynchronizeManager extends Manager {
   }
 
   // 生成备份文件到文件系统
-  async backup(fs: FileSystem) {
+  async backup(fs: FileSystem, ids?: number[]) {
     // 生成导出数据
     const data: BackupData = {
-      script: await this.getScriptBackupData(),
+      script: await this.getScriptBackupData(ids),
       subscribe: [],
     };
 
     await new BackupExport(fs).export(data);
   }
 
-  async getScriptBackupData() {
+  async getScriptBackupData(ids?: number[]) {
     // 获取所有脚本
-    const list = await this.scriptDAO.table.toArray();
-    const result = list.map(
-      async (script): Promise<ScriptBackupData> =>
-        this.generateScriptBackupData(script)
-    );
-    return Promise.all(result);
+    if (!ids) {
+      const list = await this.scriptDAO.table.toArray();
+      return Promise.all(
+        list.map(
+          async (script): Promise<ScriptBackupData> =>
+            this.generateScriptBackupData(script)
+        )
+      );
+    }
+    const rets: Promise<ScriptBackupData>[] = [];
+    ids.forEach((id) => {
+      rets.push(
+        new Promise<ScriptBackupData>((resolve, reject) => {
+          this.scriptDAO
+            .findById(id)
+            .then((script) => {
+              if (script) {
+                resolve(this.generateScriptBackupData(script));
+              }
+            })
+            .catch((e) => {
+              reject(e);
+            });
+        })
+      );
+    });
+    return Promise.all(rets);
   }
 
   async generateScriptBackupData(script: Script): Promise<ScriptBackupData> {

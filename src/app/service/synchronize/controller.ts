@@ -62,8 +62,8 @@ export default class SynchronizeController {
     return new BackupImport(fs).parse();
   }
 
-  backup() {
-    return this.dispatchEvent("backup", null);
+  backup(ids?: number[]) {
+    return this.dispatchEvent("backup", ids);
   }
 
   backupToCloud(type: FileSystemType, params: any) {

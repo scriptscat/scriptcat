@@ -5,11 +5,13 @@ import {
   Input,
   Message,
   Popconfirm,
+  Select,
   Space,
   Switch,
   Table,
   Tag,
   Tooltip,
+  Typography,
 } from "@arco-design/web-react";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
@@ -72,6 +74,7 @@ import RuntimeController from "@App/runtime/content/runtime";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import ValueManager from "@App/app/service/value/manager";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
+import SynchronizeController from "@App/app/service/synchronize/controller";
 import { scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
@@ -179,6 +182,9 @@ function ScriptList() {
   }>();
   const [cloudScript, setCloudScript] = useState<Script>();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const synchronizeCtrl = IoC.instance(
+    SynchronizeController
+  ) as SynchronizeController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
   const [scriptList, setScriptList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
@@ -187,6 +193,9 @@ function ScriptList() {
     useSearchParams()[0].get("userConfig") || "",
     10
   );
+  const [showAction, setShowAction] = useState(false);
+  const [action, setAction] = useState("");
+  const [select, setSelect] = useState<Script[]>([]);
 
   useEffect(() => {
     // 监听脚本运行状态
@@ -860,35 +869,140 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
-      <Table
-        className="arco-drag-table-container"
-        components={components}
-        rowKey="id"
-        tableLayoutFixed
-        columns={columns}
-        data={scriptList}
-        pagination={{
-          total: scriptList.length,
-          pageSize: scriptList.length,
-          hideOnSinglePage: true,
-        }}
-        style={{
-          minWidth: "1100px",
-        }}
-      />
-      {userConfig && (
-        <UserConfigPanel
-          script={userConfig.script}
-          userConfig={userConfig.userConfig}
-          values={userConfig.values}
+      <Space direction="vertical">
+        {showAction && (
+          <Card>
+            <div
+              className="flex flex-row justify-between items-center"
+              style={{
+                padding: "8px 6px",
+              }}
+            >
+              <Space direction="horizontal">
+                <Typography.Text>批量操作:</Typography.Text>
+                <Select
+                  style={{ minWidth: "100px" }}
+                  size="mini"
+                  value={action}
+                  onChange={(value) => {
+                    setAction(value);
+                  }}
+                >
+                  <Select.Option value="enable">启用</Select.Option>
+                  <Select.Option value="disable">禁用</Select.Option>
+                  <Select.Option value="export">导出</Select.Option>
+                  <Select.Option value="delete">删除</Select.Option>
+                </Select>
+                <Button
+                  type="primary"
+                  size="mini"
+                  onClick={() => {
+                    const ids: number[] = [];
+                    switch (action) {
+                      case "enable":
+                        select.forEach((item) => {
+                          scriptCtrl.enable(item.id).then(() => {
+                            const list = scriptList.map((script) => {
+                              if (script.id === item.id) {
+                                script.status = SCRIPT_STATUS_ENABLE;
+                              }
+                              return script;
+                            });
+                            setScriptList(list);
+                          });
+                        });
+                        break;
+                      case "disable":
+                        select.forEach((item) => {
+                          scriptCtrl.disable(item.id).then(() => {
+                            const list = scriptList.map((script) => {
+                              if (script.id === item.id) {
+                                script.status = SCRIPT_STATUS_DISABLE;
+                              }
+                              return script;
+                            });
+                            setScriptList(list);
+                          });
+                        });
+                        break;
+                      case "export":
+                        select.forEach((item) => {
+                          ids.push(item.id);
+                        });
+                        synchronizeCtrl.backup(ids);
+                        break;
+                      case "delete":
+                        // eslint-disable-next-line no-restricted-globals, no-alert
+                        if (confirm("确定要删除吗?请注意这个操作无法恢复!")) {
+                          select.forEach((item) => {
+                            scriptCtrl.delete(item.id).then(() => {
+                              setScriptList((list) => {
+                                return list.filter((script) => {
+                                  return script.id !== item.id;
+                                });
+                              });
+                            });
+                          });
+                        }
+                        break;
+                      default:
+                        Message.error("未知操作");
+                        break;
+                    }
+                  }}
+                >
+                  确定
+                </Button>
+              </Space>
+              <Button
+                type="primary"
+                size="mini"
+                onClick={() => {
+                  setShowAction(false);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          </Card>
+        )}
+        <Table
+          className="arco-drag-table-container"
+          components={components}
+          rowKey="id"
+          tableLayoutFixed
+          columns={columns}
+          data={scriptList}
+          pagination={{
+            total: scriptList.length,
+            pageSize: scriptList.length,
+            hideOnSinglePage: true,
+          }}
+          style={{
+            minWidth: "1100px",
+          }}
+          rowSelection={{
+            type: "checkbox",
+            onChange(_, selectedRows) {
+              setShowAction(true);
+              setSelect(selectedRows);
+            },
+          }}
         />
-      )}
-      <CloudScriptPlan
-        script={cloudScript}
-        onClose={() => {
-          setCloudScript(undefined);
-        }}
-      />
+        {userConfig && (
+          <UserConfigPanel
+            script={userConfig.script}
+            userConfig={userConfig.userConfig}
+            values={userConfig.values}
+          />
+        )}
+        <CloudScriptPlan
+          script={cloudScript}
+          onClose={() => {
+            setCloudScript(undefined);
+          }}
+        />
+      </Space>
     </Card>
   );
 }
