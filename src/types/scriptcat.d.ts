@@ -261,6 +261,8 @@ declare namespace CATType {
     name: string;
     // 文件路径
     path: string;
+    // 记录目录,如果未设置,则将脚本uuid作为目录
+    baseDir?: string;
     // 储存空间绝对路径
     absPath: string;
     // 文件大小
@@ -327,7 +329,7 @@ declare namespace GMTypes {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 
+    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能
   }
 
   interface XHRResponse {

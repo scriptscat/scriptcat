@@ -18,6 +18,12 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
+export type CATFileStorage = {
+  filesystem: FileSystemType;
+  params: { [key: string]: any };
+  status: "unset" | "success" | "error";
+};
+
 @IoC.Singleton(MessageHander)
 export class SystemConfig {
   static hook = new Hook<"update">();
@@ -175,6 +181,20 @@ export class SystemConfig {
 
   set cloudSync(data: CloudSyncConfig) {
     this.set("cloud_sync", data);
+  }
+
+  get catFileStorage(): CATFileStorage {
+    return (
+      this.cache.get("cat_file_storage") || {
+        status: "unset",
+        filesystem: "webdav",
+        params: {},
+      }
+    );
+  }
+
+  set catFileStorage(data: CATFileStorage | undefined) {
+    this.set("cat_file_storage", data);
   }
 
   get scriptCatFlag() {

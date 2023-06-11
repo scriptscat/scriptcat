@@ -28,7 +28,7 @@ function Subscribe() {
   const [queryLogs, setQueryLogs] = React.useState<Logger[]>([]);
   const [search, setSearch] = React.useState<string>("");
   const [startTime, setStartTime] = React.useState(
-    dayjs().subtract(1, "hour").unix()
+    dayjs().subtract(24, "hour").unix()
   );
   const [endTime, setEndTime] = React.useState(dayjs().unix());
   const loggerDAO = new LoggerDAO();
