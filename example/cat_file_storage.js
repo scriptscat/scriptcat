@@ -38,5 +38,13 @@ CAT_fileStorage("upload", {
 				});
 			}
 		})
+	}, onerror(err) {
+		console.log(err);
+		switch (err.code) {
+			case 1:
+			case 2:
+				CAT_fileStorage("config");
+				break;
+		}
 	}
 })
