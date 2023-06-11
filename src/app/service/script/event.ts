@@ -17,6 +17,9 @@ export type ScriptEvent =
   | "disable"
   | "delete"
   | "exclude"
+  | "resetExclude"
+  | "resetMatch"
+  | "updateCheckUpdateUrl"
   | "checkUpdate"
   | "importByUrl";
 
@@ -196,7 +199,8 @@ export default class ScriptEventListener {
             return reject(new Error("脚本不存在"));
           }
           script.selfMetadata = script.selfMetadata || {};
-          const excludes = script.selfMetadata.exclude || [];
+          const excludes =
+            script.selfMetadata.exclude || script.metadata.exclude || [];
           if (remove) {
             for (let i = 0; i < excludes.length; i += 1) {
               if (excludes[i] === exclude) {
@@ -222,6 +226,121 @@ export default class ScriptEventListener {
         })
         .catch((e) => {
           logger.error("exclude error", Logger.E(e));
+          reject(e);
+        });
+    });
+  }
+
+  @ListenEventDecorator("resetExclude")
+  public resetExcludeHandler({
+    id,
+    exclude,
+  }: {
+    id: number;
+    exclude: string[] | undefined;
+  }) {
+    const logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          script.selfMetadata = script.selfMetadata || {};
+          if (exclude) {
+            script.selfMetadata.exclude = exclude;
+          } else {
+            delete script.selfMetadata.exclude;
+          }
+          this.dao.save(script).then(
+            () => {
+              logger.info("script resetExclude success");
+              ScriptManager.hook.trigger("upsert", script, "system");
+              resolve({ id: script.id });
+            },
+            (e) => {
+              logger.error("script resetExclude failed", Logger.E(e));
+              reject(e);
+            }
+          );
+          return resolve(1);
+        })
+        .catch((e) => {
+          logger.error("resetMatch error", Logger.E(e));
+          reject(e);
+        });
+    });
+  }
+
+  @ListenEventDecorator("resetMatch")
+  public resetMatchHandler({
+    id,
+    match,
+  }: {
+    id: number;
+    match: string[] | undefined;
+  }) {
+    const logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          script.selfMetadata = script.selfMetadata || {};
+          if (match) {
+            script.selfMetadata.match = match;
+          } else {
+            delete script.selfMetadata.match;
+          }
+          this.dao.save(script).then(
+            () => {
+              logger.info("script resetMatch success");
+              ScriptManager.hook.trigger("upsert", script, "system");
+              resolve({ id: script.id });
+            },
+            (e) => {
+              logger.error("script resetMatch failed", Logger.E(e));
+              reject(e);
+            }
+          );
+          return resolve(1);
+        })
+        .catch((e) => {
+          logger.error("resetMatch error", Logger.E(e));
+          reject(e);
+        });
+    });
+  }
+
+  @ListenEventDecorator("updateCheckUpdateUrl")
+  public updateCheckUpdateUrlHandler({ id, url }: { id: number; url: string }) {
+    const logger = this.logger.with({ scriptId: id });
+    return new Promise((resolve, reject) => {
+      this.dao
+        .findById(id)
+        .then((script) => {
+          if (!script) {
+            return reject(new Error("脚本不存在"));
+          }
+          script.checkUpdateUrl = url;
+          script.downloadUrl = url;
+          this.dao.save(script).then(
+            () => {
+              logger.info("script updateCheckUpdateUrl success");
+              resolve({ id: script.id });
+            },
+            (e) => {
+              logger.error("script updateCheckUpdateUrl failed", Logger.E(e));
+              reject(e);
+            }
+          );
+          return resolve(1);
+        })
+        .catch((e) => {
+          logger.error("updateCheckUpdateUrl error", Logger.E(e));
           reject(e);
         });
     });

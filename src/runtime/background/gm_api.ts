@@ -854,7 +854,6 @@ export default class GMApi {
   // eslint-disable-next-line consistent-return
   async CAT_fileStorage(request: Request, channel: Channel) {
     const [action, details] = request.params;
-    console.log(action, details);
     if (action === "config") {
       chrome.tabs.create({
         url: `/src/options.html#/setting`,

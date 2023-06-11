@@ -60,7 +60,6 @@ export default class SynchronizeEventListener {
 
   // 生成备份文件
   public async backupHandler(ids?: number[]) {
-    console.log(ids);
     const zip = new JSZip();
     const fs = new ZipFileSystem(zip);
     await this.manager.backup(fs, ids);
