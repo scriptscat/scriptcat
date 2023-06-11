@@ -862,7 +862,6 @@ export default class GMApi {
     const baseDir = `ScriptCat/app/${
       details.baseDir ? details.baseDir : request.script.uuid
     }`;
-
     try {
       fs = await FileSystemFactory.create(
         fsConfig.filesystem,

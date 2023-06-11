@@ -73,18 +73,32 @@ const GMApiSetting: React.FC = () => {
                 <Button
                   key="reset"
                   onClick={() => {
-                    const params = { ...systemConfig.catFileStorage.params };
-                    systemConfig.catFileStorage = {
-                      status: "unset",
-                      filesystem: fileSystemType,
-                      params,
-                    };
+                    const config = systemConfig.catFileStorage;
+                    config.status = "unset";
                     setStatus("unset");
                   }}
                   type="primary"
                   status="danger"
                 >
                   重置
+                </Button>,
+                <Button
+                  key="open"
+                  type="secondary"
+                  onClick={async () => {
+                    try {
+                      let fs = await FileSystemFactory.create(
+                        fileSystemType,
+                        fileSystemParams
+                      );
+                      fs = await fs.openDir("ScriptCat/app");
+                      window.open(await fs.getDirUrl(), "_black");
+                    } catch (e) {
+                      Message.error(`账号信息验证失败: ${e}`);
+                    }
+                  }}
+                >
+                  打开目录
                 </Button>,
               ]}
               fileSystemType={fileSystemType}

@@ -828,6 +828,7 @@ export default class GMApi {
     details: any
   ) {
     const sendDetails: { [key: string]: string } = {
+      baseDir: details.baseDir || "",
       path: details.path || "",
       filename: details.filename,
       file: details.file,

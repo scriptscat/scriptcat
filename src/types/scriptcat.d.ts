@@ -198,10 +198,12 @@ declare function CAT_userConfig(): void;
 declare function CAT_fileStorage(
   action: "list",
   details: {
-    // path?: string; // 暂时只允许操作根目录,所以屏蔽list的path
+    // 文件路径
+    path?: string;
+    // 基础目录,如果未设置,则将脚本uuid作为目录
+    baseDir?: string;
     onload?: (files: CATType.FileStorageFileInfo[]) => void;
     onerror?: (error: CATType.FileStorageError) => void;
-    // public?: boolean;
   }
 ): void;
 declare function CAT_fileStorage(
@@ -227,6 +229,8 @@ declare function CAT_fileStorage(
   action: "upload",
   details: {
     path: string;
+    // 基础目录,如果未设置,则将脚本uuid作为目录
+    baseDir?: string;
     data: Blob;
     onload?: () => void;
     // onprogress?: (progress: number) => void;
@@ -261,8 +265,6 @@ declare namespace CATType {
     name: string;
     // 文件路径
     path: string;
-    // 记录目录,如果未设置,则将脚本uuid作为目录
-    baseDir?: string;
     // 储存空间绝对路径
     absPath: string;
     // 文件大小
