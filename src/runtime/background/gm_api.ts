@@ -830,7 +830,10 @@ export default class GMApi {
 
   @PermissionVerify.API({
     confirm: (request: Request) => {
-      const [, details] = request.params;
+      const [action, details] = request.params;
+      if (action === "config") {
+        return Promise.resolve(true);
+      }
       const dir = details.baseDir ? details.baseDir : request.script.uuid;
       return Promise.resolve({
         permission: "file_storage",
@@ -850,6 +853,15 @@ export default class GMApi {
   })
   // eslint-disable-next-line consistent-return
   async CAT_fileStorage(request: Request, channel: Channel) {
+    const [action, details] = request.params;
+    console.log(action, details);
+    if (action === "config") {
+      chrome.tabs.create({
+        url: `/src/options.html#/setting`,
+        active: true,
+      });
+      return Promise.resolve(true);
+    }
     const fsConfig = this.systemConfig.catFileStorage;
     if (fsConfig.status === "unset") {
       return channel.throw({ code: 1, error: "file storage is disable" });
@@ -857,7 +869,6 @@ export default class GMApi {
     if (fsConfig.status === "error") {
       return channel.throw({ code: 2, error: "file storge is error" });
     }
-    const [action, details] = request.params;
     let fs: FileSystem;
     const baseDir = `ScriptCat/app/${
       details.baseDir ? details.baseDir : request.script.uuid

@@ -75,6 +75,7 @@ const GMApiSetting: React.FC = () => {
                   onClick={() => {
                     const config = systemConfig.catFileStorage;
                     config.status = "unset";
+                    systemConfig.catFileStorage = config;
                     setStatus("unset");
                   }}
                   type="primary"

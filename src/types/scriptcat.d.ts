@@ -192,7 +192,7 @@ declare function CAT_userConfig(): void;
 /**
  * 操控脚本同步配置的文件储存源,将会在同步目录下创建一个app/uuid目录供此 API 使用
  * 上传时默认覆盖同名文件, 请注意这是一个试验性质的 API, 后续可能会改变
- * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件, 暂时不提供move/mkdir等操作
+ * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件, config 打开配置页, 暂时不提供move/mkdir等操作
  * @param details
  */
 declare function CAT_fileStorage(
@@ -238,6 +238,7 @@ declare function CAT_fileStorage(
     // public?: boolean;
   }
 ): void;
+declare function CAT_fileStorage(action: "config"): void;
 
 declare namespace CATType {
   interface ProxyRule {
