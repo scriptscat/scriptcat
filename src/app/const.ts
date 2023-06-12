@@ -1,6 +1,6 @@
 import { version } from "../../package.json";
 
-export const ExtVersion = version;
+export const ExtVersion = `${version}+1234567`;
 
 export const ExtServer = "https://ext.scriptcat.org/";
 

@@ -38,10 +38,10 @@ fs.writeFileSync("./src/manifest.json", str);
 let configSystem = fs.readFileSync("./src/app/const.ts").toString();
 // 如果是由github action的分支触发的构建,在版本中再加上commit id
 if (process.env.GITHUB_REF_TYPE === "branch") {
-  package.version += `+${process.env.GITHUB_SHA.substring(0, 7)}`;
-  configSystem = configSystem
-    .replace("ExtVersion = version;", `ExtVersion = "${package.version}";`)
-    .replace(`import { version } from "../../package.json";`, "");
+  configSystem = configSystem.replace(
+    "ExtVersion = version;",
+    `ExtVersion = \`\${version}+${process.env.GITHUB_SHA.substring(0, 7)}\`;`
+  );
   fs.writeFileSync("./src/app/const.ts", configSystem);
 }
 
