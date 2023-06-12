@@ -76,6 +76,8 @@ export type ScriptBackupData = {
   requires: ResourceBackup[];
   requiresCss: ResourceBackup[];
   resources: ResourceBackup[];
+  // 为了兼容暴力猴而设置的字段
+  enabled?: boolean;
 };
 
 export type SubscribeScript = {

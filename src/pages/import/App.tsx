@@ -85,18 +85,21 @@ function App() {
                   subscribe_url: item.script.subscribeUrl,
                 },
                 settings: {
-                  enabled: !(
-                    item.script.metadata.background ||
-                    item.script.metadata.crontab
-                  ),
+                  enabled:
+                    item.enabled === false
+                      ? false
+                      : !(
+                          item.script.metadata.background ||
+                          item.script.metadata.crontab
+                        ),
                   position: 0,
                 },
               };
-            } else {
-              item.script.status = item.options.settings.enabled
+            }
+            item.script.status =
+              item.enabled !== false && item.options.settings.enabled
                 ? SCRIPT_STATUS_ENABLE
                 : SCRIPT_STATUS_DISABLE;
-            }
             item.install = true;
             return Promise.resolve(item);
           })
