@@ -110,19 +110,7 @@ const config: Configuration = {
     }),
     new CopyPlugin({
       patterns: [
-        {
-          from: `${src}/manifest.json`,
-          to: `${dist}/ext`,
-          // 将manifest.json内版本号替换为package.json中版本号
-          transform(content) {
-            return content
-              .toString()
-              .replace(/"version": "(.*?)"/, `"version": "${version}"`)
-              .replace(`"name": "ScriptCat"`, `"name": "ScriptCat - Dev"`);
-          },
-        },
         { from: `${assets}/_locales`, to: `${dist}/ext/_locales` },
-        { from: `${assets}/logo-beta.png`, to: `${dist}/ext/assets/logo.png` },
         { from: `${assets}/logo`, to: `${dist}/ext/assets/logo` },
       ],
     }),

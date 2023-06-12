@@ -47,7 +47,7 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
 
 execSync("npm run build", { stdio: "inherit" });
 
-if (version.prerelease.length) {
+if (version.prerelease.length || process.env.GITHUB_REF_TYPE === "branch") {
   // beta时红猫logo
   fs.copyFileSync("./build/assets/logo-beta.png", "./dist/ext/assets/logo.png");
 } else {
