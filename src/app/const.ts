@@ -1,4 +1,6 @@
-export const ExtVersion = "0.13.1";
+import { version } from "../../package.json";
+
+export const ExtVersion = version;
 
 export const ExtServer = "https://ext.scriptcat.org/";
 

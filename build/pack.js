@@ -39,18 +39,20 @@ let configSystem = fs.readFileSync("./src/app/const.ts").toString();
 // 如果是由github action的分支触发的构建,在版本中再加上commit id
 if (process.env.GITHUB_REF_TYPE === "branch") {
   package.version += `+${process.env.GITHUB_SHA.substring(0, 7)}`;
+  configSystem = configSystem
+    .replace("ExtVersion = version;", `ExtVersion = "${package.version}";`)
+    .replace(`import { version } from "../../package.json";`, "");
+  fs.writeFileSync("./src/app/const.ts", configSystem);
 }
-configSystem = configSystem.replace(
-  /ExtVersion = "(.*?)";/,
-  `ExtVersion = "${package.version}";`
-);
-fs.writeFileSync("./src/app/const.ts", configSystem);
 
 execSync("npm run build", { stdio: "inherit" });
 
 if (version.prerelease.length) {
-  // 替换蓝猫logo
+  // beta时红猫logo
   fs.copyFileSync("./build/assets/logo-beta.png", "./dist/ext/assets/logo.png");
+} else {
+  // 非beta时蓝猫logo
+  fs.copyFileSync("./build/assets/logo.png", "./dist/ext/assets/logo.png");
 }
 
 // 处理firefox和chrome的zip压缩包
