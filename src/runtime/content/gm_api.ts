@@ -824,10 +824,15 @@ export default class GMApi {
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl"],
   })
   async CAT_fileStorage(
-    action: "list" | "download" | "upload" | "delete",
+    action: "list" | "download" | "upload" | "delete" | "config",
     details: any
   ) {
+    if (action === "config") {
+      this.sendMessage("CAT_fileStorage", ["config"]);
+      return;
+    }
     const sendDetails: { [key: string]: string } = {
+      baseDir: details.baseDir || "",
       path: details.path || "",
       filename: details.filename,
       file: details.file,

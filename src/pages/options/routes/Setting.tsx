@@ -18,6 +18,7 @@ import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import { format } from "prettier";
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
 import babel from "prettier/parser-babel";
+import GMApiSetting from "@App/pages/components/GMApiSetting";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -147,6 +148,7 @@ function Setting() {
           </Checkbox>
         </Space>
       </Card>
+      <GMApiSetting />
       <Card title="ESLint" bordered={false}>
         <Space direction="vertical" className="w-full">
           <Checkbox

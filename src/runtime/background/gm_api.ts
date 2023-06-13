@@ -830,15 +830,22 @@ export default class GMApi {
 
   @PermissionVerify.API({
     confirm: (request: Request) => {
+      const [action, details] = request.params;
+      if (action === "config") {
+        return Promise.resolve(true);
+      }
+      const dir = details.baseDir ? details.baseDir : request.script.uuid;
       return Promise.resolve({
         permission: "file_storage",
-        permissionValue: "*",
+        permissionValue: dir,
         title: "脚本正在试图操作脚本同步储存空间",
         metadata: {
           脚本名称: request.script.name,
         },
-        describe: `请您确认是否允许脚本进行此操作,允许后将允许脚本操作你的脚本同步储存空间,会在储存空间下创建一个app/${request.script.uuid}的目录供给脚本使用`,
-        wildcard: true,
+        describe:
+          `请您确认是否允许脚本进行此操作,允许后将允许脚本操作你设定的储存空间,` +
+          `脚本会在储存空间下创建一个app/${dir}的目录进行使用`,
+        wildcard: false,
         permissionContent: "脚本",
       } as ConfirmParam);
     },
@@ -846,21 +853,36 @@ export default class GMApi {
   })
   // eslint-disable-next-line consistent-return
   async CAT_fileStorage(request: Request, channel: Channel) {
-    const config = this.systemConfig.cloudSync;
-    if (!config.enable) {
-      return channel.throw({ code: 1, error: "is disable" });
-    }
     const [action, details] = request.params;
+    console.log(action, details);
+    if (action === "config") {
+      chrome.tabs.create({
+        url: `/src/options.html#/setting`,
+        active: true,
+      });
+      return Promise.resolve(true);
+    }
+    const fsConfig = this.systemConfig.catFileStorage;
+    if (fsConfig.status === "unset") {
+      return channel.throw({ code: 1, error: "file storage is disable" });
+    }
+    if (fsConfig.status === "error") {
+      return channel.throw({ code: 2, error: "file storge is error" });
+    }
     let fs: FileSystem;
-    const baseDir = `ScriptCat/app/${request.script.uuid}`;
+    const baseDir = `ScriptCat/app/${
+      details.baseDir ? details.baseDir : request.script.uuid
+    }`;
     try {
       fs = await FileSystemFactory.create(
-        config.filesystem,
-        config.params[config.filesystem]
+        fsConfig.filesystem,
+        fsConfig.params[fsConfig.filesystem]
       );
       await FileSystemFactory.mkdirAll(fs, baseDir);
       fs = await fs.openDir(baseDir);
     } catch (e: any) {
+      fsConfig.status = "error";
+      this.systemConfig.catFileStorage = fsConfig;
       return channel.throw({ code: 2, error: e.message });
     }
     switch (action) {
