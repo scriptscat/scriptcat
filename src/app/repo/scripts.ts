@@ -31,7 +31,9 @@ export type ConfigType =
   | "checkbox"
   | "select"
   | "mult-select"
-  | "number";
+  | "number"
+  | "textarea"
+  | "time";
 
 export interface Config {
   [key: string]: any;

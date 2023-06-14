@@ -171,6 +171,14 @@ const UserConfigPanel: React.FC<{
                               ))}
                             </Select>
                           );
+                        case "textarea":
+                          return (
+                            <Input.TextArea
+                              placeholder={item.description}
+                              maxLength={item.max}
+                              showWordLimit
+                            />
+                          );
                         default:
                           return null;
                       }
