@@ -49,6 +49,11 @@ const config = {
       globalReturn: true,
     },
   },
+  globals: {
+    CATRetryError: "readonly",
+    CAT_fileStorage: "readonly",
+    CAT_userConfig: "readonly",
+  },
   rules: {
     "constructor-super": ["error"],
     "for-direction": ["error"],

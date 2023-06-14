@@ -537,10 +537,12 @@ export default class Runtime extends Manager {
     // 监听沙盒发送的脚本运行状态消息
     this.message.setHandler(
       "scriptRunStatus",
-      (action, [scriptId, runStatus]: any) => {
+      (action, [scriptId, runStatus, error, nextruntime]: any) => {
         this.scriptDAO.update(scriptId, {
           runStatus,
           lastruntime: new Date().getTime(),
+          nextruntime,
+          error,
         });
         Runtime.hook.trigger("runStatus", scriptId, runStatus);
       }
@@ -673,6 +675,8 @@ export default class Runtime extends Manager {
   loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
     this.runBackScript.set(script.id, script);
     return new Promise((resolve, reject) => {
+      // 清除重试数据
+      script.nextruntime = 0;
       this.messageSandbox
         ?.syncSend("enable", script)
         .then(() => {

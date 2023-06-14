@@ -142,14 +142,19 @@ Object.keys(descs).forEach((key) => {
 });
 
 // 拦截上下文
-export function proxyContext(global: any, context: any) {
+export function proxyContext(
+  global: any,
+  context: any,
+  thisContext?: { [key: string]: any }
+) {
   const special = Object.assign(writables);
   // 处理某些特殊的属性
   // 后台脚本要不要考虑不能使用eval?
-  const thisContext: { [key: string]: any } = {
-    eval: global.eval,
-    define: undefined,
-  };
+  if (!thisContext) {
+    thisContext = {};
+  }
+  thisContext.eval = global.eval;
+  thisContext.define = undefined;
   // keyword是与createContext时同步的,避免访问到context的内部变量
   const contextKeyword: { [key: string]: any } = {
     message: 1,

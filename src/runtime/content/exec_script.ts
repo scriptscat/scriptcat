@@ -40,7 +40,8 @@ export default class ExecScript {
   constructor(
     scriptRes: ScriptRunResouce,
     message: MessageManager,
-    scriptFunc?: ScriptFunc
+    scriptFunc?: ScriptFunc,
+    thisContext?: { [key: string]: any }
   ) {
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
@@ -58,7 +59,7 @@ export default class ExecScript {
     }
     if (scriptRes.grantMap.none) {
       // 不注入任何GM api
-      this.proxyContent = window;
+      this.proxyContent = global;
     } else {
       // 构建脚本GM上下文
       this.sandboxContent = createContext(
@@ -66,7 +67,11 @@ export default class ExecScript {
         this.GM_info,
         this.proxyMessage
       );
-      this.proxyContent = proxyContext(window, this.sandboxContent);
+      this.proxyContent = proxyContext(
+        global,
+        this.sandboxContent,
+        thisContext
+      );
     }
   }
 
