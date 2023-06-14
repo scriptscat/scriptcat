@@ -241,7 +241,7 @@ declare function CAT_fileStorage(
 declare function CAT_fileStorage(action: "config"): void;
 
 /**
- * 脚本猫定时脚本重试错误, 当你的脚本出现错误时, 可以reject返回此错误, 以便脚本猫重试
+ * 脚本猫后台脚本重试, 当你的脚本出现错误时, 可以reject返回此错误, 以便脚本猫重试
  * 重试时间请注意不要与脚本执行时间冲突, 否则可能会导致重复执行, 最小重试时间为5s
  * @class CATRetryError
  */
