@@ -176,6 +176,7 @@ const UserConfigPanel: React.FC<{
                             <Input.TextArea
                               placeholder={item.description}
                               maxLength={item.max}
+                              rows={item.rows}
                               showWordLimit
                             />
                           );
