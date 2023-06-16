@@ -18,8 +18,9 @@ import { useSearchParams } from "react-router-dom";
 import { formatUnixTime } from "@App/pkg/utils/utils";
 import { SystemConfig } from "@App/pkg/config/config";
 import IoC from "@App/app/ioc";
+import { useTranslation } from "react-i18next";
 
-function Subscribe() {
+function LoggerPage() {
   const [labels, setLabels] = React.useState<Labels>({});
   const defaultQuery = JSON.parse(useSearchParams()[0].get("query") || "[{}]");
   const [init, setInit] = React.useState(0);
@@ -33,6 +34,7 @@ function Subscribe() {
   const [endTime, setEndTime] = React.useState(dayjs().unix());
   const loggerDAO = new LoggerDAO();
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
+  const { t } = useTranslation();
 
   const onQueryLog = () => {
     const newQueryLogs: Logger[] = [];
@@ -149,7 +151,7 @@ function Subscribe() {
         >
           <Card
             bordered={false}
-            title="运行日志"
+            title={t("log_title")}
             extra={
               <Space size="large">
                 <DatePicker.RangePicker
@@ -157,51 +159,51 @@ function Subscribe() {
                   showTime
                   shortcutsPlacementLeft
                   value={[startTime * 1000, endTime * 1000]}
-                  onChange={(_, t) => {
-                    setStartTime(t[0].unix());
-                    setEndTime(t[1].unix());
+                  onChange={(_, time) => {
+                    setStartTime(time[0].unix());
+                    setEndTime(time[1].unix());
                   }}
                   shortcuts={[
                     {
-                      text: "最近5分钟",
+                      text: t("last_5_minutes"),
                       value: () => [dayjs(), dayjs().add(-5, "minute")],
                     },
                     {
-                      text: "最近15分钟",
+                      text: t("last_15_minutes"),
                       value: () => [dayjs(), dayjs().add(-15, "minute")],
                     },
                     {
-                      text: "最近30分钟",
+                      text: t("last_30_minutes"),
                       value: () => [dayjs(), dayjs().add(-30, "minute")],
                     },
                     {
-                      text: "最近1小时",
+                      text: t("last_1_hour"),
                       value: () => [dayjs(), dayjs().add(-1, "hour")],
                     },
                     {
-                      text: "最近3小时",
+                      text: t("last_3_hours"),
                       value: () => [dayjs(), dayjs().add(-3, "hour")],
                     },
                     {
-                      text: "最近6小时",
+                      text: t("last_6_hours"),
                       value: () => [dayjs(), dayjs().add(-6, "hour")],
                     },
                     {
-                      text: "最近12小时",
+                      text: t("last_12_hours"),
                       value: () => [dayjs(), dayjs().add(-12, "hour")],
                     },
                     {
-                      text: "最近24小时",
+                      text: t("last_24_hours"),
                       value: () => [dayjs(), dayjs().add(-24, "hour")],
                     },
                     {
-                      text: "最近7天",
+                      text: t("last_7_days"),
                       value: () => [dayjs(), dayjs().add(-7, "day")],
                     },
                   ]}
                 />
                 <Button type="primary" onClick={onQueryLog}>
-                  查询
+                  {t("query")}
                 </Button>
               </Space>
             }
@@ -214,7 +216,7 @@ function Subscribe() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">labels</div>
+                <div className="text-sm font-medium">{t("labels")}</div>
                 <Space>
                   {querys.map((query, index) => (
                     <LogLabel
@@ -254,7 +256,7 @@ function Subscribe() {
                 }}
                 direction="vertical"
               >
-                <div className="text-sm font-medium">搜索(支持正则)</div>
+                <div className="text-sm font-medium">{t("search_regex")}</div>
                 <Input value={search} onChange={(e) => setSearch(e)} />
               </Space>
             </Space>
@@ -262,11 +264,11 @@ function Subscribe() {
           <Card
             className="show-log-card"
             bordered={false}
-            title="日志"
+            title={t("logs")}
             extra={
               <Space>
                 <Space>
-                  <span>定时清理</span>
+                  <span>{t("clean_schedule")}</span>
                   <Input
                     defaultValue={systemConfig.logCleanCycle.toString()}
                     style={{
@@ -277,7 +279,7 @@ function Subscribe() {
                       systemConfig.logCleanCycle = parseInt(e, 10);
                     }}
                   />
-                  <span>天前的日志</span>
+                  <span>{t("days_ago_logs")}</span>
                 </Space>
                 <Button
                   type="primary"
@@ -288,10 +290,10 @@ function Subscribe() {
                     });
                     setQueryLogs([]);
                     setLogs([]);
-                    Message.info("删除完成");
+                    Message.info(t("delete_completed")!);
                   }}
                 >
-                  删除当前日志
+                  {t("delete_current_logs")}
                 </Button>
                 <Button
                   type="primary"
@@ -300,10 +302,10 @@ function Subscribe() {
                     loggerDAO.clear();
                     setQueryLogs([]);
                     setLogs([]);
-                    Message.info("清空完成");
+                    Message.info(t("clear_completed")!);
                   }}
                 >
-                  清空日志
+                  {t("clear_logs")}
                 </Button>
               </Space>
             }
@@ -314,11 +316,11 @@ function Subscribe() {
             }}
           >
             <Text>
-              {formatUnixTime(startTime)} 到 {formatUnixTime(endTime)} 共查询到
-              {logs.length}条日志
+              {formatUnixTime(startTime)} {t("to")} {formatUnixTime(endTime)}{" "}
+              {t("total_logs")} {logs.length}
               {init === 4
-                ? `,筛选后${queryLogs.length}条日志`
-                : ",请输入筛选条件进行查询"}
+                ? `, ${t("filtered_logs")} ${queryLogs.length}`
+                : `, ${t("enter_filter_conditions")}`}
             </Text>
             <List
               style={{
@@ -357,4 +359,4 @@ function Subscribe() {
   );
 }
 
-export default Subscribe;
+export default LoggerPage;

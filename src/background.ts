@@ -17,6 +17,7 @@ import { SystemConfig } from "./pkg/config/config";
 import SystemManager from "./app/service/system/manager";
 import SynchronizeManager from "./app/service/synchronize/manager";
 import SubscribeManager from "./app/service/subscribe/manager";
+import "@App/locales/locales";
 
 // 数据库初始化
 migrate();

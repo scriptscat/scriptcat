@@ -10,6 +10,7 @@ import {
   Switch,
   Typography,
 } from "@arco-design/web-react";
+import { useTranslation } from "react-i18next"; // 导入react-i18next的useTranslation钩子
 import SynchronizeController from "@App/app/service/synchronize/controller";
 import IoC from "@App/app/ioc";
 import JSZip from "jszip";
@@ -50,6 +51,8 @@ function App() {
   const syncCtrl = IoC.instance(SynchronizeController) as SynchronizeController;
   const url = new URL(window.location.href);
   const uuid = url.searchParams.get("uuid") || "";
+  const { t } = useTranslation(); // 使用useTranslation钩子获取翻译函数
+
   useEffect(() => {
     syncCtrl
       .fetchImportInfo(uuid)
@@ -114,7 +117,7 @@ function App() {
   }, []);
   return (
     <div>
-      <Card bordered={false} title="数据导入">
+      <Card bordered={false} title={t("data_import")}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Space>
             <Button
@@ -139,10 +142,10 @@ function App() {
                 });
                 await Promise.all(result);
                 setLoading(false);
-                Message.success("导入成功");
+                Message.success(t("import_success")!);
               }}
             >
-              导入
+              {t("import")}
             </Button>
             <Button
               type="primary"
@@ -150,11 +153,11 @@ function App() {
               loading={loading}
               onClick={() => window.close()}
             >
-              关闭
+              {t("close")}
             </Button>
           </Space>
           <Typography.Text>
-            请选择你要导入的脚本:{" "}
+            {t("select_scripts_to_import")}:{" "}
             <Checkbox
               checked={selectAll[0]}
               onChange={() => {
@@ -167,13 +170,13 @@ function App() {
                 });
               }}
             >
-              全选
+              {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            脚本导入进度: {installNum[0]}/{scripts.length}
+            {t("script_import_progress")}: {installNum[0]}/{scripts.length}
           </Typography.Text>
           <Typography.Text>
-            请选择你要导入的订阅:{" "}
+            {t("select_subscribes_to_import")}:{" "}
             <Checkbox
               checked={selectAll[1]}
               onChange={() => {
@@ -186,10 +189,11 @@ function App() {
                 });
               }}
             >
-              全选
+              {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            订阅导入进度: {installNum[1]}/{subscribes.length}
+            {t("subscribe_import_progress")}: {installNum[1]}/
+            {subscribes.length}
           </Typography.Text>
           <List
             className="import-list"
@@ -231,28 +235,31 @@ function App() {
                       color: "rgb(var(--blue-5))",
                     }}
                   >
-                    {item.script?.name || item.error || "unknown"}
+                    {item.script?.name || item.error || t("unknown")}
                   </Typography.Title>
                   <span className="text-sm color-gray-5">
-                    作者:{" "}
+                    {t("author")}:{" "}
                     {item.script?.metadata.author &&
                       item.script?.metadata.author[0]}
                   </span>
                   <span className="text-sm color-gray-5">
-                    描述:{" "}
+                    {t("description")}:{" "}
                     {item.script?.metadata.description &&
                       item.script?.metadata.description[0]}
                   </span>
                   <span className="text-sm color-gray-5">
-                    来源: {item.options?.meta.file_url || "本地创建"}
+                    {t("source")}:{" "}
+                    {item.options?.meta.file_url || t("local_creation")}
                   </span>
                   <span className="text-sm color-gray-5">
-                    操作:{" "}
+                    {t("operation")}:{" "}
                     {(item.install &&
-                      (item.script?.oldScript ? "更新" : "新增")) ||
+                      (item.script?.oldScript ? t("update") : t("add_new"))) ||
                       (item.error
-                        ? `错误: ${item.options?.meta.name} - ${item.options?.meta.uuid}`
-                        : "不做操作")}
+                        ? `${t("error")}: ${item.options?.meta.name} - ${
+                            item.options?.meta.uuid
+                          }`
+                        : t("no_operation"))}
                   </span>
                 </Space>
                 <div
@@ -262,7 +269,9 @@ function App() {
                     textAlign: "center",
                   }}
                 >
-                  <span className="text-sm color-gray-5">开启脚本</span>
+                  <span className="text-sm color-gray-5">
+                    {t("enable_script")}
+                  </span>
                   <div className="text-center">
                     <Switch
                       size="small"

@@ -21,8 +21,10 @@ import { Message } from "@arco-design/web-react";
 import Runtime from "@App/runtime/background/runtime";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
+import "@App/locales/locales";
 
 migrate();
+
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   debug: process.env.NODE_ENV === "development",

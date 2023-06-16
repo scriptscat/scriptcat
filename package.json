@@ -1,6 +1,6 @@
 {
   "name": "scriptcat",
-  "version": "0.14.0",
+  "version": "0.14.0-beta.1",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
@@ -27,6 +27,7 @@
     "crypto-js": "^4.1.1",
     "dayjs": "^1.11.4",
     "dexie": "^3.2.3",
+    "i18next": "^22.5.0",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
     "monaco-editor": "^0.37.1",
@@ -34,6 +35,7 @@
     "pako": "^2.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-i18next": "^12.3.1",
     "react-icons": "^4.4.0",
     "react-router-dom": "^6.3.0",
     "semver": "^7.3.8",
@@ -95,6 +97,7 @@
     "webpack": "^5.73.0",
     "webpack-bundle-analyzer": "^4.5.0",
     "webpack-cli": "^4.10.0",
-    "webpack-merge": "^5.8.0"
+    "webpack-merge": "^5.8.0",
+    "yaml-loader": "^0.8.0"
   }
 }

@@ -20,6 +20,7 @@ import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete } from "@arco-design/web-react/icon";
 import React, { useEffect, useState } from "react";
 import ScriptController from "@App/app/service/script/controller";
+import { useTranslation } from "react-i18next";
 import Match from "./Match";
 
 const ScriptSetting: React.FC<{
@@ -35,36 +36,38 @@ const ScriptSetting: React.FC<{
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const [permission, setPermission] = useState<Permission[]>([]);
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
+  const { t } = useTranslation();
+
   const columns: ColumnProps[] = [
     {
-      title: "类型",
+      title: t("type"),
       dataIndex: "permission",
       key: "permission",
       width: 100,
     },
     {
-      title: "授权值",
+      title: t("permission_value"),
       dataIndex: "permissionValue",
       key: "permissionValue",
     },
     {
-      title: "是否允许",
+      title: t("allow"),
       dataIndex: "allow",
       key: "allow",
       render(col) {
         if (col) {
-          return <span style={{ color: "#52c41a" }}>是</span>;
+          return <span style={{ color: "#52c41a" }}>{t("yes")}</span>;
         }
-        return <span style={{ color: "#f5222d" }}>否</span>;
+        return <span style={{ color: "#f5222d" }}>{t("no")}</span>;
       },
     },
     {
-      title: "操作",
+      title: t("action"),
       render(_, item: Permission) {
         return (
           <Space>
             <Popconfirm
-              title="确认删除该授权?"
+              title={t("confirm_delete_permission")}
               onOk={() => {
                 permissionCtrl
                   .deletePermission(script!.id, {
@@ -72,11 +75,11 @@ const ScriptSetting: React.FC<{
                     permissionValue: item.permissionValue,
                   })
                   .then(() => {
-                    Message.success("删除成功");
+                    Message.success(t("delete_success")!);
                     setPermission(permission.filter((i) => i.id !== item.id));
                   })
                   .catch(() => {
-                    Message.error("删除失败");
+                    Message.error(t("delete_failed")!);
                   });
               }}
             >
@@ -102,7 +105,11 @@ const ScriptSetting: React.FC<{
   return (
     <Drawer
       width={600}
-      title={<span>{script?.name} 脚本设置</span>}
+      title={
+        <span>
+          {script?.name} {t("script_setting")}
+        </span>
+      }
       visible={visible}
       onOk={() => {
         onOk();
@@ -113,10 +120,10 @@ const ScriptSetting: React.FC<{
     >
       <Descriptions
         column={1}
-        title="基本信息"
+        title={t("basic_info")}
         data={[
           {
-            label: "最后更新",
+            label: t("last_updated"),
             value: formatUnixTime(
               (script?.updatetime || script?.createtime || 0) / 1000
             ),
@@ -133,10 +140,10 @@ const ScriptSetting: React.FC<{
       {script && <Match script={script} />}
       <Descriptions
         column={1}
-        title="更新"
+        title={t("update")}
         data={[
           {
-            label: "更新URL",
+            label: t("update_url"),
             value: (
               <Input
                 value={checkUpdateUrl}
@@ -147,7 +154,7 @@ const ScriptSetting: React.FC<{
                   scriptCtrl
                     .updateCheckUpdateUrl(script!.id, checkUpdateUrl)
                     .then(() => {
-                      Message.success("更新成功");
+                      Message.success(t("update_success")!);
                     });
                 }}
               />
@@ -158,9 +165,11 @@ const ScriptSetting: React.FC<{
         labelStyle={{ paddingRight: 36 }}
       />
       <Divider />
-      <Typography.Title heading={6}>授权管理</Typography.Title>
+      <Typography.Title heading={6}>
+        {t("permission_management")}
+      </Typography.Title>
       <Table columns={columns} data={permission} rowKey="id" />
-      <Empty description="建设中" />
+      <Empty description={t("under_construction")} />
     </Drawer>
   );
 };

@@ -20,6 +20,7 @@ import {
   IconSearch,
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type ResourceListItem = {
   key: string;
@@ -35,6 +36,7 @@ const ScriptResource: React.FC<{
   const [data, setData] = useState<ResourceListItem[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const resourceCtrl = IoC.instance(ResourceController) as ResourceController;
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!script) {
@@ -55,7 +57,7 @@ const ScriptResource: React.FC<{
 
   const columns: ColumnProps[] = [
     {
-      title: "key",
+      title: t("key"),
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
@@ -66,7 +68,7 @@ const ScriptResource: React.FC<{
             <Input.Search
               ref={inputRef}
               searchButton
-              placeholder="请输入key"
+              placeholder={t("enter_key")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
                 setFilterKeys(value ? [value] : []);
@@ -86,7 +88,7 @@ const ScriptResource: React.FC<{
       },
     },
     {
-      title: "类型",
+      title: t("type"),
       dataIndex: "contentType",
       width: 140,
       key: "type",
@@ -95,7 +97,7 @@ const ScriptResource: React.FC<{
       },
     },
     {
-      title: "操作",
+      title: t("action"),
       render(_col, value: Resource, index) {
         return (
           <Space>
@@ -117,10 +119,10 @@ const ScriptResource: React.FC<{
             />
             <Popconfirm
               focusLock
-              title="你确定删除此资源吗?在下次开启时将会重新加载此资源"
+              title={t("confirm_delete_resource")}
               onOk={() => {
                 Message.info({
-                  content: "删除成功",
+                  content: t("delete_success"),
                 });
                 resourceCtrl.deleteResource(value.id);
                 setData(data.filter((_, i) => i !== index));
@@ -137,7 +139,11 @@ const ScriptResource: React.FC<{
   return (
     <Drawer
       width={600}
-      title={<span>{script?.name} 脚本资源</span>}
+      title={
+        <span>
+          {script?.name} {t("script_resource")}
+        </span>
+      }
       visible={visible}
       onOk={onOk}
       onCancel={onCancel}
@@ -146,21 +152,21 @@ const ScriptResource: React.FC<{
         <Space className="!flex justify-end">
           <Popconfirm
             focusLock
-            title="你真的要清空这些资源吗?在下次开启时将会重新加载资源"
+            title={t("confirm_clear_resource")}
             onOk={() => {
               setData((prev) => {
                 prev.forEach((v) => {
                   resourceCtrl.deleteResource(v.id);
                 });
                 Message.info({
-                  content: "清空成功",
+                  content: t("clear_success"),
                 });
                 return [];
               });
             }}
           >
             <Button type="primary" status="warning">
-              清空
+              {t("clear")}
             </Button>
           </Popconfirm>
         </Space>

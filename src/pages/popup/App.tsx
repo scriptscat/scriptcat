@@ -26,6 +26,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
+import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 
 const CollapseItem = Collapse.Item;
@@ -48,6 +49,7 @@ function App() {
   const [isEnableScript, setIsEnableScript] = useState(
     localStorage.enable_script !== "false"
   );
+  const { t } = useTranslation();
 
   let url: URL | undefined;
   try {
@@ -163,7 +165,7 @@ function App() {
                 >
                   <Menu.Item key="newScript">
                     <IconPlus style={iconStyle} />
-                    新建脚本
+                    {t("create_script")}
                   </Menu.Item>
                   <Menu.Item
                     key={`https://scriptcat.org/search?domain=${
@@ -171,19 +173,19 @@ function App() {
                     }`}
                   >
                     <IconSearch style={iconStyle} />
-                    获取脚本
+                    {t("get_script")}
                   </Menu.Item>
                   <Menu.Item key="https://github.com/scriptscat/scriptcat/issues">
                     <IconBug style={iconStyle} />
-                    BUG/问题反馈
+                    {t("report_issue")}
                   </Menu.Item>
                   <Menu.Item key="https://docs.scriptcat.org/">
                     <IconBook style={iconStyle} />
-                    项目文档
+                    {t("project_docs")}
                   </Menu.Item>
                   <Menu.Item key="https://bbs.tampermonkey.net.cn/">
                     <RiMessage2Line style={iconStyle} />
-                    交流社区
+                    {t("community")}
                   </Menu.Item>
                   <Menu.Item key="https://github.com/scriptscat/scriptcat">
                     <IconGithub style={iconStyle} />
@@ -212,7 +214,7 @@ function App() {
         style={{ maxWidth: 640 }}
       >
         <CollapseItem
-          header="当前页运行脚本"
+          header={t("current_page_scripts")}
           name="script"
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
@@ -225,7 +227,7 @@ function App() {
         </CollapseItem>
 
         <CollapseItem
-          header="开启和运行的后台脚本"
+          header={t("enabled_background_scripts")}
           name="background"
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
@@ -238,7 +240,7 @@ function App() {
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
-        <span className="text-[12px] font-500">v{ExtVersion}</span>
+        <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
         {semver.lt(ExtVersion, version) && (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span
@@ -250,7 +252,7 @@ function App() {
             className="text-1 font-500"
             style={{ cursor: "pointer" }}
           >
-            有更新的版本
+            {t("popup.new_version_available")}
           </span>
         )}
       </div>

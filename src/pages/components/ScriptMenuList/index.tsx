@@ -23,6 +23,7 @@ import ScriptController from "@App/app/service/script/controller";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import RuntimeController from "@App/runtime/content/runtime";
+import { useTranslation } from "react-i18next";
 
 const CollapseItem = Collapse.Item;
 
@@ -48,6 +49,8 @@ const ScriptMenuList: React.FC<{
   const message = IoC.instance(MessageInternal) as MessageInternal;
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
+  const { t } = useTranslation();
+
   let url: URL;
   try {
     url = new URL(currentUrl);
@@ -108,9 +111,12 @@ const ScriptMenuList: React.FC<{
                   // eslint-disable-next-line no-nested-ternary
                   item.enable
                     ? item.runNumByIframe
-                      ? `该脚本总共运行了${item.runNum}次,在iframe上运行了${item.runNumByIframe}次`
-                      : `该脚本运行了${item.runNum}次`
-                    : "该脚本未开启"
+                      ? t("script_total_runs", {
+                          runNum: item.runNum,
+                          runNumByIframe: item.runNumByIframe,
+                        })!
+                      : t("script_total_runs_single", { runNum: item.runNum })!
+                    : t("script_disabled")!
                 }
               >
                 <Space>
@@ -173,8 +179,8 @@ const ScriptMenuList: React.FC<{
                   }}
                 >
                   {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
-                    ? "运行一次"
-                    : "停止"}
+                    ? t("run_once")
+                    : t("stop")}
                 </Button>
               )}
               <Button
@@ -189,7 +195,7 @@ const ScriptMenuList: React.FC<{
                   window.close();
                 }}
               >
-                编辑
+                {t("edit")}
               </Button>
               {url && (
                 <Button
@@ -209,17 +215,19 @@ const ScriptMenuList: React.FC<{
                       });
                   }}
                 >
-                  {isExclude(item, url.host) ? "恢复在" : "排除在"}
-                  {` ${url.host} 上执行`}
+                  {isExclude(item, url.host)
+                    ? t("exclude_on")
+                    : t("exclude_off")}
+                  {` ${url.host} ${t("exclude_execution")}`}
                 </Button>
               )}
               <Popconfirm
-                title="确定要删除此脚本吗?"
+                title={t("confirm_delete_script")}
                 icon={<IconDelete />}
                 onOk={() => {
                   setList(list.filter((i) => i.id !== item.id));
                   scriptCtrl.delete(item.id).catch((e) => {
-                    Message.error(`删除失败: ${e}`);
+                    Message.error(`{t('delete_failed')}: ${e}`);
                   });
                 }}
               >
@@ -229,7 +237,7 @@ const ScriptMenuList: React.FC<{
                   type="secondary"
                   icon={<IconDelete />}
                 >
-                  删除
+                  {t("delete")}
                 </Button>
               </Popconfirm>
             </div>
@@ -275,7 +283,7 @@ const ScriptMenuList: React.FC<{
                   window.close();
                 }}
               >
-                用户配置
+                {t("user_config")}
               </Button>
             )}
           </div>

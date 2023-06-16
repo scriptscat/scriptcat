@@ -30,6 +30,7 @@ import {
   RiPlayListAddLine,
 } from "react-icons/ri";
 import "./index.css";
+import { useTranslation } from "react-i18next";
 
 export function switchLight(mode: string) {
   if (mode === "auto") {
@@ -61,6 +62,8 @@ const MainLayout: React.FC<{
   const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
   const importRef = useRef<RefInputType>(null);
   const [importVisible, setImportVisible] = useState(false);
+  const { t } = useTranslation();
+
   switchLight(lightMode);
   return (
     <Layout>
@@ -72,7 +75,7 @@ const MainLayout: React.FC<{
         className="flex items-center justify-between p-x-4"
       >
         <Modal
-          title="链接导入"
+          title={t("import_link")}
           visible={importVisible}
           onOk={async () => {
             const scriptCtl = IoC.instance(
@@ -81,7 +84,7 @@ const MainLayout: React.FC<{
             try {
               await scriptCtl.importByUrl(importRef.current!.dom.value);
             } catch (e) {
-              Message.error(`链接导入失败: ${e}`);
+              Message.error(`${t("import_link_failure")}: ${e}`);
             }
             setImportVisible(false);
           }}
@@ -108,17 +111,17 @@ const MainLayout: React.FC<{
                 <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                   <Menu.Item key="/script/editor">
                     <a href="#/script/editor">
-                      <RiFileCodeLine /> 添加普通脚本
+                      <RiFileCodeLine /> {t("create_user_script")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="background">
                     <a href="#/script/editor?template=background">
-                      <RiTerminalBoxLine /> 添加后台脚本
+                      <RiTerminalBoxLine /> {t("create_background_script")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="crontab">
                     <a href="#/script/editor?template=crontab">
-                      <RiTimerLine /> 添加定时脚本
+                      <RiTimerLine /> {t("create_scheduled_script")}
                     </a>
                   </Menu.Item>
                   <Menu.Item
@@ -127,7 +130,7 @@ const MainLayout: React.FC<{
                       setImportVisible(true);
                     }}
                   >
-                    <IconLink /> 链接导入
+                    <IconLink /> {t("import_link")}
                   </Menu.Item>
                 </Menu>
               }
@@ -141,7 +144,7 @@ const MainLayout: React.FC<{
                 }}
                 className="!text-size-sm"
               >
-                <RiPlayListAddLine /> 新建脚本 <IconDown />
+                <RiPlayListAddLine /> {t("create_script")} <IconDown />
               </Button>
             </Dropdown>
           )}
@@ -156,7 +159,7 @@ const MainLayout: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <RiFileCodeLine /> 使用指南
+                      <RiFileCodeLine /> {t("user_guide")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="scriptcat/docs/dev/">
@@ -165,7 +168,7 @@ const MainLayout: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <RiFileCodeLine /> API文档
+                      <RiFileCodeLine /> {t("api_docs")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="scriptcat/docs/learn/">
@@ -174,7 +177,7 @@ const MainLayout: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <RiFileCodeLine /> 开发指南
+                      <RiFileCodeLine /> {t("development_guide")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="scriptcat/userscript">
@@ -183,7 +186,7 @@ const MainLayout: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <IconLink /> 脚本站
+                      <IconLink /> {t("script_gallery")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="tampermonkey/bbs">
@@ -192,7 +195,7 @@ const MainLayout: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <IconLink /> 社区论坛
+                      <IconLink /> {t("community_forum")}
                     </a>
                   </Menu.Item>
                   <Menu.Item key="GitHub">
@@ -216,7 +219,7 @@ const MainLayout: React.FC<{
                 }}
                 className="!text-size-sm"
               >
-                <RiLinkM /> 外部链接 <IconDown />
+                <RiLinkM /> {t("external_links")} <IconDown />
               </Button>
             </Dropdown>
           )}
@@ -237,7 +240,7 @@ const MainLayout: React.FC<{
                   <IconMoonFill /> Dark
                 </Menu.Item>
                 <Menu.Item key="auto">
-                  <IconDesktop /> 跟随系统
+                  <IconDesktop /> {t("system_follow")}
                 </Menu.Item>
               </Menu>
             }

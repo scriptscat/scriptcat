@@ -3,33 +3,35 @@ import PermissionController from "@App/app/service/permission/controller";
 import { ConfirmParam } from "@App/runtime/background/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 function App() {
-  // 从query中获取uuid
   const uuid = window.location.search.split("=")[1];
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
   const permissionCtrl = IoC.instance(
     PermissionController
   ) as PermissionController;
-  // 秒数
   const [second, setSecond] = React.useState(30);
-  // 超时关闭
+
+  const { t } = useTranslation();
+
   if (second === 0) {
     window.close();
   }
+
   setTimeout(() => {
     setSecond(second - 1);
   }, 1000);
+
   useEffect(() => {
-    // 拦截关闭
     window.addEventListener("beforeunload", () => {
       permissionCtrl.sendConfirm(uuid, {
         allow: false,
         type: 0,
       });
     });
-    // 通过uuid获取确认信息
+
     permissionCtrl
       .getConfirm(uuid)
       .then((data) => {
@@ -37,9 +39,10 @@ function App() {
         setLikeNum(data.likeNum);
       })
       .catch((e: any) => {
-        Message.error(e.message || "获取确认信息失败");
+        Message.error(e.message || t("get_confirm_error"));
       });
   }, []);
+
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
       try {
@@ -49,13 +52,14 @@ function App() {
         });
         window.close();
       } catch (e: any) {
-        Message.error(e.message || "confirm error");
+        Message.error(e.message || t("confirm_error"));
         setTimeout(() => {
           window.close();
         }, 3000);
       }
     };
   };
+
   return (
     <div className="h-full">
       <Space direction="vertical">
@@ -70,28 +74,36 @@ function App() {
         <span className="text-xl font-500">{confirm?.describe}</span>
         <div>
           <Button type="primary" onClick={handleConfirm(false, 1)}>
-            忽略({second})
+            {t("ignore")} ({second})
           </Button>
         </div>
         <div>
           <Space>
             <Button onClick={handleConfirm(true, 1)} status="success">
-              允许一次
+              {t("allow_once")}
             </Button>
             <Button onClick={handleConfirm(true, 3)} status="success">
-              临时允许此{confirm?.permissionContent}
+              {t("temporary_allow", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(true, 2)} status="success">
-                临时允许全部{confirm?.permissionContent}
+                {t("temporary_allow_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
             <Button onClick={handleConfirm(true, 5)} status="success">
-              永久允许此{confirm?.permissionContent}
+              {t("permanent_allow", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(true, 4)} status="success">
-                永久允许全部{confirm?.permissionContent}
+                {t("permanent_allow_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
           </Space>
@@ -99,22 +111,30 @@ function App() {
         <div>
           <Space>
             <Button onClick={handleConfirm(false, 1)} status="danger">
-              拒绝一次
+              {t("deny_once")}
             </Button>
             <Button onClick={handleConfirm(false, 3)} status="danger">
-              临时拒绝此{confirm?.permissionContent}
+              {t("temporary_deny", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(false, 2)} status="danger">
-                临时拒绝全部{confirm?.permissionContent}
+                {t("temporary_deny_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
             <Button onClick={handleConfirm(false, 5)} status="danger">
-              永久拒绝此{confirm?.permissionContent}
+              {t("permanent_deny", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(false, 4)} status="danger">
-                永久拒绝全部{confirm?.permissionContent}
+                {t("permanent_deny_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
           </Space>
