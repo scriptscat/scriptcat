@@ -14,6 +14,7 @@ import {
 } from "@arco-design/web-react/icon";
 import React, { useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import CustomLink from "..";
 
 const MenuItem = Menu.Item;
@@ -27,6 +28,7 @@ if (!hash.length) {
 const Sider: React.FC = () => {
   const [menuSelect, setMenuSelect] = useState(hash);
   const [collapsed, setCollapsed] = useState(localStorage.collapsed === "true");
+  const { t } = useTranslation();
 
   return (
     <HashRouter>
@@ -50,27 +52,27 @@ const Sider: React.FC = () => {
         >
           <CustomLink to="/">
             <MenuItem key="/">
-              <IconCode /> 已安装脚本
+              <IconCode /> {t("installed_scripts")}
             </MenuItem>
           </CustomLink>
           <CustomLink to="/subscribe">
             <MenuItem key="/subscribe">
-              <IconSubscribe /> 订阅
+              <IconSubscribe /> {t("subscribe")}
             </MenuItem>
           </CustomLink>
           <CustomLink to="/logger">
             <MenuItem key="/logger">
-              <IconFile /> 日志
+              <IconFile /> {t("logs")}
             </MenuItem>
           </CustomLink>
           <CustomLink to="/tools">
             <MenuItem key="/tools">
-              <IconTool /> 工具
+              <IconTool /> {t("tools")}
             </MenuItem>
           </CustomLink>
           <CustomLink to="/setting">
             <MenuItem key="/setting">
-              <IconSettings /> 设置
+              <IconSettings /> {t("settings")}
             </MenuItem>
           </CustomLink>
         </Menu>

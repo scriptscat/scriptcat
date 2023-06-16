@@ -19,6 +19,8 @@ import { format } from "prettier";
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
 import babel from "prettier/parser-babel";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
+import i18n from "@App/locales/locales";
+import { useTranslation } from "react-i18next";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -34,6 +36,15 @@ function Setting() {
   const [fileSystemParams, setFilesystemParam] = useState<{
     [key: string]: any;
   }>(systemConfig.cloudSync.params[fileSystemType] || {});
+  const [language, setLanguage] = useState(i18n.language);
+  const languageList: { key: string; title: string }[] = [];
+  const { t } = useTranslation();
+  Object.keys(i18n.store.data).forEach((key) => {
+    languageList.push({
+      key,
+      title: i18n.store.data[key].title as string,
+    });
+  });
 
   return (
     <Space
@@ -45,7 +56,29 @@ function Setting() {
         position: "relative",
       }}
     >
-      <Card title="脚本同步" bordered={false}>
+      <Card title={t("general")} bordered={false}>
+        <Space direction="vertical">
+          <Space>
+            <span>{t("language")}:</span>
+            <Select
+              value={language}
+              className="w-24"
+              onChange={(value) => {
+                setLanguage(value);
+                i18n.changeLanguage(value);
+                localStorage.language = value;
+              }}
+            >
+              {languageList.map((item) => (
+                <Select.Option key={item.key} value={item.key}>
+                  {item.title}
+                </Select.Option>
+              ))}
+            </Select>
+          </Space>
+        </Space>
+      </Card>
+      <Card title={t("script_sync")} bordered={false}>
         <Space direction="vertical">
           <Checkbox
             checked={syncDelete}
@@ -53,7 +86,7 @@ function Setting() {
               setSyncDelete(checked);
             }}
           >
-            同步删除
+            {t("sync_delete")}
           </Checkbox>
           <FileSystemParams
             preNode={
@@ -63,7 +96,7 @@ function Setting() {
                   setEnableCloudSync(checked);
                 }}
               >
-                启用脚本同步至
+                {t("enable_script_sync_to")}
               </Checkbox>
             }
             actionButton={[
@@ -71,17 +104,19 @@ function Setting() {
                 key="save"
                 type="primary"
                 onClick={async () => {
-                  // 保存到配置中去
-                  // 开启的情况先进行一次验证
+                  // Save to the configuration
+                  // Perform validation if enabled
                   if (enableCloudSync) {
-                    Message.info("云同步账号信息验证中...");
+                    Message.info(t("cloud_sync_account_verification")!);
                     try {
                       await FileSystemFactory.create(
                         fileSystemType,
                         fileSystemParams
                       );
                     } catch (e) {
-                      Message.error(`云同步账号信息验证失败: ${e}`);
+                      Message.error(
+                        `${t("cloud_sync_verification_failed")}: ${e}`
+                      );
                       return;
                     }
                   }
@@ -93,10 +128,10 @@ function Setting() {
                     filesystem: fileSystemType,
                     params,
                   };
-                  Message.success("保存成功");
+                  Message.success(t("save_success")!);
                 }}
               >
-                保存
+                {t("save")}
               </Button>,
             ]}
             fileSystemType={fileSystemType}
@@ -110,10 +145,10 @@ function Setting() {
           />
         </Space>
       </Card>
-      <Card title="更新" bordered={false}>
+      <Card title={t("update")} bordered={false}>
         <Space direction="vertical">
           <Space>
-            <span>脚本/订阅检查更新间隔:</span>
+            <span>{t("script_subscription_check_interval")}:</span>
             <Select
               defaultValue={systemConfig.checkScriptUpdateCycle.toString()}
               style={{
@@ -123,11 +158,11 @@ function Setting() {
                 systemConfig.checkScriptUpdateCycle = parseInt(value, 10);
               }}
             >
-              <Select.Option value="0">从不</Select.Option>
-              <Select.Option value="21600">6小时</Select.Option>
-              <Select.Option value="43200">12小时</Select.Option>
-              <Select.Option value="86400">每天</Select.Option>
-              <Select.Option value="604800">每周</Select.Option>
+              <Select.Option value="0">{t("never")}</Select.Option>
+              <Select.Option value="21600">{t("6_hours")}</Select.Option>
+              <Select.Option value="43200">{t("12_hours")}</Select.Option>
+              <Select.Option value="86400">{t("every_day")}</Select.Option>
+              <Select.Option value="604800">{t("every_week")}</Select.Option>
             </Select>
           </Space>
           <Checkbox
@@ -136,7 +171,7 @@ function Setting() {
             }}
             defaultChecked={systemConfig.updateDisableScript}
           >
-            更新已禁用脚本
+            {t("update_disabled_scripts")}
           </Checkbox>
           <Checkbox
             onChange={(checked) => {
@@ -144,7 +179,7 @@ function Setting() {
             }}
             defaultChecked={systemConfig.silenceUpdateScript}
           >
-            非重要变更静默更新脚本
+            {t("silent_update_non_critical_changes")}
           </Checkbox>
         </Space>
       </Card>
@@ -157,10 +192,10 @@ function Setting() {
             }}
             defaultChecked={systemConfig.enableEslint}
           >
-            开启ESLint
+            {t("enable_eslint")}
           </Checkbox>
           <Title heading={5}>
-            ESLint规则{" "}
+            {t("eslint_rules")}{" "}
             <Button
               type="text"
               style={{
@@ -179,7 +214,7 @@ function Setting() {
             />
           </Title>
           <Input.TextArea
-            placeholder="请输入eslint规则,可以从https://eslint.org/play/下载配置"
+            placeholder={t("enter_eslint_rules")!}
             autoSize={{
               minRows: 4,
               maxRows: 8,

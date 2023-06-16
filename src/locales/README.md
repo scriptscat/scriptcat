@@ -4,4 +4,4 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
 
 ## 语言文件
 
-语言文件位于`src/locales`目录下，每个语言文件夹下有一个`translation.json`文件，该文件 i18next 的语言文件，与`chrome.i18n`的`message.json`不同。
+语言文件位于`src/locales`目录下，按照页面划分，每个页面对应一个语言文件，最终由`index.ts`合并进行导出。

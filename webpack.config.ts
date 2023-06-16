@@ -11,7 +11,6 @@ import { presetAttributify, presetUno } from "unocss";
 const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
 const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
-const { version } = require("./package.json");
 
 const src = `${__dirname}/src`;
 const dist = `${__dirname}/dist`;
@@ -126,7 +125,7 @@ const config: Configuration = {
     }),
   ],
   resolve: {
-    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl", ".json"],
+    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl", ".json", ".yaml"],
     alias: {
       "@App": path.resolve(__dirname, "src/"),
       "@Pkg": path.resolve(__dirname, "pkg/"),
@@ -152,6 +151,10 @@ const config: Configuration = {
         test: /\.tpl$/,
         use: ["raw-loader"],
         exclude: /node_modules/,
+      },
+      {
+        test: /\.ya?ml$/,
+        use: "yaml-loader",
       },
     ],
   },

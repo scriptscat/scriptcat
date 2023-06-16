@@ -1,0 +1,44 @@
+# 顶部栏 layout/MainLayout.tsx
+import_link: 链接导入
+import_link_failure: 链接导入失败
+create_user_script: 新建用户脚本
+create_background_script: 新建后台脚本
+create_scheduled_script: 新建定时脚本
+create_script: 新建脚本
+user_guide: 使用指南
+api_docs: API文档
+development_guide: 开发指南
+script_gallery: 脚本站
+community_forum: 社区论坛
+external_links: 外部链接
+system_follow: 跟随系统
+
+# 侧边栏 layout/Sider.tsx
+installed_scripts: 已安装脚本
+subscribe: 订阅
+logs: 日志
+tools: 工具
+settings: 设置
+
+# 设置页 Setting.tsx
+general: 通用
+language: 语言
+script_sync: 脚本同步
+sync_delete: 同步删除
+enable_script_sync_to: 启用脚本同步至
+save: 保存
+cloud_sync_account_verification: 云同步账号信息验证中...
+cloud_sync_verification_failed: 云同步账号信息验证失败
+save_success: 保存成功
+update: 更新
+script_subscription_check_interval: 脚本/订阅检查更新间隔
+never: 从不
+6_hours: 6小时
+12_hours: 12小时
+every_day: 每天
+every_week: 每周
+update_disabled_scripts: 更新已禁用脚本
+silent_update_non_critical_changes: 非重要变更静默更新脚本
+enable_eslint: 开启 ESLint
+eslint_rules: ESLint规则
+enter_eslint_rules: 请输入 ESLint 规则，可以从 https://eslint.org/play/ 下载配置

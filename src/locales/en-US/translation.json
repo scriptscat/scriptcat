@@ -1,7 +1,0 @@
-{
-  "title": "ScriptCat",
-  "create_script": "create",
-  "create_user_script": "userscript",
-  "create_background_script": "background script",
-  "create_scheduled_script": "scheduled script"
-}
