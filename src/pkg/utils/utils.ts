@@ -7,12 +7,8 @@ import MessageInternal from "@App/app/message/internal";
 import { CronTime } from "cron";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
-import relativeTime from "dayjs/plugin/relativeTime";
 import semver from "semver";
 import { enc, MD5 } from "crypto-js";
-
-dayjs.locale("zh-cn");
-dayjs.extend(relativeTime);
 
 export function nextTime(crontab: string): string {
   let oncePos = 0;

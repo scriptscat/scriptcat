@@ -211,7 +211,7 @@ function SubscribeList() {
       },
     },
     {
-      title: t("last_update"),
+      title: t("last_updated"),
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",

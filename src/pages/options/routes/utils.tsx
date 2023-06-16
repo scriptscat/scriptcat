@@ -10,6 +10,7 @@ import {
   IconGithub,
   IconHome,
 } from "@arco-design/web-react/icon";
+import { useTranslation } from "react-i18next";
 
 // 较对脚本排序位置
 export function scriptListSort(result: Script[]) {
@@ -93,15 +94,16 @@ export function installUrlToHome(installUrl: string) {
 }
 
 export function listHomeRender(item: Script) {
+  const { t } = useTranslation();
   let home;
   if (!item.metadata.homepageurl) {
     home = installUrlToHome(item.downloadUrl || "");
   }
   return (
     <Space size="mini">
-      {home && <Tooltip content="脚本主页">{home}</Tooltip>}
+      {home && <Tooltip content={t("homepage")}>{home}</Tooltip>}
       {item.metadata.homepage && (
-        <Tooltip content="脚本主页">
+        <Tooltip content={t("homepage")}>
           <Button
             type="text"
             iconOnly
@@ -113,7 +115,7 @@ export function listHomeRender(item: Script) {
         </Tooltip>
       )}
       {item.metadata.homepageurl && (
-        <Tooltip content="脚本主页">
+        <Tooltip content={t("homepage")}>
           <Button
             type="text"
             iconOnly
@@ -125,7 +127,7 @@ export function listHomeRender(item: Script) {
         </Tooltip>
       )}
       {item.metadata.website && (
-        <Tooltip content="脚本站点">
+        <Tooltip content={t("script_website")}>
           <Button
             type="text"
             iconOnly
@@ -137,7 +139,7 @@ export function listHomeRender(item: Script) {
         </Tooltip>
       )}
       {item.metadata.source && (
-        <Tooltip content="脚本源码">
+        <Tooltip content={t("script_source")}>
           <Button
             type="text"
             iconOnly
@@ -149,7 +151,7 @@ export function listHomeRender(item: Script) {
         </Tooltip>
       )}
       {item.metadata.supporturl && (
-        <Tooltip content="BUG反馈/脚本支持站点">
+        <Tooltip content={t("bug_feedback_script_support")}>
           <Button
             type="text"
             iconOnly

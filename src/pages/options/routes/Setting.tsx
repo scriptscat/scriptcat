@@ -21,6 +21,7 @@ import babel from "prettier/parser-babel";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -66,6 +67,12 @@ function Setting() {
               onChange={(value) => {
                 setLanguage(value);
                 i18n.changeLanguage(value);
+                dayjs.locale(
+                  (
+                    (localStorage.language ||
+                      chrome.i18n.getUILanguage()) as string
+                  ).toLocaleLowerCase()
+                );
                 localStorage.language = value;
               }}
             >
@@ -152,7 +159,7 @@ function Setting() {
             <Select
               defaultValue={systemConfig.checkScriptUpdateCycle.toString()}
               style={{
-                width: 100,
+                width: 120,
               }}
               onChange={(value) => {
                 systemConfig.checkScriptUpdateCycle = parseInt(value, 10);

@@ -101,7 +101,7 @@ export default function Description() {
     if (isSub) {
       setBtnText(isUpdate ? t("update_subscribe")! : t("install_subscribe")!);
     } else {
-      setBtnText(isUpdate ? t("update")! : t("install")!);
+      setBtnText(isUpdate ? t("update_script")! : t("install_script")!);
     }
   }, [isSub, isUpdate]);
   useEffect(() => {

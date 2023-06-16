@@ -16,6 +16,7 @@ import { SystemConfig } from "@App/pkg/config/config";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem from "@Pkg/filesystem/filesystem";
 import { joinPath } from "@Pkg/filesystem/utils";
+import i18next from "i18next";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -215,19 +216,19 @@ export default class GMApi {
           }
         }
       }
+      const metadata: { [key: string]: string } = {};
+      metadata[i18next.t("script_name")] = request.script.name;
+      metadata[i18next.t("request_domain")] = url.hostname;
+      metadata[i18next.t("request_url")] = config.url;
+
       return Promise.resolve({
         permission: "cors",
         permissionValue: url.hostname,
-        title: "脚本正在试图访问跨域资源",
-        metadata: {
-          脚本名称: request.script.name,
-          请求域名: url.hostname,
-          请求地址: config.url,
-        },
-        describe:
-          "请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项",
+        title: i18next.t("script_accessing_cross_origin_resource"),
+        metadata,
+        describe: i18next.t("confirm_operation_description"),
         wildcard: true,
-        permissionContent: "域名",
+        permissionContent: i18next.t("domain"),
       } as ConfirmParam);
     },
     alias: ["GM.xmlHttpRequest"],
@@ -687,17 +688,16 @@ export default class GMApi {
           new Error("hostname must be in the definition of connect")
         );
       }
+      const metadata: { [key: string]: string } = {};
+      metadata[i18next.t("script_name")] = request.script.name;
+      metadata[i18next.t("request_domain")] = url.host;
       return Promise.resolve({
         permission: "cookie",
         permissionValue: url.host,
-        title: "脚本正在试图访问网站cookie内容",
-        metadata: {
-          脚本名称: request.script.name,
-          请求域名: url.host,
-        },
-        describe:
-          "请您确认是否允许脚本进行此操作,cookie是一项重要的用户数据,请务必只给信任的脚本授权.",
-        permissionContent: "Cookie域",
+        title: i18next.t("access_cookie_content")!,
+        metadata,
+        describe: i18next.t("confirm_script_operation")!,
+        permissionContent: i18next.t("cookie_domain")!,
         uuid: "",
       });
     },
@@ -835,18 +835,16 @@ export default class GMApi {
         return Promise.resolve(true);
       }
       const dir = details.baseDir ? details.baseDir : request.script.uuid;
+      const metadata: { [key: string]: string } = {};
+      metadata[i18next.t("script_name")] = request.script.name;
       return Promise.resolve({
         permission: "file_storage",
         permissionValue: dir,
-        title: "脚本正在试图操作脚本同步储存空间",
-        metadata: {
-          脚本名称: request.script.name,
-        },
-        describe:
-          `请您确认是否允许脚本进行此操作,允许后将允许脚本操作你设定的储存空间,` +
-          `脚本会在储存空间下创建一个app/${dir}的目录进行使用`,
+        title: i18next.t("script_operation_title"),
+        metadata,
+        describe: i18next.t("script_operation_description", { dir }),
         wildcard: false,
-        permissionContent: "脚本",
+        permissionContent: i18next.t("script_permission_content"),
       } as ConfirmParam);
     },
     alias: ["GM.xmlHttpRequest"],

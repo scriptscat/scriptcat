@@ -665,9 +665,9 @@ function ScriptList() {
       transition,
     };
 
-    // 替换第七列,使其可以拖拽
+    // 替换第八列,使其可以拖拽
     // eslint-disable-next-line react/destructuring-assignment
-    props.children[7] = (
+    props.children[8] = (
       <td
         className="arco-table-td"
         style={{

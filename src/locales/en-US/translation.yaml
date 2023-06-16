@@ -14,7 +14,7 @@ external_links: External Links
 system_follow: Follow System
 
 # Sidebar layout/Sider
-installed_scripts: Installed Scripts
+installed_scripts: Scripts
 subscribe: Subscribe
 logs: Logs
 tools: Tools
@@ -123,9 +123,9 @@ running: Running
 completed: Completed
 subscription_link: Subscription Link
 subscription_installation: Subscription Installation
-manually_created: Manually Created
+manually_created: Local
 script_link: Script Link
-user_installation: User Installation
+user_installation: Installation
 confirm_delete_script: Are you sure you want to delete this script?
 delete_failed: Deletion Failed
 enter_script_name: Please enter script name
@@ -145,6 +145,10 @@ unknown_operation: Unknown Operation
 confirm: Confirm
 close: Close
 page_script: Page Script
+homepage: Homepage
+script_website: Script Website
+script_source: Script Source Code
+bug_feedback_script_support: Bug Feedback/Script Support
 
 # User Config Panel UserConfigPanel
 config: Config
@@ -237,15 +241,15 @@ get_confirm_error: Get Confirmation Information Failed
 confirm_error: Confirmation Failed
 ignore: Ignore
 allow_once: Allow Once
-temporary_allow: Temporarily Allow This
-temporary_allow_all: Temporarily Allow All
-permanent_allow: Permanently Allow This
-permanent_allow_all: Permanently Allow All
+temporary_allow: Temporarily Allow This {{permissionContent}}
+temporary_allow_all: Temporarily Allow All {{permissionContent}}
+permanent_allow: Permanently Allow This {{permissionContent}}
+permanent_allow_all: Permanently Allow All {{permissionContent}}
 deny_once: Deny Once
-temporary_deny: Temporarily Deny This
-temporary_deny_all: Temporarily Deny All
-permanent_deny: Permanently Deny This
-permanent_deny_all: Permanently Deny All
+temporary_deny: Temporarily Deny This {{permissionContent}}
+temporary_deny_all: Temporarily Deny All {{permissionContent}}
+permanent_deny: Permanently Deny This {{permissionContent}}
+permanent_deny_all: Permanently Deny All {{permissionContent}}
 
 # Script Import import
 data_import: Data Import
@@ -278,7 +282,7 @@ script_has_full_access_to: Script will have full access to the following URLs
 script_requires: Script requires the following external resources
 cookie_warning: Please note, this script requests access to Cookie permissions, which is a dangerous permission. Please verify the security of the script.
 scheduled_script_description_1: This is a scheduled script, which will automatically run at a specific time once enabled and can be manually controlled in the panel.
-scheduled_script_description_2: "Scheduled task expression: {expression}, most recent run time: {time}"
+scheduled_script_description_2: "Scheduled task expression: {{expression}}, most recent run time: {{time}}"
 background_script_description: This is a background script, which will automatically run once when the browser opens once enabled, and can be manually controlled in the panel.
 install_success: Install Successful
 install:
@@ -305,6 +309,8 @@ antifeature_membership_title: Membership Features
 antifeature_membership_description: This script requires membership registration to function properly
 antifeature_tracking_title: Information Tracking
 antifeature_tracking_description: This script tracks your user information
+script_info_load_failed: Failed to load script information
+script_status_tooltip: You can control the opening status of scripts. Ordinary oil monkey scripts are enabled by default, and background scripts and timing scripts are disabled by default.
 
 # Popup page popup
 get_script: Get Script
@@ -315,3 +321,17 @@ popup:
   new_version_available: New Version Available
 current_page_scripts: Current Page Running Scripts
 enabled_background_scripts: Enabled and Running Background Scripts
+
+# background
+script_accessing_cross_origin_resource: "Script is attempting to access a cross-origin resource"
+confirm_operation_description: "Please confirm if you allow the script to perform this operation. The script can also add the @connect tag to bypass this option."
+domain: "Domain"
+script_name: "Script Name"
+request_domain: "Request Domain"
+request_url: "Request URL"
+access_cookie_content: "The script is attempting to access website cookie content"
+confirm_script_operation: "Please confirm if you allow the script to perform this operation. Cookies contain important user data, so only grant access to trusted scripts."
+cookie_domain: "Cookie Domain"
+script_operation_title: "Script is attempting to access script synchronization storage"
+script_operation_description: "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it."
+script_permission_content: "Script"

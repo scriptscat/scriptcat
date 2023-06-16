@@ -83,19 +83,27 @@ function App() {
               {t("allow_once")}
             </Button>
             <Button onClick={handleConfirm(true, 3)} status="success">
-              {t("temporary_allow")} {confirm?.permissionContent}
+              {t("temporary_allow", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(true, 2)} status="success">
-                {t("temporary_allow_all")} {confirm?.permissionContent}
+                {t("temporary_allow_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
             <Button onClick={handleConfirm(true, 5)} status="success">
-              {t("permanent_allow")} {confirm?.permissionContent}
+              {t("permanent_allow", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(true, 4)} status="success">
-                {t("permanent_allow_all")} {confirm?.permissionContent}
+                {t("permanent_allow_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
           </Space>
@@ -106,19 +114,27 @@ function App() {
               {t("deny_once")}
             </Button>
             <Button onClick={handleConfirm(false, 3)} status="danger">
-              {t("temporary_deny")} {confirm?.permissionContent}
+              {t("temporary_deny", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(false, 2)} status="danger">
-                {t("temporary_deny_all")} {confirm?.permissionContent}
+                {t("temporary_deny_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
             <Button onClick={handleConfirm(false, 5)} status="danger">
-              {t("permanent_deny")} {confirm?.permissionContent}
+              {t("permanent_deny", {
+                permissionContent: confirm?.permissionContent,
+              })}
             </Button>
             {likeNum > 2 && (
               <Button onClick={handleConfirm(false, 4)} status="danger">
-                {t("permanent_deny_all")} {confirm?.permissionContent}
+                {t("permanent_deny_all", {
+                  permissionContent: confirm?.permissionContent,
+                })}
               </Button>
             )}
           </Space>
