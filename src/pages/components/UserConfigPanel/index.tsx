@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next"; // 添加这行导入语句
 import { Script, UserConfig } from "@App/app/repo/scripts";
 import {
   Checkbox,
@@ -29,12 +30,15 @@ const UserConfigPanel: React.FC<{
     setTab(Object.keys(userConfig)[0]);
     setVisible(true);
   }, [script, userConfig]);
+
+  const { t } = useTranslation();
+
   return (
     <Modal
       visible={visible}
-      title={`${script.name} 配置`}
-      okText="保存"
-      cancelText="关闭"
+      title={`${script.name} ${t("config")}`} // 替换为键值对应的英文文本
+      okText={t("save")} // 替换为键值对应的英文文本
+      cancelText={t("close")} // 替换为键值对应的英文文本
       onOk={() => {
         if (formRefs.current[tab]) {
           const saveValues = formRefs.current[tab].getFieldsValue();
@@ -52,7 +56,7 @@ const UserConfigPanel: React.FC<{
               );
             });
           });
-          Message.success("保存成功");
+          Message.success(t("save_success")!); // 替换为键值对应的英文文本
           setVisible(false);
         }
       }}

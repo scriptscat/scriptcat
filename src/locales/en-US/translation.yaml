@@ -1,3 +1,4 @@
+# 顶部栏 layout/MainLayout.tsx
 import_link: Import Link
 import_link_failure: Import Link Failed
 create_user_script: Create User Script
@@ -12,12 +13,14 @@ community_forum: Community Forum
 external_links: External Links
 system_follow: Follow System
 
+# 侧边栏 layout/Sider.tsx
 installed_scripts: Installed Scripts
 subscribe: Subscribe
 logs: Logs
 tools: Tools
 settings: Settings
 
+# 设置页 Setting.tsx
 general: General
 language: Language
 script_sync: Script Sync
@@ -40,3 +43,76 @@ enable_eslint: Enable ESLint
 eslint_rules: ESLint Rules
 enter_eslint_rules: Please enter ESLint rules, you can download configurations from
   https://eslint.org/play/
+
+# 工具页 Tools.tsx
+backup: Backup
+local: Local
+export_file: Export File
+import_file: Import File
+cloud: Cloud
+backup_to: Backup To
+preparing_backup: Preparing backup to the cloud
+backup_success: Backup successful
+backup_failed: Backup failed
+no_backup_files: No backup files
+backup_list: Backup List
+open_backup_dir: Open backup directory
+confirm_delete: Confirm deletion
+confirm_delete_backup_file: Confirm deletion of backup file
+delete_success: Deletion successful
+delete_failed: Deletion failed
+backup_strategy: Backup Strategy
+under_construction: Under Construction
+development_debugging: Development & Debugging
+vscode_url: VSCode URL
+auto_connect_vscode_service: Auto-connect to VSCode service
+connect: Connect
+connection_success: Connection successful
+connection_failed: Connection failed
+select_import_script: Please select the script to import in the new page
+import_error: Import error
+pulling_data_from_cloud: Pulling data from the cloud
+pull_failed: Pull failed
+restore: Restore
+delete: Delete
+
+# 日志页 Logger.tsx
+log_title: Log Title
+last_5_minutes: Last 5 Minutes
+last_15_minutes: Last 15 Minutes
+last_30_minutes: Last 30 Minutes
+last_1_hour: Last 1 Hour
+last_3_hours: Last 3 Hours
+last_6_hours: Last 6 Hours
+last_12_hours: Last 12 Hours
+last_24_hours: Last 24 Hours
+last_7_days: Last 7 Days
+query: Query
+labels: Labels
+search_regex: Search (supports regex)
+clean_schedule: Clean Schedule
+days_ago_logs: Days Ago Logs
+delete_completed: Deletion Completed
+delete_current_logs: Delete Current Logs
+clear_completed: Clearing Completed
+clear_logs: Clear Logs
+total_logs: Total {logsCount} Logs
+filtered_logs: Filtered {filteredCount} Logs
+enter_filter_conditions: Please enter filter conditions for query
+
+# 订阅列表 SubscribeList.tsx
+enable: "Enable"
+disable: "Disable"
+name: "Name"
+version: "Version"
+permission: "Permission"
+source: "Source"
+last_update: "Last Update"
+action: "Action"
+enter_subscribe_name: "Please enter the subscription name"
+subscribe_url: "Subscription URL"
+checking_update: "Checking for updates..."
+new_version_available: "New version available"
+latest_version: "Latest version"
+check_update_failed: "Failed to check for updates"
+confirm_delete_subscription: "Are you sure you want to delete this subscription? Related scripts will also be deleted"

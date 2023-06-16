@@ -27,19 +27,14 @@ import {
   UserConfig,
 } from "@App/app/repo/scripts";
 import {
-  IconBug,
   IconClockCircle,
-  IconCode,
   IconCommon,
   IconEdit,
-  IconGithub,
-  IconHome,
   IconLink,
   IconMenu,
   IconSearch,
   IconUserAdd,
 } from "@arco-design/web-react/icon";
-import { nextTime, semTime } from "@App/pkg/utils/utils";
 import {
   RiDeleteBin5Fill,
   RiPencilFill,
@@ -72,107 +67,13 @@ import { CSS } from "@dnd-kit/utilities";
 import IoC from "@App/app/ioc";
 import RuntimeController from "@App/runtime/content/runtime";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
-import ValueManager from "@App/app/service/value/manager";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import SynchronizeController from "@App/app/service/synchronize/controller";
-import { scriptListSort } from "./utils";
+import { useTranslation } from "react-i18next";
+import { nextTime, semTime } from "@App/pkg/utils/utils";
+import { getValues, listHomeRender, scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
-
-// 安装url转home主页
-function installUrlToHome(installUrl: string) {
-  try {
-    // 解析scriptcat
-    if (installUrl.indexOf("scriptcat.org") !== -1) {
-      const id = installUrl.split("/")[5];
-      return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://scriptcat.org/script-show-page/${id}`}
-        >
-          <img width={16} height={16} src="/assets/logo.png" alt="" />
-        </Button>
-      );
-    }
-    if (installUrl.indexOf("greasyfork.org") !== -1) {
-      const id = installUrl.split("/")[4];
-      return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://greasyfork.org/scripts/${id}`}
-        >
-          <img width={16} height={16} src="/assets/logo/gf.png" alt="" />
-        </Button>
-      );
-    }
-    if (installUrl.indexOf("raw.githubusercontent.com") !== -1) {
-      const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
-      return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://github.com/${repo}`}
-          style={{
-            color: "var(--color-text-1)",
-          }}
-          icon={<IconGithub />}
-        />
-      );
-    }
-    if (installUrl.indexOf("github.com") !== -1) {
-      const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
-      return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://github.com/${repo}`}
-          style={{
-            color: "var(--color-text-1)",
-          }}
-          icon={<IconGithub />}
-        />
-      );
-    }
-  } catch (e) {
-    // ignore error
-  }
-  return undefined;
-}
-
-function getValues(script: Script) {
-  const { config } = script;
-  return (IoC.instance(ValueManager) as ValueManager)
-    .getValues(script)
-    .then((data) => {
-      const newValues: { [key: string]: any } = {};
-      Object.keys(config!).forEach((tabKey) => {
-        const tab = config![tabKey];
-        Object.keys(tab).forEach((key) => {
-          // 动态变量
-          if (tab[key].bind) {
-            const bindKey = tab[key].bind!.substring(1);
-            newValues[bindKey] =
-              data[bindKey] === undefined ? undefined : data[bindKey].value;
-          }
-          newValues[`${tabKey}.${key}`] =
-            data[`${tabKey}.${key}`] === undefined
-              ? config![tabKey][key].default
-              : data[`${tabKey}.${key}`].value;
-        });
-      });
-      return newValues;
-    });
-}
 
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
@@ -196,9 +97,10 @@ function ScriptList() {
   const [showAction, setShowAction] = useState(false);
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
+  const { t } = useTranslation();
 
   useEffect(() => {
-    // 监听脚本运行状态
+    // Monitor script running status
     const channel = runtimeCtrl.watchRunStatus();
     channel.setHandler(([id, status]: any) => {
       setScriptList((list) => {
@@ -227,7 +129,7 @@ function ScriptList() {
       },
     },
     {
-      title: "开启",
+      title: t("enable"),
       width: 100,
       key: "enable",
       sorter(a, b) {
@@ -235,11 +137,11 @@ function ScriptList() {
       },
       filters: [
         {
-          text: "开启",
+          text: t("enable"),
           value: SCRIPT_STATUS_ENABLE,
         },
         {
-          text: "关闭",
+          text: t("disable"),
           value: SCRIPT_STATUS_DISABLE,
         },
       ],
@@ -275,7 +177,7 @@ function ScriptList() {
       },
     },
     {
-      title: "名称",
+      title: t("name"),
       dataIndex: "name",
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
@@ -287,7 +189,7 @@ function ScriptList() {
             <Input.Search
               ref={inputRef}
               searchButton
-              placeholder="请输入脚本名"
+              placeholder={t("enter_script_name")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
                 setFilterKeys(value ? [value] : []);
@@ -331,7 +233,7 @@ function ScriptList() {
       },
     },
     {
-      title: "版本",
+      title: t("version"),
       dataIndex: "version",
       key: "version",
       width: 120,
@@ -341,7 +243,7 @@ function ScriptList() {
       },
     },
     {
-      title: "应用至/运行状态",
+      title: t("apply_to_run_status"),
       dataIndex: "status",
       width: 140,
       key: "status",
@@ -362,7 +264,7 @@ function ScriptList() {
         };
         if (item.type === SCRIPT_TYPE_NORMAL) {
           return (
-            <Tooltip content="前台页面脚本,会在指定的页面上运行">
+            <Tooltip content={t("foreground_page_script_tooltip")}>
               <Tag
                 style={{
                   cursor: "pointer",
@@ -372,16 +274,16 @@ function ScriptList() {
                 bordered
                 onClick={toLogger}
               >
-                页面脚本
+                {t("page_script")}
               </Tag>
             </Tooltip>
           );
         }
         let tooltip = "";
         if (item.type === SCRIPT_TYPE_BACKGROUND) {
-          tooltip = "后台脚本,会在指定的页面上运行";
+          tooltip = t("background_script_tooltip");
         } else {
-          tooltip = `定时脚本,下一次运行时间: ${nextTime(
+          tooltip = `${t("scheduled_script_tooltip")} ${nextTime(
             item.metadata.crontab[0]
           )}`;
         }
@@ -397,15 +299,15 @@ function ScriptList() {
               onClick={toLogger}
             >
               {item.runStatus === SCRIPT_RUN_STATUS_RUNNING
-                ? "运行中"
-                : "运行完毕"}
+                ? t("running")
+                : t("completed")}
             </Tag>
           </Tooltip>
         );
       },
     },
     {
-      title: "来源",
+      title: t("source"),
       dataIndex: "origin",
       key: "origin",
       width: 100,
@@ -415,7 +317,8 @@ function ScriptList() {
             <Tooltip
               content={
                 <p style={{ margin: 0 }}>
-                  订阅链接: {decodeURIComponent(item.subscribeUrl)}
+                  {t("subscription_link")}:{" "}
+                  {decodeURIComponent(item.subscribeUrl)}
                 </p>
               }
             >
@@ -427,7 +330,7 @@ function ScriptList() {
                   cursor: "pointer",
                 }}
               >
-                订阅安装
+                {t("subscription_installation")}
               </Tag>
             </Tooltip>
           );
@@ -442,7 +345,7 @@ function ScriptList() {
                 cursor: "pointer",
               }}
             >
-              手动新建
+              {t("manually_created")}
             </Tag>
           );
         }
@@ -450,7 +353,7 @@ function ScriptList() {
           <Tooltip
             content={
               <p style={{ margin: 0, padding: 0 }}>
-                脚本链接: {decodeURIComponent(item.origin)}
+                {t("script_link")}: {decodeURIComponent(item.origin)}
               </p>
             }
           >
@@ -462,92 +365,24 @@ function ScriptList() {
                 cursor: "pointer",
               }}
             >
-              用户安装
+              {t("user_installation")}
             </Tag>
           </Tooltip>
         );
       },
     },
     {
-      title: "主页",
+      title: t("home"),
       dataIndex: "home",
       align: "center",
       key: "home",
       width: 100,
       render(col, item: Script) {
-        let home;
-        if (!item.metadata.homepageurl) {
-          home = installUrlToHome(item.downloadUrl || "");
-        }
-        return (
-          <Space size="mini">
-            {home && <Tooltip content="脚本主页">{home}</Tooltip>}
-            {item.metadata.homepage && (
-              <Tooltip content="脚本主页">
-                <Button
-                  type="text"
-                  iconOnly
-                  icon={<IconHome />}
-                  size="small"
-                  href={item.metadata.homepage[0]}
-                  target="_blank"
-                />
-              </Tooltip>
-            )}
-            {item.metadata.homepageurl && (
-              <Tooltip content="脚本主页">
-                <Button
-                  type="text"
-                  iconOnly
-                  icon={<IconHome />}
-                  size="small"
-                  href={item.metadata.homepageurl[0]}
-                  target="_blank"
-                />
-              </Tooltip>
-            )}
-            {item.metadata.website && (
-              <Tooltip content="脚本站点">
-                <Button
-                  type="text"
-                  iconOnly
-                  icon={<IconHome />}
-                  size="small"
-                  href={item.metadata.website[0]}
-                  target="_blank"
-                />
-              </Tooltip>
-            )}
-            {item.metadata.source && (
-              <Tooltip content="脚本源码">
-                <Button
-                  type="text"
-                  iconOnly
-                  icon={<IconCode />}
-                  size="small"
-                  href={item.metadata.source[0]}
-                  target="_blank"
-                />
-              </Tooltip>
-            )}
-            {item.metadata.supporturl && (
-              <Tooltip content="BUG反馈/脚本支持站点">
-                <Button
-                  type="text"
-                  iconOnly
-                  icon={<IconBug />}
-                  size="small"
-                  href={item.metadata.supporturl[0]}
-                  target="_blank"
-                />
-              </Tooltip>
-            )}
-          </Space>
-        );
+        return listHomeRender(item);
       },
     },
     {
-      title: "排序",
+      title: t("sorting"),
       dataIndex: "sort",
       key: "sort",
       width: 80,
@@ -564,7 +399,7 @@ function ScriptList() {
       },
     },
     {
-      title: "最后更新",
+      title: t("last_updated"),
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",
@@ -578,12 +413,12 @@ function ScriptList() {
             }}
             onClick={() => {
               if (!script.checkUpdateUrl) {
-                Message.warning("该脚本不支持检查更新");
+                Message.warning(t("update_not_supported")!);
                 return;
               }
               Message.info({
                 id: "checkupdate",
-                content: "检查更新中...",
+                content: t("checking_for_updates"),
               });
               scriptCtrl
                 .checkUpdate(script.id)
@@ -591,19 +426,19 @@ function ScriptList() {
                   if (res) {
                     Message.warning({
                       id: "checkupdate",
-                      content: "存在新版本",
+                      content: t("new_version_available"),
                     });
                   } else {
                     Message.success({
                       id: "checkupdate",
-                      content: "已是最新版本",
+                      content: t("latest_version"),
                     });
                   }
                 })
                 .catch((e) => {
                   Message.error({
                     id: "checkupdate",
-                    content: `检查更新失败: ${e.message}`,
+                    content: `${t("update_check_failed")}: ${e.message}`,
                   });
                 });
             }}
@@ -614,7 +449,7 @@ function ScriptList() {
       },
     },
     {
-      title: "操作",
+      title: t("action"),
       dataIndex: "action",
       key: "action",
       width: 160,
@@ -631,14 +466,14 @@ function ScriptList() {
               />
             </Link>
             <Popconfirm
-              title="确定要删除此脚本吗?"
+              title={t("confirm_delete_script")}
               icon={<RiDeleteBin5Fill />}
               onOk={() => {
                 setScriptList((list) => {
                   return list.filter((i) => i.id !== item.id);
                 });
                 scriptCtrl.delete(item.id).catch((e) => {
-                  Message.error(`删除失败: ${e}`);
+                  Message.error(`${t("delete_failed")}: ${e}`);
                 });
               }}
             >
@@ -656,7 +491,7 @@ function ScriptList() {
                 type="text"
                 icon={<RiSettings3Fill />}
                 onClick={() => {
-                  // 获取value
+                  // Get value
                   getValues(item).then((newValues) => {
                     setUserConfig({
                       userConfig: { ...item.config! },
@@ -676,15 +511,15 @@ function ScriptList() {
                   type="text"
                   icon={<RiStopFill />}
                   onClick={async () => {
-                    // 停止脚本
+                    // Stop script
                     Message.loading({
                       id: "script-stop",
-                      content: "正在停止脚本",
+                      content: t("stopping_script"),
                     });
                     await runtimeCtrl.stopScript(item.id);
                     Message.success({
                       id: "script-stop",
-                      content: "脚本已停止",
+                      content: t("script_stopped"),
                       duration: 3000,
                     });
                     setScriptList((list) => {
@@ -706,15 +541,15 @@ function ScriptList() {
                   type="text"
                   icon={<RiPlayFill />}
                   onClick={async () => {
-                    // 启动脚本
+                    // Start script
                     Message.loading({
                       id: "script-run",
-                      content: "正在启动脚本...",
+                      content: t("starting_script"),
                     });
                     await runtimeCtrl.startScript(item.id);
                     Message.success({
                       id: "script-run",
-                      content: "脚本已启动",
+                      content: t("script_started"),
                       duration: 3000,
                     });
                     setScriptList((list) => {
@@ -756,9 +591,9 @@ function ScriptList() {
       .orderBy("sort")
       .toArray()
       .then(async (scripts) => {
-        // 新脚本加入时是-1,进行一次排序
+        // Sort when a new script is added (-1)
         scriptListSort(scripts);
-        // 打开用户配置面板
+        // Open user config panel
         if (openUserConfig) {
           const script = scripts.find((item) => item.id === openUserConfig);
           if (script && script.config) {
@@ -879,7 +714,7 @@ function ScriptList() {
               }}
             >
               <Space direction="horizontal">
-                <Typography.Text>批量操作:</Typography.Text>
+                <Typography.Text>{t("batch_operations")}:</Typography.Text>
                 <Select
                   style={{ minWidth: "100px" }}
                   size="mini"
@@ -888,10 +723,10 @@ function ScriptList() {
                     setAction(value);
                   }}
                 >
-                  <Select.Option value="enable">启用</Select.Option>
-                  <Select.Option value="disable">禁用</Select.Option>
-                  <Select.Option value="export">导出</Select.Option>
-                  <Select.Option value="delete">删除</Select.Option>
+                  <Select.Option value="enable">{t("enable")}</Select.Option>
+                  <Select.Option value="disable">{t("disable")}</Select.Option>
+                  <Select.Option value="export">{t("export")}</Select.Option>
+                  <Select.Option value="delete">{t("delete")}</Select.Option>
                 </Select>
                 <Button
                   type="primary"
@@ -933,7 +768,7 @@ function ScriptList() {
                         break;
                       case "delete":
                         // eslint-disable-next-line no-restricted-globals, no-alert
-                        if (confirm("确定要删除吗?请注意这个操作无法恢复!")) {
+                        if (confirm(t("list.confirm_delete")!)) {
                           select.forEach((item) => {
                             scriptCtrl.delete(item.id).then(() => {
                               setScriptList((list) => {
@@ -946,12 +781,12 @@ function ScriptList() {
                         }
                         break;
                       default:
-                        Message.error("未知操作");
+                        Message.error(t("unknown_operation")!);
                         break;
                     }
                   }}
                 >
-                  确定
+                  {t("confirm")}
                 </Button>
               </Space>
               <Button
@@ -961,7 +796,7 @@ function ScriptList() {
                   setShowAction(false);
                 }}
               >
-                关闭
+                {t("close")}
               </Button>
             </div>
           </Card>

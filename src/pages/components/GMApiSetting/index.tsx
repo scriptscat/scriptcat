@@ -11,6 +11,7 @@ import {
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
+import { useTranslation } from "react-i18next";
 import FileSystemParams from "../FileSystemParams";
 
 const CollapseItem = Collapse.Item;
@@ -24,23 +25,24 @@ const GMApiSetting: React.FC = () => {
   const [fileSystemParams, setFilesystemParam] = useState<{
     [key: string]: any;
   }>(systemConfig.catFileStorage.params[fileSystemType] || {});
+  const { t } = useTranslation();
 
   return (
-    <Card title="GM Api" bordered={false}>
+    <Card title={t("gm_api")} bordered={false}>
       <Collapse bordered={false} defaultActiveKey={["storage"]}>
-        <CollapseItem header="Storage API" name="storage">
+        <CollapseItem header={t("storage_api")} name="storage">
           <Space direction="vertical">
             <FileSystemParams
               preNode={
                 <Typography.Text>
-                  设置
+                  {t("settings")}
                   <Link
                     target="_black"
                     href="https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js"
                   >
                     CAT_fileStorage
                   </Link>
-                  使用的文件系统
+                  {t("use_file_system")}
                 </Typography.Text>
               }
               actionButton={[
@@ -54,7 +56,7 @@ const GMApiSetting: React.FC = () => {
                         fileSystemParams
                       );
                     } catch (e) {
-                      Message.error(`账号信息验证失败: ${e}`);
+                      Message.error(`${t("account_validation_failed")}: ${e}`);
                       return;
                     }
                     const params = { ...systemConfig.catFileStorage.params };
@@ -65,10 +67,10 @@ const GMApiSetting: React.FC = () => {
                       params,
                     };
                     setStatus("success");
-                    Message.success("保存成功");
+                    Message.success(t("save_success")!);
                   }}
                 >
-                  保存
+                  {t("save")}
                 </Button>,
                 <Button
                   key="reset"
@@ -81,7 +83,7 @@ const GMApiSetting: React.FC = () => {
                   type="primary"
                   status="danger"
                 >
-                  重置
+                  {t("reset")}
                 </Button>,
                 <Button
                   key="open"
@@ -95,11 +97,11 @@ const GMApiSetting: React.FC = () => {
                       fs = await fs.openDir("ScriptCat/app");
                       window.open(await fs.getDirUrl(), "_black");
                     } catch (e) {
-                      Message.error(`账号信息验证失败: ${e}`);
+                      Message.error(`${t("account_validation_failed")}: ${e}`);
                     }
                   }}
                 >
-                  打开目录
+                  {t("open_directory")}
                 </Button>,
               ]}
               fileSystemType={fileSystemType}
@@ -112,13 +114,15 @@ const GMApiSetting: React.FC = () => {
               }}
             />
             {status === "unset" && (
-              <Typography.Text type="secondary">未设置</Typography.Text>
+              <Typography.Text type="secondary">{t("not_set")}</Typography.Text>
             )}
             {status === "success" && (
-              <Typography.Text type="success">使用中</Typography.Text>
+              <Typography.Text type="success">{t("in_use")}</Typography.Text>
             )}
             {status === "error" && (
-              <Typography.Text type="error">储存错误</Typography.Text>
+              <Typography.Text type="error">
+                {t("storage_error")}
+              </Typography.Text>
             )}
           </Space>
         </CollapseItem>

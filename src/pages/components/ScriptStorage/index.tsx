@@ -19,6 +19,7 @@ import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const FormItem = Form.Item;
 
@@ -35,6 +36,7 @@ const ScriptStorage: React.FC<{
   const [currentValue, setCurrentValue] = useState<Value>();
   const [visibleEdit, setVisibleEdit] = useState(false);
   const [form] = Form.useForm();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!script) {
@@ -43,7 +45,7 @@ const ScriptStorage: React.FC<{
     valueCtrl.getValues(script).then((values) => {
       setData(values);
     });
-    // 监听值变化
+    // Monitor value changes
     const channel = valueCtrl.watchValue(script);
     channel.setHandler((value: Value) => {
       setData((prev) => {
@@ -68,7 +70,7 @@ const ScriptStorage: React.FC<{
   }, [script]);
   const columns: ColumnProps[] = [
     {
-      title: "key",
+      title: t("key"),
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
@@ -80,7 +82,7 @@ const ScriptStorage: React.FC<{
             <Input.Search
               ref={inputRef}
               searchButton
-              placeholder="请输入key"
+              placeholder={t("enter_key")!}
               value={filterKeys[0] || ""}
               onChange={(value) => {
                 setFilterKeys(value ? [value] : []);
@@ -100,7 +102,7 @@ const ScriptStorage: React.FC<{
       },
     },
     {
-      title: "value",
+      title: t("value"),
       dataIndex: "value",
       key: "value",
       className: "max-table-cell",
@@ -122,7 +124,7 @@ const ScriptStorage: React.FC<{
       },
     },
     {
-      title: "类型",
+      title: t("type"),
       dataIndex: "value",
       width: 90,
       key: "type",
@@ -131,7 +133,7 @@ const ScriptStorage: React.FC<{
       },
     },
     {
-      title: "操作",
+      title: t("action"),
       render(_col, value: Value, index) {
         return (
           <Space>
@@ -150,7 +152,7 @@ const ScriptStorage: React.FC<{
               onClick={() => {
                 valueCtrl.setValue(script!.id, value.key, undefined);
                 Message.info({
-                  content: "删除成功",
+                  content: t("delete_success"),
                 });
                 setData(data.filter((_, i) => i !== index));
               }}
@@ -164,13 +166,17 @@ const ScriptStorage: React.FC<{
   return (
     <Drawer
       width={600}
-      title={<span>{script?.name} 脚本储存</span>}
+      title={
+        <span>
+          {script?.name} {t("script_storage")}
+        </span>
+      }
       visible={visible}
       onOk={onOk}
       onCancel={onCancel}
     >
       <Modal
-        title={currentValue ? "编辑值" : "新增值"}
+        title={currentValue ? t("edit_value") : t("add_value")}
         visible={visibleEdit}
         onOk={() => {
           form
@@ -192,7 +198,7 @@ const ScriptStorage: React.FC<{
               valueCtrl.setValue(script!.id, value.key, value.value);
               if (currentValue) {
                 Message.info({
-                  content: "修改成功",
+                  content: t("update_success"),
                 });
                 setData(
                   data.map((v) => {
@@ -207,7 +213,7 @@ const ScriptStorage: React.FC<{
                 );
               } else {
                 Message.info({
-                  content: "添加成功",
+                  content: t("add_success"),
                 });
                 setData([
                   {
@@ -243,20 +249,26 @@ const ScriptStorage: React.FC<{
             }}
           >
             <FormItem label="Key" field="key" rules={[{ required: true }]}>
-              <Input placeholder="key" disabled={!!currentValue} />
-            </FormItem>
-            <FormItem label="Value" field="value" rules={[{ required: true }]}>
-              <Input.TextArea
-                rows={6}
-                placeholder="当类型为object时,请输入可以JSON解析的数据"
+              <Input
+                placeholder={t("key_placeholder")!}
+                disabled={!!currentValue}
               />
             </FormItem>
-            <FormItem label="类型" field="type" rules={[{ required: true }]}>
+            <FormItem label="Value" field="value" rules={[{ required: true }]}>
+              <Input.TextArea rows={6} placeholder={t("value_placeholder")!} />
+            </FormItem>
+            <FormItem
+              label={t("type")}
+              field="type"
+              rules={[{ required: true }]}
+            >
               <Select>
-                <Select.Option value="string">string</Select.Option>
-                <Select.Option value="number">number</Select.Option>
-                <Select.Option value="boolean">boolean</Select.Option>
-                <Select.Option value="object">object</Select.Option>
+                <Select.Option value="string">{t("type_string")}</Select.Option>
+                <Select.Option value="number">{t("type_number")}</Select.Option>
+                <Select.Option value="boolean">
+                  {t("type_boolean")}
+                </Select.Option>
+                <Select.Option value="object">{t("type_object")}</Select.Option>
               </Select>
             </FormItem>
           </Form>
@@ -266,21 +278,21 @@ const ScriptStorage: React.FC<{
         <Space className="!flex justify-end">
           <Popconfirm
             focusLock
-            title="你真的要清空这个储存空间吗?"
+            title={t("confirm_clear")}
             onOk={() => {
               setData((prev) => {
                 prev.forEach((v) => {
                   valueCtrl.setValue(script!.id, v.key, undefined);
                 });
                 Message.info({
-                  content: "清空成功",
+                  content: t("clear_success"),
                 });
                 return [];
               });
             }}
           >
             <Button type="primary" status="warning">
-              清空
+              {t("clear")}
             </Button>
           </Popconfirm>
           <Button
@@ -290,7 +302,7 @@ const ScriptStorage: React.FC<{
               setVisibleEdit(true);
             }}
           >
-            新增
+            {t("add")}
           </Button>
         </Space>
         <Table columns={columns} data={data} rowKey="id" />

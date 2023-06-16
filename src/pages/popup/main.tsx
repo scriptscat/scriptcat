@@ -14,6 +14,7 @@ import DBWriter from "@App/app/logger/db_writer";
 import { LoggerDAO } from "@App/app/repo/logger";
 import { switchLight } from "../components/layout/MainLayout";
 import App from "./App";
+import "@App/locales/locales";
 
 migrate();
 // 初始化日志组件

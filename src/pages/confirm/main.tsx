@@ -9,6 +9,7 @@ import IoC from "@App/app/ioc";
 import { MessageBroadcast, MessageHander } from "@App/app/message/message";
 import App from "./App";
 import MainLayout from "../components/layout/MainLayout";
+import "@App/locales/locales";
 
 migrate();
 
@@ -21,7 +22,7 @@ IoC.registerInstance(MessageInternal, con).alias([
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <div>
-    <MainLayout className="!flex-col !px-4 box-border">
+    <MainLayout className="!flex-col !px-4 box-border" pageName="confirm">
       <App />
     </MainLayout>
   </div>

@@ -13,6 +13,7 @@ import LoggerCore from "@App/app/logger/core";
 import { MessageHander } from "@App/app/message/message";
 import MainLayout from "../components/layout/MainLayout";
 import App from "./App";
+import "@App/locales/locales";
 
 migrate();
 registerEditor();

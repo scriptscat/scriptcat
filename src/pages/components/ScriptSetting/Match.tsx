@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Script } from "@App/app/repo/scripts";
 import IoC from "@App/app/ioc";
 import ScriptController from "@App/app/service/script/controller";
@@ -33,6 +34,7 @@ const Match: React.FC<{
   const [matchVisible, setMatchVisible] = useState<boolean>(false);
   const [excludeValue, setExcludeValue] = useState<string>("");
   const [excludeVisible, setExcludeVisible] = useState<boolean>(false);
+  const { t } = useTranslation(); // 使用 react-i18next 的 useTranslation 钩子函数获取翻译函数
 
   useEffect(() => {
     if (script) {
@@ -102,33 +104,31 @@ const Match: React.FC<{
 
   const columns: ColumnProps[] = [
     {
-      title: "match",
+      title: t("match"),
       dataIndex: "match",
       key: "match",
     },
     {
-      title: "用户设定",
+      title: t("user_setting"),
       dataIndex: "self",
       key: "self",
       width: 100,
       render(col) {
         if (col) {
-          return <span style={{ color: "#52c41a" }}>是</span>;
+          return <span style={{ color: "#52c41a" }}>{t("yes")}</span>;
         }
-        return <span style={{ color: "#c4751a" }}>否</span>;
+        return <span style={{ color: "#c4751a" }}>{t("no")}</span>;
       },
     },
     {
-      title: "操作",
+      title: t("action"),
       render(_, item: MatchItem) {
         if (item.isExclude) {
           return (
             <Space>
               <Popconfirm
-                title={`确认删除该排除?${
-                  item.hasMatch
-                    ? "脚本设定的匹配项删除后会自动添加到匹配项中"
-                    : ""
+                title={`${t("confirm_delete_exclude")}${
+                  item.hasMatch ? ` ${t("after_deleting_match_item")}` : ""
                 }`}
                 onOk={() => {
                   exclude.splice(exclude.indexOf(item), 1);
@@ -161,8 +161,8 @@ const Match: React.FC<{
         return (
           <Space>
             <Popconfirm
-              title={`确认删除该匹配?${
-                item.self ? "" : "脚本设定的匹配项删除后会自动添加到排除项中"
+              title={`${t("confirm_delete_match")}${
+                item.self ? "" : ` ${t("after_deleting_exclude_item")}`
               }`}
               onOk={() => {
                 match.splice(match.indexOf(item), 1);
@@ -199,7 +199,7 @@ const Match: React.FC<{
   return (
     <>
       <Modal
-        title="添加匹配"
+        title={t("add_match")}
         visible={matchVisible}
         onCancel={() => setMatchVisible(false)}
         onOk={() => {
@@ -231,7 +231,7 @@ const Match: React.FC<{
         />
       </Modal>
       <Modal
-        title="添加排除"
+        title={t("add_exclude")}
         visible={excludeVisible}
         onCancel={() => setExcludeVisible(false)}
         onOk={() => {
@@ -263,7 +263,7 @@ const Match: React.FC<{
         />
       </Modal>
       <div className="flex flex-row justify-between pb-2">
-        <Typography.Title heading={6}>网站匹配(@match)</Typography.Title>
+        <Typography.Title heading={6}>{t("website_match")}</Typography.Title>
         <Space>
           <Button
             type="primary"
@@ -273,10 +273,10 @@ const Match: React.FC<{
               setMatchVisible(true);
             }}
           >
-            添加匹配
+            {t("add_match")}
           </Button>
           <Popconfirm
-            title="确定重置?"
+            title={t("confirm_reset")}
             onOk={() => {
               scriptCtrl.resetMatch(script.id, undefined).then(() => {
                 setMatch([]);
@@ -284,7 +284,7 @@ const Match: React.FC<{
             }}
           >
             <Button type="primary" size="small" status="warning">
-              重置
+              {t("reset")}
             </Button>
           </Popconfirm>
         </Space>
@@ -292,7 +292,7 @@ const Match: React.FC<{
       <Table columns={columns} data={match} rowKey="id" />
       <Divider />
       <div className="flex flex-row justify-between pb-2">
-        <Typography.Title heading={6}>网站排除(@exclude)</Typography.Title>
+        <Typography.Title heading={6}>{t("website_exclude")}</Typography.Title>
         <Space>
           <Button
             type="primary"
@@ -302,10 +302,10 @@ const Match: React.FC<{
               setExcludeVisible(true);
             }}
           >
-            添加排除
+            {t("add_exclude")}
           </Button>
           <Popconfirm
-            title="确定重置?"
+            title={t("confirm_reset")}
             onOk={() => {
               scriptCtrl.resetExclude(script.id, undefined).then(() => {
                 setExclude([]);
@@ -313,7 +313,7 @@ const Match: React.FC<{
             }}
           >
             <Button type="primary" size="small" status="warning">
-              重置
+              {t("reset")}
             </Button>
           </Popconfirm>
         </Space>

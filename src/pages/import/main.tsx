@@ -13,6 +13,7 @@ import DBWriter from "@App/app/logger/db_writer";
 import LoggerCore from "@App/app/logger/core";
 import App from "./App";
 import MainLayout from "../components/layout/MainLayout";
+import "@App/locales/locales";
 
 migrate();
 // 初始化日志组件

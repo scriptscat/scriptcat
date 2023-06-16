@@ -24,6 +24,7 @@ import Sider from "../components/layout/Sider";
 import "@App/locales/locales";
 
 migrate();
+
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   debug: process.env.NODE_ENV === "development",
