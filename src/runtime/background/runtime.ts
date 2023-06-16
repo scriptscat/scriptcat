@@ -378,7 +378,7 @@ export default class Runtime extends Manager {
             runStatus: item.runStatus,
             hasUserConfig: !!item.config,
             runNum:
-              item.runStatus && item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
+              item.runStatus && item.runStatus === SCRIPT_RUN_STATUS_RUNNING
                 ? 1
                 : 0,
             menus,
@@ -412,7 +412,7 @@ export default class Runtime extends Manager {
             return;
           }
           const exclude = this.customizeExclude.match(sender.url);
-          // 自定义排除的
+          // 自定义排除的, buildScriptRunResource时会将selfMetadata合并,所以后续不需要再处理metadata.exclude,这算是一个隐性的坑,后面看看要不要处理
           exclude.forEach((val) => {
             addRunScript(sender.tabId!, val, false, 0);
           });
@@ -537,10 +537,12 @@ export default class Runtime extends Manager {
     // 监听沙盒发送的脚本运行状态消息
     this.message.setHandler(
       "scriptRunStatus",
-      (action, [scriptId, runStatus]: any) => {
+      (action, [scriptId, runStatus, error, nextruntime]: any) => {
         this.scriptDAO.update(scriptId, {
           runStatus,
           lastruntime: new Date().getTime(),
+          nextruntime,
+          error,
         });
         Runtime.hook.trigger("runStatus", scriptId, runStatus);
       }
@@ -673,6 +675,8 @@ export default class Runtime extends Manager {
   loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
     this.runBackScript.set(script.id, script);
     return new Promise((resolve, reject) => {
+      // 清除重试数据
+      script.nextruntime = 0;
       this.messageSandbox
         ?.syncSend("enable", script)
         .then(() => {

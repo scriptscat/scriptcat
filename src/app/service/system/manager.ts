@@ -32,7 +32,7 @@ export class SystemManager extends Manager {
   }
 
   init() {
-    // 两小时检查一次更新
+    // 八小时检查一次更新
     const checkUpdate = () => {
       fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
         .then((resp) => resp.json())
@@ -53,7 +53,7 @@ export class SystemManager extends Manager {
     checkUpdate();
     setInterval(() => {
       checkUpdate();
-    }, 3600 * 1000 * 6);
+    }, 3600 * 1000 * 8);
 
     if (process.env.NODE_ENV === "production") {
       chrome.runtime.onInstalled.addListener((details) => {

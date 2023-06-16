@@ -43,6 +43,9 @@ function Tools() {
       direction="vertical"
       style={{
         width: "100%",
+        height: "100%",
+        overflow: "auto",
+        position: "relative",
       }}
     >
       <Card title="备份" bordered={false}>

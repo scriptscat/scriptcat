@@ -15,11 +15,12 @@ import {
   Space,
   Table,
 } from "@arco-design/web-react";
-import FormItem from "@arco-design/web-react/es/Form/form-item";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
+
+const FormItem = Form.Item;
 
 const ScriptStorage: React.FC<{
   // eslint-disable-next-line react/require-default-props

@@ -16,20 +16,22 @@ const loggerCore = new LoggerCore({
   labels: { env: "sandbox" },
 });
 
-loggerCore.logger().debug("sandbox start");
-
 IoC.instance(SandboxRuntime).init();
 
+let flag = false;
 // 为了确认能与background通讯
 const retry = () => {
+  if (flag) {
+    return;
+  }
   const t = setTimeout(() => {
     retry();
   }, 1000);
   connectSandbox.syncSend("sandboxOnload", {}).then(() => {
     clearTimeout(t);
+    flag = true;
+    loggerCore.logger().debug("sandbox start");
   });
 };
 
-window.onload = () => {
-  retry();
-};
+retry();

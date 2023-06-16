@@ -15,6 +15,16 @@ import {
   ValueStorage,
 } from "./struct";
 
+type ViolentmonkeyFile = {
+  scripts: {
+    [key: string]: {
+      config: {
+        enabled: boolean;
+      };
+    };
+  };
+};
+
 // 备份导入工具
 
 export default class BackupImport {
@@ -70,11 +80,11 @@ export default class BackupImport {
       const key = name.substring(0, name.length - 8);
       const backupData = {
         code: await (await this.fs.open(file)).read(),
-        storage: {},
+        storage: { data: {}, ts: 0 },
         requires: [],
         requiresCss: [],
         resources: [],
-      } as unknown as ScriptBackupData;
+      } as ScriptBackupData;
       map.set(key, backupData);
       return Promise.resolve(true);
     });
@@ -160,8 +170,14 @@ export default class BackupImport {
       } as never as ResourceBackup);
       return Promise.resolve(true);
     });
+
     // 处理资源文件的内容
+    let violentmonkeyFile: File | undefined;
     files = await this.dealFile(files, async (file) => {
+      if (file.name === "violentmonkey") {
+        violentmonkeyFile = file;
+        return Promise.resolve(true);
+      }
       const info = resourceFilenameMap.get(file.name);
       if (info === undefined) {
         return Promise.resolve(false);
@@ -191,6 +207,29 @@ export default class BackupImport {
         num: files.length,
         files: files.map((f) => f.name),
       });
+
+    // 处理暴力猴导入资源
+    if (violentmonkeyFile) {
+      try {
+        const data = JSON.parse(
+          await (await this.fs.open(violentmonkeyFile)).read("string")
+        ) as ViolentmonkeyFile;
+        // 设置开启状态
+        const keys = Object.keys(data.scripts);
+        keys.forEach((key) => {
+          const vioScript = data.scripts[key];
+          if (!vioScript.config.enabled) {
+            const script = map.get(key);
+            if (!script) {
+              return;
+            }
+            script.enabled = false;
+          }
+        });
+      } catch (e) {
+        this.logger.error("violentmonkey file parse error", Logger.E(e));
+      }
+    }
 
     // 将map转化为数组
     return Promise.resolve({

@@ -66,9 +66,7 @@ function App() {
               item.script = await prepareScriptByCode(
                 item.code,
                 item.options?.meta.file_url || "",
-                item.options?.meta.sc_uuid ||
-                  item.options?.meta.uuid ||
-                  undefined
+                item.options?.meta.sc_uuid || undefined
               );
             } catch (e: any) {
               item.error = e.toString();
@@ -79,6 +77,7 @@ function App() {
                 options: {} as ScriptOptions,
                 meta: {
                   name: item.script.name,
+                  // 此uuid是对tm的兼容处理
                   uuid: item.script.uuid,
                   sc_uuid: item.script.uuid,
                   file_url: item.script.downloadUrl || "",
@@ -86,18 +85,21 @@ function App() {
                   subscribe_url: item.script.subscribeUrl,
                 },
                 settings: {
-                  enabled: !(
-                    item.script.metadata.background ||
-                    item.script.metadata.crontab
-                  ),
+                  enabled:
+                    item.enabled === false
+                      ? false
+                      : !(
+                          item.script.metadata.background ||
+                          item.script.metadata.crontab
+                        ),
                   position: 0,
                 },
               };
-            } else {
-              item.script.status = item.options.settings.enabled
+            }
+            item.script.status =
+              item.enabled !== false && item.options.settings.enabled
                 ? SCRIPT_STATUS_ENABLE
                 : SCRIPT_STATUS_DISABLE;
-            }
             item.install = true;
             return Promise.resolve(item);
           })

@@ -31,7 +31,9 @@ export type ConfigType =
   | "checkbox"
   | "select"
   | "mult-select"
-  | "number";
+  | "number"
+  | "textarea"
+  | "time";
 
 export interface Config {
   [key: string]: any;
@@ -45,6 +47,7 @@ export interface Config {
   // 文本类型时是字符串长度,数字类型时是最大值
   max?: number;
   min?: number;
+  rows?: number; // textarea行数
 }
 
 export type UserConfig = { [key: string]: { [key: string]: Config } };
@@ -68,11 +71,12 @@ export interface Script {
   status: SCRIPT_STATUS; // 脚本状态 1:启用 2:禁用 3:错误 4:初始化
   sort: number; // 脚本顺序位置
   runStatus: SCRIPT_RUN_STATUS; // 脚本运行状态,后台脚本才会有此状态 running:运行中 complete:完成 error:错误 retry:重试
-  error?: string; // 运行错误信息
+  error?: { error: string } | string; // 运行错误信息
   createtime: number; // 脚本创建时间戳
   updatetime?: number; // 脚本更新时间戳
   checktime: number; // 脚本检查更新时间戳
   lastruntime?: number; // 脚本最后一次运行时间戳
+  nextruntime?: number; // 脚本下一次运行时间戳
 }
 
 // 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源

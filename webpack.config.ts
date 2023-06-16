@@ -11,6 +11,7 @@ import { presetAttributify, presetUno } from "unocss";
 const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
 const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
+const { version } = require("./package.json");
 
 const src = `${__dirname}/src`;
 const dist = `${__dirname}/dist`;
@@ -109,9 +110,7 @@ const config: Configuration = {
     }),
     new CopyPlugin({
       patterns: [
-        { from: `${src}/manifest.json`, to: `${dist}/ext` },
         { from: `${assets}/_locales`, to: `${dist}/ext/_locales` },
-        { from: `${assets}/logo.png`, to: `${dist}/ext/assets` },
         { from: `${assets}/logo`, to: `${dist}/ext/assets/logo` },
       ],
     }),

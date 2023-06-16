@@ -51,7 +51,7 @@ export type ScriptOptions = {
 
 export type ScriptMeta = {
   name: string;
-  uuid?: string; // tm会对同名的uuid校验,先屏蔽了
+  uuid: string; // 此uuid是对tm的兼容处理
   sc_uuid: string; // 脚本猫uuid
   modified: number;
   file_url: string;
@@ -76,6 +76,8 @@ export type ScriptBackupData = {
   requires: ResourceBackup[];
   requiresCss: ResourceBackup[];
   resources: ResourceBackup[];
+  // 为了兼容暴力猴而设置的字段
+  enabled?: boolean;
 };
 
 export type SubscribeScript = {

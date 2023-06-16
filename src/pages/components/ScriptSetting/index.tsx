@@ -9,14 +9,18 @@ import {
   Divider,
   Drawer,
   Empty,
+  Input,
   Message,
   Popconfirm,
   Space,
   Table,
+  Typography,
 } from "@arco-design/web-react";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete } from "@arco-design/web-react/icon";
 import React, { useEffect, useState } from "react";
+import ScriptController from "@App/app/service/script/controller";
+import Match from "./Match";
 
 const ScriptSetting: React.FC<{
   // eslint-disable-next-line react/require-default-props
@@ -25,18 +29,18 @@ const ScriptSetting: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const [permission, setPermission] = useState<Permission[]>([]);
-
   const permissionCtrl = IoC.instance(
     PermissionController
   ) as PermissionController;
-
+  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const [permission, setPermission] = useState<Permission[]>([]);
+  const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
   const columns: ColumnProps[] = [
     {
       title: "类型",
       dataIndex: "permission",
       key: "permission",
-      width: 80,
+      width: 100,
     },
     {
       title: "授权值",
@@ -86,6 +90,9 @@ const ScriptSetting: React.FC<{
 
   useEffect(() => {
     if (script) {
+      scriptCtrl.scriptDAO.findById(script.id).then((v) => {
+        setCheckUpdateUrl(v?.downloadUrl || "");
+      });
       permissionCtrl.getPermissions(script.id).then((list) => {
         setPermission(list);
       });
@@ -123,6 +130,35 @@ const ScriptSetting: React.FC<{
         labelStyle={{ paddingRight: 36 }}
       />
       <Divider />
+      {script && <Match script={script} />}
+      <Descriptions
+        column={1}
+        title="更新"
+        data={[
+          {
+            label: "更新URL",
+            value: (
+              <Input
+                value={checkUpdateUrl}
+                onChange={(e) => {
+                  setCheckUpdateUrl(e);
+                }}
+                onBlur={() => {
+                  scriptCtrl
+                    .updateCheckUpdateUrl(script!.id, checkUpdateUrl)
+                    .then(() => {
+                      Message.success("更新成功");
+                    });
+                }}
+              />
+            ),
+          },
+        ]}
+        style={{ marginBottom: 20 }}
+        labelStyle={{ paddingRight: 36 }}
+      />
+      <Divider />
+      <Typography.Title heading={6}>授权管理</Typography.Title>
       <Table columns={columns} data={permission} rowKey="id" />
       <Empty description="建设中" />
     </Drawer>

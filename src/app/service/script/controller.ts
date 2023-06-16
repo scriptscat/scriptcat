@@ -54,4 +54,16 @@ export default class ScriptController {
   exclude(id: number, exclude: string, remove: boolean) {
     return this.dispatchEvent("exclude", { id, exclude, remove });
   }
+
+  resetExclude(id: number, exclude: string[] | undefined) {
+    return this.dispatchEvent("resetExclude", { id, exclude });
+  }
+
+  resetMatch(id: number, match: string[] | undefined) {
+    return this.dispatchEvent("resetMatch", { id, match });
+  }
+
+  updateCheckUpdateUrl(id: number, url: string) {
+    return this.dispatchEvent("updateCheckUpdateUrl", { id, url });
+  }
 }

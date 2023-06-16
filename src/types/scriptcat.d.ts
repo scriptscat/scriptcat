@@ -192,16 +192,18 @@ declare function CAT_userConfig(): void;
 /**
  * 操控脚本同步配置的文件储存源,将会在同步目录下创建一个app/uuid目录供此 API 使用
  * 上传时默认覆盖同名文件, 请注意这是一个试验性质的 API, 后续可能会改变
- * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件, 暂时不提供move/mkdir等操作
+ * @param action 操作类型 list 列出指定目录所有文件, upload 上传文件, download 下载文件, delete 删除文件, config 打开配置页, 暂时不提供move/mkdir等操作
  * @param details
  */
 declare function CAT_fileStorage(
   action: "list",
   details: {
-    // path?: string; // 暂时只允许操作根目录,所以屏蔽list的path
+    // 文件路径
+    path?: string;
+    // 基础目录,如果未设置,则将脚本uuid作为目录
+    baseDir?: string;
     onload?: (files: CATType.FileStorageFileInfo[]) => void;
     onerror?: (error: CATType.FileStorageError) => void;
-    // public?: boolean;
   }
 ): void;
 declare function CAT_fileStorage(
@@ -227,6 +229,8 @@ declare function CAT_fileStorage(
   action: "upload",
   details: {
     path: string;
+    // 基础目录,如果未设置,则将脚本uuid作为目录
+    baseDir?: string;
     data: Blob;
     onload?: () => void;
     // onprogress?: (progress: number) => void;
@@ -234,6 +238,28 @@ declare function CAT_fileStorage(
     // public?: boolean;
   }
 ): void;
+declare function CAT_fileStorage(action: "config"): void;
+
+/**
+ * 脚本猫后台脚本重试, 当你的脚本出现错误时, 可以reject返回此错误, 以便脚本猫重试
+ * 重试时间请注意不要与脚本执行时间冲突, 否则可能会导致重复执行, 最小重试时间为5s
+ * @class CATRetryError
+ */
+declare class CATRetryError {
+  /**
+   * constructor 构造函数
+   * @param {string} message 错误信息
+   * @param {number} seconds x秒后重试, 单位秒
+   */
+  constructor(message: string, seconds: number);
+
+  /**
+   * constructor 构造函数
+   * @param {string} message 错误信息
+   * @param {Date} date 重试时间, 指定时间后重试
+   */
+  constructor(message: string, date: Date);
+}
 
 declare namespace CATType {
   interface ProxyRule {
@@ -327,7 +353,7 @@ declare namespace GMTypes {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 
+    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能
   }
 
   interface XHRResponse {
