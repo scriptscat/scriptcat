@@ -378,7 +378,7 @@ export default class Runtime extends Manager {
             runStatus: item.runStatus,
             hasUserConfig: !!item.config,
             runNum:
-              item.runStatus && item.runStatus !== SCRIPT_RUN_STATUS_RUNNING
+              item.runStatus && item.runStatus === SCRIPT_RUN_STATUS_RUNNING
                 ? 1
                 : 0,
             menus,
