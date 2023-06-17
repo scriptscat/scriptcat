@@ -18,7 +18,7 @@ import { LoggerDAO } from "@App/app/repo/logger";
 import { IPermissionVerify } from "@App/runtime/background/permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { tryConnect } from "@App/pkg/utils/utils";
-import { ConfigProvider, Message } from "@arco-design/web-react";
+import { Message } from "@arco-design/web-react";
 import Runtime from "@App/runtime/background/runtime";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
