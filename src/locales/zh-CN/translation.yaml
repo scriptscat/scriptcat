@@ -12,6 +12,7 @@ script_gallery: 脚本站
 community_forum: 社区论坛
 external_links: 外部链接
 system_follow: 跟随系统
+no_data: 暂无数据
 
 # 侧边栏 layout/Sider
 installed_scripts: 已安装脚本
@@ -335,3 +336,9 @@ cookie_domain: "Cookie域"
 script_operation_title: "脚本正在试图操作脚本同步储存空间"
 script_operation_description: "请您确认是否允许脚本进行此操作，允许后将允许脚本操作你设定的储存空间，脚本会在储存空间下创建一个app/${dir}的目录进行使用"
 script_permission_content: "脚本"
+
+# 文件系统
+auth_type: 鉴权类型
+url: URL
+username: 用户名
+password: 密码

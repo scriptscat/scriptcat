@@ -12,6 +12,7 @@ script_gallery: Script Gallery
 community_forum: Community Forum
 external_links: External Links
 system_follow: Follow System
+no_data: No Data
 
 # Sidebar layout/Sider
 installed_scripts: Scripts
@@ -335,3 +336,9 @@ cookie_domain: "Cookie Domain"
 script_operation_title: "Script is attempting to access script synchronization storage"
 script_operation_description: "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it."
 script_permission_content: "Script"
+
+# FileSystem
+auth_type: Authentication Type
+url: URL
+username: Username
+password: Password

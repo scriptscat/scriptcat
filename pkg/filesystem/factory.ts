@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import BaiduFileSystem from "./baidu/baidu";
 import FileSystem from "./filesystem";
 import OneDriveFileSystem from "./onedrive/onedrive";
@@ -45,13 +46,13 @@ export default class FileSystemFactory {
     return {
       webdav: {
         authType: {
-          title: "鉴权类型",
+          title: i18next.t("auth_type"),
           type: "select",
           options: ["password", "digest", "none", "token"],
         },
-        url: { title: "URL" },
-        username: { title: "用户名" },
-        password: { title: "密码" },
+        url: { title: i18next.t("url") },
+        username: { title: i18next.t("username") },
+        password: { title: i18next.t("password") },
       },
       "baidu-netdsik": {},
       onedrive: {},

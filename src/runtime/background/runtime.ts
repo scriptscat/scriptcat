@@ -631,7 +631,7 @@ export default class Runtime extends Manager {
         try {
           this.match.add(url, script);
         } catch (e) {
-          logger.error("url加载错误", Logger.E(e));
+          logger.error("url load error", Logger.E(e));
         }
       });
     }
@@ -640,7 +640,7 @@ export default class Runtime extends Manager {
         try {
           this.include.add(url, script);
         } catch (e) {
-          logger.error("url加载错误", Logger.E(e));
+          logger.error("url load error", Logger.E(e));
         }
       });
     }
@@ -650,7 +650,7 @@ export default class Runtime extends Manager {
           this.include.exclude(url, script);
           this.match.exclude(url, script);
         } catch (e) {
-          logger.error("url加载错误", Logger.E(e));
+          logger.error("url load error", Logger.E(e));
         }
       });
     }
@@ -659,7 +659,7 @@ export default class Runtime extends Manager {
         try {
           this.customizeExclude.add(url, script);
         } catch (e) {
-          logger.error("url加载错误", Logger.E(e));
+          logger.error("url load error", Logger.E(e));
         }
       });
     }

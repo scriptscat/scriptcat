@@ -2,7 +2,9 @@ import IoC from "@App/app/ioc";
 import ScriptController from "@App/app/service/script/controller";
 import {
   Button,
+  ConfigProvider,
   Dropdown,
+  Empty,
   Input,
   Layout,
   Menu,
@@ -66,213 +68,223 @@ const MainLayout: React.FC<{
 
   switchLight(lightMode);
   return (
-    <Layout>
-      <Layout.Header
-        style={{
-          height: "50px",
-          borderBottom: "1px solid var(--color-neutral-3)",
-        }}
-        className="flex items-center justify-between p-x-4"
-      >
-        <Modal
-          title={t("import_link")}
-          visible={importVisible}
-          onOk={async () => {
-            const scriptCtl = IoC.instance(
-              ScriptController
-            ) as ScriptController;
-            try {
-              await scriptCtl.importByUrl(importRef.current!.dom.value);
-            } catch (e) {
-              Message.error(`${t("import_link_failure")}: ${e}`);
-            }
-            setImportVisible(false);
+    <ConfigProvider
+      renderEmpty={() => {
+        return <Empty description={t("no_data")} />;
+      }}
+    >
+      <Layout>
+        <Layout.Header
+          style={{
+            height: "50px",
+            borderBottom: "1px solid var(--color-neutral-3)",
           }}
-          onCancel={() => {
-            setImportVisible(false);
+          className="flex items-center justify-between p-x-4"
+        >
+          <Modal
+            title={t("import_link")}
+            visible={importVisible}
+            onOk={async () => {
+              const scriptCtl = IoC.instance(
+                ScriptController
+              ) as ScriptController;
+              try {
+                await scriptCtl.importByUrl(importRef.current!.dom.value);
+              } catch (e) {
+                Message.error(`${t("import_link_failure")}: ${e}`);
+              }
+              setImportVisible(false);
+            }}
+            onCancel={() => {
+              setImportVisible(false);
+            }}
+          >
+            <Input ref={importRef} defaultValue="" />
+          </Modal>
+          <div className="flex row items-center">
+            <img
+              style={{ height: "40px" }}
+              src="/assets/logo.png"
+              alt="ScriptCat"
+            />
+            <Typography.Title heading={4} className="!m-0">
+              ScriptCat
+            </Typography.Title>
+          </div>
+          <Space size="small" className="action-tools">
+            {pageName === "options" && (
+              <Dropdown
+                droplist={
+                  <Menu
+                    style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}
+                  >
+                    <Menu.Item key="/script/editor">
+                      <a href="#/script/editor">
+                        <RiFileCodeLine /> {t("create_user_script")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="background">
+                      <a href="#/script/editor?template=background">
+                        <RiTerminalBoxLine /> {t("create_background_script")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="crontab">
+                      <a href="#/script/editor?template=crontab">
+                        <RiTimerLine /> {t("create_scheduled_script")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item
+                      key="link"
+                      onClick={() => {
+                        setImportVisible(true);
+                      }}
+                    >
+                      <IconLink /> {t("import_link")}
+                    </Menu.Item>
+                  </Menu>
+                }
+                position="bl"
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-1)",
+                  }}
+                  className="!text-size-sm"
+                >
+                  <RiPlayListAddLine /> {t("create_script")} <IconDown />
+                </Button>
+              </Dropdown>
+            )}
+            {pageName === "options" && (
+              <Dropdown
+                droplist={
+                  // 取消最大高度限制防止内容过多出现滚动条 / 增加10px宽度提升美观  下同
+                  <Menu
+                    style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}
+                  >
+                    <Menu.Item key="scriptcat/docs/use/">
+                      <a
+                        href="https://docs.scriptcat.org/docs/use/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <RiFileCodeLine /> {t("user_guide")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="scriptcat/docs/dev/">
+                      <a
+                        href="https://docs.scriptcat.org/docs/dev/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <RiFileCodeLine /> {t("api_docs")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="scriptcat/docs/learn/">
+                      <a
+                        href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <RiFileCodeLine /> {t("development_guide")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="scriptcat/userscript">
+                      <a
+                        href="https://scriptcat.org/search"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <IconLink /> {t("script_gallery")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="tampermonkey/bbs">
+                      <a
+                        href="https://bbs.tampermonkey.net.cn/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <IconLink /> {t("community_forum")}
+                      </a>
+                    </Menu.Item>
+                    <Menu.Item key="GitHub">
+                      <a
+                        href="https://github.com/scriptscat/scriptcat"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <IconGithub /> GitHub
+                      </a>
+                    </Menu.Item>
+                  </Menu>
+                }
+                position="bl"
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  style={{
+                    color: "var(--color-text-1)",
+                  }}
+                  className="!text-size-sm"
+                >
+                  <RiLinkM /> {t("external_links")} <IconDown />
+                </Button>
+              </Dropdown>
+            )}
+            <Dropdown
+              droplist={
+                <Menu
+                  onClickMenuItem={(key) => {
+                    switchLight(key);
+                    setLightMode(key);
+                    localStorage.lightMode = key;
+                  }}
+                  selectedKeys={[lightMode]}
+                >
+                  <Menu.Item key="light">
+                    <IconSunFill /> Light
+                  </Menu.Item>
+                  <Menu.Item key="dark">
+                    <IconMoonFill /> Dark
+                  </Menu.Item>
+                  <Menu.Item key="auto">
+                    <IconDesktop /> {t("system_follow")}
+                  </Menu.Item>
+                </Menu>
+              }
+              position="bl"
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  <>
+                    {lightMode === "auto" && <IconDesktop />}
+                    {lightMode === "light" && <IconSunFill />}
+                    {lightMode === "dark" && <IconMoonFill />}
+                  </>
+                }
+                style={{
+                  color: "var(--color-text-1)",
+                }}
+                className="!text-size-lg"
+              />
+            </Dropdown>
+          </Space>
+        </Layout.Header>
+        <Layout
+          className={`absolute top-50px bottom-0 w-full ${className}`}
+          style={{
+            background: "var(--color-fill-2)",
           }}
         >
-          <Input ref={importRef} defaultValue="" />
-        </Modal>
-        <div className="flex row items-center">
-          <img
-            style={{ height: "40px" }}
-            src="/assets/logo.png"
-            alt="ScriptCat"
-          />
-          <Typography.Title heading={4} className="!m-0">
-            ScriptCat
-          </Typography.Title>
-        </div>
-        <Space size="small" className="action-tools">
-          {pageName === "options" && (
-            <Dropdown
-              droplist={
-                <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                  <Menu.Item key="/script/editor">
-                    <a href="#/script/editor">
-                      <RiFileCodeLine /> {t("create_user_script")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="background">
-                    <a href="#/script/editor?template=background">
-                      <RiTerminalBoxLine /> {t("create_background_script")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="crontab">
-                    <a href="#/script/editor?template=crontab">
-                      <RiTimerLine /> {t("create_scheduled_script")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item
-                    key="link"
-                    onClick={() => {
-                      setImportVisible(true);
-                    }}
-                  >
-                    <IconLink /> {t("import_link")}
-                  </Menu.Item>
-                </Menu>
-              }
-              position="bl"
-            >
-              <Button
-                type="text"
-                size="small"
-                style={{
-                  color: "var(--color-text-1)",
-                }}
-                className="!text-size-sm"
-              >
-                <RiPlayListAddLine /> {t("create_script")} <IconDown />
-              </Button>
-            </Dropdown>
-          )}
-          {pageName === "options" && (
-            <Dropdown
-              droplist={
-                // 取消最大高度限制防止内容过多出现滚动条 / 增加10px宽度提升美观  下同
-                <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                  <Menu.Item key="scriptcat/docs/use/">
-                    <a
-                      href="https://docs.scriptcat.org/docs/use/"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <RiFileCodeLine /> {t("user_guide")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="scriptcat/docs/dev/">
-                    <a
-                      href="https://docs.scriptcat.org/docs/dev/"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <RiFileCodeLine /> {t("api_docs")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="scriptcat/docs/learn/">
-                    <a
-                      href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <RiFileCodeLine /> {t("development_guide")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="scriptcat/userscript">
-                    <a
-                      href="https://scriptcat.org/search"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <IconLink /> {t("script_gallery")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="tampermonkey/bbs">
-                    <a
-                      href="https://bbs.tampermonkey.net.cn/"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <IconLink /> {t("community_forum")}
-                    </a>
-                  </Menu.Item>
-                  <Menu.Item key="GitHub">
-                    <a
-                      href="https://github.com/scriptscat/scriptcat"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <IconGithub /> GitHub
-                    </a>
-                  </Menu.Item>
-                </Menu>
-              }
-              position="bl"
-            >
-              <Button
-                type="text"
-                size="small"
-                style={{
-                  color: "var(--color-text-1)",
-                }}
-                className="!text-size-sm"
-              >
-                <RiLinkM /> {t("external_links")} <IconDown />
-              </Button>
-            </Dropdown>
-          )}
-          <Dropdown
-            droplist={
-              <Menu
-                onClickMenuItem={(key) => {
-                  switchLight(key);
-                  setLightMode(key);
-                  localStorage.lightMode = key;
-                }}
-                selectedKeys={[lightMode]}
-              >
-                <Menu.Item key="light">
-                  <IconSunFill /> Light
-                </Menu.Item>
-                <Menu.Item key="dark">
-                  <IconMoonFill /> Dark
-                </Menu.Item>
-                <Menu.Item key="auto">
-                  <IconDesktop /> {t("system_follow")}
-                </Menu.Item>
-              </Menu>
-            }
-            position="bl"
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={
-                <>
-                  {lightMode === "auto" && <IconDesktop />}
-                  {lightMode === "light" && <IconSunFill />}
-                  {lightMode === "dark" && <IconMoonFill />}
-                </>
-              }
-              style={{
-                color: "var(--color-text-1)",
-              }}
-              className="!text-size-lg"
-            />
-          </Dropdown>
-        </Space>
-      </Layout.Header>
-      <Layout
-        className={`absolute top-50px bottom-0 w-full ${className}`}
-        style={{
-          background: "var(--color-fill-2)",
-        }}
-      >
-        {children}
+          {children}
+        </Layout>
       </Layout>
-    </Layout>
+    </ConfigProvider>
   );
 };
 

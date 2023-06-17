@@ -5,6 +5,7 @@ import registerEditor from "@App/pkg/utils/monaco-editor";
 import "uno.css";
 import "./index.css";
 import "@arco-design/web-react/dist/css/arco.css";
+import "@App/locales/locales";
 import MessageInternal from "@App/app/message/internal";
 import migrate from "@App/app/migrate";
 import MessageSandbox from "@App/app/message/sandbox";
@@ -17,11 +18,10 @@ import { LoggerDAO } from "@App/app/repo/logger";
 import { IPermissionVerify } from "@App/runtime/background/permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { tryConnect } from "@App/pkg/utils/utils";
-import { Message } from "@arco-design/web-react";
+import { ConfigProvider, Message } from "@arco-design/web-react";
 import Runtime from "@App/runtime/background/runtime";
 import MainLayout from "../components/layout/MainLayout";
 import Sider from "../components/layout/Sider";
-import "@App/locales/locales";
 
 migrate();
 
