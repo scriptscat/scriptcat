@@ -121,6 +121,11 @@ export const writables: { [key: string]: any } = {
 // 记录初始的
 export const init = new Map<string, boolean>();
 
+// 需要用到全局的
+export const unscopables: { [key: string]: boolean } = {
+  RegExp: true,
+};
+
 // 复制原有的,防止被前端网页复写
 const descs = Object.getOwnPropertyDescriptors(global);
 Object.keys(descs).forEach((key) => {
@@ -193,6 +198,7 @@ export function proxyContext(
       }
       if (typeof name === "string" && name !== "undefined") {
         if (has(thisContext, name)) {
+          // @ts-ignore
           return thisContext[name];
         }
         if (context[name]) {
@@ -219,6 +225,8 @@ export function proxyContext(
           }
           return global[name];
         }
+      } else if (name === Symbol.unscopables) {
+        return unscopables;
       }
       return undefined;
     },
@@ -238,6 +246,9 @@ export function proxyContext(
           break;
       }
       if (typeof name === "string" && name !== "undefined") {
+        if (unscopables[name]) {
+          return false;
+        }
         if (has(thisContext, name)) {
           return true;
         }
@@ -278,6 +289,7 @@ export function proxyContext(
         global[name] = val;
         return true;
       }
+      // @ts-ignore
       thisContext[name] = val;
       return true;
     },
