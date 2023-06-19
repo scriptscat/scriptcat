@@ -24,9 +24,9 @@
 
 ## About
 
-Referencing the design ideas of Greasemonkey/Tampermonkey, we have implemented a framework for running background scripts and Greasemonkey/Tampermonkey scripts. It also provides some special APIs that allow scripts to do more. Additionally, we offer an excellent online editor that makes script code development more comfortable and seamless.
+We built a framework for executing background scripts and Greasemonkey/Tampermonkey scripts based on the design ideas of Greasemonkey/Tampermonkey. It also has several unique APIs that enable scripts to do more. Furthermore, we provide a fantastic online editor that makes script code development more pleasant and easy.
 
-**If you find it useful, feel free to Star it ❤❤❤**
+**Please Star it if you find it useful. ❤❤❤**
 
 ## Features
 
