@@ -24,7 +24,7 @@
 
 ## About ScriptCat
 
-Referencing the design ideas of Greasemonkey and supporting Greasemonkey scripts, we have implemented a framework for running background scripts. It provides some special APIs that allow scripts to do more. Additionally, we offer an excellent editor that makes script code writing and development more comfortable and seamless.
+Referencing the design ideas of Greasemonkey/Tampermonkey, we have implemented a framework for running background scripts and Greasemonkey/Tampermonkey scripts. It also provides some special APIs that allow scripts to do more. Additionally, we offer an excellent online editor that makes script code development more comfortable and seamless.
 
 **If you find it useful, feel free to Star it ❤❤❤**
 
@@ -42,7 +42,7 @@ Referencing the design ideas of Greasemonkey and supporting Greasemonkey scripts
 
 ...More features are Coming.
 
-## Instruction
+## Instructions
 
 ### Install script
 
