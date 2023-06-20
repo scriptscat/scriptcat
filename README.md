@@ -10,6 +10,7 @@
 <a href="https://docs.scriptcat.org/">文档</a> ·
 <a href="https://bbs.tampermonkey.net.cn/">社区</a> ·
 <a href="https://scriptcat.org/search">脚本站</a>
+<a href="./README_EN.md">English README</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
