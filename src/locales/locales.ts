@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import enUS from "./en-US/translation.yaml";
 import zhCN from "./zh-CN/translation.yaml";
