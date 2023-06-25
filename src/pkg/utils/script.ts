@@ -220,7 +220,7 @@ export function prepareScriptByCode(
   code: string,
   url: string,
   uuid?: string
-): Promise<Script & { oldScript?: Script }> {
+): Promise<{ script: Script; oldScript?: Script }> {
   const dao = new ScriptDAO();
   return new Promise((resolve, reject) => {
     const metadata = parseMetadata(code);
@@ -269,7 +269,7 @@ export function prepareScriptByCode(
     } else {
       newUUID = uuidv4();
     }
-    let script: Script & { oldScript?: Script } = {
+    let script: Script = {
       id: 0,
       uuid: newUUID,
       name: metadata.name[0],
@@ -314,7 +314,6 @@ export function prepareScriptByCode(
           reject(new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变"));
           return;
         }
-        script.oldScript = old;
         script = copyScript(script, old);
       } else {
         // 前台脚本默认开启
@@ -323,7 +322,7 @@ export function prepareScriptByCode(
         }
         script.checktime = new Date().getTime();
       }
-      resolve(script);
+      resolve({ script, oldScript: old });
     };
     handler();
   });
@@ -332,7 +331,7 @@ export function prepareScriptByCode(
 export async function prepareSubscribeByCode(
   code: string,
   url: string
-): Promise<Subscribe & { oldSubscribe?: Subscribe }> {
+): Promise<{ subscribe: Subscribe; oldSubscribe?: Subscribe }> {
   const dao = new SubscribeDAO();
   const metadata = parseMetadata(code);
   if (metadata == null) {
@@ -341,7 +340,7 @@ export async function prepareSubscribeByCode(
   if (metadata.name === undefined) {
     throw new Error("订阅名不能为空");
   }
-  let subscribe: Subscribe & { oldSubscribe?: Subscribe } = {
+  let subscribe: Subscribe = {
     id: 0,
     url,
     name: metadata.name[0],
@@ -356,8 +355,7 @@ export async function prepareSubscribeByCode(
   };
   const old = await dao.findByUrl(url);
   if (old) {
-    subscribe.oldSubscribe = old;
     subscribe = copySubscribe(subscribe, old);
   }
-  return Promise.resolve(subscribe);
+  return Promise.resolve({ subscribe, oldSubscribe: old });
 }

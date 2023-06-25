@@ -151,12 +151,15 @@ export class SystemManager extends Manager {
       switch (data.action) {
         case "onchange": {
           const code = data.data.script;
-          const script = await prepareScriptByCode(
+          const prepareScript = await prepareScriptByCode(
             code,
             "",
             uuidv5(data.data.uri, uuidv5.URL)
           );
-          this.scriptManager.event.upsertHandler(script, "vscode");
+          this.scriptManager.event.upsertHandler(
+            prepareScript.script,
+            "vscode"
+          );
           break;
         }
         default:

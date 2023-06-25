@@ -197,19 +197,19 @@ export class ScriptManager extends Manager {
         // 是否静默更新
         if (this.systemConfig.silenceUpdateScript) {
           try {
-            const newScript = await prepareScriptByCode(
+            const prepareScript = await prepareScriptByCode(
               info.code,
               script.downloadUrl || script.checkUpdateUrl!,
               script.uuid
             );
             if (
               checkSilenceUpdate(
-                newScript.oldScript!.metadata,
-                newScript.metadata
+                prepareScript.oldScript!.metadata,
+                prepareScript.script.metadata
               )
             ) {
               logger.info("silence update script");
-              this.event.upsertHandler(newScript);
+              this.event.upsertHandler(prepareScript.script);
               return;
             }
           } catch (e) {
@@ -233,10 +233,10 @@ export class ScriptManager extends Manager {
     subscribeUrl?: string
   ) {
     const info = await fetchScriptInfo(url, "system", false, uuidv4());
-    const script = await prepareScriptByCode(info.code, url, info.uuid);
-    script.subscribeUrl = subscribeUrl;
-    await this.event.upsertHandler(script, "system");
-    return Promise.resolve(script);
+    const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
+    prepareScript.script.subscribeUrl = subscribeUrl;
+    await this.event.upsertHandler(prepareScript.script, "system");
+    return Promise.resolve(prepareScript.script);
   }
 }
 

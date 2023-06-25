@@ -131,28 +131,31 @@ export default function Description() {
       if (!resp) {
         return;
       }
-      let script:
-        | (Script & { oldScript?: Script })
-        | (Subscribe & { oldSubscribe?: Subscribe });
+      let prepare:
+        | { script: Script; oldScript?: Script }
+        | { subscribe: Subscribe; oldSubscribe?: Subscribe };
+      let action: Script | Subscribe;
       if (resp.isSubscribe) {
         setIsSub(true);
-        script = await prepareSubscribeByCode(resp.code, resp.url);
-        setOldScript(script.oldSubscribe);
-        delete script.oldSubscribe;
+        prepare = await prepareSubscribeByCode(resp.code, resp.url);
+        action = prepare.subscribe;
+        setOldScript(prepare.oldSubscribe);
+        delete prepare.oldSubscribe;
       } else {
         if (resp.isUpdate) {
-          script = await prepareScriptByCode(resp.code, resp.url, resp.uuid);
+          prepare = await prepareScriptByCode(resp.code, resp.url, resp.uuid);
         } else {
-          script = await prepareScriptByCode(resp.code, resp.url);
+          prepare = await prepareScriptByCode(resp.code, resp.url);
         }
-        setOldScript(script.oldScript);
-        delete script.oldScript;
+        action = prepare.script;
+        setOldScript(prepare.oldScript);
+        delete prepare.oldScript;
       }
-      setEnable(script.status === SUBSCRIBE_STATUS_ENABLE);
+      setEnable(action.status === SUBSCRIBE_STATUS_ENABLE);
       if (resp.source === "system") {
         setCountdown(60);
       }
-      const meta = script.metadata;
+      const meta = action.metadata;
       if (!meta) {
         return;
       }
@@ -177,8 +180,8 @@ export default function Description() {
       if (meta.require) {
         perm.push({ label: t("script_requires"), value: meta.require });
       }
-      setUpsertScript(script);
-      if (script.id !== 0) {
+      setUpsertScript(action);
+      if (action.id !== 0) {
         setIsUpdate(true);
       }
       setPermission(perm);
@@ -224,7 +227,7 @@ export default function Description() {
       }
       // 修改网页显示title
       document.title = `${
-        script.id === 0 ? t("install_script") : t("update_script")
+        action.id === 0 ? t("install_script") : t("update_script")
       } - ${meta.name} - ScriptCat`;
     });
   }, []);

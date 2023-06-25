@@ -135,7 +135,8 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
       }
       break;
   }
-  const script = await prepareScriptByCode(code, "", uuidv4());
+  const prepareScript = await prepareScriptByCode(code, "", uuidv4());
+  const { script } = prepareScript;
 
   return Promise.resolve({
     script,
@@ -191,7 +192,8 @@ function ScriptEditor() {
     // 解析code生成新的script并更新
     return new Promise((resolve) => {
       prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
-        .then((newScript) => {
+        .then((prepareScript) => {
+          const newScript = prepareScript.script;
           scriptCtrl.upsert(newScript).then(
             () => {
               if (!newScript.name) {

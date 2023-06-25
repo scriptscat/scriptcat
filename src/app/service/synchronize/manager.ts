@@ -368,13 +368,14 @@ export default class SynchronizeManager extends Manager {
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
-      const newScript = await prepareScriptByCode(
+      const prepareScript = await prepareScriptByCode(
         code,
         script?.downloadUrl || metaObj.downloadUrl || "",
         script?.uuid || metaObj.uuid
       );
-      newScript.origin = newScript.origin || metaObj.origin;
-      this.scriptManager.event.upsertHandler(newScript, "sync");
+      prepareScript.script.origin =
+        prepareScript.script.origin || metaObj.origin;
+      this.scriptManager.event.upsertHandler(prepareScript.script, "sync");
       logger.info("pull script success");
     } catch (e) {
       logger.error("pull script error", Logger.E(e));

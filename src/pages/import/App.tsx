@@ -66,11 +66,12 @@ function App() {
         const result = await Promise.all(
           backDataScript.map(async (item) => {
             try {
-              item.script = await prepareScriptByCode(
+              const prepareScript = await prepareScriptByCode(
                 item.code,
                 item.options?.meta.file_url || "",
                 item.options?.meta.sc_uuid || undefined
               );
+              item.script = prepareScript.script;
             } catch (e: any) {
               item.error = e.toString();
               return Promise.resolve(item);
