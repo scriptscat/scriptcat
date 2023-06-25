@@ -1,5 +1,7 @@
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
+import { UserConfig } from "@App/app/repo/scripts";
+
 declare const unsafeWindow: Window;
 
 declare const GM_info: {
@@ -7,28 +9,32 @@ declare const GM_info: {
   scriptWillUpdate: boolean;
   scriptHandler: "ScriptCat";
   scriptUpdateURL?: string;
-  scriptSource: string;
+  // scriptSource: string;
   scriptMetaStr?: string;
-  isIncognito: boolean;
-  downloadMode: "native" | "disabled" | "browser";
+  userConfig?: UserConfig | undefined,
+  userConfigStr?: string,
+  // isIncognito: boolean;
+  // downloadMode: "native" | "disabled" | "browser";
   script: {
     author?: string;
     description?: string;
-    excludes: string[];
-    homepage?: string;
+    // excludes: string[];
+    grant: string[];
+    header: string;
+    // homepage?: string;
     icon?: string;
     icon64?: string;
     includes?: string[];
-    lastModified: number;
+    // lastModified: number;
     matches: string[];
     name: string;
     namespace?: string;
-    position: number;
+    // position: number;
     "run-at": string;
-    resources: string[];
-    unwrap: boolean;
+    // resources: string[];
+    // unwrap: boolean;
     version: string;
-    options: {
+    /* options: {
       awareOfChrome: boolean;
       run_at: string;
       noframes?: boolean;
@@ -45,7 +51,7 @@ declare const GM_info: {
         [key: string]: any;
       };
       [key: string]: any;
-    };
+    }; */
     [key: string]: any;
   };
   [key: string]: any;
