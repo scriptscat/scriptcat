@@ -71,18 +71,18 @@ group2:
 // 通过GM_info新方法获取UserConfig对象
 const rawUserConfig = GM_info.userConfig;
 // 定义一个对象暂存读取到的UserConfig值
-const userConfig={};
+const userConfig = {};
 // 解构遍历读取UserConfig并赋缺省值
-Object.entries(rawUserConfig).forEach(([mainKey,configs])=>{
-  Object.entries(configs).forEach(([subKey,{default:defaultValue}])=>{
-    userConfig[`${mainKey}.${subKey}`]=GM_getValue(`${mainKey}.${subKey}`,defaultValue)
+Object.entries(rawUserConfig).forEach(([mainKey, configs]) => {
+  Object.entries(configs).forEach(([subKey, { default: defaultValue }]) => {
+    userConfig[`${mainKey}.${subKey}`] = GM_getValue(`${mainKey}.${subKey}`, defaultValue)
   })
 })
 
 setInterval(() => {
   // 传统方法读取UserConfig，每个缺省值需要单独静态声明，修改UserConfig缺省值后代码也需要手动修改
-  console.log(GM_getValue("group1.configA","默认值"));
-  console.log(GM_getValue("group1.configG",11));
+  console.log(GM_getValue("group1.configA", "默认值"));
+  console.log(GM_getValue("group1.configG", 11));
   // GM_info新方法读取UserConfig，可直接关联读取缺省值，无需额外修改
   console.log(userConfig["group1.configA"]);
   console.log(userConfig["group1.configG"]);
