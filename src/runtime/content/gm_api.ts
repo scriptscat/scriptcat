@@ -10,6 +10,8 @@ import {
   base64ToBlob,
   blobToBase64,
   getMetadataStr,
+  getUserConfigStr,
+  parseUserConfig,
 } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import { ValueUpdateData } from "./exec_script";
@@ -124,6 +126,7 @@ export default class GMApi {
   // 获取脚本信息和管理器信息
   static GM_info(script: ScriptRunResouce) {
     const metadataStr = getMetadataStr(script.sourceCode);
+    const userConfigStr = getUserConfigStr(script.sourceCode) || "";
     const options = {
       description:
         (script.metadata.description && script.metadata.description[0]) || null,
@@ -145,6 +148,8 @@ export default class GMApi {
       scriptHandler: "ScriptCat",
       scriptUpdateURL: script.downloadUrl,
       scriptMetaStr: metadataStr,
+      userConfig: parseUserConfig(userConfigStr),
+      userConfigStr,
       // scriptSource: script.sourceCode,
       version: ExtVersion,
       script: {

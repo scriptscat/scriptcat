@@ -28,7 +28,16 @@ export function getMetadataStr(code: string): string | null {
   if (start === -1 || end === -1) {
     return null;
   }
-  return `// ${code.substring(start, end + 14)}`;
+  return `// ${code.substring(start, end + 15)}`;
+}
+
+export function getUserConfigStr(code: string): string | null {
+  const start = code.indexOf("==UserConfig==");
+  const end = code.indexOf("==/UserConfig==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `/* ${code.substring(start, end + 15)} */`;
 }
 
 export function parseMetadata(code: string): Metadata | null {

@@ -2,33 +2,63 @@
 
 declare const unsafeWindow: Window;
 
+declare type ConfigType =
+  | "text"
+  | "checkbox"
+  | "select"
+  | "mult-select"
+  | "number"
+  | "textarea"
+  | "time";
+
+declare interface Config {
+  [key: string]: any;
+  title: string;
+  description: string;
+  default?: any;
+  type?: ConfigType;
+  bind?: string;
+  values?: any[];
+  password?: boolean;
+  // 文本类型时是字符串长度,数字类型时是最大值
+  max?: number;
+  min?: number;
+  rows?: number; // textarea行数
+}
+
+declare type UserConfig = { [key: string]: { [key: string]: Config } };
+
 declare const GM_info: {
   version: string;
   scriptWillUpdate: boolean;
   scriptHandler: "ScriptCat";
   scriptUpdateURL?: string;
-  scriptSource: string;
+  // scriptSource: string;
   scriptMetaStr?: string;
-  isIncognito: boolean;
-  downloadMode: "native" | "disabled" | "browser";
+  userConfig?: UserConfig,
+  userConfigStr?: string,
+  // isIncognito: boolean;
+  // downloadMode: "native" | "disabled" | "browser";
   script: {
     author?: string;
     description?: string;
-    excludes: string[];
-    homepage?: string;
+    // excludes: string[];
+    grant: string[];
+    header: string;
+    // homepage?: string;
     icon?: string;
     icon64?: string;
     includes?: string[];
-    lastModified: number;
+    // lastModified: number;
     matches: string[];
     name: string;
     namespace?: string;
-    position: number;
+    // position: number;
     "run-at": string;
-    resources: string[];
-    unwrap: boolean;
+    // resources: string[];
+    // unwrap: boolean;
     version: string;
-    options: {
+    /* options: {
       awareOfChrome: boolean;
       run_at: string;
       noframes?: boolean;
@@ -45,7 +75,7 @@ declare const GM_info: {
         [key: string]: any;
       };
       [key: string]: any;
-    };
+    }; */
     [key: string]: any;
   };
   [key: string]: any;
