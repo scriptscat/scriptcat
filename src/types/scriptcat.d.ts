@@ -1,8 +1,32 @@
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
-import { UserConfig } from "@App/app/repo/scripts";
-
 declare const unsafeWindow: Window;
+
+declare type ConfigType =
+  | "text"
+  | "checkbox"
+  | "select"
+  | "mult-select"
+  | "number"
+  | "textarea"
+  | "time";
+
+declare interface Config {
+  [key: string]: any;
+  title: string;
+  description: string;
+  default?: any;
+  type?: ConfigType;
+  bind?: string;
+  values?: any[];
+  password?: boolean;
+  // 文本类型时是字符串长度,数字类型时是最大值
+  max?: number;
+  min?: number;
+  rows?: number; // textarea行数
+}
+
+declare type UserConfig = { [key: string]: { [key: string]: Config } };
 
 declare const GM_info: {
   version: string;
@@ -11,7 +35,7 @@ declare const GM_info: {
   scriptUpdateURL?: string;
   // scriptSource: string;
   scriptMetaStr?: string;
-  userConfig?: UserConfig | undefined,
+  userConfig?: UserConfig,
   userConfigStr?: string,
   // isIncognito: boolean;
   // downloadMode: "native" | "disabled" | "browser";
