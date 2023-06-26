@@ -60,9 +60,35 @@ export class SystemManager extends Manager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
-          chrome.tabs.create({
-            url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
-          });
+          let nid: string;
+          chrome.notifications.create(
+            {
+              type: "basic",
+              iconUrl: chrome.runtime.getURL("assets/logo.png"),
+              title: `ScriptCat 更新到 ${ExtVersion}`,
+              message: "ScriptCat已更新，点击查看更新日志",
+            },
+            (notificationId) => {
+              nid = notificationId;
+            }
+          );
+          // eslint-disable-next-line no-undef
+          let tm: NodeJS.Timeout;
+          const onClicked = (id: string) => {
+            if (nid !== id) {
+              return;
+            }
+            chrome.notifications.onClicked.removeListener(onClicked);
+            chrome.tabs.create({
+              url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+            });
+            clearTimeout(tm);
+          };
+          tm = setTimeout(() => {
+            chrome.notifications.clear(nid);
+            chrome.notifications.onClicked.removeListener(onClicked);
+          }, 60 * 3000);
+          chrome.notifications.onClicked.addListener(onClicked);
         }
       });
     }
@@ -99,7 +125,9 @@ export class SystemManager extends Manager {
     );
     this.listenEvent("connectVSCode", this.connectVSCode.bind(this));
 
-    this.reconnectVSCode();
+    this.systemConfig.awaitLoad().then(() => {
+      this.reconnectVSCode();
+    });
 
     // 定时清理日志
     this.clearLogger();
@@ -133,47 +161,56 @@ export class SystemManager extends Manager {
   }
 
   connectVSCode() {
-    // 与vsc扩展建立连接
-    if (this.wsVscode) {
-      this.wsVscode.close();
-    }
-    try {
-      this.wsVscode = new WebSocket(this.systemConfig.vscodeUrl);
-    } catch (e: any) {
-      this.logger.debug("vscode连接失败", Logger.E(e));
-      return;
-    }
-    this.wsVscode.addEventListener("open", () => {
-      this.wsVscode!.send('{"action":"hello"}');
-    });
-    this.wsVscode.addEventListener("message", async (ev) => {
-      const data = JSON.parse(ev.data);
-      switch (data.action) {
-        case "onchange": {
-          const code = data.data.script;
-          const prepareScript = await prepareScriptByCode(
-            code,
-            "",
-            uuidv5(data.data.uri, uuidv5.URL)
-          );
-          this.scriptManager.event.upsertHandler(
-            prepareScript.script,
-            "vscode"
-          );
-          break;
-        }
-        default:
+    return new Promise<void>((resolve, reject) => {
+      // 与vsc扩展建立连接
+      if (this.wsVscode) {
+        this.wsVscode.close();
       }
-    });
+      try {
+        this.wsVscode = new WebSocket(this.systemConfig.vscodeUrl);
+      } catch (e: any) {
+        this.logger.debug("connect vscode faild", Logger.E(e));
+        reject(e);
+        return;
+      }
+      let ok = false;
+      this.wsVscode.addEventListener("open", () => {
+        this.wsVscode!.send('{"action":"hello"}');
+        ok = true;
+        resolve();
+      });
+      this.wsVscode.addEventListener("message", async (ev) => {
+        const data = JSON.parse(ev.data);
+        switch (data.action) {
+          case "onchange": {
+            const code = data.data.script;
+            const prepareScript = await prepareScriptByCode(
+              code,
+              "",
+              uuidv5(data.data.uri, uuidv5.URL)
+            );
+            this.scriptManager.event.upsertHandler(
+              prepareScript.script,
+              "vscode"
+            );
+            break;
+          }
+          default:
+        }
+      });
 
-    this.wsVscode.addEventListener("error", (e) => {
-      this.wsVscode = undefined;
-      this.logger.debug("vscode连接失败", Logger.E(e));
-    });
+      this.wsVscode.addEventListener("error", (e) => {
+        this.wsVscode = undefined;
+        this.logger.debug("connect vscode faild", Logger.E(e));
+        if (!ok) {
+          reject(new Error("connect fail"));
+        }
+      });
 
-    this.wsVscode.addEventListener("close", () => {
-      this.wsVscode = undefined;
-      this.logger.debug("vscode连接关闭");
+      this.wsVscode.addEventListener("close", () => {
+        this.wsVscode = undefined;
+        this.logger.debug("vscode connection closed");
+      });
     });
   }
 

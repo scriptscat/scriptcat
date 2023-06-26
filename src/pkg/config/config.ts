@@ -36,6 +36,8 @@ export class SystemConfig {
 
   public internal?: MessageInternal;
 
+  private loadOk = false;
+
   constructor(message: MessageHander) {
     if (message instanceof MessageCenter) {
       this.message = message;
@@ -52,6 +54,23 @@ export class SystemConfig {
       if (!this.cache.has(key)) {
         this.cache.set(key, list[key]);
       }
+    });
+    this.loadOk = true;
+  }
+
+  // 由于加载数据是异步,需要等待数据加载完成
+  public awaitLoad(): Promise<SystemConfig> {
+    return new Promise((resolve) => {
+      if (this.loadOk) {
+        resolve(this);
+        return;
+      }
+      const timer = setInterval(() => {
+        if (this.loadOk) {
+          clearInterval(timer);
+          resolve(this);
+        }
+      }, 100);
     });
   }
 

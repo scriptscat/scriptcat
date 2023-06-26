@@ -84,9 +84,11 @@ export default class SynchronizeManager extends Manager {
   async start() {
     // 监听同步事件决定是否开启同步
     let freeSync: () => void | undefined;
-    if (this.systemConfig.cloudSync.enable) {
-      freeSync = await this.enableCloudSync(this.systemConfig.cloudSync);
-    }
+    this.systemConfig.awaitLoad().then(async () => {
+      if (this.systemConfig.cloudSync.enable) {
+        freeSync = await this.enableCloudSync(this.systemConfig.cloudSync);
+      }
+    });
     SystemConfig.hook.addListener(
       "update",
       async (key, value: CloudSyncConfig) => {

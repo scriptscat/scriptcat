@@ -40,9 +40,9 @@ IoC.registerInstance(MessageCenter, center).alias([
 // 监听logger messagewriter
 ListenerMessage(new LoggerDAO(), center);
 
-IoC.instance(SystemConfig).init();
+(IoC.instance(SystemConfig) as SystemConfig).init();
 
-IoC.instance(SystemManager).init();
+(IoC.instance(SystemManager) as SystemManager).init();
 // 资源管理器
 const resourceManager = new ResourceManager(center);
 // value管理器
@@ -58,7 +58,7 @@ resourceManager.start();
 (IoC.instance(ScriptManager) as ScriptManager).start();
 (IoC.instance(SubscribeManager) as SubscribeManager).start();
 // 同步处理器
-IoC.instance(SynchronizeManager).start();
+(IoC.instance(SynchronizeManager) as SynchronizeManager).start();
 
 // 监听沙盒加载
 window.onload = () => {
