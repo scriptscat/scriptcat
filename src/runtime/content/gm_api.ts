@@ -564,6 +564,9 @@ export default class GMApi {
     } else {
       option = <GMTypes.OpenTabOptions>options;
     }
+    if (option.active === undefined) {
+      option.active = true;
+    }
     let tabid: any;
 
     const ret: GMTypes.Tab = {

@@ -486,7 +486,7 @@ export default class GMApi {
         channel.disChannel();
       }
     } else {
-      chrome.tabs.create({ url, active: options.active || true }, (tab) => {
+      chrome.tabs.create({ url, active: options.active }, (tab) => {
         Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
         channel.send({ event: "oncreate", tabId: tab.id });
       });
