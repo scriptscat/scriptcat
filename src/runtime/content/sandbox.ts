@@ -106,6 +106,10 @@ export default class SandboxRuntime {
   stop(scriptId: number): Promise<boolean> {
     const exec = this.execScripts.get(scriptId);
     if (!exec) {
+      this.message.send("scriptRunStatus", [
+        scriptId,
+        SCRIPT_RUN_STATUS_COMPLETE,
+      ]);
       return Promise.resolve(false);
     }
     this.execStop(exec);

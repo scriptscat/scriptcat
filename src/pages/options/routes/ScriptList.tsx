@@ -17,7 +17,6 @@ import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import {
   Script,
-  SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -521,15 +520,6 @@ function ScriptList() {
                       id: "script-stop",
                       content: t("script_stopped"),
                       duration: 3000,
-                    });
-                    setScriptList((list) => {
-                      for (let i = 0; i < list.length; i += 1) {
-                        if (list[i].id === item.id) {
-                          list[i].runStatus = SCRIPT_RUN_STATUS_COMPLETE;
-                          break;
-                        }
-                      }
-                      return [...list];
                     });
                   }}
                   style={{

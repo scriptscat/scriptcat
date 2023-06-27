@@ -149,7 +149,7 @@ export class SystemManager extends Manager {
     }
 
     SystemConfig.hook.addListener("update", (key, val) => {
-      if (key === "vscodeReconnect") {
+      if (key === "vscode_reconnect") {
         if (val) {
           connectVSCodeTimer = setInterval(() => {
             handler();
