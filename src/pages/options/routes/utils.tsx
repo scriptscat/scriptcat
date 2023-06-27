@@ -93,71 +93,71 @@ export function installUrlToHome(installUrl: string) {
   return undefined;
 }
 
-export function listHomeRender(item: Script) {
+export function ListHomeRender({ script }: { script: Script }) {
   const { t } = useTranslation();
   let home;
-  if (!item.metadata.homepageurl) {
-    home = installUrlToHome(item.downloadUrl || "");
+  if (!script.metadata.homepageurl) {
+    home = installUrlToHome(script.downloadUrl || "");
   }
   return (
     <Space size="mini">
       {home && <Tooltip content={t("homepage")}>{home}</Tooltip>}
-      {item.metadata.homepage && (
+      {script.metadata.homepage && (
         <Tooltip content={t("homepage")}>
           <Button
             type="text"
             iconOnly
             icon={<IconHome />}
             size="small"
-            href={item.metadata.homepage[0]}
+            href={script.metadata.homepage[0]}
             target="_blank"
           />
         </Tooltip>
       )}
-      {item.metadata.homepageurl && (
+      {script.metadata.homepageurl && (
         <Tooltip content={t("homepage")}>
           <Button
             type="text"
             iconOnly
             icon={<IconHome />}
             size="small"
-            href={item.metadata.homepageurl[0]}
+            href={script.metadata.homepageurl[0]}
             target="_blank"
           />
         </Tooltip>
       )}
-      {item.metadata.website && (
+      {script.metadata.website && (
         <Tooltip content={t("script_website")}>
           <Button
             type="text"
             iconOnly
             icon={<IconHome />}
             size="small"
-            href={item.metadata.website[0]}
+            href={script.metadata.website[0]}
             target="_blank"
           />
         </Tooltip>
       )}
-      {item.metadata.source && (
+      {script.metadata.source && (
         <Tooltip content={t("script_source")}>
           <Button
             type="text"
             iconOnly
             icon={<IconCode />}
             size="small"
-            href={item.metadata.source[0]}
+            href={script.metadata.source[0]}
             target="_blank"
           />
         </Tooltip>
       )}
-      {item.metadata.supporturl && (
+      {script.metadata.supporturl && (
         <Tooltip content={t("bug_feedback_script_support")}>
           <Button
             type="text"
             iconOnly
             icon={<IconBug />}
             size="small"
-            href={item.metadata.supporturl[0]}
+            href={script.metadata.supporturl[0]}
             target="_blank"
           />
         </Tooltip>

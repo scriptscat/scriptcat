@@ -70,7 +70,7 @@ import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
 import { nextTime, semTime } from "@App/pkg/utils/utils";
-import { getValues, listHomeRender, scriptListSort } from "./utils";
+import { getValues, ListHomeRender, scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
 
@@ -377,13 +377,13 @@ function ScriptList() {
       key: "home",
       width: 100,
       render(col, item: Script) {
-        return listHomeRender(item);
+        return <ListHomeRender script={item} />;
       },
     },
     {
       title: t("sorting"),
       dataIndex: "sort",
-      key: "sort",
+      key: "id",
       width: 80,
       sorter: (a, b) => a.sort - b.sort,
       align: "center",
@@ -607,7 +607,7 @@ function ScriptList() {
   );
 
   // eslint-disable-next-line react/no-unstable-nested-components
-  const SortableWrapper = (props: any) => {
+  const SortableWrapper = (props: any, ref: any) => {
     return (
       <DndContext
         sensors={sensors}
@@ -639,7 +639,7 @@ function ScriptList() {
           items={scriptList}
           strategy={verticalListSortingStrategy}
         >
-          <tbody {...props} />
+          <table ref={ref} {...props} />
         </SortableContext>
       </DndContext>
     );
@@ -680,8 +680,9 @@ function ScriptList() {
   };
 
   const components: ComponentsProps = {
+    table: React.forwardRef(SortableWrapper),
     body: {
-      tbody: SortableWrapper,
+      // tbody: SortableWrapper,
       row: SortableItem,
     },
   };

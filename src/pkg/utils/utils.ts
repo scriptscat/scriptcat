@@ -6,7 +6,6 @@ import Logger from "@App/app/logger/logger";
 import MessageInternal from "@App/app/message/internal";
 import { CronTime } from "cron";
 import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
 import semver from "semver";
 import { enc, MD5 } from "crypto-js";
 

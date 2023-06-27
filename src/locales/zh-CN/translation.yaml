@@ -43,6 +43,7 @@ silent_update_non_critical_changes: 非重要变更静默更新脚本
 enable_eslint: 开启 ESLint
 eslint_rules: ESLint规则
 enter_eslint_rules: 请输入 ESLint 规则，可以从 https://eslint.org/play/ 下载配置
+language_change_tip: 语言切换成功
 
 # 工具页 Tools
 backup: 备份

@@ -74,6 +74,7 @@ function Setting() {
                   ).toLocaleLowerCase()
                 );
                 localStorage.language = value;
+                Message.success(t("language_change_tip")!);
               }}
             >
               {languageList.map((item) => (

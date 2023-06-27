@@ -43,6 +43,7 @@ silent_update_non_critical_changes: Silent Update Non-critical Script Changes
 enable_eslint: Enable ESLint
 eslint_rules: ESLint Rules
 enter_eslint_rules: Please Enter ESLint Rules, Configurations Can Be Downloaded from https://eslint.org/play/
+language_change_tip: Language Change Successful
 
 # Tools Page Tools
 backup: Backup
