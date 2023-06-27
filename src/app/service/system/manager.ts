@@ -82,6 +82,7 @@ export class SystemManager extends Manager {
             chrome.tabs.create({
               url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
             });
+            chrome.notifications.clear(nid);
             clearTimeout(tm);
           };
           tm = setTimeout(() => {
