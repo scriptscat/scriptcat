@@ -46,7 +46,8 @@ export class BgExecScriptWarp extends ExecScript {
       setTimeout.set(t, true);
       return t;
     };
-    thisContext.clearTimeout = function (t: number | undefined) {
+    thisContext.clearTimeout = function (t: number) {
+      setTimeout.delete(t);
       global.clearTimeout(t);
     };
     thisContext.setInterval = function (
@@ -56,7 +57,6 @@ export class BgExecScriptWarp extends ExecScript {
     ) {
       const t = global.setInterval(
         function () {
-          setInterval.delete(t);
           if (typeof handler === "function") {
             handler();
           }
@@ -67,7 +67,8 @@ export class BgExecScriptWarp extends ExecScript {
       setInterval.set(t, true);
       return t;
     };
-    thisContext.clearInterval = function (t: number | undefined) {
+    thisContext.clearInterval = function (t: number) {
+      setInterval.delete(t);
       global.clearInterval(t);
     };
     // @ts-ignore

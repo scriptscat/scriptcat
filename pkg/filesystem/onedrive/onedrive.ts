@@ -140,7 +140,6 @@ export default class OneDriveFileSystem implements FileSystem {
     return this.request(
       `https://graph.microsoft.com/v1.0/me/drive/special/approot:${path}:/children`
     ).then((data) => {
-      console.log(data);
       const list: File[] = [];
       data.value.forEach((val: any) => {
         list.push({
