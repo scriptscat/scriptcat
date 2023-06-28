@@ -22,7 +22,7 @@ export default class BaiduFileSystem implements FileSystem {
   async verify(): Promise<void> {
     const token = await AuthVerify("baidu");
     this.accessToken = token;
-    return Promise.resolve();
+    return this.list().then();
   }
 
   open(file: File): Promise<FileReader> {
@@ -78,12 +78,14 @@ export default class BaiduFileSystem implements FileSystem {
     return fetch(url, config)
       .then((data) => data.json())
       .then(async (data) => {
-        if (data.errno === 111) {
-          await this.verify();
+        if (data.errno === 111 || data.errno === -6) {
+          const token = await AuthVerify("baidu", true);
+          this.accessToken = token;
+          url = url.replace(/access_token=[^&]+/, `access_token=${token}`);
           return fetch(url, config)
             .then((data2) => data2.json())
             .then((data2) => {
-              if (data2.errno === 111) {
+              if (data2.errno === 111 || data2.errno === -6) {
                 throw new Error(JSON.stringify(data2));
               }
               return data2;

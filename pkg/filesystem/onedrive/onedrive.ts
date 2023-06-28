@@ -22,7 +22,7 @@ export default class OneDriveFileSystem implements FileSystem {
   async verify(): Promise<void> {
     const token = await AuthVerify("onedrive");
     this.accessToken = token;
-    return Promise.resolve();
+    return this.list().then();
   }
 
   open(file: File): Promise<FileReader> {
@@ -73,7 +73,7 @@ export default class OneDriveFileSystem implements FileSystem {
           "@microsoft.graph.conflictBehavior": "replace",
         }),
       }
-    ).then((data) => {
+    ).then((data: any) => {
       if (data.errno) {
         throw new Error(JSON.stringify(data));
       }
@@ -85,7 +85,6 @@ export default class OneDriveFileSystem implements FileSystem {
   request(url: string, config?: RequestInit, nothen?: boolean) {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    // 利用GM函数的匿名实现不发送cookie,因为某些情况cookie会导致-6错误
     headers.append(`Authorization`, `Bearer ${this.accessToken}`);
     config.headers = headers;
     const ret = fetch(url, config);
@@ -96,6 +95,19 @@ export default class OneDriveFileSystem implements FileSystem {
       .then((data) => data.json())
       .then(async (data) => {
         if (data.error) {
+          if (data.error.code === "InvalidAuthenticationToken") {
+            const token = await AuthVerify("onedrive", true);
+            this.accessToken = token;
+            headers.set(`Authorization`, `Bearer ${this.accessToken}`);
+            return fetch(url, config)
+              .then((retryData) => retryData.json())
+              .then((retryData) => {
+                if (retryData.error) {
+                  throw new Error(JSON.stringify(retryData));
+                }
+                return data;
+              });
+          }
           throw new Error(JSON.stringify(data));
         }
         return data;
@@ -128,6 +140,7 @@ export default class OneDriveFileSystem implements FileSystem {
     return this.request(
       `https://graph.microsoft.com/v1.0/me/drive/special/approot:${path}:/children`
     ).then((data) => {
+      console.log(data);
       const list: File[] = [];
       data.value.forEach((val: any) => {
         list.push({

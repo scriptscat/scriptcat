@@ -60,14 +60,15 @@ export type Token = {
   createtime: number;
 };
 
-export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
+export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
   let token: Token | undefined;
   try {
     token = JSON.parse(localStorage[`netdisk:token:${netDiskType}`]);
   } catch (e) {
     // ignore
   }
-  if (reapply || !token || !token.accessToken) {
+  // token不存在,或者没有accessToken,重新获取
+  if (!token || !token.accessToken) {
     // 强制重新获取token
     await NetDisk(netDiskType);
     const resp = await GetNetDiskToken(netDiskType);
@@ -79,15 +80,20 @@ export async function AuthVerify(netDiskType: NetDiskType, reapply?: boolean) {
       refreshToken: resp.data.token.refresh_token,
       createtime: Date.now(),
     };
+    invalid = false;
     localStorage[`netdisk:token:${netDiskType}`] = JSON.stringify(token);
   }
-  if (Date.now() >= token.createtime + 3600000) {
+  // token过期或者失效
+  if (Date.now() >= token.createtime + 3600000 || invalid) {
     // 大于一小时刷新token
     try {
       const resp = await RefreshToken(netDiskType, token.refreshToken);
       if (resp.code !== 0) {
-        // 刷新失败删除token
         localStorage.removeItem(`netdisk:token:${netDiskType}`);
+        // 刷新失败,并且标记失效,尝试重新获取token
+        if (invalid) {
+          return AuthVerify(netDiskType);
+        }
         return Promise.reject(new Error(resp.msg));
       }
       token = {
