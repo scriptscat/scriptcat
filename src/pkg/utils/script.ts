@@ -228,7 +228,8 @@ export function strToBase64(str: string): string {
 export function prepareScriptByCode(
   code: string,
   url: string,
-  uuid?: string
+  uuid?: string,
+  override?: boolean
 ): Promise<{ script: Script; oldScript?: Script }> {
   const dao = new ScriptDAO();
   return new Promise((resolve, reject) => {
@@ -304,14 +305,11 @@ export function prepareScriptByCode(
       let old: Script | undefined;
       if (uuid) {
         old = await dao.findByUUID(uuid);
-        if (!old && url) {
+        if (!old && override) {
           old = await dao.findByNameAndNamespace(script.name, script.namespace);
         }
       } else {
         old = await dao.findByNameAndNamespace(script.name, script.namespace);
-        if (!old) {
-          old = await dao.findByUUID(script.uuid);
-        }
       }
       if (old) {
         if (

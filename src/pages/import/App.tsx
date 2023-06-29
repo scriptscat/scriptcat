@@ -30,7 +30,7 @@ import ScriptController from "@App/app/service/script/controller";
 import ValueController from "@App/app/service/value/controller";
 
 type ScriptData = ScriptBackupData & {
-  script?: Script & { oldScript?: Script };
+  script?: { script: Script; oldScript?: Script };
   install: boolean;
   error?: string;
 };
@@ -69,9 +69,10 @@ function App() {
               const prepareScript = await prepareScriptByCode(
                 item.code,
                 item.options?.meta.file_url || "",
-                item.options?.meta.sc_uuid || undefined
+                item.options?.meta.sc_uuid || undefined,
+                true
               );
-              item.script = prepareScript.script;
+              item.script = prepareScript;
             } catch (e: any) {
               item.error = e.toString();
               return Promise.resolve(item);
@@ -80,27 +81,27 @@ function App() {
               item.options = {
                 options: {} as ScriptOptions,
                 meta: {
-                  name: item.script.name,
+                  name: item.script?.script.name,
                   // 此uuid是对tm的兼容处理
-                  uuid: item.script.uuid,
-                  sc_uuid: item.script.uuid,
-                  file_url: item.script.downloadUrl || "",
-                  modified: item.script.createtime,
-                  subscribe_url: item.script.subscribeUrl,
+                  uuid: item.script?.script.uuid,
+                  sc_uuid: item.script?.script.uuid,
+                  file_url: item.script?.script.downloadUrl || "",
+                  modified: item.script?.script.createtime,
+                  subscribe_url: item.script?.script.subscribeUrl,
                 },
                 settings: {
                   enabled:
                     item.enabled === false
                       ? false
                       : !(
-                          item.script.metadata.background ||
-                          item.script.metadata.crontab
+                          item.script?.script.metadata.background ||
+                          item.script?.script.metadata.crontab
                         ),
                   position: 0,
                 },
               };
             }
-            item.script.status =
+            item.script.script.status =
               item.enabled !== false && item.options.settings.enabled
                 ? SCRIPT_STATUS_ENABLE
                 : SCRIPT_STATUS_DISABLE;
@@ -129,7 +130,7 @@ function App() {
                 const result = scripts.map(async (item) => {
                   const ok = true;
                   if (item.install && !item.error) {
-                    const resp = await scriptCtrl.upsert(item.script!);
+                    const resp = await scriptCtrl.upsert(item.script?.script!);
                     // 导入数据
                     const { data } = item.storage;
                     Object.keys(data).forEach((key) => {
@@ -236,17 +237,17 @@ function App() {
                       color: "rgb(var(--blue-5))",
                     }}
                   >
-                    {item.script?.name || item.error || t("unknown")}
+                    {item.script?.script?.name || item.error || t("unknown")}
                   </Typography.Title>
                   <span className="text-sm color-gray-5">
                     {t("author")}:{" "}
-                    {item.script?.metadata.author &&
-                      item.script?.metadata.author[0]}
+                    {item.script?.script?.metadata.author &&
+                      item.script?.script?.metadata.author[0]}
                   </span>
                   <span className="text-sm color-gray-5">
                     {t("description")}:{" "}
-                    {item.script?.metadata.description &&
-                      item.script?.metadata.description[0]}
+                    {item.script?.script?.metadata.description &&
+                      item.script?.script?.metadata.description[0]}
                   </span>
                   <span className="text-sm color-gray-5">
                     {t("source")}:{" "}
@@ -276,10 +277,12 @@ function App() {
                   <div className="text-center">
                     <Switch
                       size="small"
-                      checked={item.script?.status === SCRIPT_STATUS_ENABLE}
+                      checked={
+                        item.script?.script?.status === SCRIPT_STATUS_ENABLE
+                      }
                       onChange={(checked) => {
                         setScripts((prev) => {
-                          prev[index].script!.status = checked
+                          prev[index].script!.script.status = checked
                             ? SCRIPT_STATUS_ENABLE
                             : SCRIPT_STATUS_DISABLE;
                           return [...prev];
