@@ -10,6 +10,9 @@
 <a href="https://docs.scriptcat.org/">Docs</a> ·
 <a href="https://bbs.tampermonkey.net.cn/">Community</a> ·
 <a href="https://scriptcat.org/search">Script Hub</a> ·
+</p>
+
+<p align="center">
 <a href="./README.md">中文说明</a>
 </p>
 

@@ -88,7 +88,7 @@ export class SystemManager extends Manager {
           tm = setTimeout(() => {
             chrome.notifications.clear(nid);
             chrome.notifications.onClicked.removeListener(onClicked);
-          }, 60 * 3000);
+          }, 60 * 60 * 1000);
           chrome.notifications.onClicked.addListener(onClicked);
         }
       });
