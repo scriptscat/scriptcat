@@ -436,11 +436,11 @@ export default class Runtime extends Manager {
           chrome.tabs.executeScript(sender.tabId, {
             frameId: sender.frameId,
             code: `(function(){
-                    let temp = document.createElement('script');
+                    let temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
                     temp.setAttribute('type', 'text/javascript');
                     temp.innerHTML = "${injectedSource}";
                     temp.className = "injected-js";
-                    document.documentElement.appendChild(temp)
+                    document.documentElement.appendChild(temp);
                     temp.remove();
                 }())`,
             runAt: "document_start",
@@ -475,11 +475,11 @@ export default class Runtime extends Manager {
             chrome.tabs.executeScript(sender.tabId!, {
               frameId: sender.frameId,
               code: `(function(){
-                    let temp = document.createElement('script');
+                let temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
                     temp.setAttribute('type', 'text/javascript');
                     temp.innerHTML = "${script.code}";
                     temp.className = "injected-js";
-                    document.documentElement.appendChild(temp)
+                    document.documentElement.appendChild(temp);
                     temp.remove();
                 }())`,
               runAt,
