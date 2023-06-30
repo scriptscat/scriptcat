@@ -560,7 +560,7 @@ export default class GMApi {
     if (arguments.length === 1) {
       option.active = true;
     } else if (typeof options === "boolean") {
-      option.active = options;
+      option.active = !options;
     } else {
       option = <GMTypes.OpenTabOptions>options;
     }
