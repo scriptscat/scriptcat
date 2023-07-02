@@ -130,7 +130,7 @@ function ScriptList() {
     {
       title: t("enable"),
       width: 100,
-      key: "enable",
+      dataIndex: "status",
       sorter(a, b) {
         return a.status - b.status;
       },
@@ -243,9 +243,7 @@ function ScriptList() {
     },
     {
       title: t("apply_to_run_status"),
-      dataIndex: "status",
       width: 140,
-      key: "status",
       render(col, item: Script) {
         const toLogger = () => {
           navigate({
@@ -382,10 +380,8 @@ function ScriptList() {
     },
     {
       title: t("sorting"),
-      dataIndex: "sort",
       key: "id",
       width: 80,
-      sorter: (a, b) => a.sort - b.sort,
       align: "center",
       render() {
         return (
