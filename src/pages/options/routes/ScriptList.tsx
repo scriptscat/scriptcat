@@ -714,6 +714,7 @@ function ScriptList() {
                   <Select.Option value="disable">{t("disable")}</Select.Option>
                   <Select.Option value="export">{t("export")}</Select.Option>
                   <Select.Option value="delete">{t("delete")}</Select.Option>
+                  <Select.Option value="update">{t("update")}</Select.Option>
                 </Select>
                 <Button
                   type="primary"
@@ -764,6 +765,57 @@ function ScriptList() {
                                 });
                               });
                             });
+                          });
+                        }
+                        break;
+                      // 批量更新
+                      case "update":
+                        // eslint-disable-next-line no-restricted-globals, no-alert
+                        if (confirm(t("list.confirm_update")!)) {
+                          select.forEach((item, index, array) => {
+                            Message.warning({
+                              id: "checkupdateStart",
+                              content: t("starting_updates"),
+                            });
+                            scriptCtrl
+                              .checkUpdate(item.id)
+                              .then((res) => {
+                                if (res) {
+                                  // 需要更新
+                                  Message.warning({
+                                    id: "checkupdate",
+                                    content: t("new_version_available"),
+                                  });
+                                } else {
+                                  // 已是最新，不弹出了，不然脚本数目太多会一直显示很久
+                                  // Message.success({
+                                  //   id: "checkupdate",
+                                  //   content: t("latest_version"),
+                                  // });
+                                }
+                                if (index === array.length - 1) {
+                                  // 当前元素是最后一个
+                                  Message.success({
+                                    id: "checkupdateEnd",
+                                    content: t("checked_for_all_selected"),
+                                  });
+                                }
+                              })
+                              .catch((e) => {
+                                Message.error({
+                                  id: "checkupdate",
+                                  content: `${t("update_check_failed")}: ${
+                                    e.message
+                                  }`,
+                                });
+                              });
+                            const list = scriptList.map((script) => {
+                              if (script.id === item.id) {
+                                script.updatetime = item.updatetime;
+                              }
+                              return script;
+                            });
+                            setScriptList(list);
                           });
                         }
                         break;

@@ -60,6 +60,7 @@ backup_list: 备份列表
 open_backup_dir: 打开备份目录
 confirm_delete: 确认删除
 confirm_delete_backup_file: 确认删除备份文件
+confirm_update: 确认更新
 delete_success: 删除成功
 backup_strategy: 备份策略
 under_construction: 建设中
@@ -108,6 +109,7 @@ confirm_delete_subscription: 确定要删除此订阅吗? 相关的脚本也会�
 # 脚本列表 ScriptList
 list:
   confirm_delete: 确定要删除吗？请注意这个操作无法恢复！
+  confirm_update: 确认要更新吗？请注意此操作不可逆！
 enable: 开启
 disable: 关闭
 name: 名称
@@ -135,10 +137,12 @@ update_not_supported: 该脚本不支持检查更新
 checking_for_updates: 检查更新中...
 new_version_available: 存在新版本
 latest_version: 已是最新版本
+checked_for_all_selected: 所选脚本皆已检查更新
 update_check_failed: 检查更新失败
 stopping_script: 正在停止脚本
 script_stopped: 脚本已停止
 starting_script: 正在启动脚本...
+starting_updates: 正在批量更新...
 script_started: 脚本已启动
 batch_operations: 批量操作
 export: 导出
