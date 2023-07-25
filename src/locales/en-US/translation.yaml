@@ -108,6 +108,7 @@ confirm_delete_subscription: Are You Sure You Want to Delete This Subscription? 
 # Script List ScriptList
 list:
   confirm_delete: Are You Sure You Want to Delete? Please Note That This and pasted the remaining text.
+  confirm_update: Are You Sure You Want to Update? Please Note That This is an irreversible operation.
 enable: Enable
 disable: Disable
 name: Name
@@ -135,10 +136,12 @@ update_not_supported: This script does not support update checks
 checking_for_updates: Checking for updates...
 new_version_available: New version available
 latest_version: Latest Version
+checked_for_all_selected: Checked updates for all selected 
 update_check_failed: Update Check Failed
 stopping_script: Stopping script
 script_stopped: Script Stopped
 starting_script: Starting script...
+starting_updates: Starting Batch Updates...
 script_started: Script Started
 batch_operations: Batch Operations
 export: Export
