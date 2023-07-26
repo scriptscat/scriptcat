@@ -36,8 +36,11 @@ export default class MessageContent
     document.addEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
-        if (event instanceof MouseEvent) {
-          this.relatedTarget.set(event.detail, <Element>event.relatedTarget);
+        if (event instanceof MutationEvent) {
+          this.relatedTarget.set(
+            parseInt(event.prevValue, 10),
+            <Element>event.relatedNode
+          );
           return;
         }
         const message = (<
@@ -51,7 +54,9 @@ export default class MessageContent
             };
           }
         >event).detail;
-        this.handler(message, this.channelManager, { targetTag: "content" });
+        this.handler(message, this.channelManager, {
+          targetTag: "content",
+        });
       }
     );
     if (!MessageContent.instance) {
@@ -119,10 +124,14 @@ export default class MessageContent
       delete detail.data.relatedTarget;
       detail.data.relatedTarget = Math.ceil(Math.random() * 1000000);
       // 可以使用此种方式交互element
-      const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.eventId, {
-        detail: detail.data.relatedTarget,
-        relatedTarget: target,
-      });
+      const ev = document.createEvent("MutationEvent");
+      ev.initMutationEvent(
+        (this.isContent ? "fd" : "ct") + this.eventId,
+        false,
+        false,
+        target,
+        detail.data.relatedTarget.toString()
+      );
       document.dispatchEvent(ev);
     }
 

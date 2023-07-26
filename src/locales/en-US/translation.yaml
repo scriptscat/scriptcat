@@ -32,6 +32,7 @@ cloud_sync_account_verification: Cloud Sync Account Verification in Progress...
 cloud_sync_verification_failed: Cloud Sync Account Verification Failed
 save_success: Save Successful
 update: Update
+check_update: Check Update
 script_subscription_check_interval: Script/Subscription Update Check Interval
 never: Never
 6_hours: 6 hours

@@ -32,6 +32,7 @@ cloud_sync_account_verification: 云同步账号信息验证中...
 cloud_sync_verification_failed: 云同步账号信息验证失败
 save_success: 保存成功
 update: 更新
+check_update: 检查更新
 script_subscription_check_interval: 脚本/订阅检查更新间隔
 never: 从不
 6_hours: 6小时

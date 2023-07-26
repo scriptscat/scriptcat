@@ -714,7 +714,9 @@ function ScriptList() {
                   <Select.Option value="disable">{t("disable")}</Select.Option>
                   <Select.Option value="export">{t("export")}</Select.Option>
                   <Select.Option value="delete">{t("delete")}</Select.Option>
-                  <Select.Option value="update">{t("update")}</Select.Option>
+                  <Select.Option value="check_update">
+                    {t("check_update")}
+                  </Select.Option>
                 </Select>
                 <Button
                   type="primary"
@@ -768,8 +770,8 @@ function ScriptList() {
                           });
                         }
                         break;
-                      // 批量更新
-                      case "update":
+                      // 批量检查更新
+                      case "check_update":
                         // eslint-disable-next-line no-restricted-globals, no-alert
                         if (confirm(t("list.confirm_update")!)) {
                           select.forEach((item, index, array) => {
