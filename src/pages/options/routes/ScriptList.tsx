@@ -71,6 +71,8 @@ import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
 import { nextTime, semTime } from "@App/pkg/utils/utils";
 import { getValues, ListHomeRender, scriptListSort } from "./utils";
+// eslint-disable-next-line import/order
+import i18n from "@App/locales/locales";
 
 type ListType = Script & { loading?: boolean };
 
@@ -224,7 +226,7 @@ function ScriptList() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {col}
+                {item.metadata[`name:${i18n.language.toLowerCase()}`] ?? col}
               </Text>
             </Link>
           </Tooltip>
