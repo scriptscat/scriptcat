@@ -388,7 +388,7 @@ export async function dealXhr(
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR response error");
       }
       try {
-        respond.responseText = xhr.responseText;
+        respond.responseText = xhr.responseText || undefined;
       } catch (e) {
         LoggerCore.getLogger(Logger.E(e)).error("GM XHR getResponseText error");
       }

@@ -41,7 +41,6 @@ describe("proxy context", () => {
 });
 
 describe("兼容问题", () => {
-  console.log("ok");
   const _this = proxyContext({}, {});
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it("Uncaught TypeError: Illegal invocation #189", () => {

@@ -97,4 +97,12 @@ describe("sandbox", () => {
     const ret = sandboxExec.exec();
     expect(ret).toEqual("ok3");
   });
+
+  // 沉浸式翻译, 常量值被改变
+  it("NodeFilter #214", () => {
+    scriptRes2.code = `return NodeFilter.FILTER_REJECT;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = sandboxExec.exec();
+    expect(ret).toEqual(2);
+  });
 });

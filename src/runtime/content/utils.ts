@@ -123,6 +123,7 @@ export const init = new Map<string, boolean>();
 
 // 需要用到全局的
 export const unscopables: { [key: string]: boolean } = {
+  NodeFilter: true,
   RegExp: true,
 };
 
