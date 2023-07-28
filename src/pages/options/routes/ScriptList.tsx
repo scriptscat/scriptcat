@@ -70,9 +70,8 @@ import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
 import { nextTime, semTime } from "@App/pkg/utils/utils";
+import { i18nName } from "@App/locales/locales";
 import { getValues, ListHomeRender, scriptListSort } from "./utils";
-// eslint-disable-next-line import/order
-import i18n from "@App/locales/locales";
 
 type ListType = Script & { loading?: boolean };
 
@@ -202,7 +201,11 @@ function ScriptList() {
           </div>
         );
       },
-      onFilter: (value, row) => (value ? row.name.indexOf(value) !== -1 : true),
+      onFilter: (value, row) =>
+        value
+          ? row.name.indexOf(value) !== -1 ||
+            i18nName(row).indexOf(value) !== -1
+          : true,
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
           setTimeout(() => inputRef.current!.focus(), 150);
@@ -226,7 +229,7 @@ function ScriptList() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {item.metadata[`name:${i18n.language.toLowerCase()}`] ?? col}
+                {i18nName(item)}
               </Text>
             </Link>
           </Tooltip>
@@ -777,6 +780,9 @@ function ScriptList() {
                         // eslint-disable-next-line no-restricted-globals, no-alert
                         if (confirm(t("list.confirm_update")!)) {
                           select.forEach((item, index, array) => {
+                            if (!item.checkUpdateUrl) {
+                              return;
+                            }
                             Message.warning({
                               id: "checkupdateStart",
                               content: t("starting_updates"),
@@ -788,14 +794,10 @@ function ScriptList() {
                                   // 需要更新
                                   Message.warning({
                                     id: "checkupdate",
-                                    content: t("new_version_available"),
+                                    content: `${i18nName(item)} ${t(
+                                      "new_version_available"
+                                    )}`,
                                   });
-                                } else {
-                                  // 已是最新，不弹出了，不然脚本数目太多会一直显示很久
-                                  // Message.success({
-                                  //   id: "checkupdate",
-                                  //   content: t("latest_version"),
-                                  // });
                                 }
                                 if (index === array.length - 1) {
                                   // 当前元素是最后一个
@@ -813,13 +815,6 @@ function ScriptList() {
                                   }`,
                                 });
                               });
-                            const list = scriptList.map((script) => {
-                              if (script.id === item.id) {
-                                script.updatetime = item.updatetime;
-                              }
-                              return script;
-                            });
-                            setScriptList(list);
                           });
                         }
                         break;

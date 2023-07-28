@@ -26,6 +26,7 @@ import { Channel } from "@App/app/message/channel";
 import IoC from "@App/app/ioc";
 import Manager from "@App/app/service/manager";
 import Hook from "@App/app/service/hook";
+import { i18nName } from "@App/locales/locales";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
 import GMApi, { Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
@@ -327,7 +328,7 @@ export default class Runtime extends Manager {
             if (!script) {
               return {
                 id: item.script.id,
-                name: item.script.name,
+                name: i18nName(item.script),
                 enable: item.script.status === SCRIPT_STATUS_ENABLE,
                 updatetime: item.script.updatetime || item.script.createtime,
                 hasUserConfig: !!item.script.config,
@@ -340,7 +341,7 @@ export default class Runtime extends Manager {
             }
             return {
               id: script.id,
-              name: script.name,
+              name: i18nName(script),
               enable: script.status === SCRIPT_STATUS_ENABLE,
               updatetime: script.updatetime || script.createtime,
               hasUserConfig: !!script?.config,

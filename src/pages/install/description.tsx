@@ -27,6 +27,7 @@ import IoC from "@App/app/ioc";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/app/repo/subscribe";
 import SubscribeController from "@App/app/service/subscribe/controller";
 import { useTranslation } from "react-i18next";
+import { i18nDescription, i18nName } from "@App/locales/locales";
 import CodeEditor from "../components/CodeEditor";
 
 type Permission = { label: string; color?: string; value: string[] }[];
@@ -246,7 +247,7 @@ export default function Description() {
                 </Avatar>
               )}
               <Typography.Text bold className="text-size-lg">
-                {metadata.name}
+                {upsertScript && i18nName(upsertScript)}
                 <Tooltip
                   content={
                     isSub
@@ -274,7 +275,9 @@ export default function Description() {
               </Typography.Text>
             </div>
             <div>
-              <Typography.Text bold>{metadata.description}</Typography.Text>
+              <Typography.Text bold>
+                {upsertScript && i18nDescription(upsertScript)}
+              </Typography.Text>
             </div>
             <div>
               <Typography.Text bold>

@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { Metadata } from "@App/app/repo/scripts";
 import enUS from "./en-US/translation.yaml";
 import zhCN from "./zh-CN/translation.yaml";
 
@@ -24,5 +25,17 @@ dayjs.locale(
   ).toLocaleLowerCase()
 );
 dayjs.extend(relativeTime);
+
+export function i18nName(script: { name: string; metadata: Metadata }) {
+  return script.metadata[`name:${i18n.language.toLowerCase()}`]
+    ? script.metadata[`name:${i18n.language.toLowerCase()}`][0]
+    : script.name;
+}
+
+export function i18nDescription(script: { metadata: Metadata }) {
+  return script.metadata[`description:${i18n.language.toLowerCase()}`]
+    ? script.metadata[`description:${i18n.language.toLowerCase()}`][0]
+    : script.metadata.description;
+}
 
 export default i18n;

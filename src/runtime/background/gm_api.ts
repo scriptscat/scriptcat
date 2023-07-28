@@ -17,6 +17,7 @@ import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem from "@Pkg/filesystem/filesystem";
 import { joinPath } from "@Pkg/filesystem/utils";
 import i18next from "i18next";
+import { i18nName } from "@App/locales/locales";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -217,7 +218,7 @@ export default class GMApi {
         }
       }
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = request.script.name;
+      metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.hostname;
       metadata[i18next.t("request_url")] = config.url;
 
@@ -689,7 +690,7 @@ export default class GMApi {
         );
       }
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = request.script.name;
+      metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.host;
       return Promise.resolve({
         permission: "cookie",
@@ -836,7 +837,7 @@ export default class GMApi {
       }
       const dir = details.baseDir ? details.baseDir : request.script.uuid;
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = request.script.name;
+      metadata[i18next.t("script_name")] = i18nName(request.script);
       return Promise.resolve({
         permission: "file_storage",
         permissionValue: dir,
