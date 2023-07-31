@@ -5,6 +5,7 @@ module.exports = {
   moduleNameMapper: {
     "^@App/(.*)$": "<rootDir>/src/$1",
     "^@Pkg/(.*)$": "<rootDir>/pkg/$1",
+    "\\.(yaml)$": "<rootDir>/tests/mocks/fileMock.js",
   },
   moduleFileExtensions: ["js", "ts"],
   transform: {
