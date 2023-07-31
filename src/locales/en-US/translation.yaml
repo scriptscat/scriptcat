@@ -341,6 +341,9 @@ cookie_domain: "Cookie Domain"
 script_operation_title: "Script is attempting to access script synchronization storage"
 script_operation_description: "Please confirm whether you allow the script to perform this operation. If allowed, the script will be able to access the storage space you have set up and create a directory app/${dir} within it."
 script_permission_content: "Script"
+sync_system_connect_failed: "Sync system connection failed"
+sync_system_closed: "Sync turned off"
+sync_system_closed_description: "Sync is disabled, please configure again"
 
 # FileSystem
 auth_type: Authentication Type

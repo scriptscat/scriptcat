@@ -18,6 +18,7 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
+import { t } from "i18next";
 import Manager from "../manager";
 import ResourceManager from "../resource/manager";
 import ScriptManager from "../script/manager";
@@ -122,12 +123,17 @@ export default class SynchronizeManager extends Manager {
       logger.error("create filesystem error", Logger.E(e), {
         type: config.filesystem,
       });
-      InfoNotification("同步系统连接失败", errorMsg(e));
       if (autoDisable) {
+        InfoNotification(
+          `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
+          `${t("sync_system_closed_description")}\n${errorMsg(e)}`
+        );
         this.systemConfig.cloudSync = {
           ...this.systemConfig.cloudSync,
           enable: false,
         };
+      } else {
+        InfoNotification(t("sync_system_connect_failed"), errorMsg(e));
       }
       throw e;
     }
@@ -157,7 +163,7 @@ export default class SynchronizeManager extends Manager {
       try {
         await this.syncOnce(fs);
       } catch (e: any) {
-        InfoNotification("同步失败,请检查同步配置", errorMsg(e));
+        this.logger.error("sync error", Logger.E(e));
       }
     }, 60 * 60 * 1000);
     freeFn.push(() => {
@@ -167,7 +173,7 @@ export default class SynchronizeManager extends Manager {
     try {
       await this.syncOnce(fs);
     } catch (e: any) {
-      InfoNotification("同步失败,请检查同步配置", errorMsg(e));
+      this.logger.error("sync error", Logger.E(e));
     }
     return Promise.resolve(() => {
       logger.info("stop cloud sync");
@@ -490,13 +496,13 @@ export default class SynchronizeManager extends Manager {
   }
 
   getUrlName(url: string): string {
-    let t = url.indexOf("?");
-    if (t !== -1) {
-      url = url.substring(0, t);
+    let index = url.indexOf("?");
+    if (index !== -1) {
+      url = url.substring(0, index);
     }
-    t = url.lastIndexOf("/");
-    if (t !== -1) {
-      url = url.substring(t + 1);
+    index = url.lastIndexOf("/");
+    if (index !== -1) {
+      url = url.substring(index + 1);
     }
     return url;
   }

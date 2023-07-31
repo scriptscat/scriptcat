@@ -342,6 +342,9 @@ cookie_domain: "Cookie域"
 script_operation_title: "脚本正在试图操作脚本同步储存空间"
 script_operation_description: "请您确认是否允许脚本进行此操作，允许后将允许脚本操作你设定的储存空间，脚本会在储存空间下创建一个app/${dir}的目录进行使用"
 script_permission_content: "脚本"
+sync_system_connect_failed: "同步系统连接失败"
+sync_system_closed: "已关闭同步"
+sync_system_closed_description: "同步功能已关闭，请重新配置"
 
 # 文件系统
 auth_type: 鉴权类型

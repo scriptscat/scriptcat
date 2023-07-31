@@ -1,6 +1,6 @@
 {
   "name": "scriptcat",
-  "version": "0.15.0",
+  "version": "0.15.0-beta",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
@@ -12,7 +12,8 @@
     "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",
     "build:no-split": "webpack --mode production --config ./webpack/webpack.no.split.ts",
     "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.dev.ts",
-    "pack": "node ./build/pack.js"
+    "pack": "node ./build/pack.js",
+    "changlog": "gitmoji-changelog"
   },
   "dependencies": {
     "@arco-design/web-react": "^2.47.0",
