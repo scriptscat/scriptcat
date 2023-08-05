@@ -132,6 +132,7 @@ function ScriptList() {
       title: t("enable"),
       width: 100,
       dataIndex: "status",
+      className: "script-enable",
       sorter(a, b) {
         return a.status - b.status;
       },
@@ -249,6 +250,7 @@ function ScriptList() {
     {
       title: t("apply_to_run_status"),
       width: 140,
+      className: "apply_to_run_status",
       render(col, item: Script) {
         const toLogger = () => {
           navigate({
@@ -385,6 +387,7 @@ function ScriptList() {
     },
     {
       title: t("sorting"),
+      className: "script_sort",
       key: "id",
       width: 80,
       align: "center",
@@ -690,6 +693,7 @@ function ScriptList() {
 
   return (
     <Card
+      id="script-list"
       className="script-list"
       style={{
         height: "100%",

@@ -41,6 +41,7 @@ function Tools() {
 
   return (
     <Space
+      className="tools"
       direction="vertical"
       style={{
         width: "100%",
@@ -49,7 +50,7 @@ function Tools() {
         position: "relative",
       }}
     >
-      <Card title={t("backup")} bordered={false}>
+      <Card className="backup" title={t("backup")} bordered={false}>
         <Space direction="vertical">
           <Title heading={6}>{t("local")}</Title>
           <Space>

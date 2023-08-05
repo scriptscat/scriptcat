@@ -49,6 +49,7 @@ function Setting() {
 
   return (
     <Space
+      className="setting"
       direction="vertical"
       style={{
         width: "100%",
@@ -86,7 +87,7 @@ function Setting() {
           </Space>
         </Space>
       </Card>
-      <Card title={t("script_sync")} bordered={false}>
+      <Card className="sync" title={t("script_sync")} bordered={false}>
         <Space direction="vertical">
           <Checkbox
             checked={syncDelete}

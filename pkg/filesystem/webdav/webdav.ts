@@ -1,4 +1,4 @@
-import { AuthType, createClient, FileStat, WebDAVClient } from "webdav/web";
+import { AuthType, createClient, FileStat, WebDAVClient } from "webdav";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";

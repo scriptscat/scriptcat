@@ -17,7 +17,6 @@ import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import {
   IconDesktop,
   IconDown,
-  IconGithub,
   IconLink,
   IconMoonFill,
   IconSunFill,
@@ -28,7 +27,6 @@ import {
   RiFileCodeLine,
   RiTerminalBoxLine,
   RiTimerLine,
-  RiLinkM,
   RiPlayListAddLine,
 } from "react-icons/ri";
 import "./index.css";
@@ -154,83 +152,6 @@ const MainLayout: React.FC<{
                   className="!text-size-sm"
                 >
                   <RiPlayListAddLine /> {t("create_script")} <IconDown />
-                </Button>
-              </Dropdown>
-            )}
-            {pageName === "options" && (
-              <Dropdown
-                droplist={
-                  // 取消最大高度限制防止内容过多出现滚动条 / 增加10px宽度提升美观  下同
-                  <Menu
-                    style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}
-                  >
-                    <Menu.Item key="scriptcat/docs/use/">
-                      <a
-                        href="https://docs.scriptcat.org/docs/use/"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <RiFileCodeLine /> {t("user_guide")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="scriptcat/docs/dev/">
-                      <a
-                        href="https://docs.scriptcat.org/docs/dev/"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <RiFileCodeLine /> {t("api_docs")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="scriptcat/docs/learn/">
-                      <a
-                        href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <RiFileCodeLine /> {t("development_guide")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="scriptcat/userscript">
-                      <a
-                        href="https://scriptcat.org/search"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <IconLink /> {t("script_gallery")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="tampermonkey/bbs">
-                      <a
-                        href="https://bbs.tampermonkey.net.cn/"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <IconLink /> {t("community_forum")}
-                      </a>
-                    </Menu.Item>
-                    <Menu.Item key="GitHub">
-                      <a
-                        href="https://github.com/scriptscat/scriptcat"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <IconGithub /> GitHub
-                      </a>
-                    </Menu.Item>
-                  </Menu>
-                }
-                position="bl"
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  style={{
-                    color: "var(--color-text-1)",
-                  }}
-                  className="!text-size-sm"
-                >
-                  <RiLinkM /> {t("external_links")} <IconDown />
                 </Button>
               </Dropdown>
             )}

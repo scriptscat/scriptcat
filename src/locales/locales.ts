@@ -1,11 +1,11 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Metadata } from "@App/app/repo/scripts";
 import enUS from "./en-US/translation.yaml";
 import zhCN from "./zh-CN/translation.yaml";
+import "dayjs/locale/zh-cn";
 
 i18n.use(initReactI18next).init({
   fallbackLng: "zh-CN",

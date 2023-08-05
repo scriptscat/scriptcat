@@ -291,7 +291,7 @@ function SubscribeList() {
 
   return (
     <Card
-      className="script-list"
+      className="script-list subscribe-list"
       style={{
         height: "100%",
         overflowY: "auto",
