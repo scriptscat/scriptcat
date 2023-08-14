@@ -60,36 +60,9 @@ export class SystemManager extends Manager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
-          let nid: string;
-          chrome.notifications.create(
-            {
-              type: "basic",
-              iconUrl: chrome.runtime.getURL("assets/logo.png"),
-              title: `ScriptCat 更新到 ${ExtVersion}`,
-              message: "ScriptCat已更新，点击查看更新日志",
-            },
-            (notificationId) => {
-              nid = notificationId;
-            }
-          );
-          // eslint-disable-next-line no-undef
-          let tm: NodeJS.Timeout;
-          const onClicked = (id: string) => {
-            if (nid !== id) {
-              return;
-            }
-            chrome.notifications.onClicked.removeListener(onClicked);
-            chrome.tabs.create({
-              url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
-            });
-            chrome.notifications.clear(nid);
-            clearTimeout(tm);
-          };
-          tm = setTimeout(() => {
-            chrome.notifications.clear(nid);
-            chrome.notifications.onClicked.removeListener(onClicked);
-          }, 60 * 60 * 1000);
-          chrome.notifications.onClicked.addListener(onClicked);
+          chrome.tabs.create({
+            url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+          });
         }
       });
     }

@@ -178,11 +178,11 @@ export default class SubscribeManager extends Manager {
         if (
           checkSilenceUpdate(
             newSubscribe.oldSubscribe!.metadata,
-            newSubscribe.metadata
+            newSubscribe.subscribe.metadata
           )
         ) {
           logger.info("silence update subscribe");
-          this.upsertHandler(newSubscribe);
+          this.upsertHandler(newSubscribe.subscribe);
           return;
         }
       } catch (e) {

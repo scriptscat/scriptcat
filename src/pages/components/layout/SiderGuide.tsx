@@ -1,4 +1,4 @@
-import React, { useImperativeHandle, useState } from "react";
+import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Joyride, { Step } from "react-joyride";
 import { Path, useLocation, useNavigate } from "react-router-dom";
@@ -17,6 +17,13 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
   useImperativeHandle(ref, () => ({
     open: () => setRun(true),
   }));
+  useEffect(() => {
+    // 首次使用时，打开引导
+    if (localStorage.getItem("firstUse") === null) {
+      localStorage.setItem("firstUse", "false");
+      setRun(true);
+    }
+  });
 
   const steps: Array<Step> = [
     {
@@ -91,7 +98,6 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
   return (
     <Joyride
       callback={(data) => {
-        console.log(data);
         if (
           data.action === "stop" ||
           data.action === "close" ||
