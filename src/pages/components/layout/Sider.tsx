@@ -52,7 +52,7 @@ const Sider: React.FC = () => {
             }}
           >
             <CustomLink to="/">
-              <MenuItem key="/" className="guide-script">
+              <MenuItem key="/" className="menu-script">
                 <IconCode /> {t("installed_scripts")}
               </MenuItem>
             </CustomLink>
@@ -66,12 +66,12 @@ const Sider: React.FC = () => {
                 <IconFile /> {t("logs")}
               </MenuItem>
             </CustomLink>
-            <CustomLink to="/tools">
+            <CustomLink to="/tools" className="menu-tools">
               <MenuItem key="/tools">
                 <IconTool /> {t("tools")}
               </MenuItem>
             </CustomLink>
-            <CustomLink to="/setting">
+            <CustomLink to="/setting" className="menu-setting">
               <MenuItem key="/setting">
                 <IconSettings /> {t("settings")}
               </MenuItem>

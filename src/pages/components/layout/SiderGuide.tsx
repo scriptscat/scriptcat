@@ -35,7 +35,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
     {
       title: t("installed_scripts"),
       content: t("guide_installed_scripts"),
-      target: ".guide-script",
+      target: ".menu-script",
     },
     {
       content: <CustomTrans i18nKey="guide_script_list_content" />,
@@ -54,12 +54,12 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
       title: t("guide_script_list_apply_to_run_status_title"),
     },
     {
-      target: ".script_sort",
+      target: ".script-sort",
       title: t("guide_script_list_sort_title"),
       content: <CustomTrans i18nKey="guide_script_list_sort_content" />,
     },
     {
-      target: ".tools",
+      target: ".menu-tools",
       title: t("guide_tools_title"),
       content: t("guide_tools_content"),
       placement: "auto",
@@ -70,7 +70,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
       content: t("guide_tools_backup_content"),
     },
     {
-      target: ".setting",
+      target: ".menu-setting",
       title: t("guide_setting_title"),
       content: t("guide_setting_content"),
       placement: "auto",

@@ -43,7 +43,7 @@
     "semver": "^7.3.8",
     "unocss": "^0.51.2",
     "uuid": "^8.3.2",
-    "webdav": "^5.2.3",
+    "webdav": "^4.11.0",
     "yaml": "^2.1.1"
   },
   "devDependencies": {

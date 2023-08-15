@@ -1,7 +1,8 @@
-import { AuthType, createClient, FileStat, WebDAVClient } from "webdav";
+import { AuthType, createClient, FileStat, WebDAVClient } from "webdav/web";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
+import { WarpTokenError } from "../error";
 
 export default class WebDAVFileSystem implements FileSystem {
   client: WebDAVClient;
@@ -31,7 +32,14 @@ export default class WebDAVFileSystem implements FileSystem {
   }
 
   async verify(): Promise<void> {
-    await this.client.getQuota();
+    try {
+      await this.client.getQuota();
+    } catch (e: any) {
+      if (e.response && e.response.status === 401) {
+        throw new WarpTokenError(e);
+      }
+      throw new Error("verify failed");
+    }
     return Promise.resolve();
   }
 

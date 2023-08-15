@@ -19,6 +19,7 @@ import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import FileSystemFactory from "@Pkg/filesystem/factory";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import { t } from "i18next";
+import { isWarpTokenError } from "@Pkg/filesystem/error";
 import Manager from "../manager";
 import ResourceManager from "../resource/manager";
 import ScriptManager from "../script/manager";
@@ -98,7 +99,7 @@ export default class SynchronizeManager extends Manager {
           if (value.enable) {
             // 每次开启前进行一次全量同步,删除文件摘要
             await this.storage.set("file_digest", {});
-            freeSync = await this.enableCloudSync(value, true);
+            freeSync = await this.enableCloudSync(value);
           }
         }
       }
@@ -106,7 +107,7 @@ export default class SynchronizeManager extends Manager {
   }
 
   // 开启云同步
-  async enableCloudSync(config: CloudSyncConfig, autoDisable: boolean = false) {
+  async enableCloudSync(config: CloudSyncConfig) {
     const logger = this.logger.with({ syncDelete: config.syncDelete });
     logger.info("start cloud sync");
 
@@ -123,7 +124,9 @@ export default class SynchronizeManager extends Manager {
       logger.error("create filesystem error", Logger.E(e), {
         type: config.filesystem,
       });
-      if (autoDisable) {
+      // 判断错误是不是网络类型的错误, 网络类型的错误不做任何处理
+      // 如果是token失效之类的错误,通知用户并关闭云同步
+      if (isWarpTokenError(e)) {
         InfoNotification(
           `${t("sync_system_connect_failed")}, ${t("sync_system_closed")}`,
           `${t("sync_system_closed_description")}\n${errorMsg(e)}`
@@ -132,8 +135,6 @@ export default class SynchronizeManager extends Manager {
           ...this.systemConfig.cloudSync,
           enable: false,
         };
-      } else {
-        InfoNotification(t("sync_system_connect_failed"), errorMsg(e));
       }
       throw e;
     }

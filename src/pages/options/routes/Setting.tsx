@@ -22,6 +22,7 @@ import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
+import Logger from "@App/app/logger/logger";
 
 function Setting() {
   const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
@@ -124,7 +125,9 @@ function Setting() {
                       );
                     } catch (e) {
                       Message.error(
-                        `${t("cloud_sync_verification_failed")}: ${e}`
+                        `${t(
+                          "cloud_sync_verification_failed"
+                        )}: ${JSON.stringify(Logger.E(e))}`
                       );
                       return;
                     }

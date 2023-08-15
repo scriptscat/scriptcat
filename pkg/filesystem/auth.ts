@@ -2,6 +2,7 @@
 /* eslint-disable import/prefer-default-export */
 import { ExtServer } from "@App/app/const";
 import { api } from "@App/pkg/axios";
+import { WarpTokenError } from "./error";
 
 type NetDiskType = "baidu" | "onedrive";
 
@@ -73,7 +74,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     await NetDisk(netDiskType);
     const resp = await GetNetDiskToken(netDiskType);
     if (resp.code !== 0) {
-      return Promise.reject(new Error(resp.msg));
+      return Promise.reject(new WarpTokenError(new Error(resp.msg)));
     }
     token = {
       accessToken: resp.data.token.access_token,
@@ -94,7 +95,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
         if (invalid) {
           return AuthVerify(netDiskType);
         }
-        return Promise.reject(new Error(resp.msg));
+        return Promise.reject(new WarpTokenError(new Error(resp.msg)));
       }
       token = {
         accessToken: resp.data.token.access_token,

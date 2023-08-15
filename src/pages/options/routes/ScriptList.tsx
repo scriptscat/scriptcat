@@ -387,7 +387,7 @@ function ScriptList() {
     },
     {
       title: t("sorting"),
-      className: "script_sort",
+      className: "script-sort",
       key: "id",
       width: 80,
       align: "center",
