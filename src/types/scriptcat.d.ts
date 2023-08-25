@@ -35,8 +35,8 @@ declare const GM_info: {
   scriptUpdateURL?: string;
   // scriptSource: string;
   scriptMetaStr?: string;
-  userConfig?: UserConfig,
-  userConfigStr?: string,
+  userConfig?: UserConfig;
+  userConfigStr?: string;
   // isIncognito: boolean;
   // downloadMode: "native" | "disabled" | "browser";
   script: {
@@ -307,8 +307,8 @@ declare namespace CATType {
 
   interface FileStorageError {
     // 错误码 -1 未知错误 1 用户未配置文件储存源 2 文件储存源配置错误 3 路径不存在
-    // 4 上传失败 5 下载失败 6 删除失败 7 不允许的文件路径
-    code: -1 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+    // 4 上传失败 5 下载失败 6 删除失败 7 不允许的文件路径 8 网络类型的错误
+    code: -1 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
     error: string;
   }
 

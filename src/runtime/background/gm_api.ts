@@ -18,6 +18,7 @@ import FileSystem from "@Pkg/filesystem/filesystem";
 import { joinPath } from "@Pkg/filesystem/utils";
 import i18next from "i18next";
 import { i18nName } from "@App/locales/locales";
+import { isWarpTokenError } from "@Pkg/filesystem/error";
 import PermissionVerify, {
   ConfirmParam,
   IPermissionVerify,
@@ -879,9 +880,12 @@ export default class GMApi {
       await FileSystemFactory.mkdirAll(fs, baseDir);
       fs = await fs.openDir(baseDir);
     } catch (e: any) {
-      fsConfig.status = "error";
-      this.systemConfig.catFileStorage = fsConfig;
-      return channel.throw({ code: 2, error: e.message });
+      if (isWarpTokenError(e)) {
+        fsConfig.status = "error";
+        this.systemConfig.catFileStorage = fsConfig;
+        return channel.throw({ code: 2, error: e.error.message });
+      }
+      return channel.throw({ code: 8, error: e.message });
     }
     switch (action) {
       case "list":
