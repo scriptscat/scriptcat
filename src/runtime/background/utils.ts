@@ -65,6 +65,7 @@ export function listenerWebRequest(headerFlag: string) {
     respOpt.push("extraHeaders");
   }
   const maxRedirects = new Map<string, [number, number]>();
+  const isRedirects = new Map<string, boolean>();
   // 处理发送请求的unsafeHeaders
   chrome.webRequest.onBeforeSendHeaders.addListener(
     (details) => {
@@ -220,6 +221,7 @@ export function listenerWebRequest(headerFlag: string) {
         }
         // 处理最大重定向次数
         if (lowerCase === "location") {
+          isRedirects.set(details.requestId, true);
           const nums = maxRedirects.get(details.requestId);
           if (nums) {
             nums[0] += 1;
@@ -231,6 +233,13 @@ export function listenerWebRequest(headerFlag: string) {
         }
       });
       details.responseHeaders?.push(...appendHeaders);
+      // 判断是否为重定向请求,如果是,将url注入到finalUrl
+      if (isRedirects.has(details.requestId)) {
+        details.responseHeaders?.push({
+          name: `${headerFlag}-final-url`,
+          value: details.url,
+        });
+      }
       return {
         responseHeaders: details.responseHeaders,
       };
@@ -247,6 +256,7 @@ export function listenerWebRequest(headerFlag: string) {
       }
       // 删除最大重定向数缓存
       maxRedirects.delete(details.requestId);
+      isRedirects.delete(details.requestId);
     },
     { urls: ["<all_urls>"] }
   );
@@ -335,9 +345,15 @@ export async function dealXhr(
   config: GMSend.XHRDetails,
   xhr: XMLHttpRequest
 ): Promise<GMTypes.XHRResponse> {
+  let finalUrl = xhr.responseURL || config.url;
+  // 判断是否有headerFlag-final-url,有则替换finalUrl
+  const finalUrlHeader = xhr.getResponseHeader(`${headerFlag}-final-url`);
+  if (finalUrlHeader) {
+    finalUrl = finalUrlHeader;
+  }
   const removeXCat = new RegExp(`${headerFlag}-`, "g");
   const respond: GMTypes.XHRResponse = {
-    finalUrl: xhr.responseURL || config.url,
+    finalUrl,
     readyState: <any>xhr.readyState,
     status: xhr.status,
     statusText: xhr.statusText,
