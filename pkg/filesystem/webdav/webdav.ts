@@ -61,8 +61,18 @@ export default class WebDAVFileSystem implements FileSystem {
     );
   }
 
-  createDir(path: string): Promise<void> {
-    return this.client.createDirectory(joinPath(this.basePath, path));
+  async createDir(path: string): Promise<void> {
+    try {
+      return Promise.resolve(
+        await this.client.createDirectory(joinPath(this.basePath, path))
+      );
+    } catch (e: any) {
+      // 如果是405错误,则忽略
+      if (e.message.includes("405")) {
+        return Promise.resolve();
+      }
+      return Promise.reject(e);
+    }
   }
 
   async delete(path: string): Promise<void> {
