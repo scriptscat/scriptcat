@@ -343,6 +343,10 @@ export default class GMApi {
 
   @PermissionVerify.API({
     listener() {
+      // 为了兼容safari
+      if (!chrome.notifications) {
+        return;
+      }
       chrome.notifications.onClosed.addListener((id, user) => {
         const ret = Cache.getInstance().get(`GM_notification:${id}`);
         if (ret) {
