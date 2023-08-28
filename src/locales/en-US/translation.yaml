@@ -198,6 +198,7 @@ script_setting: Script Setting
 basic_info: Basic Information
 update_url: Update URL
 permission_management: Permission Management
+add_permission: Add Permission
 # Script Setting Match ScriptSetting/Match
 match: Match
 user_setting: User Setting

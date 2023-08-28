@@ -199,6 +199,9 @@ script_setting: 脚本设置
 basic_info: 基本信息
 update_url: 更新URL
 permission_management: 授权管理
+add_permission: 添加授权
+permission_cors: 跨域(cors)
+permission_cookie: 管理cookie
 # 脚本设置Match ScriptSetting/Match
 match: 匹配
 user_setting: 用户设定

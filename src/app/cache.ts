@@ -35,4 +35,8 @@ export default class Cache {
   public del(key: string): void {
     this.map.delete(key);
   }
+
+  public list(): string[] {
+    return Array.from(this.map.keys());
+  }
 }

@@ -289,7 +289,7 @@ const Match: React.FC<{
           </Popconfirm>
         </Space>
       </div>
-      <Table columns={columns} data={match} rowKey="id" />
+      <Table columns={columns} data={match} rowKey="id" pagination={false} />
       <Divider />
       <div className="flex flex-row justify-between pb-2">
         <Typography.Title heading={6}>{t("website_exclude")}</Typography.Title>
@@ -318,7 +318,7 @@ const Match: React.FC<{
           </Popconfirm>
         </Space>
       </div>
-      <Table columns={columns} data={exclude} rowKey="id" />
+      <Table columns={columns} data={exclude} rowKey="id" pagination={false} />
       <Divider />
     </>
   );

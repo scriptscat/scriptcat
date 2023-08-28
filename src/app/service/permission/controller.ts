@@ -45,4 +45,19 @@ export default class PermissionController {
       confirm,
     });
   }
+
+  // 添加权限
+  addPermission(scriptId: number, permission: Permission) {
+    return this.msg.syncSend("addPermission", {
+      scriptId,
+      permission,
+    });
+  }
+
+  // 重置权限
+  resetPermission(scriptId: number) {
+    return this.msg.syncSend("resetPermission", {
+      scriptId,
+    });
+  }
 }

@@ -1,6 +1,6 @@
 // gm api 权限验证
 import Cache from "@App/app/cache";
-import { PermissionDAO } from "@App/app/repo/permission";
+import { Permission, PermissionDAO } from "@App/app/repo/permission";
 import { Script } from "@App/app/repo/scripts";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
@@ -105,6 +105,17 @@ export default class PermissionVerify {
     reject: (reason: any) => void;
   }> = new MessageQueue();
 
+  removePermissionCache(scriptId: number) {
+    // 先删除缓存
+    Cache.getInstance()
+      .list()
+      .forEach((key) => {
+        if (key.startsWith(`permission:${scriptId.toString()}:`)) {
+          Cache.getInstance().del(key);
+        }
+      });
+  }
+
   constructor() {
     this.permissionDAO = new PermissionDAO();
     // 监听用户确认消息
@@ -156,12 +167,7 @@ export default class PermissionVerify {
       "deletePermission",
       async (_action, data: { scriptId: number; confirm: ConfirmParam }) => {
         // 先删除缓存
-        const cacheKey = CacheKey.permissionConfirm(
-          data.scriptId,
-          data.confirm
-        );
-        // 从数据库中查询是否有此权限
-        await Cache.getInstance().del(cacheKey);
+        this.removePermissionCache(data.scriptId);
         //  再删除数据库
         const m = await this.permissionDAO.findOne({
           scriptId: data.scriptId,
@@ -172,6 +178,44 @@ export default class PermissionVerify {
           return Promise.resolve(true);
         }
         await this.permissionDAO.delete(m.id);
+        return Promise.resolve(true);
+      }
+    );
+    // 监听添加权限
+    message.setHandler(
+      "addPermission",
+      async (_action, data: { scriptId: number; permission: Permission }) => {
+        // 先删除缓存
+        this.removePermissionCache(data.scriptId);
+        // 从数据库中查询是否有此权限
+        const m = await this.permissionDAO.findOne({
+          scriptId: data.scriptId,
+          permission: data.permission.permission,
+          permissionValue: data.permission.permissionValue || "",
+        });
+        if (!m) {
+          // 没有添加
+          await this.permissionDAO.save(data.permission);
+          return Promise.resolve(true);
+        }
+        // 有则更新
+        data.permission.id = m.id;
+        data.permission.createtime = m.createtime;
+        data.permission.updatetime = new Date().getTime();
+        this.permissionDAO.update(m.id, data.permission);
+        return Promise.resolve(true);
+      }
+    );
+    // 监听重置权限
+    message.setHandler(
+      "resetPermission",
+      async (_action, data: { scriptId: number }) => {
+        // 先删除缓存
+        this.removePermissionCache(data.scriptId);
+        // 从数据库中查询是否有此权限
+        await this.permissionDAO.delete({
+          scriptId: data.scriptId,
+        });
         return Promise.resolve(true);
       }
     );

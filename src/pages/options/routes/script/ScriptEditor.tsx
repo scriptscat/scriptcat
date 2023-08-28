@@ -539,7 +539,7 @@ function ScriptEditor() {
       />
       <ScriptSetting
         visible={visible.scriptSetting}
-        script={currentScript}
+        script={currentScript!}
         onOk={() => {
           setShow("scriptSetting", false);
         }}
