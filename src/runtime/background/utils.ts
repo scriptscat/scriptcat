@@ -270,8 +270,12 @@ export function setXhrHeader(
 ) {
   xhr.setRequestHeader(`${headerFlag}-gm-xhr`, "true");
   if (config.headers) {
+    let hasOrigin = false;
     Object.keys(config.headers).forEach((key) => {
       const lowKey = key.toLowerCase();
+      if (lowKey === "origin") {
+        hasOrigin = true;
+      }
       if (
         unsafeHeaders[lowKey] ||
         lowKey.startsWith("sec-") ||
@@ -292,6 +296,9 @@ export function setXhrHeader(
         xhr.setRequestHeader(key, config.headers![key]!);
       }
     });
+    if (!hasOrigin) {
+      xhr.setRequestHeader(`${headerFlag}-origin`, "");
+    }
   }
   if (config.maxRedirects !== undefined) {
     xhr.setRequestHeader(
