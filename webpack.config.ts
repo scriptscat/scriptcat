@@ -148,6 +148,11 @@ const config: Configuration = {
         exclude: /node_modules/,
       },
       {
+        test: /inject\.js$/,
+        use: ["raw-loader"],
+        include: /dist/,
+      },
+      {
         test: /\.tpl$/,
         use: ["raw-loader"],
         exclude: /node_modules/,

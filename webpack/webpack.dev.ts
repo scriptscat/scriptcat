@@ -15,7 +15,6 @@ common.entry = {
   // @ts-ignore
   ...common.entry,
   content: `${src}/content.ts`,
-  inject: `${src}/inject.ts`,
   "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
   "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
   "linter.worker": `${src}/linter.worker.ts`,

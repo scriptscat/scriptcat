@@ -67,8 +67,6 @@ export default class Runtime extends Manager {
 
   logger: Logger;
 
-  scriptFlag: string;
-
   match: UrlMatch<ScriptRunResouce> = new UrlMatch();
 
   include: UrlInclude<ScriptRunResouce> = new UrlInclude();
@@ -90,7 +88,6 @@ export default class Runtime extends Manager {
     this.scriptDAO = new ScriptDAO();
     this.resourceManager = resourceManager;
     this.valueManager = valueManager;
-    this.scriptFlag = randomString(8);
     this.logger = LoggerCore.getInstance().logger({ component: "runtime" });
     ScriptManager.hook.addListener("upsert", this.scriptUpdate.bind(this));
     ScriptManager.hook.addListener("delete", this.scriptDelete.bind(this));
@@ -158,15 +155,6 @@ export default class Runtime extends Manager {
 
     // 接受消息,注入脚本
     // 获取注入源码
-    const { scriptFlag } = this;
-    let injectedSource = "";
-    fetch(chrome.runtime.getURL("src/inject.js"))
-      .then((resp) => resp.text())
-      .then((source: string) => {
-        injectedSource = dealScript(
-          `(function (ScriptFlag) {\n${source}\n})('${scriptFlag}')`
-        );
-      });
 
     // 监听菜单创建
     const scriptMenu: Map<
@@ -433,26 +421,12 @@ export default class Runtime extends Manager {
             }
           );
 
-          // 注入运行框架
-          chrome.tabs.executeScript(sender.tabId, {
-            frameId: sender.frameId,
-            code: `(function(){
-                    let temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
-                    temp.setAttribute('type', 'text/javascript');
-                    temp.innerHTML = "${injectedSource}";
-                    temp.className = "injected-js";
-                    document.documentElement.appendChild(temp);
-                    temp.remove();
-                }())`,
-            runAt: "document_start",
-          });
-
           if (!filter.length) {
-            resolve({ flag: scriptFlag, scripts: [] });
+            resolve({ scripts: [] });
             return;
           }
 
-          resolve({ flag: scriptFlag, scripts: filter });
+          resolve({ scripts: filter });
 
           // 注入脚本
           filter.forEach((script) => {

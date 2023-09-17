@@ -11,13 +11,11 @@ const dist = `${__dirname}/../dist`;
 
 // 不要分割的文件
 common.entry = {
-  content: `${src}/content.ts`,
-  "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
-  "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
+  inject: `${src}/inject.ts`,
 };
 
 common.output = {
-  path: `${dist}/ext/src`,
+  path: `${dist}`,
   filename: "[name].js",
   clean: false,
 };
