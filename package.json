@@ -1,13 +1,13 @@
 {
   "name": "scriptcat",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
   "scripts": {
     "test": "jest --coverage",
     "lint": "eslint --ext .js,.ts,.tsx src/",
-    "dev": "concurrently \"webpack --mode development --config ./webpack/webpack.dev.ts\" \"webpack --mode development --config ./webpack/webpack.inject.ts\"",
+    "dev": "concurrently \"webpack --mode development --config ./webpack/webpack.dev.ts\" \"webpack --mode development --config ./webpack/webpack.inject.dev.ts\"",
     "build": "webpack --mode production --config ./webpack/webpack.prod.ts && concurrently \"npm run build:linter\" \"npm run build:inject && npm run build:no-split\"",
     "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",
     "build:inject": "webpack --mode production --config ./webpack/webpack.inject.ts",

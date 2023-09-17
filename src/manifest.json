@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ScriptCat",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "author": "CodFrm",
   "description": "脚本猫,一个用户脚本管理器,支持后台脚本、定时脚本、页面脚本,可编写脚本每天帮你自动处理事务.",
   "options_ui": {
