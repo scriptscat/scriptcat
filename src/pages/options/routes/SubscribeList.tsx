@@ -35,7 +35,7 @@ function SubscribeList() {
   ) as SubscribeController;
   const [list, setList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
-  const { t } = useTranslation(); // 使用 useTranslation hook
+  const { t, i18n } = useTranslation(); // 使用 useTranslation hook
 
   useEffect(() => {
     dao.table
@@ -56,7 +56,7 @@ function SubscribeList() {
     },
     {
       title: t("enable"),
-      width: 150,
+      width:  (i18n.language === "zh-CN" ? 100 : 120),
       key: "enable",
       sorter(a, b) {
         return a.status - b.status;
@@ -215,7 +215,7 @@ function SubscribeList() {
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",
-      // width: 100,
+      width:  (i18n.language === "zh-CN" ? 100 : "auto"),
       render(col, subscribe: Subscribe) {
         return (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
