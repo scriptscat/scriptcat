@@ -56,7 +56,7 @@ function SubscribeList() {
     },
     {
       title: t("enable"),
-      width: 100,
+      width: 150,
       key: "enable",
       sorter(a, b) {
         return a.status - b.status;
@@ -215,7 +215,7 @@ function SubscribeList() {
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",
-      width: 100,
+      // width: 100,
       render(col, subscribe: Subscribe) {
         return (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions

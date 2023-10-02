@@ -63,9 +63,7 @@ git commit -m "✨ add login feature"
 ScriptCat
 的文档在另外的仓库中：[scriptcat.org](https://docs.scriptcat.org)，使用
 [docusaurus](https://docusaurus.io/)进行撰写，这有一些
-[Markdown](https://docusaurus.io/
-
-zh-CN/docs/markdown-features)
+[Markdown](https://docusaurus.io/zh-CN/docs/markdown-features)
 特性可以帮助你。如果你需要在本地预览修改后的文档，可以使用以下命令安装文档依赖并启动
 dev server：
 
@@ -96,6 +94,7 @@ ScriptCat 的页面开发使用了以下技术：
 npm run dev
 ```
 
+
 如果你想打包扩展，可以使用以下命令：
 
 ```bash
@@ -103,3 +102,7 @@ npm run pack
 ```
 
 在打包前，请确保在`dist`目录下生成了`scriptcat.pem`文件。
+
+# 注意问题
+* 我使用的是yarn install的时候会出问题，不确定是yarn install还是网络问题，所以最好用npm i
+* 因为down这个仓库的目的是贡献代码，npm run dev以后还需要执行一下npm run build然后把dist ext里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的
