@@ -72,6 +72,12 @@ npm install
 npm start
 ```
 
+### 帮助我们翻译
+
+[Crowdin](https://crowdin.com/project/scriptcat) 是一个在线的多语言翻译平台。如果你想帮助我们翻译 ScriptCat 的文档，可以在 Crowdin 上找到 ScriptCat 的项目，然后开始翻译。
+
+扩展的翻译文件在`src/locales`目录下。
+
 ## 参与开发
 
 ScriptCat 使用 ESLint 来规范代码风格，使用 Jest
@@ -94,7 +100,6 @@ ScriptCat 的页面开发使用了以下技术：
 npm run dev
 ```
 
-
 如果你想打包扩展，可以使用以下命令：
 
 ```bash
@@ -104,5 +109,6 @@ npm run pack
 在打包前，请确保在`dist`目录下生成了`scriptcat.pem`文件。
 
 # 注意问题
-* 使用`yarn install`时可能会出现错误，最好使用`npm i`
-* `npm run dev`之后需要把`dist/ext`目录里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的
+
+- 使用`yarn install`时可能会出现错误，最好使用`npm i`
+- `npm run dev`之后需要把`dist/ext`目录里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的
