@@ -26,7 +26,23 @@ dayjs.locale(
     (localStorage.language || chrome.i18n.getUILanguage()) as string
   ).toLocaleLowerCase()
 );
+
 dayjs.extend(relativeTime);
+
+if (!localStorage.language) {
+  chrome.i18n.getAcceptLanguages((lngs) => {
+    // 遍历数组寻找匹配语言
+    for (let i = 0; i < lngs.length; i += 1) {
+      const lng = lngs[i];
+      if (i18n.hasResourceBundle(lng, "translation")) {
+        localStorage.language = lng;
+        i18n.changeLanguage(lng);
+        dayjs.locale(lng.toLocaleLowerCase());
+        break;
+      }
+    }
+  });
+}
 
 export function i18nName(script: { name: string; metadata: Metadata }) {
   return script.metadata[`name:${i18n.language.toLowerCase()}`]
