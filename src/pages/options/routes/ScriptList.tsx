@@ -97,7 +97,7 @@ function ScriptList() {
   const [showAction, setShowAction] = useState(false);
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Monitor script running status
@@ -130,7 +130,7 @@ function ScriptList() {
     },
     {
       title: t("enable"),
-      width: (i18n.language === "zh-CN" ? 100 : 120),
+      width: t("script_list_enable_width"),
       dataIndex: "status",
       className: "script-enable",
       sorter(a, b) {
@@ -249,7 +249,7 @@ function ScriptList() {
     },
     {
       title: t("apply_to_run_status"),
-      width: (i18n.language === "zh-CN" ? 140 : "auto"),
+      width: t("script_list_apply_to_run_status_width"),
       className: "apply_to_run_status",
       render(col, item: Script) {
         const toLogger = () => {
@@ -406,7 +406,7 @@ function ScriptList() {
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",
-      width:  (i18n.language === "zh-CN" ? 100 : "auto"),
+      width: t("script_list_last_updated_width"),
       render(col, script: Script) {
         return (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions

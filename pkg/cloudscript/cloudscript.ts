@@ -7,7 +7,7 @@ export type ExportCookies = {
   [key: string]: any;
   domain?: string;
   url?: string;
-  cookie: chrome.cookies.Cookie[];
+  cookies?: chrome.cookies.Cookie[];
 };
 
 export type ExportParams = {
@@ -44,9 +44,7 @@ export function parseExportCookie(
   const result = [];
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const detail: ExportCookies = {
-      cookie: [],
-    };
+    const detail: ExportCookies = {};
     if (line.trim()) {
       line.split(";").forEach((param) => {
         const s = param.split("=");
@@ -55,11 +53,13 @@ export function parseExportCookie(
         }
         detail[s[0].trim()] = s[1].trim();
       });
-      if (!detail.url && !detail.domain) {
+      if (detail.url || detail.domain) {
         result.push(
           new Promise<ExportCookies>((resolve) => {
-            detail.cookies = getCookies(detail);
-            resolve(detail);
+            getCookies(detail).then((cookies) => {
+              detail.cookies = cookies;
+              resolve(detail);
+            });
           })
         );
       }

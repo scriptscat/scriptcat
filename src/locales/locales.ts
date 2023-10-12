@@ -3,8 +3,9 @@ import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Metadata } from "@App/app/repo/scripts";
-import enUS from "./en-US/translation.yaml";
-import zhCN from "./zh-CN/translation.yaml";
+import enUS from "./en/translation.json";
+import zhCN from "./zh-CN/translation.json";
+import zhTW from "./zh-TW/translation.json";
 import "dayjs/locale/zh-cn";
 
 i18n.use(initReactI18next).init({
@@ -16,6 +17,7 @@ i18n.use(initReactI18next).init({
   resources: {
     "en-US": { title: "English", translation: enUS },
     "zh-CN": { title: "简体中文", translation: zhCN },
+    "zh-TW": { title: "繁体中文", translation: zhTW },
   },
 });
 

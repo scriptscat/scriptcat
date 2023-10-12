@@ -13,7 +13,8 @@
     "build:no-split": "webpack --mode production --config ./webpack/webpack.no.split.ts",
     "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.dev.ts",
     "pack": "node ./build/pack.js",
-    "changlog": "gitmoji-changelog"
+    "changlog": "gitmoji-changelog",
+    "crowdin": "crowdin"
   },
   "dependencies": {
     "@arco-design/web-react": "^2.47.0",
@@ -100,7 +101,6 @@
     "webpack": "^5.88.2",
     "webpack-bundle-analyzer": "^4.9.0",
     "webpack-cli": "^5.1.4",
-    "webpack-merge": "^5.9.0",
-    "yaml-loader": "^0.8.0"
+    "webpack-merge": "^5.9.0"
   }
 }

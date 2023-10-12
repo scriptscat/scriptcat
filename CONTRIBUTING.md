@@ -104,5 +104,5 @@ npm run pack
 在打包前，请确保在`dist`目录下生成了`scriptcat.pem`文件。
 
 # 注意问题
-* 我使用的是yarn install的时候会出问题，不确定是yarn install还是网络问题，所以最好用npm i
-* 因为down这个仓库的目的是贡献代码，npm run dev以后还需要执行一下npm run build然后把dist ext里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的
+* 使用`yarn install`时可能会出现错误，最好使用`npm i`
+* `npm run dev`之后需要把`dist/ext`目录里面内容在浏览器扩展里面导入加载，然后开始改代码保存即可，浏览器是实时更新的
