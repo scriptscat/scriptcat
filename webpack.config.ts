@@ -125,7 +125,7 @@ const config: Configuration = {
     }),
   ],
   resolve: {
-    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl", ".json", ".yaml"],
+    extensions: [".js", ".ts", ".tsx", ".d.ts", ".tpl", ".json"],
     alias: {
       "@App": path.resolve(__dirname, "src/"),
       "@Pkg": path.resolve(__dirname, "pkg/"),
@@ -156,10 +156,6 @@ const config: Configuration = {
         test: /\.tpl$/,
         use: ["raw-loader"],
         exclude: /node_modules/,
-      },
-      {
-        test: /\.ya?ml$/,
-        use: "yaml-loader",
       },
     ],
   },

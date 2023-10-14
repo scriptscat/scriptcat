@@ -27,3 +27,5 @@ coverage
 CHANGELOG.md
 
 tailwind.config.js
+
+.env

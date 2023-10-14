@@ -47,6 +47,10 @@ function Setting() {
       title: i18n.store.data[key].title as string,
     });
   });
+  languageList.push({
+    key: "help",
+    title: t("help_translate"),
+  });
 
   return (
     <Space
@@ -67,6 +71,13 @@ function Setting() {
               value={language}
               className="w-24"
               onChange={(value) => {
+                if (value === "help") {
+                  window.open(
+                    "https://crowdin.com/project/scriptcat",
+                    "_blank"
+                  );
+                  return;
+                }
                 setLanguage(value);
                 i18n.changeLanguage(value);
                 dayjs.locale(
