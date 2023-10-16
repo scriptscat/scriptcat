@@ -500,7 +500,7 @@ export default class Runtime extends Manager {
             }
           );
           chrome.browserAction.setBadgeBackgroundColor({
-            color: "#4594d5",
+            color: "#4e5969",
             tabId: sender.tabId,
           });
         });
