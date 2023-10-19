@@ -74,9 +74,10 @@ npm start
 
 ### 帮助我们翻译
 
-[Crowdin](https://crowdin.com/project/scriptcat) 是一个在线的多语言翻译平台。如果你想帮助我们翻译 ScriptCat 的文档，可以在 Crowdin 上找到 ScriptCat 的项目，然后开始翻译。
+[Crowdin](https://crowdin.com/project/scriptcat) 是一个在线的多语言翻译平台。如果您有兴趣帮助我们翻译 ScriptCat 的相关内容，您可以在 Crowdin 上找到 ScriptCat 项目，并开始进行翻译工作。
 
-扩展的翻译文件在`src/locales`目录下。
+- `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
+- `public/locales`为[脚本站](https://github.com/scriptscat/scriptlist-frontend)的翻译文件目录
 
 ## 参与开发
 

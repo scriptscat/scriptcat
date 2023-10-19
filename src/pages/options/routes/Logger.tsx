@@ -317,9 +317,9 @@ function LoggerPage() {
           >
             <Text>
               {formatUnixTime(startTime)} {t("to")} {formatUnixTime(endTime)}{" "}
-              {t("total_logs")} {logs.length}
+              {t("total_logs", { length: logs.length })}
               {init === 4
-                ? `, ${t("filtered_logs")} ${queryLogs.length}`
+                ? `, ${t("filtered_logs", { length: queryLogs.length })}`
                 : `, ${t("enter_filter_conditions")}`}
             </Text>
             <List
