@@ -22,4 +22,11 @@
       color: var(--color-text-1);
     }
   </style>
+  <% if (htmlWebpackPlugin.options.mode === 'i18n') { %>
+  <script type="text/javascript" src="/_locales/i18n.js"></script>
+  <script
+    type="text/javascript"
+    src="https://cdn.crowdin.com/jipt/jipt.js"
+  ></script>
+  <% } %>
 </html>

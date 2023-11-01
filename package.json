@@ -15,7 +15,8 @@
     "dev:linter": "webpack --mode development --config ./webpack/webpack.linter.dev.ts",
     "pack": "node ./build/pack.js",
     "changlog": "gitmoji-changelog",
-    "crowdin": "crowdin"
+    "crowdin": "crowdin",
+    "i18n": "concurrently \"webpack --mode development --config ./webpack/webpack.i18n.ts\" \"webpack --mode development --config ./webpack/webpack.inject.dev.ts\""
   },
   "dependencies": {
     "@arco-design/web-react": "^2.51.1",

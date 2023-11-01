@@ -79,6 +79,14 @@ npm start
 - `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
 - `public/locales`为[脚本站](https://github.com/scriptscat/scriptlist-frontend)的翻译文件目录
 
+#### 扩展开启所见即所得模式
+
+扩展开启所见即所得模式需要使用`npm run i18n`模式进行构建，然后通过控制台设置伪语言`localStorage['language']='ach-UG';`，然后刷新页面。
+
+#### 脚本站开启所见即所得模式
+
+脚本站访问：[https://scriptcat.org/ach-UG](https://scriptcat.org/ach-UG) 即可开启所见即所得模式
+
 ## 参与开发
 
 ScriptCat 使用 ESLint 来规范代码风格，使用 Jest

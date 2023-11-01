@@ -6,6 +6,7 @@ import { Metadata } from "@App/app/repo/scripts";
 import enUS from "./en/translation.json";
 import zhCN from "./zh-CN/translation.json";
 import zhTW from "./zh-TW/translation.json";
+import achUG from "./ach-UG/translation.json";
 import "dayjs/locale/zh-cn";
 
 i18n.use(initReactI18next).init({
@@ -18,6 +19,7 @@ i18n.use(initReactI18next).init({
     "en-US": { title: "English", translation: enUS },
     "zh-CN": { title: "简体中文", translation: zhCN },
     "zh-TW": { title: "繁体中文", translation: zhTW },
+    "ach-UG": { title: "伪语言", translation: achUG },
   },
 });
 

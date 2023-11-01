@@ -42,6 +42,9 @@ function Setting() {
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
   Object.keys(i18n.store.data).forEach((key) => {
+    if (key === "ach-UG") {
+      return;
+    }
     languageList.push({
       key,
       title: i18n.store.data[key].title as string,
