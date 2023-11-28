@@ -18,7 +18,7 @@ export class OneDriveFileReader implements FileReader {
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
     const data = await this.fs.request(
-      `https://graph.microsoft.com/v1.0/drive/special/approot:${joinPath(
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(
         this.file.path,
         this.file.name
       )}:/content`,
@@ -69,7 +69,7 @@ export class OneDriveFileWriter implements FileWriter {
     myHeaders.append("Content-Type", "application/json");
     const uploadUrl = await this.fs
       .request(
-        `https://graph.microsoft.com/v1.0/drive/special/approot:${this.path}:/createUploadSession`,
+        `https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/createUploadSession`,
         {
           method: "POST",
           headers: myHeaders,
