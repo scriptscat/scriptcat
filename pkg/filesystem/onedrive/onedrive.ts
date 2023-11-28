@@ -62,8 +62,11 @@ export default class OneDriveFileSystem implements FileSystem {
     }
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
+    if (parent !== "") {
+      parent = `:${parent}:`;
+    }
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${parent}:/children`,
+      `https://graph.microsoft.com/v1.0/drive/special/approot${parent}/children`,
       {
         method: "POST",
         headers: myHeaders,
@@ -116,7 +119,7 @@ export default class OneDriveFileSystem implements FileSystem {
 
   delete(path: string): Promise<void> {
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(
+      `https://graph.microsoft.com/v1.0/drive/special/approot:${joinPath(
         this.path,
         path
       )}`,
@@ -136,9 +139,11 @@ export default class OneDriveFileSystem implements FileSystem {
     let { path } = this;
     if (path === "/") {
       path = "";
+    } else {
+      path = `:${path}:`;
     }
     return this.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${path}:/children`
+      `https://graph.microsoft.com/v1.0/drive/special/approot${path}/children`
     ).then((data) => {
       const list: File[] = [];
       data.value.forEach((val: any) => {
