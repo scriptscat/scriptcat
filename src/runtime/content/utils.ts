@@ -197,37 +197,39 @@ export function proxyContext(
         default:
           break;
       }
-      if (typeof name === "string" && name !== "undefined") {
+      if (name !== "undefined") {
         if (has(thisContext, name)) {
           // @ts-ignore
           return thisContext[name];
         }
-        if (context[name]) {
-          if (contextKeyword[name]) {
-            return undefined;
+        if (typeof name === "string") {
+          if (context[name]) {
+            if (contextKeyword[name]) {
+              return undefined;
+            }
+            return context[name];
           }
-          return context[name];
-        }
-        if (special[name] !== undefined) {
-          if (
-            typeof special[name] === "function" &&
-            !(<{ prototype: any }>special[name]).prototype
-          ) {
-            return (<{ bind: any }>special[name]).bind(global);
+          if (special[name] !== undefined) {
+            if (
+              typeof special[name] === "function" &&
+              !(<{ prototype: any }>special[name]).prototype
+            ) {
+              return (<{ bind: any }>special[name]).bind(global);
+            }
+            return special[name];
           }
-          return special[name];
-        }
-        if (global[name] !== undefined) {
-          if (
-            typeof global[name] === "function" &&
-            !(<{ prototype: any }>global[name]).prototype
-          ) {
-            return (<{ bind: any }>global[name]).bind(global);
+          if (global[name] !== undefined) {
+            if (
+              typeof global[name] === "function" &&
+              !(<{ prototype: any }>global[name]).prototype
+            ) {
+              return (<{ bind: any }>global[name]).bind(global);
+            }
+            return global[name];
           }
-          return global[name];
+        } else if (name === Symbol.unscopables) {
+          return unscopables;
         }
-      } else if (name === Symbol.unscopables) {
-        return unscopables;
       }
       return undefined;
     },
@@ -246,24 +248,28 @@ export function proxyContext(
         default:
           break;
       }
-      if (typeof name === "string" && name !== "undefined") {
-        if (unscopables[name]) {
-          return false;
-        }
-        if (has(thisContext, name)) {
-          return true;
-        }
-        if (context[name]) {
-          if (contextKeyword[name]) {
+      if (name !== "undefined") {
+        if (typeof name === "string") {
+          if (unscopables[name]) {
             return false;
           }
-          return true;
-        }
-        if (special[name] !== undefined) {
-          return true;
-        }
-        if (global[name] !== undefined) {
-          return true;
+          if (has(thisContext, name)) {
+            return true;
+          }
+          if (context[name]) {
+            if (contextKeyword[name]) {
+              return false;
+            }
+            return true;
+          }
+          if (special[name] !== undefined) {
+            return true;
+          }
+          if (global[name] !== undefined) {
+            return true;
+          }
+        } else if (typeof name === "symbol") {
+          return has(thisContext, name);
         }
       }
       return false;

@@ -54,3 +54,13 @@ describe("兼容问题", () => {
     expect(() => _this.Object.freeze({})).not.toThrow();
   });
 });
+
+// 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
+describe("Symbol", () => {
+  const _this = proxyContext({}, {});
+  it("Symbol", () => {
+    const s = Symbol("test");
+    _this[s] = "ok";
+    expect(_this[s]).toEqual("ok");
+  });
+});
