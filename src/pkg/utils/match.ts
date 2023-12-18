@@ -53,7 +53,9 @@ export default class Match<T> {
       pos = -1;
     } else if (u.host.endsWith("*")) {
       // 处理*结尾
-      u.host = u.host.substring(0, u.host.length - 1);
+      if (!u.host.endsWith(":*")) {
+        u.host = u.host.substring(0, u.host.length - 1);
+      }
     } else if (pos !== -1 && pos !== 0) {
       return "";
     }
@@ -75,7 +77,12 @@ export default class Match<T> {
     if (pos2 === -1) {
       u.host = `${u.host}(:\\d+)?`;
     } else {
-      u.host = `${u.host.substring(0, pos2)}(:\\d+)?`;
+      const port = u.host.substring(pos2 + 1);
+      if (port === "*") {
+        u.host = `${u.host.substring(0, pos2)}(:\\d+)?`;
+      } else {
+        u.host = `${u.host.substring(0, pos2)}(:${port})?`;
+      }
     }
     let re = `^${u.scheme}://${u.host}`;
     if (u.path === "/") {
