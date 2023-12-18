@@ -234,7 +234,14 @@ export default class PermissionVerify {
     }
 
     for (let i = 0; i < grant.length; i += 1) {
-      if (grant[i] === request.api || grant[i] === api.param.link) {
+      if (
+        // 名称相等
+        grant[i] === request.api ||
+        // 别名相等
+        (api.param.alias && api.param.alias.includes(grant[i])) ||
+        // 有关联的
+        grant[i] === api.param.link
+      ) {
         // 需要用户确认
         if (api.param.confirm) {
           return this.pushConfirmQueue(request, api);
