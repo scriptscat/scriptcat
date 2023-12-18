@@ -139,6 +139,7 @@ export default class GMApi {
       icon64: (script.metadata.icon64 && script.metadata.icon64[0]) || null,
       header: metadataStr,
       grant: script.metadata.grant || [],
+      connects: script.metadata.connect || [],
     };
 
     return {
