@@ -83,12 +83,7 @@ function Setting() {
                 }
                 setLanguage(value);
                 i18n.changeLanguage(value);
-                dayjs.locale(
-                  (
-                    (localStorage.language ||
-                      chrome.i18n.getUILanguage()) as string
-                  ).toLocaleLowerCase()
-                );
+                dayjs.locale(value.toLocaleLowerCase());
                 localStorage.language = value;
                 Message.success(t("language_change_tip")!);
               }}
