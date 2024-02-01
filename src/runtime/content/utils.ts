@@ -17,7 +17,7 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
     });
   }
   code = require + code;
-  return `with (context) return (()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
+  return `with (context) return (async ()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
     `/${encodeURI(scriptRes.name)}.user.js`
   )}\n})()`;
 }
