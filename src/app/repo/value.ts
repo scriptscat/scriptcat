@@ -1,3 +1,4 @@
+import Dexie from "dexie";
 import { DAO, db } from "./dao";
 
 export interface Value {
@@ -13,8 +14,12 @@ export interface Value {
 export class ValueDAO extends DAO<Value> {
   public tableName = "value";
 
-  constructor() {
+  constructor(table?: Dexie.Table<Value, number>) {
     super();
-    this.table = db.table(this.tableName);
+    if (table) {
+      this.table = table;
+    } else {
+      this.table = db.table(this.tableName);
+    }
   }
 }

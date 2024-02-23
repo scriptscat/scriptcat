@@ -10,6 +10,7 @@ import { Value, ValueDAO } from "@App/app/repo/value";
 import { ValueUpdateData } from "@App/runtime/content/exec_script";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { isEqual } from "lodash";
+import { db } from "@App/app/repo/dao";
 import Cache from "../../cache";
 import Manager from "../manager";
 import ScriptManager from "../script/manager";
@@ -112,68 +113,72 @@ export class ValueManager extends Manager {
     // 更新数据库中的value
     let model: Value | undefined;
     let oldValue: any;
-    if (script.metadata.storagename) {
-      model = await this.valueDAO.findOne({
-        storageName: script.metadata.storagename[0],
-        key,
-      });
-    } else {
-      model = await this.valueDAO.findOne({ scriptId: script?.id, key });
-    }
-    if (!model) {
-      model = {
-        id: 0,
-        scriptId: script?.id || 0,
-        storageName:
-          (script?.metadata.storagename && script?.metadata.storagename[0]) ||
-          "",
-        key,
-        value,
-        createtime: new Date().getTime(),
-        updatetime: 0,
+    const valueTable = db.table("value");
+    return db.transaction("rw", valueTable, async (tr) => {
+      const valueDAO = new ValueDAO(tr.table("value"));
+      if (script.metadata.storagename) {
+        model = await valueDAO.findOne({
+          storageName: script.metadata.storagename[0],
+          key,
+        });
+      } else {
+        model = await valueDAO.findOne({ scriptId: script.id, key });
+      }
+      if (!model) {
+        model = {
+          id: 0,
+          scriptId: script?.id || 0,
+          storageName:
+            (script?.metadata.storagename && script?.metadata.storagename[0]) ||
+            "",
+          key,
+          value,
+          createtime: new Date().getTime(),
+          updatetime: 0,
+        };
+      } else {
+        // 值未发生改变
+        if (isEqual(model.value, value)) {
+          return Promise.resolve(true);
+        }
+        oldValue = model.value;
+        model.value = value;
+        model.updatetime = new Date().getTime();
+      }
+      let changeNum = 0;
+      // 更新缓存
+      const cache = Cache.getInstance().get(
+        CacheKey.scriptValue(script.id, script.metadata.storagename)
+      );
+
+      if (value === undefined || value === null) {
+        model.value = undefined;
+        changeNum = await valueDAO.delete(model.id);
+        if (cache) {
+          delete cache[key];
+        }
+      } else {
+        changeNum = await valueDAO.save(model);
+        if (cache) {
+          cache[key] = model;
+        }
+      }
+      if (changeNum <= 0) {
+        return Promise.reject(new Error("value no change"));
+      }
+
+      const sendData: ValueUpdateData = {
+        oldValue,
+        sender,
+        value: model,
       };
-    } else {
-      // 值未发生改变
-      if (isEqual(model.value, value)) {
-        return Promise.resolve(true);
-      }
-      oldValue = model.value;
-      model.value = value;
-      model.updatetime = new Date().getTime();
-    }
-    let changeNum = 0;
-    // 更新缓存
-    const cache = Cache.getInstance().get(
-      CacheKey.scriptValue(script.id, script.metadata.storagename)
-    );
+      // 广播value更新
+      this.broadcast.broadcast({ tag: "all" }, "valueUpdate", sendData);
 
-    if (value === undefined || value === null) {
-      model.value = undefined;
-      changeNum = await this.valueDAO.delete(model.id);
-      if (cache) {
-        delete cache[key];
-      }
-    } else {
-      changeNum = await this.valueDAO.save(model);
-      if (cache) {
-        cache[key] = model;
-      }
-    }
-    if (changeNum <= 0) {
-      return Promise.reject(new Error("value no change"));
-    }
-
-    const sendData: ValueUpdateData = {
-      oldValue,
-      sender,
-      value: model,
-    };
-    // 广播value更新
-    this.broadcast.broadcast({ tag: "all" }, "valueUpdate", sendData);
-
-    // 触发hook
-    ValueManager.hook.trigger("upsert", model);
-    return Promise.resolve(true);
+      // 触发hook
+      ValueManager.hook.trigger("upsert", model);
+      return Promise.resolve(true);
+    });
   }
 }
 
