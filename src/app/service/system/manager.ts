@@ -161,7 +161,8 @@ export class SystemManager extends Manager {
             const prepareScript = await prepareScriptByCode(
               code,
               "",
-              uuidv5(data.data.uri, uuidv5.URL)
+              uuidv5(data.data.uri, uuidv5.URL),
+              true
             );
             this.scriptManager.event.upsertHandler(
               prepareScript.script,
