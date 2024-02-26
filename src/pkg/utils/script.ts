@@ -165,6 +165,7 @@ export function copyScript(script: Script, old: Script): Script {
 export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   const ret = sub;
   ret.id = old.id;
+  ret.scripts = old.scripts;
   ret.createtime = old.createtime;
   ret.status = old.status;
   return ret;

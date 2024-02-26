@@ -232,10 +232,10 @@ export class ScriptManager extends Manager {
     source: InstallSource,
     subscribeUrl?: string
   ) {
-    const info = await fetchScriptInfo(url, "system", false, uuidv4());
+    const info = await fetchScriptInfo(url, source, false, uuidv4());
     const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
     prepareScript.script.subscribeUrl = subscribeUrl;
-    await this.event.upsertHandler(prepareScript.script, "system");
+    await this.event.upsertHandler(prepareScript.script, source);
     return Promise.resolve(prepareScript.script);
   }
 }

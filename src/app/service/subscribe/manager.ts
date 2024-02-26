@@ -131,7 +131,7 @@ export default class SubscribeManager extends Manager {
       subscribeId: subscribe.id,
       name: subscribe.name,
     });
-    this.subscribeDAO.update(id, { checktime: new Date().getTime() });
+    await this.subscribeDAO.update(id, { checktime: new Date().getTime() });
     try {
       const info = await fetchScriptInfo(
         subscribe.url,
@@ -255,12 +255,16 @@ export default class SubscribeManager extends Manager {
     });
 
     await Promise.allSettled(result);
+
+    await this.subscribeDAO.update(subscribe.id, subscribe);
+
     InfoNotification(
       "订阅更新",
       `安装了:${notification[0].join(",")}\n删除了:${notification[1].join(
         "\n"
       )}`
     );
+
     logger.info("subscribe update", {
       install: notification[0],
       update: notification[1],

@@ -227,7 +227,7 @@ function SubscribeList() {
             onClick={() => {
               Message.info({
                 id: "checkupdate",
-                content: t("checking_update"),
+                content: t("checking_for_updates"),
               });
               subscribeCtrl
                 .checkUpdate(subscribe.id)
