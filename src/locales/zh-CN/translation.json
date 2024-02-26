@@ -106,7 +106,7 @@
   },
   "enable": "开启",
   "script_list_enable_width": 100,
-  "script_list_last_updated_width": 100,
+  "script_list_last_updated_width": 120,
   "script_list_apply_to_run_status_width": 140,
   "subscribe_list_enable_width": 100,
   "disable": "关闭",

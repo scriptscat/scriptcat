@@ -407,6 +407,7 @@ function ScriptList() {
       align: "center",
       key: "updatetime",
       width: t("script_list_last_updated_width"),
+      sorter: (a, b) => a.updatetime - b.updatetime,
       render(col, script: Script) {
         return (
           // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
