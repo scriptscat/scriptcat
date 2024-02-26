@@ -251,6 +251,7 @@ export default class SynchronizeManager extends Manager {
                       `脚本${script.name}已被删除`
                     );
                   }
+                  scriptMap.delete(uuid);
                 } else {
                   // 否则认为是一个无效的.meta文件,进行删除
                   await fs.delete(file.meta!.path);
@@ -285,12 +286,12 @@ export default class SynchronizeManager extends Manager {
         result.push(this.pullScript(fs, file as SyncFiles));
       }
     });
+    // 忽略错误
+    await Promise.allSettled(result);
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
       result.push(this.pushScript(fs, script));
     });
-    // 忽略错误
-    await Promise.allSettled(result);
     // 重新获取文件列表,保存文件摘要
     this.logger.info("sync complete");
     await this.updateFileDigest(fs);
