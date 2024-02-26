@@ -202,11 +202,22 @@ function ScriptList() {
           </div>
         );
       },
-      onFilter: (value, row) =>
-        value
-          ? row.name.indexOf(value) !== -1 ||
-            i18nName(row).indexOf(value) !== -1
-          : true,
+      onFilter: (value: string, row) => {
+        if (!value) {
+          return true;
+        }
+        value = value.toLocaleLowerCase();
+        row.name = row.name.toLocaleLowerCase();
+        const i18n = i18nName(row).toLocaleLowerCase();
+        // 空格分开关键字搜索
+        const keys = value.split(" ");
+        for (const key of keys) {
+          if (row.name.includes(key) || i18n.includes(key)) {
+            return true;
+          }
+        }
+        return false;
+      },
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
           setTimeout(() => inputRef.current!.focus(), 150);
