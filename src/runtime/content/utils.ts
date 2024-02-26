@@ -229,6 +229,8 @@ export function proxyContext(
           }
         } else if (name === Symbol.unscopables) {
           return unscopables;
+        } else if (name === Symbol.toStringTag) {
+          return name;
         }
       }
       return undefined;
@@ -317,6 +319,7 @@ export function proxyContext(
       }
     },
   });
+  proxy[Symbol.toStringTag] = "Window";
   return proxy;
 }
 
