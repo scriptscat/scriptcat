@@ -12,7 +12,7 @@ const linterWorker = new Worker("/src/linter.worker.js");
 export default function registerEditor() {
   // @ts-ignore
   window.tsUrl = "";
-  fetch(chrome.runtime.getURL("/src/ts.worker.js.gz"))
+  fetch(chrome.runtime.getURL("/src/ts.worker.js"))
     .then((resp) => resp.blob())
     .then(async (blob) => {
       const result = pako.inflate(await blob.arrayBuffer());
