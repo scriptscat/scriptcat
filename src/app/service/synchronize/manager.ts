@@ -150,14 +150,13 @@ export default class SynchronizeManager extends Manager {
     };
     freeFn.push(() => ScriptManager.hook.removeListener("upsert", upsertFn));
     ScriptManager.hook.addListener("upsert", upsertFn);
-    if (config.syncDelete) {
-      // 监听脚本删除事件
-      const deleteFn = (script: Script) => {
-        this.deleteCloudScript(fs, script);
-      };
-      ScriptManager.hook.addListener("delete", deleteFn);
-      freeFn.push(() => ScriptManager.hook.removeListener("delete", deleteFn));
-    }
+
+    // 监听脚本删除事件
+    const deleteFn = (script: Script) => {
+      this.deleteCloudScript(fs, script, config.syncDelete);
+    };
+    ScriptManager.hook.addListener("delete", deleteFn);
+    freeFn.push(() => ScriptManager.hook.removeListener("delete", deleteFn));
 
     // 先设置固定一小时同步一次吧
     const ts = setInterval(async () => {
@@ -309,7 +308,7 @@ export default class SynchronizeManager extends Manager {
   }
 
   // 删除云端脚本数据
-  async deleteCloudScript(fs: FileSystem, script: Script) {
+  async deleteCloudScript(fs: FileSystem, script: Script, syncDelete: boolean) {
     const filename = `${script.uuid}.user.js`;
     const logger = this.logger.with({
       scriptId: script.id,
@@ -318,17 +317,23 @@ export default class SynchronizeManager extends Manager {
     });
     try {
       await fs.delete(filename);
-      // 留下一个.meta.json删除标记
-      const meta = await fs.create(`${script.uuid}.meta.json`);
-      await meta.write(
-        JSON.stringify(<SyncMeta>{
-          uuid: script.uuid,
-          origin: script.origin,
-          downloadUrl: script.downloadUrl,
-          checkUpdateUrl: script.checkUpdateUrl,
-          isDeleted: true,
-        })
-      );
+      if (syncDelete) {
+        // 留下一个.meta.json删除标记
+        const meta = await fs.create(`${script.uuid}.meta.json`);
+        await meta.write(
+          JSON.stringify(<SyncMeta>{
+            uuid: script.uuid,
+            origin: script.origin,
+            downloadUrl: script.downloadUrl,
+            checkUpdateUrl: script.checkUpdateUrl,
+            isDeleted: true,
+          })
+        );
+      } else {
+        // 直接删除所有相关文件
+        await fs.delete(filename);
+        await fs.delete(`${script.uuid}.meta.json`);
+      }
       logger.info("delete success");
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
