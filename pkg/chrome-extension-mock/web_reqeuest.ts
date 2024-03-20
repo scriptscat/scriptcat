@@ -4,7 +4,10 @@ export default class WebRequest {
   ) => chrome.webRequest.BlockingResponse | void;
 
   mockXhr(xhr: any): any {
-    return () => {
+    // eslint-disable-next-line no-underscore-dangle
+    const _this = this;
+    // eslint-disable-next-line func-names
+    return function () {
       // eslint-disable-next-line new-cap
       const ret = new xhr();
       const header: chrome.webRequest.HttpHeader[] = [];
@@ -20,7 +23,7 @@ export default class WebRequest {
           name: "cookie",
           value: "website=example.com",
         });
-        const resp = this.sendHeader?.({
+        const resp = _this.sendHeader?.({
           method: ret.method,
           url: ret.url,
           requestHeaders: header,

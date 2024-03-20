@@ -313,8 +313,9 @@ describe("GM xmlHttpRequest", () => {
       });
     });
   });
+
   it("unsafeHeader/cookie", async () => {
-    global.XMLHttpRequest = chromeMock.webRequest.mockXhr(mockXhr);
+    // global.XMLHttpRequest = chromeMock.webRequest.mockXhr(mockXhr);
     // 模拟header
     await new Promise<void>((resolve) => {
       contentApi.GM_xmlhttpRequest({
