@@ -97,6 +97,8 @@ export default class BaiduFileSystem implements FileSystem {
 
   delete(path: string): Promise<void> {
     const filelist = [joinPath(this.path, path)];
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
     return this.request(
       `https://pan.baidu.com/rest/2.0/xpan/file?method=filemanager&access_token=${this.accessToken}&opera=delete`,
       {
@@ -104,6 +106,7 @@ export default class BaiduFileSystem implements FileSystem {
         body: `async=0&filelist=${encodeURIComponent(
           JSON.stringify(filelist)
         )}`,
+        headers: myHeaders,
       }
     ).then((data) => {
       if (data.errno) {
