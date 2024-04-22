@@ -259,4 +259,16 @@ export class SystemConfig {
   set logCleanCycle(val: number) {
     this.set("log_clean_cycle", val);
   }
+
+  // 设置脚本列表列宽度
+  get scriptListColumnWidth() {
+    return (
+      <{ [key: string]: number }>this.cache.get("script_list_column_width") ||
+      {}
+    );
+  }
+
+  set scriptListColumnWidth(val: { [key: string]: number }) {
+    this.set("script_list_column_width", val);
+  }
 }

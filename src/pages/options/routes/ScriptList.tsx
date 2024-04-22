@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
   Card,
+  Divider,
+  Dropdown,
   Input,
+  Menu,
   Message,
   Popconfirm,
   Select,
@@ -71,6 +74,7 @@ import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
 import { nextTime, semTime } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
+import { SystemConfig } from "@App/pkg/config/config";
 import { getValues, ListHomeRender, scriptListSort } from "./utils";
 
 type ListType = Script & { loading?: boolean };
@@ -97,6 +101,9 @@ function ScriptList() {
   const [showAction, setShowAction] = useState(false);
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
+  const [selectColumn, setSelectColumn] = useState(0);
+  const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
+
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -122,13 +129,14 @@ function ScriptList() {
       title: "#",
       dataIndex: "sort",
       width: 70,
-      key: "sort",
+      key: "#",
       sorter: (a, b) => a.sort - b.sort,
       render(col) {
         return col + 1;
       },
     },
     {
+      key: "title",
       title: t("enable"),
       width: t("script_list_enable_width"),
       dataIndex: "status",
@@ -154,23 +162,28 @@ function ScriptList() {
             loading={item.loading}
             disabled={item.loading}
             onChange={(checked) => {
-              scriptList[index].loading = true;
-              setScriptList([...scriptList]);
-              let p: Promise<any>;
-              if (checked) {
-                p = scriptCtrl.enable(item.id).then(() => {
-                  scriptList[index].status = SCRIPT_STATUS_ENABLE;
+              setScriptList((list) => {
+                list[index].loading = true;
+                return [...list];
+              });
+              setScriptList((list) => {
+                let p: Promise<any>;
+                if (checked) {
+                  p = scriptCtrl.enable(item.id).then(() => {
+                    list[index].status = SCRIPT_STATUS_ENABLE;
+                  });
+                } else {
+                  p = scriptCtrl.disable(item.id).then(() => {
+                    list[index].status = SCRIPT_STATUS_DISABLE;
+                  });
+                }
+                p.catch((err) => {
+                  Message.error(err);
+                }).finally(() => {
+                  list[index].loading = false;
+                  setScriptList([...list]);
                 });
-              } else {
-                p = scriptCtrl.disable(item.id).then(() => {
-                  scriptList[index].status = SCRIPT_STATUS_DISABLE;
-                });
-              }
-              p.catch((err) => {
-                Message.error(err);
-              }).finally(() => {
-                scriptList[index].loading = false;
-                setScriptList([...scriptList]);
+                return list;
               });
             }}
           />
@@ -178,11 +191,11 @@ function ScriptList() {
       },
     },
     {
+      key: "name",
       title: t("name"),
       dataIndex: "name",
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
-      key: "name",
       // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
@@ -259,6 +272,7 @@ function ScriptList() {
       },
     },
     {
+      key: "apply_to_run_status",
       title: t("apply_to_run_status"),
       width: t("script_list_apply_to_run_status_width"),
       className: "apply_to_run_status",
@@ -399,7 +413,7 @@ function ScriptList() {
     {
       title: t("sorting"),
       className: "script-sort",
-      key: "id",
+      key: "sort",
       width: 80,
       align: "center",
       render() {
@@ -591,6 +605,8 @@ function ScriptList() {
     },
   ];
 
+  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+
   useEffect(() => {
     const dao = new ScriptDAO();
     dao.table
@@ -612,6 +628,14 @@ function ScriptList() {
         }
         setScriptList(scripts);
       });
+
+    setNewColumns(
+      columns.map((item) => {
+        item.width =
+          systemConfig.scriptListColumnWidth[item.key!] ?? item.width;
+        return item;
+      })
+    );
   }, []);
 
   // 处理拖拽排序
@@ -661,6 +685,24 @@ function ScriptList() {
     );
   };
 
+  const dealColumns: ColumnProps[] = [];
+
+  newColumns.forEach((item) => {
+    switch (item.width) {
+      case 0:
+        item.width = 0;
+        dealColumns.push(item);
+        break;
+      case -1:
+        break;
+      default:
+        dealColumns.push(item);
+        break;
+    }
+  });
+
+  const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
+
   // eslint-disable-next-line react/no-unstable-nested-components
   const SortableItem = (props: any) => {
     const { attributes, listeners, setNodeRef, transform, transition } =
@@ -671,9 +713,9 @@ function ScriptList() {
       transition,
     };
 
-    // 替换第八列,使其可以拖拽
+    // 替换排序列,使其可以拖拽
     // eslint-disable-next-line react/destructuring-assignment
-    props.children[8] = (
+    props.children[sortIndex + 1] = (
       <td
         className="arco-table-td"
         style={{
@@ -842,6 +884,115 @@ function ScriptList() {
                 >
                   {t("confirm")}
                 </Button>
+                <Divider type="horizontal" />
+                <Typography.Text>{t("resize_column_width")}:</Typography.Text>
+                <Select
+                  style={{ minWidth: "80px" }}
+                  size="mini"
+                  value={newColumns[selectColumn].title?.toString()}
+                  onChange={(val) => {
+                    const index = parseInt(val as string, 10);
+                    setSelectColumn(index);
+                  }}
+                >
+                  {newColumns.map((column, index) => (
+                    <Select.Option value={index}>{column.title}</Select.Option>
+                  ))}
+                </Select>
+                <Dropdown
+                  droplist={
+                    <Menu>
+                      <Menu.Item
+                        key="auto"
+                        onClick={() => {
+                          setNewColumns((cols) => {
+                            cols[selectColumn].width = 0;
+                            return [...cols];
+                          });
+                        }}
+                      >
+                        自动
+                      </Menu.Item>
+                      <Menu.Item
+                        key="hide"
+                        onClick={() => {
+                          setNewColumns((cols) => {
+                            cols[selectColumn].width = -1;
+                            return [...cols];
+                          });
+                        }}
+                      >
+                        隐藏
+                      </Menu.Item>
+                      <Menu.Item
+                        key="custom"
+                        onClick={() => {
+                          setNewColumns((cols) => {
+                            cols[selectColumn].width =
+                              (newColumns[selectColumn].width as number) > 0
+                                ? newColumns[selectColumn].width
+                                : columns[selectColumn].width;
+                            return [...cols];
+                          });
+                        }}
+                      >
+                        自定义
+                      </Menu.Item>
+                    </Menu>
+                  }
+                  position="bl"
+                >
+                  <Input
+                    type={
+                      newColumns[selectColumn].width === 0 ||
+                      newColumns[selectColumn].width === -1
+                        ? ""
+                        : "number"
+                    }
+                    style={{ width: "80px" }}
+                    size="mini"
+                    value={
+                      // eslint-disable-next-line no-nested-ternary
+                      newColumns[selectColumn].width === 0
+                        ? t("auto")
+                        : newColumns[selectColumn].width === -1
+                        ? t("hide")
+                        : newColumns[selectColumn].width?.toString()
+                    }
+                    onChange={(val) => {
+                      setNewColumns((cols) => {
+                        cols[selectColumn].width = parseInt(val, 10);
+                        return [...cols];
+                      });
+                    }}
+                  />
+                </Dropdown>
+                <Button
+                  type="primary"
+                  size="mini"
+                  onClick={() => {
+                    const newWidth: { [key: string]: number } = {};
+                    newColumns.forEach((column) => {
+                      newWidth[column.key! as string] = column.width as number;
+                    });
+                    systemConfig.scriptListColumnWidth = newWidth;
+                  }}
+                >
+                  {t("save")}
+                </Button>
+                <Button
+                  size="mini"
+                  onClick={() => {
+                    setNewColumns((cols) => {
+                      return cols.map((col, index) => {
+                        col.width = columns[index].width;
+                        return col;
+                      });
+                    });
+                  }}
+                >
+                  {t("reset")}
+                </Button>
               </Space>
               <Button
                 type="primary"
@@ -860,7 +1011,7 @@ function ScriptList() {
           components={components}
           rowKey="id"
           tableLayoutFixed
-          columns={columns}
+          columns={dealColumns}
           data={scriptList}
           pagination={{
             total: scriptList.length,
