@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useState } from "react";
 import MessageInternal from "@App/app/message/internal";
 import { MessageSender } from "@App/app/message/message";
@@ -12,6 +13,8 @@ import {
   Switch,
 } from "@arco-design/web-react";
 import {
+  IconCaretDown,
+  IconCaretUp,
   IconDelete,
   IconEdit,
   IconMenu,
@@ -24,6 +27,7 @@ import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import RuntimeController from "@App/runtime/content/runtime";
 import { useTranslation } from "react-i18next";
+import { SystemConfig } from "@App/pkg/config/config";
 
 const CollapseItem = Collapse.Item;
 
@@ -49,6 +53,10 @@ const ScriptMenuList: React.FC<{
   const message = IoC.instance(MessageInternal) as MessageInternal;
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const runtimeCtrl = IoC.instance(RuntimeController) as RuntimeController;
+  const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
+  const [expandMenuIndex, setExpandMenuIndex] = useState<{
+    [key: string]: boolean;
+  }>({});
   const { t } = useTranslation();
 
   let url: URL;
@@ -95,10 +103,13 @@ const ScriptMenuList: React.FC<{
     window.close();
   };
   // 监听菜单按键
+
+  // 菜单展开
+
   return (
     <>
       {list.length === 0 && <Empty />}
-      {list.map((item) => (
+      {list.map((item, index) => (
         <Collapse bordered={false} expandIconPosition="right" key={item.id}>
           <CollapseItem
             header={
@@ -246,7 +257,13 @@ const ScriptMenuList: React.FC<{
             className="arco-collapse-item-content-box flex flex-col"
             style={{ padding: "0 0 0 40px" }}
           >
-            {item.menus?.map((menu) => {
+            {/* 判断菜单数量，再判断是否展开 */}
+            {(item.menus && item.menus?.length > systemConfig.menuExpandNum
+              ? expandMenuIndex[index]
+                ? item.menus
+                : item.menus?.slice(0, systemConfig.menuExpandNum)
+              : item.menus
+            )?.map((menu) => {
               if (menu.accessKey) {
                 document.addEventListener("keypress", (e) => {
                   if (e.key.toUpperCase() === menu.accessKey!.toUpperCase()) {
@@ -269,6 +286,24 @@ const ScriptMenuList: React.FC<{
                 </Button>
               );
             })}
+            {item.menus && item.menus?.length > systemConfig.menuExpandNum && (
+              <Button
+                className="text-left"
+                key="expand"
+                type="secondary"
+                icon={
+                  expandMenuIndex[index] ? <IconCaretUp /> : <IconCaretDown />
+                }
+                onClick={() => {
+                  setExpandMenuIndex({
+                    ...expandMenuIndex,
+                    [index]: !expandMenuIndex[index],
+                  });
+                }}
+              >
+                {expandMenuIndex[index] ? t("collapse") : t("expand")}
+              </Button>
+            )}
             {item.hasUserConfig && (
               <Button
                 className="text-left"

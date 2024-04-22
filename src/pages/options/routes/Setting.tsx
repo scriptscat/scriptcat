@@ -95,6 +95,18 @@ function Setting() {
               ))}
             </Select>
           </Space>
+          <Space>
+            菜单项超过
+            <Input
+              style={{ width: "64px" }}
+              type="number"
+              defaultValue={systemConfig.menuExpandNum.toString()}
+              onChange={(val) => {
+                systemConfig.menuExpandNum = parseInt(val, 10);
+              }}
+            />
+            个时，自动隐藏
+          </Space>
         </Space>
       </Card>
       <Card className="sync" title={t("script_sync")} bordered={false}>

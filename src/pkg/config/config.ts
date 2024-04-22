@@ -271,4 +271,13 @@ export class SystemConfig {
   set scriptListColumnWidth(val: { [key: string]: number }) {
     this.set("script_list_column_width", val);
   }
+
+  // 展开菜单数
+  get menuExpandNum() {
+    return <number>this.cache.get("menu_expand_num") || 5;
+  }
+
+  set menuExpandNum(val: number) {
+    this.set("menu_expand_num", val);
+  }
 }
