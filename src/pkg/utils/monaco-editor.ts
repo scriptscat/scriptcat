@@ -5,6 +5,7 @@ import Hook from "@App/app/service/hook";
 import { languages } from "monaco-editor";
 import pako from "pako";
 import Cache from "@App/app/cache";
+import { isFirefox } from "./utils";
 
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
@@ -12,7 +13,8 @@ const linterWorker = new Worker("/src/linter.worker.js");
 export default function registerEditor() {
   // @ts-ignore
   window.tsUrl = "";
-  fetch(chrome.runtime.getURL("/src/ts.worker.js"))
+
+  fetch(chrome.runtime.getURL(`/src/ts.worker.js${isFirefox() ? ".gz" : ""}`))
     .then((resp) => resp.blob())
     .then(async (blob) => {
       const result = pako.inflate(await blob.arrayBuffer());

@@ -93,7 +93,12 @@ chrome.file("manifest.json", JSON.stringify(chromeManifest));
 firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
 addDir(chrome, "./dist/ext", "", ["manifest.json"]);
-addDir(firefox, "./dist/ext", "", ["manifest.json"]);
+addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]);
+// 添加ts.worker.js名字为gz
+firefox.file(
+  "src/ts.worker.js.gz",
+  fs.readFileSync("./dist/ext/src/ts.worker.js")
+);
 
 // 导出zip包
 chrome
