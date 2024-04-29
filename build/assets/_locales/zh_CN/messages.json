@@ -1,5 +1,11 @@
 {
-    "i18n": {
-        "message": "i18n"
-    }
+  "i18n": {
+    "message": "i18n"
+  },
+  "scriptcat": {
+    "message": "脚本猫"
+  },
+  "scriptcat_description": {
+    "message": "脚本猫,一个用户脚本管理器,支持后台脚本、定时脚本、页面脚本,可编写脚本每天帮你自动处理事务."
+  }
 }

@@ -1,5 +1,11 @@
 {
-    "i18n": {
-        "message": "i18n"
-    }
+  "i18n": {
+    "message": "i18n"
+  },
+  "scriptcat": {
+    "message": "ScriptCat"
+  },
+  "scriptcat_description": {
+    "message": "Scriptcat, a userscript manager, supports background script, crontab script, and userscript. It can write scripts to help you automatically handle things every day."
+  }
 }
