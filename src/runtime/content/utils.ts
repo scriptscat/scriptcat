@@ -147,6 +147,28 @@ Object.keys(descs).forEach((key) => {
   }
 });
 
+export function warpObject(thisContext: Object, ...context: Object[]) {
+  // 处理Object上的方法
+  thisContext.hasOwnProperty = (name: PropertyKey) => {
+    return (
+      Object.hasOwnProperty.call(thisContext, name) ||
+      context.some((val) => Object.hasOwnProperty.call(val, name))
+    );
+  };
+  thisContext.isPrototypeOf = (name: Object) => {
+    return (
+      Object.isPrototypeOf.call(thisContext, name) ||
+      context.some((val) => Object.isPrototypeOf.call(val, name))
+    );
+  };
+  thisContext.propertyIsEnumerable = (name: PropertyKey) => {
+    return (
+      Object.propertyIsEnumerable.call(thisContext, name) ||
+      context.some((val) => Object.propertyIsEnumerable.call(val, name))
+    );
+  };
+}
+
 // 拦截上下文
 export function proxyContext(
   global: any,
@@ -161,6 +183,7 @@ export function proxyContext(
   }
   thisContext.eval = global.eval;
   thisContext.define = undefined;
+  warpObject(thisContext, special, global, context);
   // keyword是与createContext时同步的,避免访问到context的内部变量
   const contextKeyword: { [key: string]: any } = {
     message: 1,
@@ -203,13 +226,13 @@ export function proxyContext(
           return thisContext[name];
         }
         if (typeof name === "string") {
-          if (context[name]) {
-            if (contextKeyword[name]) {
+          if (has(context, name)) {
+            if (has(contextKeyword, name)) {
               return undefined;
             }
             return context[name];
           }
-          if (special[name] !== undefined) {
+          if (has(special, name)) {
             if (
               typeof special[name] === "function" &&
               !(<{ prototype: any }>special[name]).prototype
@@ -250,22 +273,22 @@ export function proxyContext(
       }
       if (name !== "undefined") {
         if (typeof name === "string") {
-          if (unscopables[name]) {
+          if (has(unscopables, name)) {
             return false;
           }
           if (has(thisContext, name)) {
             return true;
           }
-          if (context[name]) {
-            if (contextKeyword[name]) {
+          if (has(context, name)) {
+            if (has(contextKeyword, name)) {
               return false;
             }
             return true;
           }
-          if (special[name] !== undefined) {
+          if (has(special, name)) {
             return true;
           }
-          if (global[name] !== undefined) {
+          if (has(global[name], name)) {
             return true;
           }
         } else if (typeof name === "symbol") {
@@ -279,12 +302,11 @@ export function proxyContext(
         case "window":
         case "self":
         case "globalThis":
-          special.global = val;
-          return true;
+          return false;
         default:
       }
-      if (special[name]) {
-        special[name] = val;
+      if (has(special, name)) {
+        thisContext[name] = val;
         return true;
       }
       if (init.has(name)) {
@@ -293,7 +315,7 @@ export function proxyContext(
         if (des && des.get && !des.set && des.configurable) {
           return true;
         }
-        global[name] = val;
+        thisContext[name] = val;
         return true;
       }
       // @ts-ignore

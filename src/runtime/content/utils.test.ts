@@ -38,6 +38,10 @@ describe("proxy context", () => {
   it("访问global的对象", () => {
     expect(_this["gbok"]).toEqual("gbok");
   });
+
+  it("禁止修改window", () => {
+    expect(() => (_this["window"] = "ok")).toThrow();
+  });
 });
 
 describe("兼容问题", () => {
@@ -66,5 +70,16 @@ describe("Symbol", () => {
   // toString.call(window)返回的是'[object Object]'而不是'[object Window]',影响内容: https://github.com/scriptscat/scriptcat/issues/260
   it("Window", () => {
     expect(toString.call(_this)).toEqual("[object Window]");
+  });
+});
+
+// Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
+describe("Object", () => {
+  const _this = proxyContext({}, {});
+  it("hasOwnProperty", () => {
+    expect(_this.hasOwnProperty("test1")).toEqual(false);
+    _this.test1 = "ok";
+    expect(_this.hasOwnProperty("test1")).toEqual(true);
+    expect(_this.hasOwnProperty("test")).toEqual(true);
   });
 });
