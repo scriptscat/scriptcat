@@ -276,24 +276,24 @@ export function setXhrHeader(
       if (lowKey === "origin") {
         hasOrigin = true;
       }
-      if (
-        unsafeHeaders[lowKey] ||
-        lowKey.startsWith("sec-") ||
-        lowKey.startsWith("proxy-")
-      ) {
-        try {
+      try {
+        if (
+          unsafeHeaders[lowKey] ||
+          lowKey.startsWith("sec-") ||
+          lowKey.startsWith("proxy-")
+        ) {
           xhr.setRequestHeader(
             `${headerFlag}-${lowKey}`,
             config.headers![key]!
           );
-        } catch (e) {
-          LoggerCore.getLogger(Logger.E(e)).error(
-            "GM XHR setRequestHeader error"
-          );
+        } else {
+          // 直接设置header
+          xhr.setRequestHeader(key, config.headers![key]!);
         }
-      } else {
-        // 直接设置header
-        xhr.setRequestHeader(key, config.headers![key]!);
+      } catch (e) {
+        LoggerCore.getLogger(Logger.E(e)).error(
+          "GM XHR setRequestHeader error"
+        );
       }
     });
     if (!hasOrigin) {
@@ -307,7 +307,13 @@ export function setXhrHeader(
     );
   }
   if (config.cookie) {
-    xhr.setRequestHeader(`${headerFlag}-cookie`, config.cookie);
+    try {
+      xhr.setRequestHeader(`${headerFlag}-cookie`, config.cookie);
+    } catch (e) {
+      LoggerCore.getLogger(Logger.E(e)).error(
+        "GM XHR setRequestHeader cookie error"
+      );
+    }
   }
   if (config.anonymous) {
     xhr.setRequestHeader(`${headerFlag}-anonymous`, "true");
