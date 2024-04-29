@@ -118,7 +118,7 @@ export const writables: { [key: string]: any } = {
   dispatchEvent: global.dispatchEvent.bind(global),
 };
 
-// 记录初始的
+// 记录初始的window字段
 export const init = new Map<string, boolean>();
 
 // 需要用到全局的
@@ -131,6 +131,7 @@ export const unscopables: { [key: string]: boolean } = {
 const descs = Object.getOwnPropertyDescriptors(global);
 Object.keys(descs).forEach((key) => {
   const desc = descs[key];
+  // 可写但不在特殊配置writables中
   if (desc && desc.writable && !writables[key]) {
     if (typeof desc.value === "function") {
       // 判断是否需要bind，例如Object、Function这些就不需要bind
@@ -239,8 +240,8 @@ export function proxyContext(
             }
             return special[name];
           }
-          // 只处理onxxxx的事件
           if (has(global, name)) {
+            // 特殊处理onxxxx的事件
             if (name.startsWith("on")) {
               if (
                 typeof global[name] === "function" &&
@@ -250,6 +251,16 @@ export function proxyContext(
               }
               return global[name];
             }
+          }
+          if (init.has(name)) {
+            const val = global[name];
+            if (
+              typeof val === "function" &&
+              !(<{ prototype: any }>val).prototype
+            ) {
+              return (<{ bind: any }>val).bind(global);
+            }
+            return val;
           }
         } else if (name === Symbol.unscopables) {
           return unscopables;

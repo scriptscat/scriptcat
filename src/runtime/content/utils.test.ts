@@ -9,9 +9,10 @@ describe("proxy context", () => {
       console.log("eval");
     },
     addEventListener: () => {},
+    location: "ok",
   };
   init.set("onload", true);
-  init.set("gbok", true);
+  init.set("location", true);
   const _this = proxyContext(global, context);
 
   it("set contenxt", () => {
@@ -35,12 +36,16 @@ describe("proxy context", () => {
     expect(global["okk"]).toEqual(undefined);
   });
 
-  it("访问global的对象", () => {
+  it("禁止穿透global对象", () => {
     expect(_this["gbok"]).toBeUndefined();
   });
 
   it("禁止修改window", () => {
     expect(() => (_this["window"] = "ok")).toThrow();
+  });
+
+  it("访问location", () => {
+    expect(_this.location).not.toBeUndefined();
   });
 });
 
