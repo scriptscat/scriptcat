@@ -332,7 +332,14 @@ export function proxyContext(
         }
         // 只处理onxxxx的事件
         if (has(global, name) && name.startsWith("on")) {
-          global.addEventListener(name.slice(2), val);
+          if (val === undefined) {
+            global.removeEventListener(name.slice(2), thisContext[name]);
+          } else {
+            if (thisContext[name]) {
+              global.removeEventListener(name.slice(2), thisContext[name]);
+            }
+            global.addEventListener(name.slice(2), val);
+          }
           thisContext[name] = val;
           return true;
         }

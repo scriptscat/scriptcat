@@ -9,6 +9,7 @@ describe("proxy context", () => {
       console.log("eval");
     },
     addEventListener: () => {},
+    removeEventListener: () => {},
     location: "ok",
   };
   init.set("onload", true);
@@ -25,6 +26,8 @@ describe("proxy context", () => {
     _this["onload"] = "ok";
     expect(_this["onload"]).toEqual("ok");
     expect(global["onload"]).toEqual(null);
+    _this["onload"] = undefined;
+    expect(_this["onload"]).toEqual(undefined);
   });
 
   it("update", () => {
