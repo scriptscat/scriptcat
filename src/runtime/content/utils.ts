@@ -208,14 +208,12 @@ export function proxyContext(
         case "self":
         case "globalThis":
           // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-          return special.global || proxy;
+          return proxy;
         case "top":
         case "parent":
           if (global[name] === global.self) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
             return special.global || proxy;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           return global.top;
         default:
           break;
@@ -241,14 +239,17 @@ export function proxyContext(
             }
             return special[name];
           }
-          if (global[name] !== undefined) {
-            if (
-              typeof global[name] === "function" &&
-              !(<{ prototype: any }>global[name]).prototype
-            ) {
-              return (<{ bind: any }>global[name]).bind(global);
+          // 只处理onxxxx的事件
+          if (has(global, name)) {
+            if (name.startsWith("on")) {
+              if (
+                typeof global[name] === "function" &&
+                !(<{ prototype: any }>global[name]).prototype
+              ) {
+                return (<{ bind: any }>global[name]).bind(global);
+              }
+              return global[name];
             }
-            return global[name];
           }
         } else if (name === Symbol.unscopables) {
           return unscopables;
@@ -288,8 +289,11 @@ export function proxyContext(
           if (has(special, name)) {
             return true;
           }
+          // 只处理onxxxx的事件
           if (has(global[name], name)) {
-            return true;
+            if (name.startsWith("on")) {
+              return true;
+            }
           }
         } else if (typeof name === "symbol") {
           return has(thisContext, name);
@@ -306,7 +310,7 @@ export function proxyContext(
         default:
       }
       if (has(special, name)) {
-        thisContext[name] = val;
+        special[name] = val;
         return true;
       }
       if (init.has(name)) {
@@ -315,8 +319,12 @@ export function proxyContext(
         if (des && des.get && !des.set && des.configurable) {
           return true;
         }
-        thisContext[name] = val;
-        return true;
+        // 只处理onxxxx的事件
+        if (has(global, name) && name.startsWith("on")) {
+          global.addEventListener(name.slice(2), val);
+          thisContext[name] = val;
+          return true;
+        }
       }
       // @ts-ignore
       thisContext[name] = val;

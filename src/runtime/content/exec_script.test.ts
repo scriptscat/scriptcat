@@ -46,7 +46,7 @@ describe("GM_info", () => {
     expect(ret.version).toEqual(ExtVersion);
     expect(ret.script.version).toEqual("1.0.0");
   });
-  it("sandbox", async() => {
+  it("sandbox", async () => {
     scriptRes2.code = "return GM_info";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -63,6 +63,10 @@ describe("unsafeWindow", () => {
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok");
+    scriptRes2.code = "return window.testUnsafeWindow";
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret2 = await sandboxExec.exec();
+    expect(ret2).toEqual(undefined);
   });
 });
 

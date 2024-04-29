@@ -8,6 +8,7 @@ describe("proxy context", () => {
     eval: () => {
       console.log("eval");
     },
+    addEventListener: () => {},
   };
   init.set("onload", true);
   init.set("gbok", true);
@@ -22,8 +23,7 @@ describe("proxy context", () => {
   it("set window null", () => {
     _this["onload"] = "ok";
     expect(_this["onload"]).toEqual("ok");
-    expect(context["onload"]).toEqual(undefined);
-    expect(global["onload"]).toEqual("ok");
+    expect(global["onload"]).toEqual(null);
   });
 
   it("update", () => {
@@ -36,11 +36,19 @@ describe("proxy context", () => {
   });
 
   it("访问global的对象", () => {
-    expect(_this["gbok"]).toEqual("gbok");
+    expect(_this["gbok"]).toBeUndefined();
   });
 
   it("禁止修改window", () => {
     expect(() => (_this["window"] = "ok")).toThrow();
+  });
+});
+
+// 只允许访问onxxxxx
+describe("window", () => {
+  const _this = proxyContext({ onanimationstart: null }, {});
+  it("window", () => {
+    expect(_this.onanimationstart).toBeNull();
   });
 });
 
