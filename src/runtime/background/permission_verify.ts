@@ -74,6 +74,20 @@ export default class PermissionVerify {
         api: descriptor.value,
         param,
       });
+      // 兼容GM.*
+      const dot = key.replace("_", ".");
+      if (dot !== key) {
+        PermissionVerify.apis.set(dot, {
+          api: descriptor.value,
+          param,
+        });
+        if (param.alias) {
+          param.alias.push(dot);
+        } else {
+          param.alias = [dot];
+        }
+      }
+
       // 处理别名
       if (param.alias) {
         param.alias.forEach((alias) => {
@@ -81,15 +95,6 @@ export default class PermissionVerify {
             api: descriptor.value,
             param,
           });
-        });
-      }
-
-      // 兼容GM.*
-      const dot = key.replace("_", ".");
-      if (dot !== key) {
-        PermissionVerify.apis.set(dot, {
-          api: descriptor.value,
-          param,
         });
       }
     };
@@ -232,7 +237,6 @@ export default class PermissionVerify {
     if (!grant) {
       return Promise.reject(new Error("grant is undefined"));
     }
-
     for (let i = 0; i < grant.length; i += 1) {
       if (
         // 名称相等
