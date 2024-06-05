@@ -85,6 +85,17 @@ const config: Configuration = {
       scriptLoading: "blocking",
     }),
     new HtmlWebpackPlugin({
+      filename: `${dist}/ext/src/frontground.html`,
+      template: `${template}/frontground.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: {
+        removeComments: true,
+      },
+      chunks: ["background"],
+      scriptLoading: "blocking",
+    }),
+    new HtmlWebpackPlugin({
       filename: `${dist}/ext/src/confirm.html`,
       template: `${template}/confirm.html`,
       inject: "head",

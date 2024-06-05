@@ -136,6 +136,25 @@ function ScriptList() {
       },
     },
     {
+      title: "前台运行",
+      width: 100,
+      key: "run_front",
+      render: (col) => {
+        return (
+          <Tooltip content={col} position="tl">
+            <Button
+              type="text"
+              onClick={() => {
+                window.open("/src/frontground.html", "_blank");
+              }}
+            >
+              前台运行
+            </Button>
+          </Tooltip>
+        );
+      },
+    },
+    {
       key: "title",
       title: t("enable"),
       width: t("script_list_enable_width"),

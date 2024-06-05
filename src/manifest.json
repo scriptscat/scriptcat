@@ -18,6 +18,9 @@
   "background": {
     "page": "src/background.html"
   },
+  "frontground": {
+    "page": "src/frontground.html"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -33,6 +36,7 @@
     "downloads",
     "webRequest",
     "background",
+    "frontground",
     "<all_urls>",
     "contextMenus",
     "notifications",
