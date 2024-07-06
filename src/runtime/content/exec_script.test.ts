@@ -109,4 +109,12 @@ describe("sandbox", () => {
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(2);
   });
+
+  // RegExp.$x 内容被覆盖 https://github.com/scriptscat/scriptcat/issues/293
+  it("RegExp", async () => {
+    scriptRes2.code = `let ok = /12(3)/.test('123');return RegExp.$1;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual("3");
+  });
 });

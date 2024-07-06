@@ -1,7 +1,7 @@
 import { MessageManager } from "@App/app/message/message";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
-import has from "lodash/has";
+import { has } from "@App/pkg/utils/lodash";
 import GMApi, { ApiValue, GMContext } from "./gm_api";
 
 // 构建脚本运行代码
