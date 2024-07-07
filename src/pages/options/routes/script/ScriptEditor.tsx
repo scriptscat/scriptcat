@@ -149,6 +149,17 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
+const popstate = () => {
+  // eslint-disable-next-line no-restricted-globals
+  if (confirm("脚本已修改, 离开后会丢失修改, 是否继续?")) {
+    window.history.back();
+    window.removeEventListener("popstate", popstate);
+  } else {
+    window.history.pushState(null, "", window.location.href);
+  }
+  return false;
+};
+
 function ScriptEditor() {
   const scriptDAO = new ScriptDAO();
   const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
@@ -426,6 +437,10 @@ function ScriptEditor() {
         return true;
       };
       window.onbeforeunload = beforeunload;
+      window.history.pushState(null, "", window.location.href);
+      window.addEventListener("popstate", popstate);
+    } else {
+      window.removeEventListener("popstate", popstate);
     }
 
     return () => {
