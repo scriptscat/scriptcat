@@ -155,7 +155,7 @@ function ScriptList() {
         },
       ],
       onFilter: (value, row) => row.status === value,
-      render: (col, item: ListType, index) => {
+      render: (col, item: ListType) => {
         return (
           <Switch
             checked={item.status === SCRIPT_STATUS_ENABLE}
@@ -163,10 +163,15 @@ function ScriptList() {
             disabled={item.loading}
             onChange={(checked) => {
               setScriptList((list) => {
-                list[index].loading = true;
-                return [...list];
+                return list.map((script) => {
+                  if (script.id === item.id) {
+                    script.loading = true;
+                  }
+                  return script;
+                });
               });
               setScriptList((list) => {
+                const index = list.findIndex((script) => script.id === item.id);
                 let p: Promise<any>;
                 if (checked) {
                   p = scriptCtrl.enable(item.id).then(() => {
