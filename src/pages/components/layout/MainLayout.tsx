@@ -28,6 +28,7 @@ import {
   RiTerminalBoxLine,
   RiTimerLine,
   RiPlayListAddLine,
+  RiImportLine,
 } from "react-icons/ri";
 import "./index.css";
 import { useTranslation } from "react-i18next";
@@ -130,6 +131,50 @@ const MainLayout: React.FC<{
                       <a href="#/script/editor?template=crontab">
                         <RiTimerLine /> {t("create_scheduled_script")}
                       </a>
+                    </Menu.Item>
+                    <Menu.Item
+                      key="import_local"
+                      onClick={() => {
+                        const el = document.getElementById("import-local");
+                        el!.onchange = (e: Event) => {
+                          const scriptCtl = IoC.instance(
+                            ScriptController
+                          ) as ScriptController;
+                          try {
+                            // 获取文件
+                            // @ts-ignore
+                            const file = e.target.files[0];
+                            // 实例化 FileReader对象
+                            const reader = new FileReader();
+                            reader.onload = async (processEvent) => {
+                              // 创建blob url
+                              const blob = new Blob(
+                                // @ts-ignore
+                                [processEvent.target!.result],
+                                {
+                                  type: "application/javascript",
+                                }
+                              );
+                              const url = URL.createObjectURL(blob);
+                              await scriptCtl.importByUrl(url);
+                              Message.success(t("import_local_success"));
+                            };
+                            // 调用readerAsText方法读取文本
+                            reader.readAsText(file);
+                          } catch (error) {
+                            Message.error(`${t("import_local_failure")}: ${e}`);
+                          }
+                        };
+                        el!.click();
+                      }}
+                    >
+                      <input
+                        id="import-local"
+                        type="file"
+                        style={{ display: "none" }}
+                        accept=".js"
+                      />
+                      <RiImportLine /> {t("import_by_local")}
                     </Menu.Item>
                     <Menu.Item
                       key="link"
