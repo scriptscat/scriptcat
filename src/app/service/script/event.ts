@@ -68,6 +68,10 @@ export default class ScriptEventListener {
         script.selfMetadata = oldScript.selfMetadata;
       }
     }
+    // 判断一些undefined的字段
+    if (!script.config) {
+      script.config = undefined;
+    }
     return new Promise((resolve, reject) => {
       this.dao.save(script).then(
         () => {

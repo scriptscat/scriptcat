@@ -150,7 +150,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 const popstate = () => {
-  // eslint-disable-next-line no-restricted-globals
+  // eslint-disable-next-line no-restricted-globals, no-alert
   if (confirm("脚本已修改, 离开后会丢失修改, 是否继续?")) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
