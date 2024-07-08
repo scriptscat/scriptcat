@@ -1,3 +1,4 @@
+import LoggerCore from "../logger/core";
 import { Channel } from "./channel";
 import {
   ChannelManager,
@@ -107,15 +108,6 @@ export default class MessageContent
 
   nativeSend(data: any): void {
     let detail = data;
-    if (typeof cloneInto !== "undefined") {
-      try {
-        // eslint-disable-next-line no-undef
-        detail = cloneInto(detail, document.defaultView);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.log(e);
-      }
-    }
 
     // 特殊处理relatedTarget
     if (detail.data && typeof detail.data.relatedTarget === "object") {
@@ -133,6 +125,18 @@ export default class MessageContent
         detail.data.relatedTarget.toString()
       );
       document.dispatchEvent(ev);
+    }
+
+    if (typeof cloneInto !== "undefined") {
+      try {
+        LoggerCore.getLogger().info("nativeSend");
+        // eslint-disable-next-line no-undef
+        detail = cloneInto(detail, document.defaultView);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.log(e);
+        LoggerCore.getLogger().info("error data");
+      }
     }
 
     const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.eventId, {
