@@ -356,5 +356,7 @@
   "hide": "隐藏",
   "resize_column_width": "调整列宽",
   "collapse": "收起",
-  "expand": "展开"
+  "expand": "展开",
+  "menu_expand_num_before": "菜单项超过",
+  "menu_expand_num_after": "个时，自动隐藏"
 }

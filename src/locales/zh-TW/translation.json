@@ -4,6 +4,9 @@
   "create_user_script": "新建普通腳本",
   "create_background_script": "新建後台腳本",
   "create_scheduled_script": "新建定時腳本",
+  "import_by_local": "本地导入",
+  "import_local_failure": "本地导入失败",
+  "import_local_success": "本地导入成功",
   "create_script": "新建腳本",
   "user_guide": "使用指南",
   "api_docs": "API文檔",
@@ -348,5 +351,12 @@
   "guide_setting_title": "設置",
   "guide_setting_content": "設置中主要包含了語言、腳本同步、更新頻率等常用設置項",
   "guide_setting_sync_title": "更新與同步",
-  "guide_setting_sync_content": "腳本同步功能可以方便的將本設備的腳本內容同步至雲端，如果勾選同步刪除選項，則當本設備腳本刪除時，也會從刪除雲端對應的腳本。你也可以在此更新腳本的版本獲得更加強大的功能。"
+  "guide_setting_sync_content": "脚本同步功能可以方便的将本设备的脚本内容同步至云端，如果有多台设备请勾选同步删除选项，当本设备脚本删除时，会从云端删除对应的脚本，也会将其它设备的脚本删除。",
+  "auto": "自动",
+  "hide": "隐藏",
+  "resize_column_width": "调整列宽",
+  "collapse": "收起",
+  "expand": "展开",
+  "menu_expand_num_before": "菜单项超过",
+  "menu_expand_num_after": "个时，自动隐藏"
 }

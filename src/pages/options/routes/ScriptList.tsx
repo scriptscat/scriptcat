@@ -694,10 +694,6 @@ function ScriptList() {
 
   newColumns.forEach((item) => {
     switch (item.width) {
-      case 0:
-        item.width = 0;
-        dealColumns.push(item);
-        break;
       case -1:
         break;
       default:

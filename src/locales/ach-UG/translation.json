@@ -4,6 +4,9 @@
   "create_user_script": "crwdns5824:0crwdne5824:0",
   "create_background_script": "crwdns5826:0crwdne5826:0",
   "create_scheduled_script": "crwdns5828:0crwdne5828:0",
+  "import_by_local": "crwdns6892:0crwdne6892:0",
+  "import_local_failure": "crwdns6894:0crwdne6894:0",
+  "import_local_success": "crwdns6896:0crwdne6896:0",
   "create_script": "crwdns5830:0crwdne5830:0",
   "user_guide": "crwdns5832:0crwdne5832:0",
   "api_docs": "crwdns5834:0crwdne5834:0",
@@ -348,5 +351,12 @@
   "guide_setting_title": "crwdns6498:0crwdne6498:0",
   "guide_setting_content": "crwdns6500:0crwdne6500:0",
   "guide_setting_sync_title": "crwdns6502:0crwdne6502:0",
-  "guide_setting_sync_content": "crwdns6504:0crwdne6504:0"
+  "guide_setting_sync_content": "crwdns6900:0crwdne6900:0",
+  "auto": "crwdns6902:0crwdne6902:0",
+  "hide": "crwdns6904:0crwdne6904:0",
+  "resize_column_width": "crwdns6906:0crwdne6906:0",
+  "collapse": "crwdns6908:0crwdne6908:0",
+  "expand": "crwdns6910:0crwdne6910:0",
+  "menu_expand_num_before": "crwdns6912:0crwdne6912:0",
+  "menu_expand_num_after": "crwdns6914:0crwdne6914:0"
 }

@@ -96,7 +96,7 @@ function Setting() {
             </Select>
           </Space>
           <Space>
-            菜单项超过
+            {t("menu_expand_num_before")}:
             <Input
               style={{ width: "64px" }}
               type="number"
@@ -105,7 +105,7 @@ function Setting() {
                 systemConfig.menuExpandNum = parseInt(val, 10);
               }}
             />
-            个时，自动隐藏
+            {t("menu_expand_num_after")}
           </Space>
         </Space>
       </Card>
