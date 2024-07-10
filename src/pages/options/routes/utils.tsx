@@ -201,12 +201,23 @@ export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
   style = style || {};
   style.display = style.display || "inline-block";
   style.marginRight = style.marginRight || "8px";
+  let icon = "";
   if (script.metadata.icon) {
+    [icon] = script.metadata.icon;
+  } else if (script.metadata.iconurl) {
+    [icon] = script.metadata.iconurl;
+  } else if (script.metadata.icon64) {
+    [icon] = script.metadata.icon64;
+  } else if (script.metadata.icon64url) {
+    [icon] = script.metadata.icon64url;
+  }
+  if (icon) {
     return (
       <Avatar size={size || 32} shape="square" style={style}>
-        <img src={script.metadata.icon[0]} alt={script?.name} />
+        <img src={icon} alt={script?.name} />
       </Avatar>
     );
   }
+  // eslint-disable-next-line react/jsx-no-useless-fragment
   return <></>;
 }
