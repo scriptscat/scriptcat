@@ -163,15 +163,8 @@ function ScriptList() {
             disabled={item.loading}
             onChange={(checked) => {
               setScriptList((list) => {
-                return list.map((script) => {
-                  if (script.id === item.id) {
-                    script.loading = true;
-                  }
-                  return script;
-                });
-              });
-              setScriptList((list) => {
                 const index = list.findIndex((script) => script.id === item.id);
+                list[index].loading = true;
                 let p: Promise<any>;
                 if (checked) {
                   p = scriptCtrl.enable(item.id).then(() => {
