@@ -28,6 +28,7 @@ import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import RuntimeController from "@App/runtime/content/runtime";
 import { useTranslation } from "react-i18next";
 import { SystemConfig } from "@App/pkg/config/config";
+import { ScriptIcons } from "@App/pages/options/routes/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -159,8 +160,10 @@ const ScriptMenuList: React.FC<{
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                       color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
+                      lineHeight: "20px",
                     }}
                   >
+                    <ScriptIcons script={item} size={20} />
                     {item.name}
                   </span>
                 </Space>

@@ -25,6 +25,7 @@ module.exports = {
   plugins: ["react", "@typescript-eslint", "prettier"],
   rules: {
     "no-restricted-syntax": "off",
+    "react/require-default-props": "off",
     "react/jsx-filename-extension": [1, { extensions: [".tsx"] }],
     "no-unused-expressions": ["error", { allowShortCircuit: true }],
     "react/jsx-props-no-spreading": "off",

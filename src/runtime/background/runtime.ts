@@ -11,6 +11,7 @@ import {
   ScriptDAO,
   ScriptRunResouce,
   SCRIPT_RUN_STATUS_RUNNING,
+  Metadata,
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
@@ -47,6 +48,7 @@ export type ScriptMenu = {
   enable: boolean;
   updatetime: number;
   hasUserConfig: boolean;
+  metadata: Metadata;
   runStatus?: SCRIPT_RUN_STATUS;
   runNum: number;
   runNumByIframe: number;
@@ -319,6 +321,7 @@ export default class Runtime extends Manager {
                 name: i18nName(item.script),
                 enable: item.script.status === SCRIPT_STATUS_ENABLE,
                 updatetime: item.script.updatetime || item.script.createtime,
+                metadata: item.script.metadata,
                 hasUserConfig: !!item.script.config,
                 runNum: item.runNum,
                 runNumByIframe: item.runNumByIframe,
@@ -332,6 +335,7 @@ export default class Runtime extends Manager {
               name: i18nName(script),
               enable: script.status === SCRIPT_STATUS_ENABLE,
               updatetime: script.updatetime || script.createtime,
+              metadata: item.script.metadata,
               hasUserConfig: !!script?.config,
               runNum: item.runNum,
               runNumByIframe: item.runNumByIframe,
@@ -364,6 +368,7 @@ export default class Runtime extends Manager {
             name: item.name,
             enable: item.status === SCRIPT_STATUS_ENABLE,
             updatetime: item.updatetime || item.createtime,
+            metadata: item.metadata,
             runStatus: item.runStatus,
             hasUserConfig: !!item.config,
             runNum:
