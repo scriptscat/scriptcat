@@ -34,14 +34,11 @@ export default class MessageContent
       this.nativeSend(data);
     });
     this.relatedTarget = new Map<number, Element>();
-    document.addEventListener(
+    window.addEventListener(
       (isContent ? "ct" : "fd") + eventId,
       (event: unknown) => {
-        if (event instanceof MutationEvent) {
-          this.relatedTarget.set(
-            parseInt(event.prevValue, 10),
-            <Element>event.relatedNode
-          );
+        if (event instanceof MouseEvent) {
+          this.relatedTarget.set(event.clientX, <Element>event.relatedTarget);
           return;
         }
         const message = (<
@@ -116,15 +113,11 @@ export default class MessageContent
       delete detail.data.relatedTarget;
       detail.data.relatedTarget = Math.ceil(Math.random() * 1000000);
       // 可以使用此种方式交互element
-      const ev = document.createEvent("MutationEvent");
-      ev.initMutationEvent(
-        (this.isContent ? "fd" : "ct") + this.eventId,
-        false,
-        false,
-        target,
-        detail.data.relatedTarget.toString()
-      );
-      document.dispatchEvent(ev);
+      const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.eventId, {
+        clientX: detail.data.relatedTarget,
+        relatedTarget: target,
+      });
+      window.dispatchEvent(ev);
     }
 
     if (typeof cloneInto !== "undefined") {
@@ -142,7 +135,7 @@ export default class MessageContent
     const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.eventId, {
       detail,
     });
-    document.dispatchEvent(ev);
+    window.dispatchEvent(ev);
   }
 
   public send(action: string, data: any) {
