@@ -10,7 +10,7 @@ export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive";
 export type FileSystemParams = {
   [key: string]: {
     title: string;
-    type?: "select" | "authorize";
+    type?: "select" | "authorize" | "password";
     options?: string[];
   };
 };
@@ -52,7 +52,7 @@ export default class FileSystemFactory {
         },
         url: { title: i18next.t("url") },
         username: { title: i18next.t("username") },
-        password: { title: i18next.t("password") },
+        password: { title: i18next.t("password"), type: "password" },
       },
       "baidu-netdsik": {},
       onedrive: {},

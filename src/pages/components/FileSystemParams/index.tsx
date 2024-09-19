@@ -86,6 +86,20 @@ const FileSystemParams: React.FC<{
                 </Select>
               </>
             )}
+            {fsParams[fileSystemType][key].type === "password" && (
+              <>
+                <span>{fsParams[fileSystemType][key].title}</span>
+                <Input.Password
+                  value={fileSystemParams[key]}
+                  onChange={(value) => {
+                    onChangeFileSystemParams({
+                      ...fileSystemParams,
+                      [key]: value,
+                    });
+                  }}
+                />
+              </>
+            )}
             {!fsParams[fileSystemType][key].type && (
               <>
                 <span>{fsParams[fileSystemType][key].title}</span>
