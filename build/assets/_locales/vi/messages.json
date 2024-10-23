@@ -1,0 +1,11 @@
+{
+"i18n": {
+"message": "I18n"
+},
+"scriptcat": {
+"message": "ScriptCat"
+},
+"scriptcat_description": {
+"message": "Scriptcat, Một Trình Quản Lý Userscript, Hỗ Trợ Tập Lệnh Nền, Tập Lệnh Crontab Và Userscript. Nó Có Thể Viết Tập Lệnh Để Giúp Bạn Tự Động Xử Lý Mọi Thứ Hàng Ngày."
+}
+}
