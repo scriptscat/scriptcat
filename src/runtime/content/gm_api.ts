@@ -39,16 +39,23 @@ export class GMContext {
       if (param.listener) {
         param.listener();
       }
+      if (key === "GMdotXmlHttpRequest") {
+        GMContext.apis.set("GM.xmlHttpRequest", {
+          api: descriptor.value,
+          param,
+        });
+        return;
+      }
       GMContext.apis.set(key, {
         api: descriptor.value,
         param,
       });
       // 兼容GM.*
-      let dot = key.replace("_", ".");
+      const dot = key.replace("_", ".");
       if (dot !== key) {
         // 特殊处理GM.xmlHttpRequest
         if (dot === "GM.xmlhttpRequest") {
-          dot = "GM.xmlHttpRequest";
+          return;
         }
         GMContext.apis.set(dot, {
           api: descriptor.value,
@@ -261,6 +268,38 @@ export default class GMApi {
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
     return this.message.syncSend("CAT_createBlobUrl", blob);
+  }
+
+  // 用于脚本跨域请求,需要@connect domain指定允许的域名
+  @GMContext.API({
+    depend: [
+      "CAT_fetchBlob",
+      "CAT_createBlobUrl",
+      "CAT_fetchDocument",
+      "GM_xmlhttpRequest",
+    ],
+  })
+  GMdotXmlHttpRequest(details: GMTypes.XHRDetails) {
+    let abort: any;
+    const ret = new Promise((resolve, reject) => {
+      const oldOnload = details.onload;
+      details.onload = (data) => {
+        resolve(data);
+        oldOnload && oldOnload(data);
+      };
+      const oldOnerror = details.onerror;
+      details.onerror = (data) => {
+        reject(data);
+        oldOnerror && oldOnerror(data);
+      };
+      // @ts-ignore
+      abort = this.GM_xmlhttpRequest(details);
+    });
+    if (abort && abort.abort) {
+      // @ts-ignore
+      ret.abort = abort.abort;
+    }
+    return ret;
   }
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
