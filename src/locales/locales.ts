@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Metadata } from "@App/app/repo/scripts";
 import enUS from "./en/translation.json";
+import viVN from "./vi/translation.json";
 import zhCN from "./zh-CN/translation.json";
 import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
@@ -18,6 +19,7 @@ i18n.use(initReactI18next).init({
   },
   resources: {
     "en-US": { title: "English", translation: enUS },
+    "vi-VN": { title: "Tiếng Việt", translation: viVN },
     "zh-CN": { title: "简体中文", translation: zhCN },
     "zh-TW": { title: "繁体中文", translation: zhTW },
     "ach-UG": { title: "伪语言", translation: achUG },
