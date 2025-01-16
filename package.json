@@ -1,4 +1,4 @@
-{
+{id 6354032
   "name": "scriptcat",
   "version": "0.16.6",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
@@ -47,8 +47,7 @@
     "unocss": "^0.51.2",
     "uuid": "^8.3.2",
     "webdav": "^4.11.0",
-    "yaml": "^2.1.1"
-  },
+    "yaml": "^2.
   "devDependencies": {
     "@babel/core": "^7.18.9",
     "@babel/plugin-proposal-decorators": "^7.18.9",

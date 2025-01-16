@@ -34,7 +34,7 @@ npm install
 # 设置代理
 npm config set proxy=http://127.0.0.1:1080
 ```
-
+1080
 ### Commit 规范
 
 我们希望每一个 commit 都能清晰地描述其目的，每个 commit
