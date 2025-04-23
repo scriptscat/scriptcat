@@ -1,9 +1,6 @@
-/* eslint-disable no-restricted-globals */
-// @ts-ignore
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { Linter } from "eslint/lib/linter/linter.js";
-// @ts-ignore
-import { userscriptsRules } from "../eslint/linter-config";
+//@ts-ignore
+import { Linter } from "eslint-linter-browserify";
+import { userscriptsRules } from "../packages/eslint/linter-config";
 
 // eslint语法检查,使用webworker
 
@@ -19,16 +16,8 @@ const severityMap = {
   1: 4, // 1 for ESLint is warning
 };
 
-function getTextBlock(
-  text: string,
-  startPosition: number,
-  endPosition: number
-) {
-  if (
-    startPosition > endPosition ||
-    startPosition < 0 ||
-    endPosition > text.length
-  ) {
+function getTextBlock(text: string, startPosition: number, endPosition: number) {
+  if (startPosition > endPosition || startPosition < 0 || endPosition > text.length) {
     throw new Error("Invalid positions provided");
   }
 

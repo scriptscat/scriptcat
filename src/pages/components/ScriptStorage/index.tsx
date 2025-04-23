@@ -1,20 +1,7 @@
-import IoC from "@App/app/ioc";
 import { Script } from "@App/app/repo/scripts";
 import { Value } from "@App/app/repo/value";
-import ValueController from "@App/app/service/value/controller";
 import { valueType } from "@App/pkg/utils/utils";
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Message,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-} from "@arco-design/web-react";
+import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
@@ -32,7 +19,6 @@ const ScriptStorage: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<Value[]>([]);
   const inputRef = useRef<RefInputType>(null);
-  const valueCtrl = IoC.instance(ValueController) as ValueController;
   const [currentValue, setCurrentValue] = useState<Value>();
   const [visibleEdit, setVisibleEdit] = useState(false);
   const [form] = Form.useForm();
@@ -42,30 +28,30 @@ const ScriptStorage: React.FC<{
     if (!script) {
       return () => {};
     }
-    valueCtrl.getValues(script).then((values) => {
-      setData(values);
-    });
+    // valueCtrl.getValues(script).then((values) => {
+    //   setData(values);
+    // });
     // Monitor value changes
-    const channel = valueCtrl.watchValue(script);
-    channel.setHandler((value: Value) => {
-      setData((prev) => {
-        const index = prev.findIndex((item) => item.key === value.key);
-        if (index === -1) {
-          if (value.value === undefined) {
-            return prev;
-          }
-          return [value, ...prev];
-        }
-        if (value.value === undefined) {
-          prev.splice(index, 1);
-          return [...prev];
-        }
-        prev[index] = value;
-        return [...prev];
-      });
-    });
+    // const channel = valueCtrl.watchValue(script);
+    // channel.setHandler((value: Value) => {
+    //   setData((prev) => {
+    //     const index = prev.findIndex((item) => item.key === value.key);
+    //     if (index === -1) {
+    //       if (value.value === undefined) {
+    //         return prev;
+    //       }
+    //       return [value, ...prev];
+    //     }
+    //     if (value.value === undefined) {
+    //       prev.splice(index, 1);
+    //       return [...prev];
+    //     }
+    //     prev[index] = value;
+    //     return [...prev];
+    //   });
+    // });
     return () => {
-      channel.disChannel();
+      // channel.disChannel();
     };
   }, [script]);
   const columns: ColumnProps[] = [
@@ -179,60 +165,55 @@ const ScriptStorage: React.FC<{
         title={currentValue ? t("edit_value") : t("add_value")}
         visible={visibleEdit}
         onOk={() => {
-          form
-            .validate()
-            .then((value: { key: string; value: any; type: string }) => {
-              switch (value.type) {
-                case "number":
-                  value.value = Number(value.value);
-                  break;
-                case "boolean":
-                  value.value = value.value === "true";
-                  break;
-                case "object":
-                  value.value = JSON.parse(value.value);
-                  break;
-                default:
-                  break;
-              }
-              valueCtrl.setValue(script!.id, value.key, value.value);
-              if (currentValue) {
-                Message.info({
-                  content: t("update_success"),
-                });
-                setData(
-                  data.map((v) => {
-                    if (v.key === value.key) {
-                      return {
-                        ...v,
-                        value: value.value,
-                      };
-                    }
-                    return v;
-                  })
-                );
-              } else {
-                Message.info({
-                  content: t("add_success"),
-                });
-                setData([
-                  {
-                    id: 0,
-                    scriptId: script!.id,
-                    storageName:
-                      (script?.metadata.storagename &&
-                        script?.metadata.storagename[0]) ||
-                      "",
-                    key: value.key,
-                    value: value.value,
-                    createtime: Date.now(),
-                    updatetime: 0,
-                  },
-                  ...data,
-                ]);
-              }
-              setVisibleEdit(false);
-            });
+          form.validate().then((value: { key: string; value: any; type: string }) => {
+            switch (value.type) {
+              case "number":
+                value.value = Number(value.value);
+                break;
+              case "boolean":
+                value.value = value.value === "true";
+                break;
+              case "object":
+                value.value = JSON.parse(value.value);
+                break;
+              default:
+                break;
+            }
+            valueCtrl.setValue(script!.id, value.key, value.value);
+            if (currentValue) {
+              Message.info({
+                content: t("update_success"),
+              });
+              setData(
+                data.map((v) => {
+                  if (v.key === value.key) {
+                    return {
+                      ...v,
+                      value: value.value,
+                    };
+                  }
+                  return v;
+                })
+              );
+            } else {
+              Message.info({
+                content: t("add_success"),
+              });
+              setData([
+                {
+                  id: 0,
+                  scriptId: script!.id,
+                  storageName: (script?.metadata.storagename && script?.metadata.storagename[0]) || "",
+                  key: value.key,
+                  value: value.value,
+                  createtime: Date.now(),
+                  updatetime: 0,
+                },
+                ...data,
+              ]);
+            }
+            setVisibleEdit(false);
+          });
         }}
         onCancel={() => setVisibleEdit(false)}
       >
@@ -249,25 +230,16 @@ const ScriptStorage: React.FC<{
             }}
           >
             <FormItem label="Key" field="key" rules={[{ required: true }]}>
-              <Input
-                placeholder={t("key_placeholder")!}
-                disabled={!!currentValue}
-              />
+              <Input placeholder={t("key_placeholder")!} disabled={!!currentValue} />
             </FormItem>
             <FormItem label="Value" field="value" rules={[{ required: true }]}>
               <Input.TextArea rows={6} placeholder={t("value_placeholder")!} />
             </FormItem>
-            <FormItem
-              label={t("type")}
-              field="type"
-              rules={[{ required: true }]}
-            >
+            <FormItem label={t("type")} field="type" rules={[{ required: true }]}>
               <Select>
                 <Select.Option value="string">{t("type_string")}</Select.Option>
                 <Select.Option value="number">{t("type_number")}</Select.Option>
-                <Select.Option value="boolean">
-                  {t("type_boolean")}
-                </Select.Option>
+                <Select.Option value="boolean">{t("type_boolean")}</Select.Option>
                 <Select.Option value="object">{t("type_object")}</Select.Option>
               </Select>
             </FormItem>

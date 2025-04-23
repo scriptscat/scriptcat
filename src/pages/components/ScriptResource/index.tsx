@@ -1,7 +1,5 @@
-import IoC from "@App/app/ioc";
 import { Resource } from "@App/app/repo/resource";
 import { Script } from "@App/app/repo/scripts";
-import ResourceController from "@App/app/service/resource/controller";
 import { base64ToBlob } from "@App/pkg/utils/script";
 import {
   Button,
@@ -35,7 +33,7 @@ const ScriptResource: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ResourceListItem[]>([]);
   const inputRef = useRef<RefInputType>(null);
-  const resourceCtrl = IoC.instance(ResourceController) as ResourceController;
+  // const resourceCtrl = IoC.instance(ResourceController) as ResourceController;
   const { t } = useTranslation();
 
   useEffect(() => {

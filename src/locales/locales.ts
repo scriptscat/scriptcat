@@ -10,10 +10,11 @@ import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
+import { systemConfig } from "@App/pages/store/global";
 
 i18n.use(initReactI18next).init({
   fallbackLng: "zh-CN",
-  lng: localStorage.language || chrome.i18n.getUILanguage(),
+  lng: chrome.i18n.getUILanguage(),
   interpolation: {
     escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
   },
@@ -26,33 +27,24 @@ i18n.use(initReactI18next).init({
   },
 });
 
-if (!localStorage.language) {
-  chrome.i18n.getAcceptLanguages((lngs) => {
-    // 遍历数组寻找匹配语言
-    for (let i = 0; i < lngs.length; i += 1) {
-      const lng = lngs[i];
-      if (i18n.hasResourceBundle(lng, "translation")) {
-        localStorage.language = lng;
-        i18n.changeLanguage(lng);
-        dayjs.locale(lng.toLocaleLowerCase());
-        break;
-      }
-    }
+chrome.i18n.getAcceptLanguages((lngs) => {
+  systemConfig.getLanguage().then((lng) => {
+    i18n.changeLanguage(lng);
+    dayjs.locale(lng.toLocaleLowerCase());
   });
-} else {
-  dayjs.locale((localStorage.language as string).toLocaleLowerCase());
-}
+});
+
 dayjs.extend(relativeTime);
 
 export function i18nName(script: { name: string; metadata: Metadata }) {
   return script.metadata[`name:${i18n.language.toLowerCase()}`]
-    ? script.metadata[`name:${i18n.language.toLowerCase()}`][0]
+    ? script.metadata[`name:${i18n.language.toLowerCase()}`]![0]
     : script.name;
 }
 
 export function i18nDescription(script: { metadata: Metadata }) {
   return script.metadata[`description:${i18n.language.toLowerCase()}`]
-    ? script.metadata[`description:${i18n.language.toLowerCase()}`][0]
+    ? script.metadata[`description:${i18n.language.toLowerCase()}`]![0]
     : script.metadata.description;
 }
 

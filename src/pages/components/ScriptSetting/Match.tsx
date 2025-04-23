@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Script } from "@App/app/repo/scripts";
-import IoC from "@App/app/ioc";
-import ScriptController from "@App/app/service/script/controller";
 import {
   Space,
   Popconfirm,
@@ -27,7 +25,7 @@ type MatchItem = {
 const Match: React.FC<{
   script: Script;
 }> = ({ script }) => {
-  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  // const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const [match, setMatch] = useState<MatchItem[]>([]);
   const [exclude, setExclude] = useState<MatchItem[]>([]);
   const [matchValue, setMatchValue] = useState<string>("");

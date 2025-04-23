@@ -1,18 +1,5 @@
 import { ExtVersion } from "@App/app/const";
-import IoC from "@App/app/ioc";
-import MessageInternal from "@App/app/message/internal";
-import SystemManager from "@App/app/service/system/manager";
-import { ScriptMenu } from "@App/runtime/background/runtime";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Collapse,
-  Dropdown,
-  Menu,
-  Switch,
-} from "@arco-design/web-react";
+import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
   IconBug,
@@ -28,6 +15,8 @@ import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
+import { popupClient } from "../store/features/script";
+import { ScriptMenu } from "@App/app/service/service_worker/popup";
 
 const CollapseItem = Collapse.Item;
 
@@ -40,15 +29,12 @@ const iconStyle = {
 function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
-  const systemManage = IoC.instance(SystemManager) as SystemManager;
   const [showAlert, setShowAlert] = useState(false);
   const [notice, setNotice] = useState("");
   const [isRead, setIsRead] = useState(true);
   const [version, setVersion] = useState(ExtVersion);
   const [currentUrl, setCurrentUrl] = useState("");
-  const [isEnableScript, setIsEnableScript] = useState(
-    localStorage.enable_script !== "false"
-  );
+  const [isEnableScript, setIsEnableScript] = useState(localStorage.enable_script !== "false");
   const { t } = useTranslation();
 
   let url: URL | undefined;
@@ -58,44 +44,41 @@ function App() {
     // ignore error
   }
 
-  const message = IoC.instance(MessageInternal) as MessageInternal;
   useEffect(() => {
-    systemManage.getNotice().then((res) => {
-      if (res) {
-        setNotice(res.notice);
-        setIsRead(res.isRead);
-      }
-    });
-    systemManage.getVersion().then((res) => {
-      res && setVersion(res);
-    });
+    // systemManage.getNotice().then((res) => {
+    //   if (res) {
+    //     setNotice(res.notice);
+    //     setIsRead(res.isRead);
+    //   }
+    // });
+    // systemManage.getVersion().then((res) => {
+    //   res && setVersion(res);
+    // });
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
         return;
       }
       setCurrentUrl(tabs[0].url || "");
-      message
-        .syncSend("queryPageScript", { url: tabs[0].url, tabId: tabs[0].id })
-        .then(
-          (resp: {
-            scriptList: ScriptMenu[];
-            backScriptList: ScriptMenu[];
-          }) => {
-            // 按照开启状态和更新时间排序
-            const list = resp.scriptList;
-            list.sort((a, b) => {
-              if (a.enable === b.enable) {
-                if (a.runNum !== b.runNum) {
-                  return b.runNum - a.runNum;
-                }
-                return b.updatetime - a.updatetime;
-              }
-              return a.enable ? -1 : 1;
-            });
-            setScriptList(list);
-            setBackScriptList(resp.backScriptList);
+      popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
+        console.log(resp);
+        // 按照开启状态和更新时间排序
+        const list = resp.scriptList;
+        list.sort((a, b) => {
+          if (a.enable === b.enable) {
+            // 根据菜单数排序
+            if (a.menus.length !== b.menus.length) {
+              return b.menus.length - a.menus.length;
+            }
+            if (a.runNum !== b.runNum) {
+              return b.runNum - a.runNum;
+            }
+            return b.updatetime - a.updatetime;
           }
-        );
+          return a.enable ? -1 : 1;
+        });
+        setScriptList(list);
+        setBackScriptList(resp.backScriptList);
+      });
     });
   }, []);
   return (
@@ -152,10 +135,7 @@ function App() {
                             url: currentUrl,
                           },
                         });
-                        window.open(
-                          "/src/options.html#/script/editor?target=initial",
-                          "_blank"
-                        );
+                        window.open("/src/options.html#/script/editor?target=initial", "_blank");
                         break;
                       default:
                         window.open(key, "_blank");
@@ -167,11 +147,7 @@ function App() {
                     <IconPlus style={iconStyle} />
                     {t("create_script")}
                   </Menu.Item>
-                  <Menu.Item
-                    key={`https://scriptcat.org/search?domain=${
-                      url && url.host
-                    }`}
-                  >
+                  <Menu.Item key={`https://scriptcat.org/search?domain=${url && url.host}`}>
                     <IconSearch style={iconStyle} />
                     {t("get_script")}
                   </Menu.Item>
@@ -205,25 +181,16 @@ function App() {
       <Alert
         style={{ marginBottom: 20, display: showAlert ? "flex" : "none" }}
         type="info"
-        // eslint-disable-next-line react/no-danger
         content={<div dangerouslySetInnerHTML={{ __html: notice }} />}
       />
-      <Collapse
-        bordered={false}
-        defaultActiveKey={["script", "background"]}
-        style={{ maxWidth: 640 }}
-      >
+      <Collapse bordered={false} defaultActiveKey={["script", "background"]} style={{ maxWidth: 640 }}>
         <CollapseItem
           header={t("current_page_scripts")}
           name="script"
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList
-            script={scriptList}
-            isBackscript={false}
-            currentUrl={currentUrl}
-          />
+          <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
         </CollapseItem>
 
         <CollapseItem
@@ -232,22 +199,15 @@ function App() {
           style={{ padding: "0" }}
           contentStyle={{ padding: "0" }}
         >
-          <ScriptMenuList
-            script={backScriptList}
-            isBackscript
-            currentUrl={currentUrl}
-          />
+          <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />
         </CollapseItem>
       </Collapse>
       <div className="flex flex-row arco-card-header !h-6">
         <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
         {semver.lt(ExtVersion, version) && (
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span
             onClick={() => {
-              window.open(
-                `https://github.com/scriptscat/scriptcat/releases/tag/v${version}`
-              );
+              window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${version}`);
             }}
             className="text-1 font-500"
             style={{ cursor: "pointer" }}

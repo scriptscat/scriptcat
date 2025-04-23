@@ -1,29 +1,33 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import MainLayout from "../components/layout/MainLayout.tsx";
 import "@arco-design/web-react/dist/css/arco.css";
-import MessageInternal from "@App/app/message/internal";
-import migrate from "@App/app/migrate";
-// eslint-disable-next-line import/no-unresolved
-import "uno.css";
-import IoC from "@App/app/ioc";
-import { MessageBroadcast, MessageHander } from "@App/app/message/message";
-import App from "./App";
-import MainLayout from "../components/layout/MainLayout";
 import "@App/locales/locales";
+import "@App/index.css";
+import { Provider } from "react-redux";
+import { store } from "@App/pages/store/store.ts";
+import LoggerCore from "@App/app/logger/core.ts";
+import migrate from "@App/app/migrate.ts";
+import { LoggerDAO } from "@App/app/repo/logger.ts";
+import DBWriter from "@App/app/logger/db_writer.ts";
 
+// 初始化数据库
 migrate();
+// 初始化日志组件
+const loggerCore = new LoggerCore({
+  writer: new DBWriter(new LoggerDAO()),
+  labels: { env: "confirm" },
+});
 
-const con = new MessageInternal("confirm");
-
-IoC.registerInstance(MessageInternal, con).alias([
-  MessageHander,
-  MessageBroadcast,
-]);
+loggerCore.logger().debug("page start");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div>
-    <MainLayout className="!flex-col !px-4 box-border" pageName="confirm">
-      <App />
-    </MainLayout>
-  </div>
+  <React.StrictMode>
+    <Provider store={store}>
+      <MainLayout className="!flex-col !px-4 box-border">
+        <App />
+      </MainLayout>
+    </Provider>
+  </React.StrictMode>
 );

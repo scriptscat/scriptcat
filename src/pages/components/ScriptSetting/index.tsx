@@ -1,4 +1,3 @@
-import IoC from "@App/app/ioc";
 import { Script } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/utils";
 import {
@@ -10,7 +9,6 @@ import {
   Message,
 } from "@arco-design/web-react";
 import React, { useEffect, useState } from "react";
-import ScriptController from "@App/app/service/script/controller";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
@@ -21,7 +19,7 @@ const ScriptSetting: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  // const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
 
   const { t } = useTranslation();

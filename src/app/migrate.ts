@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 import { db } from "./repo/dao";
 import { Script } from "./repo/scripts";
 
@@ -33,18 +32,20 @@ function renameField(): void {
     // export是0.10.x时的兼容性处理
     export: "++id,&scriptId",
   });
+  // 将脚本数据迁移到chrome.storage
+  // db.version(18)
+  //   .stores({})
+  //   .upgrade((tx) => {});
 }
 
 export default function migrate() {
   // 数据库索引定义,每一次变动必须更新version
   db.version(1).stores({
-    scripts:
-      "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
+    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
   });
   db.version(2).stores({
     logger: "++id,level,origin,createtime",
-    permission:
-      "++id,[scriptId+permission+permissionValue],createtime,updatetime",
+    permission: "++id,[scriptId+permission+permissionValue],createtime,updatetime",
   });
   db.version(3).stores({
     logger: "++id,level,title,origin,createtime",
@@ -53,12 +54,10 @@ export default function migrate() {
     value: "++id,scriptId,namespace,key,createtime",
   });
   db.version(5).stores({
-    logger:
-      "++id,level,origin,createtime,title,[origin+title],[level+origin+title]",
+    logger: "++id,level,origin,createtime,title,[origin+title],[level+origin+title]",
   });
   db.version(6).stores({
-    scripts:
-      "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
+    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
   });
   db.version(7).stores({
     resource: "++id,&url,content,type,createtime,updatetime",
@@ -110,8 +109,7 @@ export default function migrate() {
     value: "++id,[scriptId+key],[storageName+key]",
   });
   db.version(15).stores({
-    permission:
-      "++id,scriptId,[scriptId+permission+permissionValue],createtime,updatetime",
+    permission: "++id,scriptId,[scriptId+permission+permissionValue],createtime,updatetime",
   });
   // 使用小峰驼统一命名规范
   renameField();

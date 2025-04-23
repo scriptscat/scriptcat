@@ -1,13 +1,9 @@
-/* eslint-disable import/prefer-default-export */
-/* eslint-disable default-case */
-import LoggerCore from "@App/app/logger/core";
-import { Metadata } from "@App/app/repo/scripts";
 import Logger from "@App/app/logger/logger";
-import MessageInternal from "@App/app/message/internal";
+import { Metadata, Script } from "@App/app/repo/scripts";
 import { CronTime } from "cron";
+import crypto from "crypto-js";
 import dayjs from "dayjs";
 import semver from "semver";
-import { enc, MD5 } from "crypto-js";
 
 export function nextTime(crontab: string): string {
   let oncePos = 0;
@@ -25,7 +21,7 @@ export function nextTime(crontab: string): string {
   let cron: CronTime;
   try {
     cron = new CronTime(crontab.replace(/once/g, "*"));
-  } catch (e) {
+  } catch {
     throw new Error("错误的定时表达式");
   }
   if (oncePos) {
@@ -33,25 +29,13 @@ export function nextTime(crontab: string): string {
       case 1: // 每分钟
         return cron.sendAt().toFormat("yyyy-MM-dd HH:mm 每分钟运行一次");
       case 2: // 每小时
-        return cron
-          .sendAt()
-          .plus({ hour: 1 })
-          .toFormat("yyyy-MM-dd HH 每小时运行一次");
+        return cron.sendAt().plus({ hour: 1 }).toFormat("yyyy-MM-dd HH 每小时运行一次");
       case 3: // 每天
-        return cron
-          .sendAt()
-          .plus({ day: 1 })
-          .toFormat("yyyy-MM-dd 每天运行一次");
+        return cron.sendAt().plus({ day: 1 }).toFormat("yyyy-MM-dd 每天运行一次");
       case 4: // 每月
-        return cron
-          .sendAt()
-          .plus({ month: 1 })
-          .toFormat("yyyy-MM 每月运行一次");
+        return cron.sendAt().plus({ month: 1 }).toFormat("yyyy-MM 每月运行一次");
       case 5: // 每星期
-        return cron
-          .sendAt()
-          .plus({ week: 1 })
-          .toFormat("yyyy-MM-dd 每星期运行一次");
+        return cron.sendAt().plus({ week: 1 }).toFormat("yyyy-MM-dd 每星期运行一次");
     }
     throw new Error("错误表达式");
   }
@@ -107,7 +91,7 @@ export function InfoNotification(title: string, msg: string) {
   });
 }
 
-export function valueType(val: any) {
+export function valueType(val: unknown) {
   switch (typeof val) {
     case "string":
     case "number":
@@ -119,7 +103,7 @@ export function valueType(val: any) {
   }
 }
 
-export function toStorageValueStr(val: any): string {
+export function toStorageValueStr(val: unknown): string {
   switch (typeof val) {
     case "string":
       return `s${val}`;
@@ -130,13 +114,13 @@ export function toStorageValueStr(val: any): string {
     default:
       try {
         return `o${JSON.stringify(val)}`;
-      } catch (e) {
+      } catch {
         return "";
       }
   }
 }
 
-export function parseStorageValue(str: string): any {
+export function parseStorageValue(str: string): unknown {
   if (str === "") {
     return undefined;
   }
@@ -150,7 +134,7 @@ export function parseStorageValue(str: string): any {
     case "o":
       try {
         return JSON.parse(s);
-      } catch (e) {
+      } catch {
         return str;
       }
     case "s":
@@ -160,61 +144,13 @@ export function parseStorageValue(str: string): any {
   }
 }
 
-// 尝试重新链接和超时通知
-export function tryConnect(
-  message: MessageInternal,
-  callback: (ok: boolean) => void
-) {
-  const ping = () => {
-    return new Promise((resolve) => {
-      const t = setTimeout(() => {
-        resolve(false);
-      }, 1000);
-      message
-        .syncSend("ping", null)
-        .then(() => {
-          clearTimeout(t);
-          resolve(true);
-        })
-        .catch(() => {
-          clearTimeout(t);
-          resolve(false);
-        });
-    });
-  };
-  setInterval(async () => {
-    const ok = await ping();
-    if (!ok) {
-      // 不ok回调并重试连接
-      callback(false);
-      try {
-        message.reconnect();
-        callback(true);
-      } catch (e) {
-        // ignore
-        LoggerCore.getLogger({ component: "utils" }).error(
-          "re connect failed",
-          Logger.E(e)
-        );
-      }
-    }
-  }, 5000);
-}
-
 // 对比版本大小
-export function ltever(
-  newVersion: string,
-  oldVersion: string,
-  logger?: Logger
-) {
+export function ltever(newVersion: string, oldVersion: string, logger?: Logger) {
   // 先验证符不符合语义化版本规范
   try {
     return semver.lte(newVersion, oldVersion);
   } catch (e) {
-    logger?.warn(
-      "does not conform to the Semantic Versioning specification",
-      Logger.E(e)
-    );
+    logger?.warn("does not conform to the Semantic Versioning specification", Logger.E(e));
   }
   const newVer = newVersion.split(".");
   const oldVer = oldVersion.split(".");
@@ -229,11 +165,33 @@ export function ltever(
   return true;
 }
 
+// 在当前页后打开一个新页面
+export function openInCurrentTab(url: string) {
+  chrome.tabs.query(
+    {
+      active: true,
+    },
+    (tabs) => {
+      if (tabs.length) {
+        chrome.tabs.create({
+          url,
+          index: tabs[0].index + 1,
+        });
+      } else {
+        chrome.tabs.create({
+          url,
+        });
+      }
+    }
+  );
+}
+
+export function isDebug() {
+  return process.env.NODE_ENV === "development";
+}
+
 // 检查订阅规则是否改变,是否能够静默更新
-export function checkSilenceUpdate(
-  oldMeta: Metadata,
-  newMeta: Metadata
-): boolean {
+export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolean {
   // 判断connect是否改变
   const oldConnect: { [key: string]: boolean } = {};
   const newConnect: { [key: string]: boolean } = {};
@@ -256,37 +214,42 @@ export function checkSilenceUpdate(
   return true;
 }
 
-export function calculateMd5(blob: Blob) {
-  const reader = new FileReader();
-  reader.readAsBinaryString(blob);
-  return new Promise<string>((resolve) => {
-    reader.onloadend = () => {
-      // @ts-ignore
-      const hash = MD5(enc.Latin1.parse(reader.result)).toString();
-      resolve(hash);
-    };
+export function sleep(time: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, time);
   });
 }
 
-// 在当前页后打开一个新页面
-export function openInCurrentTab(url: string) {
-  chrome.tabs.query(
-    {
-      active: true,
-    },
-    (tabs) => {
-      if (tabs.length) {
-        chrome.tabs.create({
-          url,
-          index: tabs[0].index + 1,
-        });
-      } else {
-        chrome.tabs.create({
-          url,
-        });
-      }
-    }
+export function getStorageName(script: Script): string {
+  if (script.metadata && script.metadata.storagename) {
+    return script.metadata.storagename[0];
+  }
+  return script.uuid;
+}
+
+export function getIcon(script: Script): string | undefined {
+  return (
+    (script.metadata.icon && script.metadata.icon[0]) ||
+    (script.metadata.iconurl && script.metadata.iconurl[0]) ||
+    (script.metadata.defaulticon && script.metadata.defaulticon[0]) ||
+    (script.metadata.icon64 && script.metadata.icon64[0]) ||
+    (script.metadata.icon64url && script.metadata.icon64url[0])
   );
+}
+
+export function calculateMd5(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(blob);
+    reader.onloadend = () => {
+      if (!reader.result) {
+        reject(new Error("result is null"));
+      } else {
+        const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>reader.result);
+        resolve(crypto.MD5(wordArray).toString());
+      }
+    };
+  });
 }
 
 export function errorMsg(e: any): string {

@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Permission } from "@App/app/repo/permission";
 import { Script } from "@App/app/repo/scripts";
 import { useTranslation } from "react-i18next";
-import IoC from "@App/app/ioc";
-import PermissionController from "@App/app/service/permission/controller";
 import {
   Space,
   Popconfirm,
@@ -21,9 +19,9 @@ import { IconDelete } from "@arco-design/web-react/icon";
 const PermissionManager: React.FC<{
   script: Script;
 }> = ({ script }) => {
-  const permissionCtrl = IoC.instance(
-    PermissionController
-  ) as PermissionController;
+  // const permissionCtrl = IoC.instance(
+  //   PermissionController
+  // ) as PermissionController;
   const [permission, setPermission] = useState<Permission[]>([]);
   const [permissionVisible, setPermissionVisible] = useState<boolean>(false);
   const [permissionValue, setPermissionValue] = useState<Permission>();
@@ -101,7 +99,7 @@ const PermissionManager: React.FC<{
           if (permissionValue) {
             permission.push({
               id: 0,
-              scriptId: script.id,
+              uuid: script.id,
               permission: permissionValue.permission,
               permissionValue: permissionValue.permissionValue,
               allow: permissionValue.allow,
@@ -159,7 +157,7 @@ const PermissionManager: React.FC<{
             onClick={() => {
               setPermissionValue({
                 id: 0,
-                scriptId: script.id,
+                uuid: script.id,
                 permission: "cors",
                 permissionValue: "",
                 allow: true,

@@ -1,6 +1,5 @@
-import { DAO, db } from "./dao";
+import { Repo } from "./repo";
 import { Resource } from "./resource";
-import { Value } from "./value";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -9,31 +8,19 @@ export const SCRIPT_TYPE_NORMAL: SCRIPT_TYPE = 1;
 export const SCRIPT_TYPE_CRONTAB: SCRIPT_TYPE = 2;
 export const SCRIPT_TYPE_BACKGROUND: SCRIPT_TYPE = 3;
 
-export type SCRIPT_STATUS = 1 | 2 | 3 | 4;
+export type SCRIPT_STATUS = 1 | 2;
 
 export const SCRIPT_STATUS_ENABLE: SCRIPT_STATUS = 1;
 export const SCRIPT_STATUS_DISABLE: SCRIPT_STATUS = 2;
-// 弃用
-export const SCRIPT_STATUS_ERROR: SCRIPT_STATUS = 3;
-export const SCRIPT_STATUS_DELETE: SCRIPT_STATUS = 4;
 
-export type SCRIPT_RUN_STATUS = "running" | "complete" | "error" | "retry";
+export type SCRIPT_RUN_STATUS = "running" | "complete" | "error";
 export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = "running";
 export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = "complete";
 export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
-// 弃用
-export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = "retry";
 
-export type Metadata = { [key: string]: string[] };
+export type Metadata = { [key: string]: string[] | undefined };
 
-export type ConfigType =
-  | "text"
-  | "checkbox"
-  | "select"
-  | "mult-select"
-  | "number"
-  | "textarea"
-  | "time";
+export type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "time";
 
 export interface Config {
   [key: string]: any;
@@ -53,10 +40,8 @@ export interface Config {
 export type UserConfig = { [key: string]: { [key: string]: Config } };
 
 export interface Script {
-  id: number; // 脚本id
   uuid: string; // 脚本uuid,通过脚本uuid识别唯一脚本
   name: string; // 脚本名称
-  code: string; // 脚本执行代码
   namespace: string; // 脚本命名空间
   author?: string; // 脚本作者
   originDomain?: string; // 脚本来源域名
@@ -79,43 +64,82 @@ export interface Script {
   nextruntime?: number; // 脚本下一次运行时间戳
 }
 
-// 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
-export interface ScriptRunResouce extends Script {
-  grantMap: { [key: string]: string };
-  value: { [key: string]: Value };
-  flag: string;
-  resource: { [key: string]: Resource };
-  sourceCode: string;
+// 分开存储脚本代码
+export interface ScriptCode {
+  uuid: string;
+  code: string; // 脚本执行代码
 }
 
-export class ScriptDAO extends DAO<Script> {
-  public tableName = "scripts";
+export type ScriptAndCode = Script & ScriptCode;
+
+// 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
+export interface ScriptRunResouce extends Script {
+  code: string;
+  value: { [key: string]: any };
+  flag: string;
+  resource: { [key: string]: Resource };
+}
+
+export class ScriptDAO extends Repo<Script> {
+  scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   constructor() {
-    super();
-    this.table = db.table(this.tableName);
+    super("script");
+  }
+
+  public save(val: Script) {
+    return super._save(val.uuid, val);
+  }
+
+  findByUUID(uuid: string) {
+    return this.get(uuid);
+  }
+
+  getAndCode(uuid: string): Promise<ScriptAndCode | undefined> {
+    return Promise.all([this.get(uuid), this.scriptCodeDAO.get(uuid)]).then(([script, code]) => {
+      if (!script || !code) {
+        return undefined;
+      }
+      return Object.assign(script, code);
+    });
   }
 
   public findByName(name: string) {
-    return this.findOne({ name });
+    return this.findOne((key, value) => {
+      return value.name === name;
+    });
   }
 
   public findByNameAndNamespace(name: string, namespace?: string) {
-    if (namespace) {
-      return this.findOne({ name, namespace });
-    }
-    return this.findOne({ name });
-  }
-
-  public findByUUID(uuid: string) {
-    return this.findOne({ uuid });
+    return this.findOne((key, value) => {
+      return value.name === name && (!namespace || value.namespace === namespace);
+    });
   }
 
   public findByUUIDAndSubscribeUrl(uuid: string, suburl: string) {
-    return this.findOne({ subscribeUrl: suburl, uuid });
+    return this.findOne((key, value) => {
+      return value.uuid === uuid && value.subscribeUrl === suburl;
+    });
   }
 
   public findByOriginAndSubscribeUrl(origin: string, suburl: string) {
-    return this.findOne({ subscribeUrl: suburl, origin });
+    return this.findOne((key, value) => {
+      return value.origin === origin && value.subscribeUrl === suburl;
+    });
+  }
+}
+
+// 为了防止脚本代码数据量过大,单独存储脚本代码
+export class ScriptCodeDAO extends Repo<ScriptCode> {
+  constructor() {
+    super("scriptCode");
+  }
+
+  findByUUID(uuid: string) {
+    return this.get(uuid);
+  }
+
+  public save(val: ScriptCode) {
+    return super._save(val.uuid, val);
   }
 }

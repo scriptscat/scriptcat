@@ -1,17 +1,13 @@
-import IoC from "@App/app/ioc";
-import PermissionController from "@App/app/service/permission/controller";
-import { ConfirmParam } from "@App/runtime/background/permission_verify";
+import { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { permissionClient } from "../store/features/script";
 
 function App() {
   const uuid = window.location.search.split("=")[1];
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
-  const permissionCtrl = IoC.instance(
-    PermissionController
-  ) as PermissionController;
   const [second, setSecond] = React.useState(30);
 
   const { t } = useTranslation();
@@ -26,15 +22,16 @@ function App() {
 
   useEffect(() => {
     window.addEventListener("beforeunload", () => {
-      permissionCtrl.sendConfirm(uuid, {
+      permissionClient.confirm(uuid, {
         allow: false,
         type: 0,
       });
     });
 
-    permissionCtrl
-      .getConfirm(uuid)
+    permissionClient
+      .getPermissionInfo(uuid)
       .then((data) => {
+        console.log(data);
         setConfirm(data.confirm);
         setLikeNum(data.likeNum);
       })
@@ -46,7 +43,7 @@ function App() {
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
       try {
-        await permissionCtrl.sendConfirm(uuid, {
+        await permissionClient.confirm(uuid, {
           allow,
           type,
         });
