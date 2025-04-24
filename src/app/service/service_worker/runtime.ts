@@ -26,8 +26,9 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
+import { ResourceService } from "./resource";
 
-// 为了优化性能，存储到缓存时删除了code与value
+// 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
   matches: string[];
   excludeMatches: string[];
@@ -54,7 +55,8 @@ export class RuntimeService {
     private sender: MessageSend,
     private mq: MessageQueue,
     private value: ValueService,
-    private script: ScriptService
+    private script: ScriptService,
+    private resource: ResourceService
   ) {}
 
   async init() {
@@ -212,18 +214,18 @@ export class RuntimeService {
       return scriptRes;
     });
 
-    const enableScript = scripts.filter((item) => item);
+    const enableScript = scripts.filter((item) => item) as ScriptMatchInfo[];
 
     await Promise.all([
       // 加载value
       ...enableScript.map(async (script) => {
         const value = await this.value.getScriptValue(script!);
-        script!.value = value;
+        script.value = value;
       }),
       // 加载resource
       ...enableScript.map(async (script) => {
-        // const resource = await this.script.buildScriptRunResource(script!);
-        // script!.resource = resource;
+        const resource = await this.resource.getScriptResources(script);
+        script.resource = resource;
       }),
     ]);
 
@@ -328,8 +330,10 @@ export class RuntimeService {
     this.scriptMatchCache.forEach((val, key) => {
       scriptMatch[key] = val;
       // 优化性能，将不需要的信息去掉
+      // 而且可能会超过缓存的存储限制
       scriptMatch[key].code = "";
       scriptMatch[key].value = {};
+      scriptMatch[key].resource = {};
     });
     return await Cache.getInstance().set("scriptMatch", scriptMatch);
   }

@@ -36,12 +36,22 @@ export class ResourceService {
     return Promise.resolve(undefined);
   }
 
+  cache: Map<string, { [key: string]: Resource }> = new Map();
+
   public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return Promise.resolve({
+    // 优先从内存中获取
+    if (this.cache.has(script.uuid)) {
+      return Promise.resolve(this.cache.get(script.uuid) || {});
+    }
+    // 资源不存在,重新加载
+    const res = await Promise.resolve({
       ...((await this.getResourceByType(script, "require")) || {}),
       ...((await this.getResourceByType(script, "require-css")) || {}),
       ...((await this.getResourceByType(script, "resource")) || {}),
     });
+    // 缓存到内存
+    this.cache.set(script.uuid, res);
+    return res;
   }
 
   async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
@@ -159,6 +169,8 @@ export class ResourceService {
   }
 
   public async addResource(url: string, uuid: string, type: ResourceType): Promise<Resource> {
+    // 删除缓存
+    this.cache.delete(uuid);
     const u = this.parseUrl(url);
     let result = await this.getResourceModel(u.url);
     // 资源不存在,重新加载

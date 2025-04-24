@@ -20,6 +20,10 @@ export class OffscreenManager {
 
   private serviceWorker = new ServiceWorkerClient(this.extensionMessage);
 
+  constructor(private extensionMessage:MessageSend) {
+
+  }
+
   logger(data: Logger) {
     const dao = new LoggerDAO();
     dao.save(data);

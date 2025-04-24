@@ -8,15 +8,12 @@ import "@App/index.css";
 import { Provider } from "react-redux";
 import { store } from "@App/pages/store/store.ts";
 import LoggerCore from "@App/app/logger/core.ts";
-import migrate from "@App/app/migrate.ts";
-import { LoggerDAO } from "@App/app/repo/logger.ts";
-import DBWriter from "@App/app/logger/db_writer.ts";
+import MessageWriter from "@App/app/logger/message_writer.ts";
+import { message } from "../store/global.ts";
 
-// 初始化数据库
-migrate();
 // 初始化日志组件
 const loggerCore = new LoggerCore({
-  writer: new DBWriter(new LoggerDAO()),
+  writer: new MessageWriter(message),
   labels: { env: "confirm" },
 });
 
