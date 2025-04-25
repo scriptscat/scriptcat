@@ -32,11 +32,12 @@ type HotKey = {
 
 const Editor: React.FC<{
   id: string;
-  script: ScriptAndCode;
+  script: Script;
+  code: string;
   hotKeys: HotKey[];
   callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
   onChange: (code: string) => void;
-}> = ({ id, script, hotKeys, callbackEditor, onChange }) => {
+}> = ({ id, script, code, hotKeys, callbackEditor, onChange }) => {
   const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
   const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
     (inlineNode) => {
@@ -77,7 +78,7 @@ const Editor: React.FC<{
     };
   }, [node?.editor]);
 
-  return <CodeEditor key={id} id={id} ref={ref} code={script.code} diffCode="" editable />;
+  return <CodeEditor key={id} id={id} ref={ref} code={code} diffCode="" editable />;
 };
 
 const WarpEditor = React.memo(Editor, (prev, next) => {
@@ -154,7 +155,8 @@ function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [editors, setEditors] = useState<
     {
-      script: ScriptAndCode;
+      script: Script;
+      code: string;
       active: boolean;
       hotKeys: HotKey[];
       editor?: editor.IStandaloneCodeEditor;
@@ -218,7 +220,7 @@ function ScriptEditor() {
               setEditors((prev) => {
                 for (let i = 0; i < prev.length; i += 1) {
                   if (prev[i].script.uuid === newScript.uuid) {
-                    prev[i].script.code = prepareScript.scriptCode;
+                    prev[i].code = e.getValue();
                     prev[i].isChanged = false;
                     prev[i].script.name = newScript.name;
                     break;
@@ -310,7 +312,7 @@ function ScriptEditor() {
                 });
               })
               .catch((err) => {
-                LoggerCore.getLogger(Logger.E(err)).debug("debug script error");
+                LoggerCore.logger(Logger.E(err)).debug("debug script error");
                 Message.error({
                   id: "debug_script",
                   content: `构建失败: ${err}`,
@@ -398,7 +400,8 @@ function ScriptEditor() {
                   });
                 }
                 prev.push({
-                  script: Object.assign(scripts[i], code),
+                  script: scripts[i],
+                  code: code?.code || "",
                   active: true,
                   hotKeys,
                   isChanged: false,
@@ -725,7 +728,8 @@ function ScriptEditor() {
                         return;
                       }
                       editors.push({
-                        script: Object.assign(script, code),
+                        script,
+                        code: code.code,
                         active: true,
                         hotKeys,
                         isChanged: false,
@@ -874,6 +878,7 @@ function ScriptEditor() {
                     key={`e_${item.script.uuid}`}
                     id={`e_${item.script.uuid}`}
                     script={item.script}
+                    code={item.code}
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {
                       setEditors((prev) => {
@@ -886,7 +891,7 @@ function ScriptEditor() {
                       });
                     }}
                     onChange={(code) => {
-                      const isChanged = !(item.script.code === code);
+                      const isChanged = !(item.code === code);
                       if (isChanged !== item.isChanged) {
                         setEditors((prev) => {
                           prev.forEach((v) => {

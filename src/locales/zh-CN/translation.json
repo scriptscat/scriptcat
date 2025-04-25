@@ -68,6 +68,7 @@
   "confirm_delete_backup_file": "确认删除备份文件",
   "confirm_update": "确认更新",
   "delete_success": "删除成功",
+  "deleting": "删除中",
   "backup_strategy": "备份策略",
   "under_construction": "建设中",
   "development_debugging": "开发调试",

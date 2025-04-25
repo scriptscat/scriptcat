@@ -54,7 +54,11 @@ export class ValueService {
         });
       } else {
         oldValue = valueModel.data[key];
-        valueModel.data[key] = value;
+        if (value === undefined) {
+          delete valueModel.data[key];
+        } else {
+          valueModel.data[key] = value;
+        }
         await this.valueDAO.save(storageName, valueModel);
       }
       return true;

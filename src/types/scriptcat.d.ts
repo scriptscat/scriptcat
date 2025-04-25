@@ -362,7 +362,7 @@ declare namespace GMTypes {
     user?: string;
     password?: string;
     nocache?: boolean;
-    maxRedirects?: number;
+    redirect?: "follow" | "error" | "manual";// 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

@@ -384,15 +384,15 @@ export class RuntimeService {
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
   async loadPageScript(script: Script) {
-    const matches = script.metadata["match"];
+    const scriptRes = await this.script.buildScriptRunResource(script);
+    const matches = scriptRes.metadata["match"];
     if (!matches) {
       return;
     }
-    const scriptRes = await this.script.buildScriptRunResource(script);
 
     scriptRes.code = compileInjectScript(scriptRes);
 
-    matches.push(...(script.metadata["include"] || []));
+    matches.push(...(scriptRes.metadata["include"] || []));
     const patternMatches = dealPatternMatches(matches);
     const scriptMatchInfo: ScriptMatchInfo = Object.assign(
       { matches: patternMatches.result, excludeMatches: [], customizeExcludeMatches: [] },
@@ -435,11 +435,11 @@ export class RuntimeService {
 
     // 如果脚本开启, 则注册脚本
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      if (!script.metadata["noframes"]) {
+      if (!scriptRes.metadata["noframes"]) {
         registerScript.allFrames = true;
       }
-      if (script.metadata["run-at"]) {
-        registerScript.runAt = getRunAt(script.metadata["run-at"]);
+      if (scriptRes.metadata["run-at"]) {
+        registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
       }
       if (await Cache.getInstance().get("registryScript:" + script.uuid)) {
         await chrome.userScripts.update([registerScript]);

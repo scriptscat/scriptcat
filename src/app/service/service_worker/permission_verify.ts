@@ -96,15 +96,6 @@ export default class PermissionVerify {
     reject: (reason: any) => void;
   }> = new Queue();
 
-  async removePermissionCache(uuid: string) {
-    // 先删除缓存
-    (await Cache.getInstance().list()).forEach((key) => {
-      if (key.startsWith(`permission:${uuid}:`)) {
-        Cache.getInstance().del(key);
-      }
-    });
-  }
-
   private permissionDAO: PermissionDAO = new PermissionDAO();
 
   constructor(private group: Group) {}
@@ -310,9 +301,45 @@ export default class PermissionVerify {
     return Promise.resolve({ script, confirm, likeNum });
   }
 
+  async deletePermission(data: { uuid: string; permission: string; permissionValue: string }) {
+    const oldConfirm = await this.permissionDAO.findByKey(data.uuid, data.permission, data.permissionValue);
+    if (!oldConfirm) {
+      throw new Error("permission not found");
+    } else {
+      await this.permissionDAO.delete(this.permissionDAO.key(oldConfirm));
+      // 删除缓存
+      Cache.getInstance().del(CacheKey.permissionConfirm(data.uuid, oldConfirm));
+    }
+  }
+
+  getScriptPermissions(uuid: string) {
+    // 获取脚本的所有权限
+    return this.permissionDAO.find((key, item) => item.uuid === uuid);
+  }
+
+  // 添加权限
+  async addPermission(permission: Permission) {
+    await this.permissionDAO.save(permission);
+    Cache.getInstance().del(CacheKey.permissionConfirm(permission.uuid, permission));
+  }
+
+  // 重置权限
+  async resetPermission(uuid: string) {
+    // 删除所有权限
+    const permissions = await this.permissionDAO.find((key, item) => item.uuid === uuid);
+    permissions.forEach((item) => {
+      this.permissionDAO.delete(this.permissionDAO.key(item));
+      Cache.getInstance().del(CacheKey.permissionConfirm(uuid, item));
+    });
+  }
+
   init() {
     this.dealConfirmQueue();
     this.group.on("confirm", this.userConfirm.bind(this));
     this.group.on("getInfo", this.getInfo.bind(this));
+    this.group.on("deletePermission", this.deletePermission.bind(this));
+    this.group.on("getScriptPermissions", this.getScriptPermissions.bind(this));
+    this.group.on("addPermission", this.getInfo.bind(this));
+    this.group.on("resetPermission", this.resetPermission.bind(this));
   }
 }

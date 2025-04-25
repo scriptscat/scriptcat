@@ -140,21 +140,6 @@ declare function GM_cookie(
 ): void;
 
 /**
- * 可以通过GM_addValueChangeListener获取tabid
- * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
- * 请注意这是一个实验性质的API,后续可能会改变
- * @param tabid 页面的tabid
- * @param ondone 完成事件
- * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
- * @param callback.error 错误信息
- * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
- */
-declare function GM_getCookieStore(
-  tabid: number,
-  ondone: (storeId: number | undefined, error: unknown | undefined) => void
-): void;
-
-/**
  * 设置浏览器代理
  * @deprecated 正式版中已废弃,后续可能会在beta版本中添加
  */
@@ -289,10 +274,7 @@ declare namespace CATType {
 }
 
 declare namespace GMTypes {
-  /*
-   * store为获取隐身窗口之类的cookie,这是一个实验性质的API,后续可能会改变
-   */
-  type CookieAction = "list" | "delete" | "set" | "store";
+  type CookieAction = "list" | "delete" | "set";
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 
@@ -308,17 +290,13 @@ declare namespace GMTypes {
     path?: string;
     secure?: boolean;
     session?: boolean;
-    storeId?: string;
     httpOnly?: boolean;
     expirationDate?: number;
-    // store用
-    tabId?: number;
   }
 
   interface Cookie {
     domain: string;
     name: string;
-    storeId: string;
     value: string;
     session: boolean;
     hostOnly: boolean;
@@ -341,7 +319,7 @@ declare namespace GMTypes {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能
+    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 表示使用window.open打开新窗口 #178
   }
 
   interface XHRResponse {
@@ -384,7 +362,7 @@ declare namespace GMTypes {
     user?: string;
     password?: string;
     nocache?: boolean;
-    maxRedirects?: number;
+    redirect?: "follow" | "error" | "manual";// 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

@@ -242,7 +242,7 @@ export default class GMApi {
 
   @PermissionVerify.API()
   async GM_setValue(request: Request, sender: GetSender) {
-    if (!request.params || request.params.length !== 2) {
+    if (!request.params || request.params.length < 1) {
       throw new Error("param is failed");
     }
     const [key, value] = request.params;

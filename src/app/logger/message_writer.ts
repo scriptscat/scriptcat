@@ -5,13 +5,16 @@ import { MessageSend } from "@Packages/message/server";
 export default class MessageWriter implements Writer {
   send: MessageSend;
 
-  constructor(connect: MessageSend) {
+  constructor(
+    connect: MessageSend,
+    private action: string = "logger"
+  ) {
     this.send = connect;
   }
 
   write(level: LogLevel, message: string, label: LogLabel): void {
     this.send.sendMessage({
-      action: "logger",
+      action: this.action,
       data: {
         id: 0,
         level,

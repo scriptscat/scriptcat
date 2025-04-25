@@ -18,6 +18,7 @@ import migrate from "@App/app/migrate.ts";
 migrate();
 
 registerEditor();
+
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   writer: new DBWriter(new LoggerDAO()),

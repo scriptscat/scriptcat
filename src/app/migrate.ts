@@ -36,9 +36,8 @@ function renameField() {
     // export是0.10.x时的兼容性处理
     export: "++id,&scriptId",
   });
-  const v = 36;
   // 将脚本数据迁移到chrome.storage
-  db.version(v).upgrade(() => {
+  db.version(18).upgrade(() => {
     // 默认使用的事务，这里加个延时，用db.open()打开数据库后，再执行
     setTimeout(async () => {
       try {

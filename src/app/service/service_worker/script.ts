@@ -320,6 +320,54 @@ export class ScriptService {
       });
   }
 
+  async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
+    const script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    script.selfMetadata = script.selfMetadata || {};
+    if (exclude) {
+      script.selfMetadata.exclude = exclude;
+    } else {
+      delete script.selfMetadata.exclude;
+    }
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        // 广播一下
+        this.mq.publish("installScript", { script, update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("reset exclude error", Logger.E(e));
+        throw e;
+      });
+  }
+
+  async resetMatch({ uuid, match }: { uuid: string; match: string[] | undefined }) {
+    const script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    script.selfMetadata = script.selfMetadata || {};
+    if (match) {
+      script.selfMetadata.match = match;
+    } else {
+      delete script.selfMetadata.match;
+    }
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        // 广播一下
+        this.mq.publish("installScript", { script, update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("reset match error", Logger.E(e));
+        throw e;
+      });
+  }
+
   async checkUpdate(uuid: string, source: "user" | "system") {
     // 检查更新
     const script = await this.scriptDAO.get(uuid);
@@ -443,6 +491,8 @@ export class ScriptService {
     this.group.on("getCode", this.getCode.bind(this));
     this.group.on("getScriptRunResource", this.buildScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("resetMatch", this.resetMatch.bind(this));
+    this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
 
     // 定时检查更新, 每10分钟检查一次

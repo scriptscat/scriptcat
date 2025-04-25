@@ -17,7 +17,6 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   { id, className, code, diffCode, editable },
   ref
 ) => {
-  const settings = useAppSelector((state) => state.setting);
   const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
   const [enableEslint, setEnableEslint] = useState(false);
   const [eslintConfig, setEslintConfig] = useState("");
@@ -40,9 +39,11 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   }, []);
 
   useEffect(() => {
+    console.log("1231", code);
     if (diffCode === undefined || code === undefined || !div.current) {
       return () => {};
     }
+    console.log("1232");
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
     const inlineDiv = document.getElementById(id) as HTMLDivElement;
     // @ts-ignore

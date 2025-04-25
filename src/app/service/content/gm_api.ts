@@ -159,10 +159,11 @@ export default class GMApi {
     }
     if (value === undefined) {
       delete this.scriptRes.value[key];
+      return this.sendMessage("GM_setValue", [key]);
     } else {
       this.scriptRes.value[key] = value;
+      return this.sendMessage("GM_setValue", [key, value]);
     }
-    return this.sendMessage("GM_setValue", [key, value]);
   }
 
   @GMContext.API({ depend: ["GM_setValue"] })
@@ -391,7 +392,7 @@ export default class GMApi {
       anonymous: details.anonymous,
       user: details.user,
       password: details.password,
-      maxRedirects: details.maxRedirects,
+      redirect: details.redirect,
     };
     if (!param.headers) {
       param.headers = {};

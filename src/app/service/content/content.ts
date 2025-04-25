@@ -1,3 +1,5 @@
+import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
@@ -83,7 +85,17 @@ export default class ContentRuntime {
           case "GM_log":
             // 拦截GM_log，打印到控制台
             // 由于某些页面会处理掉console.log，所以丢到这里来打印
-            console.log(...data.params);
+            switch (data.params.length) {
+              case 1:
+                console.log(data.params[0]);
+                break;
+              case 2:
+                console.log("[" + data.params[1] + "]", data.params[0]);
+                break;
+              case 3:
+                console.log("[" + data.params[1] + "]", data.params[0], data.params[2]);
+                break;
+            }
             break;
         }
         return false;
