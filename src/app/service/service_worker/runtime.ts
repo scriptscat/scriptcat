@@ -164,6 +164,10 @@ export class RuntimeService {
     });
   }
 
+  getMessageFlag() {
+    return Cache.getInstance().get("scriptInjectMessageFlag");
+  }
+
   // 给指定tab发送消息
   sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
     if (to.tabId === -1) {
@@ -286,40 +290,57 @@ export class RuntimeService {
   }
 
   // 注册inject.js
-  registerInjectScript() {
-    chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] }).then((res) => {
-      if (res.length == 0) {
-        chrome.userScripts.configureWorld({
-          csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
-          messaging: true,
+  async registerInjectScript() {
+    // 如果没设置过, 则更新messageFlag
+    let messageFlag = await this.getMessageFlag();
+    if (!messageFlag) {
+      messageFlag = await this.messageFlag();
+      const injectJs = await fetch("inject.js").then((res) => res.text());
+      // 替换ScriptFlag
+      const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+      chrome.userScripts.configureWorld({
+        csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
+        messaging: true,
+      });
+      const scripts: chrome.userScripts.RegisteredUserScript[] = [
+        {
+          id: "scriptcat-inject",
+          js: [{ code }],
+          matches: ["<all_urls>"],
+          allFrames: true,
+          world: "MAIN",
+          runAt: "document_start",
+        },
+        // 注册content
+        {
+          id: "scriptcat-content",
+          js: [{ file: "src/content.js" }],
+          matches: ["<all_urls>"],
+          allFrames: true,
+          runAt: "document_start",
+          world: "USER_SCRIPT",
+        },
+      ];
+      try {
+        // 如果使用getScripts来判断, 会出现找不到的问题
+        // 另外如果使用
+        await chrome.userScripts.register(scripts);
+      } catch (e: any) {
+        LoggerCore.logger().error("register inject.js error", {
+          error: e,
         });
-        fetch("inject.js")
-          .then((res) => res.text())
-          .then(async (injectJs) => {
-            // 替换ScriptFlag
-            const code = `(function (MessageFlag) {\n${injectJs}\n})('${await this.messageFlag()}')`;
-            chrome.userScripts.register([
-              {
-                id: "scriptcat-inject",
-                js: [{ code }],
-                matches: ["<all_urls>"],
-                allFrames: true,
-                world: "MAIN",
-                runAt: "document_start",
-              },
-              // 注册content
-              {
-                id: "scriptcat-content",
-                js: [{ file: "src/content.js" }],
-                matches: ["<all_urls>"],
-                allFrames: true,
-                runAt: "document_start",
-                world: "USER_SCRIPT",
-              },
-            ]);
+        if (e.message?.indexOf("Duplicate script ID") !== -1) {
+          // 如果是重复注册, 则更新
+          chrome.userScripts.update(scripts, () => {
+            if (chrome.runtime.lastError) {
+              LoggerCore.logger().error("update inject.js error", {
+                error: chrome.runtime.lastError,
+              });
+            }
           });
+        }
       }
-    });
+    }
   }
 
   loadingScript: Promise<void> | null | undefined;
@@ -473,18 +494,27 @@ export class RuntimeService {
       if (scriptRes.metadata["run-at"]) {
         registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
       }
-      if (await Cache.getInstance().get("registryScript:" + script.uuid)) {
-        await chrome.userScripts.update([registerScript]);
+      const res = await chrome.userScripts.getScripts({ ids: [script.uuid] });
+      const logger = LoggerCore.logger({
+        name: script.name,
+        registerMatch: {
+          matches: registerScript.matches,
+          excludeMatches: registerScript.excludeMatches,
+        },
+      });
+      if (res.length > 0) {
+        await chrome.userScripts.update([registerScript], () => {
+          if (chrome.runtime.lastError) {
+            logger.error("update registerScript error", {
+              error: chrome.runtime.lastError,
+            });
+          }
+        });
       } else {
         await chrome.userScripts.register([registerScript], () => {
           if (chrome.runtime.lastError) {
-            LoggerCore.logger().error("registerScript error", {
+            logger.error("registerScript error", {
               error: chrome.runtime.lastError,
-              name: script.name,
-              registerMatch: {
-                matches: registerScript.matches,
-                excludeMatches: registerScript.excludeMatches,
-              },
             });
           }
         });
