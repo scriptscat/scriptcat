@@ -15,7 +15,7 @@ import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } 
 import { ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
-import { randomString } from "@App/pkg/utils/utils";
+import { InfoNotification, isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
 import Cache from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
@@ -27,6 +27,8 @@ import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import i18n from "@App/locales/locales";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
@@ -49,6 +51,8 @@ export class RuntimeService {
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
 
+  isEnableDeveloperMode = false;
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
@@ -70,6 +74,34 @@ export class RuntimeService {
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
 
+    // 检查是否开启了开发者模式
+    this.isEnableDeveloperMode = isUserScriptsAvailable();
+    if (!this.isEnableDeveloperMode) {
+      // 未开启加上警告引导
+      // 判断是否首次
+      const localStorage = new LocalStorageDAO();
+      localStorage.get("firstShowDeveloperMode").then((res) => {
+        if (!res) {
+          localStorage.save({
+            key: "firstShowDeveloperMode",
+            value: true,
+          });
+          // 打开页面
+          chrome.tabs.create({
+            url: `https://docs.scriptcat.org/docs/use/open-dev/`,
+          });
+        }
+      });
+      chrome.action.setBadgeBackgroundColor({
+        color: "#ff8c00",
+      });
+      chrome.action.setBadgeTextColor({
+        color: "#ffffff",
+      });
+      chrome.action.setBadgeText({
+        text: "!",
+      });
+    }
     // 读取inject.js注入页面
     this.registerInjectScript();
     // 监听脚本开启
@@ -434,7 +466,7 @@ export class RuntimeService {
     this.addScriptMatch(scriptMatchInfo);
 
     // 如果脚本开启, 则注册脚本
-    if (script.status === SCRIPT_STATUS_ENABLE) {
+    if (this.isEnableDeveloperMode && script.status === SCRIPT_STATUS_ENABLE) {
       if (!scriptRes.metadata["noframes"]) {
         registerScript.allFrames = true;
       }
@@ -462,7 +494,7 @@ export class RuntimeService {
   }
 
   async unregistryPageScript(uuid: string) {
-    if (!(await Cache.getInstance().get("registryScript:" + uuid))) {
+    if (!this.isEnableDeveloperMode || !(await Cache.getInstance().get("registryScript:" + uuid))) {
       return;
     }
     chrome.userScripts.unregister(

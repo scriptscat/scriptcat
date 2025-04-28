@@ -1,4 +1,4 @@
-import { Script, ScriptAndCode, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { Script, SCRIPT_TYPE_NORMAL, ScriptAndCode, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -16,7 +16,7 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import ScriptStorage from "@App/pages/components/ScriptStorage";
 import ScriptResource from "@App/pages/components/ScriptResource";
 import ScriptSetting from "@App/pages/components/ScriptSetting";
-import { scriptClient } from "@App/pages/store/features/script";
+import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 
@@ -188,57 +188,58 @@ function ScriptEditor() {
 
   const save = (script: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
-    return new Promise(() => {
-      prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
-        .then((prepareScript) => {
-          const newScript = prepareScript.script;
-          if (!newScript.name) {
-            Message.warning(t("script_name_cannot_be_set_to_empty"));
-            return;
-          }
-          scriptClient.install(newScript, e.getValue()).then(
-            (update) => {
-              if (!update) {
-                Message.success("新建成功,请注意后台脚本不会默认开启");
-                // 保存的时候如何左侧没有脚本即新建
-                setScriptList((prev) => {
-                  setSelectSciptButtonAndTab(newScript.uuid);
-                  return [newScript, ...prev];
-                });
-              } else {
-                setScriptList((prev) => {
-                  // eslint-disable-next-line no-shadow, array-callback-return
-                  prev.map((script: Script) => {
-                    if (script.uuid === newScript.uuid) {
-                      script.name = newScript.name;
-                    }
-                  });
-                  return [...prev];
-                });
-                Message.success("保存成功");
-              }
-              setEditors((prev) => {
-                for (let i = 0; i < prev.length; i += 1) {
-                  if (prev[i].script.uuid === newScript.uuid) {
-                    prev[i].code = e.getValue();
-                    prev[i].isChanged = false;
-                    prev[i].script.name = newScript.name;
-                    break;
+    return prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
+      .then((prepareScript) => {
+        const newScript = prepareScript.script;
+        if (!newScript.name) {
+          Message.warning(t("script_name_cannot_be_set_to_empty"));
+          return Promise.reject(new Error("script name cannot be empty"));
+        }
+        return scriptClient
+          .install(newScript, e.getValue())
+          .then((update): Script => {
+            if (!update) {
+              Message.success("新建成功,请注意后台脚本不会默认开启");
+              // 保存的时候如何左侧没有脚本即新建
+              setScriptList((prev) => {
+                setSelectSciptButtonAndTab(newScript.uuid);
+                return [newScript, ...prev];
+              });
+            } else {
+              setScriptList((prev) => {
+                prev.map((script: Script) => {
+                  if (script.uuid === newScript.uuid) {
+                    script.name = newScript.name;
                   }
-                }
+                });
                 return [...prev];
               });
-            },
-            (err: any) => {
-              Message.error(`保存失败: ${err}`);
+              Message.success("保存成功");
             }
-          );
-        })
-        .catch((err) => {
-          Message.error(`错误的脚本代码: ${err}`);
-        });
-    });
+            setEditors((prev) => {
+              for (let i = 0; i < prev.length; i += 1) {
+                if (prev[i].script.uuid === newScript.uuid) {
+                  prev[i].code = e.getValue();
+                  prev[i].isChanged = false;
+                  prev[i].script.name = newScript.name;
+                  break;
+                }
+              }
+              return [...prev];
+            });
+            return newScript;
+          })
+          .catch((err: any) => {
+            Message.error(`保存失败: ${err}`);
+            return Promise.reject(err);
+          });
+      })
+      .catch((err) => {
+        Message.error(`错误的脚本代码: ${err}`);
+        return Promise.reject(err);
+      });
   };
+
   const saveAs = (script: Script, e: editor.IStandaloneCodeEditor) => {
     return new Promise<void>((resolve) => {
       chrome.downloads.download(
@@ -289,30 +290,35 @@ function ScriptEditor() {
       title: t("run"),
       items: [
         {
-          id: "debug",
-          title: t("debug"),
+          id: "run",
+          title: t("run"),
           hotKey: KeyMod.CtrlCmd | KeyCode.F5,
           hotKeyString: "Ctrl+F5",
-          tooltip: "只有后台脚本/定时脚本才能调试, 且调试模式下不对进行权限校验(例如@connect)",
+          tooltip: "只有后台脚本/定时脚本才能运行",
           action: async (script, e) => {
             // 保存更新代码之后再调试
             const newScript = await save(script, e);
+            // 判断脚本类型
+            if (newScript.type === SCRIPT_TYPE_NORMAL) {
+              Message.error("只有后台脚本/定时脚本才能运行");
+              return;
+            }
             Message.loading({
               id: "debug_script",
               content: "正在准备脚本资源...",
               duration: 3000,
             });
-            runtimeCtrl
-              .debugScript(newScript)
+            runtimeClient
+              .runScript(newScript.uuid)
               .then(() => {
                 Message.success({
                   id: "debug_script",
-                  content: "构建成功, 可以打开开发者工具在控制台中查看输出",
+                  content: "构建成功, 可以在扩展页打开开发者工具在控制台中查看输出",
                   duration: 3000,
                 });
               })
               .catch((err) => {
-                LoggerCore.logger(Logger.E(err)).debug("debug script error");
+                LoggerCore.logger(Logger.E(err)).debug("run script error");
                 Message.error({
                   id: "debug_script",
                   content: `构建失败: ${err}`,

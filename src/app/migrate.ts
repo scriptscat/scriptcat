@@ -113,7 +113,6 @@ function renameField() {
         if (subscribe.length) {
           await Promise.all(
             subscribe.map((s: Subscribe) => {
-              console.log("1234", s);
               const { url, name, code, author, scripts, metadata, status, createtime, updatetime, checktime } = s;
               return subscribeDAO.save({
                 url,

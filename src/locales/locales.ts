@@ -27,10 +27,15 @@ i18n.use(initReactI18next).init({
   },
 });
 
+export let localePath = "";
+
 chrome.i18n.getAcceptLanguages((lngs) => {
-  systemConfig.getLanguage().then((lng) => {
+  systemConfig.getLanguage(lngs).then((lng) => {
     i18n.changeLanguage(lng);
     dayjs.locale(lng.toLocaleLowerCase());
+    if (lng !== "zh-CN") {
+      localePath = "en";
+    }
   });
 });
 

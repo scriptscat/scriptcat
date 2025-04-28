@@ -5,6 +5,7 @@ import { FileSystemType } from "@Packages/filesystem/factory";
 import { MessageQueue } from "@Packages/message/message_queue";
 import i18n from "@App/locales/locales";
 import dayjs from "dayjs";
+import { ExtVersion } from "@App/app/const";
 
 export const SystamConfigChange = "systemConfigChange";
 
@@ -65,9 +66,7 @@ export class SystemConfig {
 
   public set(key: string, val: any) {
     this.cache.set(key, val);
-    this.storage.set(key, val).then(() => {
-      console.log(chrome.runtime.lastError, val);
-    });
+    this.storage.set(key, val);
     // 发送消息通知更新
     this.mq.publish(SystamConfigChange, {
       key,
@@ -226,18 +225,19 @@ export class SystemConfig {
     this.set("menu_expand_num", val);
   }
 
-  async getLanguage() {
-    const defaultLanguage = await new Promise<string>((resolve) => {
-      chrome.i18n.getAcceptLanguages((lngs) => {
-        // 遍历数组寻找匹配语言
-        for (let i = 0; i < lngs.length; i += 1) {
-          const lng = lngs[i];
-          if (i18n.hasResourceBundle(lng, "translation")) {
-            resolve(lng);
-            break;
-          }
+  async getLanguage(acceptLanguages?: string[]): Promise<string> {
+    const defaultLanguage = await new Promise<string>(async (resolve) => {
+      if (!acceptLanguages) {
+        acceptLanguages = await chrome.i18n.getAcceptLanguages();
+      }
+      // 遍历数组寻找匹配语言
+      for (let i = 0; i < acceptLanguages.length; i += 1) {
+        const lng = acceptLanguages[i];
+        if (i18n.hasResourceBundle(lng, "translation")) {
+          resolve(lng);
+          break;
         }
-      });
+      }
     });
     return this.get("language", defaultLanguage || chrome.i18n.getUILanguage());
   }
@@ -246,5 +246,21 @@ export class SystemConfig {
     this.set("language", value);
     i18n.changeLanguage(value);
     dayjs.locale(value.toLocaleLowerCase());
+  }
+
+  setCheckUpdate(data: { notice: string; version: string; isRead: boolean }) {
+    this.set("check_update", {
+      notice: data.notice,
+      version: data.version,
+      isRead: data.isRead,
+    });
+  }
+
+  getCheckUpdate(): Promise<Parameters<typeof this.setCheckUpdate>[0]> {
+    return this.get("check_update", {
+      notice: "",
+      isRead: false,
+      version: ExtVersion,
+    });
   }
 }

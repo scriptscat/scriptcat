@@ -4,6 +4,8 @@ import ExecScript, { ValueUpdateData } from "./exec_script";
 import { addStyle, ScriptFunc } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { EmitEventRequest } from "../service_worker/runtime";
+import { ExternalWhitelist } from "@App/app/const";
+import { sendMessage } from "@Packages/message/client";
 
 export class InjectRuntime {
   execList: ExecScript[] = [];
@@ -44,6 +46,40 @@ export class InjectRuntime {
           val.valueUpdate(data);
         });
     });
+    // 注入允许外部调用
+    this.externalMessage();
+  }
+
+  externalMessage() {
+    // 对外接口白名单
+    let msg = this.msg;
+    for (let i = 0; i < ExternalWhitelist.length; i += 1) {
+      if (window.location.host.endsWith(ExternalWhitelist[i])) {
+        // 注入
+        (<{ external: any }>(<unknown>window)).external = window.external || {};
+        (<
+          {
+            external: {
+              Scriptcat: {
+                isInstalled: (name: string, namespace: string, callback: any) => void;
+              };
+            };
+          }
+        >(<unknown>window)).external.Scriptcat = {
+          async isInstalled(name: string, namespace: string, callback: any) {
+            const resp = await sendMessage(msg, "content/script/isInstalled", {
+              name,
+              namespace,
+            });
+            callback(resp);
+          },
+        };
+        (<{ external: { Tampermonkey: any } }>(<unknown>window)).external.Tampermonkey = (<
+          { external: { Scriptcat: any } }
+        >(<unknown>window)).external.Scriptcat;
+        break;
+      }
+    }
   }
 
   execScript(script: ScriptRunResouce, scriptFunc: ScriptFunc) {

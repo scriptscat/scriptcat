@@ -23,6 +23,7 @@ export default class ContentRuntime {
       // 转发给inject
       return sendMessage(this.msg, "inject/runtime/valueUpdate", data);
     });
+    forwardMessage("serviceWorker", "script/isInstalled", this.server, this.extSend);
     forwardMessage(
       "serviceWorker",
       "runtime/gmApi",

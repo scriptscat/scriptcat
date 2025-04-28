@@ -39,11 +39,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   }, []);
 
   useEffect(() => {
-    console.log("1231", code);
     if (diffCode === undefined || code === undefined || !div.current) {
       return () => {};
     }
-    console.log("1232");
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
     const inlineDiv = document.getElementById(id) as HTMLDivElement;
     // @ts-ignore

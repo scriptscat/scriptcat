@@ -9,6 +9,8 @@ import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
+import { ExtServer, ExtVersion } from "@App/app/const";
+import { systemConfig } from "@App/pages/store/global";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
@@ -78,7 +80,16 @@ export default class ServiceWorkerManager {
         case "checkSubscribeUpdate":
           subscribe.checkSubscribeUpdate();
           break;
+        case "checkUpdate":
+          // 检查扩展更新
+          this.checkUpdate();
+          break;
       }
+    });
+    // 8小时检查一次扩展更新
+    chrome.alarms.create("checkUpdate", {
+      delayInMinutes: 0,
+      periodInMinutes: 8 * 60,
     });
 
     // 监听配置变化
@@ -95,5 +106,19 @@ export default class ServiceWorkerManager {
     systemConfig.getCloudSync().then((config) => {
       synchronize.cloudSyncConfigChange(config);
     });
+  }
+
+  checkUpdate() {
+    fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+      .then((resp) => resp.json())
+      .then((resp: { data: { notice: string; version: string } }) => {
+        systemConfig.getCheckUpdate().then((items) => {
+          if (items.notice !== resp.data.notice) {
+            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: false }));
+          } else {
+            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: items.isRead }));
+          }
+        });
+      });
   }
 }

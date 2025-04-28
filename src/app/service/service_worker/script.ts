@@ -21,6 +21,7 @@ import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { SystemConfig } from "@App/pkg/config/config";
+import i18n, { localePath } from "@App/locales/locales";
 
 export class ScriptService {
   logger: Logger;
@@ -59,50 +60,55 @@ export class ScriptService {
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
-        this.openInstallPageByUrl(targetUrl, "user").catch((e) => {
-          logger.error("install script error", Logger.E(e));
-          // 如果打开失败, 则重定向到安装页
-          chrome.scripting.executeScript({
-            target: { tabId: req.tabId },
-            func: function () {
-              history.back();
-            },
-          });
-          // 并不再重定向当前url
-          chrome.declarativeNetRequest.updateDynamicRules(
-            {
-              removeRuleIds: [2],
-              addRules: [
-                {
-                  id: 2,
-                  priority: 1,
-                  action: {
-                    type: chrome.declarativeNetRequest.RuleActionType.ALLOW,
+        this.openInstallPageByUrl(targetUrl, "user")
+          .catch((e) => {
+            logger.error("install script error", Logger.E(e));
+            // 不再重定向当前url
+            chrome.declarativeNetRequest.updateDynamicRules(
+              {
+                removeRuleIds: [2],
+                addRules: [
+                  {
+                    id: 2,
+                    priority: 1,
+                    action: {
+                      type: chrome.declarativeNetRequest.RuleActionType.ALLOW,
+                    },
+                    condition: {
+                      regexFilter: targetUrl,
+                      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+                      requestMethods: [chrome.declarativeNetRequest.RequestMethod.GET],
+                    },
                   },
-                  condition: {
-                    regexFilter: targetUrl,
-                    resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-                    requestMethods: [chrome.declarativeNetRequest.RequestMethod.GET],
-                  },
-                },
-              ],
-            },
-            () => {
-              if (chrome.runtime.lastError) {
-                console.error(chrome.runtime.lastError);
+                ],
+              },
+              () => {
+                if (chrome.runtime.lastError) {
+                  console.error(chrome.runtime.lastError);
+                }
               }
-            }
-          );
-        });
+            );
+          })
+          .finally(() => {
+            // 回退到到安装页
+            chrome.scripting.executeScript({
+              target: { tabId: req.tabId },
+              func: function () {
+                history.back();
+              },
+            });
+          });
       },
       {
         urls: [
-          "https://docs.scriptcat.org/docs/script_installation",
+          "https://docs.scriptcat.org/docs/script_installation/",
+          "https://docs.scriptcat.org/en/docs/script_installation/",
           "https://www.tampermonkey.net/script_installation.php",
         ],
         types: ["main_frame"],
       }
     );
+    // 获取i18n
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
@@ -114,7 +120,7 @@ export class ScriptService {
             action: {
               type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
               redirect: {
-                regexSubstitution: "https://docs.scriptcat.org/docs/script_installation#url=\\0",
+                regexSubstitution: `https://docs.scriptcat.org${localePath}/docs/script_installation/#url=\\0`,
               },
             },
             condition: {
@@ -479,6 +485,15 @@ export class ScriptService {
     return this.checkUpdate(uuid, "user");
   }
 
+  isInstalled({ name, namespace }: { name: string; namespace: string }) {
+    return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
+      if (script) {
+        return { installed: true, version: script.metadata.version && script.metadata.version[0] };
+      }
+      return { installed: false };
+    });
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -494,6 +509,7 @@ export class ScriptService {
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
+    this.group.on("isInstalled", this.isInstalled.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {
