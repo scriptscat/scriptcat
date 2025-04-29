@@ -1,37 +1,22 @@
-import MessageSandbox from "./app/message/sandbox";
+import { WindowMessage } from "@Packages/message/window_message";
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import SandboxRuntime from "./runtime/content/sandbox";
-import IoC from "./app/ioc";
+import { SandboxManager } from "./app/service/sandbox";
 
-// eslint-disable-next-line no-restricted-globals
-const connectSandbox = new MessageSandbox(top!);
+function main() {
+  // 建立与offscreen页面的连接
+  const msg = new WindowMessage(window, parent);
 
-IoC.registerInstance(MessageSandbox, connectSandbox);
-
-// 初始化日志组件
-const loggerCore = new LoggerCore({
-  debug: process.env.NODE_ENV === "development",
-  writer: new MessageWriter(connectSandbox),
-  labels: { env: "sandbox" },
-});
-
-IoC.instance(SandboxRuntime).init();
-
-let flag = false;
-// 为了确认能与background通讯
-const retry = () => {
-  if (flag) {
-    return;
-  }
-  const t = setTimeout(() => {
-    retry();
-  }, 1000);
-  connectSandbox.syncSend("sandboxOnload", {}).then(() => {
-    clearTimeout(t);
-    flag = true;
-    loggerCore.logger().debug("sandbox start");
+  // 初始化日志组件
+  const loggerCore = new LoggerCore({
+    writer: new MessageWriter(msg),
+    labels: { env: "sandbox" },
   });
-};
+  loggerCore.logger().debug("offscreen start");
 
-retry();
+  // 初始化管理器
+  const manager = new SandboxManager(msg);
+  manager.initManager();
+}
+
+main();

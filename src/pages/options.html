@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= htmlRspackPlugin.options.title %></title>
+    <style>
+      body {
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--color-bg-2);
+        color: var(--color-text-1);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <iframe src="/src/sandbox.html" name="sandbox" sandbox="allow-scripts" style="display: none"></iframe>
+  </body>
+  <% if rspackConfig.mode=="script" { %>
+  <script type="text/javascript" src="/_locales/i18n.js"></script>
+  <script type="text/javascript" src="https://cdn.crowdin.com/jipt/jipt.js"></script>
+  <% } %>
+</html>

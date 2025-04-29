@@ -2,9 +2,9 @@ import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Joyride, { Step } from "react-joyride";
 import { Path, useLocation, useNavigate } from "react-router-dom";
-import { CustomTrans } from "..";
+import CustomTrans from "../CustomTrans";
 
-const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
+const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> = (
   _props,
   ref
 ) => {
@@ -23,7 +23,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
       localStorage.setItem("firstUse", "false");
       setRun(true);
     }
-  });
+  }, []);
 
   const steps: Array<Step> = [
     {

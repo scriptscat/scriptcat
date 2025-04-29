@@ -14,6 +14,8 @@ import {
   SubscribeOptionsFile,
   ValueStorage,
 } from "./struct";
+import JSZip from "jszip";
+import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
 type ViolentmonkeyFile = {
   scripts: {
@@ -34,7 +36,7 @@ export default class BackupImport {
 
   constructor(fileSystem: FileSystem) {
     this.fs = fileSystem;
-    this.logger = LoggerCore.getLogger({ component: "backupImport" });
+    this.logger = LoggerCore.logger({ component: "backupImport" });
   }
 
   // 解析出备份数据
@@ -63,9 +65,7 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const key = name.substring(0, name.length - 22);
-      const data = <SubscribeOptionsFile>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <SubscribeOptionsFile>JSON.parse(await (await this.fs.open(file)).read());
       subscribe.get(key)!.options = data;
       return Promise.resolve(true);
     });
@@ -95,9 +95,7 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ScriptOptionsFile>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <ScriptOptionsFile>JSON.parse(await (await this.fs.open(file)).read());
       map.get(key)!.options = data;
       return Promise.resolve(true);
     });
@@ -108,9 +106,7 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ValueStorage>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <ValueStorage>JSON.parse(await (await this.fs.open(file)).read());
       Object.keys(data.data).forEach((dataKey) => {
         data.data[dataKey] = parseStorageValue(data.data[dataKey]);
       });
@@ -162,9 +158,7 @@ export default class BackupImport {
           type,
         });
       }
-      const data = <ResourceMeta>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <ResourceMeta>JSON.parse(await (await this.fs.open(file)).read());
       map.get(key)![type].push({
         meta: data,
       } as never as ResourceBackup);
@@ -183,17 +177,12 @@ export default class BackupImport {
         return Promise.resolve(false);
       }
       const resource = map.get(info.key)![info.type][info.index];
-      resource.base64 = await blobToBase64(
-        await (await this.fs.open(file)).read("blob")
-      );
+      resource.base64 = await blobToBase64(await (await this.fs.open(file)).read("blob"));
       if (resource.meta) {
         // 存在meta
         // 替换base64前缀
         if (resource.meta.mimetype) {
-          resource.base64 = resource.base64.replace(
-            /^data:.*?;base64,/,
-            `data:${resource.meta.mimetype};base64,`
-          );
+          resource.base64 = resource.base64.replace(/^data:.*?;base64,/, `data:${resource.meta.mimetype};base64,`);
         }
         if (isText(await (await this.fs.open(file)).read("blob"))) {
           resource.source = await (await this.fs.open(file)).read();
@@ -211,9 +200,7 @@ export default class BackupImport {
     // 处理暴力猴导入资源
     if (violentmonkeyFile) {
       try {
-        const data = JSON.parse(
-          await (await this.fs.open(violentmonkeyFile)).read("string")
-        ) as ViolentmonkeyFile;
+        const data = JSON.parse(await (await this.fs.open(violentmonkeyFile)).read("string")) as ViolentmonkeyFile;
         // 设置开启状态
         const keys = Object.keys(data.scripts);
         keys.forEach((key) => {
@@ -238,10 +225,7 @@ export default class BackupImport {
     });
   }
 
-  async dealFile(
-    files: File[],
-    handler: (file: File) => Promise<boolean>
-  ): Promise<File[]> {
+  async dealFile(files: File[], handler: (file: File) => Promise<boolean>): Promise<File[]> {
     const newFiles: File[] = [];
     const results = await Promise.all(files.map(handler));
     results.forEach((result, index) => {

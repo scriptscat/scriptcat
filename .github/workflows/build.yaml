@@ -12,12 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Build
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Package with Node
         env:
@@ -26,11 +28,11 @@ jobs:
           mkdir dist
           echo "$CHROME_PEM" > ./dist/scriptcat.pem
           chmod 600 ./dist/scriptcat.pem
-          npm ci
-          npm run pack
+          pnpm i
+          pnpm run pack
 
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: all-artifacts
           path: |
@@ -38,7 +40,7 @@ jobs:
             dist/*.crx
 
       - name: Archive extension
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: scriptcat
           path: |

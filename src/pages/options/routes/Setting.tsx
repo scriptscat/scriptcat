@@ -1,44 +1,33 @@
-import React, { useState } from "react";
-import {
-  Button,
-  Card,
-  Checkbox,
-  Input,
-  Message,
-  Select,
-  Space,
-} from "@arco-design/web-react";
-import FileSystemParams from "@App/pages/components/FileSystemParams";
-import { SystemConfig } from "@App/pkg/config/config";
-import IoC from "@App/app/ioc";
-import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
+import { useEffect, useState } from "react";
+import { Button, Card, Checkbox, Input, Message, Select, Space } from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
-// eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
-import { format } from "prettier";
-// eslint-disable-next-line import/no-extraneous-dependencies, import/no-import-module-exports
-import babel from "prettier/parser-babel";
+import prettier from "prettier/standalone";
+import * as babel from "prettier/parser-babel";
+import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import Logger from "@App/app/logger/logger";
+import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemParams from "@App/pages/components/FileSystemParams";
+import { systemConfig } from "@App/pages/store/global";
 
 function Setting() {
-  const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
-  const [syncDelete, setSyncDelete] = useState<boolean>(
-    systemConfig.cloudSync.syncDelete
-  );
-  const [enableCloudSync, setEnableCloudSync] = useState(
-    systemConfig.cloudSync.enable
-  );
-  const [fileSystemType, setFilesystemType] = useState<FileSystemType>(
-    systemConfig.cloudSync.filesystem
-  );
+  const [syncDelete, setSyncDelete] = useState<boolean>();
+  const [enableCloudSync, setEnableCloudSync] = useState<boolean>();
+  const [fileSystemType, setFilesystemType] = useState<FileSystemType>("webdav");
   const [fileSystemParams, setFilesystemParam] = useState<{
     [key: string]: any;
-  }>(systemConfig.cloudSync.params[fileSystemType] || {});
+  }>({});
   const [language, setLanguage] = useState(i18n.language);
+  const [menuExpandNum, setMenuExpandNum] = useState(5);
+  const [checkScriptUpdateCycle, setCheckScriptUpdateCycle] = useState(0);
+  const [updateDisableScript, setUpdateDisableScript] = useState(false);
+  const [silenceUpdateScript, setSilenceUpdateScript] = useState(false);
+  const [enableEslint, setEnableEslint] = useState(false);
+  const [eslintConfig, setEslintConfig] = useState("");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
   Object.keys(i18n.store.data).forEach((key) => {
@@ -54,6 +43,44 @@ function Setting() {
     key: "help",
     title: t("help_translate"),
   });
+
+  useEffect(() => {
+    const loadConfigs = async () => {
+      const [
+        cloudSync,
+        menuExpandNum,
+        checkCycle,
+        updateDisabled,
+        silenceUpdate,
+        eslintConfig,
+        enableEslint,
+        language,
+      ] = await Promise.all([
+        systemConfig.getCloudSync(),
+        systemConfig.getMenuExpandNum(),
+        systemConfig.getCheckScriptUpdateCycle(),
+        systemConfig.getUpdateDisableScript(),
+        systemConfig.getSilenceUpdateScript(),
+        systemConfig.getEslintConfig(),
+        systemConfig.getEnableEslint(),
+        systemConfig.getLanguage(),
+      ]);
+
+      setSyncDelete(cloudSync.syncDelete);
+      setEnableCloudSync(cloudSync.enable);
+      setFilesystemType(cloudSync.filesystem);
+      setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
+      setMenuExpandNum(menuExpandNum);
+      setCheckScriptUpdateCycle(checkCycle);
+      setUpdateDisableScript(updateDisabled);
+      setSilenceUpdateScript(silenceUpdate);
+      setEslintConfig(eslintConfig);
+      setEnableEslint(enableEslint);
+      setLanguage(language);
+    };
+
+    loadConfigs();
+  }, []);
 
   return (
     <Space
@@ -75,16 +102,11 @@ function Setting() {
               className="w-24"
               onChange={(value) => {
                 if (value === "help") {
-                  window.open(
-                    "https://crowdin.com/project/scriptcat",
-                    "_blank"
-                  );
+                  window.open("https://crowdin.com/project/scriptcat", "_blank");
                   return;
                 }
                 setLanguage(value);
-                i18n.changeLanguage(value);
-                dayjs.locale(value.toLocaleLowerCase());
-                localStorage.language = value;
+                systemConfig.setLanguage(value);
                 Message.success(t("language_change_tip")!);
               }}
             >
@@ -100,9 +122,11 @@ function Setting() {
             <Input
               style={{ width: "64px" }}
               type="number"
-              defaultValue={systemConfig.menuExpandNum.toString()}
+              value={menuExpandNum.toString()}
               onChange={(val) => {
-                systemConfig.menuExpandNum = parseInt(val, 10);
+                const num = parseInt(val, 10);
+                setMenuExpandNum(num);
+                systemConfig.setMenuExpandNum(num);
               }}
             />
             {t("menu_expand_num_after")}
@@ -140,27 +164,21 @@ function Setting() {
                   if (enableCloudSync) {
                     Message.info(t("cloud_sync_account_verification")!);
                     try {
-                      await FileSystemFactory.create(
-                        fileSystemType,
-                        fileSystemParams
-                      );
+                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
                     } catch (e) {
-                      Message.error(
-                        `${t(
-                          "cloud_sync_verification_failed"
-                        )}: ${JSON.stringify(Logger.E(e))}`
-                      );
+                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
                       return;
                     }
                   }
-                  const params = { ...systemConfig.backup.params };
+                  const cloudSync = await systemConfig.getCloudSync();
+                  const params = { ...cloudSync.params };
                   params[fileSystemType] = fileSystemParams;
-                  systemConfig.cloudSync = {
-                    enable: enableCloudSync,
-                    syncDelete,
+                  systemConfig.setCloudSync({
+                    enable: enableCloudSync || false,
+                    syncDelete: syncDelete || false,
                     filesystem: fileSystemType,
                     params,
-                  };
+                  });
                   Message.success(t("save_success")!);
                 }}
               >
@@ -183,12 +201,14 @@ function Setting() {
           <Space>
             <span>{t("script_subscription_check_interval")}:</span>
             <Select
-              defaultValue={systemConfig.checkScriptUpdateCycle.toString()}
+              value={checkScriptUpdateCycle.toString()}
               style={{
                 width: 120,
               }}
               onChange={(value) => {
-                systemConfig.checkScriptUpdateCycle = parseInt(value, 10);
+                const num = parseInt(value, 10);
+                setCheckScriptUpdateCycle(num);
+                systemConfig.setCheckScriptUpdateCycle(num);
               }}
             >
               <Select.Option value="0">{t("never")}</Select.Option>
@@ -200,17 +220,19 @@ function Setting() {
           </Space>
           <Checkbox
             onChange={(checked) => {
-              systemConfig.updateDisableScript = checked;
+              setEnableCloudSync(checked);
+              systemConfig.setUpdateDisableScript(checked);
             }}
-            defaultChecked={systemConfig.updateDisableScript}
+            checked={updateDisableScript}
           >
             {t("update_disabled_scripts")}
           </Checkbox>
           <Checkbox
             onChange={(checked) => {
-              systemConfig.silenceUpdateScript = checked;
+              setSilenceUpdateScript(checked);
+              systemConfig.setSilenceUpdateScript(checked);
             }}
-            defaultChecked={systemConfig.silenceUpdateScript}
+            checked={silenceUpdateScript}
           >
             {t("silent_update_non_critical_changes")}
           </Checkbox>
@@ -221,9 +243,10 @@ function Setting() {
         <Space direction="vertical" className="w-full">
           <Checkbox
             onChange={(checked) => {
-              systemConfig.enableEslint = checked;
+              setEnableEslint(checked);
+              systemConfig.setEnableEslint(checked);
             }}
-            defaultChecked={systemConfig.enableEslint}
+            checked={enableEslint}
           >
             {t("enable_eslint")}
           </Checkbox>
@@ -252,12 +275,22 @@ function Setting() {
               minRows: 4,
               maxRows: 8,
             }}
-            defaultValue={format(systemConfig.eslintConfig, {
-              parser: "json",
-              plugins: [babel],
-            })}
+            value={eslintConfig}
+            onChange={(v) => {
+              setEslintConfig(v);
+            }}
             onBlur={(v) => {
-              systemConfig.eslintConfig = v.target.value;
+              prettier
+                .format(eslintConfig, {
+                  parser: "json",
+                  plugins: [prettierPluginEstree, babel],
+                })
+                .then((res) => {
+                  systemConfig.setEslintConfig(v.target.value);
+                })
+                .catch((e) => {
+                  Message.error(`${t("eslint_config_format_error")}: ${JSON.stringify(Logger.E(e))}`);
+                });
             }}
           />
         </Space>

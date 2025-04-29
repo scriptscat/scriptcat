@@ -1,5 +1,3 @@
-import IoC from "@App/app/ioc";
-import ScriptController from "@App/app/service/script/controller";
 import {
   Button,
   ConfigProvider,
@@ -8,64 +6,30 @@ import {
   Input,
   Layout,
   Menu,
-  Message,
   Modal,
   Space,
   Typography,
 } from "@arco-design/web-react";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import {
-  IconDesktop,
-  IconDown,
-  IconLink,
-  IconMoonFill,
-  IconSunFill,
-} from "@arco-design/web-react/icon";
-import { editor } from "monaco-editor";
+import { IconDesktop, IconDown, IconLink, IconMoonFill, IconSunFill } from "@arco-design/web-react/icon";
 import React, { ReactNode, useRef, useState } from "react";
-import {
-  RiFileCodeLine,
-  RiTerminalBoxLine,
-  RiTimerLine,
-  RiPlayListAddLine,
-  RiImportLine,
-} from "react-icons/ri";
-import "./index.css";
 import { useTranslation } from "react-i18next";
-
-export function switchLight(mode: string) {
-  if (mode === "auto") {
-    const darkThemeMq = window.matchMedia("(prefers-color-scheme: dark)");
-    const isMatch = (match: boolean) => {
-      if (match) {
-        document.body.setAttribute("arco-theme", "dark");
-        editor.setTheme("vs-dark");
-      } else {
-        document.body.removeAttribute("arco-theme");
-        editor.setTheme("vs");
-      }
-    };
-    darkThemeMq.addEventListener("change", (e) => {
-      isMatch(e.matches);
-    });
-    isMatch(darkThemeMq.matches);
-  } else {
-    document.body.setAttribute("arco-theme", mode);
-    editor.setTheme(mode === "dark" ? "vs-dark" : "vs");
-  }
-}
+import "./index.css";
+import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
+import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
+import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 
 const MainLayout: React.FC<{
   children: ReactNode;
   className: string;
-  pageName: string;
+  pageName?: string;
 }> = ({ children, className, pageName }) => {
-  const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
+  const lightMode = useAppSelector(selectThemeMode);
+  const dispatch = useAppDispatch();
   const importRef = useRef<RefInputType>(null);
   const [importVisible, setImportVisible] = useState(false);
   const { t } = useTranslation();
 
-  switchLight(lightMode);
   return (
     <ConfigProvider
       renderEmpty={() => {
@@ -78,20 +42,12 @@ const MainLayout: React.FC<{
             height: "50px",
             borderBottom: "1px solid var(--color-neutral-3)",
           }}
-          className="flex items-center justify-between p-x-4"
+          className="flex items-center justify-between px-4"
         >
           <Modal
             title={t("import_link")}
             visible={importVisible}
             onOk={async () => {
-              const scriptCtl = IoC.instance(
-                ScriptController
-              ) as ScriptController;
-              try {
-                await scriptCtl.importByUrl(importRef.current!.dom.value);
-              } catch (e) {
-                Message.error(`${t("import_link_failure")}: ${e}`);
-              }
               setImportVisible(false);
             }}
             onCancel={() => {
@@ -101,11 +57,7 @@ const MainLayout: React.FC<{
             <Input ref={importRef} defaultValue="" />
           </Modal>
           <div className="flex row items-center">
-            <img
-              style={{ height: "40px" }}
-              src="/assets/logo.png"
-              alt="ScriptCat"
-            />
+            <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
             <Typography.Title heading={4} className="!m-0">
               ScriptCat
             </Typography.Title>
@@ -114,9 +66,7 @@ const MainLayout: React.FC<{
             {pageName === "options" && (
               <Dropdown
                 droplist={
-                  <Menu
-                    style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}
-                  >
+                  <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                     <Menu.Item key="/script/editor">
                       <a href="#/script/editor">
                         <RiFileCodeLine /> {t("create_user_script")}
@@ -137,43 +87,36 @@ const MainLayout: React.FC<{
                       onClick={() => {
                         const el = document.getElementById("import-local");
                         el!.onchange = (e: Event) => {
-                          const scriptCtl = IoC.instance(
-                            ScriptController
-                          ) as ScriptController;
-                          try {
-                            // 获取文件
-                            // @ts-ignore
-                            const file = e.target.files[0];
-                            // 实例化 FileReader对象
-                            const reader = new FileReader();
-                            reader.onload = async (processEvent) => {
-                              // 创建blob url
-                              const blob = new Blob(
-                                // @ts-ignore
-                                [processEvent.target!.result],
-                                {
-                                  type: "application/javascript",
-                                }
-                              );
-                              const url = URL.createObjectURL(blob);
-                              await scriptCtl.importByUrl(url);
-                              Message.success(t("import_local_success"));
-                            };
-                            // 调用readerAsText方法读取文本
-                            reader.readAsText(file);
-                          } catch (error) {
-                            Message.error(`${t("import_local_failure")}: ${e}`);
-                          }
+                          // const scriptCtl = IoC.instance(ScriptController) as ScriptController;
+                          // try {
+                          //   // 获取文件
+                          //   // @ts-ignore
+                          //   const file = e.target.files[0];
+                          //   // 实例化 FileReader对象
+                          //   const reader = new FileReader();
+                          //   reader.onload = async (processEvent) => {
+                          //     // 创建blob url
+                          //     const blob = new Blob(
+                          //       // @ts-ignore
+                          //       [processEvent.target!.result],
+                          //       {
+                          //         type: "application/javascript",
+                          //       }
+                          //     );
+                          //     const url = URL.createObjectURL(blob);
+                          //     await scriptCtl.importByUrl(url);
+                          //     Message.success(t("import_local_success"));
+                          //   };
+                          //   // 调用readerAsText方法读取文本
+                          //   reader.readAsText(file);
+                          // } catch (error) {
+                          //   Message.error(`${t("import_local_failure")}: ${e}`);
+                          // }
                         };
                         el!.click();
                       }}
                     >
-                      <input
-                        id="import-local"
-                        type="file"
-                        style={{ display: "none" }}
-                        accept=".js"
-                      />
+                      <input id="import-local" type="file" style={{ display: "none" }} accept=".js" />
                       <RiImportLine /> {t("import_by_local")}
                     </Menu.Item>
                     <Menu.Item
@@ -204,9 +147,7 @@ const MainLayout: React.FC<{
               droplist={
                 <Menu
                   onClickMenuItem={(key) => {
-                    switchLight(key);
-                    setLightMode(key);
-                    localStorage.lightMode = key;
+                    dispatch(setDarkMode(key as "light" | "dark" | "auto"));
                   }}
                   selectedKeys={[lightMode]}
                 >
@@ -236,7 +177,7 @@ const MainLayout: React.FC<{
                 style={{
                   color: "var(--color-text-1)",
                 }}
-                className="!text-size-lg"
+                className="!text-lg"
               />
             </Dropdown>
           </Space>

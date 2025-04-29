@@ -1,34 +1,16 @@
 import { Export, ExportDAO, ExportTarget } from "@App/app/repo/export";
 import { Script } from "@App/app/repo/scripts";
-import {
-  Button,
-  Checkbox,
-  Form,
-  Input,
-  Message,
-  Modal,
-  Select,
-} from "@arco-design/web-react";
+import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
-import {
-  ExportParams,
-  parseExportCookie,
-  parseExportValue,
-} from "@Pkg/cloudscript/cloudscript";
-import CloudScriptFactory from "@Pkg/cloudscript/factory";
-import JSZip from "jszip";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 const FormItem = Form.Item;
 
-const cloudScriptParams = CloudScriptFactory.params();
-
 function defaultParams(script: Script) {
   return {
     exportValue: script.metadata.exportvalue && script.metadata.exportvalue[0],
-    exportCookie:
-      script.metadata.exportcookie && script.metadata.exportcookie[0],
+    exportCookie: script.metadata.exportcookie && script.metadata.exportcookie[0],
   };
 }
 
@@ -39,8 +21,7 @@ const CloudScriptPlan: React.FC<{
 }> = ({ script, onClose }) => {
   const [form] = Form.useForm();
   const [visible, setVisible] = React.useState(false);
-  const [cloudScriptType, setCloudScriptType] =
-    React.useState<ExportTarget>("local");
+  const [cloudScriptType, setCloudScriptType] = React.useState<ExportTarget>("local");
   const [, setModel] = React.useState<Export>();
   const { t } = useTranslation();
 
@@ -57,7 +38,7 @@ const CloudScriptPlan: React.FC<{
       // 设置默认值
       // 从数据库中获取导出数据
       const dao = new ExportDAO();
-      dao.findByScriptID(script.id).then((data) => {
+      dao.findByScriptID(script.uuid).then((data) => {
         setModel(data);
         if (data && data.params[data.target]) {
           setCloudScriptType(data.target);
@@ -148,7 +129,7 @@ const CloudScriptPlan: React.FC<{
           const url = URL.createObjectURL(files);
           setTimeout(() => {
             URL.revokeObjectURL(url);
-          }, 60 * 1000);
+          }, 30 * 1000);
           chrome.downloads.download({
             url,
             saveAs: true,
@@ -179,14 +160,14 @@ const CloudScriptPlan: React.FC<{
             ))}
           </Select>
         </FormItem>
-        {Object.keys(cloudScriptParams[cloudScriptType]).map((key) => {
+        {/* {Object.keys(cloudScriptParams[cloudScriptType]).map((key) => {
           const item = cloudScriptParams[cloudScriptType][key];
           return (
             <FormItem key={key} label={item.title}>
               <Input />
             </FormItem>
           );
-        })}
+        })} */}
         <FormItem label={t("value_export_expression")} field="exportValue">
           <Input.TextArea />
         </FormItem>

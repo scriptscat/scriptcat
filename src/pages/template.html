@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title><%= htmlRspackPlugin.options.title %></title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        height: 100%;
+      }
+      body {
+        background-color: var(--color-bg-2);
+        color: var(--color-text-1);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+  </body>
+  <% if rspackConfig.mode=="script" { %>
+  <script type="text/javascript" src="/_locales/i18n.js"></script>
+  <script type="text/javascript" src="https://cdn.crowdin.com/jipt/jipt.js"></script>
+  <% } %>
+</html>

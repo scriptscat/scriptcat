@@ -1,15 +1,7 @@
-/* eslint-disable import/prefer-default-export */
 import React from "react";
-import IoC from "@App/app/ioc";
 import { Metadata, Script, ScriptDAO } from "@App/app/repo/scripts";
-import ValueManager from "@App/app/service/value/manager";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
-import {
-  IconBug,
-  IconCode,
-  IconGithub,
-  IconHome,
-} from "@arco-design/web-react/icon";
+import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
 
 // 较对脚本排序位置
@@ -17,7 +9,7 @@ export function scriptListSort(result: Script[]) {
   const dao = new ScriptDAO();
   for (let i = 0; i < result.length; i += 1) {
     if (result[i].sort !== i) {
-      dao.update(result[i].id, { sort: i });
+      dao.update(result[i].uuid, { sort: i });
       result[i].sort = i;
     }
   }
@@ -30,13 +22,7 @@ export function installUrlToHome(installUrl: string) {
     if (installUrl.indexOf("scriptcat.org") !== -1) {
       const id = installUrl.split("/")[5];
       return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://scriptcat.org/script-show-page/${id}`}
-        >
+        <Button type="text" iconOnly size="small" target="_blank" href={`https://scriptcat.org/script-show-page/${id}`}>
           <img width={16} height={16} src="/assets/logo.png" alt="" />
         </Button>
       );
@@ -44,13 +30,7 @@ export function installUrlToHome(installUrl: string) {
     if (installUrl.indexOf("greasyfork.org") !== -1) {
       const id = installUrl.split("/")[4];
       return (
-        <Button
-          type="text"
-          iconOnly
-          size="small"
-          target="_blank"
-          href={`https://greasyfork.org/scripts/${id}`}
-        >
+        <Button type="text" iconOnly size="small" target="_blank" href={`https://greasyfork.org/scripts/${id}`}>
           <img width={16} height={16} src="/assets/logo/gf.png" alt="" />
         </Button>
       );
@@ -89,6 +69,7 @@ export function installUrlToHome(installUrl: string) {
     }
   } catch (e) {
     // ignore error
+    console.error(e);
   }
   return undefined;
 }
@@ -166,31 +147,6 @@ export function ListHomeRender({ script }: { script: Script }) {
   );
 }
 
-export function getValues(script: Script) {
-  const { config } = script;
-  return (IoC.instance(ValueManager) as ValueManager)
-    .getValues(script)
-    .then((data) => {
-      const newValues: { [key: string]: any } = {};
-      Object.keys(config!).forEach((tabKey) => {
-        const tab = config![tabKey];
-        Object.keys(tab).forEach((key) => {
-          // 动态变量
-          if (tab[key].bind) {
-            const bindKey = tab[key].bind!.substring(1);
-            newValues[bindKey] =
-              data[bindKey] === undefined ? undefined : data[bindKey].value;
-          }
-          newValues[`${tabKey}.${key}`] =
-            data[`${tabKey}.${key}`] === undefined
-              ? config![tabKey][key].default
-              : data[`${tabKey}.${key}`].value;
-        });
-      });
-      return newValues;
-    });
-}
-
 export type ScriptIconsProps = {
   script: { name: string; metadata: Metadata };
   size?: number;
@@ -218,6 +174,5 @@ export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
       </Avatar>
     );
   }
-  // eslint-disable-next-line react/jsx-no-useless-fragment
   return <></>;
 }

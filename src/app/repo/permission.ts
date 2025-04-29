@@ -1,8 +1,7 @@
-import { DAO, db } from "./dao";
+import { Repo } from "./repo";
 
 export interface Permission {
-  id: number;
-  scriptId: number;
+  uuid: string;
   permission: string;
   permissionValue: string;
   allow: boolean;
@@ -10,11 +9,20 @@ export interface Permission {
   updatetime: number;
 }
 
-export class PermissionDAO extends DAO<Permission> {
-  public tableName = "permission";
-
+export class PermissionDAO extends Repo<Permission> {
   constructor() {
-    super();
-    this.table = db.table(this.tableName);
+    super("permission");
+  }
+
+  key(model: Permission) {
+    return model.uuid + ":" + model.permission + ":" + model.permissionValue;
+  }
+
+  findByKey(uuid: string, permission: string, permissionValue: string) {
+    return this.get(uuid + ":" + permission + ":" + permissionValue);
+  }
+
+  save(value: Permission) {
+    return super._save(this.key(value), value);
   }
 }

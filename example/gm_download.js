@@ -9,7 +9,7 @@
 // ==/UserScript==
 
 GM_download({
-    url: "https://scriptcat.org/api/v1/gm_crx/download/ScriptCat",
+    url: "https://scriptcat.org/api/v2/open/crx-download/ndcooeababalnlpkfedmmbbbgkljhpjf",
     name: "scriptcat.crx",
     headers: {
         "referer": "http://www.example.com/",
