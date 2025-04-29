@@ -543,6 +543,7 @@ export default class GMApi {
         permissionContent: i18next.t("domain"),
       } as ConfirmParam);
     },
+    alias: ["GM.xmlHttpRequest"],
   })
   async GM_xmlhttpRequest(request: Request, sender: GetSender) {
     if (request.params.length === 0) {

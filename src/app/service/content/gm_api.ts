@@ -24,8 +24,8 @@ export class GMContext {
   public static API(param: ApiParam = {}) {
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
-      if (key === "GMdotXmlHttpRequest") {
-        GMContext.apis.set("GM.xmlHttpRequest", {
+      if (key === "GMDotGetResourceUrl") {
+        GMContext.apis.set("GM.getResourceUrl", {
           api: descriptor.value,
           param,
         });
@@ -36,11 +36,13 @@ export class GMContext {
         param,
       });
       // 兼容GM.*
-      const dot = key.replace("_", ".");
+      let dot = key.replace("_", ".");
       if (dot !== key) {
-        // 特殊处理GM.xmlHttpRequest
-        if (dot === "GM.xmlhttpRequest") {
-          return;
+        // 特殊处理GM.*一些大小写不一致的情况
+        switch (dot) {
+          case "GM.xmlhttpRequest":
+            dot = "GM.xmlHttpRequest";
+            break;
         }
         GMContext.apis.set(dot, {
           api: descriptor.value,
@@ -58,10 +60,7 @@ export default class GMApi {
 
   valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
 
-  constructor(
-    private prefix: string,
-    private message: Message
-  ) {}
+  constructor(private prefix: string, private message: Message) {}
 
   // 单次回调使用
   public sendMessage(api: string, params: any[]) {
@@ -791,5 +790,22 @@ export default class GMApi {
       return r.base64;
     }
     return undefined;
+  }
+
+  // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
+  @GMContext.API()
+  GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+    console.log("GMDotGetResourceUrl", name, isBlobUrl);
+    if (!this.scriptRes.resource) {
+      return Promise.resolve(undefined);
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      if (isBlobUrl) {
+        return Promise.resolve(URL.createObjectURL(base64ToBlob(r.base64)));
+      }
+      return Promise.resolve(r.base64);
+    }
+    return Promise.resolve(undefined);
   }
 }
