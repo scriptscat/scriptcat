@@ -31,6 +31,12 @@ export type Request = MessageRequest & {
   script: Script;
 };
 
+export type RequestResultParams = {
+  requestId: number;
+  statusCode: number;
+  responseHeader: string;
+};
+
 export const unsafeHeaders: { [key: string]: boolean } = {
   // 部分浏览器中并未允许
   "user-agent": true,
@@ -449,7 +455,12 @@ export default class GMApi {
 
   gmXhrHeadersReceived: EventEmitter = new EventEmitter();
 
-  dealFetch(config: GMSend.XHRDetails, response: Response, readyState: 0 | 1 | 2 | 3 | 4) {
+  dealFetch(
+    config: GMSend.XHRDetails,
+    response: Response,
+    readyState: 0 | 1 | 2 | 3 | 4,
+    resultParam?: RequestResultParams
+  ) {
     let respHeader = "";
     response.headers.forEach((value, key) => {
       respHeader += `${key}: ${value}\n`;
@@ -462,18 +473,51 @@ export default class GMApi {
       responseHeaders: respHeader,
       responseType: config.responseType,
     };
+    if (resultParam) {
+      respond.status = respond.status || resultParam.statusCode;
+      respond.responseHeaders = resultParam.responseHeader || respond.responseHeaders;
+    }
     return respond;
   }
 
-  CAT_fetch(config: GMSend.XHRDetails, con: GetSender, resultParam: { requestId: number; responseHeader: string }) {
+  CAT_fetch(config: GMSend.XHRDetails, con: GetSender, resultParam: RequestResultParams) {
     const { url } = config;
     let connect = con.getConnect();
     return fetch(url, {
       method: config.method || "GET",
       body: <any>config.data,
       headers: config.headers,
+      redirect: config.redirect,
+      signal: config.timeout ? AbortSignal.timeout(config.timeout) : undefined,
     }).then((resp) => {
-      const send = this.dealFetch(config, resp, 1);
+      let send = this.dealFetch(config, resp, 1);
+      switch (resp.type) {
+        case "opaqueredirect":
+          // 处理manual重定向
+          connect.sendMessage({
+            action: "onloadstart",
+            data: send,
+          });
+          send = this.dealFetch(config, resp, 2, resultParam);
+          connect.sendMessage({
+            action: "onreadystatechange",
+            data: send,
+          });
+          send.readyState = 4;
+          connect.sendMessage({
+            action: "onreadystatechange",
+            data: send,
+          });
+          connect.sendMessage({
+            action: "onload",
+            data: send,
+          });
+          connect.sendMessage({
+            action: "onloadend",
+            data: send,
+          });
+          return;
+      }
       const reader = resp.body?.getReader();
       if (!reader) {
         throw new Error("read is not found");
@@ -481,7 +525,7 @@ export default class GMApi {
       const _this = this;
       reader.read().then(function read({ done, value }) {
         if (done) {
-          const data = _this.dealFetch(config, resp, 4);
+          const data = _this.dealFetch(config, resp, 4, resultParam);
           data.responseHeaders = resultParam.responseHeader || data.responseHeaders;
           connect.sendMessage({
             action: "onreadystatechange",
@@ -559,8 +603,9 @@ export default class GMApi {
     }
     params.headers["X-Scriptcat-GM-XHR-Request-Id"] = requestId.toString();
     params.headers = await this.buildDNRRule(requestId, request.params[0]);
-    let resultParam = {
+    let resultParam: RequestResultParams = {
       requestId,
+      statusCode: 0,
       responseHeader: "",
     };
     // 等待response
@@ -570,6 +615,7 @@ export default class GMApi {
         details.responseHeaders?.forEach((header) => {
           resultParam.responseHeader += header.name + ": " + header.value + "\n";
         });
+        resultParam.statusCode = details.statusCode;
         this.gmXhrHeadersReceived.removeAllListeners("headersReceived:" + requestId);
       }
     );
