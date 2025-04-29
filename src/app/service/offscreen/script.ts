@@ -47,6 +47,10 @@ export class ScriptService {
       }
     });
     subscribeScriptInstall(this.messageQueue, async (data) => {
+      // 普通脚本不处理
+      if (data.script.type === SCRIPT_TYPE_NORMAL) {
+        return;
+      }
       // 判断是开启还是关闭
       if (data.script.status === SCRIPT_STATUS_ENABLE) {
         // 构造脚本运行资源,发送给沙盒运行

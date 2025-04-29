@@ -10,8 +10,6 @@ import { MessageQueue } from "@Packages/message/message_queue";
 
 // offscreen环境的管理器
 export class OffscreenManager {
-  private extensionMessage: MessageSend = new ExtensionMessageSend();
-
   private windowMessage = new WindowMessage(window, sandbox, true);
 
   private windowServer: Server = new Server("offscreen", this.windowMessage);
@@ -20,9 +18,7 @@ export class OffscreenManager {
 
   private serviceWorker = new ServiceWorkerClient(this.extensionMessage);
 
-  constructor(private extensionMessage:MessageSend) {
-
-  }
+  constructor(private extensionMessage: MessageSend) {}
 
   logger(data: Logger) {
     const dao = new LoggerDAO();

@@ -25,7 +25,7 @@ export class CustomEventMessage implements Message {
   ) {
     window.addEventListener((isContent ? "ct" : "fd") + flag, (event) => {
       if (event instanceof MouseEvent) {
-        this.relatedTarget.set(event.clientX, event.relatedTarget!);
+        this.relatedTarget.set(event.movementX, event.relatedTarget!);
         return;
       } else if (event instanceof CustomEvent) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
@@ -142,7 +142,7 @@ export class CustomEventMessage implements Message {
     const id = ++this.relateId;
     // 可以使用此种方式交互element
     const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.flag, {
-      clientX: id,
+      movementX: id,
       relatedTarget: target,
     });
     window.dispatchEvent(ev);
