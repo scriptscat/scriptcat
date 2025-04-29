@@ -102,6 +102,22 @@ export const scriptSlice = createAppSlice({
         script.runStatus = action.payload.runStatus;
       }
     },
+    updateEnableStatus: (state, action: PayloadAction<{ uuids: string[]; enable: boolean }>) => {
+      state.scripts = state.scripts.map((s) => {
+        if (action.payload.uuids.includes(s.uuid)) {
+          s.status = action.payload.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+        }
+        return s;
+      });
+    },
+    enableLoading(state, action: PayloadAction<{ uuids: string[]; loading: boolean }>) {
+      state.scripts = state.scripts.map((s) => {
+        if (action.payload.uuids.includes(s.uuid)) {
+          s.enableLoading = action.payload.loading;
+        }
+        return s;
+      });
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -144,6 +160,6 @@ export const scriptSlice = createAppSlice({
   },
 });
 
-export const { sortScript, upsertScript, deleteScript } = scriptSlice.actions;
+export const { sortScript, upsertScript, deleteScript, enableLoading, updateEnableStatus } = scriptSlice.actions;
 
 export const { selectScripts } = scriptSlice.selectors;

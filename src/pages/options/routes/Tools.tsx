@@ -30,7 +30,7 @@ function Tools() {
   useEffect(() => {
     // 获取配置
     const loadConfig = async () => {
-      const [backup, vscodeUrl] = await Promise.all([
+      const [backup, vscodeUrl, vscodeReconnect] = await Promise.all([
         systemConfig.getBackup(),
         systemConfig.getVscodeUrl(),
         systemConfig.getVscodeReconnect(),
@@ -38,7 +38,7 @@ function Tools() {
       setFilesystemType(backup.filesystem);
       setFilesystemParam(backup.params[backup.filesystem] || {});
       setVscodeUrl(vscodeUrl);
-      setVscodeReconnect(systemConfig.vscodeReconnect);
+      setVscodeReconnect(vscodeReconnect);
     };
     loadConfig();
   }, []);

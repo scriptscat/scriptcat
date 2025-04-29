@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dealPatternMatches, parsePatternMatchesURL, UrlMatch } from "./match";
+import path from "path";
 
 // https://developer.chrome.com/docs/extensions/mv3/match_patterns/
 describe("UrlMatch-google", () => {
@@ -39,16 +40,10 @@ describe("UrlMatch-google", () => {
 describe("UrlMatch-google-error", () => {
   const url = new UrlMatch<string>();
   it("error-1", () => {
-    expect(() => {
-      url.add("https://*foo/bar", "ok1");
-    }).toThrow(Error);
-  });
-  // 从v0.17.0开始允许这种
-  it("error-2", () => {
     url.add("https://foo.*.bar/baz", "ok1");
     expect(url.match("https://foo.api.bar/baz")).toEqual(["ok1"]);
   });
-  it("error-3", () => {
+  it("error-2", () => {
     expect(() => {
       url.add("http:/bar", "ok1");
     }).toThrow(Error);
@@ -76,6 +71,13 @@ describe("UrlMatch-search", () => {
     expect(url.match("http://api.foo.example.com/")).toEqual(["ok1"]);
     expect(url.match("http://api.bar.example.com/")).toEqual(["ok1"]);
     expect(url.match("http://api.example.com/")).toEqual([]);
+  });
+  it("*://example*/*/example.path*", () => {
+    const url = new UrlMatch<string>();
+    url.add("*://example*/*/example.path*", "ok1");
+    expect(url.match("https://example.com/foo/example.path")).toEqual(["ok1"]);
+    expect(url.match("https://example.com/foo/bar/example.path")).toEqual(["ok1"]);
+    expect(url.match("https://example.com/foo/bar/example.path2")).toEqual(["ok1"]);
   });
 });
 
@@ -177,6 +179,12 @@ describe("parsePatternMatchesURL", () => {
       host: "127.0.0.1",
       path: "",
     });
+    const matches4 = parsePatternMatchesURL("*://*/*");
+    expect(matches4).toEqual({
+      scheme: "*",
+      host: "*",
+      path: "*",
+    });
   });
   it("search", () => {
     // 会忽略掉search部分
@@ -191,12 +199,32 @@ describe("parsePatternMatchesURL", () => {
     const matches = parsePatternMatchesURL("*://www.example.com*");
     expect(matches).toEqual({
       scheme: "*",
-      host: "www.example.com",
+      host: "*",
       path: "*",
     });
   });
   it("*://api.*.example.com/*", () => {
     const matches = parsePatternMatchesURL("*://api.*.example.com/*");
+    expect(matches).toEqual({
+      scheme: "*",
+      host: "*.example.com",
+      path: "*",
+    });
+  });
+  it("一些怪异的情况", () => {
+    let matches = parsePatternMatchesURL("*://*./*");
+    expect(matches).toEqual({
+      scheme: "*",
+      host: "*",
+      path: "*",
+    });
+    matches = parsePatternMatchesURL("*://example*/*");
+    expect(matches).toEqual({
+      scheme: "*",
+      host: "*",
+      path: "*",
+    });
+    matches = parsePatternMatchesURL("http*://*.example.com/*");
     expect(matches).toEqual({
       scheme: "*",
       host: "*.example.com",

@@ -35,8 +35,11 @@ export class SystemConfig {
   }
 
   addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe(key, (msg) => {
-      const { value } = msg;
+    this.mq.subscribe(SystamConfigChange, (data: { key: string; value: string }) => {
+      if (data.key !== key) {
+        return;
+      }
+      const { value } = data;
       callback(value);
     });
   }
@@ -262,5 +265,13 @@ export class SystemConfig {
       isRead: false,
       version: ExtVersion,
     });
+  }
+
+  setEnableScript(enable: boolean) {
+    this.set("enable_script", enable);
+  }
+
+  getEnableScript(): Promise<boolean> {
+    return this.get("enable_script", true);
   }
 }

@@ -1,4 +1,4 @@
-import { MessageQueue } from "@Packages/message/message_queue";
+import { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
 import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
 import {
   Script,
@@ -15,20 +15,17 @@ import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } 
 import { ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
-import { InfoNotification, isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
+import { isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
 import Cache from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import { compileInjectScript } from "../content/utils";
-import { PopupService } from "./popup";
-import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
-import i18n from "@App/locales/locales";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
@@ -52,6 +49,7 @@ export class RuntimeService {
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
 
   isEnableDeveloperMode = false;
+  isEnableUserscribe = true;
 
   constructor(
     private systemConfig: SystemConfig,
@@ -102,8 +100,7 @@ export class RuntimeService {
         text: "!",
       });
     }
-    // 读取inject.js注入页面
-    this.registerInjectScript();
+
     // 监听脚本开启
     subscribeScriptEnable(this.mq, async (data) => {
       const script = await this.scriptDAO.getAndCode(data.uuid);
@@ -114,6 +111,7 @@ export class RuntimeService {
       // 如果是后台脚本, 在offscreen中进行处理
       if (script.type === SCRIPT_TYPE_NORMAL) {
         // 加载页面脚本
+        // 不管开没开启都要加载一次脚本信息
         await this.loadPageScript(script);
         if (!data.enable) {
           await this.unregistryPageScript(script.uuid);
@@ -136,6 +134,32 @@ export class RuntimeService {
       this.deleteScriptMatch(uuid);
     });
 
+    this.systemConfig.addListener("enable_script", (enable) => {
+      this.isEnableUserscribe = enable;
+      if (enable) {
+        this.registerUserscripts();
+      } else {
+        this.unregisterUserscripts();
+      }
+    });
+    // 检查是否开启
+    this.isEnableUserscribe = await this.systemConfig.getEnableScript();
+    if (this.isEnableUserscribe) {
+      this.registerUserscripts();
+    }
+  }
+
+  unsubscribe: Unsubscribe[] = [];
+
+  // 取消脚本注册
+  unregisterUserscripts() {
+    chrome.userScripts.unregister();
+    this.deleteMessageFlag();
+  }
+
+  async registerUserscripts() {
+    // 读取inject.js注入页面
+    this.registerInjectScript();
     // 将开启的脚本发送一次enable消息
     const scriptDao = new ScriptDAO();
     const list = await scriptDao.all();
@@ -162,6 +186,10 @@ export class RuntimeService {
     return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => {
       return Promise.resolve(randomString(16));
     });
+  }
+
+  deleteMessageFlag() {
+    return Cache.getInstance().del("scriptInjectMessageFlag");
   }
 
   getMessageFlag() {
@@ -241,7 +269,7 @@ export class RuntimeService {
         return undefined;
       }
       // 如果是iframe,判断是否允许在iframe里运行
-      if (chromeSender.frameId !== undefined) {
+      if (chromeSender.frameId) {
         if (scriptRes.metadata.noframes) {
           return undefined;
         }
@@ -420,8 +448,11 @@ export class RuntimeService {
     if (!this.scriptMatchCache) {
       await this.loadScriptMatchInfo();
     }
-    this.scriptMatchCache!.get(uuid)!.status = status;
-    this.saveScriptMatchInfo();
+    const script = await this.scriptMatchCache!.get(uuid);
+    if (script) {
+      script.status = status;
+      this.saveScriptMatchInfo();
+    }
   }
 
   async deleteScriptMatch(uuid: string) {
@@ -487,8 +518,10 @@ export class RuntimeService {
     this.addScriptMatch(scriptMatchInfo);
 
     // 如果脚本开启, 则注册脚本
-    if (this.isEnableDeveloperMode && script.status === SCRIPT_STATUS_ENABLE) {
-      if (!scriptRes.metadata["noframes"]) {
+    if (this.isEnableDeveloperMode && this.isEnableUserscribe && script.status === SCRIPT_STATUS_ENABLE) {
+      if (scriptRes.metadata["noframes"]) {
+        registerScript.allFrames = false;
+      } else {
         registerScript.allFrames = true;
       }
       if (scriptRes.metadata["run-at"]) {
@@ -524,19 +557,17 @@ export class RuntimeService {
   }
 
   async unregistryPageScript(uuid: string) {
-    if (!this.isEnableDeveloperMode || !(await Cache.getInstance().get("registryScript:" + uuid))) {
+    if (
+      !this.isEnableDeveloperMode ||
+      !this.isEnableUserscribe ||
+      !(await Cache.getInstance().get("registryScript:" + uuid))
+    ) {
       return;
     }
-    chrome.userScripts.unregister(
-      {
-        ids: [uuid],
-      },
-      () => {
-        // 删除缓存
-        Cache.getInstance().del("registryScript:" + uuid);
-        // 修改脚本状态为disable
-        this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE);
-      }
-    );
+    // 删除缓存
+    Cache.getInstance().del("registryScript:" + uuid);
+    // 修改脚本状态为disable
+    this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE);
+    chrome.userScripts.unregister({ ids: [uuid] });
   }
 }

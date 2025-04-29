@@ -11,7 +11,7 @@ import {
   IconSearch,
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useState } from "react";
-import { RiMessage2Line } from "react-icons/ri";
+import { RiMessage2Line, RiZzzFill } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
@@ -38,7 +38,7 @@ function App() {
     isRead: false,
   });
   const [currentUrl, setCurrentUrl] = useState("");
-  const [isEnableScript, setIsEnableScript] = useState(localStorage.enable_script !== "false");
+  const [isEnableScript, setIsEnableScript] = useState(true);
   const { t } = useTranslation();
 
   let url: URL | undefined;
@@ -49,9 +49,15 @@ function App() {
   }
 
   useEffect(() => {
-    systemConfig.getCheckUpdate().then((res) => {
-      setCheckUpdate(res);
-    });
+    const loadConfig = async () => {
+      const [isEnableScript, checkUpdate] = await Promise.all([
+        systemConfig.getEnableScript(),
+        systemConfig.getCheckUpdate(),
+      ]);
+      setIsEnableScript(isEnableScript);
+      setCheckUpdate(checkUpdate);
+    };
+    loadConfig();
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs.length) {
         return;
@@ -95,9 +101,9 @@ function App() {
                 onChange={(val) => {
                   setIsEnableScript(val);
                   if (val) {
-                    localStorage.enable_script = "true";
+                    systemConfig.setEnableScript(true);
                   } else {
-                    localStorage.enable_script = "false";
+                    systemConfig.setEnableScript(false);
                   }
                 }}
               />

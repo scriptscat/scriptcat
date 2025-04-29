@@ -369,5 +369,7 @@
   "export_success": "导出成功",
   "get_backup_dir_url_failed": "获取备份目录地址失败",
   "get_backup_files_failed": "获取备份文件失败",
-  "develop_mode_guide": "检测到当前未开启开发者模式，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>"
+  "develop_mode_guide": "检测到当前未开启开发者模式，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
+  "enable_script_failed": "脚本开启失败",
+  "disable_script_failed": "脚本关闭失败"
 }

@@ -106,6 +106,18 @@ export default class ServiceWorkerManager {
     systemConfig.getCloudSync().then((config) => {
       synchronize.cloudSyncConfigChange(config);
     });
+
+    if (process.env.NODE_ENV === "production") {
+      chrome.runtime.onInstalled.addListener((details) => {
+        if (details.reason === "install") {
+          chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
+        } else if (details.reason === "update") {
+          chrome.tabs.create({
+            url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+          });
+        }
+      });
+    }
   }
 
   checkUpdate() {

@@ -257,7 +257,7 @@ export class ResourceService {
     return fetch(u.url)
       .then(async (resp) => {
         if (resp.status !== 200) {
-          throw new Error(`resource response status not 200:${resp.status}`);
+          throw new Error(`resource response status not 200: ${resp.status}`);
         }
         return {
           data: await resp.blob(),

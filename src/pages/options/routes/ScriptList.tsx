@@ -81,6 +81,8 @@ import {
   requestStopScript,
   requestRunScript,
   scriptClient,
+  enableLoading,
+  updateEnableStatus,
 } from "@App/pages/store/features/script";
 import { message, systemConfig } from "@App/pages/store/global";
 import { SynchronizeClient, ValueClient } from "@App/app/service/service_worker/client";
@@ -615,6 +617,7 @@ function ScriptList() {
   const dealColumns: ColumnProps[] = [];
 
   newColumns.forEach((item) => {
+    console.log(newColumns);
     switch (item.width) {
       case -1:
         break;
@@ -625,37 +628,39 @@ function ScriptList() {
   });
 
   const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
+  let SortableItem;
+  if (sortIndex !== -1) {
+    SortableItem = (props: any) => {
+      const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
 
-  const SortableItem = (props: any) => {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
+      const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      };
 
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
+      // 替换排序列,使其可以拖拽
+      props.children[sortIndex + 1] = (
+        <td
+          className="arco-table-td"
+          style={{
+            textAlign: "center",
+          }}
+          key="drag"
+        >
+          <div className="arco-table-cell">
+            <IconMenu
+              style={{
+                cursor: "move",
+              }}
+              {...listeners}
+            />
+          </div>
+        </td>
+      );
+
+      return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
     };
-
-    // 替换排序列,使其可以拖拽
-    props.children[sortIndex + 1] = (
-      <td
-        className="arco-table-td"
-        style={{
-          textAlign: "center",
-        }}
-        key="drag"
-      >
-        <div className="arco-table-cell">
-          <IconMenu
-            style={{
-              cursor: "move",
-            }}
-            {...listeners}
-          />
-        </div>
-      </td>
-    );
-
-    return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
-  };
+  }
 
   const components: ComponentsProps = {
     table: React.forwardRef(SortableWrapper),
@@ -703,19 +708,23 @@ function ScriptList() {
                   type="primary"
                   size="mini"
                   onClick={() => {
-                    const uuids: string[] = [];
+                    const enableAction = (enable: boolean) => {
+                      const uuids = select.map((item) => item.uuid);
+                      dispatch(enableLoading({ uuids: uuids, loading: true }));
+                      Promise.allSettled(uuids.map((uuid) => scriptClient.enable(uuid, enable))).finally(() => {
+                        dispatch(updateEnableStatus({ uuids: uuids, enable: enable }));
+                        dispatch(enableLoading({ uuids: uuids, loading: false }));
+                      });
+                    };
                     switch (action) {
                       case "enable":
-                        select.forEach((item) => {
-                          dispatch(requestEnableScript({ uuid: item.uuid, enable: true }));
-                        });
+                        enableAction(true);
                         break;
                       case "disable":
-                        select.forEach((item) => {
-                          dispatch(requestEnableScript({ uuid: item.uuid, enable: false }));
-                        });
+                        enableAction(false);
                         break;
                       case "export":
+                        const uuids: string[] = [];
                         select.forEach((item) => {
                           uuids.push(item.uuid);
                         });
