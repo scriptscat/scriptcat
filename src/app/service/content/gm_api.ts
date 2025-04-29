@@ -119,7 +119,7 @@ export default class GMApi {
     };
 
     return {
-      // downloadMode
+      downloadMode: "browser",
       // isIncognito
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
