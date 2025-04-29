@@ -173,9 +173,12 @@ export function errorMsg(e: any): string {
 
 export function isUserScriptsAvailable() {
   try {
+    // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
+    chrome.userScripts;
     chrome.userScripts.getScripts();
-    return true;
+    // 兼容chrome的写法
+    return !!chrome.userScripts;
   } catch {
     // Not available.
     return false;

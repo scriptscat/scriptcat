@@ -19,6 +19,7 @@ const server = new Server("inject", msg);
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
   // 监听事件
+  console.log("pageLoad", data);
   const runtime = new InjectRuntime(server, msg, data.scripts, data.envInfo);
   runtime.start();
 });

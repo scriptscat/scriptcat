@@ -437,23 +437,54 @@ export default class GMApi {
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
-        operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+        operation:
+          chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
+          ("remove" as chrome.declarativeNetRequest.HeaderOperation),
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
+    Object.keys(headers).forEach((key) => {
+      const lowKey = key.toLowerCase();
+      if (headers[key]) {
+        if (unsafeHeaders[lowKey] || lowKey.startsWith("sec-") || lowKey.startsWith("proxy-")) {
+          if (headers[key]) {
+            requestHeaders.push({
+              header: key,
+              operation:
+                chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
+                ("set" as chrome.declarativeNetRequest.HeaderOperation),
+              value: headers[key],
+            });
+          }
+          delete headers[key];
+        }
+      } else {
+        requestHeaders.push({
+          header: key,
+          operation:
+            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
+            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
+        });
+        delete headers[key];
+      }
+    });
     // 判断是否是anonymous
     if (params.anonymous) {
       // 如果是anonymous，并且有cookie，则设置为自定义的cookie
       if (params.cookie) {
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+          operation:
+            chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
+            ("set" as chrome.declarativeNetRequest.HeaderOperation),
           value: params.cookie,
         });
       } else {
         // 否则删除cookie
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation:
+            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
+            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
         });
       }
     } else {
@@ -1112,6 +1143,12 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
+    const reqOpt: ("requestHeaders" | "blocking" | "extraHeaders")[] = ["requestHeaders"];
+    const respOpt: ("blocking" | "extraHeaders" | "responseHeaders")[] = ["responseHeaders"];
+    if (!isFirefox()) {
+      reqOpt.push("extraHeaders");
+      respOpt.push("extraHeaders");
+    }
     chrome.webRequest.onBeforeSendHeaders.addListener(
       (details) => {
         if (details.tabId === -1) {
@@ -1130,7 +1167,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["requestHeaders", "extraHeaders"]
+      reqOpt
     );
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => {
@@ -1179,7 +1216,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["responseHeaders", "extraHeaders"]
+      respOpt
     );
   }
 

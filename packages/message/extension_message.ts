@@ -58,14 +58,13 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
     });
     if (this.onUserScript) {
       // 监听用户脚本的连接
-      chrome.runtime.onUserScriptConnect &&
-        chrome.runtime.onUserScriptConnect.addListener((port) => {
-          const handler = (msg: any) => {
-            port.onMessage.removeListener(handler);
-            callback(msg, new ExtensionMessageConnect(port));
-          };
-          port.onMessage.addListener(handler);
-        });
+      chrome.runtime.onUserScriptConnect?.addListener((port) => {
+        const handler = (msg: any) => {
+          port.onMessage.removeListener(handler);
+          callback(msg, new ExtensionMessageConnect(port));
+        };
+        port.onMessage.addListener(handler);
+      });
     }
   }
 
@@ -79,13 +78,12 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
     });
     if (this.onUserScript) {
       // 监听用户脚本的消息
-      chrome.runtime.onUserScriptMessage &&
-        chrome.runtime.onUserScriptMessage.addListener((msg, sender, sendResponse) => {
-          if (msg.action === "messageQueue") {
-            return false;
-          }
-          return callback(msg, sendResponse, sender);
-        });
+      chrome.runtime.onUserScriptMessage?.addListener((msg, sender, sendResponse) => {
+        if (msg.action === "messageQueue") {
+          return false;
+        }
+        return callback(msg, sendResponse, sender);
+      });
     }
   }
 }

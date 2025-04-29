@@ -20,7 +20,7 @@ import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { localePath } from "@App/locales/locales";
-import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
+import { isFirefox, getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -107,24 +107,36 @@ function App() {
 
   return (
     <>
-      {!isUserScriptsAvailableFlag && (
-        <Alert
-          type="warning"
-          content={
-            <div
-              dangerouslySetInnerHTML={{
-                __html:
-                  // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-                  getBrowserVersion() < 120
-                    ? t("lower_version_browser_guide")
-                    : getBrowserVersion() >= 138 && !isEdge()
-                      ? t("allow_user_script_guide")
-                      : t("develop_mode_guide"),
+      {!isUserScriptsAvailableFlag &&
+        (isFirefox() ? (
+          <>
+            <Alert type="warning" content={<div dangerouslySetInnerHTML={{ __html: t("develop_mode_guide") }} />} />
+            <Button
+              onClick={() => {
+                chrome.permissions.request({ permissions: ["userScripts"] });
               }}
-            />
-          }
-        />
-      )}
+            >
+              申请权限
+            </Button>
+          </>
+        ) : (
+          <Alert
+            type="warning"
+            content={
+              <div
+                dangerouslySetInnerHTML={{
+                  __html:
+                    // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
+                    getBrowserVersion() < 120
+                      ? t("lower_version_browser_guide")
+                      : getBrowserVersion() >= 138 && !isEdge()
+                        ? t("allow_user_script_guide")
+                        : t("develop_mode_guide"),
+                }}
+              />
+            }
+          />
+        ))}
       {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}
       <Card
         size="small"

@@ -512,13 +512,14 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
+    console.log("pageLoad", enableScript);
     return {
       flag: scriptFlag,
       scripts: enableScript,
       envInfo: {
         sandboxMode: "raw",
-        isIncognito: chrome.extension.inIncognitoContext,
-        userAgentData: this.userAgentData,
+        isIncognito: chrome?.extension?.inIncognitoContext ?? undefined,
+        userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
     };
   }
@@ -558,13 +559,29 @@ export class RuntimeService {
       }
 
       messageFlag = await this.getAndGenMessageFlag();
-      const injectJs = await fetch("inject.js").then((res) => res.text());
+      const injectJs = await fetch("/src/inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
       chrome.userScripts.configureWorld({
         csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
         messaging: true,
       });
+      try {
+        // 注册content.js
+        await chrome.scripting.registerContentScripts([
+          {
+            id: "scriptcat-content",
+            js: ["/src/content.js"],
+            matches: ["<all_urls>"],
+            allFrames: true,
+            runAt: "document_start",
+            world: "ISOLATED",
+          },
+        ]);
+      } catch (e) {
+        LoggerCore.logger().error("update inject.js error", Logger.E(e));
+        throw e;
+      }
       const scripts: chrome.userScripts.RegisteredUserScript[] = [
         {
           id: "scriptcat-inject",
@@ -798,21 +815,17 @@ export class RuntimeService {
         },
       });
       if (res.length > 0) {
-        await chrome.userScripts.update([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("update registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.update([registerScript]);
+        } catch (e) {
+          logger.error("update registerScript error", Logger.E(e));
+        }
       } else {
-        await chrome.userScripts.register([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.register([registerScript]);
+        } catch (e) {
+          logger.error("registerScript error", Logger.E(e));
+        }
       }
       await Cache.getInstance().set("registryScript:" + script.uuid, true);
     }

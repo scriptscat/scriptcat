@@ -1,3 +1,4 @@
+import { isFirefox } from "@App/pkg/utils/utils";
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
 import type { File, FileReader, FileWriter } from "../filesystem";
@@ -67,7 +68,14 @@ export default class BaiduFileSystem implements FileSystem {
           id: 100,
           action: {
             type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
-            responseHeaders: [{ operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE, header: "cookie" }],
+            responseHeaders: [
+              {
+                operation:
+                  chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
+                  ("remove" as chrome.declarativeNetRequest.HeaderOperation),
+                header: "cookie",
+              },
+            ],
           },
           condition: {
             urlFilter: url,
