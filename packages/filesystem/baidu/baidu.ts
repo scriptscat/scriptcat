@@ -65,7 +65,7 @@ export default class BaiduFileSystem implements FileSystem {
         {
           id: 100,
           action: {
-            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
             responseHeaders: [{ operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE, header: "cookie" }],
           },
           condition: {

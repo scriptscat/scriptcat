@@ -168,7 +168,7 @@ export class ServiceWorkerMessageSend implements MessageSend {
   constructor() {}
 
   async init() {
-    if (!this.target) {
+    if (!this.target && self.clients) {
       const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
       this.target = list[0];
       self.addEventListener("message", (e) => {

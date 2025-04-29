@@ -72,12 +72,12 @@ export class ScriptService {
                     id: 2,
                     priority: 1,
                     action: {
-                      type: chrome.declarativeNetRequest.RuleActionType.ALLOW,
+                      type: "allow" as chrome.declarativeNetRequest.RuleActionType,
                     },
                     condition: {
                       regexFilter: targetUrl,
                       resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-                      requestMethods: [chrome.declarativeNetRequest.RequestMethod.GET],
+                      requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
                     },
                   },
                 ],
@@ -118,7 +118,7 @@ export class ScriptService {
             id: 1,
             priority: 1,
             action: {
-              type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
+              type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
               redirect: {
                 regexSubstitution: `https://docs.scriptcat.org${localePath}/docs/script_installation/#url=\\0`,
               },
@@ -126,7 +126,7 @@ export class ScriptService {
             condition: {
               regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
               resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-              requestMethods: [chrome.declarativeNetRequest.RequestMethod.GET],
+              requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
               // 排除常见的符合上述条件的域名
               excludedRequestDomains: ["github.com"],
             },

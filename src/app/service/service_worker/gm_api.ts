@@ -429,7 +429,7 @@ export default class GMApi {
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = ruleId;
     rule.action = {
-      type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+      type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
       requestHeaders: requestHeaders,
     };
     rule.priority = 1;

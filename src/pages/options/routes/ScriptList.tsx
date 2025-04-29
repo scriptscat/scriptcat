@@ -617,7 +617,6 @@ function ScriptList() {
   const dealColumns: ColumnProps[] = [];
 
   newColumns.forEach((item) => {
-    console.log(newColumns);
     switch (item.width) {
       case -1:
         break;
