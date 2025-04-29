@@ -381,7 +381,7 @@ export default class GMApi {
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
-        operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+        operation: "remove" as chrome.declarativeNetRequest.HeaderOperation,
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
     Object.keys(headers).forEach((key) => {
@@ -391,7 +391,7 @@ export default class GMApi {
           if (headers[key]) {
             requestHeaders.push({
               header: key,
-              operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+              operation: "set" as chrome.declarativeNetRequest.HeaderOperation,
               value: headers[key],
             });
           }
@@ -400,7 +400,7 @@ export default class GMApi {
       } else {
         requestHeaders.push({
           header: key,
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation: "remove" as chrome.declarativeNetRequest.HeaderOperation,
         });
         delete headers[key];
       }
@@ -411,14 +411,14 @@ export default class GMApi {
       if (params.cookie) {
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+          operation: "set" as chrome.declarativeNetRequest.HeaderOperation,
           value: params.cookie,
         });
       } else {
         // 否则删除cookie
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation: "remove" as chrome.declarativeNetRequest.HeaderOperation,
         });
       }
     } else if (params.cookie) {
@@ -923,6 +923,12 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
+    const reqOpt = ["requestHeaders"];
+    const respOpt = ["responseHeaders"];
+    if (!isFirefox()) {
+      reqOpt.push("extraHeaders");
+      respOpt.push("extraHeaders");
+    }
     chrome.webRequest.onBeforeSendHeaders.addListener(
       (details) => {
         if (details.tabId === -1) {
@@ -940,7 +946,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["requestHeaders", "extraHeaders"]
+      reqOpt
     );
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => {
@@ -964,7 +970,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["responseHeaders", "extraHeaders"]
+      respOpt
     );
   }
 

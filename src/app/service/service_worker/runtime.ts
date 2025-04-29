@@ -26,6 +26,7 @@ import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import Logger from "@App/app/logger/logger";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
@@ -299,6 +300,7 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
+    console.log("pageLoad", enableScript);
     return Promise.resolve({ flag: scriptFlag, scripts: enableScript });
   }
 
@@ -323,13 +325,29 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       messageFlag = await this.messageFlag();
-      const injectJs = await fetch("inject.js").then((res) => res.text());
+      const injectJs = await fetch("/src/inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
       chrome.userScripts.configureWorld({
         csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
         messaging: true,
       });
+      try {
+        // 注册content.js
+        await chrome.scripting.registerContentScripts([
+          {
+            id: "scriptcat-content",
+            js: ["/src/content.js"],
+            matches: ["<all_urls>"],
+            allFrames: true,
+            runAt: "document_start",
+            world: "ISOLATED",
+          },
+        ]);
+      } catch (e) {
+        LoggerCore.logger().error("update inject.js error", Logger.E(e));
+        throw e;
+      }
       const scripts: chrome.userScripts.RegisteredUserScript[] = [
         {
           id: "scriptcat-inject",
@@ -339,33 +357,20 @@ export class RuntimeService {
           world: "MAIN",
           runAt: "document_start",
         },
-        // 注册content
-        {
-          id: "scriptcat-content",
-          js: [{ file: "src/content.js" }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          world: "USER_SCRIPT",
-        },
       ];
       try {
         // 如果使用getScripts来判断, 会出现找不到的问题
         // 另外如果使用
         await chrome.userScripts.register(scripts);
       } catch (e: any) {
-        LoggerCore.logger().error("register inject.js error", {
-          error: e,
-        });
+        LoggerCore.logger().error("register inject.js error", Logger.E(e));
         if (e.message?.indexOf("Duplicate script ID") !== -1) {
           // 如果是重复注册, 则更新
-          chrome.userScripts.update(scripts, () => {
-            if (chrome.runtime.lastError) {
-              LoggerCore.logger().error("update inject.js error", {
-                error: chrome.runtime.lastError,
-              });
-            }
-          });
+          try {
+            await chrome.userScripts.update(scripts);
+          } catch (e) {
+            LoggerCore.logger().error("update inject.js error", Logger.E(e));
+          }
         }
       }
     }
@@ -536,21 +541,17 @@ export class RuntimeService {
         },
       });
       if (res.length > 0) {
-        await chrome.userScripts.update([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("update registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.update([registerScript]);
+        } catch (e) {
+          logger.error("update registerScript error", Logger.E(e));
+        }
       } else {
-        await chrome.userScripts.register([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.register([registerScript]);
+        } catch (e) {
+          logger.error("registerScript error", Logger.E(e));
+        }
       }
       await Cache.getInstance().set("registryScript:" + script.uuid, true);
     }

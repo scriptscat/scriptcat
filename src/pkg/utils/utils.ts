@@ -269,7 +269,8 @@ export function isUserScriptsAvailable() {
   try {
     // Property access which throws if developer mode is not enabled.
     chrome.userScripts;
-    return true;
+    // 兼容chrome的写法
+    return !!chrome.userScripts;
   } catch {
     // Not available.
     return false;

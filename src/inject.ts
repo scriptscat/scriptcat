@@ -18,6 +18,7 @@ const server = new Server("inject", msg);
 server.on("pageLoad", (data: { scripts: ScriptRunResouce[] }) => {
   logger.logger().debug("inject start");
   // 监听事件
+  console.log("pageLoad", data);
   const runtime = new InjectRuntime(server, msg, data.scripts);
   runtime.start();
 });

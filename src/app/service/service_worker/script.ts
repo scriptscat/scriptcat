@@ -40,8 +40,10 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
+    console.log("init script install listener");
     chrome.webRequest.onBeforeRequest.addListener(
       (req: chrome.webRequest.WebRequestBodyDetails) => {
+        console.log(req);
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
           return;
@@ -101,9 +103,9 @@ export class ScriptService {
       },
       {
         urls: [
-          "https://docs.scriptcat.org/docs/script_installation/",
-          "https://docs.scriptcat.org/en/docs/script_installation/",
-          "https://www.tampermonkey.net/script_installation.php",
+          "https://docs.scriptcat.org/docs/script_installation/*",
+          "https://docs.scriptcat.org/en/docs/script_installation/*",
+          "https://www.tampermonkey.net/script_installation.php*",
         ],
         types: ["main_frame"],
       }
