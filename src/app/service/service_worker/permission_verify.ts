@@ -7,6 +7,8 @@ import Queue from "@App/pkg/utils/queue";
 import CacheKey from "@App/app/cache_key";
 import { Permission, PermissionDAO } from "@App/app/repo/permission";
 import { Group } from "@Packages/message/server";
+import { subscribeScriptDelete } from "../queue";
+import { MessageQueue } from "@Packages/message/message_queue";
 
 export interface ConfirmParam {
   // 权限名
@@ -98,7 +100,12 @@ export default class PermissionVerify {
 
   private permissionDAO: PermissionDAO = new PermissionDAO();
 
-  constructor(private group: Group) {}
+  constructor(
+    private group: Group,
+    private mq: MessageQueue
+  ) {
+    this.permissionDAO.enableCache();
+  }
 
   // 验证是否有权限
   verify(request: Request, api: ApiValue): Promise<boolean> {
@@ -341,5 +348,10 @@ export default class PermissionVerify {
     this.group.on("getScriptPermissions", this.getScriptPermissions.bind(this));
     this.group.on("addPermission", this.getInfo.bind(this));
     this.group.on("resetPermission", this.resetPermission.bind(this));
+
+    subscribeScriptDelete(this.mq, (data) => {
+      // 删除脚本的所有权限
+      this.resetPermission(data.script.uuid);
+    });
   }
 }

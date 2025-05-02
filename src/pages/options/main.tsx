@@ -25,7 +25,7 @@ const loggerCore = new LoggerCore({
   labels: { env: "options" },
 });
 
-loggerCore.logger().debug("page start");
+loggerCore.logger().debug("options page start");
 
 storeSubscribe();
 

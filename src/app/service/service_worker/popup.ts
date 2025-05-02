@@ -48,12 +48,11 @@ export type ScriptMenu = {
 
 // 处理popup页面的数据
 export class PopupService {
-  scriptDAO = new ScriptDAO();
-
   constructor(
     private group: Group,
     private mq: MessageQueue,
-    private runtime: RuntimeService
+    private runtime: RuntimeService,
+    private scriptDAO: ScriptDAO
   ) {}
 
   genScriptMenuByTabMap(menu: ScriptMenu[]) {

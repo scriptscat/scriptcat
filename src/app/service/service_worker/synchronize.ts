@@ -156,6 +156,31 @@ export class SynchronizeService {
     return ret;
   }
 
+  importResources(data: {
+    uuid: string;
+    requires: ResourceBackup[];
+    resources: ResourceBackup[];
+    requiresCss: ResourceBackup[];
+  }) {
+    const { uuid, requires, resources, requiresCss } = data;
+    const ret: Promise<any>[] = [];
+    // 处理requires
+    requires.forEach((item) => {
+      ret.push(this.resource.importResource(uuid, item, "require"));
+    });
+    // 处理resources
+    resources.forEach((item) => {
+      ret.push(this.resource.importResource(uuid, item, "resource"));
+    });
+    // 处理requiresCss
+    requiresCss.forEach((item) => {
+      ret.push(this.resource.importResource(uuid, item, "require-css"));
+    });
+    return Promise.all(ret).then(() => {
+      return Promise.resolve();
+    });
+  }
+
   getUrlName(url: string): string {
     let index = url.indexOf("?");
     if (index !== -1) {
@@ -543,6 +568,7 @@ export class SynchronizeService {
   init() {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
+    this.group.on("importResources", this.importResources.bind(this));
     // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
     subscribeScriptInstall(this.mq, this.scriptInstall.bind(this));

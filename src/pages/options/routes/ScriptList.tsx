@@ -73,7 +73,7 @@ import { ListHomeRender, ScriptIcons } from "./utils";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import {
   requestEnableScript,
-  fetchAndSortScriptList,
+  fetchScriptList,
   requestDeleteScript,
   ScriptLoading,
   selectScripts,
@@ -83,9 +83,12 @@ import {
   scriptClient,
   enableLoading,
   updateEnableStatus,
+  synchronizeClient,
+  batchDeleteScript,
 } from "@App/pages/store/features/script";
 import { message, systemConfig } from "@App/pages/store/global";
-import { SynchronizeClient, ValueClient } from "@App/app/service/service_worker/client";
+import { ValueClient } from "@App/app/service/service_worker/client";
+import { JSX } from "react/jsx-runtime";
 
 type ListType = Script & { loading?: boolean };
 
@@ -106,9 +109,11 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const { t } = useTranslation();
+  const [components, setComponents] = useState<ComponentsProps | undefined>(undefined);
+  const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
 
   useEffect(() => {
-    dispatch(fetchAndSortScriptList());
+    dispatch(fetchScriptList());
   }, [dispatch]);
 
   const columns: ColumnProps[] = [
@@ -582,92 +587,96 @@ function ScriptList() {
     })
   );
 
-  const SortableWrapper = (props: any, ref: any) => {
-    return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={(event: DragEndEvent) => {
-          const { active, over } = event;
-          if (!over) {
-            return;
-          }
-          if (active.id !== over.id) {
-            console.log(active);
-            let oldIndex = 0;
-            let newIndex = 0;
-            scriptList.forEach((item, index) => {
-              if (item.uuid === active.id) {
-                oldIndex = index;
-              } else if (item.uuid === over.id) {
-                newIndex = index;
-              }
-            });
-            dispatch(sortScript({ uuid: active.id as string, newIndex, oldIndex }));
-          }
-        }}
-      >
-        <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
-          <table ref={ref} {...props} />
-        </SortableContext>
-      </DndContext>
-    );
-  };
-
-  const dealColumns: ColumnProps[] = [];
-
-  newColumns.forEach((item) => {
-    switch (item.width) {
-      case -1:
-        break;
-      default:
-        dealColumns.push(item);
-        break;
+  useEffect(() => {
+    if (!newColumns.length) {
+      return;
     }
-  });
-
-  const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
-  let SortableItem;
-  if (sortIndex !== -1) {
-    SortableItem = (props: any) => {
-      const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
-
-      const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-      };
-
-      // 替换排序列,使其可以拖拽
-      props.children[sortIndex + 1] = (
-        <td
-          className="arco-table-td"
-          style={{
-            textAlign: "center",
+    const SortableWrapper = (props: any, ref: any) => {
+      return (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(event: DragEndEvent) => {
+            const { active, over } = event;
+            if (!over) {
+              return;
+            }
+            if (active.id !== over.id) {
+              let oldIndex = 0;
+              let newIndex = 0;
+              scriptList.forEach((item, index) => {
+                if (item.uuid === active.id) {
+                  oldIndex = index;
+                } else if (item.uuid === over.id) {
+                  newIndex = index;
+                }
+              });
+              dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+            }
           }}
-          key="drag"
         >
-          <div className="arco-table-cell">
-            <IconMenu
-              style={{
-                cursor: "move",
-              }}
-              {...listeners}
-            />
-          </div>
-        </td>
+          <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
+            <table ref={ref} {...props} />
+          </SortableContext>
+        </DndContext>
       );
-
-      return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
     };
-  }
+    const dealColumns: ColumnProps[] = [];
 
-  const components: ComponentsProps = {
-    table: React.forwardRef(SortableWrapper),
-    body: {
-      // tbody: SortableWrapper,
-      row: SortableItem,
-    },
-  };
+    newColumns.forEach((item) => {
+      switch (item.width) {
+        case -1:
+          break;
+        default:
+          dealColumns.push(item);
+          break;
+      }
+    });
+
+    const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
+    let SortableItem;
+    if (sortIndex !== -1) {
+      SortableItem = (props: any) => {
+        const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
+
+        const style = {
+          transform: CSS.Transform.toString(transform),
+          transition,
+        };
+
+        // 替换排序列,使其可以拖拽
+        props.children[sortIndex + 1] = (
+          <td
+            className="arco-table-td"
+            style={{
+              textAlign: "center",
+            }}
+            key="drag"
+          >
+            <div className="arco-table-cell">
+              <IconMenu
+                style={{
+                  cursor: "move",
+                }}
+                {...listeners}
+              />
+            </div>
+          </td>
+        );
+
+        return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
+      };
+    }
+
+    setComponents({
+      table: React.forwardRef(SortableWrapper),
+      body: {
+        // tbody: SortableWrapper,
+        row: SortableItem,
+      },
+    });
+    setDealColumns(dealColumns);
+  }, [newColumns]);
 
   return (
     <Card
@@ -697,11 +706,21 @@ function ScriptList() {
                     setAction(value);
                   }}
                 >
-                  <Select.Option value="enable">{t("enable")}</Select.Option>
-                  <Select.Option value="disable">{t("disable")}</Select.Option>
-                  <Select.Option value="export">{t("export")}</Select.Option>
-                  <Select.Option value="delete">{t("delete")}</Select.Option>
-                  <Select.Option value="check_update">{t("check_update")}</Select.Option>
+                  <Select.Option key={"enable"} value="enable">
+                    {t("enable")}
+                  </Select.Option>
+                  <Select.Option key={"disable"} value="disable">
+                    {t("disable")}
+                  </Select.Option>
+                  <Select.Option key={"export"} value="export">
+                    {t("export")}
+                  </Select.Option>
+                  <Select.Option key={"delete"} value="delete">
+                    {t("delete")}
+                  </Select.Option>
+                  <Select.Option key={"check_update"} value="check_update">
+                    {t("check_update")}
+                  </Select.Option>
                 </Select>
                 <Button
                   type="primary"
@@ -731,7 +750,7 @@ function ScriptList() {
                           id: "export",
                           content: t("exporting"),
                         });
-                        new SynchronizeClient(message).export(uuids).then(() => {
+                        synchronizeClient.export(uuids).then(() => {
                           Message.success({
                             id: "export",
                             content: t("export_success"),
@@ -740,10 +759,10 @@ function ScriptList() {
                         });
                         break;
                       case "delete":
-                        if (confirm(t("list.confirm_delete")!)) {
-                          select.forEach((item) => {
-                            dispatch(requestDeleteScript(item.uuid));
-                          });
+                        if (confirm(t("list.confirm_delete"))) {
+                          const uuids = select.map((item) => item.uuid);
+                          dispatch(batchDeleteScript(uuids));
+                          Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
                         }
                         break;
                       // 批量检查更新
@@ -804,7 +823,9 @@ function ScriptList() {
                   }}
                 >
                   {newColumns.map((column, index) => (
-                    <Select.Option value={index}>{column.title}</Select.Option>
+                    <Select.Option key={index} value={index}>
+                      {column.title}
+                    </Select.Option>
                   ))}
                 </Select>
                 <Dropdown
@@ -914,7 +935,7 @@ function ScriptList() {
           components={components}
           rowKey="uuid"
           tableLayoutFixed
-          columns={dealColumns}
+          columns={dealColumns.length ? dealColumns : columns}
           data={scriptList}
           pagination={{
             total: scriptList.length,

@@ -60,7 +60,10 @@ export default class GMApi {
 
   valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
 
-  constructor(private prefix: string, private message: Message) {}
+  constructor(
+    private prefix: string,
+    private message: Message
+  ) {}
 
   // 单次回调使用
   public sendMessage(api: string, params: any[]) {
@@ -775,6 +778,18 @@ export default class GMApi {
   @GMContext.API()
   GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }) {
     this.sendMessage("GM_setClipboard", [data, info]);
+  }
+
+  @GMContext.API()
+  GM_getResourceText(name: string): string | undefined {
+    if (!this.scriptRes.resource) {
+      return undefined;
+    }
+    const r = this.scriptRes.resource[name];
+    if (r) {
+      return r.content;
+    }
+    return undefined;
   }
 
   @GMContext.API()

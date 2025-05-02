@@ -22,10 +22,10 @@ import { ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { SystemConfig } from "@App/pkg/config/config";
 import i18n, { localePath } from "@App/locales/locales";
+import { arrayMove } from "@dnd-kit/sortable";
 
 export class ScriptService {
   logger: Logger;
-  scriptDAO: ScriptDAO = new ScriptDAO();
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   constructor(
@@ -33,9 +33,11 @@ export class ScriptService {
     private group: Group,
     private mq: MessageQueue,
     private valueService: ValueService,
-    private resourceService: ResourceService
+    private resourceService: ResourceService,
+    private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
+    this.scriptCodeDAO.enableCache();
   }
 
   listenerScriptInstall() {
@@ -197,8 +199,11 @@ export class ScriptService {
           code: param.code,
         });
         logger.info("install success");
-        // 广播一下
-        this.mq.publish("installScript", { script, update, upsertBy });
+        // 下载资源
+        this.resourceService.checkScriptResource(script).then(() => {
+          // 广播一下
+          this.mq.publish("installScript", { script, update, upsertBy });
+        });
         return Promise.resolve({ update });
       })
       .catch((e: any) => {
@@ -217,8 +222,9 @@ export class ScriptService {
     return this.scriptDAO
       .delete(uuid)
       .then(() => {
+        this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
-        this.mq.publish("deleteScript", { uuid });
+        this.mq.publish("deleteScript", { uuid, script });
         return true;
       })
       .catch((e) => {
@@ -494,9 +500,44 @@ export class ScriptService {
     });
   }
 
+  getAllScripts() {
+    // 获取数据并排序
+    return this.scriptDAO.all().then((scripts) => {
+      scripts.sort((a, b) => a.sort - b.sort);
+      for (let i = 0; i < scripts.length; i += 1) {
+        if (scripts[i].sort !== i) {
+          this.scriptDAO.update(scripts[i].uuid, { sort: i });
+          scripts[i].sort = i;
+        }
+      }
+      return scripts;
+    });
+  }
+
+  async sortScript({ active, over }: { active: string; over: string }) {
+    const scripts = await this.scriptDAO.all();
+    scripts.sort((a, b) => a.sort - b.sort);
+    let oldIndex = 0;
+    let newIndex = 0;
+    scripts.forEach((item, index) => {
+      if (item.uuid === active) {
+        oldIndex = index;
+      } else if (item.uuid === over) {
+        newIndex = index;
+      }
+    });
+    const newSort = arrayMove(scripts, oldIndex, newIndex);
+    for (let i = 0; i < newSort.length; i += 1) {
+      if (newSort[i].sort !== i) {
+        this.scriptDAO.update(newSort[i].uuid, { sort: i });
+      }
+    }
+  }
+
   init() {
     this.listenerScriptInstall();
 
+    this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
     this.group.on("delete", this.deleteScript.bind(this));
@@ -510,6 +551,7 @@ export class ScriptService {
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
     this.group.on("isInstalled", this.isInstalled.bind(this));
+    this.group.on("sortScript", this.sortScript.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

@@ -1,6 +1,7 @@
 export interface CacheStorage {
   get(key: string): Promise<any>;
   set(key: string, value: any): Promise<void>;
+  batchSet(data: { [key: string]: any }): Promise<void>;
   has(key: string): Promise<boolean>;
   del(key: string): Promise<void>;
   list(): Promise<string[]>;
@@ -25,6 +26,14 @@ export class ExtCache implements CacheStorage {
           resolve();
         }
       );
+    });
+  }
+
+  batchSet(data: { [key: string]: any }): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.session.set(data, () => {
+        resolve();
+      });
     });
   }
 
@@ -121,6 +130,10 @@ export default class Cache {
 
   public set(key: string, value: any): Promise<void> {
     return this.storage.set(key, value);
+  }
+
+  public batchSet(data: { [key: string]: any }): Promise<void> {
+    return this.storage.batchSet(data);
   }
 
   public has(key: string): Promise<boolean> {

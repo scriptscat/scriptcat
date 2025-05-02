@@ -1,6 +1,5 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import { isText } from "../utils/istextorbinary";
 import { blobToBase64 } from "../utils/script";
 import { parseStorageValue } from "../utils/utils";
@@ -14,8 +13,7 @@ import {
   SubscribeOptionsFile,
   ValueStorage,
 } from "./struct";
-import JSZip from "jszip";
-import ZipFileSystem from "@Packages/filesystem/zip/zip";
+import FileSystem, { File } from "@Packages/filesystem/filesystem";
 
 type ViolentmonkeyFile = {
   scripts: {

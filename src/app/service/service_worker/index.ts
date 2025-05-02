@@ -11,6 +11,7 @@ import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ExtServer, ExtVersion } from "@App/app/const";
 import { systemConfig } from "@App/pages/store/global";
+import { ScriptDAO } from "@App/app/repo/scripts";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
@@ -30,12 +31,15 @@ export default class ServiceWorkerManager {
     });
     this.sender.init();
 
+    const scriptDAO = new ScriptDAO();
+    scriptDAO.enableCache();
+
     const systemConfig = new SystemConfig(this.mq);
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
     resource.init();
-    const value = new ValueService(this.api.group("value"), this.sender);
-    const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource);
+    const value = new ValueService(this.api.group("value"), this.sender, this.mq);
+    const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource, scriptDAO);
     script.init();
     const runtime = new RuntimeService(
       systemConfig,
@@ -44,10 +48,11 @@ export default class ServiceWorkerManager {
       this.mq,
       value,
       script,
-      resource
+      resource,
+      scriptDAO
     );
     runtime.init();
-    const popup = new PopupService(this.api.group("popup"), this.mq, runtime);
+    const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO);
     popup.init();
     value.init(runtime, popup);
     const synchronize = new SynchronizeService(
@@ -94,7 +99,6 @@ export default class ServiceWorkerManager {
 
     // 监听配置变化
     this.mq.subscribe("systemConfigChange", (msg) => {
-      console.log("systemConfigChange", msg);
       switch (msg.key) {
         case "cloud_sync": {
           synchronize.cloudSyncConfigChange(msg.value);

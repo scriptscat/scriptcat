@@ -17,7 +17,7 @@ const loggerCore = new LoggerCore({
   labels: { env: "import" },
 });
 
-loggerCore.logger().debug("page start");
+loggerCore.logger().debug("import page start");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -1,7 +1,7 @@
 import { subscribeScriptDelete, subscribeScriptInstall, subscribeScriptRunStatus } from "@App/app/service/queue";
 import { messageQueue } from "./global";
 import { store } from "./store";
-import { deleteScript, scriptSlice, upsertScript } from "./features/script";
+import { batchDeleteScript, scriptSlice, upsertScript } from "./features/script";
 
 export default function storeSubscribe() {
   subscribeScriptRunStatus(messageQueue, (data) => {
@@ -13,6 +13,6 @@ export default function storeSubscribe() {
   });
 
   subscribeScriptDelete(messageQueue, (message) => {
-    store.dispatch(deleteScript(message.uuid));
+    store.dispatch(batchDeleteScript([message.uuid]));
   });
 }

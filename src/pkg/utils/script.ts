@@ -157,7 +157,7 @@ export function copyScript(script: Script, old: Script): Script {
 
 export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   const ret = sub;
-  ret.id = old.id;
+  ret.url = old.url;
   ret.scripts = old.scripts;
   ret.createtime = old.createtime;
   ret.status = old.status;
@@ -205,9 +205,10 @@ export function prepareScriptByCode(
   code: string,
   url: string,
   uuid?: string,
-  override?: boolean
+  override?: boolean,
+  dao?: ScriptDAO
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
-  const dao = new ScriptDAO();
+  dao = dao || new ScriptDAO();
   return new Promise((resolve, reject) => {
     const metadata = parseMetadata(code);
     if (metadata == null) {
@@ -327,7 +328,6 @@ export async function prepareSubscribeByCode(
     throw new Error("订阅名不能为空");
   }
   let subscribe: Subscribe = {
-    id: 0,
     url,
     name: metadata.name[0],
     code,

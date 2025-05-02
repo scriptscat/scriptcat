@@ -8,11 +8,8 @@ import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
 import { File, FileReader } from "@Packages/filesystem/filesystem";
-import { message, systemConfig } from "@App/pages/store/global";
-import { SynchronizeClient } from "@App/app/service/service_worker/client";
-import { set } from "node_modules/yaml/dist/schema/yaml-1.1/set";
-
-const synchronizeClient = new SynchronizeClient(message);
+import { systemConfig } from "@App/pages/store/global";
+import { synchronizeClient } from "@App/pages/store/features/script";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});

@@ -87,6 +87,11 @@ export class ScriptDAO extends Repo<Script> {
     super("script");
   }
 
+  enableCache(): void {
+    super.enableCache();
+    this.scriptCodeDAO.enableCache();
+  }
+
   public save(val: Script) {
     return super._save(val.uuid, val);
   }

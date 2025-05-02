@@ -26,6 +26,7 @@ import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import Logger from "@App/app/logger/logger";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
@@ -42,11 +43,11 @@ export interface EmitEventRequest {
 }
 
 export class RuntimeService {
-  scriptDAO: ScriptDAO = new ScriptDAO();
-
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
+
+  logger: Logger;
 
   isEnableDeveloperMode = false;
   isEnableUserscribe = true;
@@ -58,12 +59,15 @@ export class RuntimeService {
     private mq: MessageQueue,
     private value: ValueService,
     private script: ScriptService,
-    private resource: ResourceService
-  ) {}
+    private resource: ResourceService,
+    private scriptDAO: ScriptDAO
+  ) {
+    this.logger = LoggerCore.logger({ component: "runtime" });
+  }
 
   async init() {
     // 启动gm api
-    const permission = new PermissionVerify(this.group.group("permission"));
+    const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     const gmApi = new GMApi(this.systemConfig, permission, this.group, this.sender, this.mq, this.value, this);
     permission.init();
     gmApi.start();
@@ -158,26 +162,73 @@ export class RuntimeService {
   }
 
   async registerUserscripts() {
-    // 读取inject.js注入页面
-    this.registerInjectScript();
-    // 将开启的脚本发送一次enable消息
-    const scriptDao = new ScriptDAO();
-    const list = await scriptDao.all();
-    list.forEach((script) => {
-      if (script.type !== SCRIPT_TYPE_NORMAL) {
-        return;
-      }
-      this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
-    });
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
     this.mq.subscribe("preparationOffscreen", () => {
-      list.forEach((script) => {
-        if (script.type === SCRIPT_TYPE_NORMAL) {
-          return;
-        }
-        this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
+      this.scriptDAO.all().then((list) => {
+        list.forEach((script) => {
+          if (script.type === SCRIPT_TYPE_NORMAL) {
+            return;
+          }
+          this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
+        });
       });
     });
+
+    // 将开启的脚本发送一次enable消息
+    const list = await this.scriptDAO.all();
+    let messageFlag = await this.getMessageFlag();
+    if (!messageFlag) {
+      // 根据messageFlag来判断是否已经注册过了
+      const registerScripts = await Promise.all(
+        list.map((script) => {
+          if (script.type !== SCRIPT_TYPE_NORMAL) {
+            return undefined;
+          }
+          return this.getUserScriptRegister(script).then((res) => {
+            if (!res) {
+              return undefined;
+            }
+            const { registerScript } = res!;
+            // 如果没开启, 则不注册
+            if (script.status !== SCRIPT_STATUS_ENABLE) {
+              return undefined;
+            }
+            // 过滤掉matches为空的脚本
+            if (!registerScript.matches || registerScript.matches.length === 0) {
+              this.logger.error("registerScript matches is empty", {
+                script: script.name,
+                uuid: script.uuid,
+              });
+              return undefined;
+            }
+            return registerScript;
+          });
+        })
+      ).then(async (res) => {
+        // 过滤掉undefined和未开启的
+        return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
+      });
+      // 如果脚本开启, 则注册脚本
+      if (this.isEnableDeveloperMode && this.isEnableUserscribe) {
+        // 批量注册
+        // 先删除所有脚本
+        await chrome.userScripts.unregister();
+        // 注册脚本
+        try {
+          await chrome.userScripts.register(registerScripts);
+        } catch (e: any) {
+          this.logger.error("registerScript error", Logger.E(e));
+        }
+        const batchData: { [key: string]: any } = {};
+        registerScripts.forEach((script) => {
+          batchData["registryScript:" + script.id] = true;
+        });
+        Cache.getInstance().batchSet(batchData);
+      }
+    }
+
+    // 读取inject.js注入页面
+    this.registerInjectScript();
 
     this.loadScriptMatchInfo();
   }
@@ -354,18 +405,14 @@ export class RuntimeService {
         // 另外如果使用
         await chrome.userScripts.register(scripts);
       } catch (e: any) {
-        LoggerCore.logger().error("register inject.js error", {
-          error: e,
-        });
+        this.logger.error("register inject.js error", Logger.E(e));
         if (e.message?.indexOf("Duplicate script ID") !== -1) {
           // 如果是重复注册, 则更新
-          chrome.userScripts.update(scripts, () => {
-            if (chrome.runtime.lastError) {
-              LoggerCore.logger().error("update inject.js error", {
-                error: chrome.runtime.lastError,
-              });
-            }
-          });
+          try {
+            await chrome.userScripts.update(scripts);
+          } catch (e) {
+            this.logger.error("update inject.js error", Logger.E(e));
+          }
         }
       }
     }
@@ -465,13 +512,12 @@ export class RuntimeService {
     this.saveScriptMatchInfo();
   }
 
-  // 加载页面脚本, 会把脚本信息放入缓存中
-  // 如果脚本开启, 则注册脚本
-  async loadPageScript(script: Script) {
+  // 构建userScript注册信息
+  async getUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
     const matches = scriptRes.metadata["match"];
     if (!matches) {
-      return;
+      return undefined;
     }
 
     scriptRes.code = compileInjectScript(scriptRes);
@@ -517,16 +563,32 @@ export class RuntimeService {
     // 将脚本match信息放入缓存中
     this.addScriptMatch(scriptMatchInfo);
 
+    // 注册脚本信息
+    if (scriptRes.metadata["noframes"]) {
+      registerScript.allFrames = false;
+    } else {
+      registerScript.allFrames = true;
+    }
+    if (scriptRes.metadata["run-at"]) {
+      registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
+    }
+    return {
+      scriptMatchInfo,
+      registerScript,
+    };
+  }
+
+  // 加载页面脚本, 会把脚本信息放入缓存中
+  // 如果脚本开启, 则注册脚本
+  async loadPageScript(script: Script) {
+    const resp = await this.getUserScriptRegister(script);
+    if (!resp) {
+      return;
+    }
+    const { registerScript } = resp;
+
     // 如果脚本开启, 则注册脚本
     if (this.isEnableDeveloperMode && this.isEnableUserscribe && script.status === SCRIPT_STATUS_ENABLE) {
-      if (scriptRes.metadata["noframes"]) {
-        registerScript.allFrames = false;
-      } else {
-        registerScript.allFrames = true;
-      }
-      if (scriptRes.metadata["run-at"]) {
-        registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
-      }
       const res = await chrome.userScripts.getScripts({ ids: [script.uuid] });
       const logger = LoggerCore.logger({
         name: script.name,

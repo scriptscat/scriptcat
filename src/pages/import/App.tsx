@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next"; // 导入react-i18next的useTran
 import JSZip from "jszip";
 import { ScriptBackupData, ScriptOptions, SubscribeBackupData } from "@App/pkg/backup/struct";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
+import { Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
 import { Subscribe } from "@App/app/repo/subscribe";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
-import { scriptClient, valueClient } from "../store/features/script";
+import { resourceClient, scriptClient, synchronizeClient, valueClient } from "../store/features/script";
 
 type ScriptData = ScriptBackupData & {
   script?: { script: Script; oldScript?: Script };
@@ -36,6 +36,10 @@ function App() {
     Cache.getInstance()
       .get(CacheKey.importFile(uuid))
       .then(async (resp: { filename: string; url: string }) => {
+        // 使用缓存优化脚本加载速度
+        const scriptDAO = new ScriptDAO();
+        scriptDAO.enableCache();
+
         const filedata = await fetch(resp.url).then((resp) => resp.blob());
         const zip = await JSZip.loadAsync(filedata);
         const backData = await parseBackupZipFile(zip);
@@ -49,7 +53,8 @@ function App() {
                 item.code,
                 item.options?.meta.file_url || "",
                 item.options?.meta.sc_uuid || undefined,
-                true
+                true,
+                scriptDAO
               );
               item.script = prepareScript;
             } catch (e: any) {
@@ -105,8 +110,14 @@ function App() {
                 });
                 setLoading(true);
                 const result = scripts.map(async (item) => {
-                  const ok = true;
                   if (item.install && !item.error) {
+                    // 导入资源
+                    await synchronizeClient.importResources(
+                      item.script?.script.uuid,
+                      item.requires,
+                      item.resources,
+                      item.requiresCss
+                    );
                     await scriptClient.install(item.script?.script!, item.code);
                     // 导入数据
                     const { data } = item.storage;
@@ -117,7 +128,7 @@ function App() {
                   setInstallNum((prev) => {
                     return [prev[0] + 1, prev[1]];
                   });
-                  return Promise.resolve(ok);
+                  return Promise.resolve();
                 });
                 await Promise.all(result);
                 setLoading(false);

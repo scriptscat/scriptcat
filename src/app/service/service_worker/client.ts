@@ -11,6 +11,7 @@ import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { Subscribe } from "@App/app/repo/subscribe";
 import { Permission } from "@App/app/repo/permission";
+import { ResourceBackup } from "@App/pkg/backup/struct";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -25,6 +26,11 @@ export class ServiceWorkerClient extends Client {
 export class ScriptClient extends Client {
   constructor(msg: MessageSend) {
     super(msg, "serviceWorker/script");
+  }
+
+  // 脚本数据量大的时候，options页要读取全部的数据，可能会导致options页卡顿，直接调用serviceWorker的接口从内存中读取数据
+  getAllScripts(): Promise<Script[]> {
+    return this.do("getAllScripts");
   }
 
   // 获取安装信息
@@ -73,6 +79,10 @@ export class ScriptClient extends Client {
   requestCheckUpdate(uuid: string) {
     return this.do("requestCheckUpdate", uuid);
   }
+
+  sortScript(active: string, over: string) {
+    return this.do("sortScript", { active, over });
+  }
 }
 
 export class ResourceClient extends Client {
@@ -100,6 +110,10 @@ export class ValueClient extends Client {
 
   setScriptValue(uuid: string, key: string, value: any) {
     return this.do("setScriptValue", { uuid, key, value });
+  }
+
+  setScriptValues(uuid: string, values: { [key: string]: any }) {
+    return this.do("setScriptValues", { uuid, values });
   }
 }
 
@@ -203,9 +217,9 @@ export class SynchronizeClient extends Client {
   async openImportWindow(filename: string, file: File | Blob) {
     // 打开导入窗口，用cache实现数据交互
     const url = URL.createObjectURL(file);
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 60 * 1000);
+    // setTimeout(() => {
+    //   URL.revokeObjectURL(url);
+    // }, 60 * 1000);
     const uuid = uuidv4();
     await Cache.getInstance().set(CacheKey.importFile(uuid), {
       filename: filename,
@@ -215,6 +229,15 @@ export class SynchronizeClient extends Client {
     chrome.tabs.create({
       url: `/src/import.html?uuid=${uuid}`,
     });
+  }
+
+  importResources(
+    uuid: string | undefined,
+    requires: ResourceBackup[],
+    resources: ResourceBackup[],
+    requiresCss: ResourceBackup[]
+  ) {
+    return this.do("importResources", { uuid, requires, resources, requiresCss });
   }
 }
 

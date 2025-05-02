@@ -7,6 +7,8 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { Group } from "@Packages/message/server";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/script";
+import { ResourceBackup } from "@App/pkg/backup/struct";
+import { subscribeScriptDelete } from "../queue";
 
 export class ResourceService {
   logger: Logger;
@@ -17,6 +19,7 @@ export class ResourceService {
     private mq: MessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "resource" });
+    this.resourceDAO.enableCache();
   }
 
   public async getResource(uuid: string, url: string, type: ResourceType): Promise<Resource | undefined> {
@@ -24,34 +27,15 @@ export class ResourceService {
     if (res) {
       return Promise.resolve(res);
     }
-    try {
-      res = await this.addResource(url, uuid, type);
-      if (res) {
-        return Promise.resolve(res);
-      }
-    } catch (e: any) {
-      // ignore
-      this.logger.error("get resource failed", { uuid, url }, Logger.E(e));
-    }
     return Promise.resolve(undefined);
   }
 
-  cache: Map<string, { [key: string]: Resource }> = new Map();
-
   public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    // 优先从内存中获取
-    if (this.cache.has(script.uuid)) {
-      return Promise.resolve(this.cache.get(script.uuid) || {});
-    }
-    // 资源不存在,重新加载
-    const res = await Promise.resolve({
+    return await Promise.resolve({
       ...((await this.getResourceByType(script, "require")) || {}),
       ...((await this.getResourceByType(script, "require-css")) || {}),
       ...((await this.getResourceByType(script, "resource")) || {}),
     });
-    // 缓存到内存
-    this.cache.set(script.uuid, res);
-    return res;
   }
 
   async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
@@ -145,7 +129,7 @@ export class ResourceService {
       if (!result) {
         // 资源不存在,保存
         resource.createtime = new Date().getTime();
-        resource.link = { uuid: true };
+        resource.link = { [uuid]: true };
         await this.resourceDAO.save(resource);
         result = resource;
         this.logger.info("reload new resource success", { url: u.url });
@@ -168,29 +152,6 @@ export class ResourceService {
     return Promise.resolve(result);
   }
 
-  public async addResource(url: string, uuid: string, type: ResourceType): Promise<Resource> {
-    // 删除缓存
-    this.cache.delete(uuid);
-    const u = this.parseUrl(url);
-    let result = await this.getResourceModel(u.url);
-    // 资源不存在,重新加载
-    if (!result) {
-      try {
-        const resource = await this.loadByUrl(u.url, type);
-        resource.link[uuid] = true;
-        resource.createtime = new Date().getTime();
-        resource.updatetime = new Date().getTime();
-        await this.resourceDAO.save(resource);
-        result = resource;
-        this.logger.info("load resource success", { url: u.url });
-      } catch (e) {
-        this.logger.error("load resource error", { url: u.url }, Logger.E(e));
-        throw e;
-      }
-    }
-    return Promise.resolve(result);
-  }
-
   async getResourceModel(url: string) {
     const u = this.parseUrl(url);
     const resource = await this.resourceDAO.get(u.url);
@@ -205,19 +166,6 @@ export class ResourceService {
           (u.hash.sha512 && u.hash.sha512 !== resource.hash.sha512)
         ) {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
-          // 尝试重新加载
-          this.loadByUrl(u.url, resource.type).then((reloadRes) => {
-            this.logger.info("reload resource success", {
-              url: u.url,
-              hash: {
-                expected: u.hash,
-                old: resource.hash,
-                new: reloadRes.hash,
-              },
-            });
-            reloadRes.updatetime = new Date().getTime();
-            this.resourceDAO.save(reloadRes);
-          });
         }
       }
       return Promise.resolve(resource);
@@ -311,14 +259,55 @@ export class ResourceService {
     if (!res) {
       throw new Error("resource not found");
     }
-    Object.keys(res.link).forEach((key) => {
-      this.cache.delete(key);
-    });
     return this.resourceDAO.delete(url);
+  }
+
+  importResource(uuid: string, data: ResourceBackup, type: ResourceType) {
+    // 导入资源
+    if (!data.source) {
+      return Promise.resolve(undefined);
+    }
+    return this.resourceDAO.get(data.meta.url).then(async (res) => {
+      if (!res) {
+        // 新增资源
+        res = {
+          url: data.meta.url,
+          content: data.source!,
+          contentType: data.meta.mimetype || "",
+          hash: await this.calculateHash(new Blob([data.source!])),
+          base64: await blobToBase64(new Blob([data.source!])),
+          link: {},
+          type,
+          createtime: new Date().getTime(),
+          updatetime: new Date().getTime(),
+        };
+      }
+      res.link[uuid] = true;
+      res.updatetime = new Date().getTime();
+      return this.resourceDAO.update(data.meta.url, res);
+    });
   }
 
   init() {
     this.group.on("getScriptResources", this.getScriptResources.bind(this));
     this.group.on("deleteResource", this.deleteResource.bind(this));
+
+    // 删除相关资源
+    subscribeScriptDelete(this.mq, (data) => {
+      this.resourceDAO
+        .find((key, value) => {
+          return value.link[data.uuid];
+        })
+        .then((resources) => {
+          resources.forEach((res) => {
+            // 删除link
+            delete res.link[data.uuid];
+            // 如果没有关联脚本了,删除资源
+            if (Object.keys(res.link).length === 0) {
+              this.resourceDAO.delete(res.url);
+            }
+          });
+        });
+    });
   }
 }

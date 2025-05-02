@@ -17,7 +17,7 @@ const loggerCore = new LoggerCore({
   labels: { env: "confirm" },
 });
 
-loggerCore.logger().debug("page start");
+loggerCore.logger().debug("confirm page start");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

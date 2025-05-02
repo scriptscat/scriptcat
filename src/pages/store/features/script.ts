@@ -11,9 +11,11 @@ import { arrayMove } from "@dnd-kit/sortable";
 import {
   PermissionClient,
   PopupClient,
+  ResourceClient,
   RuntimeClient,
   ScriptClient,
   SubscribeClient,
+  SynchronizeClient,
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
@@ -24,19 +26,11 @@ export const runtimeClient = new RuntimeClient(message);
 export const popupClient = new PopupClient(message);
 export const permissionClient = new PermissionClient(message);
 export const valueClient = new ValueClient(message);
+export const resourceClient = new ResourceClient(message);
+export const synchronizeClient = new SynchronizeClient(message);
 
-export const fetchAndSortScriptList = createAsyncThunk("script/fetchScriptList", async () => {
-  // 排序
-  const dao = new ScriptDAO();
-  const scripts = await dao.all();
-  scripts.sort((a, b) => a.sort - b.sort);
-  for (let i = 0; i < scripts.length; i += 1) {
-    if (scripts[i].sort !== i) {
-      dao.update(scripts[i].uuid, { sort: i });
-      scripts[i].sort = i;
-    }
-  }
-  return scripts;
+export const fetchScriptList = createAsyncThunk("script/fetchScriptList", () => {
+  return scriptClient.getAllScripts();
 });
 
 export const requestEnableScript = createAsyncThunk(
@@ -82,19 +76,27 @@ export const scriptSlice = createAppSlice({
         state.scripts.splice(0, 0, action.payload);
       }
     },
-    deleteScript: (state, action: PayloadAction<string>) => {
-      state.scripts = state.scripts.filter((s) => s.uuid !== action.payload);
+    batchDeleteScript: (state, action: PayloadAction<string[]>) => {
+      state.scripts = state.scripts.filter((s) => !action.payload.includes(s.uuid));
     },
-    sortScript: (state, action: PayloadAction<{ uuid: string; newIndex: number; oldIndex: number }>) => {
-      const dao = new ScriptDAO();
-      const newItems = arrayMove(state.scripts, action.payload.oldIndex, action.payload.newIndex);
+    sortScript: (state, action: PayloadAction<{ active: string; over: string }>) => {
+      let oldIndex = 0;
+      let newIndex = 0;
+      state.scripts.forEach((item, index) => {
+        if (item.uuid === action.payload.active) {
+          oldIndex = index;
+        } else if (item.uuid === action.payload.over) {
+          newIndex = index;
+        }
+      });
+      const newItems = arrayMove(state.scripts, oldIndex, newIndex);
+      state.scripts = newItems;
       for (let i = 0; i < state.scripts.length; i += 1) {
-        if (newItems[i].sort !== i) {
-          dao.update(newItems[i].uuid, { sort: i });
-          newItems[i].sort = i;
+        if (state.scripts[i].sort !== i) {
+          state.scripts[i].sort = i;
         }
       }
-      state.scripts = newItems;
+      scriptClient.sortScript(action.payload.active, action.payload.over);
     },
     updateRunStatus: (state, action: PayloadAction<{ uuid: string; runStatus: SCRIPT_RUN_STATUS }>) => {
       const script = state.scripts.find((s) => s.uuid === action.payload.uuid);
@@ -121,7 +123,7 @@ export const scriptSlice = createAppSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchAndSortScriptList.fulfilled, (state, action) => {
+      .addCase(fetchScriptList.fulfilled, (state, action) => {
         state.scripts = action.payload;
       })
       // 处理enableScript
@@ -160,6 +162,6 @@ export const scriptSlice = createAppSlice({
   },
 });
 
-export const { sortScript, upsertScript, deleteScript, enableLoading, updateEnableStatus } = scriptSlice.actions;
+export const { sortScript, upsertScript, batchDeleteScript, enableLoading, updateEnableStatus } = scriptSlice.actions;
 
 export const { selectScripts } = scriptSlice.selectors;

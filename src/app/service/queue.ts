@@ -10,7 +10,10 @@ export function subscribeScriptInstall(
   return messageQueue.subscribe("installScript", callback);
 }
 
-export function subscribeScriptDelete(messageQueue: MessageQueue, callback: (message: { uuid: string }) => void) {
+export function subscribeScriptDelete(
+  messageQueue: MessageQueue,
+  callback: (message: { uuid: string; script: Script }) => void
+) {
   return messageQueue.subscribe("deleteScript", callback);
 }
 
