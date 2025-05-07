@@ -890,6 +890,24 @@ export default class GMApi {
     await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type });
   }
 
+  @PermissionVerify.API({ alias: ["window.close"] })
+  async windowDotClose(request: Request, sender: GetSender) {
+    /*
+     * Note: for security reasons it is not allowed to close the last tab of a window.
+     * https://www.tampermonkey.net/documentation.php#api:window.close
+     * 暂不清楚安全原因具体指什么
+     * 原生window.close也可能关闭最后一个标签，暂不做限制
+     */
+    await chrome.tabs.remove(sender.getSender().tab?.id as number);
+  }
+
+  @PermissionVerify.API({ alias: ["window.focus"] })
+  async windowDotFocus(request: Request, sender: GetSender) {
+    await chrome.tabs.update(sender.getSender().tab?.id as number, {
+      active: true,
+    });
+  }
+
   handlerNotification() {
     const send = async (event: string, notificationId: string, params?: any) => {
       const ret = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as NotificationData;

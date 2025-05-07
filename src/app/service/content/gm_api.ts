@@ -24,11 +24,14 @@ export class GMContext {
   public static API(param: ApiParam = {}) {
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
-      if (key === "GMDotGetResourceUrl") {
-        GMContext.apis.set("GM.getResourceUrl", {
-          api: descriptor.value,
-          param,
-        });
+      if (/^(GM|window)Dot/.test(key)) {
+        GMContext.apis.set(
+          key.replace(/^(GM|window)Dot(.)/, (_, a, b) => `${a}.${b.toLowerCase()}`),
+          {
+            api: descriptor.value,
+            param,
+          }
+        );
         return;
       }
       GMContext.apis.set(key, {
@@ -822,5 +825,15 @@ export default class GMApi {
       return Promise.resolve(r.base64);
     }
     return Promise.resolve(undefined);
+  }
+
+  @GMContext.API()
+  windowDotClose() {
+    return this.sendMessage("windowDotClose", []);
+  }
+
+  @GMContext.API()
+  windowDotFocus() {
+    return this.sendMessage("windowDotFocus", []);
   }
 }
