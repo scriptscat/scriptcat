@@ -70,6 +70,7 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
     EE: new EventEmitter(),
     GM: { Info: GMInfo },
     GM_info: GMInfo,
+    window: {},
   };
   if (scriptRes.metadata.grant) {
     scriptRes.metadata.grant.forEach((val) => {
@@ -77,9 +78,9 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
       if (!api) {
         return;
       }
-      if (val.startsWith("GM.")) {
-        const [, t] = val.split(".");
-        (<{ [key: string]: any }>context.GM)[t] = api.api.bind(context);
+      if (/^(GM|window)\./.test(val)) {
+        const [n, t] = val.split(".");
+        (<{ [key: string]: any }>context[n])[t] = api.api.bind(context);
       } else if (val === "GM_cookie") {
         // 特殊处理GM_cookie.list之类
         context[val] = api.api.bind(context);
@@ -200,6 +201,11 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
             return special.global || proxy;
           }
           return global.top;
+        case "close":
+        case "focus":
+          if (context["window"][name]) {
+            return context["window"][name];
+          }
         default:
           break;
       }
