@@ -113,12 +113,13 @@ export default class GMApi {
     const metadataStr = getMetadataStr(script.code);
     const userConfigStr = getUserConfigStr(script.code) || "";
     const options = {
-      description: (script.metadata.description && script.metadata.description[0]) || null,
+      description: script.metadata.description?.[0] || null,
       matches: script.metadata.match || [],
       includes: script.metadata.include || [],
-      "run-at": (script.metadata["run-at"] && script.metadata["run-at"][0]) || "document-idle",
-      icon: (script.metadata.icon && script.metadata.icon[0]) || null,
-      icon64: (script.metadata.icon64 && script.metadata.icon64[0]) || null,
+      "run-at": script.metadata["run-at"]?.[0] || "document-idle",
+      "run-in": script.metadata["run-in"] || [],
+      icon: script.metadata.icon?.[0] || null,
+      icon64: script.metadata.icon64?.[0] || null,
       header: metadataStr,
       grant: script.metadata.grant || [],
       connects: script.metadata.connect || [],
@@ -139,7 +140,7 @@ export default class GMApi {
         // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
         name: script.name,
         namespace: script.namespace,
-        version: script.metadata.version && script.metadata.version[0],
+        version: script.metadata.version?.[0],
         author: script.author,
         ...options,
       },

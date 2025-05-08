@@ -66,6 +66,9 @@ export class RuntimeService {
   }
 
   async init() {
+    // 清除缓存防止初始化失败
+    // 注：隐身模式初始化时可读取正常模式的chrome.storage.session
+    Cache.getInstance().clear();
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     const gmApi = new GMApi(this.systemConfig, permission, this.group, this.sender, this.mq, this.value, this);
@@ -179,35 +182,42 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
-      const registerScripts = await Promise.all(
-        list.map((script) => {
-          if (script.type !== SCRIPT_TYPE_NORMAL) {
-            return undefined;
+      const registerScripts = await list.reduce(
+        async (arr, script) => {
+          const result = await arr;
+          // 非普通脚本、未开启则不注册
+          if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
+            return result;
           }
-          return this.getUserScriptRegister(script).then((res) => {
-            if (!res) {
-              return undefined;
+
+          // 判断注入标签类型
+          if (script.metadata["run-in"]) {
+            // 判断插件运行环境
+            const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+            if (!script.metadata["run-in"].includes(contextType)) {
+              return result;
             }
-            const { registerScript } = res!;
-            // 如果没开启, 则不注册
-            if (script.status !== SCRIPT_STATUS_ENABLE) {
-              return undefined;
-            }
-            // 过滤掉matches为空的脚本
-            if (!registerScript.matches || registerScript.matches.length === 0) {
-              this.logger.error("registerScript matches is empty", {
-                script: script.name,
-                uuid: script.uuid,
-              });
-              return undefined;
-            }
-            return registerScript;
-          });
-        })
-      ).then(async (res) => {
-        // 过滤掉undefined和未开启的
-        return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
-      });
+          }
+
+          const res = await this.getUserScriptRegister(script);
+          if (!res) {
+            return result;
+          }
+          const { registerScript } = res!;
+
+          // 过滤掉matches为空的脚本
+          if (!registerScript.matches || registerScript.matches.length === 0) {
+            this.logger.error("registerScript matches is empty", {
+              script: script.name,
+              uuid: script.uuid,
+            });
+            return result;
+          }
+          return [...result, registerScript];
+        },
+        Promise.resolve([] as chrome.userScripts.RegisteredUserScript[])
+      );
+
       // 如果脚本开启, 则注册脚本
       if (this.isEnableDeveloperMode && this.isEnableUserscribe) {
         // 批量注册
@@ -313,23 +323,30 @@ export class RuntimeService {
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
 
-    const scripts = matchScriptUuid.map((uuid) => {
+    const enableScript = matchScriptUuid.reduce((arr, uuid) => {
       const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid));
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
-        return undefined;
+        return arr;
+      }
+      // 判断注入页面类型
+      if (scriptRes.metadata["run-in"]) {
+        // 判断插件运行环境
+        const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+        if (!scriptRes.metadata["run-in"].includes(contextType)) {
+          return arr;
+        }
       }
       // 如果是iframe,判断是否允许在iframe里运行
       if (chromeSender.frameId) {
         if (scriptRes.metadata.noframes) {
-          return undefined;
+          return arr;
         }
       }
       // 获取value
-      return scriptRes;
-    });
-
-    const enableScript = scripts.filter((item) => item) as ScriptMatchInfo[];
+      arr.push(scriptRes);
+      return arr;
+    }, [] as ScriptMatchInfo[]);
 
     await Promise.all([
       // 加载value
@@ -533,6 +550,7 @@ export class RuntimeService {
       id: scriptRes.uuid,
       js: [{ code: scriptRes.code }],
       matches: patternMatches.patternResult,
+      allFrames: !!scriptRes.metadata["noframes"],
       world: "MAIN",
     };
 
@@ -563,12 +581,6 @@ export class RuntimeService {
     // 将脚本match信息放入缓存中
     this.addScriptMatch(scriptMatchInfo);
 
-    // 注册脚本信息
-    if (scriptRes.metadata["noframes"]) {
-      registerScript.allFrames = false;
-    } else {
-      registerScript.allFrames = true;
-    }
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }

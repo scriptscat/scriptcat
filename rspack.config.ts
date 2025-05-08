@@ -20,7 +20,7 @@ export default defineConfig({
     ? {
         watch: true,
         mode: "development",
-        devtool: "inline-source-map",
+        devtool: process.env.NO_MAP === "true" ? false : "inline-source-map",
       }
     : {
         mode: "production",
