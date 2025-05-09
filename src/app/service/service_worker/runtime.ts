@@ -182,8 +182,7 @@ export class RuntimeService {
       const registerScripts = await list.reduce(
         async (arr, script) => {
           const result = await arr;
-          // 非普通脚本、未开启则不注册
-          if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
+          if (script.type !== SCRIPT_TYPE_NORMAL) {
             return result;
           }
 
@@ -192,6 +191,10 @@ export class RuntimeService {
             return result;
           }
           const { registerScript } = res!;
+          // 如果没开启, 则不注册
+          if (script.status !== SCRIPT_STATUS_ENABLE) {
+            return result;
+          }
 
           // 过滤掉matches为空的脚本
           if (!registerScript.matches || registerScript.matches.length === 0) {
