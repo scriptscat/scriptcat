@@ -558,7 +558,7 @@ export class RuntimeService {
       id: scriptRes.uuid,
       js: [{ code: scriptRes.code }],
       matches: patternMatches.patternResult,
-      allFrames: !!scriptRes.metadata["noframes"],
+      allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
     };
 
