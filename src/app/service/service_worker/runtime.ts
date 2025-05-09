@@ -66,17 +66,6 @@ export class RuntimeService {
   }
 
   async init() {
-    // 清除缓存防止初始化失败
-    // 注：隐身模式初始化时可读取正常模式的chrome.storage.session
-    if (chrome.extension.inIncognitoContext) {
-      // 判断是否隐身模式第一次初始化
-      const incognitoInited = await Cache.getInstance().get("incognitoInited");
-      if (!incognitoInited) {
-        Cache.getInstance().clear();
-        Cache.getInstance().set("incognitoInited", true);
-      }
-    }
-
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     const gmApi = new GMApi(this.systemConfig, permission, this.group, this.sender, this.mq, this.value, this);
@@ -196,15 +185,6 @@ export class RuntimeService {
           // 非普通脚本、未开启则不注册
           if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
             return result;
-          }
-
-          // 判断注入标签类型
-          if (script.metadata["run-in"]) {
-            // 判断插件运行环境
-            const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
-            if (!script.metadata["run-in"].includes(contextType)) {
-              return result;
-            }
           }
 
           const res = await this.getUserScriptRegister(script);

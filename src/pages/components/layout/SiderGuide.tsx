@@ -19,7 +19,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     if (localStorage.getItem("firstUse") === null) {
       localStorage.setItem("firstUse", "false");
       // 隐身模式不打开引导
-      if (chrome.extension.inIncognitoContext) {
+      if (!chrome.extension.inIncognitoContext) {
         setRun(true);
       }
     }
