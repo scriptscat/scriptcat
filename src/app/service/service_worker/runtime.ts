@@ -208,6 +208,7 @@ export class RuntimeService {
         // 过滤掉undefined和未开启的
         return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
       });
+
       // 如果脚本开启, 则注册脚本
       if (this.isEnableDeveloperMode && this.isEnableUserscribe) {
         // 批量注册
@@ -313,23 +314,30 @@ export class RuntimeService {
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
 
-    const scripts = matchScriptUuid.map((uuid) => {
+    const enableScript = matchScriptUuid.reduce((arr, uuid) => {
       const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid));
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
-        return undefined;
+        return arr;
+      }
+      // 判断注入页面类型
+      if (scriptRes.metadata["run-in"]) {
+        // 判断插件运行环境
+        const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+        if (!scriptRes.metadata["run-in"].includes(contextType)) {
+          return arr;
+        }
       }
       // 如果是iframe,判断是否允许在iframe里运行
       if (chromeSender.frameId) {
         if (scriptRes.metadata.noframes) {
-          return undefined;
+          return arr;
         }
       }
       // 获取value
-      return scriptRes;
-    });
-
-    const enableScript = scripts.filter((item) => item) as ScriptMatchInfo[];
+      arr.push(scriptRes);
+      return arr;
+    }, [] as ScriptMatchInfo[]);
 
     await Promise.all([
       // 加载value
@@ -533,6 +541,7 @@ export class RuntimeService {
       id: scriptRes.uuid,
       js: [{ code: scriptRes.code }],
       matches: patternMatches.patternResult,
+      allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
     };
 
@@ -563,12 +572,6 @@ export class RuntimeService {
     // 将脚本match信息放入缓存中
     this.addScriptMatch(scriptMatchInfo);
 
-    // 注册脚本信息
-    if (scriptRes.metadata["noframes"]) {
-      registerScript.allFrames = false;
-    } else {
-      registerScript.allFrames = true;
-    }
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }

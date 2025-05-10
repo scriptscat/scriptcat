@@ -4,6 +4,7 @@ export interface CacheStorage {
   batchSet(data: { [key: string]: any }): Promise<void>;
   has(key: string): Promise<boolean>;
   del(key: string): Promise<void>;
+  clear(): Promise<void>;
   list(): Promise<string[]>;
 }
 
@@ -53,6 +54,14 @@ export class ExtCache implements CacheStorage {
     });
   }
 
+  clear(): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.session.clear(() => {
+        resolve();
+      });
+    });
+  }
+
   list(): Promise<string[]> {
     return new Promise((resolve) => {
       chrome.storage.session.get(null, (value) => {
@@ -87,6 +96,13 @@ export class MapCache {
   del(key: string): Promise<void> {
     return new Promise((resolve) => {
       this.map.delete(key);
+      resolve();
+    });
+  }
+
+  clear(): Promise<void> {
+    return new Promise((resolve) => {
+      this.map.clear();
       resolve();
     });
   }
@@ -142,6 +158,10 @@ export default class Cache {
 
   public del(key: string): Promise<void> {
     return this.storage.del(key);
+  }
+
+  public clear(): Promise<void> {
+    return this.storage.clear();
   }
 
   public list(): Promise<string[]> {
