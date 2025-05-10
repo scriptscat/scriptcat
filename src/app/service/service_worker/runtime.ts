@@ -179,35 +179,35 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
-      const registerScripts = await list.reduce(
-        async (arr, script) => {
-          const result = await arr;
+      const registerScripts = await Promise.all(
+        list.map((script) => {
           if (script.type !== SCRIPT_TYPE_NORMAL) {
-            return result;
+            return undefined;
           }
-
-          const res = await this.getUserScriptRegister(script);
-          if (!res) {
-            return result;
-          }
-          const { registerScript } = res!;
-          // 如果没开启, 则不注册
-          if (script.status !== SCRIPT_STATUS_ENABLE) {
-            return result;
-          }
-
-          // 过滤掉matches为空的脚本
-          if (!registerScript.matches || registerScript.matches.length === 0) {
-            this.logger.error("registerScript matches is empty", {
-              script: script.name,
-              uuid: script.uuid,
-            });
-            return result;
-          }
-          return [...result, registerScript];
-        },
-        Promise.resolve([] as chrome.userScripts.RegisteredUserScript[])
-      );
+          return this.getUserScriptRegister(script).then((res) => {
+            if (!res) {
+              return undefined;
+            }
+            const { registerScript } = res!;
+            // 如果没开启, 则不注册
+            if (script.status !== SCRIPT_STATUS_ENABLE) {
+              return undefined;
+            }
+            // 过滤掉matches为空的脚本
+            if (!registerScript.matches || registerScript.matches.length === 0) {
+              this.logger.error("registerScript matches is empty", {
+                script: script.name,
+                uuid: script.uuid,
+              });
+              return undefined;
+            }
+            return registerScript;
+          });
+        })
+      ).then(async (res) => {
+        // 过滤掉undefined和未开启的
+        return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
+      });
 
       // 如果脚本开启, 则注册脚本
       if (this.isEnableDeveloperMode && this.isEnableUserscribe) {
