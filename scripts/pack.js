@@ -17,8 +17,8 @@ if (version.prerelease.length) {
       betaVersion += parseInt(version.prerelease[1] || "0", 10) + 1 || 1;
       break;
     case "beta":
-      // 第二位进1
-      betaVersion += 10 * (parseInt(version.prerelease[1] || "0", 10) + 1 || 1);
+      // 第三位进1
+      betaVersion += 100 * (parseInt(version.prerelease[1] || "0", 10) + 1 || 1);
       break;
     default:
       throw new Error("未知的版本类型");

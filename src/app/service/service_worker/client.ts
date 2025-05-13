@@ -83,6 +83,10 @@ export class ScriptClient extends Client {
   sortScript(active: string, over: string) {
     return this.do("sortScript", { active, over });
   }
+
+  importByUrl(url: string) {
+    return this.do("importByUrl", url);
+  }
 }
 
 export class ResourceClient extends Client {

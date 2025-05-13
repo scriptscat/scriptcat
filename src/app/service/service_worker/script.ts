@@ -534,6 +534,10 @@ export class ScriptService {
     }
   }
 
+  importByUrl(url: string) {
+    return this.openInstallPageByUrl(url, "user");
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -552,6 +556,7 @@ export class ScriptService {
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
     this.group.on("isInstalled", this.isInstalled.bind(this));
     this.group.on("sortScript", this.sortScript.bind(this));
+    this.group.on("importByUrl", this.importByUrl.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

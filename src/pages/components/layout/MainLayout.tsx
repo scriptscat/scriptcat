@@ -6,6 +6,7 @@ import {
   Input,
   Layout,
   Menu,
+  Message,
   Modal,
   Space,
   Typography,
@@ -18,6 +19,7 @@ import "./index.css";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
+import { scriptClient } from "@App/pages/store/features/script";
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -48,7 +50,12 @@ const MainLayout: React.FC<{
             title={t("import_link")}
             visible={importVisible}
             onOk={async () => {
-              setImportVisible(false);
+              try {
+                await scriptClient.importByUrl(importRef.current!.dom.value);
+                setImportVisible(false);
+              } catch (e) {
+                Message.error(`${t("import_link_failure")}: ${e}`);
+              }
             }}
             onCancel={() => {
               setImportVisible(false);
@@ -87,31 +94,30 @@ const MainLayout: React.FC<{
                       onClick={() => {
                         const el = document.getElementById("import-local");
                         el!.onchange = (e: Event) => {
-                          // const scriptCtl = IoC.instance(ScriptController) as ScriptController;
-                          // try {
-                          //   // 获取文件
-                          //   // @ts-ignore
-                          //   const file = e.target.files[0];
-                          //   // 实例化 FileReader对象
-                          //   const reader = new FileReader();
-                          //   reader.onload = async (processEvent) => {
-                          //     // 创建blob url
-                          //     const blob = new Blob(
-                          //       // @ts-ignore
-                          //       [processEvent.target!.result],
-                          //       {
-                          //         type: "application/javascript",
-                          //       }
-                          //     );
-                          //     const url = URL.createObjectURL(blob);
-                          //     await scriptCtl.importByUrl(url);
-                          //     Message.success(t("import_local_success"));
-                          //   };
-                          //   // 调用readerAsText方法读取文本
-                          //   reader.readAsText(file);
-                          // } catch (error) {
-                          //   Message.error(`${t("import_local_failure")}: ${e}`);
-                          // }
+                          try {
+                            // 获取文件
+                            // @ts-ignore
+                            const file = e.target.files[0];
+                            // 实例化 FileReader对象
+                            const reader = new FileReader();
+                            reader.onload = async (processEvent) => {
+                              // 创建blob url
+                              const blob = new Blob(
+                                // @ts-ignore
+                                [processEvent.target!.result],
+                                {
+                                  type: "application/javascript",
+                                }
+                              );
+                              const url = URL.createObjectURL(blob);
+                              await scriptClient.importByUrl(url);
+                              Message.success(t("import_local_success"));
+                            };
+                            // 调用readerAsText方法读取文本
+                            reader.readAsText(file);
+                          } catch (error) {
+                            Message.error(`${t("import_local_failure")}: ${e}`);
+                          }
                         };
                         el!.click();
                       }}
