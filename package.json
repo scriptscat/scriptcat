@@ -11,7 +11,7 @@
     "coverage": "vitest run --coverage",
     "build": "cross-env NODE_ENV=production rspack build",
     "dev": "cross-env NODE_ENV=development rspack",
-    "dev-noMap": "cross-env NODE_ENV=development NO_MAP=true rspack",
+    "dev:noMap": "cross-env NODE_ENV=development NO_MAP=true rspack",
     "pack": "node ./scripts/pack.js",
     "format": "prettier --write .",
     "lint": "eslint .",
