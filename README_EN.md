@@ -1,7 +1,7 @@
 <h1 align="center">ScriptCat</h1>
 
 <p align="center">
-<img src="./build/assets/logo.png"/>
+<img src="./src/assets/logo.png"/>
 </p>
 
 <p align="center">ScriptCat, a browser extension that can execute user scripts, everything can be scripted, allowing your browser to do more things!</p>

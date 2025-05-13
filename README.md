@@ -1,7 +1,7 @@
 <h1 align="center">ScriptCat</h1>
 
 <p align="center">
-<img src="./build/assets/logo.png"/>
+<img src="./src/assets/logo.png"/>
 </p>
 
 <p align="center">脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!</p>
