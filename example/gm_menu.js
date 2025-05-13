@@ -9,8 +9,20 @@
 // @grant GM_unregisterMenuCommand
 // ==/UserScript==
 
-
-const id = GM_registerMenuCommand("测试菜单", () => {
+const id = GM_registerMenuCommand(
+  "测试菜单",
+  () => {
     console.log(id);
     GM_unregisterMenuCommand(id);
-}, "h");
+  },
+  "h"
+);
+
+const id2 = GM_registerMenuCommand(
+  "测试菜单2",
+  () => {
+    console.log(id2);
+    GM_unregisterMenuCommand(id2);
+  },
+  "j"
+);

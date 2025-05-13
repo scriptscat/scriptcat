@@ -1,20 +1,8 @@
-import IoC from "@App/app/ioc";
 import { Script } from "@App/app/repo/scripts";
 import { Value } from "@App/app/repo/value";
-import ValueController from "@App/app/service/value/controller";
+import { valueClient } from "@App/pages/store/features/script";
 import { valueType } from "@App/pkg/utils/utils";
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Message,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-} from "@arco-design/web-react";
+import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
@@ -23,17 +11,20 @@ import { useTranslation } from "react-i18next";
 
 const FormItem = Form.Item;
 
+interface ValueModel {
+  key: string;
+  value: any;
+}
+
 const ScriptStorage: React.FC<{
-  // eslint-disable-next-line react/require-default-props
   script?: Script;
   visible: boolean;
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const [data, setData] = useState<Value[]>([]);
+  const [data, setData] = useState<ValueModel[]>([]);
   const inputRef = useRef<RefInputType>(null);
-  const valueCtrl = IoC.instance(ValueController) as ValueController;
-  const [currentValue, setCurrentValue] = useState<Value>();
+  const [currentValue, setCurrentValue] = useState<ValueModel>();
   const [visibleEdit, setVisibleEdit] = useState(false);
   const [form] = Form.useForm();
   const { t } = useTranslation();
@@ -42,31 +33,13 @@ const ScriptStorage: React.FC<{
     if (!script) {
       return () => {};
     }
-    valueCtrl.getValues(script).then((values) => {
-      setData(values);
+    valueClient.getScriptValue(script).then((value) => {
+      setData(
+        Object.keys(value).map((key) => {
+          return { key: key, value: value[key] };
+        })
+      );
     });
-    // Monitor value changes
-    const channel = valueCtrl.watchValue(script);
-    channel.setHandler((value: Value) => {
-      setData((prev) => {
-        const index = prev.findIndex((item) => item.key === value.key);
-        if (index === -1) {
-          if (value.value === undefined) {
-            return prev;
-          }
-          return [value, ...prev];
-        }
-        if (value.value === undefined) {
-          prev.splice(index, 1);
-          return [...prev];
-        }
-        prev[index] = value;
-        return [...prev];
-      });
-    });
-    return () => {
-      channel.disChannel();
-    };
   }, [script]);
   const columns: ColumnProps[] = [
     {
@@ -75,7 +48,6 @@ const ScriptStorage: React.FC<{
       key: "key",
       filterIcon: <IconSearch />,
       width: 140,
-      // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -134,7 +106,7 @@ const ScriptStorage: React.FC<{
     },
     {
       title: t("action"),
-      render(_col, value: Value, index) {
+      render(_col, value: { key: string; value: string }, index) {
         return (
           <Space>
             <Button
@@ -150,7 +122,7 @@ const ScriptStorage: React.FC<{
               iconOnly
               icon={<IconDelete />}
               onClick={() => {
-                valueCtrl.setValue(script!.id, value.key, undefined);
+                valueClient.setScriptValue(script!.uuid, value.key, undefined);
                 Message.info({
                   content: t("delete_success"),
                 });
@@ -179,60 +151,50 @@ const ScriptStorage: React.FC<{
         title={currentValue ? t("edit_value") : t("add_value")}
         visible={visibleEdit}
         onOk={() => {
-          form
-            .validate()
-            .then((value: { key: string; value: any; type: string }) => {
-              switch (value.type) {
-                case "number":
-                  value.value = Number(value.value);
-                  break;
-                case "boolean":
-                  value.value = value.value === "true";
-                  break;
-                case "object":
-                  value.value = JSON.parse(value.value);
-                  break;
-                default:
-                  break;
-              }
-              valueCtrl.setValue(script!.id, value.key, value.value);
-              if (currentValue) {
-                Message.info({
-                  content: t("update_success"),
-                });
-                setData(
-                  data.map((v) => {
-                    if (v.key === value.key) {
-                      return {
-                        ...v,
-                        value: value.value,
-                      };
-                    }
-                    return v;
-                  })
-                );
-              } else {
-                Message.info({
-                  content: t("add_success"),
-                });
-                setData([
-                  {
-                    id: 0,
-                    scriptId: script!.id,
-                    storageName:
-                      (script?.metadata.storagename &&
-                        script?.metadata.storagename[0]) ||
-                      "",
-                    key: value.key,
-                    value: value.value,
-                    createtime: Date.now(),
-                    updatetime: 0,
-                  },
-                  ...data,
-                ]);
-              }
-              setVisibleEdit(false);
-            });
+          form.validate().then((value: { key: string; value: any; type: string }) => {
+            switch (value.type) {
+              case "number":
+                value.value = Number(value.value);
+                break;
+              case "boolean":
+                value.value = value.value === "true";
+                break;
+              case "object":
+                value.value = JSON.parse(value.value);
+                break;
+              default:
+                break;
+            }
+            valueClient.setScriptValue(script!.uuid, value.key, value.value);
+            if (currentValue) {
+              Message.info({
+                content: t("update_success"),
+              });
+              setData(
+                data.map((v) => {
+                  if (v.key === value.key) {
+                    return {
+                      ...v,
+                      value: value.value,
+                    };
+                  }
+                  return v;
+                })
+              );
+            } else {
+              Message.info({
+                content: t("add_success"),
+              });
+              setData([
+                {
+                  key: value.key,
+                  value: value.value,
+                },
+                ...data,
+              ]);
+            }
+            setVisibleEdit(false);
+          });
         }}
         onCancel={() => setVisibleEdit(false)}
       >
@@ -249,25 +211,16 @@ const ScriptStorage: React.FC<{
             }}
           >
             <FormItem label="Key" field="key" rules={[{ required: true }]}>
-              <Input
-                placeholder={t("key_placeholder")!}
-                disabled={!!currentValue}
-              />
+              <Input placeholder={t("key_placeholder")!} disabled={!!currentValue} />
             </FormItem>
             <FormItem label="Value" field="value" rules={[{ required: true }]}>
               <Input.TextArea rows={6} placeholder={t("value_placeholder")!} />
             </FormItem>
-            <FormItem
-              label={t("type")}
-              field="type"
-              rules={[{ required: true }]}
-            >
+            <FormItem label={t("type")} field="type" rules={[{ required: true }]}>
               <Select>
                 <Select.Option value="string">{t("type_string")}</Select.Option>
                 <Select.Option value="number">{t("type_number")}</Select.Option>
-                <Select.Option value="boolean">
-                  {t("type_boolean")}
-                </Select.Option>
+                <Select.Option value="boolean">{t("type_boolean")}</Select.Option>
                 <Select.Option value="object">{t("type_object")}</Select.Option>
               </Select>
             </FormItem>
@@ -282,7 +235,7 @@ const ScriptStorage: React.FC<{
             onOk={() => {
               setData((prev) => {
                 prev.forEach((v) => {
-                  valueCtrl.setValue(script!.id, v.key, undefined);
+                  valueClient.setScriptValue(script!.uuid, v.key, undefined);
                 });
                 Message.info({
                   content: t("clear_success"),

@@ -1,44 +1,45 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "__MSG_scriptcat__",
-  "version": "0.16.6",
+  "version": "0.17.0.1100",
   "author": "CodFrm",
   "description": "__MSG_scriptcat_description__",
   "options_ui": {
     "page": "src/options.html",
     "open_in_tab": true
   },
-  "default_locale": "zh_CN",
+  "background": {
+    "service_worker": "src/service_worker.js"
+  },
+  "incognito": "split",
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "128": "assets/logo.png"
+    }
+  },
   "icons": {
     "128": "assets/logo.png"
   },
-  "browser_action": {
-    "default_popup": "src/popup.html"
-  },
-  "background": {
-    "page": "src/background.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["src/content.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ],
+  "default_locale": "zh_CN",
   "permissions": [
     "tabs",
-    "cookies",
+    "alarms",
     "storage",
+    "cookies",
+    "offscreen",
+    "scripting",
     "downloads",
+    "activeTab",
     "webRequest",
-    "background",
-    "<all_urls>",
+    "userScripts",
     "contextMenus",
     "notifications",
     "clipboardWrite",
-    "webRequestBlocking"
+    "unlimitedStorage",
+    "declarativeNetRequest"
   ],
+  "host_permissions": ["<all_urls>"],
   "sandbox": {
     "pages": ["src/sandbox.html"]
   }

@@ -31,6 +31,10 @@
   "sync_delete": "同步删除",
   "enable_script_sync_to": "启用脚本同步至",
   "save": "保存",
+  "save_as": "另存为",
+  "file": "文件",
+  "run": "运行",
+  "debug": "调试",
   "cloud_sync_account_verification": "云同步账号信息验证中...",
   "cloud_sync_verification_failed": "云同步账号信息验证失败",
   "save_success": "保存成功",
@@ -64,6 +68,7 @@
   "confirm_delete_backup_file": "确认删除备份文件",
   "confirm_update": "确认更新",
   "delete_success": "删除成功",
+  "deleting": "删除中",
   "backup_strategy": "备份策略",
   "under_construction": "建设中",
   "development_debugging": "开发调试",
@@ -358,5 +363,13 @@
   "collapse": "收起",
   "expand": "展开",
   "menu_expand_num_before": "菜单项超过",
-  "menu_expand_num_after": "个时，自动隐藏"
+  "menu_expand_num_after": "个时，自动隐藏",
+  "script_name_cannot_be_set_to_empty": "脚本name不可以设置为空",
+  "eslint_config_format_error": "eslint配置格式错误",
+  "export_success": "导出成功",
+  "get_backup_dir_url_failed": "获取备份目录地址失败",
+  "get_backup_files_failed": "获取备份文件失败",
+  "develop_mode_guide": "检测到当前未开启开发者模式，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
+  "enable_script_failed": "脚本开启失败",
+  "disable_script_failed": "脚本关闭失败"
 }

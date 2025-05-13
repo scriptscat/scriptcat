@@ -1,49 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
 import Text from "@arco-design/web-react/es/Typography/text";
-import {
-  Button,
-  Card,
-  Input,
-  Message,
-  Popconfirm,
-  Switch,
-  Table,
-  Tag,
-  Tooltip,
-} from "@arco-design/web-react";
-import {
-  Subscribe,
-  SUBSCRIBE_STATUS_DISABLE,
-  SUBSCRIBE_STATUS_ENABLE,
-  SubscribeDAO,
-} from "@App/app/repo/subscribe";
+import { Button, Card, Input, Message, Popconfirm, Switch, Table, Tag, Tooltip } from "@arco-design/web-react";
+import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
-import IoC from "@App/app/ioc";
-import SubscribeController from "@App/app/service/subscribe/controller";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { semTime } from "@App/pkg/utils/utils";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
+import { subscribeClient } from "@App/pages/store/features/script";
 
 type ListType = Subscribe & { loading?: boolean };
 
 function SubscribeList() {
   const dao = new SubscribeDAO();
-  const subscribeCtrl = IoC.instance(
-    SubscribeController
-  ) as SubscribeController;
   const [list, setList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation(); // 使用 useTranslation hook
 
   useEffect(() => {
-    dao.table
-      .orderBy("id")
-      .toArray()
-      .then((subscribes) => {
-        setList(subscribes);
-      });
+    dao.all().then((subscribes) => {
+      setList(subscribes);
+    });
   }, []);
 
   const columns: ColumnProps[] = [
@@ -52,7 +30,13 @@ function SubscribeList() {
       dataIndex: "id",
       width: 70,
       key: "#",
-      sorter: (a, b) => a.id - b.id,
+      sorter: (a: Subscribe, b) => a.createtime - b.createtime,
+      render(col) {
+        if (col < 0) {
+          return "-";
+        }
+        return col + 1;
+      },
     },
     {
       title: t("enable"),
@@ -81,22 +65,18 @@ function SubscribeList() {
             onChange={(checked) => {
               list[index].loading = true;
               setList([...list]);
-              let p: Promise<any>;
-              if (checked) {
-                p = subscribeCtrl.enable(item.id).then(() => {
-                  list[index].status = SUBSCRIBE_STATUS_ENABLE;
+              subscribeClient
+                .enable(item.url, checked)
+                .then(() => {
+                  list[index].status = checked ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE;
+                })
+                .catch((err) => {
+                  Message.error(err);
+                })
+                .finally(() => {
+                  list[index].loading = false;
+                  setList([...list]);
                 });
-              } else {
-                p = subscribeCtrl.disable(item.id).then(() => {
-                  list[index].status = SUBSCRIBE_STATUS_DISABLE;
-                });
-              }
-              p.catch((err) => {
-                Message.error(err);
-              }).finally(() => {
-                list[index].loading = false;
-                setList([...list]);
-              });
             }}
           />
         );
@@ -171,14 +151,7 @@ function SubscribeList() {
           return <div />;
         }
         return (item.metadata.connect as string[]).map((val) => {
-          return (
-            <img
-              src={`https://${val}/favicon.ico`}
-              alt={val}
-              height={16}
-              width={16}
-            />
-          );
+          return <img src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
         });
       },
     },
@@ -229,8 +202,8 @@ function SubscribeList() {
                 id: "checkupdate",
                 content: t("checking_for_updates"),
               });
-              subscribeCtrl
-                .checkUpdate(subscribe.id)
+              subscribeClient
+                .checkUpdate(subscribe.url)
                 .then((res) => {
                   if (res) {
                     Message.warning({
@@ -269,10 +242,15 @@ function SubscribeList() {
               title={t("confirm_delete_subscription")}
               icon={<RiDeleteBin5Fill />}
               onOk={() => {
-                setList(list.filter((val) => val.id !== item.id));
-                subscribeCtrl.delete(item.id).catch((e) => {
-                  Message.error(`${t("delete_failed")}: ${e}`);
-                });
+                subscribeClient
+                  .delete(item.url)
+                  .then(() => {
+                    setList(list.filter((val) => val.url !== item.url));
+                    Message.success(t("delete_success"));
+                  })
+                  .catch((e) => {
+                    Message.error(`${t("delete_failed")}: ${e}`);
+                  });
               }}
             >
               <Button

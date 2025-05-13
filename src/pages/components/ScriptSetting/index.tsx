@@ -1,16 +1,7 @@
-import IoC from "@App/app/ioc";
-import { Script } from "@App/app/repo/scripts";
+import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/utils";
-import {
-  Descriptions,
-  Divider,
-  Drawer,
-  Empty,
-  Input,
-  Message,
-} from "@arco-design/web-react";
+import { Descriptions, Divider, Drawer, Empty, Input, Message } from "@arco-design/web-react";
 import React, { useEffect, useState } from "react";
-import ScriptController from "@App/app/service/script/controller";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
@@ -21,14 +12,14 @@ const ScriptSetting: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const scriptDAO = new ScriptDAO();
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
 
   const { t } = useTranslation();
 
   useEffect(() => {
     if (script) {
-      scriptCtrl.scriptDAO.findById(script.id).then((v) => {
+      scriptDAO.get(script.uuid).then((v) => {
         setCheckUpdateUrl(v?.downloadUrl || "");
       });
     }
@@ -58,9 +49,7 @@ const ScriptSetting: React.FC<{
         data={[
           {
             label: t("last_updated"),
-            value: formatUnixTime(
-              (script?.updatetime || script?.createtime || 0) / 1000
-            ),
+            value: formatUnixTime((script?.updatetime || script?.createtime || 0) / 1000),
           },
           {
             label: "UUID",
@@ -85,8 +74,8 @@ const ScriptSetting: React.FC<{
                   setCheckUpdateUrl(e);
                 }}
                 onBlur={() => {
-                  scriptCtrl
-                    .updateCheckUpdateUrl(script!.id, checkUpdateUrl)
+                  scriptDAO
+                    .update(script.uuid, { downloadUrl: checkUpdateUrl, checkUpdateUrl: checkUpdateUrl })
                     .then(() => {
                       Message.success(t("update_success")!);
                     });

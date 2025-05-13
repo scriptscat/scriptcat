@@ -2,23 +2,16 @@
 
 declare const unsafeWindow: Window;
 
-declare type ConfigType =
-  | "text"
-  | "checkbox"
-  | "select"
-  | "mult-select"
-  | "number"
-  | "textarea"
-  | "time";
+declare type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "time";
 
 declare interface Config {
-  [key: string]: any;
+  [key: string]: unknown;
   title: string;
   description: string;
-  default?: any;
+  default?: unknown;
   type?: ConfigType;
   bind?: string;
-  values?: any[];
+  values?: unknown[];
   password?: boolean;
   // 文本类型时是字符串长度,数字类型时是最大值
   max?: number;
@@ -55,6 +48,7 @@ declare const GM_info: {
     namespace?: string;
     // position: number;
     "run-at": string;
+    "run-in": string[];
     // resources: string[];
     // unwrap: boolean;
     version: string;
@@ -76,9 +70,9 @@ declare const GM_info: {
       };
       [key: string]: any;
     }; */
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 declare function GM_addStyle(css: string): HTMLElement;
@@ -87,71 +81,42 @@ declare function GM_deleteValue(name: string): void;
 
 declare function GM_listValues(): string[];
 
-declare function GM_addValueChangeListener(
-  name: string,
-  listener: GMTypes.ValueChangeListener
-): number;
+declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
 
 // 可以使用Promise实际等待值的设置完成
-declare function GM_setValue(name: string, value: any): Promise;
+declare function GM_setValue(name: string, value: unknown): Promise;
 
-declare function GM_getValue(name: string, defaultValue?: any): any;
+declare function GM_getValue(name: string, defaultValue?: unknown): unknown;
 
 // 支持level和label
-declare function GM_log(
-  message: string,
-  level?: GMTypes.LoggerLevel,
-  labels?: GMTypes.LoggerLabel
-): any;
+declare function GM_log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): unknown;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
-declare function GM_getResourceURL(
-  name: string,
-  isBlobUrl?: boolean = false
-): string | undefined;
+declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-declare function GM_registerMenuCommand(
-  name: string,
-  listener: () => void,
-  accessKey?: string
-): number;
+declare function GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
-declare function GM_openInTab(
-  url: string,
-  options: GMTypes.OpenTabOptions
-): tab;
+declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
 declare function GM_openInTab(url: string): tab;
 
-declare function GM_xmlhttpRequest(
-  details: GMTypes.XHRDetails
-): GMTypes.AbortHandle<void>;
+declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
-declare function GM_download(
-  details: GMTypes.DownloadDetails
-): GMTypes.AbortHandle<boolean>;
-declare function GM_download(
-  url: string,
-  filename: string
-): GMTypes.AbortHandle<boolean>;
+declare function GM_download(details: GMTypes.DownloadDetails): GMTypes.AbortHandle<boolean>;
+declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_getTab(callback: (obj: object) => any): void;
+declare function GM_getTab(callback: (obj: object) => unknown): void;
 
 declare function GM_saveTab(obj: object): Promise<void>;
 
-declare function GM_getTabs(
-  callback: (objs: { [key: number]: object }) => any
-): void;
+declare function GM_getTabs(callback: (objs: { [key: number]: object }) => unknown): void;
 
-declare function GM_notification(
-  details: GMTypes.NotificationDetails,
-  ondone?: GMTypes.NotificationOnDone
-): void;
+declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
   text: string,
   title: string,
@@ -161,39 +126,18 @@ declare function GM_notification(
 
 declare function GM_closeNotification(id: string): void;
 
-declare function GM_updateNotification(
-  id: string,
-  details: GMTypes.NotificationDetails
-): void;
+declare function GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void;
 
-declare function GM_setClipboard(
-  data: string,
-  info?: string | { type?: string; minetype?: string }
-): void;
+declare function GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }): void;
 
-declare function GM_addElement(tag: string, attribubutes: any);
-declare function GM_addElement(parentNode: Element, tag: string, attrs: any);
+declare function GM_addElement(tag: string, attribubutes: unknown);
+declare function GM_addElement(parentNode: Element, tag: string, attrs: unknown);
 
 // name和domain不能都为空
 declare function GM_cookie(
   action: GMTypes.CookieAction,
   details: GMTypes.CookieDetails,
-  ondone: (cookie: GMTypes.Cookie[], error: any | undefined) => void
-): void;
-
-/**
- * 可以通过GM_addValueChangeListener获取tabid
- * 再通过tabid(前后端通信可能用到,ValueChangeListener会返回tabid),获取storeid,后台脚本用.
- * 请注意这是一个实验性质的API,后续可能会改变
- * @param tabid 页面的tabid
- * @param ondone 完成事件
- * @param callback.storeid 该页面的storeid,可以给GM_cookie使用
- * @param callback.error 错误信息
- * @deprecated 已废弃,请使用GM_cookie("store", tabid)替代
- */
-declare function GM_getCookieStore(
-  tabid: number,
-  ondone: (storeId: number | undefined, error: any | undefined) => void
+  ondone: (cookie: GMTypes.Cookie[], error: unknown | undefined) => void
 ): void;
 
 /**
@@ -331,10 +275,7 @@ declare namespace CATType {
 }
 
 declare namespace GMTypes {
-  /*
-   * store为获取隐身窗口之类的cookie,这是一个实验性质的API,后续可能会改变
-   */
-  type CookieAction = "list" | "delete" | "set" | "store";
+  type CookieAction = "list" | "delete" | "set";
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 
@@ -350,17 +291,13 @@ declare namespace GMTypes {
     path?: string;
     secure?: boolean;
     session?: boolean;
-    storeId?: string;
     httpOnly?: boolean;
     expirationDate?: number;
-    // store用
-    tabId?: number;
   }
 
   interface Cookie {
     domain: string;
     name: string;
-    storeId: string;
     value: string;
     session: boolean;
     hostOnly: boolean;
@@ -373,17 +310,17 @@ declare namespace GMTypes {
   // tabid是只有后台脚本监听才有的参数
   type ValueChangeListener = (
     name: string,
-    oldValue: any,
-    newValue: any,
+    oldValue: unknown,
+    newValue: unknown,
     remote: boolean,
     tabid?: number
-  ) => any;
+  ) => unknown;
 
   interface OpenTabOptions {
     active?: boolean;
     insert?: boolean;
     setParent?: boolean;
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能
+    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 表示使用window.open打开新窗口 #178
   }
 
   interface XHRResponse {
@@ -395,13 +332,7 @@ declare namespace GMTypes {
     response?: string | Blob | ArrayBuffer | Document | ReadableStream | null;
     responseText?: string;
     responseXML?: Document | null;
-    responseType?:
-      | "text"
-      | "arraybuffer"
-      | "blob"
-      | "json"
-      | "document"
-      | "stream";
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
   }
 
   interface XHRProgress extends XHRResponse {
@@ -413,8 +344,8 @@ declare namespace GMTypes {
     totalSize: number;
   }
 
-  type Listener<OBJ> = (event: OBJ) => any;
-  type ContextType = any;
+  type Listener<OBJ> = (event: OBJ) => unknown;
+  type ContextType = unknown;
 
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
@@ -425,20 +356,14 @@ declare namespace GMTypes {
     binary?: boolean;
     timeout?: number;
     context?: ContextType;
-    responseType?:
-      | "text"
-      | "arraybuffer"
-      | "blob"
-      | "json"
-      | "document"
-      | "stream"; // stream 在当前版本是一个较为简陋的实现
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream"; // stream 在当前版本是一个较为简陋的实现
     overrideMimeType?: string;
     anonymous?: boolean;
     fetch?: boolean;
     user?: string;
     password?: string;
     nocache?: boolean;
-    maxRedirects?: number;
+    redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;
@@ -455,13 +380,7 @@ declare namespace GMTypes {
   }
 
   interface DownloadError {
-    error:
-      | "not_enabled"
-      | "not_whitelisted"
-      | "not_permitted"
-      | "not_supported"
-      | "not_succeeded"
-      | "unknown";
+    error: "not_enabled" | "not_whitelisted" | "not_permitted" | "not_supported" | "not_succeeded" | "unknown";
     details?: string;
   }
 
@@ -485,12 +404,8 @@ declare namespace GMTypes {
     id: string;
   }
 
-  type NotificationOnClick = (
-    this: NotificationThis,
-    id: string,
-    index?: number
-  ) => any;
-  type NotificationOnDone = (this: NotificationThis, user: boolean) => any;
+  type NotificationOnClick = (this: NotificationThis, id: string, index?: number) => unknown;
+  type NotificationOnDone = (this: NotificationThis, user: boolean) => unknown;
 
   interface NotificationButton {
     title: string;

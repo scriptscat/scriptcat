@@ -358,5 +358,6 @@
   "collapse": "Collapse",
   "expand": "Expand",
   "menu_expand_num_before": "Menu item more than",
-  "menu_expand_num_after": "Auto-hide."
+  "menu_expand_num_after": "Auto-hide.",
+  "eslint_config_format_error": "ESLint configuration format error"
 }

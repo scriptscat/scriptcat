@@ -1,11 +1,24 @@
-/* eslint-disable max-classes-per-file */
-
 import Logger from "@App/app/logger/logger";
+
+export interface Url {
+  scheme: string;
+  host: string;
+  path: string;
+  search: string;
+}
 
 export default class Match<T> {
   protected cache = new Map<string, T[]>();
 
   protected rule = new Map<string, T[]>();
+
+  protected kv = new Map<string, T>();
+
+  forEach(fn: (val: T, key: string) => void) {
+    this.kv.forEach((val, key) => {
+      fn(val, key);
+    });
+  }
 
   protected parseURL(url: string): Url | undefined {
     if (url.indexOf("*http") === 0) {
@@ -51,22 +64,11 @@ export default class Match<T> {
     let pos = u.host.indexOf("*");
     if (u.host === "*" || u.host === "**") {
       pos = -1;
-    } else if (u.host.endsWith("*")) {
-      // 处理*结尾
-      if (!u.host.endsWith(":*")) {
-        u.host = u.host.substring(0, u.host.length - 1);
-      }
-    } else if (pos !== -1 && pos !== 0) {
-      return "";
     }
     u.host = u.host.replace(/\*/g, "[^/]*?");
     // 处理 *.开头
     if (u.host.startsWith("[^/]*?.")) {
       u.host = `([^/]*?\\.?)${u.host.substring(7)}`;
-    } else if (pos !== -1) {
-      if (u.host.indexOf(".") === -1) {
-        return "";
-      }
     }
     // 处理顶域
     if (u.host.endsWith("tld")) {
@@ -107,6 +109,7 @@ export default class Match<T> {
       this.rule.set(re, rule);
     }
     rule.push(val);
+    this.kv.set(Match.getId(val), val);
     this.delCache();
   }
 
@@ -124,7 +127,6 @@ export default class Match<T> {
         }
       });
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.warn("bad match rule", Logger.E(e));
       // LoggerCore.getLogger({ component: "match" }).warn(
       //   "bad match rule",
@@ -136,10 +138,10 @@ export default class Match<T> {
   }
 
   protected static getId(val: any): string {
-    if (typeof val === "object") {
-      return (<{ id: string }>(<unknown>val)).id;
+    if (typeof val === "string") {
+      return val;
     }
-    return <string>(<unknown>val);
+    return (<{ uuid: string }>(<unknown>val)).uuid;
   }
 
   public del(val: T) {
@@ -205,66 +207,100 @@ export class UrlMatch<T> extends Match<T> {
   }
 }
 
-export interface Url {
+export interface PatternMatchesUrl {
   scheme: string;
   host: string;
   path: string;
-  search: string;
 }
 
-export class UrlInclude<T> extends UrlMatch<T> {
-  protected parseURL(url: string): Url | undefined {
-    const ret = super.parseURL(url);
-    if (ret) {
-      return ret;
-    }
-    if (url === "http*") {
-      return { scheme: "*", host: "*", path: "*", search: "*" };
-    }
-    const match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
-    if (match) {
-      return {
-        scheme: "*",
-        host: match[1],
-        path: match[3] || (url[url.length - 1] === "*" ? "*" : "/"),
-        search: match[4],
-      };
-    }
-    return undefined;
+// 解析URL, 根据https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns?hl=zh-cn进行处理
+// 将一些异常情况直接转为通配，用最大的范围去注册userScript，在执行的时候再用UrlMatch去匹配过滤
+export function parsePatternMatchesURL(
+  url: string,
+  options?: {
+    exclude?: boolean;
   }
-
-  protected compileRe(url: string): string {
-    const u = this.parseURL(url);
-    if (!u) {
-      return "";
-    }
-    switch (u.scheme) {
+): PatternMatchesUrl | undefined {
+  let result: PatternMatchesUrl | undefined;
+  const match = /^(.+?):\/\/(.*?)(\/(.*?)(\?.*?|)|)$/.exec(url);
+  if (match) {
+    result = {
+      scheme: match[1],
+      host: match[2],
+      path: match[4] || (url[url.length - 1] === "*" ? "*" : ""),
+    };
+  } else {
+    // 处理一些特殊情况
+    switch (url) {
       case "*":
-        u.scheme = ".+?";
-        break;
-      case "http*":
-        u.scheme = "http[s]?";
+        result = {
+          scheme: "*",
+          host: "*",
+          path: "*",
+        };
         break;
       default:
     }
-    u.host = u.host.replace(/\*/g, "[^/]*?");
-    // 处理 *.开头
-    if (u.host.startsWith("[^/]*?.")) {
-      u.host = `([^/]*?.?)${u.host.substring(7)}`;
-    }
-    // 处理顶域
-    if (u.host.endsWith("tld")) {
-      u.host = `${u.host.substring(0, u.host.length - 3)}.*?`;
-    }
-    let re = `^${u.scheme}://${u.host}`;
-    if (u.path === "/") {
-      re += "[/]?";
-    } else {
-      re += u.path.replace(/\*/g, ".*?");
-    }
-    if (u.search) {
-      re += u.search.replace(/([\\?])/g, "\\$1").replace(/\*/g, ".*?");
-    }
-    return `${re.replace(/\//g, "/")}$`;
   }
+  if (result) {
+    if (result.scheme === "http*") {
+      result.scheme = "*";
+    }
+    if (result.host !== "*") {
+      // *开头但是不是*.的情况
+      if (result.host.startsWith("*")) {
+        if (!result.host.startsWith("*.")) {
+          // 删除开头的*号
+          result.host = result.host.slice(1);
+        }
+      }
+      // 结尾是*的情况
+      if (result.host.endsWith("*")) {
+        result.host = "*";
+      }
+      // 结尾是.的情况
+      if (result.host.endsWith(".")) {
+        result.host = result.host.slice(0, -1);
+      }
+      // 处理 www.*.example.com 的情况为 *.example.com
+      const pos = result.host.lastIndexOf("*");
+      if (pos > 0 && pos < result.host.length - 1) {
+        if (options && options.exclude) {
+          // 如果是exclude, 按最小匹配处理
+          // 包括*也去掉
+          result.host = result.host.substring(pos + 1);
+          if (result.host.startsWith(".")) {
+            result.host = result.host.substring(1);
+          }
+        } else {
+          // 如果不是exclude
+          // 将*前面的全部去掉
+          result.host = result.host.substring(pos);
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// 处理油猴的match和include为chrome的pattern-matche
+export function dealPatternMatches(
+  matches: string[],
+  options?: {
+    exclude?: boolean;
+  }
+) {
+  const patternResult: string[] = [];
+  const result: string[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const url = parsePatternMatchesURL(matches[i], options);
+    if (url) {
+      patternResult.push(`${url.scheme}://${url.host}/${url.path}`);
+      result.push(matches[i]);
+    }
+  }
+  return {
+    patternResult,
+    result,
+  };
 }

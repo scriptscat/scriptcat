@@ -21,8 +21,8 @@ import React, { useRef, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
-import CustomLink from "..";
 import SiderGuide from "./SiderGuide";
+import CustomLink from "../CustomLink";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -194,7 +194,7 @@ const Sider: React.FC = () => {
         <Routes>
           <Route index element={<ScriptList />} />
           <Route path="/script/editor">
-            <Route path=":id" element={<ScriptEditor />} />
+            <Route path=":uuid" element={<ScriptEditor />} />
             <Route path="" element={<ScriptEditor />} />
           </Route>
           <Route path="/subscribe" element={<SubscribeList />} />
