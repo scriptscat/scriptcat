@@ -20,7 +20,7 @@ export default defineConfig({
     ? {
         watch: true,
         mode: "development",
-        devtool: "inline-source-map",
+        devtool: process.env.NO_MAP === "true" ? false : "inline-source-map",
       }
     : {
         mode: "production",
@@ -53,8 +53,8 @@ export default defineConfig({
       "@App": path.resolve(__dirname, "src/"),
       "@Packages": path.resolve(__dirname, "packages/"),
       // 改写eslint-plugin-userscripts以适配脚本猫，打包时重定义模块路径
-      "../data/compat-grant": path.resolve(__dirname, "./packages/eslint/compat-grant"),
-      "../data/compat-headers": path.resolve(__dirname, "./packages/eslint/compat-headers"),
+      "../data/compat-grant": path.resolve(__dirname, "packages/eslint/compat-grant"),
+      "../data/compat-headers": path.resolve(__dirname, "packages/eslint/compat-headers"),
     },
     fallback: {
       child_process: false,

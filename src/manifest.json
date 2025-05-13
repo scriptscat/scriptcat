@@ -9,11 +9,9 @@
     "open_in_tab": true
   },
   "background": {
-    "service_worker": "src/service_worker.js",
-    "scripts": [
-      "src/service_worker.js"
-    ]
+    "service_worker": "src/service_worker.js"
   },
+  "incognito": "split",
   "action": {
     "default_popup": "src/popup.html",
     "default_icon": {
@@ -41,12 +39,8 @@
     "unlimitedStorage",
     "declarativeNetRequest"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "sandbox": {
-    "pages": [
-      "src/sandbox.html"
-    ]
+    "pages": ["src/sandbox.html"]
   }
 }

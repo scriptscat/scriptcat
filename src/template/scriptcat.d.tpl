@@ -48,6 +48,7 @@ declare const GM_info: {
     namespace?: string;
     // position: number;
     "run-at": string;
+    "run-in": string[];
     // resources: string[];
     // unwrap: boolean;
     version: string;

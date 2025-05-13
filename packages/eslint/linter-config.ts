@@ -1,44 +1,4 @@
-// 由于原库（eslint-plugin-userscripts）使用了 fs 模块，无法在 webpack5 中直接使用，故改写成如下形式
-const userscriptsConfig = {
-  rules: {
-    "userscripts/filename-user": ["error", "always"],
-    "userscripts/no-invalid-metadata": ["error", { top: "required" }],
-    "userscripts/require-name": ["error", "required"],
-    "userscripts/require-description": ["error", "required"],
-    "userscripts/require-version": ["error", "required"],
-    "userscripts/require-attribute-space-prefix": "error",
-    "userscripts/use-homepage-and-url": "error",
-    "userscripts/use-download-and-update-url": "error",
-    "userscripts/align-attributes": ["error", 2],
-    "userscripts/metadata-spacing": ["error", "always"],
-    "userscripts/no-invalid-headers": "error",
-    "userscripts/no-invalid-grant": "error",
-    "userscripts/compat-grant": "off",
-    "userscripts/compat-headers": "off",
-    "userscripts/better-use-match": "warn",
-  },
-};
-
-const userscriptsRules = Object.fromEntries(
-  Object.keys(userscriptsConfig.rules).map((name) => {
-    const ruleName = name.split("/")[1];
-    // eslint-disable-next-line import/no-dynamic-require, global-require
-    const ruleMeta = require(`eslint-plugin-userscripts/lib/rules/${ruleName}.js`);
-    return [
-      name,
-      {
-        ...ruleMeta,
-        meta: {
-          ...ruleMeta.meta,
-          docs: {
-            ...ruleMeta.meta.docs,
-            url: `https://yash-singh1.github.io/eslint-plugin-userscripts/#/rules/${ruleName}`,
-          },
-        },
-      },
-    ];
-  })
-);
+const { configs, rules } = require("eslint-plugin-userscripts");
 
 // 默认规则
 const config = {
@@ -116,7 +76,7 @@ const config = {
     "require-yield": ["error"],
     "use-isnan": ["error"],
     "valid-typeof": ["error"],
-    ...userscriptsConfig.rules,
+    ...configs.recommended.rules,
   },
   env: {
     es6: true,
@@ -126,6 +86,4 @@ const config = {
 };
 
 // 以文本形式导出默认规则
-const defaultConfig = JSON.stringify(config, null, 2);
-
-export { defaultConfig, userscriptsConfig, userscriptsRules };
+export const defaultConfig = JSON.stringify(config, null, 2);

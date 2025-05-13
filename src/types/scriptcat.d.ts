@@ -48,6 +48,7 @@ declare const GM_info: {
     namespace?: string;
     // position: number;
     "run-at": string;
+    "run-in": string[];
     // resources: string[];
     // unwrap: boolean;
     version: string;
@@ -362,7 +363,7 @@ declare namespace GMTypes {
     user?: string;
     password?: string;
     nocache?: boolean;
-    redirect?: "follow" | "error" | "manual";// 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
+    redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;
