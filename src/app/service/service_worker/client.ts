@@ -87,6 +87,72 @@ export class ScriptClient extends Client {
   importByUrl(url: string) {
     return this.do("importByUrl", url);
   }
+
+  async formatUrl(url: string) {
+    try {
+      const newUrl = new URL(url.replace(/\/$/, ""));
+      const { hostname, pathname } = newUrl;
+      // 判断是否为脚本猫脚本页
+      if (hostname === "scriptcat.org" && /script-show-page\/\d+$/.test(pathname)) {
+        const scriptId = pathname.match(/\d+$/)![0];
+        // 请求脚本信息
+        const scriptInfo = await fetch(`https://scriptcat.org/api/v2/scripts/${scriptId}`)
+          .then((res) => {
+            return res.json();
+          })
+          .then((json) => {
+            return json;
+          });
+        const { code, data, msg } = scriptInfo;
+        if (code != 0) {
+          // 无脚本访问权限
+          return { success: false, msg };
+        } else {
+          // 返回脚本实际安装地址
+          const scriptName = data.name;
+          return `https://scriptcat.org/scripts/code/${scriptId}/${scriptName}.user.js`;
+        }
+      } else {
+        return url;
+      }
+    } catch {
+      return url;
+    }
+  }
+
+  importByUrls(urls: string[]) {
+    if (urls.length == 0) {
+      return;
+    }
+    return (
+      Promise.allSettled(
+        urls.map(async (url) => {
+          const formattedResult = await this.formatUrl(url);
+          if (formattedResult instanceof Object) {
+            return Promise.resolve(formattedResult);
+          } else {
+            return this.do("importByUrl", formattedResult);
+          }
+        })
+        // this.do 只会resolve 不会reject
+      ) as Promise<PromiseFulfilledResult<{ success: boolean; msg: string }>[]>
+    ).then((results) => {
+      console.log(results);
+      const stat = results.reduce(
+        (obj, result, index) => {
+          if (result.value.success) {
+            obj.success++;
+          } else {
+            obj.fail++;
+            obj.msg.push(`#${index + 1}: ${result.value.msg}`);
+          }
+          return obj;
+        },
+        { success: 0, fail: 0, msg: [] as string[] }
+      );
+      return stat;
+    });
+  }
 }
 
 export class ResourceClient extends Client {

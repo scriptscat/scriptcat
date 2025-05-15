@@ -143,16 +143,22 @@ export class ScriptService {
     );
   }
 
-  public openInstallPageByUrl(url: string, source: InstallSource) {
+  public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuidv4()).then((info) => {
-      Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
-      setTimeout(() => {
-        // 清理缓存
-        Cache.getInstance().del(CacheKey.scriptInstallInfo(uuid));
-      }, 30 * 1000);
-      openInCurrentTab(`/src/install.html?uuid=${uuid}`);
-    });
+    return fetchScriptInfo(url, source, false, uuidv4())
+      .then((info) => {
+        Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
+        setTimeout(() => {
+          // 清理缓存
+          Cache.getInstance().del(CacheKey.scriptInstallInfo(uuid));
+        }, 30 * 1000);
+        openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+        return { success: true, msg: "" };
+      })
+      .catch((err) => {
+        console.error(err);
+        return { success: false, msg: err.message };
+      });
   }
 
   // 直接通过url静默安装脚本
