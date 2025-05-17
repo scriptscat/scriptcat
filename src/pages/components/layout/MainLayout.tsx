@@ -11,8 +11,16 @@ import {
   Space,
   Typography,
 } from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { IconDesktop, IconDown, IconLink, IconMoonFill, IconSunFill } from "@arco-design/web-react/icon";
+import { RefTextAreaType } from "@arco-design/web-react/es/Input";
+import {
+  IconCheckCircle,
+  IconCloseCircle,
+  IconDesktop,
+  IconDown,
+  IconLink,
+  IconMoonFill,
+  IconSunFill,
+} from "@arco-design/web-react/icon";
 import React, { ReactNode, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "./index.css";
@@ -28,7 +36,7 @@ const MainLayout: React.FC<{
 }> = ({ children, className, pageName }) => {
   const lightMode = useAppSelector(selectThemeMode);
   const dispatch = useAppDispatch();
-  const importRef = useRef<RefInputType>(null);
+  const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
   const { t } = useTranslation();
 
@@ -50,8 +58,32 @@ const MainLayout: React.FC<{
             title={t("import_link")}
             visible={importVisible}
             onOk={async () => {
+              const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
               try {
-                await scriptClient.importByUrl(importRef.current!.dom.value);
+                const stat = await scriptClient.importByUrls(urls);
+                stat &&
+                  Modal.info({
+                    title: "链接导入结果",
+                    content: (
+                      <Space direction="vertical" style={{ width: "100%" }}>
+                        <div style={{ textAlign: "center" }}>
+                          <Space size="small" style={{ fontSize: 18 }}>
+                            <IconCheckCircle style={{ color: "green" }} />
+                            {stat.success}
+                            {""}
+                            <IconCloseCircle style={{ color: "red" }} />
+                            {stat.fail}
+                          </Space>
+                        </div>
+                        {stat.msg.length > 0 && (
+                          <>
+                            <b>失败信息:</b>
+                            {stat.msg}
+                          </>
+                        )}
+                      </Space>
+                    ),
+                  });
                 setImportVisible(false);
               } catch (e) {
                 Message.error(`${t("import_link_failure")}: ${e}`);
@@ -61,7 +93,12 @@ const MainLayout: React.FC<{
               setImportVisible(false);
             }}
           >
-            <Input ref={importRef} defaultValue="" />
+            <Input.TextArea
+              ref={importRef}
+              rows={8}
+              placeholder={`支持输入.user.js结尾的脚本绝对链接 或 脚本猫安装页链接\n可多行填写，每行一条\n示例：\nhttps://example.com/test.user.js \nhttps://scriptcat.org/zh-CN/script-show-page/1234`}
+              defaultValue=""
+            />
           </Modal>
           <div className="flex row items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />

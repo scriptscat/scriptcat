@@ -94,9 +94,13 @@ export class Server {
       try {
         const ret = func(params, new GetSender(sender!));
         if (ret instanceof Promise) {
-          ret.then((data) => {
-            sendResponse({ code: 0, data });
-          });
+          ret
+            .then((data) => {
+              sendResponse({ code: 0, data });
+            })
+            .catch((err) => {
+              sendResponse({ code: -1, message: err });
+            });
           return true;
         } else {
           sendResponse({ code: 0, data: ret });
