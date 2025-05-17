@@ -28,6 +28,61 @@ import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
+import { useDropzone } from "react-dropzone";
+
+const readFile = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    // 实例化 FileReader对象
+    const reader = new FileReader();
+    reader.onload = async (processEvent) => {
+      // 创建blob url
+      const blob = new Blob([processEvent.target!.result!], {
+        type: "application/javascript",
+      });
+      const url = URL.createObjectURL(blob);
+      resolve(url);
+    };
+    // 调用readerAsText方法读取文本
+    reader.readAsText(file);
+  });
+};
+
+const uploadFiles = async (files: File[]) => {
+  // const filterFiles = files.filter((f) => f.name.endsWith(".js"));
+  const urls = await Promise.all(
+    files.map((file) => {
+      return readFile(file);
+    })
+  );
+  importByUrls(urls);
+};
+
+const importByUrls = async (urls: string[]) => {
+  const stat = await scriptClient.importByUrls(urls);
+  stat &&
+    Modal.info({
+      title: "脚本导入结果",
+      content: (
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div style={{ textAlign: "center" }}>
+            <Space size="small" style={{ fontSize: 18 }}>
+              <IconCheckCircle style={{ color: "green" }} />
+              {stat.success}
+              {""}
+              <IconCloseCircle style={{ color: "red" }} />
+              {stat.fail}
+            </Space>
+          </div>
+          {stat.msg.length > 0 && (
+            <>
+              <b>失败信息:</b>
+              {stat.msg}
+            </>
+          )}
+        </Space>
+      ),
+    });
+};
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -39,6 +94,13 @@ const MainLayout: React.FC<{
   const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
   const { t } = useTranslation();
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { "application/javascript": [".js"] },
+    onDrop: (acceptedFiles) => {
+      console.log(acceptedFiles);
+      uploadFiles(acceptedFiles);
+    },
+  });
 
   return (
     <ConfigProvider
@@ -59,35 +121,8 @@ const MainLayout: React.FC<{
             visible={importVisible}
             onOk={async () => {
               const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
-              try {
-                const stat = await scriptClient.importByUrls(urls);
-                stat &&
-                  Modal.info({
-                    title: "链接导入结果",
-                    content: (
-                      <Space direction="vertical" style={{ width: "100%" }}>
-                        <div style={{ textAlign: "center" }}>
-                          <Space size="small" style={{ fontSize: 18 }}>
-                            <IconCheckCircle style={{ color: "green" }} />
-                            {stat.success}
-                            {""}
-                            <IconCloseCircle style={{ color: "red" }} />
-                            {stat.fail}
-                          </Space>
-                        </div>
-                        {stat.msg.length > 0 && (
-                          <>
-                            <b>失败信息:</b>
-                            {stat.msg}
-                          </>
-                        )}
-                      </Space>
-                    ),
-                  });
-                setImportVisible(false);
-              } catch (e) {
-                Message.error(`${t("import_link_failure")}: ${e}`);
-              }
+              importByUrls(urls);
+              setImportVisible(false);
             }}
             onCancel={() => {
               setImportVisible(false);
@@ -129,37 +164,9 @@ const MainLayout: React.FC<{
                     <Menu.Item
                       key="import_local"
                       onClick={() => {
-                        const el = document.getElementById("import-local");
-                        el!.onchange = (e: Event) => {
-                          try {
-                            // 获取文件
-                            // @ts-ignore
-                            const file = e.target.files[0];
-                            // 实例化 FileReader对象
-                            const reader = new FileReader();
-                            reader.onload = async (processEvent) => {
-                              // 创建blob url
-                              const blob = new Blob(
-                                // @ts-ignore
-                                [processEvent.target!.result],
-                                {
-                                  type: "application/javascript",
-                                }
-                              );
-                              const url = URL.createObjectURL(blob);
-                              await scriptClient.importByUrl(url);
-                              Message.success(t("import_local_success"));
-                            };
-                            // 调用readerAsText方法读取文本
-                            reader.readAsText(file);
-                          } catch (error) {
-                            Message.error(`${t("import_local_failure")}: ${e}`);
-                          }
-                        };
-                        el!.click();
+                        document.getElementById("import-local")?.click();
                       }}
                     >
-                      <input id="import-local" type="file" style={{ display: "none" }} accept=".js" />
                       <RiImportLine /> {t("import_by_local")}
                     </Menu.Item>
                     <Menu.Item
@@ -230,7 +237,27 @@ const MainLayout: React.FC<{
           style={{
             background: "var(--color-fill-2)",
           }}
+          {...getRootProps({ onClick: (e) => e.stopPropagation() })}
         >
+          <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
+          <div
+            style={{
+              position: "absolute",
+              zIndex: 100,
+              display: isDragActive ? "flex" : "none",
+              justifyContent: "center",
+              alignItems: "center",
+              inset: 0,
+              margin: "auto",
+              color: "grey",
+              fontSize: 36,
+              width: "100%",
+              height: "100%",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            拖拽脚本到此处上传
+          </div>
           {children}
         </Layout>
       </Layout>
