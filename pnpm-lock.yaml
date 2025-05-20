@@ -56,6 +56,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      react-dropzone:
+        specifier: ^14.3.8
+        version: 14.3.8(react@18.3.1)
       react-i18next:
         specifier: ^15.4.1
         version: 15.4.1(i18next@23.16.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1849,6 +1852,10 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
+  attr-accept@2.2.5:
+    resolution: {integrity: sha512-0bDNnY/u6pPwHDMoF0FieU354oBi0a8rD9FcsLwzcGWbc8KS8KPIi7y+s13OlVY+gMWc/9xEMUgNE6Qm8ZllYQ==}
+    engines: {node: '>=4'}
+
   autoprefixer@10.4.20:
     resolution: {integrity: sha512-XY25y5xSv/wEoqzDyXXME4AFfkZI0P23z6Fs3YgymDnKJkCGOnkL0iTxCa85UTqaSgfcqyf3UA6+c7wUvx/16g==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2724,6 +2731,10 @@ packages:
   file-entry-cache@8.0.0:
     resolution: {integrity: sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ==}
     engines: {node: '>=16.0.0'}
+
+  file-selector@2.1.2:
+    resolution: {integrity: sha512-QgXo+mXTe8ljeqUFaX3QVHc5osSItJ/Km+xpocx0aSqWGMSCf6qYs/VnzZgS864Pjn5iceMRFigeAV7AfTlaig==}
+    engines: {node: '>= 12'}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -3963,6 +3974,12 @@ packages:
     resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
     peerDependencies:
       react: ^18.3.1
+
+  react-dropzone@14.3.8:
+    resolution: {integrity: sha512-sBgODnq+lcA4P296DY4wacOZz3JFpD99fp+hb//iBO2HHnyeZU3FwWyXJ6salNpqQdsZrgMrotuko/BdJMV8Ug==}
+    engines: {node: '>= 10.13'}
+    peerDependencies:
+      react: '>= 16.8 || 18.0.0'
 
   react-floater@0.7.9:
     resolution: {integrity: sha512-NXqyp9o8FAXOATOEo0ZpyaQ2KPb4cmPMXGWkx377QtJkIXHlHRAGer7ai0r0C1kG5gf+KJ6Gy+gdNIiosvSicg==}
@@ -5254,7 +5271,7 @@ snapshots:
   '@dnd-kit/accessibility@3.1.1(react@18.3.1)':
     dependencies:
       react: 18.3.1
-      tslib: 2.8.0
+      tslib: 2.8.1
 
   '@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -6872,6 +6889,8 @@ snapshots:
 
   asynckit@0.4.0: {}
 
+  attr-accept@2.2.5: {}
+
   autoprefixer@10.4.20(postcss@8.4.49):
     dependencies:
       browserslist: 4.24.2
@@ -8105,6 +8124,10 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
+  file-selector@2.1.2:
+    dependencies:
+      tslib: 2.8.1
+
   fill-range@7.1.1:
     dependencies:
       to-regex-range: 5.0.1
@@ -8135,7 +8158,7 @@ snapshots:
 
   focus-lock@1.3.5:
     dependencies:
-      tslib: 2.8.0
+      tslib: 2.8.1
 
   follow-redirects@1.15.9: {}
 
@@ -9386,6 +9409,13 @@ snapshots:
       react: 18.3.1
       scheduler: 0.23.2
 
+  react-dropzone@14.3.8(react@18.3.1):
+    dependencies:
+      attr-accept: 2.2.5
+      file-selector: 2.1.2
+      prop-types: 15.8.1
+      react: 18.3.1
+
   react-floater@0.7.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       deepmerge: 4.3.1
@@ -10436,7 +10466,7 @@ snapshots:
   use-callback-ref@1.3.2(@types/react@18.3.12)(react@18.3.1):
     dependencies:
       react: 18.3.1
-      tslib: 2.8.0
+      tslib: 2.8.1
     optionalDependencies:
       '@types/react': 18.3.12
 
@@ -10444,7 +10474,7 @@ snapshots:
     dependencies:
       detect-node-es: 1.1.0
       react: 18.3.1
-      tslib: 2.8.0
+      tslib: 2.8.1
     optionalDependencies:
       '@types/react': 18.3.12
 
