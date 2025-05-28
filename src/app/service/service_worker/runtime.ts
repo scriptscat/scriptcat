@@ -184,7 +184,7 @@ export class RuntimeService {
           if (script.type !== SCRIPT_TYPE_NORMAL) {
             return undefined;
           }
-          return this.getUserScriptRegister(script).then((res) => {
+          return this.getAndSetUserScriptRegister(script).then((res) => {
             if (!res) {
               return undefined;
             }
@@ -533,16 +533,16 @@ export class RuntimeService {
   }
 
   // 构建userScript注册信息
-  async getUserScriptRegister(script: Script) {
+  async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    const matches = scriptRes.metadata["match"];
-    if (!matches) {
+    const matches = scriptRes.metadata["match"] || [];
+    matches.push(...(scriptRes.metadata["include"] || []));
+    if (!matches.length) {
       return undefined;
     }
 
     scriptRes.code = compileInjectScript(scriptRes);
 
-    matches.push(...(scriptRes.metadata["include"] || []));
     const patternMatches = dealPatternMatches(matches);
     const scriptMatchInfo: ScriptMatchInfo = Object.assign(
       { matches: patternMatches.result, excludeMatches: [], customizeExcludeMatches: [] },
@@ -587,6 +587,7 @@ export class RuntimeService {
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }
+
     return {
       scriptMatchInfo,
       registerScript,
@@ -596,7 +597,7 @@ export class RuntimeService {
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
   async loadPageScript(script: Script) {
-    const resp = await this.getUserScriptRegister(script);
+    const resp = await this.getAndSetUserScriptRegister(script);
     if (!resp) {
       return;
     }
