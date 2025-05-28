@@ -36,7 +36,7 @@ export default class Logger {
     if (levelNumber[level] >= levelNumber[this.core.level]) {
       this.core.writer.write(level, message, newLabel);
     }
-    if (this.core.debug !== "none" && levelNumber[level] >= levelNumber[this.core.debug]) {
+    if (this.core.consoleLevel !== "none" && levelNumber[level] >= levelNumber[this.core.consoleLevel]) {
       if (typeof message === "object") {
         message = JSON.stringify(message);
       }

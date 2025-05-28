@@ -211,6 +211,14 @@ describe("parsePatternMatchesURL", () => {
       path: "*",
     });
   });
+  it("端口", () => {
+    const matches = parsePatternMatchesURL("http://examle:80/search");
+    expect(matches).toEqual({
+      scheme: "http",
+      host: "examle:*",
+      path: "search",
+    });
+  });
   it("一些怪异的情况", () => {
     let matches = parsePatternMatchesURL("*://*./*");
     expect(matches).toEqual({

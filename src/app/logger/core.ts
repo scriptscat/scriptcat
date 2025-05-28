@@ -32,8 +32,8 @@ export default class LoggerCore {
   // 日志级别, 会记录在日志文件中
   level: LogLevel = "info";
 
-  // 日志debug等级, 会在控制台输出
-  debug: LogLevel | "none" = "none";
+  // 打印在console的等级, 会在控制台输出
+  consoleLevel: LogLevel = "warn";
 
   labels: LogLabel;
 
@@ -43,7 +43,7 @@ export default class LoggerCore {
     this.labels = config.labels || {};
     // 获取日志debug等级, 如果是开发环境, 则默认为debug
     if (process.env.NODE_ENV === "development") {
-      this.debug = "debug";
+      this.consoleLevel = "debug";
     }
     if (!LoggerCore.instance) {
       LoggerCore.instance = this;

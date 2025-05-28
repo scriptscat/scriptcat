@@ -219,6 +219,18 @@ export class RuntimeService {
           await chrome.userScripts.register(registerScripts);
         } catch (e: any) {
           this.logger.error("registerScript error", Logger.E(e));
+          // 批量注册失败则退回单个注册
+          registerScripts.forEach(async (script) => {
+            try {
+              await chrome.userScripts.register([script]);
+            } catch (e: any) {
+              this.logger.error(
+                "registerScript single error",
+                { id: script.id, matches: script.matches, excludeMatches: script.excludeMatches },
+                Logger.E(e)
+              );
+            }
+          });
         }
         const batchData: { [key: string]: any } = {};
         registerScripts.forEach((script) => {

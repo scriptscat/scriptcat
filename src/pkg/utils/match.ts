@@ -280,6 +280,11 @@ export function parsePatternMatchesURL(
       }
     }
   }
+  // 如果host存在端口, 则将端口换成通配符
+  const pos = result?.host.indexOf(":");
+  if (pos !== undefined && pos !== -1) {
+    result!.host = `${result!.host.substring(0, pos)}:*`;
+  }
   return result;
 }
 
