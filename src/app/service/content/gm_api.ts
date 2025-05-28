@@ -9,6 +9,7 @@ import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { MessageRequest } from "../service_worker/gm_api";
+import { PageLoadScript, ScriptMatchInfo } from "../service_worker/runtime";
 
 interface ApiParam {
   depend?: string[];
@@ -112,9 +113,7 @@ export default class GMApi {
   }
 
   // 获取脚本信息和管理器信息
-  static GM_info(script: ScriptRunResouce) {
-    const metadataStr = getMetadataStr(script.code);
-    const userConfigStr = getUserConfigStr(script.code) || "";
+  static GM_info(script: PageLoadScript) {
     const options = {
       description: script.metadata.description?.[0] || null,
       matches: script.metadata.match || [],
@@ -123,7 +122,7 @@ export default class GMApi {
       "run-in": script.metadata["run-in"] || [],
       icon: script.metadata.icon?.[0] || null,
       icon64: script.metadata.icon64?.[0] || null,
-      header: metadataStr,
+      header: script.metadataStr,
       grant: script.metadata.grant || [],
       connects: script.metadata.connect || [],
     };
@@ -134,9 +133,9 @@ export default class GMApi {
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
       scriptUpdateURL: script.downloadUrl,
-      scriptMetaStr: metadataStr,
-      userConfig: parseUserConfig(userConfigStr),
-      userConfigStr,
+      scriptMetaStr: script.metadataStr,
+      userConfig: parseUserConfig(script.userConfigStr),
+      userConfigStr: script.userConfigStr,
       // scriptSource: script.sourceCode,
       version: ExtVersion,
       script: {
@@ -154,7 +153,7 @@ export default class GMApi {
   @GMContext.API()
   public GM_getValue(key: string, defaultValue?: any) {
     const ret = this.scriptRes.value[key];
-    if (ret) {
+    if (ret !== undefined) {
       return ret;
     }
     return defaultValue;

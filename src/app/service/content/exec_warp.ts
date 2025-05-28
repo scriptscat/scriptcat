@@ -1,6 +1,7 @@
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { Message } from "@Packages/message/server";
+import { PageLoadScript } from "../service_worker/runtime";
 
 export class CATRetryError {
   msg: string;
@@ -22,7 +23,7 @@ export class BgExecScriptWarp extends ExecScript {
 
   setInterval: Map<number, boolean>;
 
-  constructor(scriptRes: ScriptRunResouce, message: Message) {
+  constructor(scriptRes: PageLoadScript, message: Message) {
     const thisContext: { [key: string]: any } = {};
     const setTimeout = new Map<number, any>();
     const setInterval = new Map<number, any>();

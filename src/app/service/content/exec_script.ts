@@ -4,7 +4,7 @@ import { ScriptRunResouce } from "@App/app/repo/scripts";
 import GMApi from "./gm_api";
 import { compileScript, createContext, proxyContext, ScriptFunc } from "./utils";
 import { Message } from "@Packages/message/server";
-import { EmitEventRequest } from "../service_worker/runtime";
+import { PageLoadScript, ScriptMatchInfo } from "../service_worker/runtime";
 
 export type ValueUpdateSender = {
   runFlag: string;
@@ -24,7 +24,7 @@ export class RuntimeMessage {}
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
-  scriptRes: ScriptRunResouce;
+  scriptRes: PageLoadScript;
 
   scriptFunc: ScriptFunc;
 
@@ -37,7 +37,7 @@ export default class ExecScript {
   GM_info: any;
 
   constructor(
-    scriptRes: ScriptRunResouce,
+    scriptRes: PageLoadScript,
     envPrefix: "content" | "offscreen",
     message: Message,
     code: string | ScriptFunc,

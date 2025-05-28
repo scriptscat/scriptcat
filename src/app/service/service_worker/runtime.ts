@@ -27,12 +27,18 @@ import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
   matches: string[];
   excludeMatches: string[];
   customizeExcludeMatches: string[];
+}
+
+export interface PageLoadScript extends ScriptMatchInfo {
+  metadataStr: string; // 脚本元数据字符串
+  userConfigStr: string; // 用户配置字符串
 }
 
 export interface EmitEventRequest {
@@ -346,10 +352,9 @@ export class RuntimeService {
           return arr;
         }
       }
-      // 获取value
-      arr.push(scriptRes);
+      arr.push(scriptRes as PageLoadScript);
       return arr;
-    }, [] as ScriptMatchInfo[]);
+    }, [] as PageLoadScript[]);
 
     await Promise.all([
       // 加载value
@@ -361,6 +366,16 @@ export class RuntimeService {
       ...enableScript.map(async (script) => {
         const resource = await this.resource.getScriptResources(script);
         script.resource = resource;
+      }),
+      // 加载code相关的信息
+      ...enableScript.map(async (script) => {
+        const code = await this.scriptDAO.scriptCodeDAO.get(script.uuid);
+        if (code) {
+          const metadataStr = getMetadataStr(code.code) || "";
+          const userConfigStr = getUserConfigStr(code.code) || "";
+          script.metadataStr = metadataStr;
+          script.userConfigStr = userConfigStr;
+        }
       }),
     ]);
 
@@ -479,6 +494,7 @@ export class RuntimeService {
       scriptMatch[key] = val;
       // 优化性能，将不需要的信息去掉
       // 而且可能会超过缓存的存储限制
+      // @ts-ignore
       scriptMatch[key].code = "";
       scriptMatch[key].value = {};
       scriptMatch[key].resource = {};
