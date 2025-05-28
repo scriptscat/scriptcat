@@ -8,6 +8,7 @@ import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";
+import { MessageRequest } from "../service_worker/gm_api";
 
 interface ApiParam {
   depend?: string[];
@@ -74,7 +75,8 @@ export default class GMApi {
       uuid: this.scriptRes.uuid,
       api,
       params,
-    });
+      runFlag: this.runFlag,
+    } as MessageRequest);
   }
 
   // 长连接使用,connect只用于接受消息,不发送消息
@@ -83,7 +85,8 @@ export default class GMApi {
       uuid: this.scriptRes.uuid,
       api,
       params,
-    });
+      runFlag: this.runFlag,
+    } as MessageRequest);
   }
 
   public valueUpdate(data: ValueUpdateData) {

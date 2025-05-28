@@ -46,7 +46,7 @@ export class ValueService {
     const storageName = getStorageName(script);
     let oldValue;
     // 使用事务来保证数据一致性
-    await Cache.getInstance().tx("setValue:" + storageName, async () => {
+    const flag = await Cache.getInstance().tx("setValue:" + storageName, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
         await this.valueDAO.save(storageName, {
@@ -57,6 +57,10 @@ export class ValueService {
           updatetime: Date.now(),
         });
       } else {
+        // 值没有发生变化, 不进行操作
+        if (valueModel.data[key] === value) {
+          return false;
+        }
         oldValue = valueModel.data[key];
         if (value === undefined) {
           delete valueModel.data[key];
@@ -67,7 +71,9 @@ export class ValueService {
       }
       return true;
     });
-    this.pushValueToTab(oldValue, key, value, uuid, storageName, sender);
+    if (flag) {
+      this.pushValueToTab(oldValue, key, value, uuid, storageName, sender);
+    }
   }
 
   // 推送值到tab
