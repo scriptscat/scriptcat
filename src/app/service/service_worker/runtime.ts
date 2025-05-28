@@ -36,7 +36,7 @@ export interface ScriptMatchInfo extends ScriptRunResouce {
   customizeExcludeMatches: string[];
 }
 
-export interface PageLoadScript extends ScriptMatchInfo {
+export interface ScriptLoadInfo extends ScriptMatchInfo {
   metadataStr: string; // 脚本元数据字符串
   userConfigStr: string; // 用户配置字符串
 }
@@ -352,9 +352,9 @@ export class RuntimeService {
           return arr;
         }
       }
-      arr.push(scriptRes as PageLoadScript);
+      arr.push(scriptRes as ScriptLoadInfo);
       return arr;
-    }, [] as PageLoadScript[]);
+    }, [] as ScriptLoadInfo[]);
 
     await Promise.all([
       // 加载value

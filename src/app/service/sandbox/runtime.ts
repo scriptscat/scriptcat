@@ -14,7 +14,9 @@ import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import ExecScript, { ValueUpdateData } from "../content/exec_script";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { EmitEventRequest } from "../service_worker/runtime";
+import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
+import { CATRetryError } from "../content/exec_warp";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -24,7 +26,7 @@ export class Runtime {
   logger: Logger;
 
   retryList: {
-    script: ScriptRunResouce;
+    script: ScriptLoadInfo;
     retryTime: number;
   }[] = [];
 
@@ -55,7 +57,7 @@ export class Runtime {
     }, 5000);
   }
 
-  joinRetryList(script: ScriptRunResouce) {
+  joinRetryList(script: ScriptLoadInfo) {
     if (script.nextruntime) {
       this.retryList.push({
         script,
@@ -80,13 +82,16 @@ export class Runtime {
     if (this.execScripts.has(script.uuid)) {
       await this.disableScript(script.uuid);
     }
+    const loadScript = script as ScriptLoadInfo;
+    loadScript.metadataStr = getMetadataStr(script.code) || "";
+    loadScript.userConfigStr = getUserConfigStr(script.code) || "";
     if (script.type === SCRIPT_TYPE_BACKGROUND) {
       // 后台脚本直接运行起来
-      return this.execScript(script);
+      return this.execScript(loadScript);
     } else {
       // 定时脚本加入定时任务
       await this.stopCronJob(script.uuid);
-      return this.crontabScript(script);
+      return this.crontabScript(loadScript);
     }
   }
 
@@ -103,7 +108,7 @@ export class Runtime {
   }
 
   // 执行脚本
-  async execScript(script: ScriptRunResouce, execOnce?: boolean) {
+  async execScript(script: ScriptLoadInfo, execOnce?: boolean) {
     const logger = this.logger.with({ script: script.uuid, name: script.name });
     if (this.execScripts.has(script.uuid)) {
       // 释放掉资源
@@ -158,7 +163,7 @@ export class Runtime {
     return ret;
   }
 
-  crontabScript(script: ScriptRunResouce) {
+  crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
       throw new Error(script.name + " - 错误的crontab表达式");
@@ -209,7 +214,7 @@ export class Runtime {
     return !flag;
   }
 
-  crontabExec(script: ScriptRunResouce, oncePos: number) {
+  crontabExec(script: ScriptLoadInfo, oncePos: number) {
     if (oncePos) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行
@@ -289,7 +294,10 @@ export class Runtime {
     if (exec) {
       await this.stopScript(script.uuid);
     }
-    return this.execScript(script, true);
+    const loadScript = script as ScriptLoadInfo;
+    loadScript.metadataStr = getMetadataStr(script.code) || "";
+    loadScript.userConfigStr = getUserConfigStr(script.code) || "";
+    return this.execScript(loadScript, true);
   }
 
   valueUpdate(data: ValueUpdateData) {

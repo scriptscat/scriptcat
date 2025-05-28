@@ -1,5 +1,5 @@
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { base64ToBlob, getMetadataStr, getUserConfigStr, parseUserConfig } from "@App/pkg/utils/script";
+import { base64ToBlob, parseUserConfig } from "@App/pkg/utils/script";
 import { ValueUpdateData } from "./exec_script";
 import { ExtVersion } from "@App/app/const";
 import { Message, MessageConnect } from "@Packages/message/server";
@@ -9,7 +9,7 @@ import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { MessageRequest } from "../service_worker/gm_api";
-import { PageLoadScript, ScriptMatchInfo } from "../service_worker/runtime";
+import { ScriptLoadInfo } from "../service_worker/runtime";
 
 interface ApiParam {
   depend?: string[];
@@ -113,7 +113,7 @@ export default class GMApi {
   }
 
   // 获取脚本信息和管理器信息
-  static GM_info(script: PageLoadScript) {
+  static GM_info(script: ScriptLoadInfo) {
     const options = {
       description: script.metadata.description?.[0] || null,
       matches: script.metadata.match || [],
