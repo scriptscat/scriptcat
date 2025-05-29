@@ -645,7 +645,7 @@ export default class GMApi {
       uuid: request.script.uuid,
       id: id,
       name: name,
-      accessKey: accessKey,
+      options: typeof accessKey === "object" ? accessKey : { accessKey: accessKey },
       tabId: sender.getSender().tab?.id || -1,
       frameId: sender.getSender().frameId,
       documentId: sender.getSender().documentId,

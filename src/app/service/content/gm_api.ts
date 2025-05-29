@@ -243,18 +243,29 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string): number {
+  GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string | { id?: number }): number {
     if (!this.menuMap) {
       this.menuMap = new Map();
     }
-    let flag = 0;
-    this.menuMap.forEach((val, menuId) => {
-      if (val === name) {
-        flag = menuId;
+    if (typeof accessKey === "object") {
+      // 如果是对象，并且有id属性,则直接使用id
+      if (accessKey.id && this.menuMap.has(accessKey.id)) {
+        // 如果id存在,则直接使用
+        this.EE.removeAllListeners("menuClick:" + accessKey.id);
+        this.EE.addListener("menuClick:" + accessKey.id, listener);
+        this.sendMessage("GM_registerMenuCommand", [accessKey.id, name, accessKey]);
+        return accessKey.id;
       }
-    });
-    if (flag) {
-      return flag;
+    } else {
+      let flag = 0;
+      this.menuMap.forEach((val, menuId) => {
+        if (val === name) {
+          flag = menuId;
+        }
+      });
+      if (flag) {
+        return flag;
+      }
     }
     this.eventId += 1;
     const id = this.eventId;

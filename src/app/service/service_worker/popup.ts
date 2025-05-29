@@ -25,7 +25,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 export type ScriptMenuItem = {
   id: number;
   name: string;
-  accessKey?: string;
+  options?: { autoClose?: string; title?: string; accessKey?: string };
   tabId: number; //-1表示后台脚本
   frameId?: number;
   documentId?: string;
@@ -119,11 +119,15 @@ export class PopupService {
           script.menus.push({
             id: message.id,
             name: message.name,
-            accessKey: message.accessKey,
+            options: message.options,
             tabId: message.tabId,
             frameId: message.frameId,
             documentId: message.documentId,
           });
+        } else {
+          // 存在修改信息
+          menu.name = message.name;
+          menu.options = message.options;
         }
       }
       this.updateScriptMenu();

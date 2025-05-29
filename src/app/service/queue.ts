@@ -48,7 +48,7 @@ export type ScriptMenuRegisterCallbackValue = {
   uuid: string;
   id: number;
   name: string;
-  accessKey: string;
+  options?: { autoClose?: string; title?: string; accessKey?: string };
   tabId: number;
   frameId: number;
   documentId: string;

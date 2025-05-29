@@ -55,6 +55,26 @@ const ScriptMenuList: React.FC<{
   }
   useEffect(() => {
     setList(script);
+    // 注册菜单快捷键
+    const listeners: ((e: KeyboardEvent) => void)[] = [];
+    script.forEach((item) => {
+      item.menus.forEach((menu) => {
+        if (menu.options?.accessKey) {
+          const listener = (e: KeyboardEvent) => {
+            if (e.key.toUpperCase() === menu.options!.accessKey!.toUpperCase()) {
+              sendMenuAction(item.uuid, menu);
+            }
+          };
+          document.addEventListener("keypress", listener);
+          listeners.push(listener);
+        }
+      });
+    });
+    return () => {
+      listeners.forEach((listener) => {
+        document.removeEventListener("keypress", listener);
+      });
+    };
   }, [script]);
 
   useEffect(() => {
@@ -209,25 +229,20 @@ const ScriptMenuList: React.FC<{
                 : item.menus?.slice(0, menuExpandNum)
               : item.menus
             )?.map((menu) => {
-              if (menu.accessKey) {
-                document.addEventListener("keypress", (e) => {
-                  if (e.key.toUpperCase() === menu.accessKey!.toUpperCase()) {
-                    sendMenuAction(item.uuid, menu);
-                  }
-                });
-              }
+              console.log("menu", menu);
               return (
                 <Button
                   className="text-left"
                   key={menu.id}
                   type="secondary"
                   icon={<IconMenu />}
+                  title={menu.options?.title}
                   onClick={() => {
                     sendMenuAction(item.uuid, menu);
                   }}
                 >
                   {menu.name}
-                  {menu.accessKey && `(${menu.accessKey.toUpperCase()})`}
+                  {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
                 </Button>
               );
             })}
