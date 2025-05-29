@@ -97,7 +97,18 @@ declare function GM_getResourceText(name: string): string | undefined;
 
 declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-declare function GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string): number;
+declare function GM_registerMenuCommand(
+  name: string,
+  listener: () => void,
+  optionsOrAccessKey?:
+    | string
+    | {
+        id?: number | string;
+        accessKey?: string;
+        autoClose?: boolean;
+        title?: string;
+      }
+): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
@@ -363,7 +374,7 @@ declare namespace GMTypes {
     user?: string;
     password?: string;
     nocache?: boolean;
-    redirect?: "follow" | "error" | "manual";// 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
+    redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

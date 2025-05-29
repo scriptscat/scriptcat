@@ -687,7 +687,7 @@ export default class GMApi {
         switch (resp.event) {
           case "click":
           case "buttonClick": {
-            click && click.apply({ id }, [id, resp.params.index]);
+            click && click.apply({ id }, [id, resp.params?.index]);
             break;
           }
           case "close": {

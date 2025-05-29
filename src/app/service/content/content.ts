@@ -1,5 +1,3 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
 import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";

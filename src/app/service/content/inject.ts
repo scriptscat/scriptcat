@@ -1,9 +1,8 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { Message, Server } from "@Packages/message/server";
 import ExecScript, { ValueUpdateData } from "./exec_script";
 import { addStyle, ScriptFunc } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { EmitEventRequest } from "../service_worker/runtime";
+import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 
@@ -13,7 +12,7 @@ export class InjectRuntime {
   constructor(
     private server: Server,
     private msg: Message,
-    private scripts: ScriptRunResouce[]
+    private scripts: ScriptLoadInfo[]
   ) {}
 
   start() {
@@ -82,7 +81,7 @@ export class InjectRuntime {
     }
   }
 
-  execScript(script: ScriptRunResouce, scriptFunc: ScriptFunc) {
+  execScript(script: ScriptLoadInfo, scriptFunc: ScriptFunc) {
     // @ts-ignore
     delete window[script.flag];
     const exec = new ExecScript(script, "content", this.msg, scriptFunc);
