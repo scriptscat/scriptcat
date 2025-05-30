@@ -2,9 +2,8 @@
 name: "[Bug Report]BUG反馈"
 about: 将你所遇到的BUG反馈给我们
 title: "[BUG]"
-labels: 'bug'
-assignees: ''
-
+labels: "bug"
+assignees: ""
 ---
 
 ### 问题描述

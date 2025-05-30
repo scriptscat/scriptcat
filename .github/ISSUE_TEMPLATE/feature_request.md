@@ -2,9 +2,8 @@
 name: "[New Feature]新功能请求"
 about: 期望能够增加的功能
 title: "[Feature]"
-labels: 'enhancement'
-assignees: ''
-
+labels: "enhancement"
+assignees: ""
 ---
 
 ### 功能描述

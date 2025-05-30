@@ -159,7 +159,7 @@ function App() {
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat/issues">
+                    <Menu.Item key="https://github.com/scriptscat/scriptcat/issues/new?template=bug_report.md">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
