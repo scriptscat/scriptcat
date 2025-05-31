@@ -130,6 +130,8 @@ export default class GMApi {
     return {
       downloadMode: "browser",
       // isIncognito
+      // relaxedCsp
+      // sandboxMode
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
       scriptUpdateURL: script.downloadUrl,

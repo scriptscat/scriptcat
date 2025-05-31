@@ -137,12 +137,9 @@ export default class GMApi {
       let flag = false;
       if (request.script.metadata.connect) {
         const { connect } = request.script.metadata;
-        for (let i = 0; i < connect.length; i += 1) {
-          if (url.hostname.endsWith(connect[i])) {
-            flag = true;
-            break;
-          }
-        }
+        flag =
+          connect.indexOf("*") !== -1 ||
+          connect.findIndex((connectHostName) => url.hostname.endsWith(connectHostName)) !== -1;
       }
       if (!flag) {
         return Promise.reject(new Error("hostname must be in the definition of connect"));
@@ -177,6 +174,13 @@ export default class GMApi {
     if (!detail.url && !detail.domain) {
       throw new Error("there must be one of url or domain");
     }
+    if (typeof detail.partitionKey !== "object" || detail.partitionKey == null) {
+      detail.partitionKey = {};
+    }
+    if (typeof detail.partitionKey.topLevelSite !== "string") {
+      // string | undefined
+      detail.partitionKey.topLevelSite = undefined;
+    }
     // 处理tab的storeid
     let tabId = sender.getExtMessageSender().tabId;
     let storeId: string | undefined;
@@ -189,7 +193,7 @@ export default class GMApi {
     }
     switch (param[0]) {
       case "list": {
-        return chrome.cookies.getAll({
+        let cookies = await chrome.cookies.getAll({
           domain: detail.domain,
           name: detail.name,
           path: detail.path,
@@ -197,7 +201,9 @@ export default class GMApi {
           session: detail.session,
           url: detail.url,
           storeId: storeId,
+          partitionKey: detail.partitionKey,
         });
+        return cookies;
       }
       case "delete": {
         if (!detail.url || !detail.name) {
@@ -207,6 +213,7 @@ export default class GMApi {
           name: detail.name,
           url: detail.url,
           storeId: storeId,
+          partitionKey: detail.partitionKey,
         });
         break;
       }
@@ -224,6 +231,7 @@ export default class GMApi {
           httpOnly: detail.httpOnly,
           secure: detail.secure,
           storeId: storeId,
+          partitionKey: detail.partitionKey,
         });
         break;
       }

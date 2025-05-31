@@ -294,6 +294,10 @@ declare namespace GMTypes {
     [key: string]: string | boolean | number | undefined;
   };
 
+  interface CookieDetailsPartitionKeyType {
+    topLevelSite?: string;
+  }
+
   interface CookieDetails {
     url?: string;
     name?: string;
@@ -304,6 +308,7 @@ declare namespace GMTypes {
     session?: boolean;
     httpOnly?: boolean;
     expirationDate?: number;
+    partitionKey?: CookieDetailsPartitionKeyType;
   }
 
   interface Cookie {
