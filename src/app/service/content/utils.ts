@@ -68,7 +68,7 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
     valueUpdate: GMApi.prototype.valueUpdate,
     emitEvent: GMApi.prototype.emitEvent,
     EE: new EventEmitter(),
-    GM: { Info: GMInfo },
+    GM: { info: GMInfo },
     GM_info: GMInfo,
     window: {},
   };
