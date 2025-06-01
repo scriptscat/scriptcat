@@ -25,7 +25,17 @@ import { getStorageName } from "@App/pkg/utils/utils";
 export type ScriptMenuItem = {
   id: number;
   name: string;
-  options?: { autoClose?: string; title?: string; accessKey?: string };
+  options?: {
+    id?: number;
+    autoClose?: string;
+    title?: string;
+    accessKey?: string;
+    // 可选输入框
+    inputType?: "text" | "number" | "boolean";
+    inputLabel?: string;
+    inputDefaultValue?: string | number | boolean;
+    inputPlaceholder?: string;
+  };
   tabId: number; //-1表示后台脚本
   frameId?: number;
   documentId?: string;
@@ -58,16 +68,18 @@ export class PopupService {
   genScriptMenuByTabMap(menu: ScriptMenu[]) {
     let n = 0;
     menu.forEach((script) => {
+      // 如果是带输入框的菜单则不在页面内注册
+      const nonInputMenus = script.menus.filter((item) => !item.options?.inputType);
       // 创建脚本菜单
-      if (script.menus.length) {
-        n += script.menus.length;
+      if (nonInputMenus.length) {
+        n += nonInputMenus.length;
         chrome.contextMenus.create({
           id: `scriptMenu_` + script.uuid,
           title: script.name,
           contexts: ["all"],
           parentId: "scriptMenu",
         });
-        script.menus.forEach((menu) => {
+        nonInputMenus.forEach((menu) => {
           // 创建菜单
           chrome.contextMenus.create({
             id: `scriptMenu_menu_${script.uuid}_${menu.id}`,
@@ -320,12 +332,23 @@ export class PopupService {
     });
   }
 
-  menuClick({ uuid, id, sender }: { uuid: string; id: number; sender: ExtMessageSender }) {
+  menuClick({
+    uuid,
+    id,
+    sender,
+    inputValue,
+  }: {
+    uuid: string;
+    id: number;
+    sender: ExtMessageSender;
+    inputValue?: any;
+  }) {
     // 菜单点击事件
     this.runtime.emitEventToTab(sender, {
       uuid,
       event: "menuClick",
       eventId: id.toString(),
+      data: inputValue,
     });
     return Promise.resolve(true);
   }

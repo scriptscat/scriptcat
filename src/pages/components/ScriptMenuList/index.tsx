@@ -1,5 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { Button, Collapse, Empty, Message, Popconfirm, Space, Switch } from "@arco-design/web-react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Button,
+  Collapse,
+  Empty,
+  Input,
+  InputNumber,
+  Message,
+  Popconfirm,
+  Space,
+  Switch,
+} from "@arco-design/web-react";
 import {
   IconCaretDown,
   IconCaretUp,
@@ -19,6 +29,7 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { i18nName } from "@App/locales/locales";
 import { subscribeScriptRunStatus } from "@App/app/service/queue";
 import { messageQueue, systemConfig } from "@App/pages/store/global";
+import { RefInputType } from "@arco-design/web-react/es/Input";
 
 const CollapseItem = Collapse.Item;
 
@@ -97,12 +108,6 @@ const ScriptMenuList: React.FC<{
       unsub();
     };
   }, []);
-
-  const sendMenuAction = (uuid: string, menu: ScriptMenuItem) => {
-    popupClient.menuClick(uuid, menu).then(() => {
-      window.close();
-    });
-  };
 
   return (
     <>
@@ -230,21 +235,7 @@ const ScriptMenuList: React.FC<{
               : item.menus
             )?.map((menu) => {
               console.log("menu", menu);
-              return (
-                <Button
-                  className="text-left"
-                  key={menu.id}
-                  type="secondary"
-                  icon={<IconMenu />}
-                  title={menu.options?.title}
-                  onClick={() => {
-                    sendMenuAction(item.uuid, menu);
-                  }}
-                >
-                  {menu.name}
-                  {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
-                </Button>
-              );
+              return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
             })}
             {item.menus.length > menuExpandNum && (
               <Button
@@ -280,6 +271,106 @@ const ScriptMenuList: React.FC<{
         </Collapse>
       ))}
     </>
+  );
+};
+
+const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
+  popupClient.menuClick(uuid, menu, inputValue).then(() => {
+    menu.options?.autoClose && window.close();
+  });
+};
+
+type MenuItemProps = {
+  menu: ScriptMenuItem;
+  uuid: string;
+};
+
+const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
+  const inputRef = useRef<RefInputType>(null);
+
+  const getValue = () => {
+    switch (menu.options?.inputType) {
+      case "text":
+        return inputRef.current!.dom.value;
+      case "number":
+        return +inputRef.current!.dom.value;
+      case "boolean":
+        // arco的Switch组件没有ref类型定义，使用unknown强制转换
+        return (inputRef.current as unknown as HTMLButtonElement)!.ariaChecked === "true";
+      default:
+        return null;
+    }
+  };
+
+  const renderInput = () => {
+    const defaultValue = menu.options?.inputDefaultValue;
+    const placeholder = menu.options?.inputPlaceholder;
+
+    switch (menu.options?.inputType) {
+      case "text":
+        return (
+          <Input
+            type="text"
+            addBefore={menu.options.inputLabel}
+            ref={inputRef}
+            defaultValue={defaultValue as string}
+            placeholder={placeholder}
+            size="small"
+            beforeStyle={{ color: "var(--color-text-2)" }}
+            style={{ paddingLeft: 36 }}
+          />
+        );
+      case "number":
+        return (
+          <InputNumber
+            prefix={menu.options.inputLabel}
+            ref={inputRef}
+            defaultValue={defaultValue as number}
+            placeholder={placeholder}
+            size="small"
+            style={{ paddingLeft: 36 }}
+          />
+        );
+      case "boolean":
+        return (
+          <div style={{ background: "#F2F3F5", marginLeft: 36 }}>
+            <span
+              style={{
+                paddingLeft: 13.5,
+                paddingRight: 12,
+                color: "var(--color-text-2)",
+                verticalAlign: "middle",
+              }}
+            >
+              {menu.options.inputLabel}
+            </span>
+            <Switch ref={inputRef} defaultChecked={defaultValue as boolean} />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <Button
+        className="text-left"
+        type="secondary"
+        icon={<IconMenu />}
+        title={menu.options?.title}
+        onClick={() => {
+          const inputValue = getValue();
+          console.log(uuid, menu, inputValue);
+          sendMenuAction(uuid, menu, inputValue);
+        }}
+        style={{ display: "block", width: "100%", borderTopColor: "#E5E6EB" }}
+      >
+        {menu.name}
+        {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
+      </Button>
+      {renderInput()}
+    </div>
   );
 };
 
