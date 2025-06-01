@@ -787,6 +787,9 @@ export default class GMApi {
       close: () => {
         tabid && this.GM_closeInTab(tabid);
       },
+      closed: false,
+      // 占位
+      onclose() {},
     };
 
     this.sendMessage("GM_openInTab", [url, option]).then((id) => {
