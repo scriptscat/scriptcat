@@ -391,10 +391,7 @@ export class RuntimeService {
         uriList = uriList.concat(
           script.metadata.resource
             .map((resourceInfo) => {
-              let split = resourceInfo
-                .trim()
-                .split(" ")
-                .filter((it) => it != "");
+              let split = resourceInfo.trim().split(/\s+/);
               if (split.length >= 2) {
                 let resourceKey = split[0];
                 let resourceUri = split[1];
