@@ -126,7 +126,6 @@ export default class GMApi {
       grant: script.metadata.grant || [],
       connects: script.metadata.connect || [],
     };
-
     return {
       downloadMode: "browser",
       // isIncognito
@@ -134,7 +133,8 @@ export default class GMApi {
       // sandboxMode
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
-      scriptUpdateURL: script.downloadUrl,
+      // "" => null
+      scriptUpdateURL: script.downloadUrl || null,
       scriptMetaStr: script.metadataStr,
       userConfig: parseUserConfig(script.userConfigStr),
       userConfigStr: script.userConfigStr,
@@ -146,6 +146,9 @@ export default class GMApi {
         namespace: script.namespace,
         version: script.metadata.version?.[0],
         author: script.author,
+        lastModified: script.updatetime,
+        downloadURL: script.downloadUrl || null,
+        updateURL: script.checkUpdateUrl || null,
         ...options,
       },
     };
