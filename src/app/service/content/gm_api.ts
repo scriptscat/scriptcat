@@ -181,6 +181,57 @@ export default class GMApi {
     this.GM_setValue(name, undefined);
   }
 
+  @GMContext.API()
+  public GM_setValues(values: object) {
+    if (values == null) {
+      throw new Error("GM_ setValues: values must not be null or undefined");
+    }
+    if (typeof values !== "object") {
+      throw new Error("GM_setValues: values must be an object");
+    }
+    Object.keys(values).forEach((key) => {
+      let value = values[key as keyof typeof values];
+      return this.GM_setValue(key, value);
+    });
+  }
+
+  @GMContext.API()
+  public GM_getValues(keysOrDefaults: object | string[] | null | undefined) {
+    if (keysOrDefaults == null) {
+      // returns all
+      return this.scriptRes.value;
+    }
+    let result = <{ [key: string]: any }>{};
+    if (Array.isArray(keysOrDefaults)) {
+      // 键名数组
+      for (let index = 0; index < keysOrDefaults.length; index++) {
+        const key = keysOrDefaults[index];
+        if (key in this.scriptRes.value) {
+          result[key] = this.scriptRes.value[key];
+        }
+      }
+    } else {
+      // 对象 键: 默认值
+      Object.keys(keysOrDefaults).forEach((key) => {
+        let defaultValue = keysOrDefaults[key as keyof typeof keysOrDefaults];
+        result[key] = this.GM_getValue(key, defaultValue);
+      });
+    }
+
+    return result;
+  }
+
+  @GMContext.API()
+  public GM_deleteValues(keys: string[]) {
+    if (!Array.isArray(keys)) {
+      console.warn(" GM_deleteValues: keys must be string[]");
+      return;
+    }
+    keys.forEach((key) => {
+      this.GM_deleteValue(key);
+    });
+  }
+
   eventId: number = 0;
 
   menuMap: Map<number, string> | undefined;
