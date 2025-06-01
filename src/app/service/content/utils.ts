@@ -7,22 +7,36 @@ import EventEmitter from "eventemitter3";
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResouce): string {
-  let require = "";
-  if (scriptRes.metadata.require) {
-    scriptRes.metadata.require.forEach((val) => {
-      const res = scriptRes.resource[val];
-      if (res) {
-        require = `${require}\n${res.content}`;
-      }
-    });
+  const scriptCode = scriptRes.code;
+  let requireCode = "";
+  if (Array.isArray(scriptRes.metadata.require)) {
+    requireCode += scriptRes.metadata.require
+      .map((val) => {
+        const res = scriptRes.resource[val];
+        if (res) {
+          return res.content;
+        }
+      })
+      .join("\n");
   }
-  const code = require + scriptRes.code;
+  const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
+  const code = [requireCode, scriptCode, sourceURL].join("\n");
   return `  with(context){
-      (async () => {
-          ${code}
+      (async (factory) => {
+          try {
+            await factory();
+          } catch (e) {
+            if (e.message && e.stack) {
+                console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
+                console.log(e.stack);
+            } else {
+                console.error(e);
+            }
+          }
 
-          //# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}
-      })()
+      })(async function(){
+          ${code}
+      })
   }`;
 }
 
@@ -39,9 +53,7 @@ export function compileScript(code: string): ScriptFunc {
  */
 export function compileInjectScript(script: ScriptRunResouce, autoDeleteMountFunction: boolean = false): string {
   return `window['${script.flag}'] = function(context, GM_info){
-${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}
-${script.code}
-}`;
+${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${script.code}}`;
 }
 
 // 设置api依赖
