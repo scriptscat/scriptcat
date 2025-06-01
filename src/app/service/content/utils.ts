@@ -17,14 +17,13 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
     });
   }
   const code = require + scriptRes.code;
-  return `
-  (async () => {
-    with(context){
-      ${code}
+  return `  with(context){
+      (async () => {
+          ${code}
 
-      //# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}
-    }
-  })()`;
+          //# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}
+      })()
+  }`;
 }
 
 export type ScriptFunc = (context: any, GM_info: any) => any;
@@ -40,8 +39,7 @@ export function compileScript(code: string): ScriptFunc {
  */
 export function compileInjectScript(script: ScriptRunResouce, autoDeleteMountFunction: boolean = false): string {
   return `window['${script.flag}'] = function(context, GM_info){
-  ${autoDeleteMountFunction ? `try{delete window['${script.flag}'];}catch(e){};` : ""}
-
+${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}
 ${script.code}
 }`;
 }
