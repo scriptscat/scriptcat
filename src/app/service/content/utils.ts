@@ -70,7 +70,9 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
     EE: new EventEmitter(),
     GM: { info: GMInfo },
     GM_info: GMInfo,
-    window: {},
+    window: {
+      onurlchange: null,
+    },
   };
   if (scriptRes.metadata.grant) {
     const GM_cookie = function (action: string) {
@@ -248,6 +250,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           return global.top;
         case "close":
         case "focus":
+        case "onurlchange":
           if (context["window"][name]) {
             return context["window"][name];
           }
