@@ -248,7 +248,7 @@ export default class GMApi {
   @GMContext.API()
   GM_registerMenuCommand(
     name: string,
-    listener: () => void,
+    listener: (inputValue?: any) => void,
     options_or_accessKey?: ScriptMenuItem["options"] | string
   ): number {
     if (!this.menuMap) {
