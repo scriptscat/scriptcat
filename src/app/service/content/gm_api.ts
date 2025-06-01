@@ -829,7 +829,7 @@ export default class GMApi {
   @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
-      callback(data);
+      callback(data ?? {});
     });
   }
 
