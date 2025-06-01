@@ -8,6 +8,7 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
+  type ScriptCodeDAO,
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi from "./gm_api";
@@ -66,7 +67,8 @@ export class RuntimeService {
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
-    private scriptDAO: ScriptDAO
+    private scriptDAO: ScriptDAO,
+    private scriptCodeDAO: ScriptCodeDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
   }
@@ -412,26 +414,32 @@ export class RuntimeService {
       let scriptRegisterInfoList = await chrome.userScripts.getScripts({
         ids: needUpdateRegisteredUserScripts.map((script) => script.uuid),
       });
-      scriptRegisterInfoList = scriptRegisterInfoList
-        .map((scriptRegisterInfo) => {
-          let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
-          if (scriptRes) {
-            let originScriptCode = scriptRegisterInfo.js[0]["code"];
-            scriptRes.code = compileScriptCode(scriptRes);
-            scriptRes.code = compileInjectScript(scriptRes, true);
-            // 编译后的脚本和初始化时的脚本代码一致，则不更新
-            if (originScriptCode === scriptRes.code) {
-              return;
+      scriptRegisterInfoList = (
+        await Promise.all(
+          scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
+            let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+            if (scriptRes) {
+              let originScriptCode = scriptRegisterInfo.js[0]["code"];
+              if (scriptRes.code === "") {
+                // 重新获取脚本代码，不知道什么情况code会被置空，所以这里重新获取
+                scriptRes.code = (await this.scriptCodeDAO.get(scriptRes.uuid))!.code;
+              }
+              scriptRes.code = compileScriptCode(scriptRes);
+              scriptRes.code = compileInjectScript(scriptRes, true);
+              // 编译后的脚本和初始化时的脚本代码一致，则不更新
+              if (originScriptCode === scriptRes.code) {
+                return;
+              }
+              scriptRegisterInfo.js = [
+                {
+                  code: scriptRes.code,
+                },
+              ];
+              return scriptRegisterInfo;
             }
-            scriptRegisterInfo.js = [
-              {
-                code: scriptRes.code,
-              },
-            ];
-            return scriptRegisterInfo;
-          }
-        })
-        .filter((it) => it != null);
+          })
+        )
+      ).filter((it) => it != null);
       // 批量更新
       if (scriptRegisterInfoList.length) {
         try {

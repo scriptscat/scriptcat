@@ -11,7 +11,7 @@ import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ExtServer, ExtVersion } from "@App/app/const";
 import { systemConfig } from "@App/pages/store/global";
-import { ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
@@ -34,6 +34,8 @@ export default class ServiceWorkerManager {
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
 
+    const scriptCodeDAO = new ScriptCodeDAO();
+
     const systemConfig = new SystemConfig(this.mq);
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
@@ -49,7 +51,8 @@ export default class ServiceWorkerManager {
       value,
       script,
       resource,
-      scriptDAO
+      scriptDAO,
+      scriptCodeDAO
     );
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO);
