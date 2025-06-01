@@ -17,9 +17,14 @@ export function compileScriptCode(scriptRes: ScriptRunResouce): string {
     });
   }
   const code = require + scriptRes.code;
-  return `with (context) return (async ()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
-    `/${encodeURI(scriptRes.name)}.user.js`
-  )}\n})()`;
+  return `
+  (async () => {
+    with(context){
+      ${code}
+
+      //# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}
+    }
+  })()`;
 }
 
 export type ScriptFunc = (context: any, GM_info: any) => any;
@@ -28,9 +33,17 @@ export type ScriptFunc = (context: any, GM_info: any) => any;
 export function compileScript(code: string): ScriptFunc {
   return <ScriptFunc>new Function("context", "GM_info", code);
 }
+/**
+ * 将脚本函数编译为注入脚本代码
+ * @param script
+ * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
+ */
+export function compileInjectScript(script: ScriptRunResouce, autoDeleteMountFunction: boolean = false): string {
+  return `window['${script.flag}'] = function(context, GM_info){
+  ${autoDeleteMountFunction ? `try{delete window['${script.flag}'];}catch(e){};` : ""}
 
-export function compileInjectScript(script: ScriptRunResouce): string {
-  return `window['${script.flag}']=function(context,GM_info){\n${script.code}\n}`;
+${script.code}
+}`;
 }
 
 // 设置api依赖
