@@ -20,7 +20,7 @@ import Cache from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript } from "../content/utils";
+import { compileInjectScript, compileScriptCode } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
@@ -379,6 +379,71 @@ export class RuntimeService {
       }),
     ]);
 
+    // 更新资源使用了file协议的脚本
+    let needUpdateRegisteredUserScripts = enableScript.filter((script) => {
+      let uriList: string[] = [];
+      // @require
+      if (Array.isArray(script.metadata.require)) {
+        uriList = uriList.concat(script.metadata.require);
+      }
+      // @resource
+      if (Array.isArray(script.metadata.resource)) {
+        uriList = uriList.concat(
+          script.metadata.resource
+            .map((resourceInfo) => {
+              let split = resourceInfo
+                .trim()
+                .split(" ")
+                .filter((it) => it != "");
+              if (split.length >= 2) {
+                let resourceKey = split[0];
+                let resourceUri = split[1];
+                return resourceUri;
+              }
+            })
+            .filter((it) => it != null)
+        );
+      }
+      return uriList.some((uri) => {
+        return uri.startsWith("file://");
+      });
+    });
+    if (needUpdateRegisteredUserScripts.length) {
+      // this.logger.info("update registered userscripts", {
+      //   needReloadScript: needUpdateRegisteredUserScripts,
+      // });
+      let scriptRegisterInfoList = await chrome.userScripts.getScripts({
+        ids: needUpdateRegisteredUserScripts.map((script) => script.uuid),
+      });
+      scriptRegisterInfoList = scriptRegisterInfoList
+        .map((scriptRegisterInfo) => {
+          let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+          if (scriptRes) {
+            let originScriptCode = scriptRegisterInfo.js[0]["code"];
+            scriptRes.code = compileScriptCode(scriptRes);
+            scriptRes.code = compileInjectScript(scriptRes, true);
+            // 编译后的脚本和初始化时的脚本代码一致，则不更新
+            if (originScriptCode === scriptRes.code) {
+              return;
+            }
+            scriptRegisterInfo.js = [
+              {
+                code: scriptRes.code,
+              },
+            ];
+            return scriptRegisterInfo;
+          }
+        })
+        .filter((it) => it != null);
+      // 批量更新
+      if (scriptRegisterInfoList.length) {
+        try {
+          await chrome.userScripts.update(scriptRegisterInfoList);
+        } catch (e) {
+          this.logger.error("update registered userscripts error", Logger.E(e));
+        }
+      }
+    }
     this.mq.emit("pageLoad", {
       tabId: chromeSender.tab?.id,
       frameId: chromeSender.frameId,
