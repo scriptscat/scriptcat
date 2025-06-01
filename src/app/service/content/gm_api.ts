@@ -849,8 +849,18 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }) {
-    this.sendMessage("GM_setClipboard", [data, info]);
+  GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
+    this.sendMessage("GM_setClipboard", [data, info])
+      .then((resp) => {
+        if (typeof cb === "function") {
+          cb();
+        }
+      })
+      .catch(() => {
+        if (typeof cb === "function") {
+          cb();
+        }
+      });
   }
 
   @GMContext.API()
