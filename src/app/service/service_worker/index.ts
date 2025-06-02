@@ -34,8 +34,6 @@ export default class ServiceWorkerManager {
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
 
-    const scriptCodeDAO = new ScriptCodeDAO();
-
     const systemConfig = new SystemConfig(this.mq);
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
@@ -51,8 +49,7 @@ export default class ServiceWorkerManager {
       value,
       script,
       resource,
-      scriptDAO,
-      scriptCodeDAO
+      scriptDAO
     );
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO);

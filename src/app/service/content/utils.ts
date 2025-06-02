@@ -6,8 +6,8 @@ import { Message } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 
 // 构建脚本运行代码
-export function compileScriptCode(scriptRes: ScriptRunResouce): string {
-  const scriptCode = scriptRes.code;
+export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: string): string {
+  scriptCode = scriptCode ?? scriptRes.code;
   let requireCode = "";
   if (Array.isArray(scriptRes.metadata.require)) {
     requireCode += scriptRes.metadata.require
@@ -49,11 +49,17 @@ export function compileScript(code: string): ScriptFunc {
 /**
  * 将脚本函数编译为注入脚本代码
  * @param script
+ * @param scriptCode
  * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
  */
-export function compileInjectScript(script: ScriptRunResouce, autoDeleteMountFunction: boolean = false): string {
+export function compileInjectScript(
+  script: ScriptRunResouce,
+  scriptCode?: string,
+  autoDeleteMountFunction: boolean = false
+): string {
+  scriptCode = scriptCode ?? script.code;
   return `window['${script.flag}'] = function(context, GM_info){
-${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${script.code}}`;
+${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${scriptCode}}`;
 }
 
 // 设置api依赖

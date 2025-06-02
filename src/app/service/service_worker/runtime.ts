@@ -67,8 +67,7 @@ export class RuntimeService {
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
-    private scriptDAO: ScriptDAO,
-    private scriptCodeDAO: ScriptCodeDAO
+    private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
   }
@@ -420,19 +419,19 @@ export class RuntimeService {
             let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
             if (scriptRes) {
               let originScriptCode = scriptRegisterInfo.js[0]["code"];
-              if (scriptRes.code === "") {
-                // 重新获取脚本代码，不知道什么情况code会被置空，所以这里重新获取
-                scriptRes.code = (await this.scriptCodeDAO.get(scriptRes.uuid))!.code;
+              let scriptResCode = scriptRes.code;
+              if (scriptResCode === "") {
+                scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
               }
-              scriptRes.code = compileScriptCode(scriptRes);
-              scriptRes.code = compileInjectScript(scriptRes, true);
-              // 编译后的脚本和初始化时的脚本代码一致，则不更新
-              if (originScriptCode === scriptRes.code) {
+              let scriptCode = compileScriptCode(scriptRes, scriptResCode);
+              let scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+              // 若代码一致，则不更新
+              if (originScriptCode === scriptInjectCode) {
                 return;
               }
               scriptRegisterInfo.js = [
                 {
-                  code: scriptRes.code,
+                  code: scriptInjectCode,
                 },
               ];
               return scriptRegisterInfo;
