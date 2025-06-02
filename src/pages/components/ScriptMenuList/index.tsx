@@ -276,7 +276,7 @@ const ScriptMenuList: React.FC<{
 
 const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
-    menu.options?.autoClose && window.close();
+    menu.options?.autoClose !== false && window.close();
   });
 };
 

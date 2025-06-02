@@ -2,6 +2,7 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { Script, SCRIPT_RUN_STATUS } from "../repo/scripts";
 import { InstallSource } from "./service_worker";
 import { Subscribe } from "../repo/subscribe";
+import { ScriptMenuItem } from "./service_worker/popup";
 
 export function subscribeScriptInstall(
   messageQueue: MessageQueue,
@@ -48,7 +49,7 @@ export type ScriptMenuRegisterCallbackValue = {
   uuid: string;
   id: number;
   name: string;
-  options?: { autoClose?: string; title?: string; accessKey?: string };
+  options?: ScriptMenuItem["options"];
   tabId: number;
   frameId: number;
   documentId: string;

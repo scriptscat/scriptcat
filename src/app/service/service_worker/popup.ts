@@ -27,7 +27,7 @@ export type ScriptMenuItem = {
   name: string;
   options?: {
     id?: number;
-    autoClose?: string;
+    autoClose?: boolean;
     title?: string;
     accessKey?: string;
     // 可选输入框
