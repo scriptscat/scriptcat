@@ -184,7 +184,7 @@ export default class GMApi {
     this.GM_setValue(name, undefined);
   }
 
-  @GMContext.API()
+  @GMContext.API({ depend: ["GM_setValue"] })
   public GM_setValues(values: object) {
     if (values == null) {
       throw new Error("GM_ setValues: values must not be null or undefined");
@@ -198,7 +198,7 @@ export default class GMApi {
     });
   }
 
-  @GMContext.API()
+  @GMContext.API({ depend: ["GM_getValue"] })
   public GM_getValues(keysOrDefaults: object | string[] | null | undefined) {
     if (keysOrDefaults == null) {
       // returns all
@@ -224,7 +224,7 @@ export default class GMApi {
     return result;
   }
 
-  @GMContext.API()
+  @GMContext.API({ depend: ["GM_deleteValue"] })
   public GM_deleteValues(keys: string[]) {
     if (!Array.isArray(keys)) {
       console.warn(" GM_deleteValues: keys must be string[]");
