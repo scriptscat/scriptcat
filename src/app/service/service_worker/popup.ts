@@ -35,8 +35,6 @@ export type ScriptMenuItem = {
     inputLabel?: string;
     inputDefaultValue?: string | number | boolean;
     inputPlaceholder?: string;
-    // 会话输入值
-    _inputValue?: string | number | boolean;
   };
   tabId: number; //-1表示后台脚本
   frameId?: number;
@@ -223,34 +221,6 @@ export class PopupService {
     return ((await Cache.getInstance().get("tabScript:" + tabId)) || []) as ScriptMenu[];
   }
 
-  async setScriptMenu(tabId: number, scriptMenus: ScriptMenu[]) {
-    return await Cache.getInstance().set("tabScript:" + tabId, scriptMenus);
-  }
-
-  async updateScriptMenuInputValue({
-    tabId,
-    uuid,
-    menuId,
-    inputValue,
-  }: {
-    tabId: number;
-    uuid: string;
-    menuId: number;
-    inputValue: any;
-  }) {
-    try {
-      const scriptMenus = await this.getScriptMenu(tabId);
-      const menus = scriptMenus.find((item) => item.uuid === uuid)!.menus;
-      const menu = menus.find((item) => item.id == menuId);
-      menu!.options!._inputValue = inputValue;
-      await this.setScriptMenu(tabId, scriptMenus);
-      return true;
-    } catch (e) {
-      console.error("updateScriptMenuInputValue failed", e);
-      return false;
-    }
-  }
-
   // 事务更新脚本菜单
   txUpdateScriptMenu(tabId: number, callback: (menu: ScriptMenu[]) => Promise<any>) {
     return Cache.getInstance().tx<ScriptMenu[]>("tabScript:" + tabId, async (menu) => {
@@ -388,7 +358,6 @@ export class PopupService {
     subscribeScriptMenuRegister(this.mq, this.registerMenuCommand.bind(this));
     this.mq.subscribe("unregisterMenuCommand", this.unregisterMenuCommand.bind(this));
     this.group.on("getPopupData", this.getPopupData.bind(this));
-    this.group.on("updateScriptMenuInputValue", this.updateScriptMenuInputValue.bind(this));
     this.group.on("menuClick", this.menuClick.bind(this));
     this.dealBackgroundScriptInstall();
 

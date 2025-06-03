@@ -274,13 +274,10 @@ const ScriptMenuList: React.FC<{
   );
 };
 
-const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any, isDiff?: boolean) => {
+const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
     menu.options?.autoClose !== false && window.close();
   });
-  if (isDiff) {
-    popupClient.updateScriptMenuInputValue(uuid, menu, inputValue);
-  }
 };
 
 const FormItem = Form.Item;
@@ -291,7 +288,7 @@ type MenuItemProps = {
 };
 
 const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
-  const initialValue = menu.options?._inputValue ?? menu.options?.inputDefaultValue;
+  const initialValue = menu.options?.inputDefaultValue;
 
   const InputMenu = (() => {
     const placeholder = menu.options?.inputPlaceholder;
@@ -317,9 +314,8 @@ const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
       autoComplete="off"
       onSubmit={(v) => {
         const inputValue = v.inputValue;
-        const isDiff = inputValue !== initialValue;
-        console.log(v, isDiff);
-        sendMenuAction(uuid, menu, inputValue, isDiff);
+        console.log(v);
+        sendMenuAction(uuid, menu, inputValue);
       }}
     >
       <Button
