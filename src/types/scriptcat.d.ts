@@ -107,6 +107,10 @@ declare function GM_registerMenuCommand(
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
+declare const CAT_registerMenuInput: typeof GM_registerMenuCommand;
+
+declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
+
 declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
 declare function GM_openInTab(url: string): tab;

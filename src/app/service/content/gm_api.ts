@@ -285,6 +285,13 @@ export default class GMApi {
     return id;
   }
 
+  @GMContext.API({
+    depend: ["GM_registerMenuCommand"],
+  })
+  CAT_registerMenuInput(...args: Parameters<GMApi["GM_registerMenuCommand"]>): number {
+    return this.GM_registerMenuCommand(...args);
+  }
+
   @GMContext.API()
   GM_addStyle(css: string) {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
@@ -346,6 +353,13 @@ export default class GMApi {
     this.menuMap.delete(id);
     this.EE.removeAllListeners("menuClick:" + id);
     this.sendMessage("GM_unregisterMenuCommand", [id]);
+  }
+
+  @GMContext.API({
+    depend: ["GM_unregisterMenuCommand"],
+  })
+  CAT_unregisterMenuInput(...args: Parameters<GMApi["GM_unregisterMenuCommand"]>): void {
+    this.GM_unregisterMenuCommand(...args);
   }
 
   @GMContext.API()

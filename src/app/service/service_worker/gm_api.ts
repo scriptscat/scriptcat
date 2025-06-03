@@ -645,7 +645,7 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
   GM_registerMenuCommand(request: Request, sender: GetSender) {
     const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
@@ -660,7 +660,7 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ alias: ["CAT_unregisterMenuInput"] })
   GM_unregisterMenuCommand(request: Request, sender: GetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
