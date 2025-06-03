@@ -98,15 +98,15 @@ export class Server {
             .then((data) => {
               sendResponse({ code: 0, data });
             })
-            .catch((err) => {
-              sendResponse({ code: -1, message: err });
+            .catch((e: Error) => {
+              sendResponse({ code: -1, message: e.message || e.toString() });
             });
           return true;
         } else {
           sendResponse({ code: 0, data: ret });
         }
       } catch (e: any) {
-        sendResponse({ code: -1, message: e.message });
+        sendResponse({ code: -1, message: e.message || e.toString() });
       }
     } else {
       sendResponse({ code: -1, message: "no such api " + action });

@@ -6,20 +6,38 @@ import { Message } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 
 // 构建脚本运行代码
-export function compileScriptCode(scriptRes: ScriptRunResouce): string {
-  let require = "";
-  if (scriptRes.metadata.require) {
-    scriptRes.metadata.require.forEach((val) => {
-      const res = scriptRes.resource[val];
-      if (res) {
-        require = `${require}\n${res.content}`;
-      }
-    });
+export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: string): string {
+  scriptCode = scriptCode ?? scriptRes.code;
+  let requireCode = "";
+  if (Array.isArray(scriptRes.metadata.require)) {
+    requireCode += scriptRes.metadata.require
+      .map((val) => {
+        const res = scriptRes.resource[val];
+        if (res) {
+          return res.content;
+        }
+      })
+      .join("\n");
   }
-  const code = require + scriptRes.code;
-  return `with (context) return (async ()=>{\n${code}\n//# sourceURL=${chrome.runtime.getURL(
-    `/${encodeURI(scriptRes.name)}.user.js`
-  )}\n})()`;
+  const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
+  const code = [requireCode, scriptCode, sourceURL].join("\n");
+  return `  with(context){
+      (async (factory) => {
+          try {
+            await factory();
+          } catch (e) {
+            if (e.message && e.stack) {
+                console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
+                console.log(e.stack);
+            } else {
+                console.error(e);
+            }
+          }
+
+      })(async function(){
+          ${code}
+      })
+  }`;
 }
 
 export type ScriptFunc = (context: any, GM_info: any) => any;
@@ -28,9 +46,20 @@ export type ScriptFunc = (context: any, GM_info: any) => any;
 export function compileScript(code: string): ScriptFunc {
   return <ScriptFunc>new Function("context", "GM_info", code);
 }
-
-export function compileInjectScript(script: ScriptRunResouce): string {
-  return `window['${script.flag}']=function(context,GM_info){\n${script.code}\n}`;
+/**
+ * 将脚本函数编译为注入脚本代码
+ * @param script
+ * @param scriptCode
+ * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
+ */
+export function compileInjectScript(
+  script: ScriptRunResouce,
+  scriptCode?: string,
+  autoDeleteMountFunction: boolean = false
+): string {
+  scriptCode = scriptCode ?? script.code;
+  return `window['${script.flag}'] = function(context, GM_info){
+${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${scriptCode}}`;
 }
 
 // 设置api依赖
@@ -70,7 +99,9 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
     EE: new EventEmitter(),
     GM: { info: GMInfo },
     GM_info: GMInfo,
-    window: {},
+    window: {
+      onurlchange: null,
+    },
   };
   if (scriptRes.metadata.grant) {
     const GM_cookie = function (action: string) {
@@ -248,6 +279,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           return global.top;
         case "close":
         case "focus":
+        case "onurlchange":
           if (context["window"][name]) {
             return context["window"][name];
           }

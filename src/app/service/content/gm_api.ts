@@ -126,7 +126,6 @@ export default class GMApi {
       grant: script.metadata.grant || [],
       connects: script.metadata.connect || [],
     };
-
     return {
       downloadMode: "browser",
       // isIncognito
@@ -134,7 +133,8 @@ export default class GMApi {
       // sandboxMode
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
-      scriptUpdateURL: script.downloadUrl,
+      // "" => null
+      scriptUpdateURL: script.downloadUrl || null,
       scriptMetaStr: script.metadataStr,
       userConfig: parseUserConfig(script.userConfigStr),
       userConfigStr: script.userConfigStr,
@@ -146,6 +146,9 @@ export default class GMApi {
         namespace: script.namespace,
         version: script.metadata.version?.[0],
         author: script.author,
+        lastModified: script.updatetime,
+        downloadURL: script.downloadUrl || null,
+        updateURL: script.checkUpdateUrl || null,
         ...options,
       },
     };
@@ -179,6 +182,57 @@ export default class GMApi {
   @GMContext.API({ depend: ["GM_setValue"] })
   public GM_deleteValue(name: string): void {
     this.GM_setValue(name, undefined);
+  }
+
+  @GMContext.API({ depend: ["GM_setValue"] })
+  public GM_setValues(values: object) {
+    if (values == null) {
+      throw new Error("GM_ setValues: values must not be null or undefined");
+    }
+    if (typeof values !== "object") {
+      throw new Error("GM_setValues: values must be an object");
+    }
+    Object.keys(values).forEach((key) => {
+      let value = values[key as keyof typeof values];
+      return this.GM_setValue(key, value);
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getValue"] })
+  public GM_getValues(keysOrDefaults: object | string[] | null | undefined) {
+    if (keysOrDefaults == null) {
+      // returns all
+      return this.scriptRes.value;
+    }
+    let result = <{ [key: string]: any }>{};
+    if (Array.isArray(keysOrDefaults)) {
+      // 键名数组
+      for (let index = 0; index < keysOrDefaults.length; index++) {
+        const key = keysOrDefaults[index];
+        if (key in this.scriptRes.value) {
+          result[key] = this.scriptRes.value[key];
+        }
+      }
+    } else {
+      // 对象 键: 默认值
+      Object.keys(keysOrDefaults).forEach((key) => {
+        let defaultValue = keysOrDefaults[key as keyof typeof keysOrDefaults];
+        result[key] = this.GM_getValue(key, defaultValue);
+      });
+    }
+
+    return result;
+  }
+
+  @GMContext.API({ depend: ["GM_deleteValue"] })
+  public GM_deleteValues(keys: string[]) {
+    if (!Array.isArray(keys)) {
+      console.warn(" GM_deleteValues: keys must be string[]");
+      return;
+    }
+    keys.forEach((key) => {
+      this.GM_deleteValue(key);
+    });
   }
 
   eventId: number = 0;
@@ -736,6 +790,9 @@ export default class GMApi {
       close: () => {
         tabid && this.GM_closeInTab(tabid);
       },
+      closed: false,
+      // 占位
+      onclose() {},
     };
 
     this.sendMessage("GM_openInTab", [url, option]).then((id) => {
@@ -775,7 +832,7 @@ export default class GMApi {
   @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
-      callback(data);
+      callback(data ?? {});
     });
   }
 
@@ -795,8 +852,18 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }) {
-    this.sendMessage("GM_setClipboard", [data, info]);
+  GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
+    this.sendMessage("GM_setClipboard", [data, info])
+      .then((resp) => {
+        if (typeof cb === "function") {
+          cb();
+        }
+      })
+      .catch(() => {
+        if (typeof cb === "function") {
+          cb();
+        }
+      });
   }
 
   @GMContext.API()

@@ -44,19 +44,31 @@ export class ResourceService {
     }
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
-      script.metadata[type].map(async (u) => {
+      script.metadata[type].map(async (uri) => {
+        /** 资源键名 */
+        let resourceKey = uri;
+        /** 文件路径 */
+        let path: string | null = uri;
         if (type === "resource") {
-          const split = u.split(/\s+/);
+          // @resource xxx https://...
+          const split = uri.split(/\s+/);
           if (split.length === 2) {
-            const res = await this.getResource(script.uuid, split[1], "resource");
-            if (res) {
-              ret[split[0]] = res;
-            }
+            resourceKey = split[0];
+            path = split[1].trim();
+          } else {
+            path = null;
           }
-        } else {
-          const res = await this.getResource(script.uuid, u, type);
-          if (res) {
-            ret[u] = res;
+        }
+        if (path) {
+          if (uri.startsWith("file://")) {
+            // 如果是file://协议，则每次请求更新一下文件
+            const res = await this.updateResource(script.uuid, path, type);
+            ret[resourceKey] = res;
+          } else {
+            const res = await this.getResource(script.uuid, path, type);
+            if (res) {
+              ret[resourceKey] = res;
+            }
           }
         }
       })
@@ -108,7 +120,7 @@ export class ResourceService {
       }
     }
     try {
-      res = await this.updateResource(url, uuid, type);
+      res = await this.updateResource(uuid, url, type);
       if (res) {
         return Promise.resolve(res);
       }
@@ -119,7 +131,7 @@ export class ResourceService {
     return Promise.resolve(undefined);
   }
 
-  async updateResource(url: string, uuid: string, type: ResourceType) {
+  async updateResource(uuid: string, url: string, type: ResourceType) {
     // 重新加载
     const u = this.parseUrl(url);
     let result = await this.getResourceModel(u.url);
