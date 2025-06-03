@@ -240,6 +240,15 @@ export class PopupClient extends Client {
       },
     });
   }
+
+  updateScriptMenuInputValue(uuid: string, data: ScriptMenuItem, inputValue?: any) {
+    return this.do("updateScriptMenuInputValue", {
+      uuid,
+      tabId: data.tabId,
+      menuId: data.id,
+      inputValue,
+    });
+  }
 }
 
 export class PermissionClient extends Client {

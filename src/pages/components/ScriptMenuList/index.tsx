@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Button,
   Collapse,
   Empty,
+  Form,
   Input,
   InputNumber,
   Message,
@@ -29,7 +30,6 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { i18nName } from "@App/locales/locales";
 import { subscribeScriptRunStatus } from "@App/app/service/queue";
 import { messageQueue, systemConfig } from "@App/pages/store/global";
-import { RefInputType } from "@arco-design/web-react/es/Input";
 
 const CollapseItem = Collapse.Item;
 
@@ -274,11 +274,16 @@ const ScriptMenuList: React.FC<{
   );
 };
 
-const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
+const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any, isDiff?: boolean) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
     menu.options?.autoClose !== false && window.close();
   });
+  if (isDiff) {
+    popupClient.updateScriptMenuInputValue(uuid, menu, inputValue);
+  }
 };
+
+const FormItem = Form.Item;
 
 type MenuItemProps = {
   menu: ScriptMenuItem;
@@ -286,91 +291,58 @@ type MenuItemProps = {
 };
 
 const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
-  const inputRef = useRef<RefInputType>(null);
+  const initialValue = menu.options?._inputValue ?? menu.options?.inputDefaultValue;
 
-  const getValue = () => {
-    switch (menu.options?.inputType) {
-      case "text":
-        return inputRef.current!.dom.value;
-      case "number":
-        return +inputRef.current!.dom.value;
-      case "boolean":
-        // arco的Switch组件没有ref类型定义，使用unknown强制转换
-        return (inputRef.current as unknown as HTMLButtonElement)!.ariaChecked === "true";
-      default:
-        return null;
-    }
-  };
-
-  const renderInput = () => {
-    const defaultValue = menu.options?.inputDefaultValue;
+  const InputMenu = (() => {
     const placeholder = menu.options?.inputPlaceholder;
 
     switch (menu.options?.inputType) {
       case "text":
-        return (
-          <Input
-            type="text"
-            addBefore={menu.options.inputLabel}
-            ref={inputRef}
-            defaultValue={defaultValue as string}
-            placeholder={placeholder}
-            size="small"
-            beforeStyle={{ color: "var(--color-text-2)" }}
-            style={{ paddingLeft: 36 }}
-          />
-        );
+        return <Input type="text" placeholder={placeholder} />;
       case "number":
-        return (
-          <InputNumber
-            prefix={menu.options.inputLabel}
-            ref={inputRef}
-            defaultValue={defaultValue as number}
-            placeholder={placeholder}
-            size="small"
-            style={{ paddingLeft: 36 }}
-          />
-        );
+        return <InputNumber placeholder={placeholder} />;
       case "boolean":
-        return (
-          <div style={{ background: "#F2F3F5", marginLeft: 36 }}>
-            <span
-              style={{
-                paddingLeft: 13.5,
-                paddingRight: 12,
-                color: "var(--color-text-2)",
-                verticalAlign: "middle",
-              }}
-            >
-              {menu.options.inputLabel}
-            </span>
-            <Switch ref={inputRef} defaultChecked={defaultValue as boolean} />
-          </div>
-        );
+        return <Switch defaultChecked={initialValue as boolean} />;
       default:
         return null;
     }
-  };
+  })();
 
   return (
-    <div>
+    <Form
+      initialValues={{ inputValue: initialValue }}
+      size="small"
+      labelCol={{ flex: "none" }}
+      wrapperCol={{ flex: "none" }}
+      autoComplete="off"
+      onSubmit={(v) => {
+        const inputValue = v.inputValue;
+        const isDiff = inputValue !== initialValue;
+        console.log(v, isDiff);
+        sendMenuAction(uuid, menu, inputValue, isDiff);
+      }}
+    >
       <Button
         className="text-left"
         type="secondary"
+        htmlType="submit"
         icon={<IconMenu />}
         title={menu.options?.title}
-        onClick={() => {
-          const inputValue = getValue();
-          console.log(uuid, menu, inputValue);
-          sendMenuAction(uuid, menu, inputValue);
-        }}
         style={{ display: "block", width: "100%", borderTopColor: "#E5E6EB" }}
       >
         {menu.name}
         {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
       </Button>
-      {renderInput()}
-    </div>
+      {InputMenu && (
+        <FormItem
+          label={menu.options?.inputLabel}
+          field="inputValue"
+          style={{ marginTop: 5, marginBottom: 5, paddingLeft: 20 }}
+        >
+          {InputMenu}
+        </FormItem>
+      )}
+    </Form>
   );
 };
 
