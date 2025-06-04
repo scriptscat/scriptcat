@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Card, Checkbox, Drawer, Empty, Input, List, Message, Modal, Space } from "@arco-design/web-react";
+import {
+  Button,
+  Card,
+  Checkbox,
+  Drawer,
+  Empty,
+  Input,
+  List,
+  Message,
+  Modal,
+  Popconfirm,
+  Space,
+} from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
 import { formatUnixTime } from "@App/pkg/utils/utils";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
@@ -12,6 +24,7 @@ import { message, systemConfig } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { SystemConfig } from "@App/pkg/config/config";
 import { SystemClient } from "@App/app/service/service_worker/client";
+import { migrateToChromeStorage } from "@App/app/migrate";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
@@ -263,6 +276,16 @@ function Tools() {
           </Drawer>
           <Title heading={6}>{t("backup_strategy")}</Title>
           <Empty description={t("under_construction")} />
+          <Popconfirm
+            title={
+              "重试迁移储存引擎会对现有数据造成修改，请确认，详情请看：https://docs.scriptcat.org/docs/change/v0.17/"
+            }
+            onOk={() => {
+              migrateToChromeStorage();
+            }}
+          >
+            <Button type="primary">重试迁移储存引擎</Button>
+          </Popconfirm>
         </Space>
       </Card>
 
