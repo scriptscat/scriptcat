@@ -12,6 +12,7 @@ import CacheKey from "@App/app/cache_key";
 import { Subscribe } from "@App/app/repo/subscribe";
 import { Permission } from "@App/app/repo/permission";
 import { ResourceBackup } from "@App/pkg/backup/struct";
+import { VSCodeConnect } from "../offscreen/vscode-connect";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -330,5 +331,15 @@ export class SubscribeClient extends Client {
 
   enable(url: string, enable: boolean) {
     return this.do("enable", { url, enable });
+  }
+}
+
+export class SystemClient extends Client {
+  constructor(msg: MessageSend) {
+    super(msg, "serviceWorker/system");
+  }
+
+  connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
+    return this.do("connectVSCode", params);
   }
 }

@@ -12,6 +12,7 @@ import { SubscribeService } from "./subscribe";
 import { ExtServer, ExtVersion } from "@App/app/const";
 import { systemConfig } from "@App/pages/store/global";
 import { ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { SystemService } from "./system";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
@@ -67,6 +68,8 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);
     subscribe.init();
+    const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
+    system.init();
 
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {

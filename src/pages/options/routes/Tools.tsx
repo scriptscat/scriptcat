@@ -8,8 +8,10 @@ import { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
 import { File, FileReader } from "@Packages/filesystem/filesystem";
-import { systemConfig } from "@App/pages/store/global";
+import { message, systemConfig } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
+import { SystemConfig } from "@App/pkg/config/config";
+import { SystemClient } from "@App/app/service/service_worker/client";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
@@ -310,9 +312,12 @@ function Tools() {
             onClick={() => {
               systemConfig.setVscodeUrl(vscodeUrl);
               systemConfig.setVscodeReconnect(vscodeReconnect);
-              const ctrl = IoC.instance(SystemController) as SystemController;
-              ctrl
-                .connectVSCode()
+              const systemClient = new SystemClient(message);
+              systemClient
+                .connectVSCode({
+                  url: vscodeUrl,
+                  reconnect: vscodeReconnect,
+                })
                 .then(() => {
                   Message.success(t("connection_success")!);
                 })

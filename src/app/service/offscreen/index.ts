@@ -7,6 +7,7 @@ import { ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
+import { VSCodeConnect } from "./vscode-connect";
 
 // offscreen环境的管理器
 export class OffscreenManager {
@@ -54,9 +55,10 @@ export class OffscreenManager {
 
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
+    const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"));
+    vscodeConnect.init();
 
     this.windowServer.on("createObjectURL", (data: Blob) => {
-      console.log("createObjectURL", data);
       const url = URL.createObjectURL(data);
       setTimeout(() => {
         URL.revokeObjectURL(url);
