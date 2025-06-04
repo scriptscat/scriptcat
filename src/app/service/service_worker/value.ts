@@ -29,11 +29,29 @@ export class ValueService {
   }
 
   async getScriptValue(script: Script) {
+    let data: { [key: string]: any } = {};
     const ret = await this.valueDAO.get(getStorageName(script));
-    if (!ret) {
-      return {};
+    if (ret) {
+      data = ret.data;
     }
-    return ret.data;
+    const newValues = data;
+    // 和userconfig组装
+    const { config } = script;
+    if (config) {
+      Object.keys(config).forEach((tabKey) => {
+        const tab = config![tabKey];
+        Object.keys(tab).forEach((key) => {
+          // 动态变量
+          if (tab[key].bind) {
+            const bindKey = tab[key].bind!.substring(1);
+            newValues[bindKey] = data[bindKey] === undefined ? undefined : data[bindKey];
+          }
+          newValues[`${tabKey}.${key}`] =
+            data[`${tabKey}.${key}`] === undefined ? config![tabKey][key].default : data[`${tabKey}.${key}`];
+        });
+      });
+    }
+    return newValues;
   }
 
   async setValue(uuid: string, key: string, value: any, sender: ValueUpdateSender) {
