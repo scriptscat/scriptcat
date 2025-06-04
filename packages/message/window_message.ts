@@ -1,9 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { Message, MessageConnect, MessageSend } from "./server";
+import EventEmitter from "eventemitter3";
 
 // 通过 window.postMessage/onmessage 实现通信
-
-import EventEmitter from "eventemitter3";
 
 export interface PostMessage {
   postMessage(message: any): void;
@@ -167,13 +166,18 @@ export class ServiceWorkerMessageSend implements MessageSend {
 
   constructor() {}
 
+  listened: boolean = false;
+
   async init() {
     if (!this.target && self.clients) {
       const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
       this.target = list[0];
-      self.addEventListener("message", (e) => {
-        this.messageHandle(e.data);
-      });
+      if (!this.listened) {
+        this.listened = true;
+        self.addEventListener("message", (e) => {
+          this.messageHandle(e.data);
+        });
+      }
     }
   }
 
