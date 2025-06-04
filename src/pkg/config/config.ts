@@ -68,8 +68,13 @@ export class SystemConfig {
   }
 
   public set(key: string, val: any) {
-    this.cache.set(key, val);
-    this.storage.set(key, val);
+    if (val === undefined) {
+      this.cache.delete(key);
+      this.storage.remove(key);
+    } else {
+      this.cache.set(key, val);
+      this.storage.set(key, val);
+    }
     // 发送消息通知更新
     this.mq.publish(SystamConfigChange, {
       key,
@@ -188,7 +193,7 @@ export class SystemConfig {
 
   setEslintConfig(v: string) {
     if (v === "") {
-      this.set("eslint_config", v);
+      this.set("eslint_config", undefined);
       Message.success("ESLint规则已重置");
       return;
     }
