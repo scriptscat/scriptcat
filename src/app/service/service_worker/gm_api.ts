@@ -404,7 +404,11 @@ export default class GMApi {
   }
 
   // 根据header生成dnr规则
-  async buildDNRRule(reqeustId: number, params: GMSend.XHRDetails): Promise<{ [key: string]: string }> {
+  async buildDNRRule(
+    reqeustId: number,
+    params: GMSend.XHRDetails,
+    sender: GetSender
+  ): Promise<{ [key: string]: string }> {
     // 检查是否有unsafe header,有则生成dnr规则
     const headers = params.headers;
     if (!headers) {
@@ -432,9 +436,51 @@ export default class GMApi {
           operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
         });
       }
-    } else if (params.cookie) {
-      // 否则正常携带cookie header
-      headers["cookie"] = params.cookie;
+    } else {
+      if (params.cookie) {
+        // 否则正常携带cookie header
+        headers["cookie"] = params.cookie;
+      }
+
+      // 追加该网站本身存储的cookie
+      let tabId = sender.getExtMessageSender().tabId;
+      let storeId: string | undefined;
+      if (tabId !== -1) {
+        const stores = await chrome.cookies.getAllCookieStores();
+        const store = stores.find((val) => val.tabIds.includes(tabId));
+        if (store) {
+          storeId = store.id;
+        }
+      }
+
+      let cookies = await chrome.cookies.getAll({
+        domain: undefined,
+        name: undefined,
+        path: undefined,
+        secure: undefined,
+        session: undefined,
+        url: params.url,
+        storeId: storeId,
+        partitionKey: params.cookiePartition,
+      });
+      // 追加cookie
+      if (cookies.length) {
+        const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        if (!("cookie" in headers)) {
+          headers.cookie = "";
+        }
+        headers["cookie"] = headers["cookie"].trim();
+        if (headers["cookie"] === "") {
+          // 空的
+          headers["cookie"] = cookieStr;
+        } else {
+          // 非空
+          if (!headers["cookie"].endsWith(";")) {
+            headers["cookie"] = headers["cookie"] + "; ";
+          }
+          headers["cookie"] = headers["cookie"] + cookieStr;
+        }
+      }
     }
 
     Object.keys(headers).forEach((key) => {
@@ -636,8 +682,18 @@ export default class GMApi {
     if (!params.headers) {
       params.headers = {};
     }
+
+    // 处理cookiePartition
+    if (typeof params.cookiePartition !== "object" || params.cookiePartition == null) {
+      params.cookiePartition = {};
+    }
+    if (typeof params.cookiePartition.topLevelSite !== "string") {
+      // string | undefined
+      params.cookiePartition.topLevelSite = undefined;
+    }
+
     params.headers["X-Scriptcat-GM-XHR-Request-Id"] = requestId.toString();
-    params.headers = await this.buildDNRRule(requestId, request.params[0]);
+    params.headers = await this.buildDNRRule(requestId, request.params[0], sender);
     let resultParam: RequestResultParams = {
       requestId,
       statusCode: 0,
