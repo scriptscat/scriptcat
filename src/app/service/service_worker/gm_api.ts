@@ -254,7 +254,7 @@ export default class GMApi {
     return Promise.resolve(true);
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
   async GM_setValue(request: Request, sender: GetSender) {
     if (!request.params || request.params.length < 1) {
       throw new Error("param is failed");
