@@ -37,33 +37,57 @@ export type RequestResultParams = {
   responseHeader: string;
 };
 
-export const unsafeHeaders: { [key: string]: boolean } = {
+/**
+ * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
+ *
+ * @link https://developer.mozilla.org/zh-CN/docs/Glossary/Forbidden_request_header
+ */
+export const unsafeHeaders: string[] = [
   // 部分浏览器中并未允许
-  "user-agent": true,
+  "user-agent",
   // 这两个是前缀
-  "proxy-": true,
-  "sec-": true,
+  "proxy-",
+  "sec-",
   // cookie已经特殊处理
-  cookie: true,
-  "accept-charset": true,
-  "accept-encoding": true,
-  "access-control-request-headers": true,
-  "access-control-request-method": true,
-  connection: true,
-  "content-length": true,
-  date: true,
-  dnt: true,
-  expect: true,
-  "feature-policy": true,
-  host: true,
-  "keep-alive": true,
-  origin: true,
-  referer: true,
-  te: true,
-  trailer: true,
-  "transfer-encoding": true,
-  upgrade: true,
-  via: true,
+  "cookie",
+  "accept-charset",
+  "accept-encoding",
+  "access-control-request-headers",
+  "access-control-request-method",
+  "connection",
+  "content-length",
+  "date",
+  "dnt",
+  "expect",
+  "feature-policy",
+  "host",
+  "keep-alive",
+  "origin",
+  "referer",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "via",
+].map((it) => it.trim().toLowerCase());
+
+/**
+ * 检测是否存在不安全的请求头（xhr不允许自定义的的请求头）
+ * @returns
+ * + true 存在
+ * + false 不存在
+ */
+export const checkHasUnsafeHeaders = (key: string) => {
+  key = key.toLowerCase();
+  if (unsafeHeaders.includes(key)) {
+    return true;
+  }
+  // ends with "-"
+  let specialHeaderKeys = unsafeHeaders.filter((__key__) => __key__.endsWith("-"));
+  if (specialHeaderKeys.some((__key__) => key.startsWith(__key__))) {
+    return true;
+  }
+  return false;
 };
 
 type NotificationData = {
@@ -392,27 +416,6 @@ export default class GMApi {
         operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
-    Object.keys(headers).forEach((key) => {
-      const lowKey = key.toLowerCase();
-      if (headers[key]) {
-        if (unsafeHeaders[lowKey] || lowKey.startsWith("sec-") || lowKey.startsWith("proxy-")) {
-          if (headers[key]) {
-            requestHeaders.push({
-              header: key,
-              operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-              value: headers[key],
-            });
-          }
-          delete headers[key];
-        }
-      } else {
-        requestHeaders.push({
-          header: key,
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
-        });
-        delete headers[key];
-      }
-    });
     // 判断是否是anonymous
     if (params.anonymous) {
       // 如果是anonymous，并且有cookie，则设置为自定义的cookie
@@ -433,6 +436,30 @@ export default class GMApi {
       // 否则正常携带cookie header
       headers["cookie"] = params.cookie;
     }
+
+    Object.keys(headers).forEach((key) => {
+      /** 请求的header的值 */
+      const headerValue = headers[key];
+      let deleteHeader = false;
+      if (headerValue) {
+        if (checkHasUnsafeHeaders(key)) {
+          requestHeaders.push({
+            header: key,
+            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+            value: headerValue,
+          });
+          deleteHeader = true;
+        }
+      } else {
+        requestHeaders.push({
+          header: key,
+          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+        });
+        deleteHeader = true;
+      }
+      deleteHeader && delete headers[key];
+    });
+
     const ruleId = reqeustId;
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = ruleId;
