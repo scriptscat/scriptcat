@@ -42,7 +42,7 @@ export interface ApiParam {
   // 别名
   alias?: string[];
   // 关联
-  link?: string;
+  link?: string | string[];
 }
 
 export interface ApiValue {
@@ -118,13 +118,16 @@ export default class PermissionVerify {
       return Promise.reject(new Error("grant is undefined"));
     }
     for (let i = 0; i < grant.length; i += 1) {
+      let grantName = grant[i];
       if (
         // 名称相等
-        grant[i] === request.api ||
+        grantName === request.api ||
         // 别名相等
-        (api.param.alias && api.param.alias.includes(grant[i])) ||
+        (api.param.alias && api.param.alias.includes(grantName)) ||
         // 有关联的
-        grant[i] === api.param.link
+        (typeof api.param.link === "string" && grantName === api.param.link) ||
+        // 关联包含
+        (Array.isArray(api.param.link) && api.param.link.includes(grantName))
       ) {
         // 需要用户确认
         if (api.param.confirm) {

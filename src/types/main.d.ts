@@ -19,6 +19,13 @@ declare namespace GMSend {
     headers?: { [key: string]: string };
     data?: string | Array<XHRFormData>;
     cookie?: string;
+    /**
+     *
+     * @link https://developer.mozilla.org/zh-CN/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    cookiePartition?: {
+      topLevelSite?: string;
+    };
     binary?: boolean;
     timeout?: number;
     context?: CONTEXT_TYPE;
