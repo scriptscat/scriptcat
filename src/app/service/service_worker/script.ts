@@ -1,5 +1,5 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
@@ -170,6 +170,17 @@ export class ScriptService {
       script: prepareScript.script,
       code: info.code,
       upsertBy: source,
+    });
+    return Promise.resolve(prepareScript.script);
+  }
+
+  // 直接通过code静默安装脚本
+  async installByCode(param: { uuid: string; code: string; upsertBy: InstallSource }) {
+    const prepareScript = await prepareScriptByCode(param.code, "", param.uuid, true);
+    this.installScript({
+      script: prepareScript.script,
+      code: param.code,
+      upsertBy: param.upsertBy,
     });
     return Promise.resolve(prepareScript.script);
   }
@@ -563,6 +574,7 @@ export class ScriptService {
     this.group.on("isInstalled", this.isInstalled.bind(this));
     this.group.on("sortScript", this.sortScript.bind(this));
     this.group.on("importByUrl", this.importByUrl.bind(this));
+    this.group.on("installByCode", this.installByCode.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

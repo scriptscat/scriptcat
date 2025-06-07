@@ -1,7 +1,8 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { Group } from "@Packages/message/server";
+import { Group, MessageSend } from "@Packages/message/server";
+import { ScriptClient } from "../service_worker/client";
+import { v5 as uuidv5 } from "uuid";
 
 // 在offscreen下与scriptcat-vscode建立websocket连接
 // 需要在vscode中安装scriptcat-vscode插件
@@ -14,7 +15,14 @@ export class VSCodeConnect {
 
   connectVSCodeTimer: any;
 
-  constructor(private group: Group) {}
+  scriptClient: ScriptClient;
+
+  constructor(
+    private group: Group,
+    private send: MessageSend
+  ) {
+    this.scriptClient = new ScriptClient(this.send);
+  }
 
   connect({ url, reconnect }: { url: string; reconnect: boolean }) {
     // 如果已经连接，断开重连
@@ -64,9 +72,8 @@ export class VSCodeConnect {
         switch (data.action) {
           case "onchange": {
             // 调用安装脚本接口
-            // const code = data.data.script;
-            // const prepareScript = await prepareScriptByCode(code, "", uuidv5(data.data.uri, uuidv5.URL), true);
-            // this.scriptManager.event.upsertHandler(prepareScript.script, "vscode");
+            const code = data.data.script;
+            this.scriptClient.installByCode(uuidv5(data.data.uri, uuidv5.URL), code, "vscode");
             break;
           }
           default:

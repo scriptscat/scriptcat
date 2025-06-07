@@ -89,6 +89,10 @@ export class ScriptClient extends Client {
     return this.do("importByUrl", url);
   }
 
+  installByCode(uuid: string, code: string, upsertBy: InstallSource = "user") {
+    return this.do("installByCode", { uuid, code, upsertBy });
+  }
+
   async formatUrl(url: string) {
     try {
       const newUrl = new URL(url.replace(/\/$/, ""));

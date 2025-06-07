@@ -16,7 +16,7 @@ export class SystemService {
     // 如果开启了自动连接vscode，则自动连接
     // 使用tx来确保service_worker恢复时不会再执行
     Cache.getInstance().tx("vscodeReconnect", async (init) => {
-      if (init) {
+      if (!init) {
         if (await this.systemConfig.getVscodeReconnect()) {
           // 调用连接
           vscodeConnect.connect({
