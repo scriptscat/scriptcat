@@ -13,6 +13,8 @@ const config = {
     CATRetryError: "readonly",
     CAT_fileStorage: "readonly",
     CAT_userConfig: "readonly",
+    CAT_registerMenuInput: "readonly",
+    CAT_unregisterMenuInput: "readonly",
   },
   rules: {
     "constructor-super": ["error"],

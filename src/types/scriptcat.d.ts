@@ -1,3 +1,5 @@
+import { ScriptMenuItem } from "@App/app/service/service_worker/popup";
+
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
 declare const unsafeWindow: Window;
@@ -99,18 +101,15 @@ declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | 
 
 declare function GM_registerMenuCommand(
   name: string,
-  listener: () => void,
-  optionsOrAccessKey?:
-    | string
-    | {
-        id?: number | string;
-        accessKey?: string;
-        autoClose?: boolean;
-        title?: string;
-      }
+  listener: (inputValue?: any) => void,
+  optionsOrAccessKey?: ScriptMenuItem["options"] | string
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
+
+declare const CAT_registerMenuInput: typeof GM_registerMenuCommand;
+
+declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
 declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
