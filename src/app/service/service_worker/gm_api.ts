@@ -42,34 +42,36 @@ export type RequestResultParams = {
  *
  * @link https://developer.mozilla.org/zh-CN/docs/Glossary/Forbidden_request_header
  */
-export const unsafeHeaders: string[] = [
+export const unsafeHeaders: {
+  [key: string]: boolean;
+} = {
   // 部分浏览器中并未允许
-  "user-agent",
+  "user-agent": true,
   // 这两个是前缀
-  "proxy-",
-  "sec-",
+  "proxy-": true,
+  "sec-": true,
   // cookie已经特殊处理
-  "cookie",
-  "accept-charset",
-  "accept-encoding",
-  "access-control-request-headers",
-  "access-control-request-method",
-  "connection",
-  "content-length",
-  "date",
-  "dnt",
-  "expect",
-  "feature-policy",
-  "host",
-  "keep-alive",
-  "origin",
-  "referer",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-  "via",
-].map((it) => it.trim().toLowerCase());
+  cookie: true,
+  "accept-charset": true,
+  "accept-encoding": true,
+  "access-control-request-headers": true,
+  "access-control-request-method": true,
+  connection: true,
+  "content-length": true,
+  date: true,
+  dnt: true,
+  expect: true,
+  "feature-policy": true,
+  host: true,
+  "keep-alive": true,
+  origin: true,
+  referer: true,
+  te: true,
+  trailer: true,
+  "transfer-encoding": true,
+  upgrade: true,
+  via: true,
+};
 
 /**
  * 检测是否存在不安全的请求头（xhr不允许自定义的的请求头）
@@ -79,12 +81,12 @@ export const unsafeHeaders: string[] = [
  */
 export const checkHasUnsafeHeaders = (key: string) => {
   key = key.toLowerCase();
-  if (unsafeHeaders.includes(key)) {
+  if (unsafeHeaders[key]) {
     return true;
   }
   // ends with "-"
-  let specialHeaderKeys = unsafeHeaders.filter((__key__) => __key__.endsWith("-"));
-  if (specialHeaderKeys.some((__key__) => key.startsWith(__key__))) {
+  let specialHeaderKeys = ["proxy-", "sec-"];
+  if (specialHeaderKeys.some((specialHeaderKey) => key.startsWith(specialHeaderKey))) {
     return true;
   }
   return false;
