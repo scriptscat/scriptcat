@@ -1,18 +1,20 @@
 import * as path from "path";
 import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
-import { version } from "./package.json";
+import { readFileSync } from "fs";
+import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
+const pkg = JSON.parse(readFileSync("./package.json") as unknown as string);
 
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
-
+const version = pkg.version;
+const dirname = path.resolve();
 const isDev = process.env.NODE_ENV === "development";
 const isBeta = version.includes("-");
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 const targets = ["chrome >= 87", "edge >= 88", "firefox >= 78", "safari >= 14"];
 
-const src = `${__dirname}/src`;
-const dist = `${__dirname}/dist`;
+const src = `${dirname}/src`;
+const dist = `${dirname}/dist`;
 const assets = `${src}/assets`;
 
 export default defineConfig({
@@ -26,7 +28,7 @@ export default defineConfig({
         mode: "production",
         devtool: false,
       }),
-  context: __dirname,
+  context: dirname,
   entry: {
     service_worker: `${src}/service_worker.ts`,
     offscreen: `${src}/offscreen.ts`,
@@ -50,11 +52,11 @@ export default defineConfig({
   resolve: {
     extensions: ["...", ".ts", ".tsx", ".jsx"],
     alias: {
-      "@App": path.resolve(__dirname, "src/"),
-      "@Packages": path.resolve(__dirname, "packages/"),
+      "@App": path.resolve(dirname, "src/"),
+      "@Packages": path.resolve(dirname, "packages/"),
       // 改写eslint-plugin-userscripts以适配脚本猫，打包时重定义模块路径
-      "../data/compat-grant": path.resolve(__dirname, "packages/eslint/compat-grant"),
-      "../data/compat-headers": path.resolve(__dirname, "packages/eslint/compat-headers"),
+      "../data/compat-grant": path.resolve(dirname, "packages/eslint/compat-grant"),
+      "../data/compat-headers": path.resolve(dirname, "packages/eslint/compat-headers"),
     },
     fallback: {
       child_process: false,
