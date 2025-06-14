@@ -233,10 +233,11 @@ export class PopupClient extends Client {
     return this.do("getPopupData", data);
   }
 
-  menuClick(uuid: string, data: ScriptMenuItem) {
+  menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
     return this.do("menuClick", {
       uuid,
       id: data.id,
+      inputValue,
       sender: {
         tabId: data.tabId,
         frameId: data.frameId,
