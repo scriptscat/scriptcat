@@ -29,10 +29,7 @@
       "@Tests/*": [
         "tests/*"
       ]
-    },
-    "types": [
-      "node"
-    ]
+    }
   },
   "include": [
     "src",

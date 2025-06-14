@@ -36,7 +36,7 @@ export const configSlice = createAppSlice({
         document.body.removeAttribute("arco-theme");
         editor.setTheme("vs");
         break;
-      case "auto":
+      default:
         setAutoMode();
         break;
     }

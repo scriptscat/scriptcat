@@ -46,16 +46,16 @@ export class ScriptService {
       (req) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
-          return;
+          return undefined;
         }
         const url = new URL(req.url);
         // 判断是否有hash
         if (!url.hash) {
-          return;
+          return undefined;
         }
         // 判断是否有url参数
         if (!url.hash.includes("url=")) {
-          return;
+          return undefined;
         }
         // 获取url参数
         const targetUrl = url.hash.split("url=")[1];

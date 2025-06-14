@@ -103,8 +103,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(react-refresh@0.16.0)
       '@types/chrome':
-        specifier: ^0.0.279
-        version: 0.0.279
+        specifier: ^0.0.326
+        version: 0.0.326
       '@types/crypto-js':
         specifier: ^4.2.2
         version: 4.2.2
@@ -1250,6 +1250,9 @@ packages:
 
   '@types/chrome@0.0.279':
     resolution: {integrity: sha512-wl0IxQ2OQiMazPZM5LimHQ7Jwd72/O8UvvzyptplXT2S4eUqXH5C0n8S+v8PtKhyX89p0igCPpNy3Bwksyk57g==}
+
+  '@types/chrome@0.0.326':
+    resolution: {integrity: sha512-WS7jKf3ZRZFHOX7dATCZwqNJgdfiSF0qBRFxaO0LhIOvTNBrfkab26bsZwp6EBpYtqp8loMHJTnD6vDTLWPKYw==}
 
   '@types/connect-history-api-fallback@1.5.4':
     resolution: {integrity: sha512-n6Cr2xS1h4uAulPRdlw6Jl6s1oG8KrVilPN2yUITEs+K48EzMJJ3W1xy8K5eWuFvjp3R74AOIGSmp2UfBJ8HFw==}
@@ -5998,6 +6001,11 @@ snapshots:
       '@types/node': 22.10.2
 
   '@types/chrome@0.0.279':
+    dependencies:
+      '@types/filesystem': 0.0.36
+      '@types/har-format': 1.2.16
+
+  '@types/chrome@0.0.326':
     dependencies:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.16
