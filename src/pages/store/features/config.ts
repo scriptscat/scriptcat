@@ -26,11 +26,23 @@ export const configSlice = createAppSlice({
     lightMode: localStorage.lightMode || "auto",
   },
   reducers: (create) => {
-    // 初始化黑夜模式
-    setAutoMode();
+    // 判断模式
+    switch (localStorage.lightMode) {
+      case "dark":
+        document.body.setAttribute("arco-theme", "dark");
+        editor.setTheme("vs-dark");
+        break;
+      case "light":
+        document.body.removeAttribute("arco-theme");
+        editor.setTheme("vs");
+        break;
+      case "auto":
+        setAutoMode();
+        break;
+    }
     return {
       setDarkMode: create.reducer((state, action: PayloadAction<"light" | "dark" | "auto">) => {
-        localStorage.loghtMode = action.payload;
+        localStorage.lightMode = action.payload;
         state.lightMode = action.payload;
         if (action.payload === "auto") {
           setAutoMode();

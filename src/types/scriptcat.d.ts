@@ -1,5 +1,3 @@
-import { ScriptMenuItem } from "@App/app/service/service_worker/popup";
-
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
 declare const unsafeWindow: Window;
@@ -99,15 +97,41 @@ declare function GM_getResourceText(name: string): string | undefined;
 
 declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-declare function GM_registerMenuCommand(
+function GM_registerMenuCommand(
   name: string,
   listener: (inputValue?: any) => void,
-  optionsOrAccessKey?: ScriptMenuItem["options"] | string
+  optionsOrAccessKey?:
+    | {
+        id?: number;
+        autoClose?: boolean;
+        title?: string;
+        accessKey?: string;
+      }
+    | string
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
 
-declare const CAT_registerMenuInput: typeof GM_registerMenuCommand;
+/**
+ * 注册一个菜单输入框, 允许用户输入值, 并在输入完成后用回调函数
+ */
+declare function CAT_registerMenuInput(
+  name: string,
+  listener: (inputValue?: any) => void,
+  optionsOrAccessKey?:
+    | {
+        id?: number;
+        autoClose?: boolean;
+        title?: string;
+        accessKey?: string;
+        // 可选输入框
+        inputType?: "text" | "number" | "boolean";
+        inputLabel?: string;
+        inputDefaultValue?: string | number | boolean;
+        inputPlaceholder?: string;
+      }
+    | string
+): number;
 
 declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 

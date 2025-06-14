@@ -324,7 +324,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
         htmlType="submit"
         icon={<IconMenu />}
         title={menu.options?.title}
-        style={{ display: "block", width: "100%", borderTopColor: "#E5E6EB" }}
+        style={{ display: "block", width: "100%" }}
       >
         {menu.name}
         {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
