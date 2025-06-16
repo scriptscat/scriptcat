@@ -279,4 +279,12 @@ export class SystemConfig {
   getEnableScript(): Promise<boolean> {
     return this.get("enable_script", true);
   }
+
+  setBlacklist(blacklist: string) {
+    this.set("blacklist", blacklist);
+  }
+
+  getBlacklist(): Promise<string> {
+    return this.get("blacklist", "");
+  }
 }

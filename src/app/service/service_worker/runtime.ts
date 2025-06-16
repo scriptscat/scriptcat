@@ -8,7 +8,6 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
-  type ScriptCodeDAO,
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi from "./gm_api";
@@ -158,14 +157,20 @@ export class RuntimeService {
     if (this.isEnableUserscribe) {
       this.registerUserscripts();
     }
+    // 监听黑名单变化
+    this.systemConfig.addListener("blacklist", async (blacklist) => {
+      // 重新注册用户脚本
+      await this.unregisterUserscripts();
+      this.registerUserscripts();
+    });
   }
 
   unsubscribe: Unsubscribe[] = [];
 
   // 取消脚本注册
-  unregisterUserscripts() {
-    chrome.userScripts.unregister();
-    this.deleteMessageFlag();
+  async unregisterUserscripts() {
+    await chrome.userScripts.unregister();
+    return this.deleteMessageFlag();
   }
 
   async registerUserscripts() {
@@ -208,6 +213,7 @@ export class RuntimeService {
               });
               return undefined;
             }
+            // 设置黑名单
             return registerScript;
           });
         })
@@ -477,6 +483,20 @@ export class RuntimeService {
     // 如果没设置过, 则更新messageFlag
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
+      // 黑名单排除
+      const blacklist = await this.systemConfig.getBlacklist();
+      const excludeMatches = [];
+      if (blacklist) {
+        const list = blacklist
+          .split("\n")
+          .map((item) => item.trim())
+          .filter((item) => item);
+        const result = dealPatternMatches(list, {
+          exclude: true,
+        });
+        excludeMatches.push(...result.patternResult);
+      }
+
       messageFlag = await this.messageFlag();
       const injectJs = await fetch("inject.js").then((res) => res.text());
       // 替换ScriptFlag
@@ -493,6 +513,7 @@ export class RuntimeService {
           allFrames: true,
           world: "MAIN",
           runAt: "document_start",
+          excludeMatches,
         },
         // 注册content
         {
@@ -502,6 +523,7 @@ export class RuntimeService {
           allFrames: true,
           runAt: "document_start",
           world: "USER_SCRIPT",
+          excludeMatches,
         },
       ];
       try {
@@ -640,6 +662,7 @@ export class RuntimeService {
       matches: patternMatches.patternResult,
       allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
+      excludeMatches: [],
     };
 
     // 排除由loadPage时决定, 不使用userScript的excludeMatches处理
@@ -659,11 +682,22 @@ export class RuntimeService {
         exclude: true,
       });
 
-      if (!registerScript.excludeMatches) {
-        registerScript.excludeMatches = [];
-      }
       // registerScript.excludeMatches.push(...result.patternResult);
       scriptMatchInfo.customizeExcludeMatches = result.result;
+    }
+
+    // 黑名单排除
+    const blacklist = await this.systemConfig.getBlacklist();
+    if (blacklist) {
+      const list = blacklist
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item);
+      const result = dealPatternMatches(list, {
+        exclude: true,
+      });
+      scriptMatchInfo.excludeMatches.push(...result.result);
+      registerScript.excludeMatches!.push(...result.patternResult);
     }
 
     // 将脚本match信息放入缓存中
