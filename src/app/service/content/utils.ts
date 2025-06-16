@@ -112,7 +112,20 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
         return context["GM_cookie"](action, details, done);
       };
     };
+    // 处理GM.与GM_，将GM_与GM.都复制一份
+    const grant: string[] = [];
     scriptRes.metadata.grant.forEach((val) => {
+      if (val.startsWith("GM_")) {
+        const t = val.slice(3);
+        grant.push(`GM.${t}`);
+      } else if (val.startsWith("GM.")) {
+        grant.push(val);
+      }
+      grant.push(val);
+    });
+    // 去重
+    const uniqueGrant = new Set(grant);
+    uniqueGrant.forEach((val) => {
       const api = GMContext.apis.get(val);
       if (!api) {
         return;
