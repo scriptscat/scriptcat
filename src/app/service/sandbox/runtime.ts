@@ -163,6 +163,8 @@ export class Runtime {
     return ret;
   }
 
+  private crontabSripts: ScriptLoadInfo[] = [];
+
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
@@ -170,6 +172,7 @@ export class Runtime {
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
+    this.crontabSripts.push(script);
     let flag = false;
     const cronJobList: Array<CronJob> = [];
     script.metadata.crontab.forEach((val) => {
@@ -274,6 +277,7 @@ export class Runtime {
       });
       this.cronJob.delete(uuid);
     }
+    this.crontabSripts = this.crontabSripts.filter((val) => val.uuid !== uuid);
   }
 
   async stopScript(uuid: string) {
@@ -305,6 +309,12 @@ export class Runtime {
     this.execScripts.forEach((val) => {
       if (val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName) {
         val.valueUpdate(data);
+      }
+    });
+    // 更新crontabScripts中的脚本值
+    this.crontabSripts.forEach((script) => {
+      if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
+        script.value[data.key] = data.value;
       }
     });
   }
