@@ -20,7 +20,7 @@ export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
 
 export type Metadata = { [key: string]: string[] | undefined };
 
-export type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "time";
+export type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "switch";
 
 export interface Config {
   [key: string]: any;

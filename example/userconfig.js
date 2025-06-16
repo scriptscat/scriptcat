@@ -60,6 +60,11 @@ group1:
     type: textarea
     default: 默认值
     rows: 6
+  configI:
+    title: 开关
+    description: 这是一个开关类型的配置
+    type: switch
+    default: true
 ---
 group2:
   configX:
