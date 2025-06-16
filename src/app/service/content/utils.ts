@@ -105,15 +105,11 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
   };
   if (scriptRes.metadata.grant) {
     const GM_cookie = function (action: string) {
-      let default_details: GMTypes.CookieDetails = {
-        url: window.location.href,
-      };
       return (
         details: GMTypes.CookieDetails,
         done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
       ) => {
-        let queryDetails = { ...default_details, ...details };
-        return context["GM_cookie"](action, queryDetails, done);
+        return context["GM_cookie"](action, details, done);
       };
     };
     scriptRes.metadata.grant.forEach((val) => {
@@ -124,10 +120,10 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
       if (/^(GM|window)\./.test(val)) {
         const [n, t] = val.split(".");
         if (t === "cookie") {
-          context[n][t] = {
-            list(details: GMTypes.CookieDetails = {}) {
+          const createGMCookePromise = (action: string) => {
+            return (details: GMTypes.CookieDetails = {}) => {
               return new Promise((resolve, reject) => {
-                let fn = GM_cookie("list");
+                let fn = GM_cookie(action);
                 fn(details, function (cookie, error) {
                   if (error) {
                     reject(error);
@@ -136,32 +132,14 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
                   }
                 });
               });
-            },
-            delete(details: GMTypes.CookieDetails) {
-              return new Promise((resolve, reject) => {
-                let fn = GM_cookie("delete");
-                fn(details, function (cookie, error) {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(cookie);
-                  }
-                });
-              });
-            },
-            set(details: GMTypes.CookieDetails) {
-              return new Promise((resolve, reject) => {
-                let fn = GM_cookie("set");
-                fn(details, function (cookie, error) {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(cookie);
-                  }
-                });
-              });
-            },
+            };
           };
+          context[n][t] = {
+            list: createGMCookePromise("list"),
+            delete: createGMCookePromise("delete"),
+            set: createGMCookePromise("set"),
+          };
+          context["GM_cookie"] = api.api.bind(context);
         } else {
           (<{ [key: string]: any }>context[n])[t] = api.api.bind(context);
         }
