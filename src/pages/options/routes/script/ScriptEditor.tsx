@@ -1,6 +1,6 @@
-import { Script, SCRIPT_TYPE_NORMAL, ScriptAndCode, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { Script, SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Menu, Message, Tabs, Tooltip } from "@arco-design/web-react";
@@ -426,6 +426,10 @@ function ScriptEditor() {
         });
       }
     });
+    // 恢复标题
+    return ()=>{
+      document.title = "Home - ScriptCat";
+    }
   }, []);
 
   // 控制onbeforeunload
@@ -872,6 +876,9 @@ function ScriptEditor() {
                   item.editor.focus();
                 }
               }, 100);
+              if (item.active) {
+                document.title = `${i18nName(item.script)} - Script Editor`;
+              }
               return (
                 <div
                   className="w-full"

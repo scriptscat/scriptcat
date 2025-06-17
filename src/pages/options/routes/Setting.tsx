@@ -56,6 +56,7 @@ function Setting() {
         eslintConfig,
         enableEslint,
         language,
+        blacklist,
       ] = await Promise.all([
         systemConfig.getCloudSync(),
         systemConfig.getMenuExpandNum(),
