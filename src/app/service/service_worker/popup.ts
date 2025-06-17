@@ -21,6 +21,8 @@ import {
   subscribeScriptRunStatus,
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils";
+import { SystemConfig } from "@App/pkg/config/config";
+import { UrlMatch } from "@App/pkg/utils/match";
 
 export type ScriptMenuItem = {
   id: number;
@@ -213,8 +215,11 @@ export class PopupService {
         scriptMenu.push(script);
       }
     });
+    // 检查是否在黑名单中
+    const isBlack = this.runtime.blackMatch.match(req.url).length > 0;
     // 后台脚本只显示开启或者运行中的脚本
-    return { scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
+    console.log("isBlack", isBlack, req.url);
+    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
   }
 
   async getScriptMenu(tabId: number) {

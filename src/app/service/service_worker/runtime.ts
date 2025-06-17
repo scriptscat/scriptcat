@@ -51,6 +51,7 @@ export interface EmitEventRequest {
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
+  blackMatch: UrlMatch<boolean> = new UrlMatch<boolean>();
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
 
   logger: Logger;
@@ -157,11 +158,33 @@ export class RuntimeService {
     if (this.isEnableUserscribe) {
       this.registerUserscripts();
     }
-    // 监听黑名单变化
-    this.systemConfig.addListener("blacklist", async (blacklist) => {
+    this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       // 重新注册用户脚本
       await this.unregisterUserscripts();
       this.registerUserscripts();
+      this.loadBlacklist(blacklist);
+      this.logger.info("blacklist updated", {
+        blacklist,
+      });
+    });
+    // 加载黑名单
+    this.loadBlacklist(await this.systemConfig.getBlacklist());
+  }
+
+  private loadBlacklist(blacklist: string) {
+    // 设置黑名单match
+    const list = blacklist
+      .split("\n")
+      .map((item) => item.trim())
+      .filter((item) => item);
+    const result = dealPatternMatches(list, {
+      exclude: true,
+    });
+    this.blackMatch.forEach((uuid) => {
+      this.blackMatch.del(uuid);
+    });
+    result.result.forEach((match) => {
+      this.blackMatch.add(match, true);
     });
   }
 
@@ -333,6 +356,13 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
+    // 判断是否黑名单
+    const isBlack = this.blackMatch.match(sender.getSender().url!);
+    if (isBlack.length > 0) {
+      // 如果在黑名单中, 则不加载脚本
+      return Promise.resolve({ flag: "", scripts: [] });
+    }
+
     const [scriptFlag] = await Promise.all([this.messageFlag(), this.loadScriptMatchInfo()]);
     const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
 
@@ -696,7 +726,7 @@ export class RuntimeService {
       const result = dealPatternMatches(list, {
         exclude: true,
       });
-      scriptMatchInfo.excludeMatches.push(...result.result);
+      // scriptMatchInfo.excludeMatches.push(...result.result);
       registerScript.excludeMatches!.push(...result.patternResult);
     }
 

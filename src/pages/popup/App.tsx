@@ -39,6 +39,7 @@ function App() {
   });
   const [currentUrl, setCurrentUrl] = useState("");
   const [isEnableScript, setIsEnableScript] = useState(true);
+  const [isBlacklist, setIsBlacklist] = useState(false);
   const { t } = useTranslation();
 
   let url: URL | undefined;
@@ -81,6 +82,7 @@ function App() {
         });
         setScriptList(list);
         setBackScriptList(resp.backScriptList);
+        setIsBlacklist(resp.isBlacklist);
       });
     });
   }, []);
@@ -89,6 +91,7 @@ function App() {
       {!isUserScriptsAvailable() && (
         <Alert type="warning" content={<div dangerouslySetInnerHTML={{ __html: t("develop_mode_guide") }} />} />
       )}
+      {isBlacklist && <Alert type="warning" content="当前页面在黑名单中，无法使用脚本" />}
       <Card
         size="small"
         title={

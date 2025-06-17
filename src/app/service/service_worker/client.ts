@@ -220,6 +220,8 @@ export type GetPopupDataReq = {
 };
 
 export type GetPopupDataRes = {
+  // 在黑名单
+  isBlacklist: boolean;
   scriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
