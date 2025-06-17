@@ -1001,6 +1001,11 @@ export default class GMApi {
     });
   }
 
+  @PermissionVerify.API()
+  async CAT_netRequestRules(request: Request, sender: GetSender) {
+    chrome.declarativeNetRequest.updateSessionRules()
+  }
+
   handlerNotification() {
     const send = async (event: string, notificationId: string, params?: any) => {
       const ret = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as NotificationData;
