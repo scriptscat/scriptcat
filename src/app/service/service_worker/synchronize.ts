@@ -47,6 +47,7 @@ type ScriptcatSync = {
       [key: string]: {
         enabled: boolean;
         sort: number;
+        updatetime: number; // 更新时间
       };
     };
   };
@@ -451,6 +452,7 @@ export class SynchronizeService {
           state[script.uuid] = {
             enabled: script.status === SCRIPT_STATUS_ENABLE,
             sort: script.sort,
+            updatetime: new Date().getTime(),
           };
         } else {
           // 如果本地状态与云端状态不一致,则采用云端状态
