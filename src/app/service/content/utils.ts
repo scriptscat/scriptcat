@@ -350,7 +350,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
             return true;
           }
           // 只处理onxxxx的事件
-          if (has(global[name], name)) {
+          if (has(global, name)) {
             if (name.startsWith("on")) {
               return true;
             }
