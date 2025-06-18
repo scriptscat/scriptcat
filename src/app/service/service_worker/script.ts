@@ -467,10 +467,11 @@ export class ScriptService {
               });
               return;
             }
+            // 如果不符合静默更新规则，走后面的流程
+            logger.info("not silence update script, open install page");
           } catch (e) {
             logger.error("prepare script failed", Logger.E(e));
           }
-          return;
         }
         // 打开安装页面
         Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);

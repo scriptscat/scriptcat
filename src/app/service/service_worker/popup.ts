@@ -218,7 +218,6 @@ export class PopupService {
     // 检查是否在黑名单中
     const isBlack = this.runtime.blackMatch.match(req.url).length > 0;
     // 后台脚本只显示开启或者运行中的脚本
-    console.log("isBlack", isBlack, req.url);
     return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
   }
 

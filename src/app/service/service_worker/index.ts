@@ -53,7 +53,7 @@ export default class ServiceWorkerManager {
       scriptDAO
     );
     runtime.init();
-    const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig);
+    const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO);
     popup.init();
     value.init(runtime, popup);
     const synchronize = new SynchronizeService(

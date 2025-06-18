@@ -116,6 +116,9 @@ export class RuntimeService {
     subscribeScriptEnable(this.mq, async (data) => {
       const script = await this.scriptDAO.getAndCode(data.uuid);
       if (!script) {
+        this.logger.error("script enable failed, script not found", {
+          uuid: data.uuid,
+        });
         return;
       }
       // 如果是普通脚本, 在service worker中进行注册
@@ -133,6 +136,9 @@ export class RuntimeService {
     subscribeScriptInstall(this.mq, async (data) => {
       const script = await this.scriptDAO.get(data.script.uuid);
       if (!script) {
+        this.logger.error("script install failed, script not found", {
+          uuid: data.script.uuid,
+        });
         return;
       }
       if (script.type === SCRIPT_TYPE_NORMAL) {
@@ -282,7 +288,7 @@ export class RuntimeService {
     this.loadScriptMatchInfo();
   }
 
-  messageFlag() {
+  getAndGenMessageFlag() {
     return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => {
       return Promise.resolve(randomString(16));
     });
@@ -363,7 +369,7 @@ export class RuntimeService {
       return Promise.resolve({ flag: "", scripts: [] });
     }
 
-    const [scriptFlag] = await Promise.all([this.messageFlag(), this.loadScriptMatchInfo()]);
+    const [scriptFlag] = await Promise.all([this.getAndGenMessageFlag(), this.loadScriptMatchInfo()]);
     const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
 
     // 匹配当前页面的脚本
@@ -527,7 +533,7 @@ export class RuntimeService {
         excludeMatches.push(...result.patternResult);
       }
 
-      messageFlag = await this.messageFlag();
+      messageFlag = await this.getAndGenMessageFlag();
       const injectJs = await fetch("inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
@@ -748,6 +754,10 @@ export class RuntimeService {
   async loadPageScript(script: Script) {
     const resp = await this.getAndSetUserScriptRegister(script);
     if (!resp) {
+      this.logger.error("getAndSetUserScriptRegister error", {
+        script: script.name,
+        uuid: script.uuid,
+      });
       return;
     }
     const { registerScript } = resp;
