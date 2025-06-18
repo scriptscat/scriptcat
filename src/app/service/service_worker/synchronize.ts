@@ -23,6 +23,7 @@ import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { InstallSource } from ".";
+import { ExtVersion } from "@App/app/const";
 
 export type SynchronizeTarget = "local";
 
@@ -37,6 +38,18 @@ export type SyncMeta = {
   downloadUrl?: string;
   checkUpdateUrl?: string;
   isDeleted?: boolean;
+};
+
+type ScriptcatSync = {
+  version: string; // 脚本猫版本
+  state: {
+    scripts: {
+      [key: string]: {
+        enabled: boolean;
+        sort: number;
+      };
+    };
+  };
 };
 
 export class SynchronizeService {
@@ -309,7 +322,7 @@ export class SynchronizeService {
   }
 
   // 同步一次
-  async syncOnce(fs: FileSystem) {
+  async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
     // 获取文件列表
     const list = await fs.list();
@@ -326,6 +339,13 @@ export class SynchronizeService {
       ((await this.storage.get("file_digest")) as {
         [key: string]: string;
       }) || {};
+
+    let scriptcatSync = {
+      version: ExtVersion,
+      state: {
+        scripts: {},
+      },
+    } as ScriptcatSync;
 
     list.forEach((file) => {
       if (file.name.endsWith(".user.js")) {
@@ -346,6 +366,13 @@ export class SynchronizeService {
         files.meta = file;
       }
     });
+
+    // 判断文件系统是否有脚本猫同步文件
+    const file = list.find((file) => file.name === "scriptcat-sync.json");
+    if (file) {
+      // 如果有,则读取文件内容
+      scriptcatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+    }
 
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
@@ -414,6 +441,27 @@ export class SynchronizeService {
     });
     // 忽略错误
     await Promise.allSettled(result);
+    // 同步状态
+    if (syncConfig.syncState) {
+      const list = await this.scriptDAO.all();
+      const state = scriptcatSync.state.scripts;
+      list.forEach((script) => {
+        // 判断云端状态是否与本地状态一致
+        if (!state[script.uuid]) {
+          state[script.uuid] = {
+            enabled: script.status === SCRIPT_STATUS_ENABLE,
+            sort: script.sort,
+          };
+        } else {
+          // 如果本地状态与云端状态不一致,则采用云端状态
+          if (state[script.uuid].enabled !== (script.status === SCRIPT_STATUS_ENABLE)) {
+            this.script.updateScript(script.uuid, {
+              status: state[script.uuid].enabled ? SCRIPT_STATUS_ENABLE : 0,
+            });
+          }
+        }
+      });
+    }
     // 重新获取文件列表,保存文件摘要
     await this.updateFileDigest(fs);
     this.logger.info("sync complete");
@@ -529,7 +577,7 @@ export class SynchronizeService {
     if (value.enable) {
       // 开启云同步同步
       this.buildFileSystem(value).then(async (fs) => {
-        await this.syncOnce(fs);
+        await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
         chrome.alarms.create("cloudSync", {
           periodInMinutes: 60,

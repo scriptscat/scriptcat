@@ -81,7 +81,7 @@ export default class ServiceWorkerManager {
           // 进行一次云同步
           systemConfig.getCloudSync().then((config) => {
             synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(fs);
+              synchronize.syncOnce(config, fs);
             });
           });
           break;
