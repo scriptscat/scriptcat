@@ -258,7 +258,10 @@ export class ScriptService {
       throw new Error("script not found");
     }
     return this.scriptDAO
-      .update(param.uuid, { status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE })
+      .update(param.uuid, {
+        status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+        updatetime: new Date().getTime(),
+      })
       .then(() => {
         logger.info("enable success");
         this.mq.publish("enableScript", { uuid: param.uuid, enable: param.enable });
@@ -547,7 +550,7 @@ export class ScriptService {
     const newSort = arrayMove(scripts, oldIndex, newIndex);
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i });
+        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
       }
     }
   }

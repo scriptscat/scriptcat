@@ -16,7 +16,7 @@ import { parsePatternMatchesURL } from "@App/pkg/utils/match";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
-  const [syncScriptState, setSyncScriptState] = useState<boolean>();
+  const [syncScriptStatus, setSyncScriptStatus] = useState<boolean>();
   const [enableCloudSync, setEnableCloudSync] = useState<boolean>();
   const [fileSystemType, setFilesystemType] = useState<FileSystemType>("webdav");
   const [fileSystemParams, setFilesystemParam] = useState<{
@@ -71,7 +71,7 @@ function Setting() {
       ]);
 
       setSyncDelete(cloudSync.syncDelete);
-      setSyncScriptState(cloudSync.syncState);
+      setSyncScriptStatus(cloudSync.syncStatus);
       setEnableCloudSync(cloudSync.enable);
       setFilesystemType(cloudSync.filesystem);
       setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
@@ -151,9 +151,9 @@ function Setting() {
               {t("sync_delete")}
             </Checkbox>
             <Checkbox
-              checked={syncScriptState}
+              checked={syncScriptStatus}
               onChange={(checked) => {
-                setSyncScriptState(checked);
+                setSyncScriptStatus(checked);
               }}
             >
               同步状态
@@ -192,7 +192,7 @@ function Setting() {
                   systemConfig.setCloudSync({
                     enable: enableCloudSync || false,
                     syncDelete: syncDelete || false,
-                    syncState: syncScriptState || false,
+                    syncStatus: syncScriptStatus || false,
                     filesystem: fileSystemType,
                     params,
                   });

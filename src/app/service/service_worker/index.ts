@@ -63,7 +63,8 @@ export default class ServiceWorkerManager {
       value,
       resource,
       this.mq,
-      systemConfig
+      systemConfig,
+      scriptDAO
     );
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);

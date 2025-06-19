@@ -42,10 +42,10 @@ export type SyncMeta = {
 
 type ScriptcatSync = {
   version: string; // 脚本猫版本
-  state: {
+  status: {
     scripts: {
       [key: string]: {
-        enabled: boolean;
+        enable: boolean;
         sort: number;
         updatetime: number; // 更新时间
       };
@@ -56,8 +56,7 @@ type ScriptcatSync = {
 export class SynchronizeService {
   logger: Logger;
 
-  scriptDAO = new ScriptDAO();
-  scriptCodeDAO = new ScriptCodeDAO();
+  scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", true);
 
@@ -68,7 +67,8 @@ export class SynchronizeService {
     private value: ValueService,
     private resource: ResourceService,
     private mq: MessageQueue,
-    private systemConfig: SystemConfig
+    private systemConfig: SystemConfig,
+    private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "synchronize" });
   }
@@ -343,7 +343,7 @@ export class SynchronizeService {
 
     let scriptcatSync = {
       version: ExtVersion,
-      state: {
+      status: {
         scripts: {},
       },
     } as ScriptcatSync;
@@ -367,13 +367,6 @@ export class SynchronizeService {
         files.meta = file;
       }
     });
-
-    // 判断文件系统是否有脚本猫同步文件
-    const file = list.find((file) => file.name === "scriptcat-sync.json");
-    if (file) {
-      // 如果有,则读取文件内容
-      scriptcatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
-    }
 
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
@@ -443,26 +436,56 @@ export class SynchronizeService {
     // 忽略错误
     await Promise.allSettled(result);
     // 同步状态
-    if (syncConfig.syncState) {
-      const list = await this.scriptDAO.all();
-      const state = scriptcatSync.state.scripts;
-      list.forEach((script) => {
+    if (syncConfig.syncStatus) {
+      // 判断文件系统是否有脚本猫同步文件
+      const file = list.find((file) => file.name === "scriptcat-sync.json");
+      if (file) {
+        // 如果有,则读取文件内容
+        scriptcatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+      }
+      const scriptlist = await this.scriptDAO.all();
+      const status = scriptcatSync.status.scripts;
+      scriptlist.forEach(async (script) => {
         // 判断云端状态是否与本地状态一致
-        if (!state[script.uuid]) {
-          state[script.uuid] = {
-            enabled: script.status === SCRIPT_STATUS_ENABLE,
+        if (!status[script.uuid]) {
+          status[script.uuid] = {
+            enable: script.status === SCRIPT_STATUS_ENABLE,
             sort: script.sort,
-            updatetime: new Date().getTime(),
+            updatetime: script.updatetime || script.createtime,
           };
         } else {
-          // 如果本地状态与云端状态不一致,则采用云端状态
-          if (state[script.uuid].enabled !== (script.status === SCRIPT_STATUS_ENABLE)) {
-            this.script.updateScript(script.uuid, {
-              status: state[script.uuid].enabled ? SCRIPT_STATUS_ENABLE : 0,
+          // 判断时间
+          if (script.updatetime) {
+            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+            if (status[script.uuid].updatetime < script.updatetime) {
+              status[script.uuid].enable = script.status === SCRIPT_STATUS_ENABLE;
+              status[script.uuid].sort = script.sort;
+              status[script.uuid].updatetime = script.updatetime;
+              return;
+            }
+          }
+          // 否则采用云端状态
+          // 脚本顺序
+          if (status[script.uuid].sort !== script.sort) {
+            await this.scriptDAO.update(script.uuid, {
+              sort: status[script.uuid].sort,
+              updatetime: new Date().getTime(),
+            });
+          }
+          // 脚本状态
+          if (status[script.uuid].enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+            // 开启脚本
+            this.script.enableScript({
+              uuid: script.uuid,
+              enable: status[script.uuid].enable,
             });
           }
         }
       });
+      // 保存脚本猫同步状态
+      const syncFile = await fs.create("scriptcat-sync.json");
+      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+      this.logger.info("sync scriptcat sync file success");
     }
     // 重新获取文件列表,保存文件摘要
     await this.updateFileDigest(fs);
