@@ -411,11 +411,10 @@ export default class GMApi {
     params: GMSend.XHRDetails,
     sender: GetSender
   ): Promise<{ [key: string]: string }> {
-    // 检查是否有unsafe header,有则生成dnr规则
-    const headers = params.headers;
-    if (!headers) {
-      return {};
-    }
+    // 默认移除origin
+    const headers = params.headers || {};
+    headers["origin"] = headers["origin"] || "";
+
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
