@@ -63,7 +63,8 @@ export default class ServiceWorkerManager {
       value,
       resource,
       this.mq,
-      systemConfig
+      systemConfig,
+      scriptDAO
     );
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);
@@ -81,7 +82,7 @@ export default class ServiceWorkerManager {
           // 进行一次云同步
           systemConfig.getCloudSync().then((config) => {
             synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(fs);
+              synchronize.syncOnce(config, fs);
             });
           });
           break;

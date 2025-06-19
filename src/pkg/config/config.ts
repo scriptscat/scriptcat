@@ -12,6 +12,7 @@ export const SystamConfigChange = "systemConfigChange";
 export type CloudSyncConfig = {
   enable: boolean;
   syncDelete: boolean;
+  syncStatus: boolean;
   filesystem: FileSystemType;
   params: { [key: string]: any };
 };
@@ -158,6 +159,7 @@ export class SystemConfig {
     return this.get("cloud_sync", {
       enable: false,
       syncDelete: true,
+      syncStatus: true,
       filesystem: "webdav",
       params: {},
     });
