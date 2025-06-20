@@ -5,7 +5,7 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
 import {
   Script,
   SCRIPT_RUN_STATUS,
@@ -509,7 +509,22 @@ export class ScriptService {
   }
 
   requestCheckUpdate(uuid: string) {
-    return this.checkUpdate(uuid, "user");
+    if (uuid) {
+      return this.checkUpdate(uuid, "user");
+    } else {
+      // 批量检查更新
+      InfoNotification("检查更新", "正在检查所有的脚本更新");
+      this.scriptDAO
+        .all()
+        .then((scripts) => {
+          return Promise.all(scripts.map((script) => this.checkUpdate(script.uuid, "user")));
+        })
+        .then(() => {
+          InfoNotification("检查更新", "所有脚本检查完成");
+          return Promise.resolve(true);
+        });
+      return Promise.resolve(true);
+    }
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }) {
