@@ -286,7 +286,7 @@ function ScriptList() {
                       if (!a.icon && b.icon) return 1;
                       return a.match.localeCompare(b.match);
                     })
-                    .slice(0, 5)
+                    .slice(0, 4)
                     .map((fav) => (
                       <Avatar
                         key={fav.match}
@@ -309,6 +309,7 @@ function ScriptList() {
                         )}
                       </Avatar>
                     ))}
+                {item.favorite && item.favorite.length > 4 && "..."}
               </Avatar.Group>
             </>
           );
