@@ -1,6 +1,6 @@
 import { SystemConfig } from "@App/pkg/config/config";
 import { Group, MessageSend } from "@Packages/message/server";
-import { VscodeConnectClient } from "../offscreen/client";
+import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import Cache from "@App/app/cache";
 
 // 一些系统服务
@@ -29,6 +29,15 @@ export class SystemService {
     });
     this.group.on("connectVSCode", (params) => {
       return vscodeConnect.connect(params);
+    });
+    this.group.on("loadFavicon", async (url) => {
+      // 加载favicon图标
+      return fetch(url)
+        .then((response) => response.blob())
+        .then((blob) => createObjectURL(this.sender, blob, true))
+        .catch(() => {
+          return "";
+        });
     });
   }
 }

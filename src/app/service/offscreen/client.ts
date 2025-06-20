@@ -33,8 +33,8 @@ export function stopScript(msg: MessageSend, uuid: string) {
   return sendMessage(msg, "offscreen/script/stopScript", uuid);
 }
 
-export function createObjectURL(msg: MessageSend, data: Blob) {
-  return sendMessage(msg, "offscreen/createObjectURL", data);
+export function createObjectURL(msg: MessageSend, data: Blob, persistence: boolean = false) {
+  return sendMessage(msg, "offscreen/createObjectURL", { data, persistence });
 }
 
 export class VscodeConnectClient extends Client {

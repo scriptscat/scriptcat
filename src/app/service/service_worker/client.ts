@@ -349,4 +349,8 @@ export class SystemClient extends Client {
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
   }
+
+  loadFavicon(icon: string): Promise<string> {
+    return this.do("loadFavicon", icon);
+  }
 }

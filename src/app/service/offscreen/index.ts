@@ -58,11 +58,14 @@ export class OffscreenManager {
     const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extensionMessage);
     vscodeConnect.init();
 
-    this.windowServer.on("createObjectURL", (data: Blob) => {
-      const url = URL.createObjectURL(data);
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 1000 * 60);
+    this.windowServer.on("createObjectURL", (params: { data: Blob; persistence: boolean }) => {
+      const url = URL.createObjectURL(params.data);
+      if (!params.persistence) {
+        // 如果不是持久化的，则在1分钟后释放
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000 * 60);
+      }
       return Promise.resolve(url);
     });
   }

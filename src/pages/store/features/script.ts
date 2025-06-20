@@ -19,6 +19,8 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
+import { extractFavicons } from "@App/pkg/utils/favicon";
+import { store } from "../store";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -52,7 +54,15 @@ export const requestDeleteScript = createAsyncThunk("script/deleteScript", async
   return scriptClient.delete(uuid);
 });
 
-export type ScriptLoading = Script & { enableLoading?: boolean; actionLoading?: boolean };
+export type ScriptLoading = Script & {
+  enableLoading?: boolean;
+  actionLoading?: boolean;
+  favorite?: {
+    match: string;
+    website?: string;
+    icon?: string;
+  }[];
+};
 
 const updateScript = (scripts: ScriptLoading[], uuid: string, update: (s: ScriptLoading) => void) => {
   const script = scripts.find((s) => s.uuid === uuid);
@@ -119,6 +129,12 @@ export const scriptSlice = createAppSlice({
         }
         return s;
       });
+    },
+    setScriptFavicon: (state, action: PayloadAction<{ uuid: string; fav: { match: string; icon?: string }[] }>) => {
+      const script = state.scripts.find((s) => s.uuid === action.payload.uuid);
+      if (script) {
+        script.favorite = action.payload.fav;
+      }
     },
   },
   extraReducers: (builder) => {
