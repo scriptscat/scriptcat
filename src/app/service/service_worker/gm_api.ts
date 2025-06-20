@@ -703,7 +703,7 @@ export default class GMApi {
     // 等待response
     this.gmXhrHeadersReceived.addListener(
       "headersReceived:" + requestId,
-      (details: chrome.webRequest.WebResponseHeadersDetails) => {
+      (details: chrome.webRequest.OnHeadersReceivedDetails) => {
         details.responseHeaders?.forEach((header) => {
           resultParam.responseHeader += header.name + ": " + header.value + "\n";
         });
@@ -835,7 +835,7 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const details: GMTypes.NotificationDetails = request.params[0];
-    const options: chrome.notifications.NotificationOptions<true> = {
+    const options: chrome.notifications.NotificationCreateOptions = {
       title: details.title || "ScriptCat",
       message: details.text || "无消息内容",
       iconUrl: details.image || getIcon(request.script) || chrome.runtime.getURL("assets/logo.png"),
@@ -1045,6 +1045,7 @@ export default class GMApi {
             }
           }
         }
+        return undefined;
       },
       {
         urls: ["<all_urls>"],
@@ -1069,6 +1070,7 @@ export default class GMApi {
               }
             });
         }
+        return undefined;
       },
       {
         urls: ["<all_urls>"],
