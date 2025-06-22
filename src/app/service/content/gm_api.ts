@@ -259,11 +259,15 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel) {
+  GM_log(message: string, level: GMTypes.LoggerLevel = "info", labels?: GMTypes.LoggerLabel) {
     if (typeof message !== "string") {
       message = JSON.stringify(message);
     }
-    return this.sendMessage("GM_log", [message, level, labels]);
+    const requestParams: any[] = [message, level];
+    if (arguments.length > 2) {
+      requestParams.push(Array.from(arguments).slice(2));
+    }
+    this.sendMessage("GM_log", requestParams);
   }
 
   @GMContext.API()
