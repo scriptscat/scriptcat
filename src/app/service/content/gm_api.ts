@@ -8,7 +8,7 @@ import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { MessageRequest } from "../service_worker/gm_api";
+import { MessageRequest, type NotificationMessageOption } from "../service_worker/gm_api";
 import { ScriptLoadInfo } from "../service_worker/runtime";
 
 interface ApiParam {
@@ -64,6 +64,11 @@ export default class GMApi {
   runFlag!: string;
 
   valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+
+  /**
+   * <tag, notificationId>
+   */
+  notificationTagMap = new Map<string, string>();
 
   constructor(
     private prefix: string,
@@ -705,6 +710,9 @@ export default class GMApi {
     image?: string,
     onclick?: GMTypes.NotificationOnClick
   ) {
+    if (this.notificationTagMap == null) {
+      this.notificationTagMap = new Map();
+    }
     this.eventId += 1;
     let data: GMTypes.NotificationDetails;
     if (typeof detail === "string") {
@@ -739,19 +747,64 @@ export default class GMApi {
       create = data.oncreate;
       delete data.oncreate;
     }
-    this.sendMessage("GM_notification", [data]).then((id) => {
+    let notificationId: string | undefined = undefined;
+    if (typeof data.tag === "string") {
+      notificationId = this.notificationTagMap.get(data.tag);
+    }
+    this.sendMessage("GM_notification", [data, notificationId]).then((id) => {
       if (create) {
         create.apply({ id }, [id]);
       }
-      this.EE.addListener("GM_notification:" + id, (resp: any) => {
+      if (typeof data.tag === "string") {
+        this.notificationTagMap.set(data.tag, id);
+      }
+      let isPreventDefault = false;
+      this.EE.addListener("GM_notification:" + id, (resp: NotificationMessageOption) => {
+        /**
+         * 清除保存的通知的tag
+         */
+        let clearNotificationIdMap = () => {
+          if (typeof data.tag === "string") {
+            this.notificationTagMap.delete(data.tag);
+          }
+        };
         switch (resp.event) {
           case "click":
           case "buttonClick": {
-            click && click.apply({ id }, [id, resp.params?.index]);
+            const clickEvent: GMTypes.NotificationOnClickEvent = {
+              event: resp.event,
+              id: id,
+              isButtonClick: resp.event === "buttonClick",
+              buttonClickIndex: resp.params.index,
+              byUser: resp.params.byUser,
+              preventDefault: function () {
+                isPreventDefault = true;
+              },
+              highlight: data.highlight,
+              image: data.image,
+              silent: data.silent,
+              tag: data.tag,
+              text: data.tag,
+              timeout: data.timeout,
+              title: data.title,
+              url: data.url,
+            };
+            click && click.apply({ id }, [clickEvent]);
+            done && done.apply({ id }, []);
+
+            if (!isPreventDefault) {
+              if (typeof data.url === "string") {
+                window.open(data.url, "_blank");
+                LoggerCore.logger().info("GM_notification open url：" + data.url, {
+                  data,
+                });
+              }
+            }
             break;
           }
           case "close": {
             done && done.apply({ id }, [resp.params.byUser]);
+            clearNotificationIdMap();
             this.EE.removeAllListeners("GM_notification:" + this.eventId);
             break;
           }
