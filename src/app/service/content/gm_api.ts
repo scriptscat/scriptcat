@@ -10,6 +10,7 @@ import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { MessageRequest, type NotificationMessageOption } from "../service_worker/gm_api";
 import { ScriptLoadInfo } from "../service_worker/runtime";
+import { ScriptMenuItem } from "../service_worker/popup";
 
 interface ApiParam {
   depend?: string[];
@@ -308,20 +309,26 @@ export default class GMApi {
   }
 
   @GMContext.API()
-  GM_registerMenuCommand(name: string, listener: () => void, accessKey?: string | { id?: number }): number {
+  GM_registerMenuCommand(
+    name: string,
+    listener: (inputValue?: any) => void,
+    options_or_accessKey?: ScriptMenuItem["options"] | string
+  ): number {
     if (!this.menuMap) {
       this.menuMap = new Map();
     }
-    if (typeof accessKey === "object") {
+    if (typeof options_or_accessKey === "object") {
+      const option: ScriptMenuItem["options"] = options_or_accessKey;
       // 如果是对象，并且有id属性,则直接使用id
-      if (accessKey.id && this.menuMap.has(accessKey.id)) {
+      if (option.id && this.menuMap.has(option.id)) {
         // 如果id存在,则直接使用
-        this.EE.removeAllListeners("menuClick:" + accessKey.id);
-        this.EE.addListener("menuClick:" + accessKey.id, listener);
-        this.sendMessage("GM_registerMenuCommand", [accessKey.id, name, accessKey]);
-        return accessKey.id;
+        this.EE.removeAllListeners("menuClick:" + option.id);
+        this.EE.addListener("menuClick:" + option.id, listener);
+        this.sendMessage("GM_registerMenuCommand", [option.id, name, option]);
+        return option.id;
       }
     } else {
+      options_or_accessKey = { accessKey: options_or_accessKey };
       let flag = 0;
       this.menuMap.forEach((val, menuId) => {
         if (val === name) {
@@ -334,10 +341,18 @@ export default class GMApi {
     }
     this.eventId += 1;
     const id = this.eventId;
+    options_or_accessKey.id = id;
     this.menuMap.set(id, name);
     this.EE.addListener("menuClick:" + id, listener);
-    this.sendMessage("GM_registerMenuCommand", [id, name, accessKey]);
+    this.sendMessage("GM_registerMenuCommand", [id, name, options_or_accessKey]);
     return id;
+  }
+
+  @GMContext.API({
+    depend: ["GM_registerMenuCommand"],
+  })
+  CAT_registerMenuInput(...args: Parameters<GMApi["GM_registerMenuCommand"]>): number {
+    return this.GM_registerMenuCommand(...args);
   }
 
   @GMContext.API()
@@ -401,6 +416,13 @@ export default class GMApi {
     this.menuMap.delete(id);
     this.EE.removeAllListeners("menuClick:" + id);
     this.sendMessage("GM_unregisterMenuCommand", [id]);
+  }
+
+  @GMContext.API({
+    depend: ["GM_unregisterMenuCommand"],
+  })
+  CAT_unregisterMenuInput(...args: Parameters<GMApi["GM_unregisterMenuCommand"]>): void {
+    this.GM_unregisterMenuCommand(...args);
   }
 
   @GMContext.API()

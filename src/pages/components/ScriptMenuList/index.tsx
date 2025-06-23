@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Button, Collapse, Empty, Message, Popconfirm, Space, Switch } from "@arco-design/web-react";
+import {
+  Button,
+  Collapse,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Message,
+  Popconfirm,
+  Space,
+  Switch,
+} from "@arco-design/web-react";
 import {
   IconCaretDown,
   IconCaretUp,
@@ -97,12 +108,6 @@ const ScriptMenuList: React.FC<{
       unsub();
     };
   }, []);
-
-  const sendMenuAction = (uuid: string, menu: ScriptMenuItem) => {
-    popupClient.menuClick(uuid, menu).then(() => {
-      window.close();
-    });
-  };
 
   return (
     <>
@@ -230,21 +235,7 @@ const ScriptMenuList: React.FC<{
               : item.menus
             )?.map((menu) => {
               console.log("menu", menu);
-              return (
-                <Button
-                  className="text-left"
-                  key={menu.id}
-                  type="secondary"
-                  icon={<IconMenu />}
-                  title={menu.options?.title}
-                  onClick={() => {
-                    sendMenuAction(item.uuid, menu);
-                  }}
-                >
-                  {menu.name}
-                  {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
-                </Button>
-              );
+              return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
             })}
             {item.menus.length > menuExpandNum && (
               <Button
@@ -280,6 +271,74 @@ const ScriptMenuList: React.FC<{
         </Collapse>
       ))}
     </>
+  );
+};
+
+const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
+  popupClient.menuClick(uuid, menu, inputValue).then(() => {
+    menu.options?.autoClose !== false && window.close();
+  });
+};
+
+const FormItem = Form.Item;
+
+type MenuItemProps = {
+  menu: ScriptMenuItem;
+  uuid: string;
+};
+
+const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
+  const initialValue = menu.options?.inputDefaultValue;
+
+  const InputMenu = (() => {
+    const placeholder = menu.options?.inputPlaceholder;
+
+    switch (menu.options?.inputType) {
+      case "text":
+        return <Input type="text" placeholder={placeholder} />;
+      case "number":
+        return <InputNumber placeholder={placeholder} />;
+      case "boolean":
+        return <Switch defaultChecked={initialValue as boolean} />;
+      default:
+        return null;
+    }
+  })();
+
+  return (
+    <Form
+      initialValues={{ inputValue: initialValue }}
+      size="small"
+      labelCol={{ flex: "none" }}
+      wrapperCol={{ flex: "none" }}
+      autoComplete="off"
+      onSubmit={(v) => {
+        const inputValue = v.inputValue;
+        console.log(v);
+        sendMenuAction(uuid, menu, inputValue);
+      }}
+    >
+      <Button
+        className="text-left"
+        type="secondary"
+        htmlType="submit"
+        icon={<IconMenu />}
+        title={menu.options?.title}
+        style={{ display: "block", width: "100%" }}
+      >
+        {menu.name}
+        {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
+      </Button>
+      {InputMenu && (
+        <FormItem
+          label={menu.options?.inputLabel}
+          field="inputValue"
+          style={{ marginTop: 5, marginBottom: 5, paddingLeft: 20 }}
+        >
+          {InputMenu}
+        </FormItem>
+      )}
+    </Form>
   );
 };
 

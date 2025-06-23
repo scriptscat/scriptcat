@@ -9,13 +9,14 @@ import {
   IconNotification,
   IconPlus,
   IconSearch,
+  IconSync,
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useState } from "react";
 import { RiMessage2Line, RiZzzFill } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
-import { popupClient } from "../store/features/script";
+import { popupClient, scriptClient } from "../store/features/script";
 import { ScriptMenu } from "@App/app/service/service_worker/popup";
 import { systemConfig } from "../store/global";
 import { isUserScriptsAvailable } from "@App/pkg/utils/utils";
@@ -39,6 +40,7 @@ function App() {
   });
   const [currentUrl, setCurrentUrl] = useState("");
   const [isEnableScript, setIsEnableScript] = useState(true);
+  const [isBlacklist, setIsBlacklist] = useState(false);
   const { t } = useTranslation();
 
   let url: URL | undefined;
@@ -81,6 +83,7 @@ function App() {
         });
         setScriptList(list);
         setBackScriptList(resp.backScriptList);
+        setIsBlacklist(resp.isBlacklist);
       });
     });
   }, []);
@@ -89,6 +92,7 @@ function App() {
       {!isUserScriptsAvailable() && (
         <Alert type="warning" content={<div dangerouslySetInnerHTML={{ __html: t("develop_mode_guide") }} />} />
       )}
+      {isBlacklist && <Alert type="warning" content="当前页面在黑名单中，无法使用脚本" />}
       <Card
         size="small"
         title={
@@ -145,6 +149,10 @@ function App() {
                           });
                           window.open("/src/options.html#/script/editor?target=initial", "_blank");
                           break;
+                        case "checkUpdate":
+                          await scriptClient.requestCheckUpdate("");
+                          window.close();
+                          break;
                         default:
                           window.open(key, "_blank");
                           break;
@@ -158,6 +166,10 @@ function App() {
                     <Menu.Item key={`https://scriptcat.org/search?domain=${url && url.host}`}>
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
+                    </Menu.Item>
+                    <Menu.Item key={"checkUpdate"}>
+                      <IconSync style={iconStyle} />
+                      检查更新
                     </Menu.Item>
                     <Menu.Item key="https://github.com/scriptscat/scriptcat/issues/new?template=bug_report.md">
                       <IconBug style={iconStyle} />

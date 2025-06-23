@@ -267,8 +267,8 @@ export function errorMsg(e: any): string {
 
 export function isUserScriptsAvailable() {
   try {
-    // Property access which throws if developer mode is not enabled.
-    chrome.userScripts;
+    // Method call which throws if API permission or toggle is not enabled.
+    chrome.userScripts.getScripts();
     return true;
   } catch {
     // Not available.

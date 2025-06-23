@@ -8,7 +8,6 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
 
-
 migrate();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";

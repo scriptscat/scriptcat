@@ -1,7 +1,20 @@
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next"; // 添加这行导入语句
 import { Script, UserConfig } from "@App/app/repo/scripts";
-import { Checkbox, Form, FormInstance, Input, InputNumber, Message, Modal, Select, Tabs } from "@arco-design/web-react";
+import {
+  Checkbox,
+  Form,
+  FormInstance,
+  Input,
+  InputNumber,
+  Message,
+  Modal,
+  Popover,
+  Select,
+  Space,
+  Switch,
+  Tabs,
+} from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
@@ -27,11 +40,12 @@ const UserConfigPanel: React.FC<{
     <Modal
       visible={visible}
       title={`${script.name} ${t("config")}`} // 替换为键值对应的英文文本
-      okText={t("save")} // 替换为键值对应的英文文本
+      okText={<Popover content="保存只对当前组有效">{t("save")}</Popover>} // 替换为键值对应的英文文本
       cancelText={t("close")} // 替换为键值对应的英文文本
       onOk={() => {
         if (formRefs.current[tab]) {
           const saveValues = formRefs.current[tab].getFieldsValue();
+          console.log("saveValues", saveValues);
           // 更新value
           const valueClient = new ValueClient(message);
           Object.keys(saveValues).forEach((key) => {
@@ -144,6 +158,18 @@ const UserConfigPanel: React.FC<{
                               rows={item.rows}
                               showWordLimit
                             />
+                          );
+                        case "switch":
+                          return (
+                            <Space>
+                              <Switch
+                                defaultChecked={values[`${itemKey}.${key}`]}
+                                onChange={(val) => {
+                                  formRefs.current[itemKey].setFieldValue(`${itemKey}.${key}`, val);
+                                }}
+                              />
+                              <span>{item.description}</span>
+                            </Space>
                           );
                         default:
                           return null;

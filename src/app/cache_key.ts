@@ -7,7 +7,7 @@ export default class CacheKey {
   }
 
   static permissionConfirm(scriptUuid: string, confirm: ConfirmParam): string {
-    return `permission:${scriptUuid}:${confirm.permissionValue || ""}:${confirm.permission || ""}`;
+    return `permission:${scriptUuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
   }
 
   // importFile 导入文件

@@ -89,6 +89,10 @@ export class ScriptClient extends Client {
     return this.do("importByUrl", url);
   }
 
+  installByCode(uuid: string, code: string, upsertBy: InstallSource = "user") {
+    return this.do("installByCode", { uuid, code, upsertBy });
+  }
+
   async formatUrl(url: string) {
     try {
       const newUrl = new URL(url.replace(/\/$/, ""));
@@ -216,6 +220,8 @@ export type GetPopupDataReq = {
 };
 
 export type GetPopupDataRes = {
+  // 在黑名单
+  isBlacklist: boolean;
   scriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
@@ -229,10 +235,11 @@ export class PopupClient extends Client {
     return this.do("getPopupData", data);
   }
 
-  menuClick(uuid: string, data: ScriptMenuItem) {
+  menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
     return this.do("menuClick", {
       uuid,
       id: data.id,
+      inputValue,
       sender: {
         tabId: data.tabId,
         frameId: data.frameId,
@@ -341,5 +348,9 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
+  }
+
+  loadFavicon(icon: string): Promise<string> {
+    return this.do("loadFavicon", icon);
   }
 }

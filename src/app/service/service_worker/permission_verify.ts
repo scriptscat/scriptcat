@@ -42,7 +42,7 @@ export interface ApiParam {
   // 别名
   alias?: string[];
   // 关联
-  link?: string;
+  link?: string | string[];
 }
 
 export interface ApiValue {
@@ -118,13 +118,16 @@ export default class PermissionVerify {
       return Promise.reject(new Error("grant is undefined"));
     }
     for (let i = 0; i < grant.length; i += 1) {
+      let grantName = grant[i];
       if (
         // 名称相等
-        grant[i] === request.api ||
+        grantName === request.api ||
         // 别名相等
-        (api.param.alias && api.param.alias.includes(grant[i])) ||
+        (api.param.alias && api.param.alias.includes(grantName)) ||
         // 有关联的
-        grant[i] === api.param.link
+        (typeof api.param.link === "string" && grantName === api.param.link) ||
+        // 关联包含
+        (Array.isArray(api.param.link) && api.param.link.includes(grantName))
       ) {
         // 需要用户确认
         if (api.param.confirm) {
@@ -174,7 +177,7 @@ export default class PermissionVerify {
       if (!model) {
         // 允许通配
         if (confirm.wildcard) {
-          model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
+          model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, "*");
         }
       }
       return Promise.resolve(model);
@@ -312,11 +315,9 @@ export default class PermissionVerify {
     const oldConfirm = await this.permissionDAO.findByKey(data.uuid, data.permission, data.permissionValue);
     if (!oldConfirm) {
       throw new Error("permission not found");
-    } else {
-      await this.permissionDAO.delete(this.permissionDAO.key(oldConfirm));
-      // 删除缓存
-      Cache.getInstance().del(CacheKey.permissionConfirm(data.uuid, oldConfirm));
     }
+    await this.permissionDAO.delete(this.permissionDAO.key(oldConfirm));
+    this.clearCache(data.uuid);
   }
 
   getScriptPermissions(uuid: string) {
@@ -327,7 +328,7 @@ export default class PermissionVerify {
   // 添加权限
   async addPermission(permission: Permission) {
     await this.permissionDAO.save(permission);
-    Cache.getInstance().del(CacheKey.permissionConfirm(permission.uuid, permission));
+    this.clearCache(permission.uuid);
   }
 
   // 重置权限
@@ -336,8 +337,24 @@ export default class PermissionVerify {
     const permissions = await this.permissionDAO.find((key, item) => item.uuid === uuid);
     permissions.forEach((item) => {
       this.permissionDAO.delete(this.permissionDAO.key(item));
-      Cache.getInstance().del(CacheKey.permissionConfirm(uuid, item));
     });
+    this.clearCache(uuid);
+  }
+
+  clearCache(uuid: string) {
+    return Cache.getInstance()
+      .list()
+      .then((keys) => {
+        // 删除所有以permission:uuid:开头的缓存
+        return Promise.all(
+          keys.map((key) => {
+            if (key.startsWith(`permission:${uuid}:`)) {
+              return Cache.getInstance().del(key);
+            }
+            return Promise.resolve();
+          })
+        );
+      });
   }
 
   init() {
@@ -346,7 +363,7 @@ export default class PermissionVerify {
     this.group.on("getInfo", this.getInfo.bind(this));
     this.group.on("deletePermission", this.deletePermission.bind(this));
     this.group.on("getScriptPermissions", this.getScriptPermissions.bind(this));
-    this.group.on("addPermission", this.getInfo.bind(this));
+    this.group.on("addPermission", this.addPermission.bind(this));
     this.group.on("resetPermission", this.resetPermission.bind(this));
 
     subscribeScriptDelete(this.mq, (data) => {

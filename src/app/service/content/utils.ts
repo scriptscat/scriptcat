@@ -22,9 +22,9 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
   const code = [requireCode, scriptCode, sourceURL].join("\n");
   return `  with(context){
-      (async (factory) => {
+      return (async (factory) => {
           try {
-            await factory();
+            return await factory();
           } catch (e) {
             if (e.message && e.stack) {
                 console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
@@ -105,18 +105,27 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
   };
   if (scriptRes.metadata.grant) {
     const GM_cookie = function (action: string) {
-      let default_details: GMTypes.CookieDetails = {
-        url: window.location.href,
-      };
       return (
         details: GMTypes.CookieDetails,
         done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
       ) => {
-        let queryDetails = { ...default_details, ...details };
-        return context["GM_cookie"](action, queryDetails, done);
+        return context["GM_cookie"](action, details, done);
       };
     };
+    // 处理GM.与GM_，将GM_与GM.都复制一份
+    const grant: string[] = [];
     scriptRes.metadata.grant.forEach((val) => {
+      if (val.startsWith("GM_")) {
+        const t = val.slice(3);
+        grant.push(`GM.${t}`);
+      } else if (val.startsWith("GM.")) {
+        grant.push(val);
+      }
+      grant.push(val);
+    });
+    // 去重
+    const uniqueGrant = new Set(grant);
+    uniqueGrant.forEach((val) => {
       const api = GMContext.apis.get(val);
       if (!api) {
         return;
@@ -124,10 +133,10 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
       if (/^(GM|window)\./.test(val)) {
         const [n, t] = val.split(".");
         if (t === "cookie") {
-          context[n][t] = {
-            list(details: GMTypes.CookieDetails = {}) {
+          const createGMCookePromise = (action: string) => {
+            return (details: GMTypes.CookieDetails = {}) => {
               return new Promise((resolve, reject) => {
-                let fn = GM_cookie("list");
+                let fn = GM_cookie(action);
                 fn(details, function (cookie, error) {
                   if (error) {
                     reject(error);
@@ -136,32 +145,14 @@ export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefi
                   }
                 });
               });
-            },
-            delete(details: GMTypes.CookieDetails) {
-              return new Promise((resolve, reject) => {
-                let fn = GM_cookie("delete");
-                fn(details, function (cookie, error) {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(cookie);
-                  }
-                });
-              });
-            },
-            set(details: GMTypes.CookieDetails) {
-              return new Promise((resolve, reject) => {
-                let fn = GM_cookie("set");
-                fn(details, function (cookie, error) {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(cookie);
-                  }
-                });
-              });
-            },
+            };
           };
+          context[n][t] = {
+            list: createGMCookePromise("list"),
+            delete: createGMCookePromise("delete"),
+            set: createGMCookePromise("set"),
+          };
+          context["GM_cookie"] = api.api.bind(context);
         } else {
           (<{ [key: string]: any }>context[n])[t] = api.api.bind(context);
         }
@@ -359,7 +350,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
             return true;
           }
           // 只处理onxxxx的事件
-          if (has(global[name], name)) {
+          if (has(global, name)) {
             if (name.startsWith("on")) {
               return true;
             }

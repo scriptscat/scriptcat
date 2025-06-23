@@ -6,14 +6,15 @@
       "ES2020",
       "WebWorker"
     ],
-    "module": "ESNext",
+    "module": "nodenext",
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
@@ -28,7 +29,7 @@
       "@Tests/*": [
         "tests/*"
       ]
-    },
+    }
   },
   "include": [
     "src",

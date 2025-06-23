@@ -97,20 +97,43 @@ declare function GM_getResourceText(name: string): string | undefined;
 
 declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined;
 
-declare function GM_registerMenuCommand(
+function GM_registerMenuCommand(
   name: string,
-  listener: () => void,
+  listener: (inputValue?: any) => void,
   optionsOrAccessKey?:
-    | string
     | {
-        id?: number | string;
-        accessKey?: string;
+        id?: number;
         autoClose?: boolean;
         title?: string;
+        accessKey?: string;
       }
+    | string
 ): number;
 
 declare function GM_unregisterMenuCommand(id: number): void;
+
+/**
+ * 注册一个菜单输入框, 允许用户输入值, 并在输入完成后用回调函数
+ */
+declare function CAT_registerMenuInput(
+  name: string,
+  listener: (inputValue?: any) => void,
+  optionsOrAccessKey?:
+    | {
+        id?: number;
+        autoClose?: boolean;
+        title?: string;
+        accessKey?: string;
+        // 可选输入框
+        inputType?: "text" | "number" | "boolean";
+        inputLabel?: string;
+        inputDefaultValue?: string | number | boolean;
+        inputPlaceholder?: string;
+      }
+    | string
+): number;
+
+declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
 declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): tab;

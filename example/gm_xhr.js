@@ -25,6 +25,8 @@ GM_xmlhttpRequest({
   method: "POST",
   responseType: "blob",
   data: data,
+  cookie: "ceshi=123",
+  anonymous: true,
   headers: {
     referer: "http://www.example.com/",
     origin: "www.example.com",

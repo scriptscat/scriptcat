@@ -23,6 +23,7 @@ import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { InstallSource } from ".";
+import { ExtVersion } from "@App/app/const";
 
 export type SynchronizeTarget = "local";
 
@@ -39,11 +40,23 @@ export type SyncMeta = {
   isDeleted?: boolean;
 };
 
+type ScriptcatSync = {
+  version: string; // 脚本猫版本
+  status: {
+    scripts: {
+      [key: string]: {
+        enable: boolean;
+        sort: number;
+        updatetime: number; // 更新时间
+      };
+    };
+  };
+};
+
 export class SynchronizeService {
   logger: Logger;
 
-  scriptDAO = new ScriptDAO();
-  scriptCodeDAO = new ScriptCodeDAO();
+  scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", true);
 
@@ -54,7 +67,8 @@ export class SynchronizeService {
     private value: ValueService,
     private resource: ResourceService,
     private mq: MessageQueue,
-    private systemConfig: SystemConfig
+    private systemConfig: SystemConfig,
+    private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "synchronize" });
   }
@@ -309,7 +323,7 @@ export class SynchronizeService {
   }
 
   // 同步一次
-  async syncOnce(fs: FileSystem) {
+  async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
     // 获取文件列表
     const list = await fs.list();
@@ -326,6 +340,13 @@ export class SynchronizeService {
       ((await this.storage.get("file_digest")) as {
         [key: string]: string;
       }) || {};
+
+    let scriptcatSync = {
+      version: ExtVersion,
+      status: {
+        scripts: {},
+      },
+    } as ScriptcatSync;
 
     list.forEach((file) => {
       if (file.name.endsWith(".user.js")) {
@@ -414,6 +435,58 @@ export class SynchronizeService {
     });
     // 忽略错误
     await Promise.allSettled(result);
+    // 同步状态
+    if (syncConfig.syncStatus) {
+      // 判断文件系统是否有脚本猫同步文件
+      const file = list.find((file) => file.name === "scriptcat-sync.json");
+      if (file) {
+        // 如果有,则读取文件内容
+        scriptcatSync = JSON.parse(await fs.open(file).then((f) => f.read("string"))) as ScriptcatSync;
+      }
+      const scriptlist = await this.scriptDAO.all();
+      const status = scriptcatSync.status.scripts;
+      scriptlist.forEach(async (script) => {
+        // 判断云端状态是否与本地状态一致
+        if (!status[script.uuid]) {
+          status[script.uuid] = {
+            enable: script.status === SCRIPT_STATUS_ENABLE,
+            sort: script.sort,
+            updatetime: script.updatetime || script.createtime,
+          };
+        } else {
+          // 判断时间
+          if (script.updatetime) {
+            // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
+            if (status[script.uuid].updatetime < script.updatetime) {
+              status[script.uuid].enable = script.status === SCRIPT_STATUS_ENABLE;
+              status[script.uuid].sort = script.sort;
+              status[script.uuid].updatetime = script.updatetime;
+              return;
+            }
+          }
+          // 否则采用云端状态
+          // 脚本顺序
+          if (status[script.uuid].sort !== script.sort) {
+            await this.scriptDAO.update(script.uuid, {
+              sort: status[script.uuid].sort,
+              updatetime: new Date().getTime(),
+            });
+          }
+          // 脚本状态
+          if (status[script.uuid].enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+            // 开启脚本
+            this.script.enableScript({
+              uuid: script.uuid,
+              enable: status[script.uuid].enable,
+            });
+          }
+        }
+      });
+      // 保存脚本猫同步状态
+      const syncFile = await fs.create("scriptcat-sync.json");
+      await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+      this.logger.info("sync scriptcat sync file success");
+    }
     // 重新获取文件列表,保存文件摘要
     await this.updateFileDigest(fs);
     this.logger.info("sync complete");
@@ -529,7 +602,7 @@ export class SynchronizeService {
     if (value.enable) {
       // 开启云同步同步
       this.buildFileSystem(value).then(async (fs) => {
-        await this.syncOnce(fs);
+        await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
         chrome.alarms.create("cloudSync", {
           periodInMinutes: 60,

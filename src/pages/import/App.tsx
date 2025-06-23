@@ -78,10 +78,11 @@ function App() {
                     item.enabled === false
                       ? false
                       : !(item.script?.script.metadata.background || item.script?.script.metadata.crontab),
-                  position: 0,
+                  position: item.script?.script.sort,
                 },
               };
             }
+            item.script.script.sort = item.options.settings.position || 0;
             item.script.script.status =
               item.enabled !== false && item.options.settings.enabled ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
             item.install = true;

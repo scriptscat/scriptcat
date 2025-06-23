@@ -8,7 +8,6 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
   ScriptRunResouce,
-  type ScriptCodeDAO,
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi from "./gm_api";
@@ -52,6 +51,7 @@ export interface EmitEventRequest {
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
+  blackMatch: UrlMatch<boolean> = new UrlMatch<boolean>();
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
 
   logger: Logger;
@@ -116,6 +116,9 @@ export class RuntimeService {
     subscribeScriptEnable(this.mq, async (data) => {
       const script = await this.scriptDAO.getAndCode(data.uuid);
       if (!script) {
+        this.logger.error("script enable failed, script not found", {
+          uuid: data.uuid,
+        });
         return;
       }
       // 如果是普通脚本, 在service worker中进行注册
@@ -133,6 +136,9 @@ export class RuntimeService {
     subscribeScriptInstall(this.mq, async (data) => {
       const script = await this.scriptDAO.get(data.script.uuid);
       if (!script) {
+        this.logger.error("script install failed, script not found", {
+          uuid: data.script.uuid,
+        });
         return;
       }
       if (script.type === SCRIPT_TYPE_NORMAL) {
@@ -158,14 +164,42 @@ export class RuntimeService {
     if (this.isEnableUserscribe) {
       this.registerUserscripts();
     }
+    this.systemConfig.addListener("blacklist", async (blacklist: string) => {
+      // 重新注册用户脚本
+      await this.unregisterUserscripts();
+      this.registerUserscripts();
+      this.loadBlacklist(blacklist);
+      this.logger.info("blacklist updated", {
+        blacklist,
+      });
+    });
+    // 加载黑名单
+    this.loadBlacklist(await this.systemConfig.getBlacklist());
+  }
+
+  private loadBlacklist(blacklist: string) {
+    // 设置黑名单match
+    const list = blacklist
+      .split("\n")
+      .map((item) => item.trim())
+      .filter((item) => item);
+    const result = dealPatternMatches(list, {
+      exclude: true,
+    });
+    this.blackMatch.forEach((uuid) => {
+      this.blackMatch.del(uuid);
+    });
+    result.result.forEach((match) => {
+      this.blackMatch.add(match, true);
+    });
   }
 
   unsubscribe: Unsubscribe[] = [];
 
   // 取消脚本注册
-  unregisterUserscripts() {
-    chrome.userScripts.unregister();
-    this.deleteMessageFlag();
+  async unregisterUserscripts() {
+    await chrome.userScripts.unregister();
+    return this.deleteMessageFlag();
   }
 
   async registerUserscripts() {
@@ -208,6 +242,7 @@ export class RuntimeService {
               });
               return undefined;
             }
+            // 设置黑名单
             return registerScript;
           });
         })
@@ -253,7 +288,7 @@ export class RuntimeService {
     this.loadScriptMatchInfo();
   }
 
-  messageFlag() {
+  getAndGenMessageFlag() {
     return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => {
       return Promise.resolve(randomString(16));
     });
@@ -327,7 +362,14 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
-    const [scriptFlag] = await Promise.all([this.messageFlag(), this.loadScriptMatchInfo()]);
+    // 判断是否黑名单
+    const isBlack = this.blackMatch.match(sender.getSender().url!);
+    if (isBlack.length > 0) {
+      // 如果在黑名单中, 则不加载脚本
+      return Promise.resolve({ flag: "", scripts: [] });
+    }
+
+    const [scriptFlag] = await Promise.all([this.getAndGenMessageFlag(), this.loadScriptMatchInfo()]);
     const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
 
     // 匹配当前页面的脚本
@@ -477,7 +519,21 @@ export class RuntimeService {
     // 如果没设置过, 则更新messageFlag
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
-      messageFlag = await this.messageFlag();
+      // 黑名单排除
+      const blacklist = await this.systemConfig.getBlacklist();
+      const excludeMatches = [];
+      if (blacklist) {
+        const list = blacklist
+          .split("\n")
+          .map((item) => item.trim())
+          .filter((item) => item);
+        const result = dealPatternMatches(list, {
+          exclude: true,
+        });
+        excludeMatches.push(...result.patternResult);
+      }
+
+      messageFlag = await this.getAndGenMessageFlag();
       const injectJs = await fetch("inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
@@ -493,6 +549,7 @@ export class RuntimeService {
           allFrames: true,
           world: "MAIN",
           runAt: "document_start",
+          excludeMatches,
         },
         // 注册content
         {
@@ -502,6 +559,7 @@ export class RuntimeService {
           allFrames: true,
           runAt: "document_start",
           world: "USER_SCRIPT",
+          excludeMatches,
         },
       ];
       try {
@@ -640,6 +698,7 @@ export class RuntimeService {
       matches: patternMatches.patternResult,
       allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
+      excludeMatches: [],
     };
 
     // 排除由loadPage时决定, 不使用userScript的excludeMatches处理
@@ -659,11 +718,22 @@ export class RuntimeService {
         exclude: true,
       });
 
-      if (!registerScript.excludeMatches) {
-        registerScript.excludeMatches = [];
-      }
       // registerScript.excludeMatches.push(...result.patternResult);
       scriptMatchInfo.customizeExcludeMatches = result.result;
+    }
+
+    // 黑名单排除
+    const blacklist = await this.systemConfig.getBlacklist();
+    if (blacklist) {
+      const list = blacklist
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item);
+      const result = dealPatternMatches(list, {
+        exclude: true,
+      });
+      // scriptMatchInfo.excludeMatches.push(...result.result);
+      registerScript.excludeMatches!.push(...result.patternResult);
     }
 
     // 将脚本match信息放入缓存中
@@ -684,6 +754,10 @@ export class RuntimeService {
   async loadPageScript(script: Script) {
     const resp = await this.getAndSetUserScriptRegister(script);
     if (!resp) {
+      this.logger.error("getAndSetUserScriptRegister error", {
+        script: script.name,
+        uuid: script.uuid,
+      });
       return;
     }
     const { registerScript } = resp;

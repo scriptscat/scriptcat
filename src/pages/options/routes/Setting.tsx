@@ -8,14 +8,15 @@ import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import dayjs from "dayjs";
 import Logger from "@App/app/logger/logger";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
+import { parsePatternMatchesURL } from "@App/pkg/utils/match";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
+  const [syncScriptStatus, setSyncScriptStatus] = useState<boolean>();
   const [enableCloudSync, setEnableCloudSync] = useState<boolean>();
   const [fileSystemType, setFilesystemType] = useState<FileSystemType>("webdav");
   const [fileSystemParams, setFilesystemParam] = useState<{
@@ -28,6 +29,7 @@ function Setting() {
   const [silenceUpdateScript, setSilenceUpdateScript] = useState(false);
   const [enableEslint, setEnableEslint] = useState(false);
   const [eslintConfig, setEslintConfig] = useState("");
+  const [blacklist, setBlacklist] = useState<string>("");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
   Object.keys(i18n.store.data).forEach((key) => {
@@ -55,6 +57,7 @@ function Setting() {
         eslintConfig,
         enableEslint,
         language,
+        blacklist,
       ] = await Promise.all([
         systemConfig.getCloudSync(),
         systemConfig.getMenuExpandNum(),
@@ -64,9 +67,11 @@ function Setting() {
         systemConfig.getEslintConfig(),
         systemConfig.getEnableEslint(),
         systemConfig.getLanguage(),
+        systemConfig.getBlacklist(),
       ]);
 
       setSyncDelete(cloudSync.syncDelete);
+      setSyncScriptStatus(cloudSync.syncStatus);
       setEnableCloudSync(cloudSync.enable);
       setFilesystemType(cloudSync.filesystem);
       setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
@@ -77,6 +82,7 @@ function Setting() {
       setEslintConfig(eslintConfig);
       setEnableEslint(enableEslint);
       setLanguage(language);
+      setBlacklist(blacklist);
     };
 
     loadConfigs();
@@ -135,14 +141,24 @@ function Setting() {
       </Card>
       <Card className="sync" title={t("script_sync")} bordered={false}>
         <Space direction="vertical">
-          <Checkbox
-            checked={syncDelete}
-            onChange={(checked) => {
-              setSyncDelete(checked);
-            }}
-          >
-            {t("sync_delete")}
-          </Checkbox>
+          <Space direction="horizontal">
+            <Checkbox
+              checked={syncDelete}
+              onChange={(checked) => {
+                setSyncDelete(checked);
+              }}
+            >
+              {t("sync_delete")}
+            </Checkbox>
+            <Checkbox
+              checked={syncScriptStatus}
+              onChange={(checked) => {
+                setSyncScriptStatus(checked);
+              }}
+            >
+              同步状态
+            </Checkbox>
+          </Space>
           <FileSystemParams
             preNode={
               <Checkbox
@@ -176,6 +192,7 @@ function Setting() {
                   systemConfig.setCloudSync({
                     enable: enableCloudSync || false,
                     syncDelete: syncDelete || false,
+                    syncStatus: syncScriptStatus || false,
                     filesystem: fileSystemType,
                     params,
                   });
@@ -239,6 +256,36 @@ function Setting() {
         </Space>
       </Card>
       <GMApiSetting />
+      <Card title="安全" bordered={false}>
+        <Space direction="vertical" className="w-full">
+          <span>黑名单页面:</span>
+          <Input.TextArea
+            placeholder={"禁止脚本猫在以下页面运行脚本，多个页面用换行符分隔，例如:\nhttps://*.example.com"}
+            autoSize={{
+              minRows: 4,
+              maxRows: 8,
+            }}
+            value={blacklist}
+            onChange={(v) => {
+              setBlacklist(v);
+            }}
+            onBlur={(v) => {
+              // 校验黑名单格式
+              const lines = v.target.value
+                .split("\n")
+                .map((line) => line.trim())
+                .filter((line) => line);
+              for (const line of lines) {
+                if (line && !parsePatternMatchesURL(line)) {
+                  Message.error(`表达式格式错误: ${line}`);
+                  return;
+                }
+              }
+              systemConfig.setBlacklist(v.target.value);
+            }}
+          />
+        </Space>
+      </Card>
       <Card title="ESLint" bordered={false}>
         <Space direction="vertical" className="w-full">
           <Checkbox

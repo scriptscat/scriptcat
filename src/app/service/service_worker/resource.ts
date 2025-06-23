@@ -9,6 +9,7 @@ import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/script";
 import { ResourceBackup } from "@App/pkg/backup/struct";
 import { subscribeScriptDelete } from "../queue";
+import Cache from "@App/app/cache";
 
 export class ResourceService {
   logger: Logger;
@@ -306,20 +307,26 @@ export class ResourceService {
 
     // 删除相关资源
     subscribeScriptDelete(this.mq, (data) => {
-      this.resourceDAO
-        .find((key, value) => {
+      // 使用事务当锁，避免并发删除导致数据不一致
+      Cache.getInstance().tx("resource_lock", async (start) => {
+        const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
-        })
-        .then((resources) => {
-          resources.forEach((res) => {
-            // 删除link
-            delete res.link[data.uuid];
-            // 如果没有关联脚本了,删除资源
-            if (Object.keys(res.link).length === 0) {
-              this.resourceDAO.delete(res.url);
-            }
-          });
         });
+        resources.forEach((res) => {
+          // 删除link
+          delete res.link[data.uuid];
+        });
+        await Promise.all(
+          resources.map((res) => {
+            if (Object.keys(res.link).length > 0) {
+              return this.resourceDAO.update(res.url, res);
+            }
+            // 如果没有关联脚本了,删除资源
+            return this.resourceDAO.delete(res.url);
+          })
+        );
+        return true;
+      });
     });
   }
 }

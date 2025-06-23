@@ -1,11 +1,11 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
 import {
   Script,
   SCRIPT_RUN_STATUS,
@@ -46,16 +46,16 @@ export class ScriptService {
       (req) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
-          return;
+          return undefined;
         }
         const url = new URL(req.url);
         // 判断是否有hash
         if (!url.hash) {
-          return;
+          return undefined;
         }
         // 判断是否有url参数
         if (!url.hash.includes("url=")) {
-          return;
+          return undefined;
         }
         // 获取url参数
         const targetUrl = url.hash.split("url=")[1];
@@ -174,6 +174,17 @@ export class ScriptService {
     return Promise.resolve(prepareScript.script);
   }
 
+  // 直接通过code静默安装脚本
+  async installByCode(param: { uuid: string; code: string; upsertBy: InstallSource }) {
+    const prepareScript = await prepareScriptByCode(param.code, "", param.uuid, true);
+    this.installScript({
+      script: prepareScript.script,
+      code: param.code,
+      upsertBy: param.upsertBy,
+    });
+    return Promise.resolve(prepareScript.script);
+  }
+
   // 获取安装信息
   getInstallInfo(uuid: string) {
     return Cache.getInstance().get(CacheKey.scriptInstallInfo(uuid));
@@ -247,7 +258,10 @@ export class ScriptService {
       throw new Error("script not found");
     }
     return this.scriptDAO
-      .update(param.uuid, { status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE })
+      .update(param.uuid, {
+        status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+        updatetime: new Date().getTime(),
+      })
       .then(() => {
         logger.info("enable success");
         this.mq.publish("enableScript", { uuid: param.uuid, enable: param.enable });
@@ -456,10 +470,11 @@ export class ScriptService {
               });
               return;
             }
+            // 如果不符合静默更新规则，走后面的流程
+            logger.info("not silence update script, open install page");
           } catch (e) {
             logger.error("prepare script failed", Logger.E(e));
           }
-          return;
         }
         // 打开安装页面
         Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
@@ -494,7 +509,22 @@ export class ScriptService {
   }
 
   requestCheckUpdate(uuid: string) {
-    return this.checkUpdate(uuid, "user");
+    if (uuid) {
+      return this.checkUpdate(uuid, "user");
+    } else {
+      // 批量检查更新
+      InfoNotification("检查更新", "正在检查所有的脚本更新");
+      this.scriptDAO
+        .all()
+        .then((scripts) => {
+          return Promise.all(scripts.map((script) => this.checkUpdate(script.uuid, "user")));
+        })
+        .then(() => {
+          InfoNotification("检查更新", "所有脚本检查完成");
+          return Promise.resolve(true);
+        });
+      return Promise.resolve(true);
+    }
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }) {
@@ -535,7 +565,7 @@ export class ScriptService {
     const newSort = arrayMove(scripts, oldIndex, newIndex);
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i });
+        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
       }
     }
   }
@@ -563,6 +593,7 @@ export class ScriptService {
     this.group.on("isInstalled", this.isInstalled.bind(this));
     this.group.on("sortScript", this.sortScript.bind(this));
     this.group.on("importByUrl", this.importByUrl.bind(this));
+    this.group.on("installByCode", this.installByCode.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

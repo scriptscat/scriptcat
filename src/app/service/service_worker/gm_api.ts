@@ -53,7 +53,14 @@ export type NotificationMessageOption = {
   };
 };
 
-export const unsafeHeaders: { [key: string]: boolean } = {
+/**
+ * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
+ *
+ * @link https://developer.mozilla.org/zh-CN/docs/Glossary/Forbidden_request_header
+ */
+export const unsafeHeaders: {
+  [key: string]: boolean;
+} = {
   // 部分浏览器中并未允许
   "user-agent": true,
   // 这两个是前缀
@@ -80,6 +87,25 @@ export const unsafeHeaders: { [key: string]: boolean } = {
   "transfer-encoding": true,
   upgrade: true,
   via: true,
+};
+
+/**
+ * 检测是否存在不安全的请求头（xhr不允许自定义的的请求头）
+ * @returns
+ * + true 存在
+ * + false 不存在
+ */
+export const checkHasUnsafeHeaders = (key: string) => {
+  key = key.toLowerCase();
+  if (unsafeHeaders[key]) {
+    return true;
+  }
+  // ends with "-"
+  let specialHeaderKeys = ["proxy-", "sec-"];
+  if (specialHeaderKeys.some((specialHeaderKey) => key.startsWith(specialHeaderKey))) {
+    return true;
+  }
+  return false;
 };
 
 type NotificationData = {
@@ -270,7 +296,7 @@ export default class GMApi {
     return Promise.resolve(true);
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
   async GM_setValue(request: Request, sender: GetSender) {
     if (!request.params || request.params.length < 1) {
       throw new Error("param is failed");
@@ -396,39 +422,21 @@ export default class GMApi {
   }
 
   // 根据header生成dnr规则
-  async buildDNRRule(reqeustId: number, params: GMSend.XHRDetails): Promise<{ [key: string]: string }> {
-    // 检查是否有unsafe header,有则生成dnr规则
-    const headers = params.headers;
-    if (!headers) {
-      return {};
-    }
+  async buildDNRRule(
+    reqeustId: number,
+    params: GMSend.XHRDetails,
+    sender: GetSender
+  ): Promise<{ [key: string]: string }> {
+    // 默认移除origin
+    const headers = params.headers || {};
+    headers["origin"] = headers["origin"] || "";
+
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
         operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
-    Object.keys(headers).forEach((key) => {
-      const lowKey = key.toLowerCase();
-      if (headers[key]) {
-        if (unsafeHeaders[lowKey] || lowKey.startsWith("sec-") || lowKey.startsWith("proxy-")) {
-          if (headers[key]) {
-            requestHeaders.push({
-              header: key,
-              operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-              value: headers[key],
-            });
-          }
-          delete headers[key];
-        }
-      } else {
-        requestHeaders.push({
-          header: key,
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
-        });
-        delete headers[key];
-      }
-    });
     // 判断是否是anonymous
     if (params.anonymous) {
       // 如果是anonymous，并且有cookie，则设置为自定义的cookie
@@ -445,10 +453,76 @@ export default class GMApi {
           operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
         });
       }
-    } else if (params.cookie) {
-      // 否则正常携带cookie header
-      headers["cookie"] = params.cookie;
+    } else {
+      if (params.cookie) {
+        // 否则正常携带cookie header
+        headers["cookie"] = params.cookie;
+      }
+
+      // 追加该网站本身存储的cookie
+      let tabId = sender.getExtMessageSender().tabId;
+      let storeId: string | undefined;
+      if (tabId !== -1) {
+        const stores = await chrome.cookies.getAllCookieStores();
+        const store = stores.find((val) => val.tabIds.includes(tabId));
+        if (store) {
+          storeId = store.id;
+        }
+      }
+
+      let cookies = await chrome.cookies.getAll({
+        domain: undefined,
+        name: undefined,
+        path: undefined,
+        secure: undefined,
+        session: undefined,
+        url: params.url,
+        storeId: storeId,
+        partitionKey: params.cookiePartition,
+      });
+      // 追加cookie
+      if (cookies.length) {
+        const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        if (!("cookie" in headers)) {
+          headers.cookie = "";
+        }
+        headers["cookie"] = headers["cookie"].trim();
+        if (headers["cookie"] === "") {
+          // 空的
+          headers["cookie"] = cookieStr;
+        } else {
+          // 非空
+          if (!headers["cookie"].endsWith(";")) {
+            headers["cookie"] = headers["cookie"] + "; ";
+          }
+          headers["cookie"] = headers["cookie"] + cookieStr;
+        }
+      }
     }
+
+    Object.keys(headers).forEach((key) => {
+      /** 请求的header的值 */
+      const headerValue = headers[key];
+      let deleteHeader = false;
+      if (headerValue) {
+        if (checkHasUnsafeHeaders(key)) {
+          requestHeaders.push({
+            header: key,
+            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+            value: headerValue,
+          });
+          deleteHeader = true;
+        }
+      } else {
+        requestHeaders.push({
+          header: key,
+          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+        });
+        deleteHeader = true;
+      }
+      deleteHeader && delete headers[key];
+    });
+
     const ruleId = reqeustId;
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = ruleId;
@@ -625,8 +699,18 @@ export default class GMApi {
     if (!params.headers) {
       params.headers = {};
     }
+
+    // 处理cookiePartition
+    if (typeof params.cookiePartition !== "object" || params.cookiePartition == null) {
+      params.cookiePartition = {};
+    }
+    if (typeof params.cookiePartition.topLevelSite !== "string") {
+      // string | undefined
+      params.cookiePartition.topLevelSite = undefined;
+    }
+
     params.headers["X-Scriptcat-GM-XHR-Request-Id"] = requestId.toString();
-    params.headers = await this.buildDNRRule(requestId, request.params[0]);
+    params.headers = await this.buildDNRRule(requestId, request.params[0], sender);
     let resultParam: RequestResultParams = {
       requestId,
       statusCode: 0,
@@ -635,7 +719,7 @@ export default class GMApi {
     // 等待response
     this.gmXhrHeadersReceived.addListener(
       "headersReceived:" + requestId,
-      (details: chrome.webRequest.WebResponseHeadersDetails) => {
+      (details: chrome.webRequest.OnHeadersReceivedDetails) => {
         details.responseHeaders?.forEach((header) => {
           resultParam.responseHeader += header.name + ": " + header.value + "\n";
         });
@@ -661,22 +745,22 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
   GM_registerMenuCommand(request: Request, sender: GetSender) {
-    const [id, name, accessKey] = request.params;
+    const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
     this.mq.emit("registerMenuCommand", {
       uuid: request.script.uuid,
-      id: id,
-      name: name,
-      options: typeof accessKey === "object" ? accessKey : { accessKey: accessKey },
+      id,
+      name,
+      options,
       tabId: sender.getSender().tab?.id || -1,
       frameId: sender.getSender().frameId,
       documentId: sender.getSender().documentId,
     });
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({ alias: ["CAT_unregisterMenuInput"] })
   GM_unregisterMenuCommand(request: Request, sender: GetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
@@ -768,7 +852,7 @@ export default class GMApi {
     }
     const details: GMTypes.NotificationDetails = request.params[0];
     const notificationId: string | undefined = request.params[1];
-    const options: chrome.notifications.NotificationOptions<true> = {
+    const options: chrome.notifications.NotificationCreateOptions = {
       title: details.title || "ScriptCat",
       message: details.text || "无消息内容",
       iconUrl: details.image || getIcon(request.script) || chrome.runtime.getURL("assets/logo.png"),
@@ -1012,6 +1096,7 @@ export default class GMApi {
             }
           }
         }
+        return undefined;
       },
       {
         urls: ["<all_urls>"],
@@ -1036,6 +1121,7 @@ export default class GMApi {
               }
             });
         }
+        return undefined;
       },
       {
         urls: ["<all_urls>"],

@@ -33,8 +33,8 @@ export function stopScript(msg: MessageSend, uuid: string) {
   return sendMessage(msg, "offscreen/script/stopScript", uuid);
 }
 
-export function createObjectURL(msg: MessageSend, data: Blob) {
-  return sendMessage(msg, "offscreen/createObjectURL", data);
+export function createObjectURL(msg: MessageSend, data: Blob, persistence: boolean = false) {
+  return sendMessage(msg, "offscreen/createObjectURL", { data, persistence });
 }
 
 export class VscodeConnectClient extends Client {
@@ -44,13 +44,5 @@ export class VscodeConnectClient extends Client {
 
   connect(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connect", params);
-  }
-
-  changeReConnect(params: Parameters<VSCodeConnect["changeReConnect"]>[0]): ReturnType<VSCodeConnect["changeReConnect"]> {
-    return this.do("changeReConnect", params);
-  }
-
-  disconnect(): ReturnType<VSCodeConnect["disconnect"]> {
-    return this.do("disconnect");
   }
 }

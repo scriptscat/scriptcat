@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Avatar,
   Button,
   Card,
   Divider,
@@ -16,6 +17,7 @@ import {
   Tooltip,
   Typography,
 } from "@arco-design/web-react";
+import { TbWorldWww } from "react-icons/tb";
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import {
@@ -30,7 +32,7 @@ import {
 } from "@App/app/repo/scripts";
 import {
   IconClockCircle,
-  IconCommon,
+  IconDesktop,
   IconEdit,
   IconLink,
   IconMenu,
@@ -88,9 +90,9 @@ import {
 } from "@App/pages/store/features/script";
 import { message, systemConfig } from "@App/pages/store/global";
 import { ValueClient } from "@App/app/service/service_worker/client";
-import { JSX } from "react/jsx-runtime";
+import { loadScriptFavicons } from "@App/pages/store/utils";
 
-type ListType = Script & { loading?: boolean };
+type ListType = ScriptLoading;
 
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
@@ -113,7 +115,12 @@ function ScriptList() {
   const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
 
   useEffect(() => {
-    dispatch(fetchScriptList());
+    dispatch(fetchScriptList()).then((action) => {
+      if (fetchScriptList.fulfilled.match(action)) {
+        // 在脚本列表加载完成后，加载favicon
+        loadScriptFavicons(action.payload);
+      }
+    });
   }, [dispatch]);
 
   const columns: ColumnProps[] = [
@@ -250,7 +257,7 @@ function ScriptList() {
       title: t("apply_to_run_status"),
       width: t("script_list_apply_to_run_status_width"),
       className: "apply_to_run_status",
-      render(col, item: Script) {
+      render(col, item: ListType) {
         const toLogger = () => {
           navigate({
             pathname: "logger",
@@ -266,20 +273,45 @@ function ScriptList() {
           });
         };
         if (item.type === SCRIPT_TYPE_NORMAL) {
+          // 处理站点icon
           return (
-            <Tooltip content={t("foreground_page_script_tooltip")}>
-              <Tag
-                style={{
-                  cursor: "pointer",
-                }}
-                icon={<IconCommon color="" />}
-                color="cyan"
-                bordered
-                onClick={toLogger}
-              >
-                {t("page_script")}
-              </Tag>
-            </Tooltip>
+            <>
+              <Avatar.Group size={20} style={{ margin: 10 }}>
+                {item.favorite &&
+                  // 排序并且只显示前5个
+                  // 排序将有icon的放在前面
+                  [...item.favorite]
+                    .sort((a, b) => {
+                      if (a.icon && !b.icon) return -1;
+                      if (!a.icon && b.icon) return 1;
+                      return a.match.localeCompare(b.match);
+                    })
+                    .slice(0, 4)
+                    .map((fav) => (
+                      <Avatar
+                        key={fav.match}
+                        shape="square"
+                        style={{
+                          backgroundColor: "unset",
+                          borderWidth: 1,
+                        }}
+                        className={fav.website ? "cursor-pointer" : "cursor-default"}
+                        onClick={() => {
+                          if (fav.website) {
+                            window.open(fav.website, "_blank");
+                          }
+                        }}
+                      >
+                        {fav.icon ? (
+                          <img title={fav.match} src={fav.icon} />
+                        ) : (
+                          <TbWorldWww title={fav.match} color="#aaa" size={24} />
+                        )}
+                      </Avatar>
+                    ))}
+                {item.favorite && item.favorite.length > 4 && "..."}
+              </Avatar.Group>
+            </>
           );
         }
         let tooltip = "";
