@@ -1,0 +1,70 @@
+name: Bug Report
+description: 提交脚本猫使用过程中遇到的 BUG
+title: "[BUG] "
+labels: ["bug"]
+# assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **请花2分钟填写以下信息，这能极大帮助我们快速定位问题**
+
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: "问题描述"
+      description: "发生了什么问题？你预期的正常行为是什么？"
+      placeholder: "例：在YouTube页面点击下载按钮时，脚本报错404，预期应弹出下载窗口"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: "重现步骤"
+      description: "请按顺序列出可稳定重现问题的操作步骤"
+      placeholder: |
+        1. 打开 https://example.com
+        2. 点击页面右上角红色按钮
+        3. 等待5秒后观察控制台
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 环境信息"
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: 脚本猫版本，你可以点击脚本猫的弹出窗口进行查看
+      placeholder: 例如 v0.17.0，可以的话最好使用最新版本，也许你的问题已经解决了
+    validations:
+      required: true
+  - type: input
+    id: browser-version
+    attributes:
+      label: 操作系统以及浏览器信息
+      placeholder: 例如 Windows 11 Chrome 137.0.3296.93 (正式版本) (arm64)，你可以在浏览器-关于下进行查看，或者输入 chrome://settings/help
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### 附加说明"
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: 补充信息 (选填)
+      placeholder: |
+        错误日志/截图/脚本代码片段/相关配置...
+        建议粘贴代码时使用代码块：
+        ```javascript
+        console.log('示例代码');
+        ```
+        如果涉及某个具体的脚本，最好在控制的首页中，选中将其导出后的zip压缩包上传上来，或者给出脚本的安装地址
+
+        错误日志需要在扩展管理页(chrome://extensions/)中
+        打开开发者模式
+        点击脚本猫的 服务工作进程 或 offscreen.html
+        在弹出窗口中的控制台页面查看
+      render: markdown
