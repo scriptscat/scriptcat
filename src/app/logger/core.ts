@@ -1,6 +1,6 @@
 import Logger from "./logger";
 
-export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
+export type LogLevel = "none" | "trace" | "debug" | "info" | "warn" | "error";
 
 export interface LogLabel {
   [key: string]: string | string[] | boolean | number | object | undefined;

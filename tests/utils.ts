@@ -1,14 +1,11 @@
-import "fake-indexeddb/auto";
-import LoggerCore from "@App/app/logger/core";
-import DBWriter from "@App/app/logger/db_writer";
-import migrate from "@App/app/migrate";
-import { LoggerDAO } from "@App/app/repo/logger";
+import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Message, Server } from "@Packages/message/server";
 import { ValueService } from "@App/app/service/service_worker/value";
 import GMApi from "@App/app/service/service_worker/gm_api";
 import OffscreenGMApi from "@App/app/service/offscreen/gm_api";
 import EventEmitter from "eventemitter3";
+import "@Packages/chrome-extension-mock";
 
 export function initTestEnv() {
   // @ts-ignore
@@ -39,11 +36,9 @@ export function initTestEnv() {
     return blob;
   };
 
-  migrate();
-
   const logger = new LoggerCore({
     level: "debug",
-    writer: new DBWriter(new LoggerDAO()),
+    writer: new EmptyWriter(),
     labels: { env: "test" },
   });
   logger.logger().debug("test start");

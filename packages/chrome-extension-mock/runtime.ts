@@ -6,9 +6,17 @@ type Port = chrome.runtime.Port & {
 export default class Runtime {
   connectListener: Array<(port: chrome.runtime.Port) => void> = [];
 
+  messageListener: Array<(message: any) => void> = [];
+
   onConnect = {
     addListener: (callback: (port: chrome.runtime.Port) => void) => {
       this.connectListener.push(callback);
+    },
+  };
+
+  onMessage = {
+    addListener: (callback: (message: any) => void) => {
+      this.messageListener.push(callback);
     },
   };
 

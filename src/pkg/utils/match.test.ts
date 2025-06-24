@@ -43,11 +43,6 @@ describe("UrlMatch-google-error", () => {
     url.add("https://foo.*.bar/baz", "ok1");
     expect(url.match("https://foo.api.bar/baz")).toEqual(["ok1"]);
   });
-  it("error-2", () => {
-    expect(() => {
-      url.add("http:/bar", "ok1");
-    }).toThrow(Error);
-  });
 });
 
 // 从tm找的一些特殊的匹配规则

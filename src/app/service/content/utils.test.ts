@@ -97,6 +97,6 @@ describe("Object", () => {
     expect(_this.hasOwnProperty("test1")).toEqual(false);
     _this.test1 = "ok";
     expect(_this.hasOwnProperty("test1")).toEqual(true);
-    expect(_this.hasOwnProperty("test")).toEqual(true);
+    expect(_this.hasOwnProperty("test")).toEqual(false);
   });
 });

@@ -3,8 +3,8 @@ import BackupExport from "./export";
 import BackupImport from "./import";
 import { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
-import { initTestEnv } from "@Tests/utils";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
+import { initTestEnv } from "@Tests/utils";
 
 initTestEnv();
 
