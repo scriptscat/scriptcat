@@ -120,8 +120,20 @@ export default class ServiceWorkerManager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
-          chrome.tabs.create({
-            url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            // 如果有激活窗口, 则打开更新文档
+            // 如果当前窗口正在播放 audio, 则在后台打开
+            if (tabs.length > 0) {
+              chrome.tabs.create({
+                url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+                active: tabs[0].audible === true ? false : true,
+              });
+            } else {
+              chrome.tabs.create({
+                url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+                active: false,
+              });
+            }
           });
         }
       });
