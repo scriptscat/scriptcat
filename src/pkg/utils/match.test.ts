@@ -82,6 +82,12 @@ describe("UrlMatch-search", () => {
     expect(url.match("https://www.example.com/path/foo/bar/baz")).toEqual(["ok1"]);
     expect(url.match("https://www.example.com/path2/foo")).toEqual([]);
   });
+  it("http*", () => {
+    const url = new UrlMatch<string>();
+    url.add("http*", "ok1");
+    expect(url.match("http://www.example.com")).toEqual(["ok1"]);
+    expect(url.match("https://www.example.com")).toEqual(["ok1"]);
+  });
 });
 
 describe("UrlMatch-port1", () => {
@@ -141,6 +147,7 @@ describe("dealPatternMatches", () => {
       "*://api.*.*.example.com/*",
       "*://*example.com/*",
       "*.example.com/path/*",
+      "http*",
     ]);
     expect(matches.patternResult).toEqual([
       "*://*/*",
@@ -148,6 +155,7 @@ describe("dealPatternMatches", () => {
       "*://*.example.com/*",
       "*://example.com/*",
       "*://*.example.com/path/*",
+      "*://*/*",
     ]);
     expect(matches.result).toEqual([
       "*://www.example.com*",
@@ -155,6 +163,7 @@ describe("dealPatternMatches", () => {
       "*://api.*.*.example.com/*",
       "*://*example.com/*",
       "*.example.com/path/*",
+      "http*",
     ]);
   });
   it("特殊情况-exclude", () => {
@@ -246,11 +255,16 @@ describe("parsePatternMatchesURL", () => {
       path: "*",
     });
     matches = parsePatternMatchesURL("*.example.com/path/*");
-    console.log(matches);
     expect(matches).toEqual({
       scheme: "*",
       host: "*.example.com",
       path: "path/*",
+    });
+    matches = parsePatternMatchesURL("http*");
+    expect(matches).toEqual({
+      scheme: "*",
+      host: "*",
+      path: "*",
     });
   });
 });

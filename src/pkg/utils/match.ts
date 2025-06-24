@@ -36,6 +36,7 @@ export default class Match<T> {
     // 处理一些特殊情况
     switch (url) {
       case "*":
+      case "http*":
         return {
           scheme: "*",
           host: "*",
