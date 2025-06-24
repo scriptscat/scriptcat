@@ -43,6 +43,19 @@ export default class Match<T> {
           search: "*",
         };
       default:
+        // 无*://的情况
+        if (!url.includes("://")) {
+          // 直接转为通配符
+          const match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
+          if (match) {
+            return {
+              scheme: "*",
+              host: match[1],
+              path: match[3] || (url[url.length - 1] === "*" ? "*" : "/"),
+              search: match[4],
+            };
+          }
+        }
     }
     return undefined;
   }
@@ -60,10 +73,6 @@ export default class Match<T> {
         u.scheme = "http[s]?";
         break;
       default:
-    }
-    let pos = u.host.indexOf("*");
-    if (u.host === "*" || u.host === "**") {
-      pos = -1;
     }
     u.host = u.host.replace(/\*/g, "[^/]*?");
     // 处理 *.开头
@@ -240,6 +249,18 @@ export function parsePatternMatchesURL(
         };
         break;
       default:
+        // 无*://的情况
+        if (!url.includes("*://")) {
+          // 直接转为通配符
+          const match = /^(.+?)(\/(.*?)(\?.*?|)|)$/.exec(url);
+          if (match) {
+            result = {
+              scheme: "*",
+              host: match[1],
+              path: match[3] || (url[url.length - 1] === "*" ? "*" : ""),
+            };
+          }
+        }
     }
   }
   if (result) {
