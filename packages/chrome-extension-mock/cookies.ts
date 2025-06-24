@@ -1,7 +1,5 @@
 export default class Cookies {
-  getAllCookieStores(
-    callback: (cookieStores: chrome.cookies.CookieStore[]) => void
-  ) {
+  getAllCookieStores(callback: (cookieStores: chrome.cookies.CookieStore[]) => void) {
     callback([
       {
         id: "0",
@@ -18,15 +16,16 @@ export default class Cookies {
   getAll(
     details: chrome.cookies.GetAllDetails,
     callback: (cookies: chrome.cookies.Cookie[]) => void
-  ): void {
+  ): Promise<chrome.cookies.Cookie[]> {
     this.mockGetAll?.(details, callback);
+    return Promise.resolve([]);
   }
 
   set(details: chrome.cookies.SetDetails, callback?: () => void): void {
     callback?.();
   }
 
-  remove(details: chrome.cookies.Details, callback?: () => void): void {
+  remove(details: chrome.cookies.CookieDetails, callback?: () => void): void {
     callback?.();
   }
 }

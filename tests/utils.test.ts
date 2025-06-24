@@ -1,9 +1,9 @@
 import { describe, expect, it, vitest } from "vitest";
 import { initTestEnv, initTestGMApi } from "./utils";
-import GMApi from "@App/runtime/content/gm_api";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
+import GMApi from "@App/app/service/content/gm_api";
 
 initTestEnv();
 
@@ -28,7 +28,7 @@ describe("测试GMApi环境", async () => {
     checktime: 0,
   };
   await new ScriptDAO().save(script);
-  const gmApi = new GMApi(msg);
+  const gmApi = new GMApi("serviceWorker", msg);
   //@ts-ignore
   gmApi.scriptRes = {
     uuid: script.uuid,
@@ -42,14 +42,15 @@ describe("测试GMApi环境", async () => {
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
-        url: "https://scriptcat.org/zh-CN",
+        url: "https://example.com/",
         onload: (res) => {
           console.log(res);
           resolve(res);
-          onload(res);
+          onload(res.responseText);
         },
       });
     });
     expect(onload).toBeCalled();
+    expect(onload.mock.calls[0][0]).toBe("example");
   });
 });

@@ -37,13 +37,17 @@ export default class LoggerCore {
 
   labels: LogLabel;
 
-  constructor(config: { level?: LogLevel; writer: Writer; labels: LogLabel }) {
+  constructor(config: { level?: LogLevel; consoleLevel?: LogLevel; writer: Writer; labels: LogLabel }) {
     this.writer = config.writer;
     this.level = config.level || this.level;
     this.labels = config.labels || {};
     // 获取日志debug等级, 如果是开发环境, 则默认为debug
-    if (process.env.NODE_ENV === "development") {
-      this.consoleLevel = "debug";
+    if (config.consoleLevel !== undefined) {
+      this.consoleLevel = config.consoleLevel;
+    } else {
+      if (process.env.NODE_ENV === "development") {
+        this.consoleLevel = "debug";
+      }
     }
     if (!LoggerCore.instance) {
       LoggerCore.instance = this;

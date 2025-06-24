@@ -8,7 +8,7 @@ import { connect, sendMessage } from "@Packages/message/client";
 import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { MessageQueue } from "@Packages/message/message_queue";
-import { RuntimeService } from "./runtime";
+import { EmitEventRequest, RuntimeService } from "./runtime";
 import { getIcon, isFirefox } from "@App/pkg/utils/utils";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import i18next, { i18nName } from "@App/locales/locales";
@@ -116,6 +116,27 @@ type NotificationData = {
 
 export type Api = (request: Request, con: GetSender) => Promise<any>;
 
+// GMExternalDependencies接口定义
+// 为了支持外部依赖注入，方便测试和扩展
+export interface IGMExternalDependencies {
+  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
+}
+
+export class GMExternalDependencies implements IGMExternalDependencies {
+  constructor(private runtimeService: RuntimeService) {}
+
+  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void {
+    this.runtimeService.emitEventToTab(to, req);
+  }
+}
+
+export class MockGMExternalDependencies implements IGMExternalDependencies {
+  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void {
+    // Mock implementation for testing
+    console.log("Mock emitEventToTab called", { to, req });
+  }
+}
+
 export default class GMApi {
   logger: Logger;
 
@@ -128,7 +149,7 @@ export default class GMApi {
     private send: MessageSend,
     private mq: MessageQueue,
     private value: ValueService,
-    private runtime: RuntimeService
+    private gmExternalDependencies: IGMExternalDependencies
   ) {
     this.logger = LoggerCore.logger().with({ service: "runtime/gm_api" });
   }
@@ -889,7 +910,7 @@ export default class GMApi {
                 | NotificationData
                 | undefined;
               if (sender) {
-                this.runtime.emitEventToTab(sender.sender, {
+                this.gmExternalDependencies.emitEventToTab(sender.sender, {
                   event: "GM_notification",
                   eventId: notificationId,
                   uuid: sender.uuid,
@@ -1055,7 +1076,7 @@ export default class GMApi {
         | NotificationData
         | undefined;
       if (sender) {
-        this.runtime.emitEventToTab(sender.sender, {
+        this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_notification",
           eventId: notificationId,
           uuid: sender.uuid,
@@ -1143,7 +1164,7 @@ export default class GMApi {
         sender: ExtMessageSender;
       };
       if (sender) {
-        this.runtime.emitEventToTab(sender.sender, {
+        this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_openInTab",
           eventId: tabId.toString(),
           uuid: sender.uuid,

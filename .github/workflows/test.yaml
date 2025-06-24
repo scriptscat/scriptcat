@@ -3,8 +3,11 @@ name: test
 on:
   push:
     branches:
-      - disable # 暂时禁用
-  # pull_request:
+      - main
+      - release/*
+      - dev
+      - develop/*
+  pull_request:
 
 jobs:
   tests:
@@ -22,7 +25,8 @@ jobs:
 
       - name: Unit Test
         run: |
-          pnpm i
+          pnpm i --frozen-lockfile
+          pnpm test
           pnpm run coverage
 
       - name: Upload coverage reports to Codecov with GitHub Action

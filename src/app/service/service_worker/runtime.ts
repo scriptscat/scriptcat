@@ -10,7 +10,7 @@ import {
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
-import GMApi from "./gm_api";
+import GMApi, { GMExternalDependencies } from "./gm_api";
 import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } from "../queue";
 import { ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
@@ -75,7 +75,15 @@ export class RuntimeService {
   async init() {
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
-    const gmApi = new GMApi(this.systemConfig, permission, this.group, this.sender, this.mq, this.value, this);
+    const gmApi = new GMApi(
+      this.systemConfig,
+      permission,
+      this.group,
+      this.sender,
+      this.mq,
+      this.value,
+      new GMExternalDependencies(this)
+    );
     permission.init();
     gmApi.start();
 

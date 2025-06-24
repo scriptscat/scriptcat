@@ -21,7 +21,6 @@ export class ValueService {
 
   constructor(
     private group: Group,
-    private send: MessageSend,
     private mq: MessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "value" });

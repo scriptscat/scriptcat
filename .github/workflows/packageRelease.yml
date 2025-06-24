@@ -27,7 +27,8 @@ jobs:
           mkdir dist
           echo "$CHROME_PEM" > ./dist/scriptcat.pem
           chmod 600 ./dist/scriptcat.pem
-          pnpm i
+          pnpm i --frozen-lockfile
+          pnpm test
           pnpm run pack
 
       - uses: ncipollo/release-action@v1

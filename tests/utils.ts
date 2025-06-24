@@ -2,10 +2,13 @@ import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Message, Server } from "@Packages/message/server";
 import { ValueService } from "@App/app/service/service_worker/value";
-import GMApi from "@App/app/service/service_worker/gm_api";
+import GMApi, { MockGMExternalDependencies } from "@App/app/service/service_worker/gm_api";
 import OffscreenGMApi from "@App/app/service/offscreen/gm_api";
 import EventEmitter from "eventemitter3";
 import "@Packages/chrome-extension-mock";
+import { MessageQueue } from "@Packages/message/message_queue";
+import { SystemConfig } from "@App/pkg/config/config";
+import PermissionVerify from "@App/app/service/service_worker/permission_verify";
 
 export function initTestEnv() {
   // @ts-ignore
@@ -37,7 +40,8 @@ export function initTestEnv() {
   };
 
   const logger = new LoggerCore({
-    level: "debug",
+    level: "trace",
+    consoleLevel: "trace",
     writer: new EmptyWriter(),
     labels: { env: "test" },
   });
@@ -49,20 +53,28 @@ export function initTestGMApi(): Message {
   const wsMessage = new MockMessage(wsEE);
   const osEE = new EventEmitter();
   const osMessage = new MockMessage(osEE);
+  const messageQueue = new MessageQueue();
+  const systemConfig = new SystemConfig(messageQueue);
 
-  const serviceWorkerServer = new Server(wsMessage);
-  const valueService = new ValueService(serviceWorkerServer.group("value"));
-  const swGMApi = new GMApi(serviceWorkerServer.group("runtime"), osMessage, valueService);
+  const serviceWorkerServer = new Server("serviceWorker", wsMessage);
+  const valueService = new ValueService(serviceWorkerServer.group("value"), messageQueue);
+  const permissionVerify = new PermissionVerify(serviceWorkerServer.group("permissionVerify"), messageQueue);
+  const swGMApi = new GMApi(
+    systemConfig,
+    permissionVerify,
+    serviceWorkerServer.group("runtime"),
+    osMessage,
+    messageQueue,
+    valueService,
+    new MockGMExternalDependencies()
+  );
 
-  valueService.init();
   swGMApi.start();
 
   // offscreen
-  const offscreenServer = new Server(osMessage);
+  const offscreenServer = new Server("offscreen", osMessage);
   const osGMApi = new OffscreenGMApi(offscreenServer.group("gmApi"));
   osGMApi.init();
 
   return wsMessage;
 }
-
-export function initTestOffscreen() {}

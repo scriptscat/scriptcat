@@ -39,7 +39,7 @@ export default class ServiceWorkerManager {
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
     resource.init();
-    const value = new ValueService(this.api.group("value"), this.sender, this.mq);
+    const value = new ValueService(this.api.group("value"), this.mq);
     const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource, scriptDAO);
     script.init();
     const runtime = new RuntimeService(
