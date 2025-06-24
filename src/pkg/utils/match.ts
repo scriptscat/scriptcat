@@ -243,6 +243,7 @@ export function parsePatternMatchesURL(
     // 处理一些特殊情况
     switch (url) {
       case "*":
+      case "http*":
         result = {
           scheme: "*",
           host: "*",
