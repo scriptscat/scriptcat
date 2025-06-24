@@ -22,9 +22,9 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
   const code = [requireCode, scriptCode, sourceURL].join("\n");
   return `  with(context){
-      return (async (factory) => {
+      return ((factory) => {
           try {
-            factory();
+            return factory.apply(context, []);
           } catch (e) {
             if (e.message && e.stack) {
                 console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
