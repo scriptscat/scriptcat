@@ -300,6 +300,12 @@ export function dealPatternMatches(
   for (let i = 0; i < matches.length; i++) {
     const url = parsePatternMatchesURL(matches[i], options);
     if (url) {
+      // 如果存在search，那么以*结尾
+      if (matches[i].includes("?")) {
+        if (!url.path.endsWith("*")) {
+          url.path += "*";
+        }
+      }
       patternResult.push(`${url.scheme}://${url.host}/${url.path}`);
       result.push(matches[i]);
     }

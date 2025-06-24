@@ -171,7 +171,7 @@ function App() {
                       <IconSync style={iconStyle} />
                       检查更新
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat/issues/new?template=bug_report.md">
+                    <Menu.Item key="https://github.com/scriptscat/scriptcat/issues/new?template=bug_report.yaml">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>

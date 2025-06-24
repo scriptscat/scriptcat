@@ -1,11 +1,13 @@
-export function isExtensionRequest(details: chrome.webRequest.ResourceRequest & { originUrl?: string }): boolean {
+export function isExtensionRequest(
+  details: chrome.webRequest.OnBeforeRequestDetails & { originUrl?: string }
+): boolean {
   return !!(
     (details.initiator && chrome.runtime.getURL("").startsWith(details.initiator)) ||
     (details.originUrl && details.originUrl.startsWith(chrome.runtime.getURL("")))
   );
 }
 
-export function getRunAt(runAts: string[]): chrome.userScripts.RunAt {
+export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   if (runAts.length === 0) {
     return "document_idle";
   }

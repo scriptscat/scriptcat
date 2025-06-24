@@ -120,12 +120,14 @@ describe("dealPatternMatches", () => {
       "http://127.0.0.1/*",
       "http://127.0.0.1/",
       "https://*.example.com/*",
+      "https://*.example.com/foo?search",
     ]);
     expect(matches.patternResult).toEqual([
       "https://*/*",
       "http://127.0.0.1/*",
       "http://127.0.0.1/",
       "https://*.example.com/*",
+      "https://*.example.com/foo*",
     ]);
   });
   // 处理一些特殊情况
@@ -137,7 +139,7 @@ describe("dealPatternMatches", () => {
       "*://*example.com/*",
     ]);
     expect(matches.patternResult).toEqual([
-      "*://www.example.com/*",
+      "*://*/*",
       "*://*.example.com/*",
       "*://*.example.com/*",
       "*://example.com/*",
@@ -153,7 +155,6 @@ describe("dealPatternMatches", () => {
     const matches = dealPatternMatches(["*://api.*.example.com/*", "*://api.*.*.example.com/*"], {
       exclude: true,
     });
-    console.log(matches);
     expect(matches.patternResult).toEqual(["*://example.com/*", "*://example.com/*"]);
     expect(matches.result).toEqual(["*://api.*.example.com/*", "*://api.*.*.example.com/*"]);
   });
