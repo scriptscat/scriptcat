@@ -24,7 +24,7 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
   return `  with(context){
       return (async (factory) => {
           try {
-            return await factory();
+            factory();
           } catch (e) {
             if (e.message && e.stack) {
                 console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
