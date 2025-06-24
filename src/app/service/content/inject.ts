@@ -95,6 +95,30 @@ export class InjectRuntime {
         }
       });
     }
-    exec.exec();
+    if (script.metadata["run-at"] && script.metadata["run-at"][0] === "document-body") {
+      // 等待页面加载完成
+      this.waitBody(() => {
+        exec.exec();
+      });
+    } else {
+      exec.exec();
+    }
+  }
+
+  // 参考了tm的实现
+  waitBody(callback: () => void) {
+    if (document.body) {
+      callback();
+      return;
+    }
+    const listen = () => {
+      document.removeEventListener("load", listen, false);
+      document.removeEventListener("DOMNodeInserted", listen, false);
+      document.removeEventListener("DOMContentLoaded", listen, false);
+      this.waitBody(callback);
+    };
+    document.addEventListener("load", listen, false);
+    document.addEventListener("DOMNodeInserted", listen, false);
+    document.addEventListener("DOMContentLoaded", listen, false);
   }
 }
