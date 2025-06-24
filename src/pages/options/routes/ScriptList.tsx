@@ -91,6 +91,7 @@ import {
 import { message, systemConfig } from "@App/pages/store/global";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
+import { store } from "@App/pages/store/store";
 
 type ListType = ScriptLoading;
 
@@ -636,7 +637,7 @@ function ScriptList() {
             if (active.id !== over.id) {
               let oldIndex = 0;
               let newIndex = 0;
-              scriptList.forEach((item, index) => {
+              store.getState().script.scripts.forEach((item, index) => {
                 if (item.uuid === active.id) {
                   oldIndex = index;
                 } else if (item.uuid === over.id) {
@@ -647,7 +648,10 @@ function ScriptList() {
             }
           }}
         >
-          <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
+          <SortableContext
+            items={store.getState().script.scripts.map((s) => ({ ...s, id: s.uuid }))}
+            strategy={verticalListSortingStrategy}
+          >
             <table ref={ref} {...props} />
           </SortableContext>
         </DndContext>

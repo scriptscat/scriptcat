@@ -5,7 +5,6 @@ import {
   SCRIPT_RUN_STATUS,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-  ScriptDAO,
 } from "@App/app/repo/scripts";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
@@ -19,8 +18,6 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
-import { extractFavicons } from "@App/pkg/utils/favicon";
-import { store } from "../store";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
