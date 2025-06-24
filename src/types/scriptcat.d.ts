@@ -443,8 +443,24 @@ declare namespace GMTypes {
     id: string;
   }
 
-  type NotificationOnClick = (this: NotificationThis, id: string, index?: number) => unknown;
-  type NotificationOnDone = (this: NotificationThis, user: boolean) => unknown;
+  type NotificationOnClickEvent = {
+    event: "click" | "buttonClick";
+    id: string;
+    isButtonClick: boolean;
+    buttonClickIndex: number | undefined;
+    byUser: boolean | undefined;
+    preventDefault: () => void;
+    highlight: NotificationDetails["highlight"];
+    image: NotificationDetails["image"];
+    silent: NotificationDetails["silent"];
+    tag: NotificationDetails["tag"];
+    text: NotificationDetails["tag"];
+    timeout: NotificationDetails["timeout"];
+    title: NotificationDetails["title"];
+    url: NotificationDetails["url"];
+  };
+  type NotificationOnClick = (this: NotificationThis, event: NotificationOnClickEvent) => unknown;
+  type NotificationOnDone = (this: NotificationThis, user?: boolean) => unknown;
 
   interface NotificationButton {
     title: string;
@@ -454,10 +470,12 @@ declare namespace GMTypes {
   interface NotificationDetails {
     text?: string;
     title?: string;
+    tag?: string;
     image?: string;
     highlight?: boolean;
     silent?: boolean;
     timeout?: number;
+    url?: string;
     onclick?: NotificationOnClick;
     ondone?: NotificationOnDone;
     progress?: number;

@@ -37,6 +37,22 @@ export type RequestResultParams = {
   responseHeader: string;
 };
 
+export type NotificationMessageOption = {
+  event: "click" | "buttonClick" | "close";
+  params: {
+    /**
+     * event为buttonClick时存在该值
+     *
+     * buttonClick的index
+     */
+    index?: number;
+    /**
+     * 是否是用户点击
+     */
+    byUser?: boolean;
+  };
+};
+
 /**
  * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
  *
@@ -835,6 +851,7 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const details: GMTypes.NotificationDetails = request.params[0];
+    const notificationId: string | undefined = request.params[1];
     const options: chrome.notifications.NotificationCreateOptions = {
       title: details.title || "ScriptCat",
       message: details.text || "无消息内容",
@@ -848,20 +865,48 @@ export default class GMApi {
     options.progress = options.progress && parseInt(details.progress as any, 10);
 
     return new Promise((resolve) => {
-      chrome.notifications.create(options, (notificationId) => {
-        Cache.getInstance().set(`GM_notification:${notificationId}`, {
-          uuid: request.script.uuid,
-          details: details,
-          sender: sender.getExtMessageSender(),
+      if (typeof notificationId === "string") {
+        chrome.notifications.update(notificationId, options, (wasUpdated) => {
+          if (!wasUpdated) {
+            this.logger.error("GM_notification update by tag", {
+              notificationId,
+              options,
+            });
+          }
+          resolve(notificationId);
         });
-        if (details.timeout) {
-          setTimeout(() => {
-            chrome.notifications.clear(notificationId);
-            Cache.getInstance().del(`GM_notification:${notificationId}`);
-          }, details.timeout);
-        }
-        resolve(notificationId);
-      });
+      } else {
+        chrome.notifications.create(options, (notificationId) => {
+          Cache.getInstance().set(`GM_notification:${notificationId}`, {
+            uuid: request.script.uuid,
+            details: details,
+            sender: sender.getExtMessageSender(),
+          });
+          if (details.timeout) {
+            setTimeout(async () => {
+              chrome.notifications.clear(notificationId);
+              const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
+                | NotificationData
+                | undefined;
+              if (sender) {
+                this.runtime.emitEventToTab(sender.sender, {
+                  event: "GM_notification",
+                  eventId: notificationId,
+                  uuid: sender.uuid,
+                  data: {
+                    event: "close",
+                    params: {
+                      byUser: false,
+                    },
+                  } as NotificationMessageOption,
+                });
+              }
+              Cache.getInstance().del(`GM_notification:${notificationId}`);
+            }, details.timeout);
+          }
+          resolve(notificationId);
+        });
+      }
     });
   }
 
@@ -1001,17 +1046,23 @@ export default class GMApi {
   }
 
   handlerNotification() {
-    const send = async (event: string, notificationId: string, params?: any) => {
-      const ret = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as NotificationData;
-      if (ret) {
-        this.runtime.emitEventToTab(ret.sender, {
+    const send = async (
+      event: NotificationMessageOption["event"],
+      notificationId: string,
+      params: NotificationMessageOption["params"] = {}
+    ) => {
+      const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
+        | NotificationData
+        | undefined;
+      if (sender) {
+        this.runtime.emitEventToTab(sender.sender, {
           event: "GM_notification",
           eventId: notificationId,
-          uuid: ret.uuid,
+          uuid: sender.uuid,
           data: {
             event,
             params,
-          },
+          } as NotificationMessageOption,
         });
       }
     };
@@ -1026,7 +1077,7 @@ export default class GMApi {
     });
     chrome.notifications.onButtonClicked.addListener((notificationId, index) => {
       send("buttonClick", notificationId, {
-        index: index,
+        index,
       });
     });
   }
