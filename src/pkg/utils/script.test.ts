@@ -264,7 +264,7 @@ describe("getUserConfigStr", () => {
 config:
   name: 配置名称
   value: 123
-==UserConfig== */
+==/UserConfig== */
 
 console.log('Hello World');
 `;
@@ -274,7 +274,7 @@ console.log('Hello World');
 config:
   name: 配置名称
   value: 123
-==UserConfig== */`);
+==/UserConfig== */`);
   });
 
   test("没有UserConfig标签应返回null", () => {
@@ -302,7 +302,7 @@ describe("parseUserConfig", () => {
 name: 测试配置
 value: 123
 enabled: true
-==UserConfig== */
+==/UserConfig== */
 
 console.log('Hello World');
 `;
@@ -324,7 +324,7 @@ value: 123
 name: 配置2
 value: 456
 enabled: true
-==UserConfig== */
+==/UserConfig== */
 
 console.log('Hello World');
 `;
@@ -346,7 +346,7 @@ console.log('Hello World');
   test("解析空的UserConfig", () => {
     const code = `
 /* ==UserConfig==
-==UserConfig== */
+==/UserConfig== */
 
 console.log('Hello World');
 `;

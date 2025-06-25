@@ -87,7 +87,7 @@ export function parseUserConfig(code: string): UserConfig | undefined {
   const ret: UserConfig = {};
   configs.forEach((val) => {
     const obj: UserConfig = YAML.parse(val);
-    Object.keys(obj).forEach((key) => {
+    Object.keys(obj || {}).forEach((key) => {
       ret[key] = obj[key];
     });
   });
