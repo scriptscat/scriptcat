@@ -108,11 +108,7 @@ export default class Match<T> {
     return `${re.replace(/\//g, "/")}$`;
   }
 
-  public add(url: string, val: T) {
-    const re = this.compileRe(url);
-    if (!re) {
-      throw new Error(`invalid url: ${url}`);
-    }
+  addRegex(re: string, val: T) {
     let rule = this.rule.get(re);
     if (!rule) {
       rule = [];
@@ -121,6 +117,19 @@ export default class Match<T> {
     rule.push(val);
     this.kv.set(Match.getId(val), val);
     this.delCache();
+  }
+
+  public add(url: string, val: T) {
+    // 判断是不是一个正则
+    if (url.startsWith("/^") || url.endsWith("$/")) {
+      this.addRegex(url, val);
+    }
+    const re = this.compileRe(url);
+    if (!re) {
+      console.warn("bad match rule", { url, val });
+      return;
+    }
+    this.addRegex(re, val);
   }
 
   public match(url: string): T[] {
@@ -231,6 +240,14 @@ export function parsePatternMatchesURL(
     exclude?: boolean;
   }
 ): PatternMatchesUrl | undefined {
+  // 如果是正则，处理成通配
+  if (url.startsWith("/^") || url.endsWith("$/")) {
+    return {
+      scheme: "*",
+      host: "*",
+      path: "*",
+    };
+  }
   let result: PatternMatchesUrl | undefined;
   const match = /^(.+?):\/\/(.*?)(\/(.*?)(\?.*?|)|)$/.exec(url);
   if (match) {

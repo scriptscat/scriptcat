@@ -266,5 +266,11 @@ describe("parsePatternMatchesURL", () => {
       host: "*",
       path: "*",
     });
+    matches = parsePatternMatchesURL("/^.*?://.*?.example.com.*?$/");
+    expect(matches).toEqual({
+      scheme: "*",
+      host: "*",
+      path: "*",
+    });
   });
 });
