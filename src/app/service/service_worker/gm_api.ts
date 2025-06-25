@@ -1157,7 +1157,6 @@ export default class GMApi {
                 removeRuleIds: [parseInt(requestId)],
                 addRules: [rule],
               });
-              console.log("old rule", requestId, rule);
               return;
             }
             this.gmXhrHeadersReceived.emit("headersReceived:" + requestId, details);

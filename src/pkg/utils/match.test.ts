@@ -157,6 +157,7 @@ describe("dealPatternMatches", () => {
       "*.example.com/path/*",
       "http*",
       "/^.*?://.*?.example.com.*?$/",
+      "*://*.example.tld/*",
     ]);
     expect(matches.patternResult).toEqual([
       "*://*/*",
@@ -164,8 +165,9 @@ describe("dealPatternMatches", () => {
       "*://*.example.com/*",
       "*://example.com/*",
       "*://*.example.com/path/*",
-      "*://*/*",
-      "*://*/*",
+      "*://*/*", // http*
+      "*://*/*", // 正则
+      "*://*/*", // tld
     ]);
     expect(matches.result).toEqual([
       "*://www.example.com*",
@@ -175,6 +177,7 @@ describe("dealPatternMatches", () => {
       "*.example.com/path/*",
       "http*",
       "/^.*?://.*?.example.com.*?$/",
+      "*://*.example.tld/*",
     ]);
   });
   it("特殊情况-exclude", () => {
@@ -244,6 +247,14 @@ describe("parsePatternMatchesURL", () => {
       scheme: "http",
       host: "examle:*",
       path: "search",
+    });
+  });
+  it("tld顶级域名", () => {
+    const matches = parsePatternMatchesURL("http://*.example.tld/*");
+    expect(matches).toEqual({
+      scheme: "http",
+      host: "*",
+      path: "*",
     });
   });
   it("一些怪异的情况", () => {

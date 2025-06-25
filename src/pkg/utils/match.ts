@@ -333,6 +333,10 @@ export function parsePatternMatchesURL(
   if (pos !== undefined && pos !== -1) {
     result!.host = `${result!.host.substring(0, pos)}:*`;
   }
+  // 如果host以.tld结尾
+  if (result?.host.endsWith(".tld")) {
+    result.host = "*";
+  }
   return result;
 }
 
