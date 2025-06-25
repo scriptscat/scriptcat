@@ -530,7 +530,7 @@ export default class GMApi {
           requestHeaders.push({
             header: key,
             operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-            value: headerValue,
+            value: headerValue.toString(),
           });
           deleteHeader = true;
         }

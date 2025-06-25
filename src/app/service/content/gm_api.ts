@@ -299,6 +299,10 @@ export default class GMApi {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
+    // 如果url和域名都没有，自动填充当前url
+    if (!details.url && !details.domain) {
+      details.url = window.location.href;
+    }
     this.sendMessage("GM_cookie", [action, details])
       .then((resp: any) => {
         done && done(resp, undefined);
