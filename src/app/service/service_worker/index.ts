@@ -95,10 +95,14 @@ export default class ServiceWorkerManager {
           break;
       }
     });
-    // 8小时检查一次扩展更新
-    chrome.alarms.create("checkUpdate", {
-      delayInMinutes: 0,
-      periodInMinutes: 8 * 60,
+    // 12小时检查一次扩展更新
+    chrome.alarms.get("checkUpdate", (alarm) => {
+      if (!alarm) {
+        chrome.alarms.create("checkUpdate", {
+          delayInMinutes: 0,
+          periodInMinutes: 12 * 60,
+        });
+      }
     });
 
     // 监听配置变化

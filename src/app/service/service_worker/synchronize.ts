@@ -604,8 +604,12 @@ export class SynchronizeService {
       this.buildFileSystem(value).then(async (fs) => {
         await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
-        chrome.alarms.create("cloudSync", {
-          periodInMinutes: 60,
+        chrome.alarms.get("cloudSync", (alarm) => {
+          if (!alarm) {
+            chrome.alarms.create("cloudSync", {
+              periodInMinutes: 60,
+            });
+          }
         });
       });
     } else {
