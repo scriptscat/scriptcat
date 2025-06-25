@@ -27,6 +27,8 @@ body:
         1. 打开 https://example.com
         2. 点击页面右上角红色按钮
         3. 等待5秒后观察控制台
+    validations:
+      required: true
 
   - type: markdown
     attributes:
