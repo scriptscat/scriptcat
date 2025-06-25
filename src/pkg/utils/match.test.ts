@@ -46,7 +46,7 @@ describe("UrlMatch-google-error", () => {
 });
 
 // 从tm找的一些特殊的匹配规则
-describe("UrlMatch-search", () => {
+describe("UrlMatch-special", () => {
   const url = new UrlMatch<string>();
   url.add("https://www.google.com/search?q=*", "ok1");
   it("match1", () => {
@@ -87,6 +87,14 @@ describe("UrlMatch-search", () => {
     url.add("http*", "ok1");
     expect(url.match("http://www.example.com")).toEqual(["ok1"]);
     expect(url.match("https://www.example.com")).toEqual(["ok1"]);
+  });
+  it("/^.*?://.*?.example.com.*?$/", () => {
+    const url = new UrlMatch<string>();
+    url.add("/^.*?://.*?.example.com.*?$/", "ok1");
+    expect(url.match("https://www.example.com")).toEqual(["ok1"]);
+    expect(url.match("http://www.example.com")).toEqual(["ok1"]);
+    expect(url.match("https://api.example.com/foo/bar")).toEqual(["ok1"]);
+    expect(url.match("https://api.foo.example.com/foo/bar")).toEqual(["ok1"]);
   });
 });
 
@@ -148,6 +156,7 @@ describe("dealPatternMatches", () => {
       "*://*example.com/*",
       "*.example.com/path/*",
       "http*",
+      "/^.*?://.*?.example.com.*?$/",
     ]);
     expect(matches.patternResult).toEqual([
       "*://*/*",
@@ -155,6 +164,7 @@ describe("dealPatternMatches", () => {
       "*://*.example.com/*",
       "*://example.com/*",
       "*://*.example.com/path/*",
+      "*://*/*",
       "*://*/*",
     ]);
     expect(matches.result).toEqual([
@@ -164,6 +174,7 @@ describe("dealPatternMatches", () => {
       "*://*example.com/*",
       "*.example.com/path/*",
       "http*",
+      "/^.*?://.*?.example.com.*?$/",
     ]);
   });
   it("特殊情况-exclude", () => {

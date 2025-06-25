@@ -122,11 +122,19 @@ export default class Match<T> {
   public add(url: string, val: T) {
     // 判断是不是一个正则
     if (url.startsWith("/^") || url.endsWith("$/")) {
+      // 删除开头和结尾的/
+      if (url.startsWith("/")) {
+        url = url.substring(1);
+      }
+      if (url.endsWith("/")) {
+        url = url.substring(0, url.length - 1);
+      }
       this.addRegex(url, val);
+      return;
     }
     const re = this.compileRe(url);
     if (!re) {
-      console.warn("bad match rule", { url, val });
+      console.warn("add failed: bad rule", { url, val });
       return;
     }
     this.addRegex(re, val);
@@ -145,7 +153,7 @@ export default class Match<T> {
           ret.push(...val);
         }
       } catch (e) {
-        console.warn("bad match rule", { val }, Logger.E(e));
+        console.warn("match failed: bad rule", { val }, Logger.E(e));
         // LoggerCore.getLogger({ component: "match" }).warn(
         //   "bad match rule",
         //   Logger.E(e)
