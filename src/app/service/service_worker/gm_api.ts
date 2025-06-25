@@ -442,15 +442,20 @@ export default class GMApi {
     }
   }
 
+  // 有一些操作需要同步，就用Map作为缓存
+  cache = new Map<string, any>();
+
   // 根据header生成dnr规则
   async buildDNRRule(
     reqeustId: number,
     params: GMSend.XHRDetails,
     sender: GetSender
   ): Promise<{ [key: string]: string }> {
-    // 默认移除origin
     const headers = params.headers || {};
-    headers["origin"] = headers["origin"] || "";
+    // 如果header中没有origin就设置为空字符串，如果有origin就不做处理，注意处理大小写
+    if (!("Origin" in headers) && !("origin" in headers)) {
+      headers["Origin"] = "";
+    }
 
     const requestHeaders = [
       {
@@ -544,9 +549,8 @@ export default class GMApi {
       deleteHeader && delete headers[key];
     });
 
-    const ruleId = reqeustId;
     const rule = {} as chrome.declarativeNetRequest.Rule;
-    rule.id = ruleId;
+    rule.id = reqeustId;
     rule.action = {
       type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
       requestHeaders: requestHeaders,
@@ -565,8 +569,9 @@ export default class GMApi {
       requestMethods: [(params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod],
       excludedTabIds: excludedTabIds,
     };
+    this.cache.set("dnrRule:" + reqeustId.toString(), rule);
     await chrome.declarativeNetRequest.updateSessionRules({
-      removeRuleIds: [ruleId],
+      removeRuleIds: [reqeustId],
       addRules: [rule],
     });
     return headers;
@@ -1113,7 +1118,7 @@ export default class GMApi {
           if (details.requestHeaders) {
             const requestId = details.requestHeaders.find((header) => header.name === "X-Scriptcat-GM-XHR-Request-Id");
             if (requestId) {
-              Cache.getInstance().set("gmXhrRequest:" + details.requestId, requestId.value);
+              this.cache.set("gmXhrRequest:" + details.requestId, requestId.value);
             }
           }
         }
@@ -1129,18 +1134,40 @@ export default class GMApi {
       (details) => {
         if (details.tabId === -1) {
           // 判断请求是否与gmXhrRequest关联
-          Cache.getInstance()
-            .get("gmXhrRequest:" + details.requestId)
-            .then((requestId) => {
-              if (requestId) {
-                this.gmXhrHeadersReceived.emit("headersReceived:" + requestId, details);
-                // 删除关联与DNR
-                Cache.getInstance().del("gmXhrRequest:" + details.requestId);
-                chrome.declarativeNetRequest.updateSessionRules({
-                  removeRuleIds: [parseInt(requestId)],
-                });
+          const requestId = this.cache.get("gmXhrRequest:" + details.requestId);
+          if (requestId) {
+            // 判断是否重定向
+            let location = "";
+            details.responseHeaders?.forEach((header) => {
+              if (header.name.toLowerCase() === "location") {
+                // 重定向
+                location = header.value || "";
               }
             });
+            if (location) {
+              // 处理重定向后的unsafeHeader
+              const rule = this.cache.get("dnrRule:" + requestId) as chrome.declarativeNetRequest.Rule;
+              // 修改匹配链接
+              rule.condition.urlFilter = location;
+              // 不处理cookie
+              rule.action.requestHeaders = rule.action.requestHeaders?.filter(
+                (header) => header.header.toLowerCase() !== "cookie"
+              );
+              chrome.declarativeNetRequest.updateSessionRules({
+                removeRuleIds: [parseInt(requestId)],
+                addRules: [rule],
+              });
+              console.log("old rule", requestId, rule);
+              return;
+            }
+            this.gmXhrHeadersReceived.emit("headersReceived:" + requestId, details);
+            // 删除关联与DNR
+            this.cache.delete("gmXhrRequest:" + details.requestId);
+            this.cache.delete("dnrRule:" + requestId);
+            chrome.declarativeNetRequest.updateSessionRules({
+              removeRuleIds: [parseInt(requestId)],
+            });
+          }
         }
         return undefined;
       },
