@@ -129,20 +129,20 @@ export default class Match<T> {
       return ret;
     }
     ret = [];
-    try {
-      this.rule.forEach((val, key) => {
+    this.rule.forEach((val, key) => {
+      try {
         const re = new RegExp(key);
         if (re.test(url) && ret) {
           ret.push(...val);
         }
-      });
-    } catch (e) {
-      console.warn("bad match rule", Logger.E(e));
-      // LoggerCore.getLogger({ component: "match" }).warn(
-      //   "bad match rule",
-      //   Logger.E(e)
-      // );
-    }
+      } catch (e) {
+        console.warn("bad match rule", { val }, Logger.E(e));
+        // LoggerCore.getLogger({ component: "match" }).warn(
+        //   "bad match rule",
+        //   Logger.E(e)
+        // );
+      }
+    });
     this.cache.set(url, ret);
     return ret;
   }
