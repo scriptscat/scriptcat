@@ -153,6 +153,14 @@ function App() {
                           await scriptClient.requestCheckUpdate("");
                           window.close();
                           break;
+                        case "report_issue":
+                          const browserInfo = `${navigator.userAgent}`;
+                          const issueUrl =
+                            `https://github.com/scriptscat/scriptcat/issues/new?` +
+                            `template=bug_report.yaml&scriptcat-version=${ExtVersion}&` +
+                            `browser-version=${encodeURIComponent(browserInfo)}`;
+                          window.open(issueUrl, "_blank");
+                          break;
                         default:
                           window.open(key, "_blank");
                           break;
@@ -171,7 +179,7 @@ function App() {
                       <IconSync style={iconStyle} />
                       检查更新
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat/issues/new?template=bug_report.yaml">
+                    <Menu.Item key="report_issue">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
