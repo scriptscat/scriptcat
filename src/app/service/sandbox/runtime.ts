@@ -109,7 +109,7 @@ export class Runtime {
 
   // 执行脚本
   async execScript(script: ScriptLoadInfo, execOnce?: boolean) {
-    const logger = this.logger.with({ script: script.uuid, name: script.name });
+    const logger = this.logger.with({ uuid: script.uuid, name: script.name });
     if (this.execScripts.has(script.uuid)) {
       // 释放掉资源
       // 暂未实现执行完成后立马释放,会在下一次执行时释放

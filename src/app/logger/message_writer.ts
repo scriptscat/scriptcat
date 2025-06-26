@@ -13,7 +13,6 @@ export default class MessageWriter implements Writer {
   }
 
   write(level: LogLevel, message: string, label: LogLabel): void {
-    console.log(`[${level}] ${message}`, label);
     this.send.sendMessage({
       action: this.action,
       data: {

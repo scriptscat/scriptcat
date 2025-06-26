@@ -264,7 +264,7 @@ function ScriptList() {
             pathname: "logger",
             search: `query=${encodeURIComponent(
               JSON.stringify([
-                { key: "scriptId", value: item.uuid },
+                { key: "uuid", value: item.uuid },
                 {
                   key: "component",
                   value: "GM_log",
