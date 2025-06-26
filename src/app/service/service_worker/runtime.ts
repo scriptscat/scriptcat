@@ -162,6 +162,12 @@ export class RuntimeService {
     subscribeScriptSort(this.mq, async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.sort((a, b) => uuidSort[a] - uuidSort[b]);
+      // 更新缓存
+      const scriptMatchCache: { [key: string]: ScriptMatchInfo } = await Cache.getInstance().get("scriptMatch");
+      Object.keys(scriptMatchCache).forEach((uuid) => {
+        scriptMatchCache[uuid].sort = uuidSort[uuid];
+      });
+      Cache.getInstance().set("scriptMatch", scriptMatchCache);
     });
 
     this.systemConfig.addListener("enable_script", (enable) => {
@@ -612,11 +618,13 @@ export class RuntimeService {
         .get("scriptMatch")
         .then((data: { [key: string]: ScriptMatchInfo }) => {
           if (data) {
-            Object.keys(data).forEach((key) => {
-              const item = data[key];
-              cache.set(item.uuid, item);
-              this.syncAddScriptMatch(item);
-            });
+            Object.entries(data)
+              .sort(([, a], [, b]) => a.sort - b.sort)
+              .forEach(([key]) => {
+                const item = data[key];
+                cache.set(item.uuid, item);
+                this.syncAddScriptMatch(item);
+              });
           }
         });
       await this.loadingScript;
