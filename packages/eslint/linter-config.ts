@@ -70,7 +70,7 @@ const config = {
     "no-unsafe-negation": ["error"],
     "no-unsafe-optional-chaining": ["error"],
     "no-unused-labels": ["error"],
-    "no-unused-vars": ["error"],
+    "no-unused-vars": ["warn"],
     "no-useless-backreference": ["error"],
     "no-useless-catch": ["error"],
     "no-useless-escape": ["error"],
@@ -86,6 +86,10 @@ const config = {
     greasemonkey: true,
   },
 };
+
+console.log("lint", config);
+// 调整规则
+config.rules["userscripts/align-attributes"] = ["warn", 2];
 
 // 以文本形式导出默认规则
 export const defaultConfig = JSON.stringify(config, null, 2);
