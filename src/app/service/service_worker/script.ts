@@ -566,8 +566,10 @@ export class ScriptService {
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
         this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
+        newSort[i].sort = i;
       }
     }
+    this.mq.publish("sortScript", newSort);
   }
 
   importByUrl(url: string) {

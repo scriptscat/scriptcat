@@ -11,7 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
-import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } from "../queue";
+import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
 import { ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
@@ -158,6 +158,17 @@ export class RuntimeService {
       await this.unregistryPageScript(uuid);
       this.deleteScriptMatch(uuid);
     });
+    // 监听脚本排序
+    subscribeScriptSort(this.mq, async (scripts) => {
+      const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
+      this.scriptMatch.sort((a, b) => uuidSort[a] - uuidSort[b]);
+      // 更新缓存
+      const scriptMatchCache: { [key: string]: ScriptMatchInfo } = await Cache.getInstance().get("scriptMatch");
+      Object.keys(scriptMatchCache).forEach((uuid) => {
+        scriptMatchCache[uuid].sort = uuidSort[uuid];
+      });
+      Cache.getInstance().set("scriptMatch", scriptMatchCache);
+    });
 
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
     this.mq.subscribe("preparationOffscreen", () => {
@@ -225,6 +236,8 @@ export class RuntimeService {
   async registerUserscripts() {
     // 将开启的脚本发送一次enable消息
     const list = await this.scriptDAO.all();
+    // 按照脚本顺序位置排序
+    list.sort((a, b) => a.sort - b.sort);
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
@@ -605,11 +618,13 @@ export class RuntimeService {
         .get("scriptMatch")
         .then((data: { [key: string]: ScriptMatchInfo }) => {
           if (data) {
-            Object.keys(data).forEach((key) => {
-              const item = data[key];
-              cache.set(item.uuid, item);
-              this.syncAddScriptMatch(item);
-            });
+            Object.entries(data)
+              .sort(([, a], [, b]) => a.sort - b.sort)
+              .forEach(([key]) => {
+                const item = data[key];
+                cache.set(item.uuid, item);
+                this.syncAddScriptMatch(item);
+              });
           }
         });
       await this.loadingScript;

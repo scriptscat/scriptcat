@@ -18,6 +18,10 @@ export function subscribeScriptDelete(
   return messageQueue.subscribe("deleteScript", callback);
 }
 
+export function subscribeScriptSort(messageQueue: MessageQueue, callback: (message: Script[]) => void) {
+  return messageQueue.subscribe("sortScript", callback);
+}
+
 export function subscribeSubscribeInstall(
   messageQueue: MessageQueue,
   callback: (message: { subscribe: Subscribe; update: boolean }) => void

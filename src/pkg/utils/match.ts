@@ -192,6 +192,13 @@ export default class Match<T> {
   protected delCache() {
     this.cache.clear();
   }
+
+  public sort(compareFn: ((a: T, b: T) => number) | undefined) {
+    this.delCache();
+    this.rule.forEach((rules) => {
+      rules.sort(compareFn);
+    });
+  }
 }
 
 export class UrlMatch<T> extends Match<T> {
