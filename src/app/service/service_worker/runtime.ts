@@ -11,7 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
-import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } from "../queue";
+import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
 import { ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
@@ -158,6 +158,11 @@ export class RuntimeService {
       await this.unregistryPageScript(uuid);
       this.deleteScriptMatch(uuid);
     });
+    // 监听脚本排序
+    subscribeScriptSort(this.mq, async (scripts) => {
+      const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
+      this.scriptMatch.sort((a, b) => uuidSort[a] - uuidSort[b]);
+    });
 
     this.systemConfig.addListener("enable_script", (enable) => {
       this.isEnableUserscribe = enable;
@@ -225,6 +230,8 @@ export class RuntimeService {
 
     // 将开启的脚本发送一次enable消息
     const list = await this.scriptDAO.all();
+    // 按照脚本顺序位置排序
+    list.sort((a, b) => a.sort - b.sort);
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
