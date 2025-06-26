@@ -1,26 +1,9 @@
 import React from "react";
 import { Input, Select, Space } from "@arco-design/web-react";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
+import { useTranslation } from "react-i18next";
 
 const fsParams = FileSystemFactory.params();
-
-const fileSystemList: {
-  key: FileSystemType;
-  name: string;
-}[] = [
-  {
-    key: "webdav",
-    name: "WebDAV",
-  },
-  {
-    key: "baidu-netdsik",
-    name: "百度网盘",
-  },
-  {
-    key: "onedrive",
-    name: "OneDrive",
-  },
-];
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
@@ -36,6 +19,26 @@ const FileSystemParams: React.FC<{
   fileSystemType,
   fileSystemParams,
 }) => {
+  const { t } = useTranslation();
+  
+  const fileSystemList: {
+    key: FileSystemType;
+    name: string;
+  }[] = [
+    {
+      key: "webdav",
+      name: "WebDAV",
+    },
+    {
+      key: "baidu-netdsik",
+      name: t("baidu_netdisk"),
+    },
+    {
+      key: "onedrive",
+      name: "OneDrive",
+    },
+  ];
+
   return (
     <>
       <Space>

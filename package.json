@@ -15,7 +15,9 @@
     "pack": "node ./scripts/pack.js",
     "format": "prettier --write .",
     "lint": "eslint .",
-    "lint-fix": "eslint --fix ."
+    "lint-fix": "eslint --fix .",
+    "changlog": "gitmoji-changelog",
+    "crowdin": "crowdin"
   },
   "dependencies": {
     "@arco-design/web-react": "^2.64.1",

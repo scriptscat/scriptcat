@@ -277,14 +277,12 @@ function Tools() {
           <Title heading={6}>{t("backup_strategy")}</Title>
           <Empty description={t("under_construction")} />
           <Popconfirm
-            title={
-              "重试迁移储存引擎会对现有数据造成修改，请确认，详情请看：https://docs.scriptcat.org/docs/change/v0.17/"
-            }
+            title={t("migration_confirm_message")}
             onOk={() => {
               migrateToChromeStorage();
             }}
           >
-            <Button type="primary">重试迁移储存引擎</Button>
+            <Button type="primary">{t("retry_migration")}</Button>
           </Popconfirm>
         </Space>
       </Card>

@@ -87,7 +87,6 @@ const config = {
   },
 };
 
-console.log("lint", config);
 // 调整规则
 config.rules["userscripts/align-attributes"] = ["warn", 2];
 

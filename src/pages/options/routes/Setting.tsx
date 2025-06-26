@@ -256,11 +256,11 @@ function Setting() {
         </Space>
       </Card>
       <GMApiSetting />
-      <Card title="安全" bordered={false}>
+      <Card title={t("security")} bordered={false}>
         <Space direction="vertical" className="w-full">
-          <span>黑名单页面:</span>
+          <span>{t("blacklist_pages")}:</span>
           <Input.TextArea
-            placeholder={"禁止脚本猫在以下页面运行脚本，多个页面用换行符分隔，例如:\nhttps://*.example.com"}
+            placeholder={t("blacklist_placeholder")}
             autoSize={{
               minRows: 4,
               maxRows: 8,
@@ -277,7 +277,7 @@ function Setting() {
                 .filter((line) => line);
               for (const line of lines) {
                 if (line && !parsePatternMatchesURL(line)) {
-                  Message.error(`表达式格式错误: ${line}`);
+                  Message.error(`${t("expression_format_error")}: ${line}`);
                   return;
                 }
               }

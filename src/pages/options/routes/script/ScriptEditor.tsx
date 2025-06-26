@@ -19,6 +19,7 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
+import i18n from "@App/locales/locales";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -141,7 +142,7 @@ type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 const popstate = () => {
   // eslint-disable-next-line no-restricted-globals, no-alert
-  if (confirm("脚本已修改, 离开后会丢失修改, 是否继续?")) {
+  if (confirm(i18n.t("script_modified_leave_confirm"))) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
   } else {
@@ -199,7 +200,7 @@ function ScriptEditor() {
           .install(newScript, e.getValue())
           .then((update): Script => {
             if (!update) {
-              Message.success("新建成功,请注意后台脚本不会默认开启");
+              Message.success(t("create_success_note"));
               // 保存的时候如何左侧没有脚本即新建
               setScriptList((prev) => {
                 setSelectSciptButtonAndTab(newScript.uuid);
@@ -214,7 +215,7 @@ function ScriptEditor() {
                 });
                 return [...prev];
               });
-              Message.success("保存成功");
+              Message.success(t("save_success"));
             }
             setEditors((prev) => {
               for (let i = 0; i < prev.length; i += 1) {
@@ -230,12 +231,12 @@ function ScriptEditor() {
             return newScript;
           })
           .catch((err: any) => {
-            Message.error(`保存失败: ${err}`);
+            Message.error(`${t("save_failed")}: ${err}`);
             return Promise.reject(err);
           });
       })
       .catch((err) => {
-        Message.error(`错误的脚本代码: ${err}`);
+        Message.error(`${t("invalid_script_code")}: ${err}`);
         return Promise.reject(err);
       });
   };
@@ -256,10 +257,10 @@ function ScriptEditor() {
           */
           if (chrome.runtime.lastError) {
             // eslint-disable-next-line no-console
-            console.log("另存为失败: ", chrome.runtime.lastError);
-            Message.error(`另存为失败: ${chrome.runtime.lastError.message}`);
+            console.log(t("save_as_failed") + ": ", chrome.runtime.lastError);
+            Message.error(`${t("save_as_failed")}: ${chrome.runtime.lastError.message}`);
           } else {
-            Message.success("另存为成功");
+            Message.success(t("save_as_success"));
           }
           resolve();
         }
@@ -294,18 +295,18 @@ function ScriptEditor() {
           title: t("run"),
           hotKey: KeyMod.CtrlCmd | KeyCode.F5,
           hotKeyString: "Ctrl+F5",
-          tooltip: "只有后台脚本/定时脚本才能运行",
+          tooltip: t("only_background_scheduled_can_run"),
           action: async (script, e) => {
             // 保存更新代码之后再调试
             const newScript = await save(script, e);
             // 判断脚本类型
             if (newScript.type === SCRIPT_TYPE_NORMAL) {
-              Message.error("只有后台脚本/定时脚本才能运行");
+              Message.error(t("only_background_scheduled_can_run"));
               return;
             }
             Message.loading({
               id: "debug_script",
-              content: "正在准备脚本资源...",
+              content: t("preparing_script_resources"),
               duration: 3000,
             });
             runtimeClient
@@ -313,7 +314,7 @@ function ScriptEditor() {
               .then(() => {
                 Message.success({
                   id: "debug_script",
-                  content: "构建成功, 可以在扩展页打开开发者工具在控制台中查看输出",
+                  content: t("build_success_message"),
                   duration: 3000,
                 });
               })
@@ -321,7 +322,7 @@ function ScriptEditor() {
                 LoggerCore.logger(Logger.E(err)).debug("run script error");
                 Message.error({
                   id: "debug_script",
-                  content: `构建失败: ${err}`,
+                  content: `${t("build_failed")}: ${err}`,
                   duration: 3000,
                 });
               });
@@ -330,12 +331,12 @@ function ScriptEditor() {
       ],
     },
     {
-      title: "工具",
+      title: t("tools"),
       items: [
         {
           id: "scriptStorage",
-          title: "脚本储存",
-          tooltip: "可以管理脚本GM_value的储存数据",
+          title: t("script_storage"),
+          tooltip: t("script_storage_tooltip"),
           action(script) {
             setShow("scriptStorage", true);
             setCurrentScript(script);
@@ -343,8 +344,8 @@ function ScriptEditor() {
         },
         {
           id: "scriptResource",
-          title: "脚本资源",
-          tooltip: "管理@resource,@require下载的资源",
+          title: t("script_resource"),
+          tooltip: t("script_resource_tooltip"),
           action(script) {
             setShow("scriptResource", true);
             setCurrentScript(script);
@@ -353,8 +354,8 @@ function ScriptEditor() {
       ],
     },
     {
-      title: "设置",
-      tooltip: "对脚本进行一些自定义设置",
+      title: t("settings"),
+      tooltip: t("script_setting_tooltip"),
       action(script) {
         setShow("scriptSetting", true);
         setCurrentScript(script);
@@ -791,7 +792,7 @@ function ScriptEditor() {
               setEditors((prev) => {
                 const i = parseInt(index, 10);
                 if (prev[i].isChanged) {
-                  if (!confirm("脚本已修改, 关闭后会丢失修改, 是否继续?")) {
+                  if (!confirm(t("script_modified_close_confirm"))) {
                     return prev;
                   }
                 }
@@ -842,10 +843,10 @@ function ScriptEditor() {
                           });
                         }}
                       >
-                        <Menu.Item key="1">关闭当前标签页</Menu.Item>
-                        <Menu.Item key="2">关闭其他标签页</Menu.Item>
-                        <Menu.Item key="3">关闭左侧标签页</Menu.Item>
-                        <Menu.Item key="4">关闭右侧标签页</Menu.Item>
+                        <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
+                        <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
+                        <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
+                        <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
                       </Menu>
                     }
                   >

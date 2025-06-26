@@ -40,7 +40,7 @@ const UserConfigPanel: React.FC<{
     <Modal
       visible={visible}
       title={`${script.name} ${t("config")}`} // 替换为键值对应的英文文本
-      okText={<Popover content="保存只对当前组有效">{t("save")}</Popover>} // 替换为键值对应的英文文本
+      okText={<Popover content={t("save_only_current_group")}>{t("save")}</Popover>}
       cancelText={t("close")} // 替换为键值对应的英文文本
       onOk={() => {
         if (formRefs.current[tab]) {

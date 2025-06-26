@@ -92,7 +92,7 @@ function App() {
       {!isUserScriptsAvailable() && (
         <Alert type="warning" content={<div dangerouslySetInnerHTML={{ __html: t("develop_mode_guide") }} />} />
       )}
-      {isBlacklist && <Alert type="warning" content="当前页面在黑名单中，无法使用脚本" />}
+      {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}
       <Card
         size="small"
         title={
