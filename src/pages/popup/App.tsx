@@ -237,8 +237,8 @@ function App() {
               onClick={() => {
                 window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
               }}
-              className="text-1 font-500"
-              style={{ cursor: "pointer" }}
+              className="text-[10px] font-500"
+              style={{ cursor: "pointer", textDecoration: "underline", color: "blue", textUnderlineOffset: 2 }}
             >
               {t("popup.new_version_available")}
             </span>
