@@ -981,7 +981,7 @@ export default class GMApi {
           filename: params.name,
         },
         () => {
-          sender.getConnect().sendMessage({ event: "onload" });
+          sender.getConnect().sendMessage({ action: "onload" });
         }
       );
       return;
