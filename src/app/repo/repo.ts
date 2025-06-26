@@ -12,7 +12,7 @@ function loadCache(): Promise<any> {
     return loadCachePromise;
   }
   loadCachePromise = new Promise((resolve) => {
-    chrome.storage.local.get((result: { [key: string]: any; } | undefined) => {
+    chrome.storage.local.get((result: { [key: string]: any } | undefined) => {
       cache = result;
       resolve(cache);
     });
@@ -110,7 +110,7 @@ export abstract class Repo<T> {
     }
     const loadData = () => {
       return new Promise<T[]>((resolve) => {
-        chrome.storage.local.get((result: { [key: string]: T; }) => {
+        chrome.storage.local.get((result: { [key: string]: T }) => {
           resolve(this.filter(result, filters));
         });
       });

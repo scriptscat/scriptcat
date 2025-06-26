@@ -29,7 +29,7 @@ export class SystemConfig {
   public storage = new ChromeStorage("system", true);
 
   constructor(private mq: MessageQueue) {
-    this.mq.subscribe("systemConfigChange", (msg) => {
+    this.mq.subscribe(SystamConfigChange, (msg) => {
       const { key, value } = msg;
       this.cache.set(key, value);
     });

@@ -377,7 +377,7 @@ export class RuntimeService {
       return Promise.resolve({ flag: "", scripts: [] });
     }
 
-    const [scriptFlag] = await Promise.all([this.getAndGenMessageFlag(), this.loadScriptMatchInfo()]);
+    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]);
     const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
 
     // 匹配当前页面的脚本
