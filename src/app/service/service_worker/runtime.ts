@@ -159,6 +159,18 @@ export class RuntimeService {
       this.deleteScriptMatch(uuid);
     });
 
+    // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
+    this.mq.subscribe("preparationOffscreen", () => {
+      this.scriptDAO.all().then((list) => {
+        list.forEach((script) => {
+          if (script.type === SCRIPT_TYPE_NORMAL) {
+            return;
+          }
+          this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
+        });
+      });
+    });
+
     this.systemConfig.addListener("enable_script", (enable) => {
       this.isEnableUserscribe = enable;
       if (enable) {
@@ -211,18 +223,6 @@ export class RuntimeService {
   }
 
   async registerUserscripts() {
-    // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
-    this.mq.subscribe("preparationOffscreen", () => {
-      this.scriptDAO.all().then((list) => {
-        list.forEach((script) => {
-          if (script.type === SCRIPT_TYPE_NORMAL) {
-            return;
-          }
-          this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
-        });
-      });
-    });
-
     // 将开启的脚本发送一次enable消息
     const list = await this.scriptDAO.all();
     let messageFlag = await this.getMessageFlag();
