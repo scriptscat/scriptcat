@@ -1,7 +1,8 @@
 import dayjs from "dayjs";
 import LoggerCore, { LogLabel, LogLevel } from "./core";
 
-const levelNumber = {
+const levelNumber: { [key in LogLevel]: number } = {
+  none: 0,
   trace: 10,
   debug: 100,
   info: 1000,

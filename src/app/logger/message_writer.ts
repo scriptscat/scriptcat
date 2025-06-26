@@ -6,13 +6,14 @@ export default class MessageWriter implements Writer {
   send: MessageSend;
 
   constructor(
-    connect: MessageSend,
+    send: MessageSend,
     private action: string = "logger"
   ) {
-    this.send = connect;
+    this.send = send;
   }
 
   write(level: LogLevel, message: string, label: LogLabel): void {
+    console.log(`[${level}] ${message}`, label);
     this.send.sendMessage({
       action: this.action,
       data: {

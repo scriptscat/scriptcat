@@ -99,13 +99,13 @@ chrome
   })
   .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-chrome.zip`));
 
-firefox
-  .generateNodeStream({
-    type: "nodebuffer",
-    streamFiles: true,
-    compression: "DEFLATE",
-  })
-  .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
+// firefox
+//   .generateNodeStream({
+//     type: "nodebuffer",
+//     streamFiles: true,
+//     compression: "DEFLATE",
+//   })
+//   .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
 
 // 处理crx
 const crx = new ChromeExtension({

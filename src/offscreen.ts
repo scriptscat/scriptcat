@@ -8,7 +8,7 @@ function main() {
   // 初始化日志组件
   const extensionMessage: MessageSend = new ExtensionMessageSend();
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(extensionMessage),
+    writer: new MessageWriter(extensionMessage, "serviceWorker/logger"),
     labels: { env: "offscreen" },
   });
   loggerCore.logger().debug("offscreen start");

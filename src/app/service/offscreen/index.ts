@@ -2,7 +2,6 @@ import { forwardMessage, MessageSend, Server } from "@Packages/message/server";
 import { ScriptService } from "./script";
 import { Logger, LoggerDAO } from "@App/app/repo/logger";
 import { WindowMessage } from "@Packages/message/window_message";
-import { ExtensionMessageSend } from "@Packages/message/extension_message";
 import { ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
@@ -22,8 +21,11 @@ export class OffscreenManager {
   constructor(private extensionMessage: MessageSend) {}
 
   logger(data: Logger) {
-    const dao = new LoggerDAO();
-    dao.save(data);
+    // 发送日志消息
+    this.sendMessageToServiceWorker({
+      action: "logger",
+      data,
+    });
   }
 
   preparationSandbox() {

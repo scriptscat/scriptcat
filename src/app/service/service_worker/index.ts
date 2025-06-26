@@ -11,8 +11,9 @@ import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ExtServer, ExtVersion } from "@App/app/const";
 import { systemConfig } from "@App/pages/store/global";
-import { ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
+import { Logger, LoggerDAO } from "@App/app/repo/logger";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
@@ -24,7 +25,14 @@ export default class ServiceWorkerManager {
     private sender: ServiceWorkerMessageSend
   ) {}
 
+  logger(data: Logger) {
+    // 发送日志消息
+    const dao = new LoggerDAO();
+    dao.save(data);
+  }
+
   async initManager() {
+    this.api.on("logger", this.logger.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
       await this.sender.init();

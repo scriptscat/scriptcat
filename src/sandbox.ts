@@ -9,7 +9,7 @@ function main() {
 
   // 初始化日志组件
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(msg),
+    writer: new MessageWriter(msg, "offscreen/logger"),
     labels: { env: "sandbox" },
   });
   loggerCore.logger().debug("offscreen start");
