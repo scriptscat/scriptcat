@@ -177,7 +177,7 @@ function App() {
                     </Menu.Item>
                     <Menu.Item key={"checkUpdate"}>
                       <IconSync style={iconStyle} />
-                      检查更新
+                      {t("check_update")}
                     </Menu.Item>
                     <Menu.Item key="report_issue">
                       <IconBug style={iconStyle} />

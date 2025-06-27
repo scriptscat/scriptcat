@@ -3,7 +3,6 @@ import { Input, Select, Space } from "@arco-design/web-react";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
 
-const fsParams = FileSystemFactory.params();
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
@@ -19,8 +18,9 @@ const FileSystemParams: React.FC<{
   fileSystemType,
   fileSystemParams,
 }) => {
+  const fsParams = FileSystemFactory.params();
   const { t } = useTranslation();
-  
+
   const fileSystemList: {
     key: FileSystemType;
     name: string;

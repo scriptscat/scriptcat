@@ -428,9 +428,9 @@ function ScriptEditor() {
       }
     });
     // 恢复标题
-    return ()=>{
+    return () => {
       document.title = "Home - ScriptCat";
-    }
+    };
   }, []);
 
   // 控制onbeforeunload
@@ -706,7 +706,7 @@ function ScriptEditor() {
                 color: "var(--color-text-2)",
               }}
             >
-              已安装脚本
+              {t("installed_scripts")}
             </Button>
             {scriptList.map((script) => (
               <Button

@@ -402,5 +402,6 @@
   "import_script_placeholder": "支持输入.user.js结尾的脚本绝对链接 或 脚本猫安装页链接\\n可多行填写，每行一条\\n示例：\\nhttps://example.com/test.user.js \\nhttps://scriptcat.org/zh-CN/script-show-page/1234",
   "invalid_script_code": "错误的脚本代码",
   "build_failed": "构建失败",
-  "drag_script_here_to_upload": "拖拽脚本到此处上传"
+  "drag_script_here_to_upload": "拖拽脚本到此处上传",
+  "sync_status": "同步状态"
 }

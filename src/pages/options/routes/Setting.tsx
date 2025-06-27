@@ -156,7 +156,7 @@ function Setting() {
                 setSyncScriptStatus(checked);
               }}
             >
-              同步状态
+              {t("sync_status")}
             </Checkbox>
           </Space>
           <FileSystemParams

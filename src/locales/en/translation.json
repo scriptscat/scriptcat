@@ -1,6 +1,6 @@
 {
-  "import_link": "Import Link",
-  "import_link_failure": "Import Link Failed",
+  "import_link": "Link Import",
+  "import_link_failure": "Link import failed",
   "create_user_script": "Create User Script",
   "create_background_script": "Create Background Script",
   "create_scheduled_script": "Create Scheduled Script",
@@ -402,5 +402,6 @@
   "import_script_placeholder": "Support for an absolute link at the end of .user.js or a link to a scripting cat installation page\\ncan be filled in multiple lines, each entry\\nExample：\\nhttps://example.com/test.user.js \\nhttps://scriptcat.org/en/script-show-page/1234",
   "invalid_script_code": "Bad Code",
   "build_failed": "Failed to build",
-  "drag_script_here_to_upload": "Drag script to upload it here"
+  "drag_script_here_to_upload": "Drag script to upload it here",
+  "sync_status": "Sync status"
 }

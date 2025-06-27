@@ -402,5 +402,6 @@
   "import_script_placeholder": "crwdns6998:0crwdne6998:0",
   "invalid_script_code": "crwdns7000:0crwdne7000:0",
   "build_failed": "crwdns7002:0crwdne7002:0",
-  "drag_script_here_to_upload": "crwdns7004:0crwdne7004:0"
+  "drag_script_here_to_upload": "crwdns7004:0crwdne7004:0",
+  "sync_status": "crwdns7006:0crwdne7006:0"
 }
