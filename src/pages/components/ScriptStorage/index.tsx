@@ -32,6 +32,7 @@ const ScriptStorage: React.FC<{
   const [form] = Form.useForm();
   const { t } = useTranslation();
 
+  // 保存单个键值
   const saveData = (key: string, value: any, del: boolean = false) => {
     // GM_setValue最终全量存储，故更新单个键值也通过valueClient.setScriptValues处理
     if (del) {
@@ -44,11 +45,13 @@ const ScriptStorage: React.FC<{
     }
   };
 
+  // 保存所有键值
   const saveRawData = (newRawValue: { [key: string]: any }) => {
     valueClient.setScriptValues(script!.uuid, newRawValue);
     updateRawData(newRawValue);
   };
 
+  // 更新UI数据
   const updateRawData = (newRawValue: { [key: string]: any }) => {
     setRawData(newRawValue);
     setEditValue(JSON.stringify(newRawValue, null, 2));
@@ -59,6 +62,7 @@ const ScriptStorage: React.FC<{
     );
   };
 
+  // 删除单个键值
   const deleteData = (key: string) => {
     saveData(key, undefined, true);
     Message.info({
@@ -66,6 +70,7 @@ const ScriptStorage: React.FC<{
     });
   };
 
+  // 清空所有键值
   const clearData = () => {
     saveRawData({});
     Message.info({
