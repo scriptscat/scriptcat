@@ -36,6 +36,9 @@ const ScriptStorage: React.FC<{
   const saveData = (key: string, value: any) => {
     valueClient.setScriptValue(script!.uuid, key, value);
     const newRawData = { ...rawData, [key]: value };
+    if (value === undefined) {
+      delete newRawData[key];
+    }
     updateRawData(newRawData);
   };
 
