@@ -872,7 +872,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({})
-  GM_notification(request: Request, sender: GetSender) {
+  async GM_notification(request: Request, sender: GetSender) {
     if (request.params.length === 0) {
       throw new Error("param is failed");
     }
@@ -890,50 +890,70 @@ export default class GMApi {
     }
     options.progress = options.progress && parseInt(details.progress as any, 10);
 
-    return new Promise((resolve) => {
-      if (typeof notificationId === "string") {
-        chrome.notifications.update(notificationId, options, (wasUpdated) => {
-          if (!wasUpdated) {
-            this.logger.error("GM_notification update by tag", {
-              notificationId,
-              options,
-            });
-          }
-          resolve(notificationId);
-        });
-      } else {
-        chrome.notifications.create(options, (notificationId) => {
-          Cache.getInstance().set(`GM_notification:${notificationId}`, {
-            uuid: request.script.uuid,
-            details: details,
-            sender: sender.getExtMessageSender(),
-          });
-          if (details.timeout) {
-            setTimeout(async () => {
-              chrome.notifications.clear(notificationId);
-              const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
-                | NotificationData
-                | undefined;
-              if (sender) {
-                this.gmExternalDependencies.emitEventToTab(sender.sender, {
-                  event: "GM_notification",
-                  eventId: notificationId,
-                  uuid: sender.uuid,
-                  data: {
-                    event: "close",
-                    params: {
-                      byUser: false,
-                    },
-                  } as NotificationMessageOption,
-                });
-              }
-              Cache.getInstance().del(`GM_notification:${notificationId}`);
-            }, details.timeout);
-          }
-          resolve(notificationId);
+    if (typeof notificationId === "string") {
+      let wasUpdated: boolean;
+      try {
+        wasUpdated = await chrome.notifications.update(notificationId, options);
+      } catch (e: any) {
+        this.logger.error("GM_notification update", Logger.E(e));
+        if (e.message.includes("images")) {
+          // 如果更新失败，删除图标再次尝试
+          options.iconUrl = chrome.runtime.getURL("assets/logo.png");
+          wasUpdated = await chrome.notifications.update(notificationId, options);
+        } else {
+          throw e;
+        }
+      }
+      if (!wasUpdated) {
+        this.logger.error("GM_notification update by tag", {
+          notificationId,
+          options,
         });
       }
-    });
+      return notificationId;
+    } else {
+      let notificationId: string;
+      try {
+        notificationId = await chrome.notifications.create(options);
+      } catch (e: any) {
+        this.logger.error("GM_notification create", Logger.E(e));
+        if (e.message.includes("images")) {
+          // 如果创建失败，删除图标再次尝试
+          options.iconUrl = chrome.runtime.getURL("assets/logo.png");
+          notificationId = await chrome.notifications.create(options);
+        } else {
+          throw e;
+        }
+      }
+      Cache.getInstance().set(`GM_notification:${notificationId}`, {
+        uuid: request.script.uuid,
+        details: details,
+        sender: sender.getExtMessageSender(),
+      });
+      if (details.timeout) {
+        setTimeout(async () => {
+          chrome.notifications.clear(notificationId);
+          const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
+            | NotificationData
+            | undefined;
+          if (sender) {
+            this.gmExternalDependencies.emitEventToTab(sender.sender, {
+              event: "GM_notification",
+              eventId: notificationId,
+              uuid: sender.uuid,
+              data: {
+                event: "close",
+                params: {
+                  byUser: false,
+                },
+              } as NotificationMessageOption,
+            });
+          }
+          Cache.getInstance().del(`GM_notification:${notificationId}`);
+        }, details.timeout);
+      }
+      return notificationId;
+    }
   }
 
   @PermissionVerify.API({
