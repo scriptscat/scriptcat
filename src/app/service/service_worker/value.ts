@@ -163,6 +163,13 @@ export class ValueService {
             valueModel.data[key] = data.values[key];
           }
         }
+        // 处理oldValue有但是没有在data.values中的情况
+        Object.keys(oldValue).forEach((key) => {
+          if (!(key in data.values)) {
+            delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
+            data.values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
+          }
+        });
         await this.valueDAO.save(storageName, valueModel);
       }
       return true;
