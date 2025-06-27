@@ -684,6 +684,7 @@ export default class GMApi {
     this.connect("GM_download", [
       {
         method: details.method,
+        downloadMethod: details.downloadMethod || "xhr", // 默认使用xhr下载
         url: details.url,
         name: details.name,
         headers: details.headers,

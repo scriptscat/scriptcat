@@ -991,8 +991,8 @@ export default class GMApi {
   @PermissionVerify.API()
   async GM_download(request: Request, sender: GetSender) {
     const params = <GMTypes.DownloadDetails>request.params[0];
-    // blob本地文件直接下载
-    if (params.url.startsWith("blob:")) {
+    // blob本地文件或显示指定downloadMethod为"chrome"则直接下载
+    if (params.url.startsWith("blob:") || params.downloadMethod === "chrome") {
       chrome.downloads.download(
         {
           url: params.url,
@@ -1000,7 +1000,7 @@ export default class GMApi {
           filename: params.name,
         },
         () => {
-          sender.getConnect().sendMessage({ event: "onload" });
+          sender.getConnect().sendMessage({ action: "onload" });
         }
       );
       return;
