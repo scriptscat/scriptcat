@@ -425,6 +425,7 @@ declare namespace GMTypes {
 
   interface DownloadDetails {
     method?: "GET" | "POST";
+    downloadMethod?: "xhr" | "chrome";
     url: string;
     name: string;
     headers?: { [key: string]: string };
