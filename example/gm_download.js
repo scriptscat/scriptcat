@@ -5,7 +5,7 @@
 // @description  try to take over the world!
 // @author       You
 // @match        https://bbs.tampermonkey.net.cn/
-// @grant GM_download
+// @grant        GM_download
 // ==/UserScript==
 
 GM_download({
@@ -16,5 +16,8 @@ GM_download({
         "origin": "www.example.com"
     }, onprogress(data) {
         console.log(data);
-    }
+    }, onload(data) {
+        console.log("load", data);
+    },
+    downloadMethod: "xhr"
 });
