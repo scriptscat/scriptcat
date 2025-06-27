@@ -111,7 +111,7 @@ const ScriptMenuList: React.FC<{
 
   return (
     <>
-      {list.length === 0 && <Empty />}
+      {list.length === 0 && <Empty description={t("no_data")} />}
       {list.map((item, index) => (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem

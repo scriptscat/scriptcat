@@ -1,2 +1,20 @@
 @unocss preflights;
 @unocss default;
+
+body {
+    scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+    /* 对于webkit浏览器的滚动条样式 */
+    scrollbar-width: thin;
+}
+
+body[arco-theme='dark'] {
+    --color-scrollbar-thumb: #6b6b6b;
+    --color-scrollbar-track: #2d2d2d;
+    --color-scrollbar-thumb-hover: #8c8c8c;
+}
+
+body[arco-theme='light'] {
+    --color-scrollbar-thumb: #6b6b6b;
+    --color-scrollbar-track: #f0f0f0;
+    --color-scrollbar-thumb-hover: #8c8c8c;
+}

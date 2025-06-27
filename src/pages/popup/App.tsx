@@ -211,7 +211,11 @@ function App() {
           type="info"
           content={<div dangerouslySetInnerHTML={{ __html: checkUpdate.notice || "" }} />}
         />
-        <Collapse bordered={false} defaultActiveKey={["script", "background"]} style={{ maxWidth: 640 }}>
+        <Collapse
+          bordered={false}
+          defaultActiveKey={["script", "background"]}
+          style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
+        >
           <CollapseItem
             header={t("current_page_scripts")}
             name="script"
