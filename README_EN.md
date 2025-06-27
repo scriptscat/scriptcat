@@ -72,6 +72,7 @@ We have published our extension in the Chrome or Firefox store. If you cannot ac
 ### Discussion
 
 - [Telegram](https://t.me/scriptscat)
+- [Discord](https://discord.gg/JF76nHCCM7)
 - [油猴中文网](https://bbs.tampermonkey.net.cn/)
 
 ## License

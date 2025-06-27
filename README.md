@@ -76,6 +76,7 @@ zip 包手动进行安装
 ### 交流
 
 - [Telegram](https://t.me/scriptscat)
+- [Discord](https://discord.gg/JF76nHCCM7)
 - [油猴中文网](https://bbs.tampermonkey.net.cn/)
 
 ## License

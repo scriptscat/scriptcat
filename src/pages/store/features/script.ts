@@ -1,11 +1,6 @@
 import { createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { createAppSlice } from "../hooks";
-import {
-  Script,
-  SCRIPT_RUN_STATUS,
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-} from "@App/app/repo/scripts";
+import { Script, SCRIPT_RUN_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   PermissionClient,
@@ -18,6 +13,7 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
+import { stat } from "fs";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -127,11 +123,17 @@ export const scriptSlice = createAppSlice({
         return s;
       });
     },
-    setScriptFavicon: (state, action: PayloadAction<{ uuid: string; fav: { match: string; icon?: string }[] }>) => {
-      const script = state.scripts.find((s) => s.uuid === action.payload.uuid);
-      if (script) {
-        script.favorite = action.payload.fav;
-      }
+    setScriptFavicon: (state, action: PayloadAction<{ uuid: string; fav: { match: string; icon?: string }[] }[]>) => {
+      const scriptMap = new Map<string, ScriptLoading>();
+      state.scripts.forEach((s) => {
+        scriptMap.set(s.uuid, s);
+      });
+      action.payload.forEach((item) => {
+        const script = scriptMap.get(item.uuid);
+        if (script) {
+          script.favorite = item.fav;
+        }
+      });
     },
   },
   extraReducers: (builder) => {

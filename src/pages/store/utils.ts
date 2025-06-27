@@ -7,10 +7,11 @@ import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
 
 // 在scriptSlice创建后处理favicon加载
-export const loadScriptFavicons = (scripts: Script[]) => {
-  scripts.forEach(async (item) => {
-    const icons = await Cache.getInstance().getOrSet(`favicon:${item.uuid}`, () => {
-      return extractFavicons(item.metadata!.match || [], item.metadata!.include || []).then(async (icons) => {
+export const loadScriptFavicons = async (scripts: Script[]) => {
+  const icons = await Promise.all(
+    scripts.map((item) => {
+      return Cache.getInstance().getOrSet(`favicon:${item.uuid}`, async () => {
+        const icons = await extractFavicons(item.metadata!.match || [], item.metadata!.include || []);
         if (icons.length > 0) {
           // 从缓存中获取favicon图标
           const systemClient = new SystemClient(message);
@@ -45,9 +46,16 @@ export const loadScriptFavicons = (scripts: Script[]) => {
           );
           return newIcons;
         }
-        return [];
+        return Promise.resolve([]);
       });
-    });
-    store.dispatch(scriptSlice.actions.setScriptFavicon({ uuid: item.uuid, fav: icons }));
-  });
+    })
+  );
+  store.dispatch(
+    scriptSlice.actions.setScriptFavicon(
+      icons.map((item, index) => ({
+        uuid: scripts[index].uuid,
+        fav: item,
+      }))
+    )
+  );
 };
