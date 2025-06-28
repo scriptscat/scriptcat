@@ -30,15 +30,7 @@ import {
   ScriptDAO,
   UserConfig,
 } from "@App/app/repo/scripts";
-import {
-  IconClockCircle,
-  IconDesktop,
-  IconEdit,
-  IconLink,
-  IconMenu,
-  IconSearch,
-  IconUserAdd,
-} from "@arco-design/web-react/icon";
+import { IconClockCircle, IconEdit, IconLink, IconMenu, IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import {
   RiDeleteBin5Fill,
   RiPencilFill,
@@ -277,7 +269,7 @@ function ScriptList() {
           // 处理站点icon
           return (
             <>
-              <Avatar.Group size={20} style={{ margin: 10 }}>
+              <Avatar.Group size={20}>
                 {item.favorite &&
                   // 排序并且只显示前5个
                   // 排序将有icon的放在前面
