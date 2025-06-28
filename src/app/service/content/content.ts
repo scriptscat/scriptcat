@@ -75,7 +75,7 @@ export default class ContentRuntime {
               el.setAttribute(key, attr[key]);
             });
             if (textContent) {
-              el.innerHTML = textContent;
+              el.textContent = textContent;
             }
             (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
             const nodeId = (this.msg as CustomEventMessage).sendRelatedTarget(el);
