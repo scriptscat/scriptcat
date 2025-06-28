@@ -75,8 +75,6 @@ declare const GM_info: {
   [key: string]: unknown;
 };
 
-declare function GM_addStyle(css: string): HTMLElement;
-
 declare function GM_deleteValue(name: string): void;
 
 declare function GM_listValues(): string[];
@@ -166,6 +164,8 @@ declare function GM_setClipboard(data: string, info?: string | { type?: string; 
 
 declare function GM_addElement(tag: string, attribubutes: unknown);
 declare function GM_addElement(parentNode: Element, tag: string, attrs: unknown);
+
+declare function GM_addStyle(css: string): HTMLStyleElement;
 
 // name和domain不能都为空
 declare function GM_cookie(
