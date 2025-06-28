@@ -137,6 +137,7 @@
   "script_link": "脚本链接",
   "user_installation": "用户安装",
   "confirm_delete_script": "确定要删除此脚本吗？",
+  "confirm_delete_script_content": "确定要删除脚本\"{{name}}\"吗？此操作无法撤销。",
   "delete_failed": "删除失败",
   "enter_script_name": "请输入脚本名",
   "update_not_supported": "该脚本不支持检查更新",

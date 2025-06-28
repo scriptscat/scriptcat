@@ -3,7 +3,7 @@ import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Menu, Message, Tabs, Tooltip } from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -20,6 +20,7 @@ import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import i18n from "@App/locales/locales";
+import { IconClose, IconDelete } from "@arco-design/web-react/icon";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -520,6 +521,51 @@ function ScriptEditor() {
     }
   }, [rightOperationTab]);
 
+  // 通用的编辑器删除处理函数
+  const handleDeleteEditor = (targetUuid: string, needConfirm: boolean = false) => {
+    setEditors((prev) => {
+      const targetIndex = prev.findIndex((e) => e.script.uuid === targetUuid);
+      if (targetIndex === -1) return prev;
+
+      const targetEditor = prev[targetIndex];
+
+      // 如果需要确认且脚本已修改
+      if (needConfirm && targetEditor.isChanged) {
+        if (!confirm(t("script_modified_close_confirm"))) {
+          return prev;
+        }
+      }
+
+      // 如果只剩一个编辑器，打开空白脚本
+      if (prev.length === 1) {
+        emptyScript(template || "", hotKeys).then((e) => {
+          setEditors([e]);
+          setSelectSciptButtonAndTab(e.script.uuid);
+        });
+        return prev;
+      }
+
+      // 删除目标编辑器
+      const newEditors = prev.filter((_, index) => index !== targetIndex);
+
+      // 如果删除的是当前激活的编辑器，需要激活其他编辑器
+      if (targetEditor.active && newEditors.length > 0) {
+        let nextActiveIndex;
+        if (targetIndex >= newEditors.length) {
+          // 如果删除的是最后一个，激活前一个
+          nextActiveIndex = newEditors.length - 1;
+        } else {
+          // 否则激活下一个（原来的下一个现在在同样的位置）
+          nextActiveIndex = targetIndex;
+        }
+        newEditors[nextActiveIndex].active = true;
+        setSelectSciptButtonAndTab(newEditors[nextActiveIndex].script.uuid);
+      }
+
+      return newEditors;
+    });
+  };
+
   return (
     <div
       className="h-full flex flex-col"
@@ -709,49 +755,98 @@ function ScriptEditor() {
               {t("installed_scripts")}
             </Button>
             {scriptList.map((script) => (
-              <Button
+              <div
                 key={`s_${script.uuid}`}
-                size="mini"
-                className="text-left"
+                className="relative group"
                 style={{
                   overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
-                }}
-                onClick={() => {
-                  setSelectSciptButtonAndTab(script.uuid);
-                  // 如果已经打开则激活
-                  let flag = false;
-                  for (let i = 0; i < editors.length; i += 1) {
-                    if (editors[i].script.uuid === script.uuid) {
-                      editors[i].active = true;
-                      flag = true;
-                    } else {
-                      editors[i].active = false;
-                    }
-                  }
-                  if (!flag) {
-                    // 如果没有打开则打开
-                    // 获取code
-                    scriptCodeDAO.findByUUID(script.uuid).then((code) => {
-                      if (!code) {
-                        return;
-                      }
-                      editors.push({
-                        script,
-                        code: code.code,
-                        active: true,
-                        hotKeys,
-                        isChanged: false,
-                      });
-                      setEditors([...editors]);
-                    });
-                  }
                 }}
               >
-                {i18nName(script)}
-              </Button>
+                <Button
+                  size="mini"
+                  className="text-left w-full"
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
+                    paddingRight: "32px", // 为删除按钮留出空间
+                  }}
+                  onClick={() => {
+                    setSelectSciptButtonAndTab(script.uuid);
+                    // 如果已经打开则激活
+                    let flag = false;
+                    for (let i = 0; i < editors.length; i += 1) {
+                      if (editors[i].script.uuid === script.uuid) {
+                        editors[i].active = true;
+                        flag = true;
+                      } else {
+                        editors[i].active = false;
+                      }
+                    }
+                    if (!flag) {
+                      // 如果没有打开则打开
+                      // 获取code
+                      scriptCodeDAO.findByUUID(script.uuid).then((code) => {
+                        if (!code) {
+                          return;
+                        }
+                        editors.push({
+                          script,
+                          code: code.code,
+                          active: true,
+                          hotKeys,
+                          isChanged: false,
+                        });
+                        setEditors([...editors]);
+                      });
+                    }
+                  }}
+                >
+                  <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
+                </Button>
+                {/* 删除按钮，只在鼠标悬停时显示 */}
+                <Button
+                  type="text"
+                  icon={<IconDelete />}
+                  iconOnly
+                  size="mini"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    minWidth: "20px",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--color-text-2)",
+                    boxShadow: "none",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // 删除脚本
+                    Modal.confirm({
+                      title: t("confirm_delete_script"),
+                      content: t("confirm_delete_script_content", { name: i18nName(script) }),
+                      onOk: () => {
+                        scriptClient
+                          .delete(script.uuid)
+                          .then(() => {
+                            setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
+                            handleDeleteEditor(script.uuid);
+                            if (selectSciptButtonAndTab === script.uuid) {
+                              setSelectSciptButtonAndTab("");
+                            }
+                            Message.success(t("delete_success"));
+                          })
+                          .catch((err) => {
+                            LoggerCore.logger(Logger.E(err)).debug("delete script error");
+                            Message.error(`${t("delete_failed")}: ${err}`);
+                          });
+                      },
+                    });
+                  }}
+                />
+              </div>
             ))}
           </div>
         </Col>
@@ -788,39 +883,11 @@ function ScriptEditor() {
               });
             }}
             onDeleteTab={(index: string) => {
-              // 处理删除
-              setEditors((prev) => {
-                const i = parseInt(index, 10);
-                if (prev[i].isChanged) {
-                  if (!confirm(t("script_modified_close_confirm"))) {
-                    return prev;
-                  }
-                }
-                if (prev.length === 1) {
-                  // 如果是uuid打开的回退到列表
-                  if (uuid) {
-                    navigate("/");
-                    return prev;
-                  }
-                  // 如果没有打开的了, 则打开一个空白的
-                  emptyScript(template || "", hotKeys).then((e) => {
-                    setEditors([e]);
-                  });
-                  return prev;
-                }
-                if (prev[i].active) {
-                  // 如果关闭的是当前激活的, 则激活下一个
-                  if (i === prev.length - 1) {
-                    prev[i - 1].active = true;
-                    setSelectSciptButtonAndTab(prev[i - 1].script.uuid);
-                  } else {
-                    prev[i + 1].active = true;
-                    setSelectSciptButtonAndTab(prev[i + 1].script.uuid);
-                  }
-                }
-                prev.splice(i, 1);
-                return [...prev];
-              });
+              const i = parseInt(index, 10);
+              const targetUuid = editors[i]?.script.uuid;
+              if (targetUuid) {
+                handleDeleteEditor(targetUuid, true);
+              }
             }}
           >
             {editors.map((e, index) => (
