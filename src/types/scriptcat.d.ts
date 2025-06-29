@@ -31,7 +31,7 @@ declare const GM_info: {
   userConfig?: UserConfig;
   userConfigStr?: string;
   // isIncognito: boolean;
-  // downloadMode: "native" | "disabled" | "browser";
+  downloadMode: "browser"; // "native" | "disabled" | "browser";
   script: {
     author?: string;
     description?: string;
