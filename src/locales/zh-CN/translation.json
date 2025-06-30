@@ -93,7 +93,7 @@
   "last_24_hours": "最近24小时",
   "last_7_days": "最近7天",
   "query": "查询",
-  "labels": "labels",
+  "labels": "Labels",
   "search_regex": "搜索(支持正则)",
   "clean_schedule": "定时清理",
   "days_ago_logs": "天前的日志",
@@ -107,7 +107,7 @@
   "permission": "权限",
   "enter_subscribe_name": "请输入订阅名称",
   "subscribe_url": "订阅地址",
-  "confirm_delete_subscription": "确定要删除此订阅吗? 相关的脚本也会被删除",
+  "confirm_delete_subscription": "确定要删除此订阅吗？相关的脚本也会被删除",
   "list": {
     "confirm_delete": "确定要删除吗？请注意这个操作无法恢复！",
     "confirm_update": "确认要更新吗？请注意此操作不可逆！"
@@ -317,7 +317,7 @@
   "current_page_scripts": "当前页运行脚本",
   "enabled_background_scripts": "开启和运行的后台脚本",
   "script_accessing_cross_origin_resource": "脚本正在试图访问跨域资源",
-  "confirm_operation_description": "请您确认是否允许脚本进行此操作,脚本也可增加@connect标签跳过此选项",
+  "confirm_operation_description": "请您确认是否允许脚本进行此操作，脚本也可增加@connect标签跳过此选项",
   "domain": "域名",
   "script_name": "脚本名称",
   "request_domain": "请求域名",
