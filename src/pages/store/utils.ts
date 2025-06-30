@@ -6,15 +6,6 @@ import Cache from "@App/app/cache";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
 
-// 将数组分成指定大小的批次
-const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize));
-  }
-  return chunks;
-};
-
 // 处理单个脚本的favicon
 const processScriptFavicon = async (script: Script) => {
   return {
