@@ -979,19 +979,18 @@ export default class GMApi {
 
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
   @GMContext.API()
-  GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+  async GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
     console.log("GMDotGetResourceUrl", name, isBlobUrl);
-    if (!this.scriptRes.resource) {
-      return Promise.resolve(undefined);
-    }
-    const r = this.scriptRes.resource[name];
-    if (r) {
-      if (isBlobUrl) {
-        return Promise.resolve(URL.createObjectURL(base64ToBlob(r.base64)));
+    if (this.scriptRes.resource) {
+      const r = this.scriptRes.resource[name];
+      if (r) {
+        if (isBlobUrl) {
+          return URL.createObjectURL(base64ToBlob(r.base64));
+        }
+        return r.base64;
       }
-      return Promise.resolve(r.base64);
     }
-    return Promise.resolve(undefined);
+    return undefined;
   }
 
   @GMContext.API()

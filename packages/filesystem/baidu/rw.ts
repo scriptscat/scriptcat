@@ -21,17 +21,14 @@ export class BaiduFileReader implements FileReader {
       }&fsids=[${this.file.fsid!}]&dlink=1`
     );
     if (!data.list.length) {
-      return Promise.reject(new Error("file not found"));
+      throw new Error("file not found");
     }
+    const resp = await fetch(`${data.list[0].dlink}&access_token=${this.fs.accessToken}`);
     switch (type) {
       case "string":
-        return fetch(
-          `${data.list[0].dlink}&access_token=${this.fs.accessToken}`
-        ).then((resp) => resp.text());
+        return await resp.text();
       default: {
-        return fetch(
-          `${data.list[0].dlink}&access_token=${this.fs.accessToken}`
-        ).then((resp) => resp.blob());
+        return await resp.blob();
       }
     }
   }
@@ -75,21 +72,18 @@ export class BaiduFileWriter implements FileWriter {
     urlencoded.append("block_list", JSON.stringify(blockList));
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-    const uploadid = await this.fs
-      .request(
-        `http://pan.baidu.com/rest/2.0/xpan/file?method=precreate&access_token=${this.fs.accessToken}`,
-        {
-          method: "POST",
-          headers: myHeaders,
-          body: urlencoded,
-        }
-      )
-      .then((data) => {
-        if (data.errno) {
-          throw new Error(JSON.stringify(data));
-        }
-        return data.uploadid;
-      });
+    let data = await this.fs.request(
+      `http://pan.baidu.com/rest/2.0/xpan/file?method=precreate&access_token=${this.fs.accessToken}`,
+      {
+        method: "POST",
+        headers: myHeaders,
+        body: urlencoded,
+      }
+    );
+    if (data.errno) {
+      throw new Error(JSON.stringify(data));
+    }
+    const uploadid = data.uploadid;
     const body = new FormData();
     if (content instanceof Blob) {
       // 分片上传
@@ -98,23 +92,19 @@ export class BaiduFileWriter implements FileWriter {
       body.append("file", new Blob([content]));
     }
 
-    await this.fs
-      .request(
-        `${
-          `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&access_token=${this.fs.accessToken}` +
-          `&type=tmpfile&path=`
-        }${encodeURIComponent(this.path)}&uploadid=${uploadid}&partseq=0`,
-        {
-          method: "POST",
-          body,
-        }
-      )
-      .then((data) => {
-        if (data.errno) {
-          throw new Error(JSON.stringify(data));
-        }
-        return data;
-      });
+    data = await this.fs.request(
+      `${
+        `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&access_token=${this.fs.accessToken}` +
+        `&type=tmpfile&path=`
+      }${encodeURIComponent(this.path)}&uploadid=${uploadid}&partseq=0`,
+      {
+        method: "POST",
+        body,
+      }
+    );
+    if (data.errno) {
+      throw new Error(JSON.stringify(data));
+    }
     // 创建文件
     urlencoded = new URLSearchParams();
     urlencoded.append("path", this.path);
@@ -123,20 +113,16 @@ export class BaiduFileWriter implements FileWriter {
     urlencoded.append("block_list", JSON.stringify(blockList));
     urlencoded.append("uploadid", uploadid);
     urlencoded.append("rtype", "3");
-    return this.fs
-      .request(
-        `https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.fs.accessToken}`,
-        {
-          method: "POST",
-          headers: myHeaders,
-          body: urlencoded,
-        }
-      )
-      .then((data) => {
-        if (data.errno) {
-          throw new Error(JSON.stringify(data));
-        }
-        return Promise.resolve();
-      });
+    data = await this.fs.request(
+      `https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.fs.accessToken}`,
+      {
+        method: "POST",
+        headers: myHeaders,
+        body: urlencoded,
+      }
+    );
+    if(data.errno) {
+      throw new Error(JSON.stringify(data));
+    }
   }
 }

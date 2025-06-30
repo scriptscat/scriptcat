@@ -354,7 +354,7 @@ export class PopupService {
       eventId: id.toString(),
       data: inputValue,
     });
-    return Promise.resolve(true);
+    return Promise.resolve(true); // 不需要异步
   }
 
   init() {
@@ -372,11 +372,11 @@ export class PopupService {
         script.forEach((script) => {
           // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
           // 避免先删除了数据获取不到
-          Cache.getInstance().tx(`GM_getTab:${script.uuid}`, (tabData: { [key: number]: any }) => {
+          Cache.getInstance().tx(`GM_getTab:${script.uuid}`, async (tabData: { [key: number]: any }) => {
             if (tabData) {
               delete tabData[tabId];
             }
-            return Promise.resolve(tabData);
+            return tabData;
           });
         });
         return undefined;

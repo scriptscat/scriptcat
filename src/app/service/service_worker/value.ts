@@ -57,7 +57,7 @@ export class ValueService {
     // 查询出脚本
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
-      return Promise.reject(new Error("script not found"));
+      throw new Error("script not found");
     }
     // 查询老的值
     const storageName = getStorageName(script);
@@ -140,7 +140,7 @@ export class ValueService {
   async setValues(data: { uuid: string; values: { [key: string]: any } }, sender: ValueUpdateSender) {
     const script = await this.scriptDAO.get(data.uuid);
     if (!script) {
-      return Promise.reject(new Error("script not found"));
+      throw new Error("script not found");
     }
     const storageName = getStorageName(script);
     let oldValue: { [key: string]: any } = {};

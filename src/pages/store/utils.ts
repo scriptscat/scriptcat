@@ -29,11 +29,11 @@ const processScriptFavicon = async (script: Script) => {
         icons.map((icon) => {
           // 没有的话缓存到本地使用URL.createObjectURL
           if (!icon.icon) {
-            return Promise.resolve({
+            return {
               match: icon.match,
               website: icon.website,
               icon: "",
-            });
+            };
           }
           // 因为需要持久化URL.createObjectURL，所以需要通过调用到offscreen来创建
           return systemClient

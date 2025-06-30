@@ -172,8 +172,8 @@ export default class GMApi {
     });
   }
 
-  openInTab({ url }: { url: string }) {
-    return Promise.resolve(window.open(url) !== undefined);
+  async openInTab({ url }: { url: string }) {
+    return window.open(url) !== undefined;
   }
 
   textarea: HTMLTextAreaElement = document.createElement("textarea");

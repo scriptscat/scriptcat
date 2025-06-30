@@ -12,7 +12,7 @@ export default class BackupExport {
   }
 
   // 导出备份数据
-  export(data: BackupData): Promise<void> {
+  async export(data: BackupData): Promise<void> {
     // 写入脚本备份
     const results: Promise<void>[] = [];
     data.script.forEach((item) => {
@@ -21,7 +21,7 @@ export default class BackupExport {
     data.subscribe.forEach((item) => {
       results.push(this.writeSubscribe(item));
     });
-    return Promise.all(results).then(() => undefined);
+    await Promise.all(results);
   }
 
   async writeScript(script: ScriptBackupData) {
@@ -42,7 +42,7 @@ export default class BackupExport {
     await this.writeResource(name, script.requires, "requires");
     await this.writeResource(name, script.requiresCss, "requires.css");
 
-    return Promise.resolve();
+    return;
   }
 
   async writeResource(
@@ -70,6 +70,6 @@ export default class BackupExport {
     // 写入订阅options.json
     await (await this.fs.create(`${name}.user.sub.options.json`)).write(JSON.stringify(subscribe.options));
 
-    return Promise.resolve();
+    return;
   }
 }

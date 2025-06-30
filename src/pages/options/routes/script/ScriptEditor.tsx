@@ -130,7 +130,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   const prepareScript = await prepareScriptByCode(code, "", uuidv4());
   const { script } = prepareScript;
 
-  return Promise.resolve({
+  return ({
     script,
     code,
     active: true,

@@ -284,12 +284,12 @@ export class Runtime {
     const exec = this.execScripts.get(uuid);
     if (!exec) {
       proxyUpdateRunStatus(this.windowMessage, { uuid: uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
-      return Promise.resolve(false);
+      return false;
     }
     exec.stop();
     this.execScripts.delete(uuid);
     proxyUpdateRunStatus(this.windowMessage, { uuid: uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
-    return Promise.resolve(true);
+    return true;
   }
 
   async runScript(script: ScriptRunResouce) {

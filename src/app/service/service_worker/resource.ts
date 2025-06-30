@@ -26,22 +26,22 @@ export class ResourceService {
   public async getResource(uuid: string, url: string, type: ResourceType): Promise<Resource | undefined> {
     let res = await this.getResourceModel(url);
     if (res) {
-      return Promise.resolve(res);
+      return res;
     }
-    return Promise.resolve(undefined);
+    return undefined;
   }
 
   public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return await Promise.resolve({
+    return {
       ...((await this.getResourceByType(script, "require")) || {}),
       ...((await this.getResourceByType(script, "require-css")) || {}),
       ...((await this.getResourceByType(script, "resource")) || {}),
-    });
+    };
   }
 
   async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
-      return Promise.resolve({});
+      return {};
     }
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
@@ -74,21 +74,21 @@ export class ResourceService {
         }
       })
     );
-    return Promise.resolve(ret);
+    return ret;
   }
 
   // 更新资源
   async checkScriptResource(script: Script) {
-    return Promise.resolve({
+    return {
       ...((await this.checkResourceByType(script, "require")) || {}),
       ...((await this.checkResourceByType(script, "require-css")) || {}),
       ...((await this.checkResourceByType(script, "resource")) || {}),
-    });
+    };
   }
 
   async checkResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
-      return Promise.resolve({});
+      return {};
     }
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
@@ -109,7 +109,7 @@ export class ResourceService {
         }
       })
     );
-    return Promise.resolve(ret);
+    return ret;
   }
 
   async checkResource(uuid: string, url: string, type: ResourceType) {
@@ -117,19 +117,19 @@ export class ResourceService {
     if (res) {
       // 判断1分钟过期
       if ((res.updatetime || 0) > new Date().getTime() - 1000 * 60) {
-        return Promise.resolve(res);
+        return res;
       }
     }
     try {
       res = await this.updateResource(uuid, url, type);
       if (res) {
-        return Promise.resolve(res);
+        return res;
       }
     } catch (e: any) {
       // ignore
       this.logger.error("check resource failed", { uuid, url }, Logger.E(e));
     }
-    return Promise.resolve(undefined);
+    return undefined;
   }
 
   async updateResource(uuid: string, url: string, type: ResourceType) {
@@ -162,7 +162,7 @@ export class ResourceService {
       this.logger.error("load resource error", { url: u.url }, Logger.E(e));
       throw e;
     }
-    return Promise.resolve(result);
+    return result;
   }
 
   async getResourceModel(url: string) {
@@ -181,9 +181,9 @@ export class ResourceService {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
         }
       }
-      return Promise.resolve(resource);
+      return resource;
     }
-    return Promise.resolve(undefined);
+    return undefined;
   }
 
   calculateHash(blob: Blob): Promise<ResourceHash> {
@@ -213,37 +213,34 @@ export class ResourceService {
     });
   }
 
-  loadByUrl(url: string, type: ResourceType): Promise<Resource> {
+  async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
     const u = this.parseUrl(url);
-    return fetch(u.url)
-      .then(async (resp) => {
-        if (resp.status !== 200) {
-          throw new Error(`resource response status not 200: ${resp.status}`);
-        }
-        return {
-          data: await resp.blob(),
-          headers: resp.headers,
-        };
-      })
-      .then(async (response) => {
-        const resource: Resource = {
-          url: u.url,
-          content: "",
-          contentType: (response.headers.get("content-type") || "application/octet-stream").split(";")[0],
-          hash: await this.calculateHash(<Blob>response.data),
-          base64: "",
-          link: {},
-          type,
-          createtime: new Date().getTime(),
-        };
-        const arrayBuffer = await (<Blob>response.data).arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        if (isText(uint8Array)) {
-          resource.content = await (<Blob>response.data).text();
-        }
-        resource.base64 = (await blobToBase64(<Blob>response.data)) || "";
-        return resource;
-      });
+    const resp = await fetch(u.url);
+    if (resp.status !== 200) {
+      throw new Error(`resource response status not 200: ${resp.status}`);
+    }
+    const data = await resp.blob();
+    const [hash, arrayBuffer, base64] = await Promise.all([
+      this.calculateHash(data),
+      data.arrayBuffer(),
+      blobToBase64(data)
+    ]);
+    const resource: Resource = {
+      url: u.url,
+      content: "",
+      contentType: (resp.headers.get("content-type") || "application/octet-stream").split(";")[0],
+      hash: hash,
+      base64: "",
+      link: {},
+      type,
+      createtime: new Date().getTime(),
+    };
+    const uint8Array = new Uint8Array(arrayBuffer);
+    if (isText(uint8Array)) {
+      resource.content = await data.text();
+    }
+    resource.base64 = base64 || "";
+    return resource;
   }
 
   parseUrl(url: string): {
@@ -275,30 +272,35 @@ export class ResourceService {
     return this.resourceDAO.delete(url);
   }
 
-  importResource(uuid: string, data: ResourceBackup, type: ResourceType) {
+  async importResource(uuid: string, data: ResourceBackup, type: ResourceType) {
     // 导入资源
     if (!data.source) {
-      return Promise.resolve(undefined);
+      return undefined;
     }
-    return this.resourceDAO.get(data.meta.url).then(async (res) => {
-      if (!res) {
-        // 新增资源
-        res = {
-          url: data.meta.url,
-          content: data.source!,
-          contentType: data.meta.mimetype || "",
-          hash: await this.calculateHash(new Blob([data.source!])),
-          base64: await blobToBase64(new Blob([data.source!])),
-          link: {},
-          type,
-          createtime: new Date().getTime(),
-          updatetime: new Date().getTime(),
-        };
-      }
-      res.link[uuid] = true;
-      res.updatetime = new Date().getTime();
-      return this.resourceDAO.update(data.meta.url, res);
-    });
+    const time = new Date().getTime();
+    let res = await this.resourceDAO.get(data.meta.url);
+    if (!res) {
+      // 新增资源
+      const blob = new Blob([data.source!]);
+      const [hash, base64] = await Promise.all([
+        this.calculateHash(blob),
+        blobToBase64(blob)
+      ]);
+      res = {
+        url: data.meta.url,
+        content: data.source!,
+        contentType: data.meta.mimetype || "",
+        hash,
+        base64,
+        link: {},
+        type,
+        createtime: time,
+        updatetime: time,
+      };
+    }
+    res.link[uuid] = true;
+    res.updatetime = time;
+    return await this.resourceDAO.update(data.meta.url, res);
   }
 
   init() {

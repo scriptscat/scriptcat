@@ -125,38 +125,34 @@ export class ScriptClient extends Client {
     }
   }
 
-  importByUrls(urls: string[]) {
+  async importByUrls(urls: string[]) {
     if (urls.length == 0) {
       return;
     }
-    return (
-      Promise.allSettled(
-        urls.map(async (url) => {
-          const formattedResult = await this.formatUrl(url);
-          if (formattedResult instanceof Object) {
-            return Promise.resolve(formattedResult);
-          } else {
-            return this.do("importByUrl", formattedResult);
-          }
-        })
-        // this.do 只会resolve 不会reject
-      ) as Promise<PromiseFulfilledResult<{ success: boolean; msg: string }>[]>
-    ).then((results) => {
-      console.log(results);
-      const stat = results.reduce(
-        (obj, result, index) => {
-          if (result.value.success) {
-            obj.success++;
-          } else {
-            obj.fail++;
-            obj.msg.push(`#${index + 1}: ${result.value.msg}`);
-          }
-          return obj;
-        },
-        { success: 0, fail: 0, msg: [] as string[] }
-      );
-      return stat;
-    });
+    const results = await Promise.allSettled(
+      urls.map(async (url) => {
+        const formattedResult = await this.formatUrl(url);
+        if (formattedResult instanceof Object) {
+          return await Promise.resolve(formattedResult);
+        } else {
+          return await this.do("importByUrl", formattedResult);
+        }
+      })
+      // this.do 只会resolve 不会reject
+    ) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
+    const stat = results.reduce(
+      (obj, result, index) => {
+        if (result.value.success) {
+          obj.success++;
+        } else {
+          obj.fail++;
+          obj.msg.push(`#${index + 1}: ${result.value.msg}`);
+        }
+        return obj;
+      },
+      { success: 0, fail: 0, msg: [] as string[] }
+    );
+    return stat;
   }
 }
 

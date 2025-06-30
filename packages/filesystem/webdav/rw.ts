@@ -14,14 +14,14 @@ export class WebDAVFileReader implements FileReader {
   async read(type?: "string" | "blob"): Promise<string | Blob> {
     switch (type) {
       case "string":
-        return this.client.getFileContents(this.path, {
+        return await (this.client.getFileContents(this.path, {
           format: "text",
-        }) as Promise<string>;
+        }) as Promise<string>);
       default: {
         const resp = (await this.client.getFileContents(this.path, {
           format: "binary",
         })) as ArrayBuffer;
-        return Promise.resolve(new Blob([resp]));
+        return new Blob([resp]);
       }
     }
   }
@@ -38,15 +38,10 @@ export class WebDAVFileWriter implements FileWriter {
   }
 
   async write(content: string | Blob): Promise<void> {
-    let resp;
-    if (content instanceof Blob) {
-      resp = await this.client.putFileContents(this.path, await content.arrayBuffer());
-    } else {
-      resp = await this.client.putFileContents(this.path, content);
+    const data = content instanceof Blob ? await content.arrayBuffer() : content;
+    const resp = await this.client.putFileContents(this.path, data);
+    if (!resp) {
+      throw new Error("write error");
     }
-    if (resp) {
-      return Promise.resolve();
-    }
-    return Promise.reject(new Error("write error"));
   }
 }

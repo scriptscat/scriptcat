@@ -15,7 +15,7 @@ export function migrateToChromeStorage() {
       const scriptDAO = new ScriptDAO();
       const scriptCodeDAO = new ScriptCodeDAO();
       console.log("开始迁移脚本数据", scripts.length);
-      await Promise.all(
+      await Promise.all( // 不处理 Promise.reject ?
         scripts.map(async (script: ScriptAndCode) => {
           const {
             uuid,

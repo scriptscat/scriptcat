@@ -22,9 +22,7 @@ export function initTestEnv() {
   // @ts-ignore
   global.Blob = function Blob(data, options) {
     const blob = new OldBlob(data, options);
-    blob.text = () => {
-      return Promise.resolve(data[0]);
-    };
+    blob.text = () => Promise.resolve(data[0]);
     blob.arrayBuffer = () => {
       return new Promise<ArrayBuffer>((resolve) => {
         const str = data[0];

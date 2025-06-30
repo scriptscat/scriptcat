@@ -100,13 +100,12 @@ export class ScriptDAO extends Repo<Script> {
     return this.get(uuid);
   }
 
-  getAndCode(uuid: string): Promise<ScriptAndCode | undefined> {
-    return Promise.all([this.get(uuid), this.scriptCodeDAO.get(uuid)]).then(([script, code]) => {
-      if (!script || !code) {
-        return undefined;
-      }
-      return Object.assign(script, code);
-    });
+  async getAndCode(uuid: string): Promise<ScriptAndCode | undefined> {
+    const [script, code] = await Promise.all([this.get(uuid), this.scriptCodeDAO.get(uuid)]);
+    if (!script || !code) {
+      return undefined;
+    }
+    return Object.assign(script, code);
   }
 
   public findByName(name: string) {

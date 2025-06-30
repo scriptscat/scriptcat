@@ -310,9 +310,7 @@ export class RuntimeService {
   }
 
   getAndGenMessageFlag() {
-    return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => {
-      return Promise.resolve(randomString(16));
-    });
+    return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => randomString(16));
   }
 
   deleteMessageFlag() {
@@ -387,10 +385,10 @@ export class RuntimeService {
     const isBlack = this.blackMatch.match(sender.getSender().url!);
     if (isBlack.length > 0) {
       // 如果在黑名单中, 则不加载脚本
-      return Promise.resolve({ flag: "", scripts: [] });
+      return { flag: "", scripts: [] };
     }
 
-    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]);
+    const [scriptFlag, __] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
     const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
 
     // 匹配当前页面的脚本
@@ -517,7 +515,7 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
-    return Promise.resolve({ flag: scriptFlag, scripts: enableScript });
+    return { flag: scriptFlag, scripts: enableScript };
   }
 
   // 停止脚本

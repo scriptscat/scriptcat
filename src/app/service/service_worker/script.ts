@@ -171,7 +171,7 @@ export class ScriptService {
       code: info.code,
       upsertBy: source,
     });
-    return Promise.resolve(prepareScript.script);
+    return prepareScript.script;
   }
 
   // 直接通过code静默安装脚本
@@ -182,7 +182,7 @@ export class ScriptService {
       code: param.code,
       upsertBy: param.upsertBy,
     });
-    return Promise.resolve(prepareScript.script);
+    return prepareScript.script;
   }
 
   // 获取安装信息
@@ -221,7 +221,7 @@ export class ScriptService {
           // 广播一下
           this.mq.publish("installScript", { script, update, upsertBy });
         });
-        return Promise.resolve({ update });
+        return { update };
       })
       .catch((e: any) => {
         logger.error("install error", Logger.E(e));
@@ -290,10 +290,10 @@ export class ScriptService {
         nextruntime: params.nextruntime,
       })) === false
     ) {
-      return Promise.reject("update error");
+      throw "update error";
     }
     this.mq.publish("scriptRunStatus", params);
-    return Promise.resolve(true);
+    return true;
   }
 
   getCode(uuid: string) {
@@ -323,7 +323,7 @@ export class ScriptService {
     ret.code = code.code;
     ret.code = compileScriptCode(ret);
 
-    return Promise.resolve(ret);
+    return ret;
   }
 
   async excludeUrl({ uuid, url, remove }: { uuid: string; url: string; remove: boolean }) {
@@ -404,11 +404,11 @@ export class ScriptService {
     // 检查更新
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
-      return Promise.resolve(false);
+      return false;
     }
     await this.scriptDAO.update(uuid, { checktime: new Date().getTime() });
     if (!script.checkUpdateUrl) {
-      return Promise.resolve(false);
+      return false;
     }
     const logger = LoggerCore.logger({
       uuid: script.uuid,
@@ -419,12 +419,12 @@ export class ScriptService {
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
-        return Promise.resolve(false);
+        return false;
       }
       const newVersion = metadata.version && metadata.version[0];
       if (!newVersion) {
         logger.error("parse version failed", { version: metadata.version });
-        return Promise.resolve(false);
+        return false;
       }
       let oldVersion = script.metadata.version && script.metadata.version[0];
       if (!oldVersion) {
@@ -432,15 +432,15 @@ export class ScriptService {
       }
       // 对比版本大小
       if (ltever(newVersion, oldVersion, logger)) {
-        return Promise.resolve(false);
+        return false;
       }
       // 进行更新
       this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-      return Promise.resolve(false);
+        return false;
     }
-    return Promise.resolve(true);
+    return true;
   }
 
   // 打开更新窗口
@@ -521,9 +521,8 @@ export class ScriptService {
         })
         .then(() => {
           InfoNotification("检查更新", "所有脚本检查完成");
-          return Promise.resolve(true);
         });
-      return Promise.resolve(true);
+      return Promise.resolve(true); // 无视检查结果，立即回传true
     }
   }
 

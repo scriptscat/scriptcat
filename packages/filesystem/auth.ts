@@ -78,16 +78,14 @@ export type Token = {
 };
 
 export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
-  let token: Token | undefined;
+  let token: Token | undefined = undefined;
   const localStorageDao = new LocalStorageDAO();
   const key = `netdisk:token:${netDiskType}`;
   try {
-    token = await localStorageDao.get(key).then((resp) => {
-      if (resp) {
-        return resp.value;
-      }
-      return undefined;
-    });
+    const resp = await localStorageDao.get(key);
+    if (resp) {
+      token = resp.value;
+    }
   } catch (e) {
     // ignore
   }
@@ -97,7 +95,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     await NetDisk(netDiskType);
     const resp = await GetNetDiskToken(netDiskType);
     if (resp.code !== 0) {
-      return Promise.reject(new WarpTokenError(new Error(resp.msg)));
+      throw new WarpTokenError(new Error(resp.msg));
     }
     token = {
       accessToken: resp.data.token.access_token,
@@ -119,9 +117,9 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
         await localStorageDao.delete(key);
         // 刷新失败,并且标记失效,尝试重新获取token
         if (invalid) {
-          return AuthVerify(netDiskType);
+          return await AuthVerify(netDiskType);
         }
-        return Promise.reject(new WarpTokenError(new Error(resp.msg)));
+        throw new WarpTokenError(new Error(resp.msg));
       }
       token = {
         accessToken: resp.data.token.access_token,
@@ -135,10 +133,10 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
       });
     } catch (e) {
       // 报错返回原token
-      return Promise.resolve(token.accessToken);
+      return token.accessToken;
     }
   } else {
-    return Promise.resolve(token.accessToken);
+    return token.accessToken;
   }
-  return Promise.resolve(token.accessToken);
+  return token.accessToken;
 }

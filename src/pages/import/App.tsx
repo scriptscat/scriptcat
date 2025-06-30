@@ -59,7 +59,7 @@ function App() {
               item.script = prepareScript;
             } catch (e: any) {
               item.error = e.toString();
-              return Promise.resolve(item);
+              return item;
             }
             if (!item.options) {
               item.options = {
@@ -86,7 +86,7 @@ function App() {
             item.script.script.status =
               item.enabled !== false && item.options.settings.enabled ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
             item.install = true;
-            return Promise.resolve(item);
+            return item;
           })
         );
         setScripts(result);
@@ -129,7 +129,6 @@ function App() {
                   setInstallNum((prev) => {
                     return [prev[0] + 1, prev[1]];
                   });
-                  return Promise.resolve();
                 });
                 await Promise.all(result);
                 setLoading(false);
