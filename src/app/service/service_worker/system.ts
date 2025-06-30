@@ -32,12 +32,15 @@ export class SystemService {
     });
     this.group.on("loadFavicon", async (url) => {
       // 加载favicon图标
-      return fetch(url)
-        .then((response) => response.blob())
-        .then((blob) => createObjectURL(this.sender, blob, true))
-        .catch(() => {
-          return "";
-        });
+      // 对url做一个缓存
+      return Cache.getInstance().getOrSet(`favicon:${url}`, async () => {
+        return fetch(url)
+          .then((response) => response.blob())
+          .then((blob) => createObjectURL(this.sender, blob, true))
+          .catch(() => {
+            return "";
+          });
+      });
     });
   }
 }
