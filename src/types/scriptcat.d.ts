@@ -31,7 +31,7 @@ declare const GM_info: {
   userConfig?: UserConfig;
   userConfigStr?: string;
   // isIncognito: boolean;
-  downloadMode: "browser"; // "native" | "disabled" | "browser";
+  downloadMode: "native"; // "native" | "disabled" | "browser";
   script: {
     author?: string;
     description?: string;
@@ -425,7 +425,7 @@ declare namespace GMTypes {
 
   interface DownloadDetails {
     method?: "GET" | "POST";
-    downloadMethod?: "xhr" | "browser";
+    downloadMode?: "native" | "browser";
     url: string;
     name: string;
     headers?: { [key: string]: string };
