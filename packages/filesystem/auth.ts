@@ -2,7 +2,7 @@ import { ExtServer, ExtServerApi } from "@App/app/const";
 import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
-type NetDiskType = "baidu" | "onedrive";
+type NetDiskType = "baidu" | "onedrive" | "googledrive";
 
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
