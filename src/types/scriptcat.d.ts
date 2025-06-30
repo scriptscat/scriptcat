@@ -75,7 +75,7 @@ declare const GM_info: {
   [key: string]: unknown;
 };
 
-declare function GM_deleteValue(name: string): void;
+
 
 declare function GM_listValues(): string[];
 
@@ -83,13 +83,22 @@ declare function GM_addValueChangeListener(name: string, listener: GMTypes.Value
 
 declare function GM_removeValueChangeListener(listenerId: number): void;
 
-// 可以使用Promise实际等待值的设置完成
-declare function GM_setValue(name: string, value: unknown): Promise;
+declare function GM_setValue(name: string, value: any): void;
+// 设置多个值, values是一个对象, 键为值的名称, 值为值的内容
+declare function GM_setValues(values: { [key: string]: any }): void;
 
-declare function GM_getValue(name: string, defaultValue?: unknown): unknown;
+declare function GM_getValue(name: string, defaultValue?: any): any;
+
+// 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值
+declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): { [key: string]: any };
+
+declare function GM_deleteValue(name: string): void;
+
+// 删除多个值, names是一个字符串数组
+declare function GM_deleteValues(names: string[]): void;
 
 // 支持level和label
-declare function GM_log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): unknown;
+declare function GM_log(message: string, level?: GMTypes.LoggerLevel, labels?: GMTypes.LoggerLabel): void;
 
 declare function GM_getResourceText(name: string): string | undefined;
 
@@ -133,20 +142,20 @@ declare function CAT_registerMenuInput(
 
 declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
-declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): tab;
-declare function GM_openInTab(url: string, loadInBackground: boolean): tab;
-declare function GM_openInTab(url: string): tab;
+declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab;
+declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab;
+declare function GM_openInTab(url: string): GMTypes.Tab;
 
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
 declare function GM_download(details: GMTypes.DownloadDetails): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
-declare function GM_getTab(callback: (obj: object) => unknown): void;
+declare function GM_getTab(callback: (obj: object) => void): void;
 
 declare function GM_saveTab(obj: object): Promise<void>;
 
-declare function GM_getTabs(callback: (objs: { [key: number]: object }) => unknown): void;
+declare function GM_getTabs(callback: (objs: { [key: number]: object }) => void): void;
 
 declare function GM_notification(details: GMTypes.NotificationDetails, ondone?: GMTypes.NotificationOnDone): void;
 declare function GM_notification(
@@ -162,8 +171,8 @@ declare function GM_updateNotification(id: string, details: GMTypes.Notification
 
 declare function GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }): void;
 
-declare function GM_addElement(tag: string, attribubutes: unknown);
-declare function GM_addElement(parentNode: Element, tag: string, attrs: unknown);
+declare function GM_addElement(tag: string, attributes: any): HTMLElement;
+declare function GM_addElement(parentNode: Element, tag: string, attrs: any): HTMLElement;
 
 declare function GM_addStyle(css: string): HTMLStyleElement;
 
@@ -481,12 +490,12 @@ declare namespace GMTypes {
     ondone?: NotificationOnDone;
     progress?: number;
     oncreate?: NotificationOnClick;
+    // 只能存在2个
     buttons?: NotificationButton[];
   }
 
   interface Tab {
     close(): void;
-
     onclose?: () => void;
     closed?: boolean;
     name?: string;

@@ -191,7 +191,7 @@ export default class GMApi {
   }
 
   @GMContext.API({ depend: ["GM_setValue"] })
-  public GM_setValues(values: object) {
+  public GM_setValues(values: { [key: string]: any }) {
     if (values == null) {
       throw new Error("GM_ setValues: values must not be null or undefined");
     }
@@ -199,13 +199,13 @@ export default class GMApi {
       throw new Error("GM_setValues: values must be an object");
     }
     Object.keys(values).forEach((key) => {
-      let value = values[key as keyof typeof values];
+      let value = values[key];
       return this.GM_setValue(key, value);
     });
   }
 
   @GMContext.API({ depend: ["GM_getValue"] })
-  public GM_getValues(keysOrDefaults: object | string[] | null | undefined) {
+  public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
     if (keysOrDefaults == null) {
       // returns all
       return this.scriptRes.value;
@@ -222,7 +222,7 @@ export default class GMApi {
     } else {
       // 对象 键: 默认值
       Object.keys(keysOrDefaults).forEach((key) => {
-        let defaultValue = keysOrDefaults[key as keyof typeof keysOrDefaults];
+        let defaultValue = keysOrDefaults[key];
         result[key] = this.GM_getValue(key, defaultValue);
       });
     }
