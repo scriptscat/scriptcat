@@ -182,13 +182,13 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm(request: Request) {
+    async confirm(request: Request) {
       if (request.params[0] === "store") {
-        return Promise.resolve(true);
+        return true;
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
       if (!detail.url && !detail.domain) {
-        return Promise.reject(new Error("there must be one of url or domain"));
+        throw new Error("there must be one of url or domain");
       }
       let url: URL = <URL>{};
       if (detail.url) {
@@ -205,12 +205,12 @@ export default class GMApi {
           connect.findIndex((connectHostName) => url.hostname.endsWith(connectHostName)) !== -1;
       }
       if (!flag) {
-        return Promise.reject(new Error("hostname must be in the definition of connect"));
+        throw new Error("hostname must be in the definition of connect");
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
       metadata[i18next.t("request_domain")] = url.host;
-      return Promise.resolve({
+      return {
         permission: "cookie",
         permissionValue: url.host,
         title: i18next.t("access_cookie_content")!,
@@ -218,7 +218,7 @@ export default class GMApi {
         describe: i18next.t("confirm_script_operation")!,
         permissionContent: i18next.t("cookie_domain")!,
         uuid: "",
-      });
+      };
     },
   })
   async GM_cookie(request: Request, sender: GetSender) {
@@ -305,7 +305,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  GM_log(request: Request): Promise<boolean> {
+  async GM_log(request: Request): Promise<boolean> {
     const message = request.params[0];
     const level = request.params[1] || "info";
     const labels = request.params[2] || {};
@@ -314,7 +314,7 @@ export default class GMApi {
       name: request.script.name,
       component: "GM_log",
     });
-    return Promise.resolve(true);
+    return true;
   }
 
   @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
@@ -338,15 +338,15 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    confirm: (request: Request) => {
+    confirm: async (request: Request) => {
       const [action, details] = request.params;
       if (action === "config") {
-        return Promise.resolve(true);
+        return true;
       }
       const dir = details.baseDir ? details.baseDir : request.script.uuid;
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      return Promise.resolve({
+      return {
         permission: "file_storage",
         permissionValue: dir,
         title: i18next.t("script_operation_title"),
@@ -354,7 +354,7 @@ export default class GMApi {
         describe: i18next.t("script_operation_description", { dir }),
         wildcard: false,
         permissionContent: i18next.t("script_permission_content"),
-      } as ConfirmParam);
+      } as ConfirmParam;
     },
   })
   async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
@@ -692,7 +692,7 @@ export default class GMApi {
         const { connect } = request.script.metadata;
         for (let i = 0; i < connect.length; i += 1) {
           if (url.hostname.endsWith(connect[i])) {
-            return Promise.resolve(true);
+            return true;
           }
         }
       }
@@ -701,7 +701,7 @@ export default class GMApi {
       metadata[i18next.t("request_domain")] = url.hostname;
       metadata[i18next.t("request_url")] = config.url;
 
-      return Promise.resolve({
+      return {
         permission: "cors",
         permissionValue: url.hostname,
         title: i18next.t("script_accessing_cross_origin_resource"),
@@ -709,7 +709,7 @@ export default class GMApi {
         describe: i18next.t("confirm_operation_description"),
         wildcard: true,
         permissionContent: i18next.t("domain"),
-      } as ConfirmParam);
+      } as ConfirmParam;
     },
     alias: ["GM.xmlHttpRequest"],
   })
@@ -837,7 +837,7 @@ export default class GMApi {
     } catch (e) {
       this.logger.error("GM_closeInTab", Logger.E(e));
     }
-    return Promise.resolve(true);
+    return true;
   }
 
   @PermissionVerify.API({})
@@ -852,16 +852,16 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  GM_saveTab(request: Request, sender: GetSender) {
+  async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    return Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, (tabData: { [key: number]: any }) => {
+    const _ = await Cache.getInstance()
+      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
         tabData = tabData || {};
         tabData[tabId] = data;
-        return Promise.resolve(tabData);
-      })
-      .then(() => true);
+        return tabData;
+      });
+    return true;
   }
 
   @PermissionVerify.API()

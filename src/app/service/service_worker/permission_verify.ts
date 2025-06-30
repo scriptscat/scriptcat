@@ -108,14 +108,14 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  verify(request: Request, api: ApiValue): Promise<boolean> {
+  async verify(request: Request, api: ApiValue): Promise<boolean> {
     if (api.param.default) {
-      return Promise.resolve(true);
+      return true;
     }
     // 没有其它条件,从metadata.grant中判断
     const { grant } = request.script.metadata;
     if (!grant) {
-      return Promise.reject(new Error("grant is undefined"));
+      throw new Error("grant is undefined");
     }
     for (let i = 0; i < grant.length; i += 1) {
       let grantName = grant[i];
@@ -130,13 +130,14 @@ export default class PermissionVerify {
         (Array.isArray(api.param.link) && api.param.link.includes(grantName))
       ) {
         // 需要用户确认
+        let result = true;
         if (api.param.confirm) {
-          return this.pushConfirmQueue(request, api);
+          result = await this.pushConfirmQueue(request, api);
         }
-        return Promise.resolve(true);
+        return result;
       }
     }
-    return Promise.reject(new Error("permission not requested"));
+    throw new Error("permission not requested");
   }
 
   async dealConfirmQueue() {
@@ -159,9 +160,9 @@ export default class PermissionVerify {
   async pushConfirmQueue(request: Request, api: ApiValue): Promise<boolean> {
     const confirm = await api.param.confirm!(request);
     if (confirm === true) {
-      return Promise.resolve(true);
+      return true;
     }
-    return new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       this.confirmQueue.push({ request, confirm, resolve, reject });
     });
   }
@@ -180,15 +181,15 @@ export default class PermissionVerify {
           model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, "*");
         }
       }
-      return Promise.resolve(model);
+      return model;
     });
     // 有查询到结果,进入判断,不再需要用户确认
     if (ret) {
       if (ret.allow) {
-        return Promise.resolve(true);
+        return true;
       }
       // 权限拒绝
-      return Promise.reject(new Error("permission denied"));
+      throw new Error("permission denied");
     }
     // 没有权限,则弹出页面让用户进行确认
     const userConfirm = await this.confirmWindow(request.script, confirm);
@@ -230,9 +231,9 @@ export default class PermissionVerify {
       }
     }
     if (userConfirm.allow) {
-      return Promise.resolve(true);
+      return true;
     }
-    return Promise.reject(new Error("permission not allowed"));
+    throw new Error("permission not allowed");
   }
 
   // 确认map
@@ -273,25 +274,25 @@ export default class PermissionVerify {
   }
 
   // 处理确认
-  private userConfirm(data: { uuid: string; userConfirm: UserConfirm }) {
+  private async userConfirm(data: { uuid: string; userConfirm: UserConfirm }) {
     const confirm = this.confirmMap.get(data.uuid);
     if (!confirm) {
       if (data.userConfirm.type === 0) {
         // 忽略
-        return Promise.resolve(undefined);
+        return undefined;
       }
-      return Promise.reject(new Error("confirm not found"));
+      throw new Error("confirm not found");
     }
     this.confirmMap.delete(data.uuid);
     confirm.resolve(data.userConfirm);
-    return Promise.resolve(true);
+    return true;
   }
 
   // 获取信息
-  private getInfo(uuid: string) {
+  private async getInfo(uuid: string) {
     const data = this.confirmMap.get(uuid);
     if (!data) {
-      return Promise.reject(new Error("permission confirm not found"));
+      throw new Error("permission confirm not found");
     }
     const { script, confirm } = data;
     // 查询允许统配的有多少个相同等待确认权限
@@ -308,7 +309,7 @@ export default class PermissionVerify {
         }
       });
     }
-    return Promise.resolve({ script, confirm, likeNum });
+    return { script, confirm, likeNum };
   }
 
   async deletePermission(data: { uuid: string; permission: string; permissionValue: string }) {
@@ -341,20 +342,16 @@ export default class PermissionVerify {
     this.clearCache(uuid);
   }
 
-  clearCache(uuid: string) {
-    return Cache.getInstance()
-      .list()
-      .then((keys) => {
-        // 删除所有以permission:uuid:开头的缓存
-        return Promise.all(
-          keys.map((key) => {
-            if (key.startsWith(`permission:${uuid}:`)) {
-              return Cache.getInstance().del(key);
-            }
-            return Promise.resolve();
-          })
-        );
-      });
+  async clearCache(uuid: string) {
+    const keys = await Cache.getInstance().list();
+    // 删除所有以permission:uuid:开头的缓存
+    await Promise.all(
+      keys.map((key) => {
+        if (key.startsWith(`permission:${uuid}:`)) {
+          return Cache.getInstance().del(key);
+        }
+      })
+    );
   }
 
   init() {

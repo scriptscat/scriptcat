@@ -35,30 +35,29 @@ export default class WebDAVFileSystem implements FileSystem {
       }
       throw new Error("verify failed");
     }
-    return Promise.resolve();
   }
 
-  open(file: File): Promise<FileReader> {
-    return Promise.resolve(new WebDAVFileReader(this.client, joinPath(file.path, file.name)));
+  async open(file: File): Promise<FileReader> {
+    return new WebDAVFileReader(this.client, joinPath(file.path, file.name));
   }
 
-  openDir(path: string): Promise<FileSystem> {
-    return Promise.resolve(new WebDAVFileSystem(this.client, joinPath(this.basePath, path), this.url));
+  async openDir(path: string): Promise<FileSystem> {
+    return new WebDAVFileSystem(this.client, joinPath(this.basePath, path), this.url);
   }
 
-  create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new WebDAVFileWriter(this.client, joinPath(this.basePath, path)));
+  async create(path: string): Promise<FileWriter> {
+    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path));
   }
 
   async createDir(path: string): Promise<void> {
     try {
-      return Promise.resolve(await this.client.createDirectory(joinPath(this.basePath, path)));
+      await this.client.createDirectory(joinPath(this.basePath, path));
     } catch (e: any) {
       // 如果是405错误,则忽略
       if (e.message.includes("405")) {
-        return Promise.resolve();
+        return;
       }
-      return Promise.reject(e);
+      throw e;
     }
   }
 
@@ -82,10 +81,10 @@ export default class WebDAVFileSystem implements FileSystem {
         updatetime: new Date(item.lastmod).getTime(),
       });
     });
-    return Promise.resolve(ret);
+    return ret;
   }
 
-  getDirUrl(): Promise<string> {
-    return Promise.resolve(this.url + this.basePath);
+  async getDirUrl(): Promise<string> {
+    return this.url + this.basePath;
   }
 }

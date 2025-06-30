@@ -13,37 +13,36 @@ export default class ZipFileSystem implements FileSystem {
     this.basePath = basePath || "";
   }
 
-  verify(): Promise<void> {
-    return Promise.resolve();
+  async verify(): Promise<void> {
+    // do nothing
   }
 
-  open(info: File): Promise<FileReader> {
+  async open(info: File): Promise<FileReader> {
     const path = info.name;
     const file = this.zip.file(path);
     if (file) {
-      return Promise.resolve(new ZipFileReader(file));
+      return new ZipFileReader(file);
     }
-    return Promise.reject(new Error("File not found"));
+    throw new Error("File not found");
   }
 
-  openDir(path: string): Promise<FileSystem> {
-    return Promise.resolve(new ZipFileSystem(this.zip, path));
+  async openDir(path: string): Promise<FileSystem> {
+    return new ZipFileSystem(this.zip, path);
   }
 
-  create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new ZipFileWriter(this.zip, path));
+  async create(path: string): Promise<FileWriter> {
+    return new ZipFileWriter(this.zip, path);
   }
 
-  createDir(): Promise<void> {
-    return Promise.resolve();
+  async createDir(): Promise<void> {
+    // do nothing
   }
 
-  delete(path: string): Promise<void> {
+  async delete(path: string): Promise<void> {
     this.zip.remove(path);
-    return Promise.resolve();
   }
 
-  list(): Promise<File[]> {
+  async list(): Promise<File[]> {
     const files: File[] = [];
     Object.keys(this.zip.files).forEach((key) => {
       files.push({
@@ -55,10 +54,10 @@ export default class ZipFileSystem implements FileSystem {
         updatetime: this.zip.files[key].date.getTime(),
       });
     });
-    return Promise.resolve(files);
+    return files;
   }
 
-  getDirUrl(): Promise<string> {
+  async getDirUrl(): Promise<string> {
     throw new Error("Method not implemented.");
   }
 }

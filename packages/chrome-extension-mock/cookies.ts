@@ -13,12 +13,12 @@ export default class Cookies {
     callback: (cookies: chrome.cookies.Cookie[]) => void
   ) => void | undefined;
 
-  getAll(
+  async getAll(
     details: chrome.cookies.GetAllDetails,
     callback: (cookies: chrome.cookies.Cookie[]) => void
   ): Promise<chrome.cookies.Cookie[]> {
     this.mockGetAll?.(details, callback);
-    return Promise.resolve([]);
+    return [];
   }
 
   set(details: chrome.cookies.SetDetails, callback?: () => void): void {

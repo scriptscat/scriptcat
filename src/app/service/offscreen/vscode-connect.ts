@@ -59,7 +59,8 @@ export class VSCodeConnect {
         this.wsConnect = new WebSocket(url);
       } catch (e: any) {
         this.logger.debug("connect vscode faild", Logger.E(e));
-        return Promise.reject(e);
+        reject(e);
+        return;
       }
       let ok = false;
       this.wsConnect.addEventListener("open", () => {

@@ -20,20 +20,20 @@ export default class BaiduFileSystem implements FileSystem {
     return this.list().then();
   }
 
-  open(file: File): Promise<FileReader> {
+  async open(file: File): Promise<FileReader> {
     // 获取fsid
-    return Promise.resolve(new BaiduFileReader(this, file));
+    return new BaiduFileReader(this, file);
   }
 
-  openDir(path: string): Promise<FileSystem> {
-    return Promise.resolve(new BaiduFileSystem(joinPath(this.path, path), this.accessToken));
+  async openDir(path: string): Promise<FileSystem> {
+    return new BaiduFileSystem(joinPath(this.path, path), this.accessToken);
   }
 
-  create(path: string): Promise<FileWriter> {
-    return Promise.resolve(new BaiduFileWriter(this, joinPath(this.path, path)));
+  async create(path: string): Promise<FileWriter> {
+    return new BaiduFileWriter(this, joinPath(this.path, path));
   }
 
-  createDir(dir: string): Promise<void> {
+  async createDir(dir: string): Promise<void> {
     dir = joinPath(this.path, dir);
     const urlencoded = new URLSearchParams();
     urlencoded.append("path", dir);
@@ -42,17 +42,15 @@ export default class BaiduFileSystem implements FileSystem {
     urlencoded.append("rtype", "3");
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-    return this.request(`https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.accessToken}`, {
+    const data = await this.request(`https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.accessToken}`, {
       method: "POST",
       headers: myHeaders,
       body: urlencoded,
       redirect: "follow",
-    }).then((data) => {
-      if (data.errno) {
-        throw new Error(JSON.stringify(data));
-      }
-      return Promise.resolve();
     });
+    if (data.errno) {
+      throw new Error(JSON.stringify(data));
+    }
   }
 
   async request(url: string, config?: RequestInit) {
@@ -148,7 +146,7 @@ export default class BaiduFileSystem implements FileSystem {
     });
   }
 
-  getDirUrl(): Promise<string> {
-    return Promise.resolve(`https://pan.baidu.com/disk/main#/index?category=all&path=${encodeURIComponent(this.path)}`);
+  async getDirUrl(): Promise<string> {
+    return `https://pan.baidu.com/disk/main#/index?category=all&path=${encodeURIComponent(this.path)}`;
   }
 }

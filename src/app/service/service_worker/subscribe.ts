@@ -44,37 +44,39 @@ export class SubscribeService {
       publishSubscribeInstall(this.mq, {
         subscribe: param.subscribe,
       });
-      return Promise.resolve(param.subscribe.url);
+      return param.subscribe.url;
     } catch (e) {
       logger.error("upsert subscribe error", Logger.E(e));
-      return Promise.reject(e);
+      throw e;
     }
   }
 
   async delete(param: { url: string }) {
+    const url = param.url;
     const logger = this.logger.with({
-      subscribeUrl: param.url,
+      subscribeUrl: url,
     });
-    const subscribe = await this.subscribeDAO.get(param.url);
+    const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe) {
       logger.warn("subscribe not found");
-      return Promise.resolve(false);
+      return false;
     }
     try {
-      // 删除相关脚本
-      const scripts = await this.scriptDAO.find((_, value) => {
-        return value.subscribeUrl === param.url;
-      });
-      scripts.forEach((script) => {
-        this.scriptService.deleteScript(script.uuid);
-      });
-      // 删除订阅
-      await this.subscribeDAO.delete(param.url);
+      await Promise.all([
+        // 删除相关脚本
+        this.scriptDAO.find((_, value) => {
+          return value.subscribeUrl === url;
+        }).then(scripts => Promise.all(scripts.map((script) => {
+          return this.scriptService.deleteScript(script.uuid);
+        }))),
+        // 删除订阅
+        this.subscribeDAO.delete(url)
+      ]);
       logger.info("delete subscribe success");
-      return Promise.resolve(true);
+      return true;
     } catch (e) {
       logger.error("uninstall subscribe error", Logger.E(e));
-      return Promise.reject(e);
+      throw e;
     }
   }
 
@@ -103,7 +105,7 @@ export class SubscribeService {
     });
 
     const notification: string[][] = [[], []];
-    const result: Promise<any>[] = [];
+    const result: Promise<boolean>[] = [];
     // 添加脚本
     addScript.forEach((url) => {
       result.push(
@@ -114,10 +116,10 @@ export class SubscribeService {
             uuid: script.uuid,
           };
           notification[0].push(script.name);
-          return Promise.resolve(true);
+          return true;
         })().catch((e) => {
           logger.error("install script failed", Logger.E(e));
-          return Promise.resolve(false);
+          return false;
         })
       );
     });
@@ -132,10 +134,10 @@ export class SubscribeService {
             // 删除脚本
             this.scriptService.deleteScript(script.uuid);
           }
-          return Promise.resolve(true);
+          return true;
         })().catch((e) => {
           logger.error("delete script failed", Logger.E(e));
-          return Promise.resolve(false);
+          return false;
         })
       );
     });
@@ -151,14 +153,14 @@ export class SubscribeService {
       update: notification[1],
     });
 
-    return Promise.resolve(true);
+    return true;
   }
 
   // 检查更新
   async checkUpdate(url: string, source: InstallSource) {
     const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe) {
-      return Promise.resolve(false);
+      return false;
     }
     const logger = this.logger.with({
       url: subscribe.url,
@@ -170,12 +172,12 @@ export class SubscribeService {
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
-        return Promise.resolve(false);
+        return false;
       }
       const newVersion = metadata.version && metadata.version[0];
       if (!newVersion) {
         logger.error("parse version failed", { version: metadata.version });
-        return Promise.resolve(false);
+        return false;
       }
       let oldVersion = subscribe.metadata.version && subscribe.metadata.version[0];
       if (!oldVersion) {
@@ -183,14 +185,14 @@ export class SubscribeService {
       }
       // 对比版本大小
       if (ltever(newVersion, oldVersion, logger)) {
-        return Promise.resolve(false);
+        return false;
       }
       // 进行更新
       this.openUpdatePage(info);
-      return Promise.resolve(true);
+      return true;
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-      return Promise.resolve(false);
+      return false;
     }
   }
 
@@ -243,22 +245,20 @@ export class SubscribeService {
     return this.checkUpdate(url, "user");
   }
 
-  enable(param: { url: string; enable: boolean }) {
+  async enable(param: { url: string; enable: boolean }) {
     const logger = this.logger.with({
       url: param.url,
     });
-    return this.subscribeDAO
-      .update(param.url, {
+    try {
+      await this.subscribeDAO.update(param.url, {
         status: param.enable ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE,
-      })
-      .then(() => {
-        logger.info("enable subscribe success");
-        return Promise.resolve(true);
-      })
-      .catch((e) => {
-        logger.error("enable subscribe error", Logger.E(e));
-        return Promise.reject(e);
       });
+      logger.info("enable subscribe success");
+      return true;
+    } catch (e) {
+      logger.error("enable subscribe error", Logger.E(e));
+      throw e;
+    }
   }
 
   init() {

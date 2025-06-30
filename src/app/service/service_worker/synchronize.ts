@@ -98,7 +98,7 @@ export class SynchronizeService {
           })
         );
       });
-      return Promise.all(rets);
+      return Promise.all(rets); // 不处理 Promise.reject ?
     }
     // 获取所有脚本
     const list = await this.scriptDAO.all();
@@ -150,7 +150,7 @@ export class SynchronizeService {
     ret.resources = this.resourceToBackdata(resources);
 
     ret.storage = storage;
-    return Promise.resolve(ret);
+    return ret;
   }
 
   resourceToBackdata(resource: { [key: string]: Resource }) {
@@ -191,7 +191,7 @@ export class SynchronizeService {
       ret.push(this.resource.importResource(uuid, item, "require-css"));
     });
     return Promise.all(ret).then(() => {
-      return Promise.resolve();
+      return;
     });
   }
 
@@ -259,7 +259,7 @@ export class SynchronizeService {
       saveAs: true,
       filename: `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`,
     });
-    return Promise.resolve();
+    return;
   }
 
   // 备份到云端
@@ -288,9 +288,9 @@ export class SynchronizeService {
       );
     } catch (e) {
       this.logger.error("backup to cloud error", Logger.E(e));
-      return Promise.reject(e);
+      throw e;
     }
-    return Promise.resolve();
+    return;
   }
 
   // 开始一次云同步
@@ -490,7 +490,7 @@ export class SynchronizeService {
     // 重新获取文件列表,保存文件摘要
     await this.updateFileDigest(fs);
     this.logger.info("sync complete");
-    return Promise.resolve();
+    return;
   }
 
   async updateFileDigest(fs: FileSystem) {
@@ -500,7 +500,7 @@ export class SynchronizeService {
       newFileDigestMap[file.name] = file.digest;
     });
     await this.storage.set("file_digest", newFileDigestMap);
-    return Promise.resolve();
+    return;
   }
 
   // 删除云端脚本数据
@@ -533,7 +533,7 @@ export class SynchronizeService {
     } catch (e) {
       logger.error("delete file error", Logger.E(e));
     }
-    return Promise.resolve();
+    return;
   }
 
   // 上传脚本
@@ -563,7 +563,7 @@ export class SynchronizeService {
       logger.error("push script error", Logger.E(e));
       throw e;
     }
-    return Promise.resolve();
+    return;
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, script?: Script) {
@@ -595,7 +595,7 @@ export class SynchronizeService {
     } catch (e) {
       logger.error("pull script error", Logger.E(e));
     }
-    return Promise.resolve();
+    return;
   }
 
   cloudSyncConfigChange(value: CloudSyncConfig) {

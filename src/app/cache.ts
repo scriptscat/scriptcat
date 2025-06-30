@@ -135,7 +135,7 @@ export default class Cache {
     return this.storage.get(key);
   }
 
-  public async getOrSet<T>(key: string, set: () => Promise<T>): Promise<T> {
+  public async getOrSet<T>(key: string, set: () => Promise<T> | T): Promise<T> {
     let ret = await this.get(key);
     if (!ret) {
       ret = await set();

@@ -25,8 +25,7 @@ export class ZipFileWriter implements FileWriter {
     this.path = path;
   }
 
-  write(content: string): Promise<void> {
+  async write(content: string): Promise<void> {
     this.zip.file(this.path, content);
-    return Promise.resolve();
   }
 }

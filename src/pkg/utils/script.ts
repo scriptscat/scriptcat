@@ -343,5 +343,5 @@ export async function prepareSubscribeByCode(
   if (old) {
     subscribe = copySubscribe(subscribe, old);
   }
-  return Promise.resolve({ subscribe, oldSubscribe: old });
+  return { subscribe, oldSubscribe: old };
 }
