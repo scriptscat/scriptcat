@@ -56,21 +56,14 @@ const processScriptFavicon = async (script: Script) => {
 };
 
 // 在scriptSlice创建后处理favicon加载，以批次方式处理
-export const loadScriptFavicons = async (scripts: Script[]) => {
+export const loadScriptFavicons = (scripts: Script[]) => {
   const batchSize = 20; // 每批处理20个脚本
   const scriptChunks = chunkArray(scripts, batchSize);
-  const results = [];
-
   // 逐批处理脚本
   for (const chunk of scriptChunks) {
-    const chunkResults = await Promise.all(chunk.map(processScriptFavicon));
-
-    // 每完成一批就更新一次store
-    store.dispatch(scriptSlice.actions.setScriptFavicon(chunkResults));
-
-    results.push(...chunkResults);
+    Promise.all(chunk.map(processScriptFavicon)).then((chunkResults) => {
+      // 每完成一批就更新一次store
+      store.dispatch(scriptSlice.actions.setScriptFavicon(chunkResults));
+    });
   }
-
-  // 最后再做一次完整更新，确保所有数据都已更新
-  store.dispatch(scriptSlice.actions.setScriptFavicon(results));
 };
