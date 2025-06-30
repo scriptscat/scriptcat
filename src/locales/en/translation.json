@@ -154,6 +154,8 @@
   "batch_operations": "Batch Operations",
   "export": "Export",
   "delete": "Delete",
+  "pin_to_top": "Pin Top",
+  "scripts_pinned_to_top": "The selected script has been pinned",
   "unknown_operation": "Unknown Operation",
   "confirm": "Confirm",
   "close": "Close",
@@ -405,5 +407,6 @@
   "invalid_script_code": "Bad Code",
   "build_failed": "Failed to Build",
   "drag_script_here_to_upload": "Drag script here to upload it",
-  "sync_status": "Sync Status"
+  "sync_status": "Sync Status",
+  "search_scripts": "Search script"
 }

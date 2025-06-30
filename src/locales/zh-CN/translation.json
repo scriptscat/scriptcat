@@ -154,6 +154,8 @@
   "batch_operations": "批量操作",
   "export": "导出",
   "delete": "删除",
+  "pin_to_top": "置顶",
+  "scripts_pinned_to_top": "已将所选脚本置顶",
   "unknown_operation": "未知操作",
   "confirm": "确定",
   "close": "关闭",
@@ -405,5 +407,6 @@
   "invalid_script_code": "错误的脚本代码",
   "build_failed": "构建失败",
   "drag_script_here_to_upload": "拖拽脚本到此处上传",
-  "sync_status": "同步状态"
+  "sync_status": "同步状态",
+  "search_scripts": "搜索脚本"
 }

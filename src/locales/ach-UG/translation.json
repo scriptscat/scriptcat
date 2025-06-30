@@ -154,6 +154,8 @@
   "batch_operations": "crwdns6100:0crwdne6100:0",
   "export": "crwdns6102:0crwdne6102:0",
   "delete": "crwdns6104:0crwdne6104:0",
+  "pin_to_top": "crwdns7020:0crwdne7020:0",
+  "scripts_pinned_to_top": "crwdns7022:0crwdne7022:0",
   "unknown_operation": "crwdns6106:0crwdne6106:0",
   "confirm": "crwdns6108:0crwdne6108:0",
   "close": "crwdns6110:0crwdne6110:0",
@@ -405,5 +407,6 @@
   "invalid_script_code": "crwdns7000:0crwdne7000:0",
   "build_failed": "crwdns7002:0crwdne7002:0",
   "drag_script_here_to_upload": "crwdns7004:0crwdne7004:0",
-  "sync_status": "crwdns7006:0crwdne7006:0"
+  "sync_status": "crwdns7006:0crwdne7006:0",
+  "search_scripts": "crwdns7024:0crwdne7024:0"
 }

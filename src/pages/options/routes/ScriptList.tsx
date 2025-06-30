@@ -746,6 +746,9 @@ function ScriptList() {
                   <Select.Option key={"delete"} value="delete">
                     {t("delete")}
                   </Select.Option>
+                  <Select.Option key={"pin_to_top"} value="pin_to_top">
+                    {t("pin_to_top")}
+                  </Select.Option>
                   <Select.Option key={"check_update"} value="check_update">
                     {t("check_update")}
                   </Select.Option>
@@ -791,6 +794,26 @@ function ScriptList() {
                           const uuids = select.map((item) => item.uuid);
                           dispatch(batchDeleteScript(uuids));
                           Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
+                        }
+                        break;
+                      case "pin_to_top":
+                        // 将选中的脚本置顶
+                        if (select.length > 0) {
+                          // 获取当前所有脚本列表
+                          const currentScripts = store.getState().script.scripts;
+                          // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
+                          [...select].reverse().forEach((script) => {
+                            // 找到脚本当前的位置
+                            const scriptIndex = currentScripts.findIndex(s => s.uuid === script.uuid);
+                            if (scriptIndex > 0) { // 如果不是已经在最顶部
+                              // 将脚本置顶（移动到第一个位置）
+                              dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
+                            }
+                          });
+                          Message.success({
+                            content: t("scripts_pinned_to_top"),
+                            duration: 3000,
+                          });
                         }
                         break;
                       // 批量检查更新

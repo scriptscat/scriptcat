@@ -3,7 +3,7 @@ import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { editor, KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -20,7 +20,7 @@ import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import i18n from "@App/locales/locales";
-import { IconClose, IconDelete } from "@arco-design/web-react/icon";
+import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 
 const { Row } = Grid;
 const { Col } = Grid;
@@ -153,8 +153,9 @@ const popstate = () => {
 };
 
 function ScriptEditor() {
-  const navigate = useNavigate();
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
+  const [searchKeyword, setSearchKeyword] = useState<string>("");
+  const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -566,6 +567,17 @@ function ScriptEditor() {
     });
   };
 
+  // 处理编辑器激活状态变化时的focus
+  useEffect(() => {
+    editors.forEach((item) => {
+      if (item.active && item.editor) {
+        setTimeout(() => {
+          item.editor?.focus();
+        }, 100);
+      }
+    });
+  }, [activeTab]); // 只在activeTab变化时执行
+
   return (
     <div
       className="h-full flex flex-col"
@@ -747,107 +759,130 @@ function ScriptEditor() {
             <Button
               className="text-left"
               size="mini"
-              disabled
               style={{
                 color: "var(--color-text-2)",
               }}
             >
-              {t("installed_scripts")}
-            </Button>
-            {scriptList.map((script) => (
-              <div
-                key={`s_${script.uuid}`}
-                className="relative group"
-                style={{
-                  overflow: "hidden",
-                }}
-              >
-                <Button
-                  size="mini"
-                  className="text-left w-full"
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
-                    paddingRight: "32px", // 为删除按钮留出空间
-                  }}
-                  onClick={() => {
-                    setSelectSciptButtonAndTab(script.uuid);
-                    // 如果已经打开则激活
-                    let flag = false;
-                    for (let i = 0; i < editors.length; i += 1) {
-                      if (editors[i].script.uuid === script.uuid) {
-                        editors[i].active = true;
-                        flag = true;
-                      } else {
-                        editors[i].active = false;
-                      }
-                    }
-                    if (!flag) {
-                      // 如果没有打开则打开
-                      // 获取code
-                      scriptCodeDAO.findByUUID(script.uuid).then((code) => {
-                        if (!code) {
-                          return;
-                        }
-                        editors.push({
-                          script,
-                          code: code.code,
-                          active: true,
-                          hotKeys,
-                          isChanged: false,
-                        });
-                        setEditors([...editors]);
-                      });
-                    }
-                  }}
-                >
-                  <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
-                </Button>
-                {/* 删除按钮，只在鼠标悬停时显示 */}
-                <Button
-                  type="text"
-                  icon={<IconDelete />}
-                  iconOnly
-                  size="mini"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    minWidth: "20px",
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--color-text-2)",
-                    boxShadow: "none",
-                  }}
+              <div className="flex justify-between items-center">
+                {t("installed_scripts")}
+                <IconSearch
                   onClick={(e) => {
-                    e.stopPropagation();
-                    // 删除脚本
-                    Modal.confirm({
-                      title: t("confirm_delete_script"),
-                      content: t("confirm_delete_script_content", { name: i18nName(script) }),
-                      onOk: () => {
-                        scriptClient
-                          .delete(script.uuid)
-                          .then(() => {
-                            setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
-                            handleDeleteEditor(script.uuid);
-                            if (selectSciptButtonAndTab === script.uuid) {
-                              setSelectSciptButtonAndTab("");
-                            }
-                            Message.success(t("delete_success"));
-                          })
-                          .catch((err) => {
-                            LoggerCore.logger(Logger.E(err)).debug("delete script error");
-                            Message.error(`${t("delete_failed")}: ${err}`);
-                          });
-                      },
-                    });
+                    setShowSearchInput(!showSearchInput);
                   }}
+                  style={{ cursor: "pointer" }}
                 />
               </div>
-            ))}
+            </Button>
+            {showSearchInput && (
+              <div className="p-2">
+                <Input
+                  placeholder={t("search_scripts")}
+                  allowClear
+                  value={searchKeyword}
+                  onChange={(value) => setSearchKeyword(value)}
+                  size="mini"
+                />
+              </div>
+            )}
+            {scriptList
+              .filter((script) => {
+                if (!searchKeyword) return true;
+                return i18nName(script).toLowerCase().includes(searchKeyword.toLowerCase());
+              })
+              .map((script) => (
+                <div
+                  key={`s_${script.uuid}`}
+                  className="relative group"
+                  style={{
+                    overflow: "hidden",
+                  }}
+                >
+                  <Button
+                    size="mini"
+                    className="text-left w-full"
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
+                      paddingRight: "32px", // 为删除按钮留出空间
+                    }}
+                    onClick={() => {
+                      setSelectSciptButtonAndTab(script.uuid);
+                      // 如果已经打开则激活
+                      let flag = false;
+                      for (let i = 0; i < editors.length; i += 1) {
+                        if (editors[i].script.uuid === script.uuid) {
+                          editors[i].active = true;
+                          flag = true;
+                        } else {
+                          editors[i].active = false;
+                        }
+                      }
+                      if (!flag) {
+                        // 如果没有打开则打开
+                        // 获取code
+                        scriptCodeDAO.findByUUID(script.uuid).then((code) => {
+                          if (!code) {
+                            return;
+                          }
+                          editors.push({
+                            script,
+                            code: code.code,
+                            active: true,
+                            hotKeys,
+                            isChanged: false,
+                          });
+                          setEditors([...editors]);
+                        });
+                      }
+                    }}
+                  >
+                    <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
+                  </Button>
+                  {/* 删除按钮，只在鼠标悬停时显示 */}
+                  <Button
+                    type="text"
+                    icon={<IconDelete />}
+                    iconOnly
+                    size="mini"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      minWidth: "20px",
+                      border: "none",
+                      background: "transparent",
+                      color: "var(--color-text-2)",
+                      boxShadow: "none",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // 删除脚本
+                      Modal.confirm({
+                        title: t("confirm_delete_script"),
+                        content: t("confirm_delete_script_content", { name: i18nName(script) }),
+                        onOk: () => {
+                          scriptClient
+                            .delete(script.uuid)
+                            .then(() => {
+                              setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
+                              handleDeleteEditor(script.uuid);
+                              if (selectSciptButtonAndTab === script.uuid) {
+                                setSelectSciptButtonAndTab("");
+                              }
+                              Message.success(t("delete_success"));
+                            })
+                            .catch((err) => {
+                              LoggerCore.logger(Logger.E(err)).debug("delete script error");
+                              Message.error(`${t("delete_failed")}: ${err}`);
+                            });
+                        },
+                      });
+                    }}
+                  />
+                </div>
+              ))}
           </div>
         </Col>
         <Col span={20} className="flex! flex-col h-full">
@@ -938,12 +973,6 @@ function ScriptEditor() {
           </Tabs>
           <div className="flex flex-grow flex-1">
             {editors.map((item) => {
-              // 先这样吧
-              setTimeout(() => {
-                if (item.active && item.editor) {
-                  item.editor.focus();
-                }
-              }, 100);
               if (item.active) {
                 document.title = `${i18nName(item.script)} - Script Editor`;
               }
@@ -966,6 +995,10 @@ function ScriptEditor() {
                         prev.forEach((v) => {
                           if (v.script.uuid === item.script.uuid) {
                             v.editor = e;
+                            // 编辑器实例创建后立即聚焦一次
+                            if (v.active) {
+                              setTimeout(() => e.focus(), 100);
+                            }
                           }
                         });
                         return [...prev];
