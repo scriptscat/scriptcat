@@ -290,7 +290,7 @@ export class ScriptService {
         nextruntime: params.nextruntime,
       })) === false
     ) {
-      throw "update error";
+      throw new Error("update error");
     }
     this.mq.publish("scriptRunStatus", params);
     return true;
