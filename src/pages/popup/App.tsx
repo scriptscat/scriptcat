@@ -19,7 +19,7 @@ import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
 import { ScriptMenu } from "@App/app/service/service_worker/popup";
 import { systemConfig } from "../store/global";
-import { isUserScriptsAvailable } from "@App/pkg/utils/utils";
+import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -90,7 +90,18 @@ function App() {
   return (
     <>
       {!isUserScriptsAvailable() && (
-        <Alert type="warning" content={<div dangerouslySetInnerHTML={{ __html: t("develop_mode_guide") }} />} />
+        <Alert
+          type="warning"
+          content={
+            <div
+              dangerouslySetInnerHTML={{
+                __html:
+                  // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
+                  getBrowserVersion() >= 138 && !isEdge() ? t("allow_user_script_guide") : t("develop_mode_guide"),
+              }}
+            />
+          }
+        />
       )}
       {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}
       <Card

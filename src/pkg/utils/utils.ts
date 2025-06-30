@@ -275,3 +275,18 @@ export function isUserScriptsAvailable() {
     return false;
   }
 }
+
+// 获取浏览器内核版本
+export function getBrowserVersion(): number {
+  try {
+    return Number(navigator.userAgent.match(/(Chrome|Chromium)\/([0-9]+)/)?.[2]);
+  } catch (e) {
+    console.error("Error getting browser version:", e);
+    return 0; // 返回0表示获取失败
+  }
+}
+
+// 判断是否为Edge浏览器
+export function isEdge(): boolean {
+  return navigator.userAgent.indexOf("Edg/") !== -1;
+}
