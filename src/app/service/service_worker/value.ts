@@ -39,7 +39,13 @@ export class ValueService {
     if (config) {
       Object.keys(config).forEach((tabKey) => {
         const tab = config![tabKey];
+        if (!(tab instanceof Object)) {
+          return;
+        }
         Object.keys(tab).forEach((key) => {
+          if (!tab[key]) {
+            return;
+          }
           // 动态变量
           if (tab[key].bind) {
             const bindKey = tab[key].bind!.substring(1);
