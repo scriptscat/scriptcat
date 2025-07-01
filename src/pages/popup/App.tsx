@@ -97,7 +97,11 @@ function App() {
               dangerouslySetInnerHTML={{
                 __html:
                   // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-                  getBrowserVersion() >= 138 && !isEdge() ? t("allow_user_script_guide") : t("develop_mode_guide"),
+                  getBrowserVersion() < 120
+                    ? t("lower_version_browser_guide")
+                    : getBrowserVersion() >= 138 && !isEdge()
+                      ? t("allow_user_script_guide")
+                      : t("develop_mode_guide"),
               }}
             />
           }
