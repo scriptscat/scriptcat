@@ -21,7 +21,7 @@
   "icons": {
     "128": "assets/logo.png"
   },
-  "default_locale": "zh_CN",
+  "default_locale": "en",
   "permissions": [
     "tabs",
     "alarms",

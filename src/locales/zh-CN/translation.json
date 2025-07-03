@@ -374,7 +374,6 @@
   "get_backup_files_failed": "获取备份文件失败",
   "develop_mode_guide": "检测到当前未开启开发者模式，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
   "allow_user_script_guide": "检测到当前未开启允许用户脚本，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解如何开启</a>",
-  "lower_version_browser_guide": "检测到当前浏览器版本过低，您的脚本无法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉点我了解更多</a>",
   "enable_script_failed": "脚本开启失败",
   "disable_script_failed": "脚本关闭失败",
   "confirm_leave_page": "当前正在编辑状态，跳转其它页面将会丢失当前内容，是否跳转？",

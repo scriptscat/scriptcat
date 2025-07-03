@@ -8,12 +8,16 @@ import viVN from "./vi/translation.json";
 import zhCN from "./zh-CN/translation.json";
 import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
+import jaJP from "./ja/translation.json";
+import deDE from "./de/translation.json";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
+import "dayjs/locale/ja";
+import "dayjs/locale/de";
 import { systemConfig } from "@App/pages/store/global";
 
 i18n.use(initReactI18next).init({
-  fallbackLng: "zh-CN",
+  fallbackLng: "en",
   lng: chrome.i18n.getUILanguage(),
   interpolation: {
     escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
@@ -24,6 +28,8 @@ i18n.use(initReactI18next).init({
     "zh-CN": { title: "简体中文", translation: zhCN },
     "zh-TW": { title: "繁体中文", translation: zhTW },
     "ach-UG": { title: "伪语言", translation: achUG },
+    "ja-JP": { title: "日本語", translation: jaJP },
+    "de-DE": { title: "Deutsch", translation: deDE },
   },
 });
 
