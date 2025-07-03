@@ -10,15 +10,19 @@ import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
 import jaJP from "./ja/translation.json";
 import deDE from "./de/translation.json";
+import "dayjs/locale/en";
+import "dayjs/locale/vi";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 import "dayjs/locale/ja";
 import "dayjs/locale/de";
 import { systemConfig } from "@App/pages/store/global";
 
+const uiLanguage = chrome.i18n.getUILanguage();
+
 i18n.use(initReactI18next).init({
-  fallbackLng: "en",
-  lng: chrome.i18n.getUILanguage(),
+  fallbackLng: "en-US",
+  lng: globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage, // 优先使用localStorage中的语言设置
   interpolation: {
     escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
   },
@@ -35,15 +39,18 @@ i18n.use(initReactI18next).init({
 
 export let localePath = "";
 
-chrome.i18n.getAcceptLanguages((lngs) => {
-  systemConfig.getLanguage(lngs).then((lng) => {
-    i18n.changeLanguage(lng);
-    dayjs.locale(lng.toLocaleLowerCase());
-    if (lng !== "zh-CN") {
-      localePath = "en";
-    }
-  });
-});
+async function initLanguage() {
+  const lng = await systemConfig.getLanguage();
+  i18n.changeLanguage(lng);
+  dayjs.locale(lng.toLocaleLowerCase());
+  if (lng !== "zh-CN") {
+    localePath = "en";
+  }
+}
+
+setTimeout(() => {
+  initLanguage();
+}, 0);
 
 dayjs.extend(relativeTime);
 
@@ -57,6 +64,19 @@ export function i18nDescription(script: { metadata: Metadata }) {
   return script.metadata[`description:${i18n.language.toLowerCase()}`]
     ? script.metadata[`description:${i18n.language.toLowerCase()}`]![0]
     : script.metadata.description;
+}
+
+// 匹配语言
+export async function matchLanguage() {
+  const acceptLanguages = await chrome.i18n.getAcceptLanguages();
+  // 遍历数组寻找匹配语言
+  for (let i = 0; i < acceptLanguages.length; i += 1) {
+    const lng = acceptLanguages[i];
+    if (i18n.hasResourceBundle(lng, "translation")) {
+      return lng;
+    }
+  }
+  return "";
 }
 
 export default i18n;

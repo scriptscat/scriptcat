@@ -3,7 +3,7 @@ import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
 import { FileSystemType } from "@Packages/filesystem/factory";
 import { MessageQueue } from "@Packages/message/message_queue";
-import i18n from "@App/locales/locales";
+import i18n, { matchLanguage } from "@App/locales/locales";
 import dayjs from "dayjs";
 import { ExtVersion } from "@App/app/const";
 
@@ -235,27 +235,28 @@ export class SystemConfig {
     this.set("menu_expand_num", val);
   }
 
-  async getLanguage(acceptLanguages?: string[]): Promise<string> {
-    const defaultLanguage = await new Promise<string>(async (resolve) => {
-      if (!acceptLanguages) {
-        acceptLanguages = await chrome.i18n.getAcceptLanguages();
+  async getLanguage() {
+    if (globalThis.localStorage) {
+      const cachedLanguage = localStorage.getItem("language");
+      if (cachedLanguage) {
+        return cachedLanguage;
       }
-      // 遍历数组寻找匹配语言
-      for (let i = 0; i < acceptLanguages.length; i += 1) {
-        const lng = acceptLanguages[i];
-        if (i18n.hasResourceBundle(lng, "translation")) {
-          resolve(lng);
-          break;
-        }
-      }
-    });
-    return this.get("language", defaultLanguage || chrome.i18n.getUILanguage());
+    }
+    let lng = await this.get("language", (await matchLanguage()) || chrome.i18n.getUILanguage());
+    // 设置进入缓存
+    if (globalThis.localStorage) {
+      localStorage.setItem("language", lng);
+    }
+    return lng;
   }
 
   setLanguage(value: any) {
     this.set("language", value);
     i18n.changeLanguage(value);
     dayjs.locale(value.toLocaleLowerCase());
+    if (globalThis.localStorage) {
+      localStorage.setItem("language", value);
+    }
   }
 
   setCheckUpdate(data: { notice: string; version: string; isRead: boolean }) {
