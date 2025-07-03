@@ -123,7 +123,7 @@ const MainLayout: React.FC<{
   });
 
   useEffect(() => {
-    // 当没有匹配语言且系统配置中没有设置语言时显示语言按钮
+    // 当没有匹配语言时显示语言按钮
     matchLanguage().then((result) => {
       if (!result) {
         setShowLanguage(true);
