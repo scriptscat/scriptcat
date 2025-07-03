@@ -10,9 +10,18 @@ Language files are located in the `src/locales` directory and are divided by pag
 
 If keywords in a page are the same but their translations differ, you can distinguish them using the `page.key` format, for example:
 
-```yaml
-list:
-  confirm_delete: Are you sure you want to delete? Please note that this action cannot be undone!
+
+## Crowdin
+
+[Crowdin](https://crowdin.com/project/scriptcat)
+
+```json
+{
+    "list": {
+    "confirm_delete": "Are you sure you want to delete? Please note that this is an irreversible operation.",
+    "confirm_update": "Are you sure you want to update? Please note that this is an irreversible operation."
+  }
+}
 ```
 
 
@@ -28,7 +37,16 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
 
 如果页面中的关键字一样，但是翻译不一样，可以使用`page.key`的方式进行区分，例如：
 
-```yaml
-list:
-  confirm_delete: 确定要删除吗？请注意这个操作无法恢复！
+## Crowdin
+
+[Crowdin](https://crowdin.com/project/scriptcat)
+
+
+```json
+{
+    "list": {
+    "confirm_delete": "Are you sure you want to delete? Please note that this is an irreversible operation.",
+    "confirm_update": "Are you sure you want to update? Please note that this is an irreversible operation."
+  }
+}
 ```
