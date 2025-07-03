@@ -83,7 +83,7 @@ This project is open source under the GPLv3 license. Please comply with the term
 
 ## Contribution
 
-Please refer to [Contribution Guidelines](./CONTRIBUTING.md)
+Please refer to [Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
 
 ### Thanks
 
