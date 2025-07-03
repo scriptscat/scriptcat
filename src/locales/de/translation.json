@@ -374,6 +374,7 @@
   "get_backup_files_failed": "Backup-Dateien abrufen fehlgeschlagen",
   "develop_mode_guide": "Es wurde erkannt, dass der Entwicklermodus derzeit nicht aktiviert ist. Ihre Skripte können nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie den Entwicklermodus aktivieren</a>",
   "allow_user_script_guide": "Es wurde festgestellt, dass Benutzerskripte derzeit nicht aktiviert sind. Ihr Skript kann nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie es aktivieren</a>",
+  "lower_version_browser_guide": "Es wurde festgestellt, dass die aktuelle Browserversion zu niedrig ist und Ihr Skript nicht normal verwendet werden kann. <a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um mehr zu erfahren</a>",
   "enable_script_failed": "Skript-Aktivierung fehlgeschlagen",
   "disable_script_failed": "Skript-Deaktivierung fehlgeschlagen",
   "confirm_leave_page": "Derzeit im Bearbeitungsstatus. Das Navigieren zu anderen Seiten führt zum Verlust des aktuellen Inhalts. Navigieren?",
