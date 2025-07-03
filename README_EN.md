@@ -49,7 +49,7 @@ We built a framework for executing background scripts and Greasemonkey/Tampermon
 
 ### Install script
 
-You can get normal userscripts from [major userscript markets](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC) and background scripts from [Background Scripts](https://bbs.tampermonkey.net.cn/forum-68-1.html) which is supported by ScriptCat.
+You can get normal userscripts from [major userscript markets](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC) and background scripts from [Background Scripts](https://scriptcat.org/en/search?script_type=3) which is supported by ScriptCat.
 
 The installation method is the same as Greasemonkey/Tampermonkey, and it is also compatible with the majority of userscripts. If you encounter any incompatible scripts, you can provide feedback to us through [issues](https://github.com/scriptscat/scriptcat/issues).
 
@@ -69,21 +69,28 @@ We have published our extension in the Chrome or Firefox store. If you cannot ac
 - [Edge Store](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 - [Firefox Store](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 
+#### Beta Version
+
+Pre-release versions are versions before the official release. They are usually used to test new features. Pre-release versions have a pre-release identifier in their version number, for example:
+`1.0.0-beta.1`.
+
+You can get pre-release versions from the [Release](https://github.com/scriptscat/scriptcat/releases) page or from the extension store pages below:
+
+- [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)
+- [Chrome](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN)
+- [Edge](https://microsoftedge.microsoft.com/addons/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)
+
+In addition to pre-releases, ScriptCat also builds the extension on [Github Action](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) every time code is committed and merged into the main branch. If you want to experience the latest features or fixes, you can visit the [Github Action](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) page to download.
+
+## Contribution
+
+Please refer to [Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
+
 ### Discussion
 
 - [Telegram](https://t.me/scriptscat)
 - [Discord](https://discord.gg/JF76nHCCM7)
 - [油猴中文网](https://bbs.tampermonkey.net.cn/)
-
-## License
-
-This project is open source under the GPLv3 license. Please comply with the terms and conditions of the license.
-
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
-
-## Contribution
-
-Please refer to [Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
 
 ### Thanks
 
@@ -92,3 +99,9 @@ Thanks to the following developers for contributing to ScriptCat and making Scri
 <a href="https://github.com/scriptscat/scriptcat/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=scriptscat/scriptcat&max=1000" />
 </a>
+
+## License
+
+This project is open source under the GPLv3 license. Please comply with the terms and conditions of the license.
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
