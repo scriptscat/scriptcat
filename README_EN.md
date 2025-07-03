@@ -1,8 +1,11 @@
-<h1 align="center">ScriptCat</h1>
-
-<p align="center">
-<img src="./src/assets/logo.png"/>
+<p align="right">
+<a href="./README.md">中文</a>  <a href="./README_EN.md">English</a>
 </p>
+
+<h1 align="center">
+<img src="./src/assets/logo.png"/><br/>
+ScriptCat
+</h1>
 
 <p align="center">ScriptCat, a browser extension that can execute user scripts, everything can be scripted, allowing your browser to do more things!</p>
 
@@ -10,10 +13,6 @@
 <a href="https://docs.scriptcat.org/">Docs</a> ·
 <a href="https://bbs.tampermonkey.net.cn/">Community</a> ·
 <a href="https://scriptcat.org/search">Script Hub</a> ·
-</p>
-
-<p align="center">
-<a href="./README.md">中文说明</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
