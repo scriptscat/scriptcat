@@ -76,6 +76,25 @@ export async function matchLanguage() {
       return lng;
     }
   }
+  // 根据前缀去匹配
+  const prefixMap = i18n.languages.reduce(
+    (acc, lng) => {
+      const prefix = lng.split("-")[0];
+      if (!acc[prefix]) {
+        acc[prefix] = [];
+      }
+      acc[prefix].push(lng);
+      return acc;
+    },
+    {} as Record<string, string[]>
+  );
+  for (let i = 0; i < acceptLanguages.length; i += 1) {
+    const lng = acceptLanguages[i];
+    const prefix = lng.split("-")[0];
+    if (prefixMap[prefix] && prefixMap[prefix].length > 0) {
+      return prefixMap[prefix][0]; // 返回第一个匹配的语言
+    }
+  }
   return "";
 }
 
