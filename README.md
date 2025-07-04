@@ -1,8 +1,11 @@
-<h1 align="center">ScriptCat</h1>
-
-<p align="center">
-<img src="./src/assets/logo.png"/>
+<p align="right">
+<a href="./README.md">中文</a>  <a href="./README_EN.md">English</a>
 </p>
+
+<h1 align="center">
+<img src="./src/assets/logo.png"/><br/>
+ScriptCat
+</h1>
 
 <p align="center">脚本猫，一个可以执行用户脚本的浏览器扩展，万物皆可脚本化，让你的浏览器可以做更多的事情！</p>
 
@@ -10,10 +13,6 @@
 <a href="https://docs.scriptcat.org/">文档</a> ·
 <a href="https://bbs.tampermonkey.net.cn/">社区</a> ·
 <a href="https://scriptcat.org/search">脚本站</a>
-</p>
-
-<p align="center">
-<a href="./README_EN.md">English README</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
@@ -54,7 +53,7 @@ API，让脚本能够做更多的事情。并且提供了一个优秀的编辑�
 
 安装方式与油猴一样，同时也是兼容绝大部分油猴脚本的，如果遇到未兼容的脚本，你可以通过[issue](https://github.com/scriptscat/scriptcat/issues)反馈给我们。
 
-对于开发者来说，也可以参考这些脚本写出自己的脚本来。
+对于开发者来说，也可以参考这些脚本来写出自己的脚本。
 
 ### 开发文档
 
