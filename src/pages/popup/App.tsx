@@ -20,6 +20,7 @@ import { popupClient, scriptClient } from "../store/features/script";
 import { ScriptMenu } from "@App/app/service/service_worker/popup";
 import { systemConfig } from "../store/global";
 import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
+import { localePath } from "@App/locales/locales";
 
 const CollapseItem = Collapse.Item;
 
@@ -172,7 +173,7 @@ function App() {
                           const browserInfo = `${navigator.userAgent}`;
                           const issueUrl =
                             `https://github.com/scriptscat/scriptcat/issues/new?` +
-                            `template=bug_report.yaml&scriptcat-version=${ExtVersion}&` +
+                            `template=bug_report${localePath === "en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
                             `browser-version=${encodeURIComponent(browserInfo)}`;
                           window.open(issueUrl, "_blank");
                           break;

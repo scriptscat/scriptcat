@@ -1,0 +1,71 @@
+name: "Bug Report"
+description: Submit a bug encountered while using ScriptCat
+title: "[BUG] "
+labels: ["bug"]
+# assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please take 2 minutes to fill out the following information, which will greatly help us quickly locate the problem**
+
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: "Problem Description"
+      description: "What problem occurred? What is the expected normal behavior?"
+      placeholder: "e.g., When clicking the download button on YouTube page, the script throws a 404 error, expected to show a download window"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: "Reproduction Steps"
+      description: "Please list the steps to reproduce the problem in order"
+      placeholder: |
+        1. Open https://example.com
+        2. Click the red button in the top right corner of the page
+        3. Wait 5 seconds and observe the console
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### Environment Information"
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version
+      description: You can view it by clicking on the ScriptCat popup window. If possible, please use the latest version as your issue may have already been resolved
+      placeholder: e.g., v0.17.0
+    validations:
+      required: true
+  - type: input
+    id: browser-version
+    attributes:
+      label: Operating System and Browser Information
+      description: You can view it in Browser - About, or enter chrome://settings/help
+      placeholder: e.g., Windows 11 Chrome 137.0.3296.93 (Official Build) (arm64)
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "### Additional Information"
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information (Optional)
+      description: Error logs/screenshots/script code snippets/related configurations...
+      placeholder: |
+        If it involves a specific script, it's best to export it as a zip file from the extension's homepage and upload it, or provide the script's installation address.
+
+        To view error logs for the extension itself:
+        1. Open the extension management page (chrome://extensions/)
+        2. Turn on developer mode, click on ScriptCat's "Service Worker" or "offscreen.html"
+        3. View the console page in the popup window
+
+        Error logs for regular scripts can be viewed in the developer tools (F12 shortcut) - Console on the script's running page
+        Error logs for background scripts can be viewed in the above-mentioned offscreen.html
