@@ -17,10 +17,7 @@ const loggerCore = new LoggerCore({
   labels: { env: "install" },
 });
 
-// Defer non-critical logging to prioritize rendering
-requestIdleCallback(() => {
-  loggerCore.logger().debug("popup page start");
-});
+loggerCore.logger().debug("popup page start");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

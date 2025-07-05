@@ -101,11 +101,11 @@ function App() {
     <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />
   ), [backScriptList, currentUrl]);
 
-  const bUserScriptsAvailable = isUserScriptsAvailable();
+  const isUserScriptsAvailableFlag = isUserScriptsAvailable();
 
   return (
     <>
-      {!bUserScriptsAvailable && (
+      {!isUserScriptsAvailableFlag && (
         <Alert
           type="warning"
           content={
