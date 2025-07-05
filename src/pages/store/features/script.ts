@@ -13,7 +13,6 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
-import { stat } from "fs";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);

@@ -21,7 +21,7 @@ import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { SystemConfig } from "@App/pkg/config/config";
-import i18n, { localePath } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 
 export class ScriptService {

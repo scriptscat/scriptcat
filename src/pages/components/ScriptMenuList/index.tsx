@@ -27,9 +27,9 @@ import { ScriptIcons } from "@App/pages/options/routes/utils";
 import { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/popup";
 import { useAppSelector } from "@App/pages/store/hooks";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
+import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { subscribeScriptRunStatus } from "@App/app/service/queue";
-import { messageQueue, systemConfig } from "@App/pages/store/global";
 
 const CollapseItem = Collapse.Item;
 

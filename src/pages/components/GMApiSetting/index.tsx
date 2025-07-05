@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import FileSystemParams from "../FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
-import { set } from "node_modules/yaml/dist/schema/yaml-1.1/set";
 
 const CollapseItem = Collapse.Item;
 

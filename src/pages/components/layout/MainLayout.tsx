@@ -24,14 +24,14 @@ import {
 } from "@arco-design/web-react/icon";
 import React, { ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import "./index.css";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
 import { useDropzone } from "react-dropzone";
-import i18n, { matchLanguage } from "@App/locales/locales";
 import { systemConfig } from "@App/pages/store/global";
+import i18n, { matchLanguage } from "@App/locales/locales";
+import "./index.css";
 
 const readFile = (file: File): Promise<string> => {
   return new Promise((resolve) => {
