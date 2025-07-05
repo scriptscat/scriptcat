@@ -22,7 +22,6 @@ import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory"
 import { File, FileReader } from "@Packages/filesystem/filesystem";
 import { message, systemConfig } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
-import { SystemConfig } from "@App/pkg/config/config";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { migrateToChromeStorage } from "@App/app/migrate";
 

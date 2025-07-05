@@ -21,8 +21,6 @@ import {
   subscribeScriptRunStatus,
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { SystemConfig } from "@App/pkg/config/config";
-import { UrlMatch } from "@App/pkg/utils/match";
 
 export type ScriptMenuItem = {
   id: number;

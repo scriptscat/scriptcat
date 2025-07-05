@@ -17,9 +17,8 @@ import ScriptStorage from "@App/pages/components/ScriptStorage";
 import ScriptResource from "@App/pages/components/ScriptResource";
 import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
-import { i18nName } from "@App/locales/locales";
+import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import i18n from "@App/locales/locales";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 
 const { Row } = Grid;

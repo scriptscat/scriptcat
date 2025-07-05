@@ -1,5 +1,5 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
@@ -21,7 +21,7 @@ import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { SystemConfig } from "@App/pkg/config/config";
-import i18n, { localePath } from "@App/locales/locales";
+import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 
 export class ScriptService {

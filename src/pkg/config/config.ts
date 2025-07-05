@@ -3,8 +3,7 @@ import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
 import { FileSystemType } from "@Packages/filesystem/factory";
 import { MessageQueue } from "@Packages/message/message_queue";
-import i18n, { matchLanguage } from "@App/locales/locales";
-import dayjs from "dayjs";
+import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 
 export const SystamConfigChange = "systemConfigChange";
@@ -250,10 +249,9 @@ export class SystemConfig {
     return lng;
   }
 
-  setLanguage(value: any) {
+  setLanguage(value: string) {
     this.set("language", value);
-    i18n.changeLanguage(value);
-    dayjs.locale(value.toLocaleLowerCase());
+    changeLanguage(value);
     if (globalThis.localStorage) {
       localStorage.setItem("language", value);
     }

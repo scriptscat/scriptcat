@@ -1,4 +1,5 @@
-import i18n from "i18next";
+import { SystemConfig } from "@App/pkg/config/config";
+import i18n, { Callback } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -16,43 +17,46 @@ import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 import "dayjs/locale/ja";
 import "dayjs/locale/de";
-import { systemConfig } from "@App/pages/store/global";
 
-const uiLanguage = chrome.i18n.getUILanguage();
-
-i18n.use(initReactI18next).init({
-  fallbackLng: "en-US",
-  lng: globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage, // 优先使用localStorage中的语言设置
-  interpolation: {
-    escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
-  },
-  resources: {
-    "en-US": { title: "English", translation: enUS },
-    "vi-VN": { title: "Tiếng Việt", translation: viVN },
-    "zh-CN": { title: "简体中文", translation: zhCN },
-    "zh-TW": { title: "繁体中文", translation: zhTW },
-    "ach-UG": { title: "伪语言", translation: achUG },
-    "ja-JP": { title: "日本語", translation: jaJP },
-    "de-DE": { title: "Deutsch", translation: deDE },
-  },
-});
+dayjs.extend(relativeTime);
 
 export let localePath = "";
 
-async function initLanguage() {
-  const lng = await systemConfig.getLanguage();
-  i18n.changeLanguage(lng);
+export function changeLanguage(lng: string, callback?: Callback): void {
+  i18n.changeLanguage(lng, callback);
   dayjs.locale(lng.toLocaleLowerCase());
-  if (lng !== "zh-CN") {
-    localePath = "en";
-  }
 }
 
-setTimeout(() => {
-  initLanguage();
-}, 0);
+// let cachedSystemConfig: SystemConfig;
 
-dayjs.extend(relativeTime);
+export function initLocales(systemConfig: SystemConfig) {
+  // cachedSystemConfig = systemConfig;
+  const uiLanguage = chrome.i18n.getUILanguage();
+  const defaultLanguage = globalThis.localStorage ? localStorage["language"] || uiLanguage : uiLanguage;
+  i18n.use(initReactI18next).init({
+    fallbackLng: "en-US",
+    lng: defaultLanguage, // 优先使用localStorage中的语言设置
+    interpolation: {
+      escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
+    },
+    resources: {
+      "en-US": { title: "English", translation: enUS },
+      "vi-VN": { title: "Tiếng Việt", translation: viVN },
+      "zh-CN": { title: "简体中文", translation: zhCN },
+      "zh-TW": { title: "繁体中文", translation: zhTW },
+      "ach-UG": { title: "伪语言", translation: achUG },
+      "ja-JP": { title: "日本語", translation: jaJP },
+      "de-DE": { title: "Deutsch", translation: deDE },
+    },
+  });
+
+  systemConfig.getLanguage().then(lng => {
+    changeLanguage(lng);
+    if (lng !== "zh-CN") {
+      localePath = "en";
+    }
+  });
+}
 
 export function i18nName(script: { name: string; metadata: Metadata }) {
   return script.metadata[`name:${i18n.language.toLowerCase()}`]
