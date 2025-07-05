@@ -39,6 +39,17 @@
     "unlimitedStorage",
     "declarativeNetRequest"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/inject.js",
+        "src/offscreen.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "host_permissions": ["<all_urls>"],
   "sandbox": {
     "pages": ["src/sandbox.html"]
