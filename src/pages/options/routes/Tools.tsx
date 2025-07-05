@@ -162,9 +162,9 @@ function Tools() {
                     list = list.filter((file) => file.name.endsWith(".zip"));
                     if (list.length === 0) {
                       Message.info(t("no_backup_files")!);
-                      return;
+                    } else {
+                      setBackupFileList(list);
                     }
-                    setBackupFileList(list);
                   } catch (e) {
                     Message.error(`${t("get_backup_files_failed")}: ${e}`);
                   }

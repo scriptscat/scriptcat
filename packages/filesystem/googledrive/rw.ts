@@ -22,16 +22,12 @@ export class GoogleDriveFileReader implements FileReader {
     }
 
     // 获取文件内容
-    const data = await this.fs.request(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-      {},
-      true
-    );
-    
+    const data = await this.fs.request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {}, true);
+
     if (data.status !== 200) {
       return Promise.reject(await data.text());
     }
-    
+
     switch (type) {
       case "string":
         return data.text();
@@ -68,23 +64,16 @@ export class GoogleDriveFileWriter implements FileWriter {
 
   async write(content: string | Blob): Promise<void> {
     // 解析文件路径和文件名
-    const pathParts = this.path.split('/').filter(Boolean);
-    const fileName = pathParts.pop() || ''; // 获取文件名
-    const dirPath = '/' + pathParts.join('/'); // 重建目录路径
-    
-    // 确保目录存在
-    if (dirPath !== '/') {
-      await this.fs.createDir(dirPath);
-    }
-    
-    // 检查文件是否已存在
-    const parentId = await this.getParentId(dirPath);
-    if (!parentId) {
-      throw new Error(`Directory not found: ${dirPath}`);
-    }
-    
-    const existingFileId = await this.findFile(fileName, parentId);
-    
+    const pathParts = this.path.split("/").filter(Boolean);
+    const fileName = pathParts.pop() || ""; // 获取文件名
+    const dirPath = "/" + pathParts.join("/"); // 重建目录路径
+
+    // 使用优化的方法确保目录存在并获取ID
+    const parentId = await this.fs.ensureDirExists(dirPath);
+
+    // 使用优化的查找方法
+    const existingFileId = await this.fs.findFileInDirectory(fileName, parentId);
+
     if (existingFileId) {
       // 如果文件存在，则更新
       return this.updateFile(existingFileId, content);
@@ -92,68 +81,49 @@ export class GoogleDriveFileWriter implements FileWriter {
       // 如果文件不存在，则创建
       return this.createNewFile(fileName, parentId, content);
     }
+  }  private async findFile(fileName: string, parentId: string): Promise<string | null> {
+    // 使用文件系统的优化查找方法
+    return this.fs.findFileInDirectory(fileName, parentId);
   }
-  
-  private async getParentId(dirPath: string): Promise<string | null> {
-    return this.fs.getFileId(dirPath);
-  }
-  
-  private async findFile(fileName: string, parentId: string): Promise<string | null> {
-    const query = `name='${fileName}' and '${parentId}' in parents and trashed=false`;
-    const response = await this.fs.request(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`
-    );
-    
-    if (response.files && response.files.length > 0) {
-      return response.files[0].id;
-    }
-    return null;
-  }
-  
+
   private async updateFile(fileId: string, content: string | Blob): Promise<void> {
     const myHeaders = new Headers();
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
-    
+
     const metadata = {
       // 只更新内容，不更新元数据
     };
-    
+
     const formData = new FormData();
-    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    formData.append('file', content instanceof Blob ? content : new Blob([content]));
-    
-    await this.fs.request(
-      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
-      {
-        method: 'PATCH',
-        body: formData
-      }
-    );
-    
+    formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+    formData.append("file", content instanceof Blob ? content : new Blob([content]));
+
+    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+      method: "PATCH",
+      body: formData,
+    });
+
     return Promise.resolve();
   }
-  
+
   private async createNewFile(fileName: string, parentId: string, content: string | Blob): Promise<void> {
     const myHeaders = new Headers();
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
-    
+
     const metadata = {
       name: fileName,
-      parents: [parentId]
+      parents: [parentId],
     };
-    
+
     const formData = new FormData();
-    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    formData.append('file', content instanceof Blob ? content : new Blob([content]));
-    
-    await this.fs.request(
-      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
-      {
-        method: 'POST',
-        body: formData
-      }
-    );
-    
+    formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+    formData.append("file", content instanceof Blob ? content : new Blob([content]));
+
+    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`, {
+      method: "POST",
+      body: formData,
+    });
+
     return Promise.resolve();
   }
 }
