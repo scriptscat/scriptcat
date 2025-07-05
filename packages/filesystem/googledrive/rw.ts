@@ -106,7 +106,6 @@ export class GoogleDriveFileWriter implements FileWriter {
   }
 
   private async createNewFile(fileName: string, parentId: string, content: string | Blob): Promise<void> {
-    const myHeaders = new Headers();
     // 不设置Content-Type，让浏览器自动处理multipart/form-data边界
 
     const metadata = {

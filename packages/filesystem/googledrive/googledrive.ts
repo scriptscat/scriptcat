@@ -257,8 +257,15 @@ export default class GoogleDriveFileSystem implements FileSystem {
     pathsToRemove.forEach(p => this.pathToIdCache.delete(p));
   }
 
-  getDirUrl(): Promise<string> {
-    throw new Error("Method not implemented.");
+  async getDirUrl(): Promise<string> {
+    // Retrieve the folder ID for the current path
+    const folderId = await this.getFileId(this.path);
+    if (!folderId) {
+      throw new Error(`Directory not found: ${this.path}`);
+    }
+    
+    // Construct and return the Google Drive folder URL
+    return `https://drive.google.com/drive/folders/${folderId}`;
   }
 
   // 确保目录存在并返回目录ID，优化Writer避免重复获取
