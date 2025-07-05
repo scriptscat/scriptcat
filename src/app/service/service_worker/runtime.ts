@@ -553,7 +553,13 @@ export class RuntimeService {
       }
 
       messageFlag = await this.getAndGenMessageFlag();
-      const injectJs = await fetch("inject.js").then((res) => res.text());
+      let url;
+      try {
+        url = chrome.runtime.getURL("src/inject.js");
+      } catch (e) {
+        url = "inject.js";
+      }
+      const injectJs = await fetch(url).then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
       chrome.userScripts.configureWorld({
