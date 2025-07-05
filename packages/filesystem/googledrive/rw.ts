@@ -1,5 +1,3 @@
-import { calculateMd5 } from "@App/pkg/utils/utils";
-import { MD5 } from "crypto-js";
 import { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import GoogleDriveFileSystem from "./googledrive";
@@ -48,20 +46,6 @@ export class GoogleDriveFileWriter implements FileWriter {
     this.path = path;
   }
 
-  size(content: string | Blob): number {
-    if (content instanceof Blob) {
-      return content.size;
-    }
-    return new Blob([content]).size;
-  }
-
-  async md5(content: string | Blob): Promise<string> {
-    if (content instanceof Blob) {
-      return calculateMd5(content);
-    }
-    return MD5(content).toString();
-  }
-
   async write(content: string | Blob): Promise<void> {
     // 解析文件路径和文件名
     const pathParts = this.path.split("/").filter(Boolean);
@@ -81,9 +65,6 @@ export class GoogleDriveFileWriter implements FileWriter {
       // 如果文件不存在，则创建
       return this.createNewFile(fileName, parentId, content);
     }
-  }  private async findFile(fileName: string, parentId: string): Promise<string | null> {
-    // 使用文件系统的优化查找方法
-    return this.fs.findFileInDirectory(fileName, parentId);
   }
 
   private async updateFile(fileId: string, content: string | Blob): Promise<void> {
