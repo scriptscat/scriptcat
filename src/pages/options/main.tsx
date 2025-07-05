@@ -25,7 +25,10 @@ const loggerCore = new LoggerCore({
   labels: { env: "options" },
 });
 
-loggerCore.logger().debug("options page start");
+// Defer non-critical logging to prioritize rendering
+requestIdleCallback(() => {
+  loggerCore.logger().debug("options page start");
+});
 
 storeSubscribe();
 
