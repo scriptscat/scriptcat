@@ -19,12 +19,14 @@ const loggerCore = new LoggerCore({
 
 loggerCore.logger().debug("import page start");
 
+const Root = (
+  <Provider store={store}>
+    <MainLayout className="!flex-col !p-[10px] box-border h-auto overflow-auto">
+      <App />
+    </MainLayout>
+  </Provider>
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <Provider store={store}>
-      <MainLayout className="!flex-col !p-[10px] box-border h-auto overflow-auto">
-        <App />
-      </MainLayout>
-    </Provider>
-  </React.StrictMode>
+  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
 );
