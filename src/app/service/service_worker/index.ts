@@ -1,3 +1,4 @@
+import { ExtServer, ExtVersion } from "@App/app/const";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
@@ -7,10 +8,9 @@ import { RuntimeService } from "./runtime";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
+import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
-import { ExtServer, ExtVersion } from "@App/app/const";
-import { systemConfig } from "@App/pages/store/global";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { Logger, LoggerDAO } from "@App/app/repo/logger";
