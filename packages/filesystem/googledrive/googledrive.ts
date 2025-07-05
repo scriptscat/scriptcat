@@ -280,16 +280,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       return cachedId;
     }
     
-    // 缓存中没有，先尝试创建目录
-    await this.createDir(dirPath);
-    
-    // 再次检查缓存，应该已经被设置了
-    const id = this.pathToIdCache.get(dirPath);
-    if (id) {
-      return id;
-    }
-    
-    // 如果还是没有，使用getFileId方法
+    // 如果没有缓存，使用getFileId方法
     const foundId = await this.getFileId(dirPath);
     if (!foundId) {
       throw new Error(`Failed to create or find directory: ${dirPath}`);
