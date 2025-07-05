@@ -37,6 +37,10 @@ const FileSystemParams: React.FC<{
       key: "onedrive",
       name: "OneDrive",
     },
+    {
+      key: "googledrive",
+      name: "Google Drive",
+    },
   ];
 
   return (
