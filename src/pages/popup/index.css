@@ -10,8 +10,8 @@
   overflow: hidden;
 }
 
-.arco-collapse {
-  border-bottom: 1px solid var(--color-neutral-3) !important;
+.arco-collapse[class] {
+  border-bottom: 1px solid var(--color-neutral-3);
 }
 
 .arco-collapse-item {

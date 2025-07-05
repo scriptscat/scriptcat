@@ -11,8 +11,8 @@ import {
   IconSearch,
   IconSync,
 } from "@arco-design/web-react/icon";
-import React, { useEffect, useState } from "react";
-import { RiMessage2Line, RiZzzFill } from "react-icons/ri";
+import React, { useEffect, useMemo, useState } from "react";
+import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
@@ -65,32 +65,47 @@ function App() {
       if (!tabs.length) {
         return;
       }
-      setCurrentUrl(tabs[0].url || "");
-      popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
-        // 按照开启状态和更新时间排序
-        const list = resp.scriptList;
-        list.sort((a, b) => {
-          if (a.enable === b.enable) {
-            // 根据菜单数排序
-            if (a.menus.length !== b.menus.length) {
-              return b.menus.length - a.menus.length;
+      const newUrl = tabs[0].url || "";
+      if (newUrl !== currentUrl) {
+        setCurrentUrl(newUrl);
+        popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
+          // 按照开启状态和更新时间排序
+          const list = resp.scriptList;
+          list.sort((a, b) => {
+            if (a.enable === b.enable) {
+              // 根据菜单数排序
+              if (a.menus.length !== b.menus.length) {
+                return b.menus.length - a.menus.length;
+              }
+              if (a.runNum !== b.runNum) {
+                return b.runNum - a.runNum;
+              }
+              return b.updatetime - a.updatetime;
             }
-            if (a.runNum !== b.runNum) {
-              return b.runNum - a.runNum;
-            }
-            return b.updatetime - a.updatetime;
-          }
-          return a.enable ? -1 : 1;
+            return a.enable ? -1 : 1;
+          });
+          setScriptList(list);
+          setBackScriptList(resp.backScriptList);
+          setIsBlacklist(resp.isBlacklist);
         });
-        setScriptList(list);
-        setBackScriptList(resp.backScriptList);
-        setIsBlacklist(resp.isBlacklist);
-      });
+      }
     });
-  }, []);
+  }, [currentUrl]);
+
+  // Memoize ScriptMenuList to prevent unnecessary re-renders
+  const memoizedScriptList = useMemo(() => (
+    <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
+  ), [scriptList, currentUrl]);
+
+  const memoizedBackScriptList = useMemo(() => (
+    <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />
+  ), [backScriptList, currentUrl]);
+
+  const isUserScriptsAvailableFlag = isUserScriptsAvailable();
+
   return (
     <>
-      {!isUserScriptsAvailable() && (
+      {!isUserScriptsAvailableFlag && (
         <Alert
           type="warning"
           content={
@@ -120,11 +135,7 @@ function App() {
                 checked={isEnableScript}
                 onChange={(val) => {
                   setIsEnableScript(val);
-                  if (val) {
-                    systemConfig.setEnableScript(true);
-                  } else {
-                    systemConfig.setEnableScript(false);
-                  }
+                  systemConfig.setEnableScript(val);
                 }}
               />
               <Button
@@ -238,7 +249,7 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
+            {memoizedScriptList}
           </CollapseItem>
 
           <CollapseItem
@@ -247,7 +258,7 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />
+            {memoizedBackScriptList}
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
@@ -257,8 +268,7 @@ function App() {
               onClick={() => {
                 window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
               }}
-              className="text-[10px] font-500"
-              style={{ cursor: "pointer", textDecoration: "underline", color: "blue", textUnderlineOffset: 2 }}
+              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
             >
               {t("popup.new_version_available")}
             </span>

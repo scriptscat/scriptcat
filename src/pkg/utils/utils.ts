@@ -15,7 +15,7 @@ export function nextTime(crontab: string): string {
       }
     });
     if (vals.length === 5) {
-      oncePos += 1;
+      oncePos++;
     }
   }
   let cron: CronTime;
@@ -54,15 +54,14 @@ export function semTime(time: Date) {
   return dayjs().to(dayjs(time));
 }
 
-export function randomString(e: number) {
-  e = e || 32;
+export function randomString(e = 32): string {
   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
   const a = t.length;
-  let n = "";
-  for (let i = 0; i < e; i += 1) {
-    n += t.charAt(Math.floor(Math.random() * a));
+  let n = new Array(e);
+  for (let i = 0; i < e; i++) {
+    n[i] = t[(Math.random() * a) | 0];
   }
-  return n;
+  return n.join('');
 }
 
 export function dealSymbol(source: string): string {
@@ -76,10 +75,7 @@ export function dealScript(source: string): string {
 }
 
 export function isFirefox() {
-  if (navigator.userAgent.indexOf("Firefox") >= 0) {
-    return true;
-  }
-  return false;
+  return navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -154,7 +150,7 @@ export function ltever(newVersion: string, oldVersion: string, logger?: Logger) 
   }
   const newVer = newVersion.split(".");
   const oldVer = oldVersion.split(".");
-  for (let i = 0; i < newVer.length; i += 1) {
+  for (let i = 0; i < newVer.length; i++) {
     if (Number(newVer[i]) > Number(oldVer[i])) {
       return false;
     }
@@ -205,7 +201,7 @@ export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolea
     });
   // 老的里面没有新的就需要用户确认了
   const keys = Object.keys(newConnect);
-  for (let i = 0; i < keys.length; i += 1) {
+  for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     if (!oldConnect[key]) {
       return false;
@@ -238,6 +234,15 @@ export function getIcon(script: Script): string | undefined {
 }
 
 export function calculateMd5(blob: Blob) {
+  if (typeof globalThis.crypto !== 'undefined') {
+    const crypto = globalThis.crypto;
+    return blob.arrayBuffer()
+      .then(arrayBuffer => crypto.subtle.digest('MD5', arrayBuffer))
+      .then(hashBuffer => {
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }); // any error should be handled upstream
+  }
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsArrayBuffer(blob);
