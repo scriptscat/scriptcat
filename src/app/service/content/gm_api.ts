@@ -170,6 +170,15 @@ export default class GMApi {
     return defaultValue;
   }
 
+  @GMContext.API({ depend: ["GM_getValue"] })
+  public GMDotGetValue(key: string, defaultValue?: any): Promise<any> {
+    // 兼容GM.getValue
+    return new Promise((resolve) => {
+      const ret = this.GM_getValue(key, defaultValue);
+      resolve(ret);
+    });
+  }
+
   @GMContext.API()
   public GM_setValue(key: string, value: any) {
     // 对object的value进行一次转化
@@ -978,9 +987,8 @@ export default class GMApi {
   }
 
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
-  @GMContext.API()
+  @GMContext.API({ depend: ["GM_getResourceURL"] })
   async GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
-    console.log("GMDotGetResourceUrl", name, isBlobUrl);
     if (this.scriptRes.resource) {
       const r = this.scriptRes.resource[name];
       if (r) {
