@@ -21,7 +21,12 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
   }
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
   const code = [requireCode, scriptCode, sourceURL].join("\n");
-  return `  with(context){
+  if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
+    return `(async function(){
+      ${code}
+    })();`;
+  } else {
+    return `  with(context){
       return ((factory) => {
           try {
             return factory.apply(context, []);
@@ -38,6 +43,7 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
           ${code}
       })
   }`;
+  }
 }
 
 export type ScriptFunc = (context: any, GM_info: any) => any;
@@ -48,18 +54,22 @@ export function compileScript(code: string): ScriptFunc {
 }
 /**
  * 将脚本函数编译为注入脚本代码
- * @param script
+ * @param scriptRes
  * @param scriptCode
  * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
  */
 export function compileInjectScript(
-  script: ScriptRunResouce,
+  scriptRes: ScriptRunResouce,
   scriptCode?: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  scriptCode = scriptCode ?? script.code;
-  return `window['${script.flag}'] = function(context, GM_info){
-${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${scriptCode}}`;
+  scriptCode = scriptCode ?? scriptRes.code;
+  if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
+    return scriptCode;
+  } else {
+    return `window['${scriptRes.flag}'] = function(context, GM_info){
+${autoDeleteMountFunction ? `  try{delete window['${scriptRes.flag}'];}catch(e){};` : ""}${scriptCode}}`;
+  }
 }
 
 // 设置api依赖
