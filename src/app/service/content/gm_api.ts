@@ -195,14 +195,46 @@ export default class GMApi {
   }
 
   @GMContext.API({ depend: ["GM_setValue"] })
+  public GMDotSetValue(key: string, value: any): Promise<void> {
+    // Asynchronous wrapper for GM_setValue to support GM.setValue
+    return new Promise((resolve) => {
+      this.GM_setValue(key, value);
+      resolve();
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_setValue"] })
   public GM_deleteValue(name: string): void {
     this.GM_setValue(name, undefined);
+  }
+
+  @GMContext.API({ depend: ["GM_deleteValue"] })
+  public GMDotDeleteValue(name: string): Promise<void> {
+    // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
+    return new Promise((resolve) => {
+      this.GM_deleteValue(name);
+      resolve();
+    });
+  }
+
+  @GMContext.API()
+  public GM_listValues(): string[] {
+    return Object.keys(this.scriptRes.value);
+  }
+
+  @GMContext.API({ depend: ["GM_listValues"] })
+  public GMDotListValues(): Promise<string[]> {
+    // Asynchronous wrapper for GM_listValues to support GM.listValues
+    return new Promise((resolve) => {
+      const ret = this.GM_listValues();
+      resolve(ret);
+    });
   }
 
   @GMContext.API({ depend: ["GM_setValue"] })
   public GM_setValues(values: { [key: string]: any }) {
     if (values == null) {
-      throw new Error("GM_ setValues: values must not be null or undefined");
+      throw new Error("GM_setValues: values must not be null or undefined");
     }
     if (typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
@@ -216,12 +248,13 @@ export default class GMApi {
   @GMContext.API({ depend: ["GM_getValue"] })
   public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
     if (keysOrDefaults == null) {
-      // returns all
+      // Returns all values
       return this.scriptRes.value;
     }
-    let result = <{ [key: string]: any }>{};
+    let result: { [key: string]: any } = {};
     if (Array.isArray(keysOrDefaults)) {
       // 键名数组
+      // Handle array of keys (e.g., ['foo', 'bar'])
       for (let index = 0; index < keysOrDefaults.length; index++) {
         const key = keysOrDefaults[index];
         if (key in this.scriptRes.value) {
@@ -230,13 +263,22 @@ export default class GMApi {
       }
     } else {
       // 对象 键: 默认值
+      // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       Object.keys(keysOrDefaults).forEach((key) => {
         let defaultValue = keysOrDefaults[key];
         result[key] = this.GM_getValue(key, defaultValue);
       });
     }
-
     return result;
+  }
+
+  // Asynchronous wrapper for GM.getValues
+  @GMContext.API({ depend: ["GM_getValues"] })
+  public GMDotGetValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): Promise<{ [key: string]: any }> {
+    return new Promise((resolve) => {
+      const ret = this.GM_getValues(keysOrDefaults);
+      resolve(ret);
+    });
   }
 
   @GMContext.API({ depend: ["GM_deleteValue"] })
@@ -247,6 +289,15 @@ export default class GMApi {
     }
     keys.forEach((key) => {
       this.GM_deleteValue(key);
+    });
+  }
+
+  // Asynchronous wrapper for GM.deleteValues
+  @GMContext.API({ depend: ["GM_deleteValues"] })
+  public GMDotDeleteValues(keys: string[]): Promise<void> {
+    return new Promise((resolve) => {
+      this.GM_deleteValues(keys);
+      resolve();
     });
   }
 
@@ -266,11 +317,6 @@ export default class GMApi {
   @GMContext.API()
   public GM_removeValueChangeListener(listenerId: number): void {
     this.valueChangeListener.delete(listenerId);
-  }
-
-  @GMContext.API()
-  public GM_listValues(): string[] {
-    return Object.keys(this.scriptRes.value);
   }
 
   @GMContext.API()
@@ -971,6 +1017,15 @@ export default class GMApi {
     return undefined;
   }
 
+  @GMContext.API({ depend: ["GM_getResourceText"] })
+  public GMDotGetResourceText(name: string): Promise<string | undefined> {
+    // Asynchronous wrapper for GM_getResourceText to support GM.getResourceText
+    return new Promise((resolve) => {
+      const ret = this.GM_getResourceText(name);
+      resolve(ret);
+    });
+  }
+
   @GMContext.API()
   GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined {
     if (!this.scriptRes.resource) {
@@ -988,17 +1043,12 @@ export default class GMApi {
 
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
   @GMContext.API({ depend: ["GM_getResourceURL"] })
-  async GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
-    if (this.scriptRes.resource) {
-      const r = this.scriptRes.resource[name];
-      if (r) {
-        if (isBlobUrl) {
-          return URL.createObjectURL(base64ToBlob(r.base64));
-        }
-        return r.base64;
-      }
-    }
-    return undefined;
+  public GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+    // Asynchronous wrapper for GM_getResourceURL to support GM.getResourceURL
+    return new Promise((resolve) => {
+      const ret = this.GM_getResourceURL(name);
+      resolve(ret);
+    });
   }
 
   @GMContext.API()
