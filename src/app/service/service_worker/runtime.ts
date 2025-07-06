@@ -28,7 +28,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { Logger } from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
-import { ScriptMatchInfo } from "./runtime.types";
+import { ScriptMatchInfo, ScriptLoadInfo, EmitEventRequest } from "./runtime.types";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();

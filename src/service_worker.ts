@@ -4,7 +4,6 @@ import { createDBWriter } from "./app/logger/db_writer";
 import { ExtensionMessage } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
-import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
 
 migrate();

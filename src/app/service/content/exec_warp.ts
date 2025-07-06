@@ -1,6 +1,6 @@
 import { ExecScript } from "./exec_script";
 import { Message } from "@Packages/message/server";
-import { ScriptLoadInfo } from "../service_worker/runtime";
+import { ScriptLoadInfo } from "../service_worker/runtime.types";
 
 export class CATRetryError {
   msg: string;
