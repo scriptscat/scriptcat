@@ -421,7 +421,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
 
 export function addStyle(css: string): HTMLElement {
   const dom = document.createElement("style");
-  dom.innerHTML = css;
+  dom.textContent = css;
   if (document.head) {
     return document.head.appendChild(dom);
   }
