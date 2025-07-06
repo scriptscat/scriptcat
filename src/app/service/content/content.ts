@@ -104,3 +104,7 @@ export class ContentRuntime {
     client.do("pageLoad", { scripts });
   }
 }
+
+export function generateContentRuntime(extServer: Server, server: Server, send: MessageSend, msg: Message) {
+  return new ContentRuntime(extServer, server, send, msg);
+}

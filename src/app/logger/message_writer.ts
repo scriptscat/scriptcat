@@ -2,7 +2,7 @@ import { LogLabel, LogLevel, Writer } from "./core";
 import { MessageSend } from "@Packages/message/server";
 
 // 通过通讯机制写入日志
-export default class MessageWriter implements Writer {
+export class MessageWriter implements Writer {
   send: MessageSend;
 
   constructor(

@@ -3,7 +3,7 @@ import { messageQueue } from "./global";
 import { store } from "./store";
 import { batchDeleteScript, scriptSlice, upsertScript } from "./features/script";
 
-export default function storeSubscribe() {
+export function storeSubscribe() {
   subscribeScriptRunStatus(messageQueue, (data) => {
     store.dispatch(scriptSlice.actions.updateRunStatus(data));
   });
