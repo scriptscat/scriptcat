@@ -295,3 +295,17 @@ export function getBrowserVersion(): number {
 export function isEdge(): boolean {
   return navigator.userAgent.indexOf("Edg/") !== -1;
 }
+
+// 简易 Data format (不用dayjs)
+export function dayFormat(date = new Date(), fmt = "YYYY-MM-DD HH:mm:ss") {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const map: { [k: string]: string | number } = {
+    YYYY: date.getFullYear(),
+    MM: pad(date.getMonth() + 1),
+    DD: pad(date.getDate()),
+    HH: pad(date.getHours()),
+    mm: pad(date.getMinutes()),
+    ss: pad(date.getSeconds())
+  };
+  return fmt.replace(/YYYY|MM|DD|HH|mm|ss/g, token => `${map[token]}`);
+}

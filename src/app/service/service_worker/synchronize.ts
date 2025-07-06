@@ -17,7 +17,7 @@ import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
 import { isWarpTokenError } from "@Packages/filesystem/error";
-import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
+import { dayFormat, errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { ScriptService } from "./script";
@@ -257,7 +257,7 @@ export class SynchronizeService {
     chrome.downloads.download({
       url,
       saveAs: true,
-      filename: `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`,
+      filename: `scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`,
     });
     return;
   }
