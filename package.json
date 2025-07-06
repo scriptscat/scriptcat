@@ -99,9 +99,7 @@
       "jsdom>parse5": "^7.3.0",
       "test-exclude>glob": "^10.4.5",
       "archiver-utils>glob": "^10.4.5",
-      "archiver>glob": "^10.4.5",
-      "node-fetch>fetch-blob": "^4.0.0",
-      "formdata-polyfill>fetch-blob": "^4.0.0"
+      "archiver>glob": "^10.4.5"
     }
   }
 }
