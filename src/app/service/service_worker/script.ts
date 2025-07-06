@@ -144,9 +144,9 @@ export class ScriptService {
   }
 
   public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
-    const uuid = uuidv4();
     return fetchScriptInfo(url, source, false, uuidv4())
       .then((info) => {
+        const uuid = info.uuid;
         Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
         setTimeout(() => {
           // 清理缓存
