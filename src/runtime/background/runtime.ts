@@ -457,7 +457,8 @@ export default class Runtime extends Manager {
               code: `(function(){
                 let temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
                     temp.setAttribute('type', 'text/javascript');
-                    temp.innerHTML = "${script.code}";
+                    temp.setAttribute('charset', 'UTF-8');
+                    temp.textContent = "${script.code}";
                     temp.className = "injected-js";
                     document.documentElement.appendChild(temp);
                     temp.remove();
