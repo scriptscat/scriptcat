@@ -301,7 +301,7 @@ export function proxyContext(
             return true;
           }
           // 只处理onxxxx的事件
-          if (has(global[name], name)) {
+          if (has(global, name)) {
             if (name.startsWith("on")) {
               return true;
             }
