@@ -1,4 +1,4 @@
-import Logger from "@App/app/logger/logger";
+import { Logger } from "@App/app/logger/logger";
 
 export interface Url {
   scheme: string;

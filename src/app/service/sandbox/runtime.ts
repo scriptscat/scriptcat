@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_RUN_STATUS_ERROR,
@@ -12,7 +12,7 @@ import { WindowMessage } from "@Packages/message/window_message";
 import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
-import ExecScript, { ValueUpdateData } from "../content/exec_script";
+import { ExecScript, ValueUpdateData } from "../content/exec_script";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
 import { CATRetryError } from "../content/exec_warp";

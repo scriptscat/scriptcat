@@ -8,11 +8,10 @@ import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
 import "./index.css";
-import LoggerCore from "@App/app/logger/core.ts";
-import { LoggerDAO } from "@App/app/repo/logger.ts";
-import DBWriter from "@App/app/logger/db_writer.ts";
-import registerEditor from "@App/pkg/utils/monaco-editor.ts";
-import storeSubscribe from "../store/subscribe.ts";
+import { LoggerCore } from "@App/app/logger/core.ts";
+import { createDBWriter } from "@App/app/logger/db_writer.ts";
+import { registerEditor } from "@App/pkg/utils/monaco-editor.ts";
+import { storeSubscribe } from "../store/subscribe.ts";
 import migrate from "@App/app/migrate.ts";
 
 migrate();
@@ -21,7 +20,7 @@ registerEditor();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
-  writer: new DBWriter(new LoggerDAO()),
+  writer: createDBWriter(),
   labels: { env: "options" },
 });
 

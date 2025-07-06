@@ -18,7 +18,7 @@ import { Logger, LoggerDAO } from "@App/app/repo/logger";
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
 // service worker的管理器
-export default class ServiceWorkerManager {
+export class ServiceWorkerManager {
   constructor(
     private api: Server,
     private mq: MessageQueue,
@@ -165,4 +165,9 @@ export default class ServiceWorkerManager {
         });
       });
   }
+}
+
+export function createServiceWorkerManager(server: Server, messageQueue: MessageQueue, sender?: ServiceWorkerMessageSend) {
+  if (!sender) sender = new ServiceWorkerMessageSend();
+  return new ServiceWorkerManager(server, messageQueue, sender);
 }

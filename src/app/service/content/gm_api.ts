@@ -4,7 +4,7 @@ import { ValueUpdateData } from "./exec_script";
 import { ExtVersion } from "@App/app/const";
 import { Message, MessageConnect } from "@Packages/message/server";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils";

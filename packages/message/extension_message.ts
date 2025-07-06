@@ -1,6 +1,4 @@
-import Logger from "@App/app/logger/logger";
 import { Message, MessageConnect, MessageSend, MessageSender } from "./server";
-import LoggerCore from "@App/app/logger/core";
 
 export class ExtensionMessageSend implements MessageSend {
   constructor() {}

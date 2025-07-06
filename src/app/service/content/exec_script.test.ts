@@ -1,5 +1,5 @@
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import ExecScript from "./exec_script";
+import { ExecScript } from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";

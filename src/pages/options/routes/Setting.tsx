@@ -8,7 +8,7 @@ import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import Logger from "@App/app/logger/logger";
+import { Logger } from "@App/app/logger/logger";
 import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";

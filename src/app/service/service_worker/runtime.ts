@@ -21,12 +21,12 @@ import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { SystemConfig } from "@App/pkg/config/config";
 import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
-import Logger from "@App/app/logger/logger";
+import { Logger } from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource

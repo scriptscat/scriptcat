@@ -1,4 +1,4 @@
-import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
+import { LoggerCore, EmptyWriter } from "@App/app/logger/core";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Message, Server } from "@Packages/message/server";
 import { ValueService } from "@App/app/service/service_worker/value";

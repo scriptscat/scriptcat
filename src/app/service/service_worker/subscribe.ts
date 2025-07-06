@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import {
   Subscribe,

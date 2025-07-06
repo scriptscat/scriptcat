@@ -7,8 +7,8 @@ import "@App/locales/locales";
 import "@App/index.css";
 import { Provider } from "react-redux";
 import { store } from "@App/pages/store/store.ts";
-import LoggerCore from "@App/app/logger/core.ts";
-import MessageWriter from "@App/app/logger/message_writer.ts";
+import { LoggerCore } from "@App/app/logger/core.ts";
+import { MessageWriter } from "@App/app/logger/message_writer.ts";
 import { message } from "../store/global.ts";
 
 // 初始化日志组件

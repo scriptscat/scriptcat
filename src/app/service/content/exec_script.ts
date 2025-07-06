@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import GMApi from "./gm_api";
 import { compileScript, createContext, proxyContext, ScriptFunc } from "./utils";
 import { Message } from "@Packages/message/server";
@@ -19,10 +19,8 @@ export type ValueUpdateData = {
   sender: ValueUpdateSender;
 };
 
-export class RuntimeMessage {}
-
 // 执行脚本,控制脚本执行与停止
-export default class ExecScript {
+export class ExecScript {
   scriptRes: ScriptLoadInfo;
 
   scriptFunc: ScriptFunc;

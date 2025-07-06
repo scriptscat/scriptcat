@@ -6,7 +6,7 @@ import { languages } from "monaco-editor";
 // 注册eslint
 const linterWorker = new Worker("/src/linter.worker.js");
 
-export default function registerEditor() {
+export function registerEditor() {
   window.MonacoEnvironment = {
     getWorkerUrl(moduleId: any, label: any) {
       if (label === "typescript" || label === "javascript") {
@@ -115,20 +115,22 @@ export default function registerEditor() {
       // });
       return {
         actions,
-        dispose: () => {},
+        dispose: () => { },
       };
     },
   });
 }
 
-export class LinterWorker {
-  static hook = new EventEmitter();
-
-  static sendLinterMessage(data: unknown) {
-    linterWorker.postMessage(data);
-  }
-}
+const hook = new EventEmitter();
 
 linterWorker.onmessage = (event) => {
-  LinterWorker.hook.emit("message", event.data);
+  hook.emit("message", event.data);
 };
+
+export function monacoHook() {
+  return hook;
+}
+
+export function monacoPostMessage(data: unknown) {
+  linterWorker.postMessage(data);
+}

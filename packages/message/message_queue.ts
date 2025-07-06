@@ -1,5 +1,5 @@
 import EventEmitter from "eventemitter3";
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 
 export type SubscribeCallback = (message: any) => void;
 // 释放订阅

@@ -1,4 +1,4 @@
-import Logger from "./logger";
+import { Logger } from "./logger";
 
 export type LogLevel = "none" | "trace" | "debug" | "info" | "warn" | "error";
 
@@ -16,7 +16,7 @@ export class EmptyWriter implements Writer {
   write(): void {}
 }
 
-export default class LoggerCore {
+export class LoggerCore {
   static instance: LoggerCore;
 
   static getInstance() {

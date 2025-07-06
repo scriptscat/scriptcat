@@ -1,4 +1,4 @@
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 
 export interface Message extends MessageSend {

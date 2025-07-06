@@ -1,6 +1,4 @@
-import Cache from "@App/app/cache";
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
-import { useAppSelector } from "@App/pages/store/hooks";
+import { monacoHook, monacoPostMessage } from "@App/pkg/utils/monaco-editor";
 import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
@@ -101,7 +99,7 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
-        LinterWorker.sendLinterMessage({
+        monacoPostMessage({
           code: model.getValue(),
           id,
           config: JSON.parse(eslintConfig),
@@ -214,9 +212,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
       );
       diffEslint(formatMarkers);
     };
-    LinterWorker.hook.addListener("message", handler);
+    monacoHook().addListener("message", handler);
     return () => {
-      LinterWorker.hook.removeListener("message", handler);
+      monacoHook().removeListener("message", handler);
     };
   }, [id, monacoEditor, enableEslint, eslintConfig]);
 

@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { WindowMessage } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";

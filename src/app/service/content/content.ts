@@ -4,7 +4,7 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, Message, MessageSend, Server } from "@Packages/message/server";
 
 // content页的处理
-export default class ContentRuntime {
+export class ContentRuntime {
   constructor(
     private extServer: Server,
     private server: Server,

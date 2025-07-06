@@ -1,5 +1,4 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import ExecScript from "./exec_script";
+import { ExecScript } from "./exec_script";
 import { Message } from "@Packages/message/server";
 import { ScriptLoadInfo } from "../service_worker/runtime";
 

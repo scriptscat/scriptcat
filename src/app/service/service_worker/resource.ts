@@ -1,6 +1,6 @@
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 import crypto from "crypto-js";
-import Logger from "@App/app/logger/logger";
+import { Logger } from "@App/app/logger/logger";
 import { Resource, ResourceDAO, ResourceHash, ResourceType } from "@App/app/repo/resource";
 import { Script } from "@App/app/repo/scripts";
 import { MessageQueue } from "@Packages/message/message_queue";

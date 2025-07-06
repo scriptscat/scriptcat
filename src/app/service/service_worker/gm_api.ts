@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
 import { ValueService } from "@App/app/service/service_worker/value";

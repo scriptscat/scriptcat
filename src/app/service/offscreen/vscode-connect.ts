@@ -1,5 +1,5 @@
-import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import { LoggerCore } from "@App/app/logger/core";
+import { Logger } from "@App/app/logger/logger";
 import { Group, MessageSend } from "@Packages/message/server";
 import { ScriptClient } from "../service_worker/client";
 import { v5 as uuidv5 } from "uuid";

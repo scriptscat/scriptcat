@@ -1,6 +1,6 @@
 import { WindowMessage } from "@Packages/message/window_message";
-import LoggerCore from "./app/logger/core";
-import MessageWriter from "./app/logger/message_writer";
+import { LoggerCore } from "./app/logger/core";
+import { MessageWriter } from "./app/logger/message_writer";
 import { SandboxManager } from "./app/service/sandbox";
 
 function main() {

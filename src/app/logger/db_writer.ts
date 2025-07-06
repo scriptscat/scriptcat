@@ -2,7 +2,7 @@ import { LoggerDAO } from "../repo/logger";
 import { LogLabel, LogLevel, Writer } from "./core";
 
 // 使用indexdb作为日志存储
-export default class DBWriter implements Writer {
+export class DBWriter implements Writer {
   dao: LoggerDAO;
 
   constructor(dao: LoggerDAO) {
@@ -22,4 +22,9 @@ export default class DBWriter implements Writer {
       console.error("DBWriter error", e);
     }
   }
+}
+
+export function createDBWriter(logger?: LoggerDAO) {
+  if (!logger) logger = new LoggerDAO();
+  return new DBWriter(logger);
 }

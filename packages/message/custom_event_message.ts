@@ -1,7 +1,7 @@
 import { Message, MessageConnect } from "./server";
 import { v4 as uuidv4 } from "uuid";
 import { PostMessage, WindowMessageBody, WindowMessageConnect } from "./window_message";
-import LoggerCore from "@App/app/logger/core";
+import { LoggerCore } from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 
 export class CustomEventPostMessage implements PostMessage {

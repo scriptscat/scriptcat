@@ -1,5 +1,5 @@
 import { Message, Server } from "@Packages/message/server";
-import ExecScript, { ValueUpdateData } from "./exec_script";
+import { ExecScript, ValueUpdateData } from "./exec_script";
 import { addStyle, ScriptFunc } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
@@ -121,4 +121,8 @@ export class InjectRuntime {
     document.addEventListener("DOMNodeInserted", listen, false);
     document.addEventListener("DOMContentLoaded", listen, false);
   }
+}
+
+export function generateRunTime(server: Server, msg: Message, scripts: ScriptLoadInfo[]){
+  return new InjectRuntime(server, msg, scripts);
 }

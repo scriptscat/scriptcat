@@ -1,4 +1,4 @@
-import LoggerCore, { LogLabel, LogLevel } from "./core";
+import { LoggerCore, LogLabel, LogLevel } from "./core";
 import { dayFormat } from "@App/pkg/utils/utils";
 
 const levelNumber: { [key in LogLevel]: number } = {
@@ -22,7 +22,7 @@ function buildLabel(...label: LogLabel[][]): LogLabel {
   return ret;
 }
 
-export default class Logger {
+export class Logger {
   core: LoggerCore;
 
   label: LogLabel[];

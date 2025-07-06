@@ -1,4 +1,4 @@
-import Logger from "@App/app/logger/logger";
+import { Logger } from "@App/app/logger/logger";
 import { Metadata, Script } from "@App/app/repo/scripts";
 import { CronTime } from "cron";
 import crypto from "crypto-js";
