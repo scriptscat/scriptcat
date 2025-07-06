@@ -96,7 +96,6 @@
       "tsx>esbuild": "^0.25.5",
       "vite>esbuild": "^0.25.5",
       "terser-webpack-plugin>esbuild": "^0.25.5",
-      "jsdom>parse5": "^7.3.0",
       "test-exclude>glob": "^10.4.5",
       "archiver-utils>glob": "^10.4.5",
       "archiver>glob": "^10.4.5"
