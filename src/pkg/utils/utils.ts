@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex */
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
 import LoggerCore from "@App/app/logger/core";
@@ -92,10 +93,7 @@ export function dealScript(source: string): string {
 }
 
 export function isFirefox() {
-  if (navigator.userAgent.indexOf("Firefox") >= 0) {
-    return true;
-  }
-  return false;
+  navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -300,4 +298,20 @@ export function errorMsg(e: any): string {
     return JSON.stringify(e);
   }
   return "";
+}
+
+export function fixCoding(text: string): string {
+  const toXChar = (char: string) => {
+    const c = char.charCodeAt(0).toString(16);
+    if (c.length <= 2) return `\\x${c.padStart(2, "0")}`;
+    return `\\u${c.padStart(4, "0")}`;
+  };
+
+  return text
+    .replace(/['"][\x00-\x1F]+['"]/g, (match) =>
+      match.replace(/[\x00-\x1F]/g, toXChar)
+    )
+    .replace(/\b[a-z]{4,8}:\s*['"]\[(.)-(.)\]['"]/g, (match, start, end) =>
+      match.replace(`${start}-${end}`, `${toXChar(start)}-${toXChar(end)}`)
+    );
 }

@@ -5,7 +5,7 @@ import MessageInternal from "./app/message/internal";
 import ContentRuntime from "./runtime/content/content";
 // @ts-ignore
 import injectJs from "../dist/inject.js";
-import { randomString } from "./pkg/utils/utils";
+import { randomString, fixCoding } from "./pkg/utils/utils";
 
 const internalMessage = new MessageInternal("content");
 
@@ -17,10 +17,13 @@ const logger = new LoggerCore({
 
 const scriptFlag = randomString(8);
 
+const injectJs1 = fixCoding(injectJs);
+
 // 注入运行框架
 const temp = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
 temp.setAttribute("type", "text/javascript");
-temp.innerHTML = `(function (ScriptFlag) {\n${injectJs}\n})('${scriptFlag}')`;
+temp.setAttribute("charset", "UTF-8");
+temp.textContent = `(function (ScriptFlag) {\n${injectJs1}\n})('${scriptFlag}')`;
 temp.className = "injected-js";
 document.documentElement.appendChild(temp);
 temp.remove();

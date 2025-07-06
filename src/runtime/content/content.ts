@@ -52,7 +52,7 @@ export default class ContentRuntime {
         el.setAttribute(key, attr[key]);
       });
       if (textContent) {
-        el.innerHTML = textContent;
+        el.textContent = textContent;
       }
       let parentNode;
       if (data.relatedTarget) {
