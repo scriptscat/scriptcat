@@ -1,19 +1,8 @@
-import { LoggerCore } from "./app/logger/core";
-import { MessageWriter } from "./app/logger/message_writer";
-import { ExtensionMessage, ExtensionMessageSend } from "@Packages/message/extension_message";
-import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { ExtensionMessageSend } from "@Packages/message/extension_message";
 import { RuntimeClient } from "./app/service/service_worker/client";
-import { Server } from "@Packages/message/server";
-import { generateContentRuntime } from "./app/service/content/content";
 
 // 建立与service_worker页面的连接
 const send = new ExtensionMessageSend();
-
-// 初始化日志组件
-const loggerCore = new LoggerCore({
-  writer: new MessageWriter(send),
-  labels: { env: "content" },
-});
 
 const client = new RuntimeClient(send);
 client.pageLoad().then((data) => {
