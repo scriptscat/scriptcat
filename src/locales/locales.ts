@@ -12,7 +12,7 @@ import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 
 i18n.use(initReactI18next).init({
-  fallbackLng: "zh-CN",
+  fallbackLng: "en-US",
   lng: localStorage.language || chrome.i18n.getUILanguage(),
   interpolation: {
     escapeValue: false, // react already safes from xss => https://www.i18next.com/translation-function/interpolation#unescape
