@@ -1,11 +1,12 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
 import { Group } from "@Packages/message/server";
 import { Logger } from "@App/app/logger/logger";
 import { LoggerCore } from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import { scriptInstallInfo } from "@App/app/cache_key";
-import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomString } from "@App/pkg/utils/utils2";
+import { ltever } from "@App/pkg/utils/utils";
 import {
   Script,
   SCRIPT_RUN_STATUS,

@@ -5,6 +5,15 @@ import crypto from "crypto-js";
 import dayjs from "dayjs";
 import semver from "semver";
 
+import { formatTime, formatUnixTime, randomString, dealSymbol, dealScript } from "./utils2";
+import { isFirefox, isEdge, isDebug, sleep, errorMsg, isUserScriptsAvailable, getBrowserVersion } from "./utils2";
+import { valueType, toStorageValueStr, parseStorageValue } from "./utils2";
+import { InfoNotification, openInCurrentTab } from "./utils2";
+export { formatTime, formatUnixTime, randomString, dealSymbol, dealScript }
+export { isFirefox, isEdge, isDebug, sleep, errorMsg, isUserScriptsAvailable, getBrowserVersion }
+export { valueType, toStorageValueStr, parseStorageValue }
+export { InfoNotification, openInCurrentTab }
+
 export function nextTime(crontab: string): string {
   let oncePos = 0;
   if (crontab.indexOf("once") !== -1) {
@@ -42,103 +51,8 @@ export function nextTime(crontab: string): string {
   return cron.sendAt().toFormat("yyyy-MM-dd HH:mm:ss");
 }
 
-export function formatTime(time: Date) {
-  return dayFormat(time, "YYYY-MM-DD HH:mm:ss");
-}
-
-export function formatUnixTime(time: number) {
-  const date = new Date(time * 1000);
-  return dayFormat(date, "YYYY-MM-DD HH:mm:ss");
-}
-
 export function semTime(time: Date) {
   return dayjs().to(dayjs(time));
-}
-
-export function randomString(e = 32): string {
-  const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
-  const a = t.length;
-  let n = new Array(e);
-  for (let i = 0; i < e; i++) {
-    n[i] = t[(Math.random() * a) | 0];
-  }
-  return n.join('');
-}
-
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
-
-export function dealScript(source: string): string {
-  return dealSymbol(source);
-}
-
-export function isFirefox() {
-  return navigator.userAgent.includes("Firefox");
-}
-
-export function InfoNotification(title: string, msg: string) {
-  chrome.notifications.create({
-    type: "basic",
-    title,
-    message: msg,
-    iconUrl: chrome.runtime.getURL("assets/logo.png"),
-  });
-}
-
-export function valueType(val: unknown) {
-  switch (typeof val) {
-    case "string":
-    case "number":
-    case "boolean":
-    case "object":
-      return typeof val;
-    default:
-      return "unknown";
-  }
-}
-
-export function toStorageValueStr(val: unknown): string {
-  switch (typeof val) {
-    case "string":
-      return `s${val}`;
-    case "number":
-      return `n${val.toString()}`;
-    case "boolean":
-      return `b${val ? "true" : "false"}`;
-    default:
-      try {
-        return `o${JSON.stringify(val)}`;
-      } catch {
-        return "";
-      }
-  }
-}
-
-export function parseStorageValue(str: string): unknown {
-  if (str === "") {
-    return undefined;
-  }
-  const t = str[0];
-  const s = str.substring(1);
-  switch (t) {
-    case "b":
-      return s === "true";
-    case "n":
-      return parseFloat(s);
-    case "o":
-      try {
-        return JSON.parse(s);
-      } catch {
-        return str;
-      }
-    case "s":
-      return s;
-    default:
-      return str;
-  }
 }
 
 // 对比版本大小
@@ -160,31 +74,6 @@ export function ltever(newVersion: string, oldVersion: string, logger?: Logger) 
     }
   }
   return true;
-}
-
-// 在当前页后打开一个新页面
-export function openInCurrentTab(url: string) {
-  chrome.tabs.query(
-    {
-      active: true,
-    },
-    (tabs) => {
-      if (tabs.length) {
-        chrome.tabs.create({
-          url,
-          index: tabs[0].index + 1,
-        });
-      } else {
-        chrome.tabs.create({
-          url,
-        });
-      }
-    }
-  );
-}
-
-export function isDebug() {
-  return process.env.NODE_ENV === "development";
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
@@ -211,11 +100,6 @@ export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolea
   return true;
 }
 
-export function sleep(time: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, time);
-  });
-}
 
 export function getStorageName(script: Script): string {
   if (script.metadata && script.metadata.storagename) {
@@ -258,55 +142,3 @@ export function calculateMd5(blob: Blob) {
   });
 }
 
-export function errorMsg(e: any): string {
-  if (typeof e === "string") {
-    return e;
-  }
-  if (e instanceof Error) {
-    return e.message;
-  }
-  if (typeof e === "object") {
-    return JSON.stringify(e);
-  }
-  return "";
-}
-
-export function isUserScriptsAvailable() {
-  try {
-    // Method call which throws if API permission or toggle is not enabled.
-    chrome.userScripts.getScripts();
-    return true;
-  } catch {
-    // Not available.
-    return false;
-  }
-}
-
-// 获取浏览器内核版本
-export function getBrowserVersion(): number {
-  try {
-    return Number(navigator.userAgent.match(/(Chrome|Chromium)\/([0-9]+)/)?.[2]);
-  } catch (e) {
-    console.error("Error getting browser version:", e);
-    return 0; // 返回0表示获取失败
-  }
-}
-
-// 判断是否为Edge浏览器
-export function isEdge(): boolean {
-  return navigator.userAgent.indexOf("Edg/") !== -1;
-}
-
-// 简易 Data format (不用dayjs)
-export function dayFormat(date = new Date(), fmt = "YYYY-MM-DD HH:mm:ss") {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const map: { [k: string]: string | number } = {
-    YYYY: date.getFullYear(),
-    MM: pad(date.getMonth() + 1),
-    DD: pad(date.getDate()),
-    HH: pad(date.getHours()),
-    mm: pad(date.getMinutes()),
-    ss: pad(date.getSeconds())
-  };
-  return fmt.replace(/YYYY|MM|DD|HH|mm|ss/g, token => `${map[token]}`);
-}

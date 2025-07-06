@@ -1,6 +1,5 @@
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
-import chromeMock from "@Packages/chrome-extension-mock";
 import { initTestEnv, initTestGMApi } from "@Tests/utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
