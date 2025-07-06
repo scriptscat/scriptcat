@@ -17,5 +17,5 @@ const loggerCore = new LoggerCore({
 
 const client = new RuntimeClient(send);
 client.pageLoad().then((data) => {
-  loggerCore.logger().debug("content start");
+  console.debug("content start");
 });
