@@ -7,7 +7,6 @@ import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
-  ScriptRunResouce,
 } from "@App/app/repo/scripts";
 import { ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -29,24 +28,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { Logger } from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
-// 为了优化性能，存储到缓存时删除了code、value与resource
-export interface ScriptMatchInfo extends ScriptRunResouce {
-  matches: string[];
-  excludeMatches: string[];
-  customizeExcludeMatches: string[];
-}
-
-export interface ScriptLoadInfo extends ScriptMatchInfo {
-  metadataStr: string; // 脚本元数据字符串
-  userConfigStr: string; // 用户配置字符串
-}
-
-export interface EmitEventRequest {
-  uuid: string;
-  event: string;
-  eventId: string;
-  data?: any;
-}
+import { ScriptMatchInfo } from "./runtime.types";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();

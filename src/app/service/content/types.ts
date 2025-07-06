@@ -1,0 +1,1 @@
+export type ScriptFunc = (context: any, GM_info: any) => any;

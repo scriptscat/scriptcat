@@ -6,7 +6,7 @@ import { Script } from "@App/app/repo/scripts";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { Group } from "@Packages/message/server";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64 } from "@App/pkg/utils/script";
+import { blobToBase64 } from "@App/pkg/utils/utils2";
 import { ResourceBackup } from "@App/pkg/backup/struct";
 import { subscribeScriptDelete } from "../queue";
 import Cache from "@App/app/cache";

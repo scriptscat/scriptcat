@@ -1,23 +1,12 @@
 import { LoggerCore } from "@App/app/logger/core";
 import { Logger } from "@App/app/logger/logger";
 import GMApi from "./gm_api";
-import { compileScript, createContext, proxyContext, ScriptFunc } from "./utils";
+import { ScriptFunc } from "./types";
+import { compileScript, createContext, proxyContext } from "./utils";
 import { Message } from "@Packages/message/server";
-import { ScriptLoadInfo } from "../service_worker/runtime";
+import { ScriptLoadInfo } from "../service_worker/runtime.types";
 
-export type ValueUpdateSender = {
-  runFlag: string;
-  tabId?: number;
-};
-
-export type ValueUpdateData = {
-  oldValue: any;
-  value: any;
-  key: string; // 值key
-  uuid: string;
-  storageName: string; // 储存name
-  sender: ValueUpdateSender;
-};
+import {ValueUpdateSender, ValueUpdateData} from "./exec_script.types"
 
 // 执行脚本,控制脚本执行与停止
 export class ExecScript {

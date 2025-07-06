@@ -1,6 +1,7 @@
 import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { base64ToBlob, parseUserConfig } from "@App/pkg/utils/script";
-import { ValueUpdateData } from "./exec_script";
+import { base64ToBlob } from "@App/pkg/utils/utils2";
+import { parseUserConfig } from "@App/pkg/utils/script2";
+import { ValueUpdateData } from "./exec_script.types";
 import { ExtVersion } from "@App/app/const";
 import { Message, MessageConnect } from "@Packages/message/server";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
@@ -9,7 +10,7 @@ import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
 import { getStorageName } from "@App/pkg/utils/utils2";
 import { MessageRequest, type NotificationMessageOption } from "../service_worker/gm_api";
-import { ScriptLoadInfo } from "../service_worker/runtime";
+import { ScriptLoadInfo } from "../service_worker/runtime.types";
 import { ScriptMenuItem } from "../service_worker/popup";
 
 interface ApiParam {

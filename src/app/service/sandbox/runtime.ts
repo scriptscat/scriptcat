@@ -12,9 +12,10 @@ import { WindowMessage } from "@Packages/message/window_message";
 import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
-import { ExecScript, ValueUpdateData } from "../content/exec_script";
+import { ExecScript } from "../content/exec_script";
+import { ValueUpdateData } from "../content/exec_script.types";
 import { getStorageName } from "@App/pkg/utils/utils2";
-import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
+import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime.types";
 import { CATRetryError } from "../content/exec_warp";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 

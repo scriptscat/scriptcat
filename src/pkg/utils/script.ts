@@ -14,10 +14,10 @@ import {
   ScriptDAO,
   UserConfig,
 } from "@App/app/repo/scripts";
-import YAML from "yaml";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO, Metadata as SubMetadata } from "@App/app/repo/subscribe";
 import { nextTime } from "./utils";
 import { InstallSource } from "@App/app/service/service_worker";
+import { parseUserConfig } from "./script2";
 
 export function getMetadataStr(code: string): string | null {
   const start = code.indexOf("==UserScript==");
@@ -74,23 +74,6 @@ export function parseMetadata(code: string): Metadata | null {
   if (issub) {
     ret.usersubscribe = [];
   }
-  return ret;
-}
-
-export function parseUserConfig(code: string): UserConfig | undefined {
-  const regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
-  const config = regex.exec(code);
-  if (!config) {
-    return undefined;
-  }
-  const configs = config[1].trim().split(/[-]{3,}/);
-  const ret: UserConfig = {};
-  configs.forEach((val) => {
-    const obj: UserConfig = YAML.parse(val);
-    Object.keys(obj || {}).forEach((key) => {
-      ret[key] = obj[key];
-    });
-  });
   return ret;
 }
 
@@ -164,42 +147,6 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   return ret;
 }
 
-export function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
-    reader.readAsDataURL(blob);
-  });
-}
-
-export function blobToText(blob: Blob): Promise<string | null> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
-    reader.readAsText(blob);
-  });
-}
-
-export function base64ToBlob(dataURI: string) {
-  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
-  const byteString = atob(dataURI.split(",")[1]);
-  const arrayBuffer = new ArrayBuffer(byteString.length);
-  const intArray = new Uint8Array(arrayBuffer);
-
-  for (let i = 0; i < byteString.length; i += 1) {
-    intArray[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([intArray], { type: mimeString });
-}
-
-export function strToBase64(str: string): string {
-  return btoa(
-    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
-      return String.fromCharCode(parseInt(`0x${p1}`, 16));
-    })
-  );
-}
-
 // 通过代码解析出脚本信息
 export function prepareScriptByCode(
   code: string,
@@ -265,7 +212,7 @@ export function prepareScriptByCode(
       origin: url,
       checkUpdateUrl,
       downloadUrl,
-      config: parseUserConfig(code),
+      config: parseUserConfig(code) as (UserConfig | undefined),
       metadata,
       selfMetadata: {},
       sort: -1,

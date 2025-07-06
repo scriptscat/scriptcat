@@ -5,6 +5,8 @@ import { has } from "@App/pkg/utils/lodash";
 import { Message } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 
+import { ScriptFunc } from "./types";
+
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
@@ -40,7 +42,6 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
   }`;
 }
 
-export type ScriptFunc = (context: any, GM_info: any) => any;
 
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {

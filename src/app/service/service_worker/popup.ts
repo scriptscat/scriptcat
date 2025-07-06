@@ -1,6 +1,7 @@
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ExtMessageSender, Group } from "@Packages/message/server";
-import { RuntimeService, ScriptMatchInfo } from "./runtime";
+import { ScriptMatchInfo } from "./runtime.types";
+import { RuntimeService } from "./runtime";
 import Cache from "@App/app/cache";
 import { GetPopupDataReq, GetPopupDataRes } from "./client";
 import {
@@ -21,8 +22,6 @@ import {
   subscribeScriptRunStatus,
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils2";
-import { SystemConfig } from "@App/pkg/config/config";
-import { UrlMatch } from "@App/pkg/utils/match";
 
 export type ScriptMenuItem = {
   id: number;

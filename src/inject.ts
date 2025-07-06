@@ -3,7 +3,7 @@ import { MessageWriter } from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { generateRunTime } from "./app/service/content/inject";
-import { ScriptLoadInfo } from "./app/service/service_worker/runtime";
+import { ScriptLoadInfo } from "./app/service/service_worker/runtime.types";
 
 const msg = new CustomEventMessage(MessageFlag, false);
 
