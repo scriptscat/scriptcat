@@ -29,12 +29,14 @@ loggerCore.logger().debug("options page start");
 
 storeSubscribe();
 
+const Root = (
+  <Provider store={store}>
+    <MainLayout className="!flex-row" pageName="options">
+      <Sider />
+    </MainLayout>
+  </Provider>
+);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <Provider store={store}>
-      <MainLayout className="!flex-row" pageName="options">
-        <Sider />
-      </MainLayout>
-    </Provider>
-  </React.StrictMode>
+  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
 );

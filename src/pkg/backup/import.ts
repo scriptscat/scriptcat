@@ -12,6 +12,7 @@ import {
   SubscribeBackupData,
   SubscribeOptionsFile,
   ValueStorage,
+  ScriptData, SubscribeData,
 } from "./struct";
 import FileSystem, { File } from "@Packages/filesystem/filesystem";
 
@@ -225,8 +226,8 @@ export default class BackupImport {
 
     // 将map转化为数组
     return ({
-      script: Array.from(map.values()),
-      subscribe: Array.from(subscribe.values()),
+      script: (<ScriptData[]>Array.from(map.values())),
+      subscribe: (<SubscribeData[]>Array.from(subscribe.values())),
     });
   }
 
