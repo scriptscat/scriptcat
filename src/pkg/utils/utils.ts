@@ -301,8 +301,12 @@ export function errorMsg(e: any): string {
 }
 
 export function fixCoding(text: string): string {
-  const toXChar = (char: string) =>
-    `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`;
+  const toXChar = (char: string) => {
+    const c = char.charCodeAt(0).toString(16);
+    if (c.length <= 2) return `\\x${c.padStart(2, "0")}`;
+    return `\\u${c.padStart(4, "0")}`;
+  };
+
   return text
     .replace(/['"][\x00-\x1F]+['"]/g, (match) =>
       match.replace(/[\x00-\x1F]/g, toXChar)
