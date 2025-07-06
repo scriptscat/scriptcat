@@ -7,7 +7,7 @@ import { RuntimeService } from "./runtime";
 import { PopupService } from "./popup";
 import { sendMessage } from "@Packages/message/client";
 import Cache from "@App/app/cache";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName } from "@App/pkg/utils/utils2";
 import { ValueUpdateData, ValueUpdateSender } from "../content/exec_script";
 import { subscribeScriptDelete } from "../queue";
 import { MessageQueue } from "@Packages/message/message_queue";

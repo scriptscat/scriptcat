@@ -9,7 +9,7 @@ import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { EmitEventRequest, RuntimeService } from "./runtime";
-import { getIcon, isFirefox } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox } from "@App/pkg/utils/utils2";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import i18next, { i18nName } from "@App/locales/locales";
 import { SystemConfig } from "@App/pkg/config/config";

@@ -1,4 +1,4 @@
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName } from "@App/pkg/utils/utils2";
 import { db } from "./repo/dao";
 import { Script, ScriptAndCode, ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
 import { Subscribe, SubscribeDAO } from "./repo/subscribe";

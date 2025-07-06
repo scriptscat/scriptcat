@@ -7,7 +7,7 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { LoggerCore } from "@App/app/logger/core";
 import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName } from "@App/pkg/utils/utils2";
 import { MessageRequest, type NotificationMessageOption } from "../service_worker/gm_api";
 import { ScriptLoadInfo } from "../service_worker/runtime";
 import { ScriptMenuItem } from "../service_worker/popup";

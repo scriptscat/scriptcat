@@ -1,5 +1,5 @@
 import { LoggerCore, LogLabel, LogLevel } from "./core";
-import { dayFormat } from "@App/pkg/utils/utils";
+import { dayFormat } from "@App/pkg/utils/utils2";
 
 const levelNumber: { [key in LogLevel]: number } = {
   none: 0,

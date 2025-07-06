@@ -13,7 +13,7 @@ import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import { ExecScript, ValueUpdateData } from "../content/exec_script";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName } from "@App/pkg/utils/utils2";
 import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
 import { CATRetryError } from "../content/exec_warp";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";

@@ -1,7 +1,7 @@
 import { Message, Server } from "@Packages/message/server";
 import { ExecScript, ValueUpdateData } from "./exec_script";
 import { addStyle, ScriptFunc } from "./utils";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName } from "@App/pkg/utils/utils2";
 import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";

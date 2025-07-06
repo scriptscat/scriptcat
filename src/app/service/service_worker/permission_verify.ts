@@ -4,7 +4,7 @@ import { Script } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
 import { Api, Request } from "./gm_api";
 import Queue from "@App/pkg/utils/queue";
-import {permissionConfirm} from "@App/app/cache_key";
+import { permissionConfirm } from "@App/app/cache_key";
 import { Permission, PermissionDAO } from "@App/app/repo/permission";
 import { Group } from "@Packages/message/server";
 import { subscribeScriptDelete } from "../queue";

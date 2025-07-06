@@ -17,7 +17,9 @@ import { ScriptService } from "./script";
 import { checkSilenceUpdate, InfoNotification, ltever } from "@App/pkg/utils/utils";
 import { fetchScriptInfo, prepareSubscribeByCode, ScriptInfo } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { scriptInstallInfo } from "@App/app/cache_key";
+
+const CacheKey = { scriptInstallInfo };
 
 export class SubscribeService {
   logger: Logger;

@@ -17,7 +17,7 @@ import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
 import { isWarpTokenError } from "@Packages/filesystem/error";
-import { dayFormat, errorMsg, InfoNotification } from "@App/pkg/utils/utils";
+import { dayFormat, errorMsg, InfoNotification } from "@App/pkg/utils/utils2";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { ScriptService } from "./script";

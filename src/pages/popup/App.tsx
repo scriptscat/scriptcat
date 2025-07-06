@@ -19,7 +19,7 @@ import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
 import { ScriptMenu } from "@App/app/service/service_worker/popup";
 import { systemConfig } from "../store/global";
-import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
+import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils2";
 import { localePath } from "@App/locales/locales";
 
 const CollapseItem = Collapse.Item;

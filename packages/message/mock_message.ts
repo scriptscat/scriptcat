@@ -1,6 +1,6 @@
 import EventEmitter from "eventemitter3";
 import { Message, MessageConnect, MessageSend } from "./server";
-import { sleep } from "@App/pkg/utils/utils";
+import { sleep } from "@App/pkg/utils/utils2";
 
 export class MockMessageConnect implements MessageConnect {
   constructor(protected EE: EventEmitter) {}
