@@ -7,9 +7,11 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
 import { Subscribe } from "@App/app/repo/subscribe";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { importFile } from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
 import { resourceClient, scriptClient, synchronizeClient, valueClient } from "../store/features/script";
+
+const CacheKey = { importFile };
 
 type ScriptData = ScriptBackupData & {
   script?: { script: Script; oldScript?: Script };

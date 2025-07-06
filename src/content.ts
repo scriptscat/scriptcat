@@ -18,11 +18,4 @@ const loggerCore = new LoggerCore({
 const client = new RuntimeClient(send);
 client.pageLoad().then((data) => {
   loggerCore.logger().debug("content start");
-  const extMsg = new ExtensionMessage();
-  const msg = new CustomEventMessage(data.flag, true);
-  const server = new Server("content", msg);
-  const extServer = new Server("content", extMsg);
-  // 初始化运行环境
-  const runtime = generateContentRuntime(extServer, server, send, msg);
-  runtime.start(data.scripts);
 });

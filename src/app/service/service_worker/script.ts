@@ -4,7 +4,7 @@ import { Group } from "@Packages/message/server";
 import { Logger } from "@App/app/logger/logger";
 import { LoggerCore } from "@App/app/logger/core";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import {scriptInstallInfo} from "@App/app/cache_key";
 import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
 import {
   Script,
@@ -23,6 +23,8 @@ import { compileScriptCode } from "../content/utils";
 import { SystemConfig } from "@App/pkg/config/config";
 import i18n, { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
+
+const CacheKey = { scriptInstallInfo };
 
 export class ScriptService {
   logger: Logger;

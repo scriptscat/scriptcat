@@ -1,17 +1,15 @@
 import { ConfirmParam } from "./service/service_worker/permission_verify";
 
-export default class CacheKey {
-  // 加载脚本信息时的缓存
-  static scriptInstallInfo(uuid: string): string {
-    return `scriptInfo:${uuid}`;
-  }
+// 加载脚本信息时的缓存
+export function scriptInstallInfo(uuid: string): string {
+  return `scriptInfo:${uuid}`;
+}
 
-  static permissionConfirm(scriptUuid: string, confirm: ConfirmParam): string {
-    return `permission:${scriptUuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
-  }
+export function permissionConfirm(scriptUuid: string, confirm: ConfirmParam): string {
+  return `permission:${scriptUuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
+}
 
-  // importFile 导入文件
-  static importFile(uuid: string): string {
-    return `importFile:${uuid}`;
-  }
+// importFile 导入文件
+export function importFile(uuid: string): string {
+  return `importFile:${uuid}`;
 }

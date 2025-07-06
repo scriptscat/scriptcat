@@ -4,15 +4,17 @@ import { InstallSource } from ".";
 import { Resource } from "@App/app/repo/resource";
 import { MessageSend } from "@Packages/message/server";
 import { ScriptMenu, ScriptMenuItem } from "./popup";
-import PermissionVerify, { ConfirmParam, UserConfirm } from "./permission_verify";
+import PermissionVerify, { UserConfirm } from "./permission_verify";
 import { FileSystemType } from "@Packages/filesystem/factory";
 import { v4 as uuidv4 } from "uuid";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { importFile } from "@App/app/cache_key";
 import { Subscribe } from "@App/app/repo/subscribe";
 import { Permission } from "@App/app/repo/permission";
 import { ResourceBackup } from "@App/pkg/backup/struct";
 import { VSCodeConnect } from "../offscreen/vscode-connect";
+
+const CacheKey = { importFile };
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
