@@ -553,6 +553,14 @@ export class RuntimeService {
       }
 
       messageFlag = await this.getAndGenMessageFlag();
+      if (!chrome.userScripts) {
+        let error = "chrome.userScripts is not available.";
+        try {
+          error += "\n" + JSON.stringify({ messageFlag });
+        } catch (e) { }
+        this.logger.error(error, Logger.E(new Error(error)));
+        return;
+      }
       const injectJs = await fetch("inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;

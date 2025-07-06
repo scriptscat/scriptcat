@@ -24,14 +24,14 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@reduxjs/toolkit": "^2.5.1",
-    "cron": "^3.2.1",
+    "@reduxjs/toolkit": "^2.8.2",
+    "cron": "^4.1.1",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
-    "dexie": "^4.0.10",
-    "eslint-linter-browserify": "^9.26.0",
+    "dexie": "^4.0.11",
+    "eslint-linter-browserify": "^9.29.0",
     "eventemitter3": "^5.0.1",
-    "i18next": "^23.16.4",
+    "i18next": "^23.16.8",
     "monaco-editor": "^0.52.2",
     "pako": "^2.1.0",
     "react": "^18.3.1",
@@ -55,15 +55,15 @@
     "@rspack/plugin-react-refresh": "^1.4.3",
     "@types/chrome": "^0.0.329",
     "@types/crypto-js": "^4.2.2",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.15.17",
     "@types/pako": "^2.0.3",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@types/semver": "^7.5.8",
-    "@types/serviceworker": "^0.0.120",
-    "@unocss/postcss": "0.65.4",
+    "@types/serviceworker": "^0.0.140",
+    "@unocss/postcss": "^66.3.2",
     "@vitest/coverage-v8": "2.1.9",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
     "crx": "^5.0.1",
     "eslint": "^9.30.1",
@@ -83,8 +83,25 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.1",
-    "unocss": "0.65.4",
+    "unocss": "^66.3.2",
     "vitest": "^2.1.9"
   },
-  "packageManager": "pnpm@10.12.4"
+  "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "pnpm": ">=10.8.0",
+    "node": ">=22.8.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "tsx>esbuild": "^0.25.5",
+      "vite>esbuild": "^0.25.5",
+      "terser-webpack-plugin>esbuild": "^0.25.5",
+      "jsdom>parse5": "^7.3.0",
+      "test-exclude>glob": "^10.4.5",
+      "archiver-utils>glob": "^10.4.5",
+      "archiver>glob": "^10.4.5",
+      "node-fetch>fetch-blob": "^4.0.0",
+      "formdata-polyfill>fetch-blob": "^4.0.0"
+    }
+  }
 }
