@@ -1,11 +1,10 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Script, SCRIPT_TYPE_NORMAL, ScriptDAO } from "@App/app/repo/scripts";
+import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { ValueDAO } from "@App/app/repo/value";
-import { GetSender, Group, MessageSend } from "@Packages/message/server";
+import { GetSender, Group } from "@Packages/message/server";
 import { RuntimeService } from "./runtime";
 import { PopupService } from "./popup";
-import { sendMessage } from "@Packages/message/client";
 import Cache from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ValueUpdateData, ValueUpdateSender } from "../content/exec_script";

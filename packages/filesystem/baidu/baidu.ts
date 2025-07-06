@@ -1,4 +1,3 @@
-import { SystemConfig } from "@App/pkg/config/config";
 import { AuthVerify } from "../auth";
 import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";

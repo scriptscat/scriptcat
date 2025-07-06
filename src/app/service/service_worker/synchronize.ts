@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { Resource } from "@App/app/repo/resource";
-import { Script, SCRIPT_STATUS_ENABLE, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
 import FileSystem, { File } from "@Packages/filesystem/filesystem";

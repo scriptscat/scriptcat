@@ -62,6 +62,7 @@ import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import { useTranslation } from "react-i18next";
 import { nextTime, semTime } from "@App/pkg/utils/utils";
+import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { ListHomeRender, ScriptIcons } from "./utils";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
@@ -80,7 +81,6 @@ import {
   synchronizeClient,
   batchDeleteScript,
 } from "@App/pages/store/features/script";
-import { message, systemConfig } from "@App/pages/store/global";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { store } from "@App/pages/store/store";
