@@ -1,8 +1,8 @@
 import { Metadata, Script } from "@App/app/repo/scripts";
 
-export function formatTime(time: Date) {
-  return dayFormat(time, "YYYY-MM-DD HH:mm:ss");
-}
+// export function formatTime(time: Date) {
+//   return dayFormat(time, "YYYY-MM-DD HH:mm:ss");
+// }
 
 export function formatUnixTime(time: number) {
   const date = new Date(time * 1000);
@@ -19,15 +19,15 @@ export function randomString(e = 32): string {
   return n.join('');
 }
 
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
+// export function dealSymbol(source: string): string {
+//   source = source.replace(/("|\\)/g, "\\$1");
+//   source = source.replace(/(\r\n|\n)/g, "\\n");
+//   return source;
+// }
 
-export function dealScript(source: string): string {
-  return dealSymbol(source);
-}
+// export function dealScript(source: string): string {
+//   return dealSymbol(source);
+// }
 
 export function isFirefox() {
   return navigator.userAgent.includes("Firefox");

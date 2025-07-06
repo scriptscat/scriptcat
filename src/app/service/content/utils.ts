@@ -419,12 +419,3 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
   proxy[Symbol.toStringTag] = "Window";
   return proxy;
 }
-
-export function addStyle(css: string): HTMLElement {
-  const dom = document.createElement("style");
-  dom.innerHTML = css;
-  if (document.head) {
-    return document.head.appendChild(dom);
-  }
-  return document.documentElement.appendChild(dom);
-}
