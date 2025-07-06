@@ -33,6 +33,8 @@ function renameField(): void {
     // export是0.10.x时的兼容性处理
     export: "++id,&scriptId",
   });
+  // 避免扩展降级导致数据结构不一致
+  db.version(18);
 }
 
 export default function migrate() {
