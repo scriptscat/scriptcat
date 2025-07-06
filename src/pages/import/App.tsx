@@ -151,7 +151,7 @@ function App() {
 
   const scriptImportAsync = async (item: ScriptData) => {
     try {
-      await sleep(1);
+      // await sleep(1);
       await scriptClient.install(item.script?.script!, item.code);
       await Promise.all([
         (async () => { // 导入资源
@@ -175,7 +175,7 @@ function App() {
           }
         })()
       ]);
-      await sleep(1);
+      // await sleep(1);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);
     } catch (e) {
       // 跳過失敗
