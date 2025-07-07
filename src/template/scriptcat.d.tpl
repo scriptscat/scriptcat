@@ -75,8 +75,6 @@ declare const GM_info: {
   [key: string]: unknown;
 };
 
-
-
 declare function GM_listValues(): string[];
 
 declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;
@@ -90,7 +88,9 @@ declare function GM_setValues(values: { [key: string]: any }): void;
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
 // 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值
-declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): { [key: string]: any };
+declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): {
+  [key: string]: any;
+};
 
 declare function GM_deleteValue(name: string): void;
 
@@ -353,6 +353,7 @@ declare namespace GMTypes {
     path: string;
     httpOnly: boolean;
     secure: boolean;
+    sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
   }
 
   // tabid是只有后台脚本监听才有的参数

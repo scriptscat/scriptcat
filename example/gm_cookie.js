@@ -5,8 +5,8 @@
 // @description  可以控制浏览器的cookie, 必须指定@connect, 并且每次一个新的域调用都需要用户确定
 // @author       You
 // @match        https://bbs.tampermonkey.net.cn/
-// @grant GM_cookie
-// @connect example.com
+// @grant        GM_cookie
+// @connect      example.com
 // ==/UserScript==
 
 GM_cookie("set", {
