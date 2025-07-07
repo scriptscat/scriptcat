@@ -234,15 +234,6 @@ export function getIcon(script: Script): string | undefined {
 }
 
 export function calculateMd5(blob: Blob) {
-  if (typeof globalThis.crypto !== 'undefined') {
-    const crypto = globalThis.crypto;
-    return blob.arrayBuffer()
-      .then(arrayBuffer => crypto.subtle.digest('MD5', arrayBuffer))
-      .then(hashBuffer => {
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      }); // any error should be handled upstream
-  }
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsArrayBuffer(blob);
