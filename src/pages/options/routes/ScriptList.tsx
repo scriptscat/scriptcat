@@ -167,7 +167,6 @@ function ScriptList() {
       key: "name",
       title: t("name"),
       dataIndex: "name",
-      width: 240,
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
@@ -209,6 +208,7 @@ function ScriptList() {
           setTimeout(() => inputRef.current!.focus(), 150);
         }
       },
+      className: "max-w-[240px]",
       render: (col, item: ListType) => {
         return (
           <Tooltip content={col} position="tl">
@@ -804,9 +804,8 @@ function ScriptList() {
                           // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
                           [...select].reverse().forEach((script) => {
                             // 找到脚本当前的位置
-                            const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
-                            if (scriptIndex > 0) {
-                              // 如果不是已经在最顶部
+                            const scriptIndex = currentScripts.findIndex(s => s.uuid === script.uuid);
+                            if (scriptIndex > 0) { // 如果不是已经在最顶部
                               // 将脚本置顶（移动到第一个位置）
                               dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
                             }
@@ -995,7 +994,7 @@ function ScriptList() {
             hideOnSinglePage: true,
           }}
           style={{
-            minWidth: "1100px",
+            minWidth: "1200px",
           }}
           rowSelection={{
             type: "checkbox",
