@@ -1,30 +1,6 @@
+import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
-
-export interface Message extends MessageSend {
-  onConnect(callback: (data: any, con: MessageConnect) => void): void;
-  onMessage(callback: (data: any, sendResponse: (data: any) => void, sender?: MessageSender) => void): void;
-}
-
-export interface MessageSend {
-  connect(data: any): Promise<MessageConnect>;
-  sendMessage(data: any): Promise<any>;
-}
-
-export interface MessageConnect {
-  onMessage(callback: (data: any) => void): void;
-  sendMessage(data: any): void;
-  disconnect(): void;
-  onDisconnect(callback: () => void): void;
-}
-
-export type MessageSender = chrome.runtime.MessageSender;
-
-export type ExtMessageSender = {
-  tabId: number;
-  frameId?: number;
-  documentId?: string;
-};
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
@@ -47,8 +23,8 @@ export class GetSender {
   }
 }
 
-export type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
-export type ApiFunctionSync = (params: any, con: GetSender) => any;
+type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
+type ApiFunctionSync = (params: any, con: GetSender) => any;
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
@@ -145,7 +121,7 @@ export function forwardMessage(
   const handler = (params: any, fromCon: GetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
-      connect(to, prefix + "/" + path, params).then((toCon) => {
+      connect(to, prefix + "/" + path, params).then((toCon: MessageConnect) => {
         fromConnect.onMessage((data) => {
           toCon.sendMessage(data);
         });

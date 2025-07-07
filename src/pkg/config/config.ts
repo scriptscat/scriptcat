@@ -1,8 +1,8 @@
 import { Message } from "@arco-design/web-react";
 import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
-import { FileSystemType } from "@Packages/filesystem/factory";
-import { MessageQueue } from "@Packages/message/message_queue";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import type { MessageQueue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 

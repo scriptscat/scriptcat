@@ -15,12 +15,12 @@ import {
   ScriptDAO,
   ScriptRunResouce,
 } from "@App/app/repo/scripts";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { InstallSource } from ".";
-import { ResourceService } from "./resource";
-import { ValueService } from "./value";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { InstallSource } from "./types";
+import { type ResourceService } from "./resource";
+import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
-import { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 

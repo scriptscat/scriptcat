@@ -3,8 +3,8 @@ import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { InjectRuntime } from "./app/service/content/inject";
-import { ScriptLoadInfo } from "./app/service/service_worker/runtime";
-import { GMInfoEnv } from "./app/service/content/gm_api";
+import type { ScriptLoadInfo } from "./app/service/service_worker/types";
+import type { GMInfoEnv } from "./app/service/content/types";
 
 const msg = new CustomEventMessage(MessageFlag, false);
 

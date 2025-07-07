@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { init, proxyContext, writables } from "./utils";
+import { init, proxyContext } from "./utils";
 
 describe("proxy context", () => {
   const context: any = {};

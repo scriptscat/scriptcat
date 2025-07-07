@@ -1,25 +1,13 @@
 import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
-import GMApi, { GMInfoEnv } from "./gm_api";
-import { compileScript, createContext, proxyContext, ScriptFunc } from "./utils";
-import { Message } from "@Packages/message/server";
-import { ScriptLoadInfo } from "../service_worker/runtime";
-
-export type ValueUpdateSender = {
-  runFlag: string;
-  tabId?: number;
-};
-
-export type ValueUpdateData = {
-  oldValue: any;
-  value: any;
-  key: string; // 值key
-  uuid: string;
-  storageName: string; // 储存name
-  sender: ValueUpdateSender;
-};
-
-export class RuntimeMessage {}
+import type Logger from "@App/app/logger/logger";
+import { createContext } from "./create_context";
+import type { GMInfoEnv, ScriptFunc } from "./types";
+import { compileScript, proxyContext } from "./utils";
+import type { Message } from "@Packages/message/types";
+import type { ScriptLoadInfo } from "../service_worker/types";
+import type { ValueUpdateData } from "./types";
+import { evaluateGMInfo } from "./gm_info";
+import { type GM_Base } from "./gm_base";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -31,7 +19,7 @@ export default class ExecScript {
 
   proxyContent: any;
 
-  sandboxContent?: GMApi;
+  sandboxContent?: GM_Base;
 
   GM_info: any;
 
@@ -49,7 +37,7 @@ export default class ExecScript {
       uuid: this.scriptRes.uuid,
       name: this.scriptRes.name,
     });
-    this.GM_info = GMApi.GM_info(envInfo, this.scriptRes);
+    this.GM_info = evaluateGMInfo(envInfo, this.scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
       this.scriptFunc = compileScript(code);

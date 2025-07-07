@@ -1,6 +1,7 @@
 import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
 import { MockMessage } from "@Packages/message/mock_message";
-import { Message, Server } from "@Packages/message/server";
+import { Server } from "@Packages/message/server";
+import type { Message } from "@Packages/message/types";
 import { ValueService } from "@App/app/service/service_worker/value";
 import GMApi, { MockGMExternalDependencies } from "@App/app/service/service_worker/gm_api";
 import OffscreenGMApi from "@App/app/service/offscreen/gm_api";

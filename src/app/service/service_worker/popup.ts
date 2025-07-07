@@ -1,11 +1,11 @@
-import { MessageQueue } from "@Packages/message/message_queue";
-import { ExtMessageSender, Group } from "@Packages/message/server";
-import { RuntimeService, ScriptMatchInfo } from "./runtime";
-import Cache from "@App/app/cache";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { type Group } from "@Packages/message/server";
+import type { ExtMessageSender } from "@Packages/message/types";
+import { type RuntimeService } from "./runtime";
+import type { ScriptMatchInfo, ScriptMenu } from "./types";
 import { GetPopupDataReq, GetPopupDataRes } from "./client";
+import Cache from "@App/app/cache";
 import {
-  SCRIPT_RUN_STATUS,
-  Metadata,
   SCRIPT_STATUS_ENABLE,
   Script,
   ScriptDAO,
@@ -22,39 +22,6 @@ import {
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils";
 
-export type ScriptMenuItem = {
-  id: number;
-  name: string;
-  options?: {
-    id?: number;
-    autoClose?: boolean;
-    title?: string;
-    accessKey?: string;
-    // 可选输入框
-    inputType?: "text" | "number" | "boolean";
-    inputLabel?: string;
-    inputDefaultValue?: string | number | boolean;
-    inputPlaceholder?: string;
-  };
-  tabId: number; //-1表示后台脚本
-  frameId?: number;
-  documentId?: string;
-};
-
-export type ScriptMenu = {
-  uuid: string; // 脚本uuid
-  name: string; // 脚本名称
-  storageName: string; // 脚本存储名称
-  enable: boolean; // 脚本是否启用
-  updatetime: number; // 脚本更新时间
-  hasUserConfig: boolean; // 是否有用户配置
-  metadata: Metadata; // 脚本元数据
-  runStatus?: SCRIPT_RUN_STATUS; // 脚本运行状态
-  runNum: number; // 脚本运行次数
-  runNumByIframe: number; // iframe运行次数
-  menus: ScriptMenuItem[]; // 脚本菜单
-  customExclude: string[]; // 自定义排除
-};
 
 // 处理popup页面的数据
 export class PopupService {

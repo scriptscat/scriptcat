@@ -1,5 +1,4 @@
 import { Script } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
 import { valueClient } from "@App/pages/store/features/script";
 import { valueType } from "@App/pkg/utils/utils";
 import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";

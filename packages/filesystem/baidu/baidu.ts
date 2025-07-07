@@ -1,5 +1,6 @@
 import { AuthVerify } from "../auth";
-import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
+import type FileSystem from "../filesystem";
+import type { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { BaiduFileReader, BaiduFileWriter } from "./rw";
 

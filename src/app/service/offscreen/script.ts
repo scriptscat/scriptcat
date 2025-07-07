@@ -1,11 +1,12 @@
 import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { WindowMessage } from "@Packages/message/window_message";
+import type Logger from "@App/app/logger/logger";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { type WindowMessage } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, ScriptRunResouce } from "@App/app/repo/scripts";
 import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
-import { Group, MessageSend } from "@Packages/message/server";
+import { type Group } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
 import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } from "../queue";
 
 export class ScriptService {

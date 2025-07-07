@@ -1,38 +1,39 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { Resource } from "@App/app/repo/resource";
-import { Script, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
+import { type Script, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
 import FileSystem, { File } from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
-import { Group, MessageSend } from "@Packages/message/server";
-import JSZip from "jszip";
-import { ValueService } from "./value";
-import { ResourceService } from "./resource";
-import dayjs from "dayjs";
-import { createObjectURL } from "../offscreen/client";
-import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
-import { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
+import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { isWarpTokenError } from "@Packages/filesystem/error";
+import type { Group } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import JSZip from "jszip";
+import { type ValueService } from "./value";
+import { type ResourceService } from "./resource";
+import { createObjectURL } from "../offscreen/client";
+import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
+import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
 import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
-import { ScriptService } from "./script";
+import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { InstallSource } from ".";
+import { type InstallSource } from "./types";
 import { ExtVersion } from "@App/app/const";
+import { dayFormat } from "@App/pkg/utils/day_format";
 
-export type SynchronizeTarget = "local";
+// type SynchronizeTarget = "local";
 
 type SyncFiles = {
   script: File;
   meta: File;
 };
 
-export type SyncMeta = {
+type SyncMeta = {
   uuid: string;
   origin?: string; // 脚本来源
   downloadUrl?: string;
@@ -257,7 +258,7 @@ export class SynchronizeService {
     chrome.downloads.download({
       url,
       saveAs: true,
-      filename: `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`,
+      filename: `scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`,
     });
     return;
   }
@@ -275,7 +276,7 @@ export class SynchronizeService {
       await cloudFs.createDir("ScriptCat");
       cloudFs = await cloudFs.openDir("ScriptCat");
       // 云端文件系统写入文件
-      const file = await cloudFs.create(`scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`);
+      const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
         await zip.generateAsync({
           type: "blob",

@@ -1,8 +1,8 @@
-import { WindowMessage } from "@Packages/message/window_message";
-import { SCRIPT_RUN_STATUS, ScriptRunResouce } from "@App/app/repo/scripts";
+import { type WindowMessage } from "@Packages/message/window_message";
+import type { SCRIPT_RUN_STATUS, ScriptRunResouce } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
-import { MessageSend } from "@Packages/message/server";
-import { VSCodeConnect } from "./vscode-connect";
+import type { MessageSend } from "@Packages/message/types";
+import { type VSCodeConnect } from "./vscode-connect";
 
 export function preparationSandbox(msg: WindowMessage) {
   return sendMessage(msg, "offscreen/preparationSandbox");

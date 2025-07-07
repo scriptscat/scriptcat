@@ -1,10 +1,10 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
-import { GMInfoEnv } from "./gm_api";
+import type { GMInfoEnv } from "./types";
 
 initTestEnv();
 

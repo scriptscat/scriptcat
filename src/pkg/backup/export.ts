@@ -1,8 +1,8 @@
 import FileSystem from "@Packages/filesystem/filesystem";
-import crypto from "crypto-js";
 import { base64ToBlob } from "../utils/script";
 import { toStorageValueStr } from "../utils/utils";
 import { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
+import { md5OfText } from "../utils/crypto";
 
 export default class BackupExport {
   fs: FileSystem;
@@ -52,7 +52,7 @@ export default class BackupExport {
   ): Promise<void[]> {
     const results: Promise<void>[] = resources.map(async (item) => {
       // md5是tm的导出规则
-      const md5 = crypto.MD5(`${type}{val.meta.url}`).toString();
+      const md5 = md5OfText(`${type}{val.meta.url}`);
       if (item.source) {
         await (await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)).write(item.source!);
       } else {

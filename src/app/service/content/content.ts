@@ -1,8 +1,9 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResouce } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
-import { CustomEventMessage } from "@Packages/message/custom_event_message";
-import { forwardMessage, Message, MessageSend, Server } from "@Packages/message/server";
-import { GMInfoEnv } from "./gm_api";
+import { type CustomEventMessage } from "@Packages/message/custom_event_message";
+import { forwardMessage, type Server } from "@Packages/message/server";
+import type { Message, MessageSend } from "@Packages/message/types";
+import type { GMInfoEnv } from "./types";
 
 // content页的处理
 export default class ContentRuntime {

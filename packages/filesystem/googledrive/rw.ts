@@ -1,4 +1,4 @@
-import { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import GoogleDriveFileSystem from "./googledrive";
 

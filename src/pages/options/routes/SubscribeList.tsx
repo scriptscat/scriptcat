@@ -5,7 +5,7 @@ import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, Subscribe
 import { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { semTime } from "@App/pkg/utils/utils";
+import { semTime } from "@App/pkg/utils/dayjs";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
 import { subscribeClient } from "@App/pages/store/features/script";

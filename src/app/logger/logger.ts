@@ -1,5 +1,6 @@
-import dayjs from "dayjs";
-import LoggerCore, { LogLabel, LogLevel } from "./core";
+import type { LogLabel, LogLevel } from "./core";
+import type LoggerCore from "./core";
+import { dayFormat } from "@App/pkg/utils/day_format";
 
 const levelNumber: { [key in LogLevel]: number } = {
   none: 0,
@@ -41,7 +42,7 @@ export default class Logger {
       if (typeof message === "object") {
         message = JSON.stringify(message);
       }
-      const msg = `${dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss")} [${level}] ${message}`;
+      const msg = `${dayFormat(new Date(), "YYYY-MM-DD HH:mm:ss")} [${level}] ${message}`;
       switch (level) {
         case "error":
           console.error(msg, newLabel);

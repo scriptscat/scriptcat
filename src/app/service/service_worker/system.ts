@@ -1,5 +1,6 @@
-import { SystemConfig } from "@App/pkg/config/config";
-import { Group, MessageSend } from "@Packages/message/server";
+import { type SystemConfig } from "@App/pkg/config/config";
+import { type Group } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
 import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import Cache from "@App/app/cache";
 

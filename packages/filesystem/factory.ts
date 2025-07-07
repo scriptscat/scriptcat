@@ -4,7 +4,7 @@ import GoogleDriveFileSystem from "./googledrive/googledrive";
 import OneDriveFileSystem from "./onedrive/onedrive";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
-import i18n from "@App/locales/locales";
+import { t } from "@App/locales/locales";
 
 export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive";
 
@@ -50,13 +50,13 @@ export default class FileSystemFactory {
     return {
       webdav: {
         authType: {
-          title: i18n.t("auth_type"),
+          title: t("auth_type"),
           type: "select",
           options: ["password", "digest", "none", "token"],
         },
-        url: { title: i18n.t("url") },
-        username: { title: i18n.t("username") },
-        password: { title: i18n.t("password"), type: "password" },
+        url: { title: t("url") },
+        username: { title: t("username") },
+        password: { title: t("password"), type: "password" },
       },
       "baidu-netdsik": {},
       onedrive: {},

@@ -8,16 +8,14 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
-  ScriptAndCode,
   ScriptCode,
   ScriptCodeDAO,
   ScriptDAO,
-  UserConfig,
 } from "@App/app/repo/scripts";
-import YAML from "yaml";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO, Metadata as SubMetadata } from "@App/app/repo/subscribe";
-import { nextTime } from "./utils";
-import { InstallSource } from "@App/app/service/service_worker";
+import { nextTime } from "./cron";
+import { InstallSource } from "@App/app/service/service_worker/types";
+import { parseUserConfig } from "./yaml"; 
 
 export function getMetadataStr(code: string): string | null {
   const start = code.indexOf("==UserScript==");
@@ -74,23 +72,6 @@ export function parseMetadata(code: string): Metadata | null {
   if (issub) {
     ret.usersubscribe = [];
   }
-  return ret;
-}
-
-export function parseUserConfig(code: string): UserConfig | undefined {
-  const regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
-  const config = regex.exec(code);
-  if (!config) {
-    return undefined;
-  }
-  const configs = config[1].trim().split(/[-]{3,}/);
-  const ret: UserConfig = {};
-  configs.forEach((val) => {
-    const obj: UserConfig = YAML.parse(val);
-    Object.keys(obj || {}).forEach((key) => {
-      ret[key] = obj[key];
-    });
-  });
   return ret;
 }
 

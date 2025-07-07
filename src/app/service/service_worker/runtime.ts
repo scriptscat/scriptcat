@@ -1,5 +1,7 @@
+import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
 import { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
-import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
+import { GetSender, Group } from "@Packages/message/server";
+import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
 import {
   Script,
   SCRIPT_STATUS,
@@ -7,12 +9,11 @@ import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
-  ScriptRunResouce,
 } from "@App/app/repo/scripts";
-import { ValueService } from "./value";
+import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
 import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
-import { ScriptService } from "./script";
+import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
 import { isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
@@ -23,31 +24,12 @@ import { sendMessage } from "@Packages/message/client";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
-import { SystemConfig } from "@App/pkg/config/config";
-import { ResourceService } from "./resource";
+import { type SystemConfig } from "@App/pkg/config/config";
+import { type ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
-import { GMInfoEnv } from "../content/gm_api";
-
-// 为了优化性能，存储到缓存时删除了code、value与resource
-export interface ScriptMatchInfo extends ScriptRunResouce {
-  matches: string[];
-  excludeMatches: string[];
-  customizeExcludeMatches: string[];
-}
-
-export interface ScriptLoadInfo extends ScriptMatchInfo {
-  metadataStr: string; // 脚本元数据字符串
-  userConfigStr: string; // 用户配置字符串
-}
-
-export interface EmitEventRequest {
-  uuid: string;
-  event: string;
-  eventId: string;
-  data?: any;
-}
+import { GMInfoEnv } from "../content/types";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -412,7 +394,7 @@ export class RuntimeService {
     }
 
     const [scriptFlag, __] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
-    const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
+    const chromeSender = sender.getSender() as MessageSender;
 
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);

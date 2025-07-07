@@ -8,12 +8,12 @@ import {
   SubscribeDAO,
   SubscribeScript,
 } from "@App/app/repo/subscribe";
-import { SystemConfig } from "@App/pkg/config/config";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { Group } from "@Packages/message/server";
-import { InstallSource } from ".";
+import { type SystemConfig } from "@App/pkg/config/config";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { type Group } from "@Packages/message/server";
+import { type ScriptService } from "./script";
+import { InstallSource } from "./types";
 import { publishSubscribeInstall, subscribeSubscribeInstall } from "../queue";
-import { ScriptService } from "./script";
 import { checkSilenceUpdate, InfoNotification, ltever } from "@App/pkg/utils/utils";
 import { fetchScriptInfo, prepareSubscribeByCode, ScriptInfo } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";

@@ -1,5 +1,7 @@
 // types
 
+export type ScriptFunc = (context: any, GM_info: any) => any;
+
 // exec_script.ts
 
 export type ValueUpdateSender = {
@@ -25,4 +27,10 @@ export interface ApiParam {
 export interface ApiValue {
   api: any;
   param: ApiParam;
+}
+
+export interface GMInfoEnv {
+  userAgentData: typeof GM_info.userAgentData;
+  sandboxMode: typeof GM_info.sandboxMode;
+  isIncognito: typeof GM_info.isIncognito;
 }

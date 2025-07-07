@@ -1,57 +1,39 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
-import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
-import { ValueService } from "@App/app/service/service_worker/value";
-import PermissionVerify, { ConfirmParam } from "./permission_verify";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { GetSender, type Group } from "@Packages/message/server";
+import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { MockMessageConnect } from "@Packages/message/mock_message";
+import { type ValueService } from "@App/app/service/service_worker/value";
+import PermissionVerify, { ConfirmParam } from "./permission_verify";
 import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { EmitEventRequest, RuntimeService } from "./runtime";
+import { type RuntimeService } from "./runtime";
 import { getIcon, isFirefox } from "@App/pkg/utils/utils";
-import { MockMessageConnect } from "@Packages/message/mock_message";
-import { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
-import FileSystem from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
+import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 
 // GMApi,处理脚本的GM API调用请求
 
-export type MessageRequest = {
-  uuid: string; // 脚本id
-  api: string;
-  runFlag: string;
-  params: any[];
-};
-
-export type Request = MessageRequest & {
-  script: Script;
-};
-
-export type RequestResultParams = {
+type RequestResultParams = {
   requestId: number;
   statusCode: number;
   responseHeader: string;
 };
 
-export type NotificationMessageOption = {
-  event: "click" | "buttonClick" | "close";
-  params: {
-    /**
-     * event为buttonClick时存在该值
-     *
-     * buttonClick的index
-     */
-    index?: number;
-    /**
-     * 是否是用户点击
-     */
-    byUser?: boolean;
-  };
-};
+// GMExternalDependencies接口定义
+// 为了支持外部依赖注入，方便测试和扩展
+interface IGMExternalDependencies {
+  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
+}
+
 
 /**
  * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
@@ -114,13 +96,8 @@ type NotificationData = {
   sender: ExtMessageSender;
 };
 
-export type Api = (request: Request, con: GetSender) => Promise<any>;
-
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
-export interface IGMExternalDependencies {
-  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
-}
 
 export class GMExternalDependencies implements IGMExternalDependencies {
   constructor(private runtimeService: RuntimeService) {}
