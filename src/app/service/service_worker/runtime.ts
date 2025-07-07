@@ -28,6 +28,7 @@ import { ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
+import { GMInfoEnv } from "../content/gm_api";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResouce {
@@ -58,6 +59,7 @@ export class RuntimeService {
 
   isEnableDeveloperMode = false;
   isEnableUserscribe = true;
+  userAgentData: typeof GM_info.userAgentData = {};
 
   constructor(
     private systemConfig: SystemConfig,
@@ -70,6 +72,25 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
+  }
+
+  async initUserAgentData() {
+    // @ts-ignore
+    if (navigator.userAgentData) {
+      // @ts-ignore
+      this.userAgentData = {
+        // @ts-ignore
+        brands: navigator.userAgentData.brands,
+        // @ts-ignore
+        mobile: navigator.userAgentData.mobile,
+        // @ts-ignore
+        platform: navigator.userAgentData.platform,
+      };
+      // 处理architecture和bitness
+      const platformInfo = await chrome.runtime.getPlatformInfo();
+      this.userAgentData.architecture = platformInfo.nacl_arch;
+      this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+    }
   }
 
   async init() {
@@ -206,6 +227,8 @@ export class RuntimeService {
     });
     // 加载黑名单
     this.loadBlacklist(await this.systemConfig.getBlacklist());
+    // 初始化一下userAgentData
+    this.initUserAgentData();
   }
 
   private loadBlacklist(blacklist: string) {
@@ -515,7 +538,15 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
-    return { flag: scriptFlag, scripts: enableScript };
+    return {
+      flag: scriptFlag,
+      scripts: enableScript,
+      envInfo: {
+        sandboxMode: "raw",
+        isIncognito: chrome.extension.inIncognitoContext,
+        userAgentData: this.userAgentData,
+      } as GMInfoEnv,
+    };
   }
 
   // 停止脚本

@@ -4,6 +4,7 @@ import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
+import { GMInfoEnv } from "./gm_api";
 
 initTestEnv();
 
@@ -20,9 +21,18 @@ const scriptRes = {
     none: true,
   },
 } as unknown as ScriptRunResouce;
+const envInfo: GMInfoEnv = {
+  sandboxMode: "raw",
+  userAgentData: {
+    brands: [],
+    mobile: false,
+    platform: "",
+  },
+  isIncognito: false,
+};
 
 // @ts-ignore
-const noneExec = new ExecScript(scriptRes);
+const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo, undefined);
 
 const scriptRes2 = {
   id: 0,
@@ -37,7 +47,7 @@ const scriptRes2 = {
 } as unknown as ScriptRunResouce;
 
 // @ts-ignore
-const sandboxExec = new ExecScript(scriptRes2);
+const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo, undefined);
 
 describe("GM_info", () => {
   it("none", async () => {

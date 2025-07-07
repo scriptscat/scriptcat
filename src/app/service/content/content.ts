@@ -2,6 +2,7 @@ import { ScriptRunResouce } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, Message, MessageSend, Server } from "@Packages/message/server";
+import { GMInfoEnv } from "./gm_api";
 
 // content页的处理
 export default class ContentRuntime {
@@ -12,7 +13,7 @@ export default class ContentRuntime {
     private msg: Message
   ) {}
 
-  start(scripts: ScriptRunResouce[]) {
+  start(scripts: ScriptRunResouce[], envInfo: GMInfoEnv) {
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject
       return sendMessage(this.msg, "inject/runtime/emitEvent", data);
@@ -101,6 +102,6 @@ export default class ContentRuntime {
       }
     );
     const client = new Client(this.msg, "inject");
-    client.do("pageLoad", { scripts });
+    client.do("pageLoad", { scripts, envInfo });
   }
 }

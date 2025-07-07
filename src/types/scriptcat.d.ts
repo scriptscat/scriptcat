@@ -30,7 +30,18 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
-  // isIncognito: boolean;
+  isIncognito: boolean;
+  sandboxMode: "raw"; // "js" | "raw" | "none";
+  userAgentData: {
+    brands?: {
+      brand: string;
+      version: string;
+    }[];
+    mobile?: boolean;
+    platform?: string;
+    architecture?: string;
+    bitness?: string;
+  };
   downloadMode: "native"; // "native" | "disabled" | "browser";
   script: {
     author?: string;
@@ -346,6 +357,7 @@ declare namespace GMTypes {
   interface Cookie {
     domain: string;
     name: string;
+    partitionKey: { topLevelSite?: string };
     value: string;
     session: boolean;
     hostOnly: boolean;

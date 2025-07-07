@@ -21,6 +21,12 @@ export interface ApiValue {
   param: ApiParam;
 }
 
+export interface GMInfoEnv {
+  userAgentData: typeof GM_info.userAgentData;
+  sandboxMode: typeof GM_info.sandboxMode;
+  isIncognito: typeof GM_info.isIncognito;
+}
+
 export class GMContext {
   static apis: Map<string, ApiValue> = new Map();
 
@@ -119,7 +125,7 @@ export default class GMApi {
   }
 
   // 获取脚本信息和管理器信息
-  static GM_info(script: ScriptLoadInfo) {
+  static GM_info(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
     const options = {
       description: script.metadata.description?.[0] || null,
       matches: script.metadata.match || [],
@@ -133,12 +139,13 @@ export default class GMApi {
       connects: script.metadata.connect || [],
     };
     return {
-      downloadMode: "browser",
-      // isIncognito
+      downloadMode: "native",
+      isIncognito: envInfo.isIncognito,
       // relaxedCsp
-      // sandboxMode
+      sandboxMode: envInfo.sandboxMode,
       scriptWillUpdate: true,
       scriptHandler: "ScriptCat",
+      userAgentData: envInfo.userAgentData,
       // "" => null
       scriptUpdateURL: script.downloadUrl || null,
       scriptMetaStr: script.metadataStr,

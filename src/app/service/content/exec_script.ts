@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import GMApi from "./gm_api";
+import GMApi, { GMInfoEnv } from "./gm_api";
 import { compileScript, createContext, proxyContext, ScriptFunc } from "./utils";
 import { Message } from "@Packages/message/server";
 import { ScriptLoadInfo } from "../service_worker/runtime";
@@ -40,6 +40,7 @@ export default class ExecScript {
     envPrefix: "content" | "offscreen",
     message: Message,
     code: string | ScriptFunc,
+    envInfo: GMInfoEnv,
     thisContext?: { [key: string]: any }
   ) {
     this.scriptRes = scriptRes;
@@ -48,7 +49,7 @@ export default class ExecScript {
       uuid: this.scriptRes.uuid,
       name: this.scriptRes.name,
     });
-    this.GM_info = GMApi.GM_info(this.scriptRes);
+    this.GM_info = GMApi.GM_info(envInfo, this.scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
       this.scriptFunc = compileScript(code);

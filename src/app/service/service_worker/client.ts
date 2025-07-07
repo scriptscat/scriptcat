@@ -13,6 +13,7 @@ import { Subscribe } from "@App/app/repo/subscribe";
 import { Permission } from "@App/app/repo/permission";
 import { ResourceBackup } from "@App/pkg/backup/struct";
 import { VSCodeConnect } from "../offscreen/vscode-connect";
+import { GMInfoEnv } from "../content/gm_api";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -129,7 +130,7 @@ export class ScriptClient extends Client {
     if (urls.length == 0) {
       return;
     }
-    const results = await Promise.allSettled(
+    const results = (await Promise.allSettled(
       urls.map(async (url) => {
         const formattedResult = await this.formatUrl(url);
         if (formattedResult instanceof Object) {
@@ -139,7 +140,7 @@ export class ScriptClient extends Client {
         }
       })
       // this.do 只会resolve 不会reject
-    ) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
+    )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
     const stat = results.reduce(
       (obj, result, index) => {
         if (result.value.success) {
@@ -201,7 +202,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResouce[] }> {
+  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResouce[]; envInfo: GMInfoEnv }> {
     return this.do("pageLoad");
   }
 

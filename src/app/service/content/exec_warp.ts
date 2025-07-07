@@ -1,7 +1,7 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { Message } from "@Packages/message/server";
 import { ScriptLoadInfo } from "../service_worker/runtime";
+import { GMInfoEnv } from "./gm_api";
 
 export class CATRetryError {
   msg: string;
@@ -64,7 +64,16 @@ export class BgExecScriptWarp extends ExecScript {
     };
     // @ts-ignore
     thisContext.CATRetryError = CATRetryError;
-    super(scriptRes, "offscreen", message, scriptRes.code, thisContext);
+    let envInfo: GMInfoEnv = {
+      sandboxMode: "raw",
+      userAgentData: {
+        brands: [],
+        mobile: false,
+        platform: "",
+      },
+      isIncognito: false,
+    };
+    super(scriptRes, "offscreen", message, scriptRes.code, envInfo, thisContext);
     this.setTimeout = setTimeout;
     this.setInterval = setInterval;
   }

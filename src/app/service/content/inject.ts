@@ -5,6 +5,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
+import { GMInfoEnv } from "./gm_api";
 
 export class InjectRuntime {
   execList: ExecScript[] = [];
@@ -12,7 +13,8 @@ export class InjectRuntime {
   constructor(
     private server: Server,
     private msg: Message,
-    private scripts: ScriptLoadInfo[]
+    private scripts: ScriptLoadInfo[],
+    private envInfo: GMInfoEnv
   ) {}
 
   start() {
@@ -84,7 +86,7 @@ export class InjectRuntime {
   execScript(script: ScriptLoadInfo, scriptFunc: ScriptFunc) {
     // @ts-ignore
     delete window[script.flag];
-    const exec = new ExecScript(script, "content", this.msg, scriptFunc);
+    const exec = new ExecScript(script, "content", this.msg, scriptFunc, this.envInfo);
     this.execList.push(exec);
     // 注入css
     if (script.metadata["require-css"]) {
