@@ -187,10 +187,10 @@ export default class GMApi {
     }
     if (value === undefined) {
       delete this.scriptRes.value[key];
-      return this.sendMessage("GM_setValue", [key]);
+      this.sendMessage("GM_setValue", [key]);
     } else {
       this.scriptRes.value[key] = value;
-      return this.sendMessage("GM_setValue", [key, value]);
+      this.sendMessage("GM_setValue", [key, value]);
     }
   }
 
@@ -274,7 +274,9 @@ export default class GMApi {
 
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
-  public GMDotGetValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): Promise<{ [key: string]: any }> {
+  public GMDotGetValues(
+    keysOrDefaults: { [key: string]: any } | string[] | null | undefined
+  ): Promise<{ [key: string]: any }> {
     return new Promise((resolve) => {
       const ret = this.GM_getValues(keysOrDefaults);
       resolve(ret);
