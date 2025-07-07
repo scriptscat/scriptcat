@@ -145,7 +145,7 @@ export class ScriptService {
 
   public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuidv4())
+    return fetchScriptInfo(url, source, false, uuid)
       .then((info) => {
         Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
         setTimeout(() => {
@@ -438,7 +438,7 @@ export class ScriptService {
       this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-        return false;
+      return false;
     }
     return true;
   }
