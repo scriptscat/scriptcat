@@ -1,4 +1,4 @@
-import { type ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
@@ -20,7 +20,7 @@ const scriptRes = {
   grantMap: {
     none: true,
   },
-} as unknown as ScriptRunResouce;
+} as unknown as ScriptRunResource;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
   userAgentData: {
@@ -44,7 +44,7 @@ const scriptRes2 = {
   sourceCode: "sourceCode",
   value: {},
   grantMap: {},
-} as unknown as ScriptRunResouce;
+} as unknown as ScriptRunResource;
 
 // @ts-ignore
 const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo, undefined);

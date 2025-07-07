@@ -1,4 +1,4 @@
-import type { Script, ScriptCode, ScriptRunResouce } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/scripts";
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
@@ -59,7 +59,7 @@ export class ScriptClient extends Client {
     return this.do("getCode", uuid);
   }
 
-  getScriptRunResource(script: Script): Promise<ScriptRunResouce> {
+  getScriptRunResource(script: Script): Promise<ScriptRunResource> {
     return this.do("getScriptRunResource", script);
   }
 
@@ -201,7 +201,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResouce[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
     return this.do("pageLoad");
   }
 

@@ -1,4 +1,4 @@
-import { type ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateData } from "./types";
 import type { Message } from "@Packages/message/types";
 import type { MessageRequest } from "../service_worker/types";
@@ -15,7 +15,7 @@ export class GM_Base {
   constructor(
     public prefix: string,
     public message: Message,
-    public scriptRes: ScriptRunResouce,
+    public scriptRes: ScriptRunResource,
     public valueChangeListener: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>,
     public EE: EventEmitter,
   ) { }

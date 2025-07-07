@@ -1,4 +1,4 @@
-import { type ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
 import type { ApiValue } from "./types";
 import type { Message } from "@Packages/message/types";
@@ -27,7 +27,7 @@ function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
 }
 
 // 构建沙盒上下文
-export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefix: string, message: Message): GM_Base {
+export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPrefix: string, message: Message): GM_Base {
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
   const EE: EventEmitter = new EventEmitter();

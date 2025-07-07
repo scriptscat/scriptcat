@@ -1,10 +1,10 @@
-import type { Script, ScriptRunResouce, SCRIPT_RUN_STATUS, Metadata } from "@App/app/repo/scripts";
+import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, Metadata } from "@App/app/repo/scripts";
 import { type GetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
-export interface ScriptMatchInfo extends ScriptRunResouce {
+export interface ScriptMatchInfo extends ScriptRunResource {
   matches: string[];
   excludeMatches: string[];
   customizeExcludeMatches: string[];

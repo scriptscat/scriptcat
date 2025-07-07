@@ -168,7 +168,6 @@ function ScriptList() {
       key: "name",
       title: t("name"),
       dataIndex: "name",
-      width: 240,
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
@@ -997,7 +996,7 @@ function ScriptList() {
             hideOnSinglePage: true,
           }}
           style={{
-            minWidth: "1100px",
+            minWidth: "1200px",
           }}
           rowSelection={{
             type: "checkbox",

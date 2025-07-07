@@ -3,7 +3,7 @@ import type Logger from "@App/app/logger/logger";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type WindowMessage } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";
-import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, ScriptRunResouce } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, ScriptRunResource } from "@App/app/repo/scripts";
 import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
@@ -25,7 +25,7 @@ export class ScriptService {
     this.logger = LoggerCore.logger().with({ service: "script" });
   }
 
-  runScript(script: ScriptRunResouce) {
+  runScript(script: ScriptRunResource) {
     runScript(this.windowMessage, script);
   }
 

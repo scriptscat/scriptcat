@@ -13,7 +13,7 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptCodeDAO,
   ScriptDAO,
-  ScriptRunResouce,
+  ScriptRunResource,
 } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { InstallSource } from "./types";
@@ -300,8 +300,8 @@ export class ScriptService {
     return this.scriptCodeDAO.get(uuid);
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResouce> {
-    const ret: ScriptRunResouce = <ScriptRunResouce>Object.assign(script);
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
 
     // 自定义配置
     if (ret.selfMetadata) {

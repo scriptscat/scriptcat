@@ -1,10 +1,10 @@
-import type { ScriptRunResouce } from "@App/app/repo/scripts";
+import type { ScriptRunResource } from "@App/app/repo/scripts";
 
 import { has } from "@App/pkg/utils/lodash";
 import type { ScriptFunc } from "./types";
 
 // 构建脚本运行代码
-export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: string): string {
+export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
   let requireCode = "";
   if (Array.isArray(scriptRes.metadata.require)) {
@@ -49,7 +49,7 @@ export function compileScript(code: string): ScriptFunc {
  * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
  */
 export function compileInjectScript(
-  script: ScriptRunResouce,
+  script: ScriptRunResource,
   scriptCode?: string,
   autoDeleteMountFunction: boolean = false
 ): string {

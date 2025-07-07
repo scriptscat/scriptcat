@@ -1,5 +1,5 @@
 import { type WindowMessage } from "@Packages/message/window_message";
-import type { SCRIPT_RUN_STATUS, ScriptRunResouce } from "@App/app/repo/scripts";
+import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnect } from "./vscode-connect";
@@ -25,7 +25,7 @@ export function proxyUpdateRunStatus(
   return sendMessageToServiceWorker(msg, "script/updateRunStatus", data);
 }
 
-export function runScript(msg: MessageSend, data: ScriptRunResouce) {
+export function runScript(msg: MessageSend, data: ScriptRunResource) {
   return sendMessage(msg, "offscreen/script/runScript", data);
 }
 

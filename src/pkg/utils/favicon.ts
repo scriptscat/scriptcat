@@ -102,6 +102,7 @@ function extractDomainFromPattern(pattern: string): string | null {
   }
 }
 
+/* // 暂时保留旧版本
 function parseFaviconsOld(html: string, callback: (href: string) => void) {
 
   // Early exit if no link tags
@@ -122,6 +123,7 @@ function parseFaviconsOld(html: string, callback: (href: string) => void) {
     }
   });
 }
+*/
 
 function parseFaviconsNew(html: string, callback: (href: string) => void) {
 

@@ -6,7 +6,7 @@ import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { GM_Base } from "./gm_base";
-import { type ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 
 export default class GMApi extends GM_Base {
 
@@ -18,7 +18,7 @@ export default class GMApi extends GM_Base {
   constructor(
     public prefix: string,
     public message: Message,
-    public scriptRes: ScriptRunResouce,
+    public scriptRes: ScriptRunResource,
   ) {
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE: EventEmitter = new EventEmitter();

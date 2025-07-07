@@ -2,7 +2,7 @@ import { describe, expect, it, vitest } from "vitest";
 import { initTestEnv, initTestGMApi } from "./utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
-import { Script, ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
+import { Script, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
 
 initTestEnv();
@@ -28,7 +28,7 @@ describe("测试GMApi环境", async () => {
     checktime: 0,
   };
   await new ScriptDAO().save(script);
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResouce>{
+  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
     uuid: script.uuid
   });
   const mockXhr = newMockXhr();
