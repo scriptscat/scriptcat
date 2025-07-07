@@ -1,7 +1,6 @@
 import FileSystem from "@Packages/filesystem/filesystem";
 import crypto from "crypto-js";
-import { base64ToBlob } from "../utils/script";
-import { toStorageValueStr } from "../utils/utils2";
+import { base64ToBlob, toStorageValueStr } from "../utils/utils2";
 import { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
 
 export default class BackupExport {
