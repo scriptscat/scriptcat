@@ -1,4 +1,5 @@
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
+import type { Script} from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Descriptions, Divider, Drawer, Empty, Input, Message } from "@arco-design/web-react";
 import React, { useEffect, useState } from "react";

@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { GetSender, Group } from "@Packages/message/server";
-import { MessageConnect } from "@Packages/message/types";
+import type { GetSender, Group } from "@Packages/message/server";
+import type { MessageConnect } from "@Packages/message/types";
 
 export default class GMApi {
   logger: Logger = LoggerCore.logger().with({ service: "gmApi" });
@@ -81,14 +81,10 @@ export default class GMApi {
     return response;
   }
 
-  CAT_fetch(details: GMSend.XHRDetails, sender: GetSender) {
-    throw new Error("Method not implemented.");
-  }
-
   async xmlHttpRequest(details: GMSend.XHRDetails, sender: GetSender) {
     if (details.responseType === "stream") {
       // 只有fetch支持ReadableStream
-      return this.CAT_fetch(details, sender);
+      throw new Error("Method not implemented.");
     }
     const xhr = new XMLHttpRequest();
     const con = sender.getConnect();

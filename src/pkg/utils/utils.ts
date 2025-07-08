@@ -1,11 +1,11 @@
 import Logger from "@App/app/logger/logger";
-import { Metadata, Script } from "@App/app/repo/scripts";
+import type { Metadata, Script } from "@App/app/repo/scripts";
 import semver from "semver";
 
 export function randomString(e = 32): string {
   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
   const a = t.length;
-  let n = new Array(e);
+  const n = new Array(e);
   for (let i = 0; i < e; i++) {
     n[i] = t[(Math.random() * a) | 0];
   }

@@ -5,14 +5,15 @@ import { type Permission } from "@App/app/repo/permission";
 import type { InstallSource, ScriptMenu, ScriptMenuItem } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
-import PermissionVerify, { type UserConfirm } from "./permission_verify";
+import type PermissionVerify from "./permission_verify";
+import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { v4 as uuidv4 } from "uuid";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
-import { GMInfoEnv } from "../content/types";
+import type { GMInfoEnv } from "../content/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {

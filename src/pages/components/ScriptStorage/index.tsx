@@ -1,9 +1,9 @@
-import { Script } from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import { valueClient } from "@App/pages/store/features/script";
 import { valueType } from "@App/pkg/utils/utils";
 import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -147,7 +147,7 @@ const ScriptStorage: React.FC<{
     },
     {
       title: t("action"),
-      render(_col, value: { key: string; value: string }, index) {
+      render(_col, value: { key: string; value: string }) {
         return (
           <Space>
             <Button

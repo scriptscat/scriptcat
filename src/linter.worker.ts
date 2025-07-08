@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { Linter } = require("eslint-linter-browserify");
 const { rules } = require("eslint-plugin-userscripts");
 

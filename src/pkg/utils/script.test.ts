@@ -1,4 +1,4 @@
-import { describe, test, expect, it } from "vitest";
+import { describe, test, expect } from "vitest";
 import { parseMetadata, getMetadataStr, getUserConfigStr } from "./script";
 import { parseUserConfig } from "./yaml"
 

@@ -1,5 +1,5 @@
 import { parse } from "yaml";
-import {
+import type {
   UserConfig,
 } from "@App/app/repo/scripts";
 

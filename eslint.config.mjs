@@ -4,13 +4,17 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactJsx from "eslint-plugin-react/configs/jsx-runtime.js";
 import react from "eslint-plugin-react/configs/recommended.js";
 import ts from "typescript-eslint";
+import globals from "globals";
 
 export default [
   {
-    env: {
-      browser: true,
-      es2020: true,
-      webextensions: true,
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+      },
     },
   },
   js.configs.recommended,
@@ -32,8 +36,17 @@ export default [
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-unused-expressions": "off",
+      "@typescript-eslint/consistent-type-imports": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_"
+        }
+      ],
       ...reactHooks.configs.recommended.rules,
     },
   },
-  { ignores: ["dist/"] },
+  { ignores: ["dist/", "example/"] },
 ];

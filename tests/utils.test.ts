@@ -2,7 +2,8 @@ import { describe, expect, it, vitest } from "vitest";
 import { initTestEnv, initTestGMApi } from "./utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
-import { Script, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
 
 initTestEnv();

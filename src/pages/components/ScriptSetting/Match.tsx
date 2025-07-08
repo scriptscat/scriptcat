@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
+import type { Script} from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { Space, Popconfirm, Button, Divider, Typography, Modal, Input } from "@arco-design/web-react";
-import Table, { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
+import Table from "@arco-design/web-react/es/Table";
 import { IconDelete } from "@arco-design/web-react/icon";
 import { scriptClient } from "@App/pages/store/features/script";
 

@@ -1,5 +1,5 @@
 /* eslint no-use-before-define:0 */
-/* eslint-disable */
+ 
 
 // copy from istextorbinary
 // 由于未知原因,该包在jest中运行提示"Cannot find module",故将其代码简化并copy到此处
@@ -213,21 +213,21 @@ function getChunkEnd(buf: Uint8Array, chunkEnd: number) {
 }
 
 function isFirstByteOf4ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
+   
   return byte >> 3 === 30; // 11110xxx?
 }
 
 function isFirstByteOf3ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
+   
   return byte >> 4 === 14; // 1110xxxx?
 }
 
 function isFirstByteOf2ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
+   
   return byte >> 5 === 6; // 110xxxxx?
 }
 
 function isLaterByteOfUtf8(byte: number) {
-  // eslint-disable-next-line no-bitwise
+   
   return byte >> 6 === 2; // 10xxxxxx?
 }

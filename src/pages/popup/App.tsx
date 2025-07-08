@@ -17,7 +17,7 @@ import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
-import { ScriptMenu } from "@App/app/service/service_worker/types";
+import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { localePath } from "@App/locales/locales";
 import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
@@ -47,7 +47,8 @@ function App() {
   let url: URL | undefined;
   try {
     url = new URL(currentUrl);
-  } catch (e) {
+   
+  } catch (_: any) {
     // ignore error
   }
 
@@ -93,13 +94,15 @@ function App() {
   }, [currentUrl]);
 
   // Memoize ScriptMenuList to prevent unnecessary re-renders
-  const memoizedScriptList = useMemo(() => (
-    <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
-  ), [scriptList, currentUrl]);
+  const memoizedScriptList = useMemo(
+    () => <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />,
+    [scriptList, currentUrl]
+  );
 
-  const memoizedBackScriptList = useMemo(() => (
-    <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />
-  ), [backScriptList, currentUrl]);
+  const memoizedBackScriptList = useMemo(
+    () => <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />,
+    [backScriptList, currentUrl]
+  );
 
   const isUserScriptsAvailableFlag = isUserScriptsAvailable();
 
@@ -180,7 +183,7 @@ function App() {
                           await scriptClient.requestCheckUpdate("");
                           window.close();
                           break;
-                        case "report_issue":
+                        case "report_issue": {
                           const browserInfo = `${navigator.userAgent}`;
                           const issueUrl =
                             `https://github.com/scriptscat/scriptcat/issues/new?` +
@@ -188,6 +191,7 @@ function App() {
                             `browser-version=${encodeURIComponent(browserInfo)}`;
                           window.open(issueUrl, "_blank");
                           break;
+                        }
                         default:
                           window.open(key, "_blank");
                           break;

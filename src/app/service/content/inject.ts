@@ -54,7 +54,7 @@ export class InjectRuntime {
 
   externalMessage() {
     // 对外接口白名单
-    let msg = this.msg;
+    const msg = this.msg;
     for (let i = 0; i < ExternalWhitelist.length; i += 1) {
       if (window.location.host.endsWith(ExternalWhitelist[i])) {
         // 注入

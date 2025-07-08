@@ -1,5 +1,6 @@
 import React from "react";
-import { Metadata, Script, ScriptDAO } from "@App/app/repo/scripts";
+import type { Metadata, Script} from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";

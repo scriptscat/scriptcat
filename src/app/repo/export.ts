@@ -1,4 +1,4 @@
-import { ExportParams } from "@Packages/cloudscript/cloudscript";
+import type { ExportParams } from "@Packages/cloudscript/cloudscript";
 import { Repo } from "./repo";
 
 export type ExportTarget = "local" | "tencentCloud";

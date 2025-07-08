@@ -1,8 +1,11 @@
-import { Export, ExportDAO, ExportTarget } from "@App/app/repo/export";
-import { Script, ScriptCodeDAO } from "@App/app/repo/scripts";
+import type { Export, ExportTarget } from "@App/app/repo/export";
+import { ExportDAO } from "@App/app/repo/export";
+import type { Script} from "@App/app/repo/scripts";
+import { ScriptCodeDAO } from "@App/app/repo/scripts";
 import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
-import { ExportParams, parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloudscript";
+import type { ExportParams} from "@Packages/cloudscript/cloudscript";
+import { parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloudscript";
 import CloudScriptFactory from "@Packages/cloudscript/factory";
 import JSZip from "jszip";
 import React, { useEffect } from "react";
@@ -18,7 +21,7 @@ function defaultParams(script: Script) {
 }
 
 const CloudScriptPlan: React.FC<{
-  // eslint-disable-next-line react/require-default-props
+   
   script?: Script;
   onClose: () => void;
 }> = ({ script, onClose }) => {

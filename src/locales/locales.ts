@@ -1,9 +1,10 @@
-import { SystemConfig } from "@App/pkg/config/config";
-import i18n, { Callback, t } from "i18next";
+import type { SystemConfig } from "@App/pkg/config/config";
+import type { Callback} from "i18next";
+import i18n, { t } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { Metadata } from "@App/app/repo/scripts";
+import type { Metadata } from "@App/app/repo/scripts";
 import enUS from "./en/translation.json";
 import viVN from "./vi/translation.json";
 import zhCN from "./zh-CN/translation.json";

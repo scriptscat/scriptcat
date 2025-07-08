@@ -4,7 +4,7 @@ import type { Message } from "@Packages/message/types";
 import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
-import EventEmitter from "eventemitter3";
+import type EventEmitter from "eventemitter3";
 
 // 通用类，用于 GM 通信机制
 

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import Text from "@arco-design/web-react/es/Typography/text";
 import { Button, Card, Input, Message, Popconfirm, Switch, Table, Tag, Tooltip } from "@arco-design/web-react";
-import { Subscribe, SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { Subscribe } from "@App/app/repo/subscribe";
+import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
@@ -13,12 +14,12 @@ import { subscribeClient } from "@App/pages/store/features/script";
 type ListType = Subscribe & { loading?: boolean };
 
 function SubscribeList() {
-  const dao = new SubscribeDAO();
   const [list, setList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation(); // 使用 useTranslation hook
 
   useEffect(() => {
+    const dao = new SubscribeDAO();
     dao.all().then((subscribes) => {
       setList(subscribes);
     });
@@ -88,7 +89,7 @@ function SubscribeList() {
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
       key: "name",
-      // eslint-disable-next-line react/no-unstable-nested-components
+
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -151,7 +152,7 @@ function SubscribeList() {
           return <div />;
         }
         return (item.metadata.connect as string[]).map((val) => {
-          return <img src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
+          return <img key={val} src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
         });
       },
     },
@@ -192,7 +193,6 @@ function SubscribeList() {
       sorter: (a, b) => a.updatetime - b.updatetime,
       render(col, subscribe: Subscribe) {
         return (
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span
             style={{
               cursor: "pointer",

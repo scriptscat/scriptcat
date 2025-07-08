@@ -1,11 +1,11 @@
-import { Resource } from "@App/app/repo/resource";
-import { Script } from "@App/app/repo/scripts";
+import type { Resource } from "@App/app/repo/resource";
+import type { Script } from "@App/app/repo/scripts";
 import { ResourceClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { base64ToBlob } from "@App/pkg/utils/script";
 import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconDownload, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,7 +15,7 @@ type ResourceListItem = {
 } & Resource;
 
 const ScriptResource: React.FC<{
-  // eslint-disable-next-line react/require-default-props
+   
   script?: Script;
   visible: boolean;
   onOk: () => void;
@@ -49,7 +49,7 @@ const ScriptResource: React.FC<{
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
-      // eslint-disable-next-line react/no-unstable-nested-components
+       
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">

@@ -1,21 +1,23 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import {
+import type {
   Subscribe,
+  SubscribeScript} from "@App/app/repo/subscribe";
+import {
   SUBSCRIBE_STATUS_DISABLE,
   SUBSCRIBE_STATUS_ENABLE,
-  SubscribeDAO,
-  SubscribeScript,
+  SubscribeDAO
 } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
-import { InstallSource } from "./types";
+import type { InstallSource } from "./types";
 import { publishSubscribeInstall, subscribeSubscribeInstall } from "../queue";
 import { checkSilenceUpdate, InfoNotification, ltever } from "@App/pkg/utils/utils";
-import { fetchScriptInfo, prepareSubscribeByCode, ScriptInfo } from "@App/pkg/utils/script";
+import type { ScriptInfo } from "@App/pkg/utils/script";
+import { fetchScriptInfo, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 

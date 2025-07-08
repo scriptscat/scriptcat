@@ -1,9 +1,13 @@
 import { getStorageName } from "@App/pkg/utils/utils";
 import { db } from "./repo/dao";
-import { Script, ScriptAndCode, ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
-import { Subscribe, SubscribeDAO } from "./repo/subscribe";
-import { Value, ValueDAO } from "./repo/value";
-import { Permission, PermissionDAO } from "./repo/permission";
+import type { Script, ScriptAndCode} from "./repo/scripts";
+import { ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
+import type { Subscribe} from "./repo/subscribe";
+import { SubscribeDAO } from "./repo/subscribe";
+import type { Value} from "./repo/value";
+import { ValueDAO } from "./repo/value";
+import type { Permission} from "./repo/permission";
+import { PermissionDAO } from "./repo/permission";
 
 // 迁移数据到chrome.storage
 export function migrateToChromeStorage() {
@@ -114,7 +118,7 @@ export function migrateToChromeStorage() {
       const valueMap = new Map<string, Value>();
       await Promise.all(
         values.map((v: MV2Value) => {
-          const { scriptId, storageName, key, value, createtime } = v;
+          const { scriptId, key, value, createtime } = v;
           return db
             .table("scripts")
             .where("id")

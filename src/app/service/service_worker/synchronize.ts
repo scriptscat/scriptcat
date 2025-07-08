@@ -1,10 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Resource } from "@App/app/repo/resource";
+import type { Resource } from "@App/app/repo/resource";
 import { type Script, SCRIPT_STATUS_ENABLE, type ScriptDAO } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
-import { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import FileSystem, { File } from "@Packages/filesystem/filesystem";
+import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
+import type { File } from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { isWarpTokenError } from "@Packages/filesystem/error";

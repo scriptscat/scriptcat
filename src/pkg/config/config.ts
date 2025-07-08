@@ -87,7 +87,7 @@ export class SystemConfig {
   }
 
   public setChangetime(n: number) {
-    this.set("changetime", 0);
+    this.set("changetime", n);
   }
 
   // 检查更新周期,单位为秒
@@ -241,7 +241,7 @@ export class SystemConfig {
         return cachedLanguage;
       }
     }
-    let lng = await this.get("language", (await matchLanguage()) || chrome.i18n.getUILanguage());
+    const lng = await this.get("language", (await matchLanguage()) || chrome.i18n.getUILanguage());
     // 设置进入缓存
     if (globalThis.localStorage) {
       localStorage.setItem("language", lng);

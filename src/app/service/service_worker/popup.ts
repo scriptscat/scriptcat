@@ -3,17 +3,19 @@ import { type Group } from "@Packages/message/server";
 import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
 import type { ScriptMatchInfo, ScriptMenu } from "./types";
-import { GetPopupDataReq, GetPopupDataRes } from "./client";
+import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import Cache from "@App/app/cache";
+import type {
+  Script,
+  ScriptDAO} from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_ENABLE,
-  Script,
-  ScriptDAO,
   SCRIPT_TYPE_NORMAL,
   SCRIPT_RUN_STATUS_RUNNING,
 } from "@App/app/repo/scripts";
+import type {
+  ScriptMenuRegisterCallbackValue} from "../queue";
 import {
-  ScriptMenuRegisterCallbackValue,
   subscribeScriptDelete,
   subscribeScriptEnable,
   subscribeScriptInstall,

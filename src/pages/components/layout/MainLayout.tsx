@@ -11,7 +11,7 @@ import {
   Space,
   Typography,
 } from "@arco-design/web-react";
-import { RefTextAreaType } from "@arco-design/web-react/es/Input";
+import type { RefTextAreaType } from "@arco-design/web-react/es/Input";
 import {
   IconCheckCircle,
   IconCloseCircle,
@@ -22,7 +22,8 @@ import {
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import type { ReactNode} from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";

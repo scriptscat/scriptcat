@@ -7,7 +7,8 @@ import { connect, sendMessage } from "@Packages/message/client";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
-import PermissionVerify, { ConfirmParam } from "./permission_verify";
+import type { ConfirmParam } from "./permission_verify";
+import PermissionVerify from "./permission_verify";
 import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
@@ -33,7 +34,6 @@ type RequestResultParams = {
 interface IGMExternalDependencies {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
 }
-
 
 /**
  * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
@@ -83,7 +83,7 @@ export const checkHasUnsafeHeaders = (key: string) => {
     return true;
   }
   // ends with "-"
-  let specialHeaderKeys = ["proxy-", "sec-"];
+  const specialHeaderKeys = ["proxy-", "sec-"];
   if (specialHeaderKeys.some((specialHeaderKey) => key.startsWith(specialHeaderKey))) {
     return true;
   }
@@ -222,7 +222,7 @@ export default class GMApi {
       detail.partitionKey.topLevelSite = undefined;
     }
     // 处理tab的storeid
-    let tabId = sender.getExtMessageSender().tabId;
+    const tabId = sender.getExtMessageSender().tabId;
     let storeId: string | undefined;
     if (tabId !== -1) {
       const stores = await chrome.cookies.getAllCookieStores();
@@ -233,7 +233,7 @@ export default class GMApi {
     }
     switch (param[0]) {
       case "list": {
-        let cookies = await chrome.cookies.getAll({
+        const cookies = await chrome.cookies.getAll({
           domain: detail.domain,
           name: detail.name,
           path: detail.path,
@@ -334,7 +334,7 @@ export default class GMApi {
       } as ConfirmParam;
     },
   })
-  async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
+  async CAT_fileStorage(request: Request): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
       chrome.tabs.create({
@@ -463,7 +463,7 @@ export default class GMApi {
       }
 
       // 追加该网站本身存储的cookie
-      let tabId = sender.getExtMessageSender().tabId;
+      const tabId = sender.getExtMessageSender().tabId;
       let storeId: string | undefined;
       if (tabId !== -1) {
         const stores = await chrome.cookies.getAllCookieStores();
@@ -473,7 +473,7 @@ export default class GMApi {
         }
       }
 
-      let cookies = await chrome.cookies.getAll({
+      const cookies = await chrome.cookies.getAll({
         domain: undefined,
         name: undefined,
         path: undefined,
@@ -583,7 +583,7 @@ export default class GMApi {
 
   CAT_fetch(config: GMSend.XHRDetails, con: GetSender, resultParam: RequestResultParams) {
     const { url } = config;
-    let connect = con.getConnect();
+    const connect = con.getConnect();
     return fetch(url, {
       method: config.method || "GET",
       body: <any>config.data,
@@ -623,10 +623,9 @@ export default class GMApi {
       if (!reader) {
         throw new Error("read is not found");
       }
-      const _this = this;
-      reader.read().then(function read({ done, value }) {
+      const readData = ({ done, value }: { done: boolean; value?: Uint8Array }) => {
         if (done) {
-          const data = _this.dealFetch(config, resp, 4, resultParam);
+          const data = this.dealFetch(config, resp, 4, resultParam);
           data.responseHeaders = resultParam.responseHeader || data.responseHeaders;
           connect.sendMessage({
             action: "onreadystatechange",
@@ -643,11 +642,12 @@ export default class GMApi {
         } else {
           connect.sendMessage({
             action: "onstream",
-            data: Array.from(value),
+            data: Array.from(value!),
           });
-          reader.read().then(read);
+          reader.read().then(readData);
         }
-      });
+      };
+      reader.read().then(readData);
       send.responseHeaders = resultParam.responseHeader || send.responseHeaders;
       connect.sendMessage({
         action: "onloadstart",
@@ -714,7 +714,7 @@ export default class GMApi {
 
     params.headers["X-Scriptcat-GM-XHR-Request-Id"] = requestId.toString();
     params.headers = await this.buildDNRRule(requestId, request.params[0], sender);
-    let resultParam: RequestResultParams = {
+    const resultParam: RequestResultParams = {
       requestId,
       statusCode: 0,
       responseHeader: "",
@@ -832,12 +832,11 @@ export default class GMApi {
   async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    const _ = await Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
-        tabData = tabData || {};
-        tabData[tabId] = data;
-        return tabData;
-      });
+    await Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+      tabData = tabData || {};
+      tabData[tabId] = data;
+      return tabData;
+    });
     return true;
   }
 
@@ -1045,9 +1044,9 @@ export default class GMApi {
 
   @PermissionVerify.API()
   async GM_setClipboard(request: Request) {
-    let [data, type] = request.params;
-    type = type || "text/plain";
-    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type });
+    const [data, type] = request.params;
+    const clipboardType = type || "text/plain";
+    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
   @PermissionVerify.API({ alias: ["window.close"] })

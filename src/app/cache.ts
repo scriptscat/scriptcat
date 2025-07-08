@@ -171,10 +171,10 @@ export default class Cache {
   private txLock: Map<string, ((unlock: () => void) => void)[]> = new Map();
 
   lock(key: string): Promise<() => void> | (() => void) {
-    let hasLock = this.txLock.has(key);
+    const hasLock = this.txLock.has(key);
 
     const unlock = () => {
-      let waitFunc = this.txLock.get(key)?.shift();
+      const waitFunc = this.txLock.get(key)?.shift();
       if (waitFunc) {
         waitFunc(unlock);
       } else {

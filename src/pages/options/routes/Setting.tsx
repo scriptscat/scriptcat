@@ -10,7 +10,8 @@ import { systemConfig } from "@App/pages/store/global";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
-import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { parsePatternMatchesURL } from "@App/pkg/utils/match";
 
@@ -332,7 +333,7 @@ function Setting() {
                   parser: "json",
                   plugins: [prettierPluginEstree, babel],
                 })
-                .then((res) => {
+                .then(() => {
                   systemConfig.setEslintConfig(v.target.value);
                 })
                 .catch((e) => {

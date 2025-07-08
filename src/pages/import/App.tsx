@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Button, Card, Checkbox, Divider, List, Message, Space, Switch, Typography } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next"; // 导入react-i18next的useTranslation钩子
 import JSZip from "jszip";
-import { ScriptOptions, ScriptData, SubscribeData } from "@App/pkg/backup/struct";
+import type { ScriptOptions, ScriptData, SubscribeData } from "@App/pkg/backup/struct";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
 import Cache from "@App/app/cache";
@@ -21,7 +21,7 @@ const ScriptListItem = React.memo(
   }: {
     item: ScriptData;
     index: number;
-    t: (a: string) => string,
+    t: (a: string) => string;
     onToggle: (index: number) => () => void;
     onStatusToggle: (index: number, checked: boolean) => void;
   }) => {
@@ -40,12 +40,21 @@ const ScriptListItem = React.memo(
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
             {item.script?.script?.name || item.error || t("unknown")}
           </Typography.Title>
-          <span className="text-sm color-gray-5">{t("author")}: {item.script?.script?.metadata.author?.[0]}</span>
-          <span className="text-sm color-gray-5">{t("description")}: {item.script?.script?.metadata.description?.[0]}</span>
-          <span className="text-sm color-gray-5">{t("source")}: {item.options?.meta.file_url || t("local_creation")}</span>
           <span className="text-sm color-gray-5">
-            {t("operation")}: {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
-              (item.error ? `${t("error")}: ${item.options?.meta.name} - ${item.options?.meta.uuid}` : t("no_operation"))}
+            {t("author")}: {item.script?.script?.metadata.author?.[0]}
+          </span>
+          <span className="text-sm color-gray-5">
+            {t("description")}: {item.script?.script?.metadata.description?.[0]}
+          </span>
+          <span className="text-sm color-gray-5">
+            {t("source")}: {item.options?.meta.file_url || t("local_creation")}
+          </span>
+          <span className="text-sm color-gray-5">
+            {t("operation")}:{" "}
+            {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
+              (item.error
+                ? `${t("error")}: ${item.options?.meta.name} - ${item.options?.meta.uuid}`
+                : t("no_operation"))}
           </span>
         </Space>
         <div className="flex flex-col justify-between" style={{ minWidth: "80px", textAlign: "center" }}>
@@ -63,6 +72,8 @@ const ScriptListItem = React.memo(
   }
 );
 
+ScriptListItem.displayName = 'ScriptListItem';
+
 function App() {
   const [scripts, setScripts] = useState<ScriptData[]>([]);
   const [subscribes, setSubscribes] = useState<SubscribeData[]>([]);
@@ -73,7 +84,6 @@ function App() {
 
   const fetchData = async () => {
     try {
-
       const url = new URL(window.location.href);
       const uuid = url.searchParams.get("uuid") || "";
       const resp: { filename: string; url: string } = await Cache.getInstance().get(CacheKey.importFile(uuid));
@@ -132,8 +142,8 @@ function App() {
         })
       );
       const results = backDataScript.slice().sort((a, b) => {
-        const aName = a.script?.script?.name || '';
-        const bName = b.script?.script?.name || '';
+        const aName = a.script?.script?.name || "";
+        const bName = b.script?.script?.name || "";
         if (aName && bName) return aName.localeCompare(bName);
         return 0;
       });
@@ -151,10 +161,10 @@ function App() {
 
   const scriptImportAsync = async (item: ScriptData) => {
     try {
-      // await sleep(1);
-      await scriptClient.install(item.script?.script!, item.code);
+      await scriptClient.install(item.script!.script!, item.code);
       await Promise.all([
-        (async () => { // 导入资源
+        (async () => {
+          // 导入资源
           if (!item.requires || !item.resources || !item.requiresCss) return;
           if (!item.requires[0] && !item.resources[0] && !item.requiresCss[0]) return;
           await sleep(((Math.random() * 600) | 0) + 200);
@@ -165,22 +175,23 @@ function App() {
             item.requiresCss
           );
         })(),
-        (async () => { // 导入数据
+        (async () => {
+          // 导入数据
           const { data } = item.storage;
           const entries = Object.entries(data);
           if (entries.length === 0) return;
           await sleep(((Math.random() * 600) | 0) + 200);
           for (const [key, value] of entries) {
-            await valueClient.setScriptValue(item.script?.script.uuid!, key, value);
+            await valueClient.setScriptValue(item.script!.script.uuid!, key, value);
           }
-        })()
+        })(),
       ]);
-      // await sleep(1);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);
-    } catch (e) {
+    } catch (e: any) {
       // 跳過失敗
+      item.error = e.toString();
     }
-  }
+  };
 
   const importScripts = useCallback(async (scripts: ScriptData[]) => {
     const promises: Promise<any>[] = [];
@@ -192,13 +203,16 @@ function App() {
     return Promise.all(promises);
   }, []);
 
-  const importButtonClick = useCallback((scripts: ScriptData[]) => async () => {
-    setInstallNum((prev) => [0, prev[1]]);
-    setLoading(true);
-    await importScripts(scripts);
-    setLoading(false);
-    Message.success(t("import_success")!);
-  }, []);
+  const importButtonClick = useCallback(
+    (scripts: ScriptData[]) => async () => {
+      setInstallNum((prev) => [0, prev[1]]);
+      setLoading(true);
+      await importScripts(scripts);
+      setLoading(false);
+      Message.success(t("import_success")!);
+    },
+    [importScripts, t]
+  );
 
   const handleSelectAllScripts = useCallback(() => {
     setSelectAll((prev) => {
@@ -225,18 +239,12 @@ function App() {
     });
   }, []);
 
-  const handleScriptToggleClick = useCallback((index: number) => () => {
-    handleScriptToggle(index);
-  }, [handleScriptToggle]);
-
-  const handleSubscribeToggle = useCallback((index: number) => {
-    setSubscribes((prevSubscribes) => {
-      const newSubscribes = [...prevSubscribes];
-      newSubscribes[index] = { ...newSubscribes[index], install: !newSubscribes[index].install };
-      setSelectAll((prev) => [prev[0], newSubscribes.every((subscribe) => subscribe.install)]);
-      return newSubscribes;
-    });
-  }, []);
+  const handleScriptToggleClick = useCallback(
+    (index: number) => () => {
+      handleScriptToggle(index);
+    },
+    [handleScriptToggle]
+  );
 
   const handleScriptStatusToggle = useCallback((index: number, checked: boolean) => {
     setScripts((prevScripts) => {
@@ -260,11 +268,7 @@ function App() {
       <Card bordered={false} title={t("data_import")}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Space>
-            <Button
-              type="primary"
-              loading={loading}
-              onClick={importButtonClick(scripts)}
-            >
+            <Button type="primary" loading={loading} onClick={importButtonClick(scripts)}>
               {t("import")}
             </Button>
             <Button type="primary" status="danger" loading={loading} onClick={() => window.close()}>

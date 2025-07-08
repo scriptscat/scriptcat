@@ -1,7 +1,7 @@
-import { Script } from "@App/app/repo/scripts";
-import { Subscribe } from "@App/app/repo/subscribe";
+import type { Script } from "@App/app/repo/scripts";
+import type { Subscribe } from "@App/app/repo/subscribe";
 
-/* eslint-disable camelcase */
+ 
 
 export type ResourceMeta = {
   name: string;

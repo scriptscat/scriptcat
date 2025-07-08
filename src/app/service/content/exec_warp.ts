@@ -64,7 +64,7 @@ export class BgExecScriptWarp extends ExecScript {
     };
     // @ts-ignore
     thisContext.CATRetryError = CATRetryError;
-    let envInfo: GMInfoEnv = {
+    const envInfo: GMInfoEnv = {
       sandboxMode: "raw",
       userAgentData: {
         brands: [],

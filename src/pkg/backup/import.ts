@@ -3,7 +3,7 @@ import Logger from "@App/app/logger/logger";
 import { isText } from "../utils/istextorbinary";
 import { blobToBase64 } from "../utils/script";
 import { parseStorageValue } from "../utils/utils";
-import {
+import type {
   BackupData,
   ResourceBackup,
   ResourceMeta,
@@ -14,7 +14,8 @@ import {
   ValueStorage,
   ScriptData, SubscribeData,
 } from "./struct";
-import FileSystem, { File } from "@Packages/filesystem/filesystem";
+import type { File } from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 
 type ViolentmonkeyFile = {
   scripts: {

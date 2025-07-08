@@ -1,5 +1,5 @@
 import BaiduFileSystem from "./baidu/baidu";
-import FileSystem from "./filesystem";
+import type FileSystem from "./filesystem";
 import GoogleDriveFileSystem from "./googledrive/googledrive";
 import OneDriveFileSystem from "./onedrive/onedrive";
 import WebDAVFileSystem from "./webdav/webdav";

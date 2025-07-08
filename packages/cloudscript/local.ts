@@ -1,11 +1,12 @@
 import { ExtVersion } from "@App/app/const";
-import { Script } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
-import JSZip from "jszip";
+import type { Script } from "@App/app/repo/scripts";
+import type { Value } from "@App/app/repo/value";
+import type JSZip from "jszip";
 import packageTpl from "@App/template/cloudcat-package/package.tpl";
 import utilsTpl from "@App/template/cloudcat-package/utils.tpl";
 import indexTpl from "@App/template/cloudcat-package/index.tpl";
-import CloudScript, { ExportCookies, ExportParams } from "./cloudscript";
+import type { ExportCookies, ExportParams } from "./cloudscript";
+import type CloudScript from "./cloudscript";
 
 // 导出到本地,一个可执行到npm包
 export default class LocalCloudScript implements CloudScript {

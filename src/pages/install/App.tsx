@@ -1,11 +1,13 @@
 import { Avatar, Button, Grid, Message, Space, Switch, Tag, Tooltip, Typography } from "@arco-design/web-react";
 import CodeEditor from "../components/CodeEditor";
 import { useEffect, useState } from "react";
-import { Metadata, Script, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
-import { Subscribe } from "@App/app/repo/subscribe";
+import type { Metadata, Script} from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
+import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { prepareScriptByCode, prepareSubscribeByCode, ScriptInfo } from "@App/pkg/utils/script";
+import type { ScriptInfo } from "@App/pkg/utils/script";
+import { prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 

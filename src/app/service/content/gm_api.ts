@@ -9,7 +9,6 @@ import { GM_Base } from "./gm_base";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 
 export default class GMApi extends GM_Base {
-
   /**
    * <tag, notificationId>
    */
@@ -18,13 +17,13 @@ export default class GMApi extends GM_Base {
   constructor(
     public prefix: string,
     public message: Message,
-    public scriptRes: ScriptRunResource,
+    public scriptRes: ScriptRunResource
   ) {
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE: EventEmitter = new EventEmitter();
     super(prefix, message, scriptRes, valueChangeListener, EE);
   }
-  
+
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
   @GMContext.API()
   public GM_getValue(key: string, defaultValue?: any) {
@@ -105,7 +104,7 @@ export default class GMApi extends GM_Base {
       throw new Error("GM_setValues: values must be an object");
     }
     Object.keys(values).forEach((key) => {
-      let value = values[key];
+      const value = values[key];
       return this.GM_setValue(key, value);
     });
   }
@@ -116,7 +115,7 @@ export default class GMApi extends GM_Base {
       // Returns all values
       return this.scriptRes.value;
     }
-    let result: { [key: string]: any } = {};
+    const result: { [key: string]: any } = {};
     if (Array.isArray(keysOrDefaults)) {
       // 键名数组
       // Handle array of keys (e.g., ['foo', 'bar'])
@@ -130,7 +129,7 @@ export default class GMApi extends GM_Base {
       // 对象 键: 默认值
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       Object.keys(keysOrDefaults).forEach((key) => {
-        let defaultValue = keysOrDefaults[key];
+        const defaultValue = keysOrDefaults[key];
         result[key] = this.GM_getValue(key, defaultValue);
       });
     }
@@ -172,8 +171,6 @@ export default class GMApi extends GM_Base {
 
   menuMap: Map<number, string> | undefined;
 
-  
-
   @GMContext.API()
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
     this.eventId += 1;
@@ -187,13 +184,13 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  GM_log(message: string, level: GMTypes.LoggerLevel = "info", labels?: GMTypes.LoggerLabel) {
+  GM_log(message: string, level: GMTypes.LoggerLevel = "info", ...labels: GMTypes.LoggerLabel[]) {
     if (typeof message !== "string") {
       message = JSON.stringify(message);
     }
     const requestParams: any[] = [message, level];
-    if (arguments.length > 2) {
-      requestParams.push(Array.from(arguments).slice(2));
+    if (labels.length > 0) {
+      requestParams.push(labels);
     }
     this.sendMessage("GM_log", requestParams);
   }
@@ -670,10 +667,13 @@ export default class GMApi extends GM_Base {
       switch (arguments.length) {
         case 4:
           data.onclick = onclick;
+        // eslint-disable-next-line no-fallthrough
         case 3:
           data.image = image;
+        // eslint-disable-next-line no-fallthrough
         case 2:
           data.title = <string>ondone;
+        // eslint-disable-next-line no-fallthrough
         default:
           break;
       }
@@ -712,7 +712,7 @@ export default class GMApi extends GM_Base {
         /**
          * 清除保存的通知的tag
          */
-        let clearNotificationIdMap = () => {
+        const clearNotificationIdMap = () => {
           if (typeof data.tag === "string") {
             this.notificationTagMap.delete(data.tag);
           }
@@ -860,7 +860,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
     this.sendMessage("GM_setClipboard", [data, info])
-      .then((resp) => {
+      .then(() => {
         if (typeof cb === "function") {
           cb();
         }
@@ -913,7 +913,7 @@ export default class GMApi extends GM_Base {
   public GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
     // Asynchronous wrapper for GM_getResourceURL to support GM.getResourceURL
     return new Promise((resolve) => {
-      const ret = this.GM_getResourceURL(name);
+      const ret = this.GM_getResourceURL(name, isBlobUrl);
       resolve(ret);
     });
   }

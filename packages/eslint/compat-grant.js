@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable no-undef */
 const compat_grant = require("eslint-plugin-userscripts/dist/data/compat-grant.js");
 const compatMap = {
   CAT_userConfig: [{ type: "scriptcat", versionConstraint: ">=0.11.0-beta" }],

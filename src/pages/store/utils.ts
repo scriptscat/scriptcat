@@ -1,4 +1,4 @@
-import { Script } from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import { extractFavicons } from "@App/pkg/utils/favicon";
 import { store } from "./store";
 import { scriptSlice } from "./features/script";

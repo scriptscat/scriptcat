@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Permission } from "@App/app/repo/permission";
-import { Script } from "@App/app/repo/scripts";
+import type { Permission } from "@App/app/repo/permission";
+import type { Script } from "@App/app/repo/scripts";
 import { useTranslation } from "react-i18next";
 import { Space, Popconfirm, Message, Button, Checkbox, Input, Modal, Select, Typography } from "@arco-design/web-react";
-import Table, { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
+import Table from "@arco-design/web-react/es/Table";
 import { IconDelete } from "@arco-design/web-react/icon";
 import { permissionClient } from "@App/pages/store/features/script";
 

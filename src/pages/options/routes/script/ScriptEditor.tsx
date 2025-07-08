@@ -1,8 +1,10 @@
-import { Script, SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
+import type { Script} from "@App/app/repo/scripts";
+import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { editor, KeyCode, KeyMod } from "monaco-editor";
+import type { editor} from "monaco-editor";
+import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
@@ -141,7 +143,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 const popstate = () => {
-  // eslint-disable-next-line no-restricted-globals, no-alert
+   
   if (confirm(i18n.t("script_modified_leave_confirm"))) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
@@ -257,7 +259,7 @@ function ScriptEditor() {
             This will be defined during an API method callback if there was an error
           */
           if (chrome.runtime.lastError) {
-            // eslint-disable-next-line no-console
+             
             console.log(t("save_as_failed") + ": ", chrome.runtime.lastError);
             Message.error(`${t("save_as_failed")}: ${chrome.runtime.lastError.message}`);
           } else {
@@ -467,7 +469,7 @@ function ScriptEditor() {
     let selectEditorIndex: number = 0;
     // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
     if (rightOperationTab) {
-      // eslint-disable-next-line default-case
+       
       switch (rightOperationTab.key) {
         case "1":
           newEditors = editors.filter((item) => item.script.uuid !== rightOperationTab.uuid);
@@ -765,7 +767,7 @@ function ScriptEditor() {
               <div className="flex justify-between items-center">
                 {t("installed_scripts")}
                 <IconSearch
-                  onClick={(e) => {
+                  onClick={() => {
                     setShowSearchInput(!showSearchInput);
                   }}
                   style={{ cursor: "pointer" }}
@@ -934,7 +936,7 @@ function ScriptEditor() {
                     position="bl"
                     droplist={
                       <Menu
-                        // eslint-disable-next-line no-shadow
+                         
                         onClickMenuItem={(key) => {
                           setRightOperationTab({
                             ...rightOperationTab,
@@ -953,9 +955,9 @@ function ScriptEditor() {
                   >
                     <span
                       style={{
-                        // eslint-disable-next-line no-nested-ternary
+                         
                         color: e.isChanged
-                          ? "rgb(var(--orange-5))" // eslint-disable-next-line no-nested-ternary
+                          ? "rgb(var(--orange-5))"  
                           : e.script.uuid === selectSciptButtonAndTab
                             ? "rgb(var(--green-7))"
                             : e.active

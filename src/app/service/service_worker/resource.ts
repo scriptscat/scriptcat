@@ -1,10 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Resource, ResourceDAO, ResourceHash, ResourceType } from "@App/app/repo/resource";
-import { Script } from "@App/app/repo/scripts";
+import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
+import { ResourceDAO } from "@App/app/repo/resource";
+import type { Script } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
-import { ResourceBackup } from "@App/pkg/backup/struct";
+import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/script";
 import { subscribeScriptDelete } from "../queue";
@@ -23,8 +24,8 @@ export class ResourceService {
     this.resourceDAO.enableCache();
   }
 
-  public async getResource(uuid: string, url: string, type: ResourceType): Promise<Resource | undefined> {
-    let res = await this.getResourceModel(url);
+  public async getResource(uuid: string, url: string, _type: ResourceType): Promise<Resource | undefined> {
+    const res = await this.getResourceModel(url);
     if (res) {
       return res;
     }
@@ -216,7 +217,7 @@ export class ResourceService {
     const [hash, arrayBuffer, base64] = await Promise.all([
       this.calculateHash(data),
       data.arrayBuffer(),
-      blobToBase64(data)
+      blobToBase64(data),
     ]);
     const resource: Resource = {
       url: u.url,
@@ -275,10 +276,7 @@ export class ResourceService {
     if (!res) {
       // 新增资源
       const blob = new Blob([data.source!]);
-      const [hash, base64] = await Promise.all([
-        this.calculateHash(blob),
-        blobToBase64(blob)
-      ]);
+      const [hash, base64] = await Promise.all([this.calculateHash(blob), blobToBase64(blob)]);
       res = {
         url: data.meta.url,
         content: data.source!,
@@ -303,7 +301,7 @@ export class ResourceService {
     // 删除相关资源
     subscribeScriptDelete(this.mq, (data) => {
       // 使用事务当锁，避免并发删除导致数据不一致
-      Cache.getInstance().tx("resource_lock", async (start) => {
+      Cache.getInstance().tx("resource_lock", async (_start) => {
         const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
         });

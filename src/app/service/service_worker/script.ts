@@ -1,22 +1,23 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
-import { Group } from "@Packages/message/server";
+import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
-import {
+import type {
   Script,
   SCRIPT_RUN_STATUS,
+  ScriptDAO,
+  ScriptRunResource} from "@App/app/repo/scripts";
+import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
-  ScriptCodeDAO,
-  ScriptDAO,
-  ScriptRunResource,
+  ScriptCodeDAO
 } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import { InstallSource } from "./types";
+import type { InstallSource } from "./types";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";

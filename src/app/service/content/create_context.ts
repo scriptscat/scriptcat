@@ -74,7 +74,7 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
           const createGMCookePromise = (action: string) => {
             return (details: GMTypes.CookieDetails = {}) => {
               return new Promise((resolve, reject) => {
-                let fn = GM_cookie(action);
+                const fn = GM_cookie(action);
                 fn(details, function (cookie, error) {
                   if (error) {
                     reject(error);

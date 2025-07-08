@@ -3,7 +3,8 @@ import { Button, Card, Collapse, Link, Message, Space, Typography } from "@arco-
 import { useTranslation } from "react-i18next";
 import FileSystemParams from "../FileSystemParams";
 import { systemConfig } from "@App/pages/store/global";
-import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemFactory from "@Packages/filesystem/factory";
 
 const CollapseItem = Collapse.Item;
 

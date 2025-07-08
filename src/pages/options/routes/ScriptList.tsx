@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -18,17 +18,16 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { TbWorldWww } from "react-icons/tb";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
-import { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
+import type { Script, UserConfig } from "@App/app/repo/scripts";
 import {
-  Script,
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
-  UserConfig,
 } from "@App/app/repo/scripts";
 import { IconClockCircle, IconEdit, IconLink, IconMenu, IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import {
@@ -40,17 +39,10 @@ import {
   RiUploadCloudFill,
 } from "react-icons/ri";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
-import {
-  closestCenter,
-  DndContext,
-  DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -67,11 +59,11 @@ import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { ListHomeRender, ScriptIcons } from "./utils";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
+import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
   fetchScriptList,
   requestDeleteScript,
-  ScriptLoading,
   selectScripts,
   sortScript,
   requestStopScript,
@@ -117,7 +109,7 @@ function ScriptList() {
     });
   }, [dispatch]);
 
-  const columns: ColumnProps[] = [
+  const columns: ColumnProps[] = useMemo(() => [
     {
       title: "#",
       dataIndex: "sort",
@@ -575,7 +567,7 @@ function ScriptList() {
         );
       },
     },
-  ];
+  ], [t, dispatch, inputRef, navigate]);
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
 
@@ -603,7 +595,7 @@ function ScriptList() {
         })
       );
     });
-  }, []);
+  }, [columns, openUserConfig]);
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -628,15 +620,6 @@ function ScriptList() {
               return;
             }
             if (active.id !== over.id) {
-              let oldIndex = 0;
-              let newIndex = 0;
-              store.getState().script.scripts.forEach((item, index) => {
-                if (item.uuid === active.id) {
-                  oldIndex = index;
-                } else if (item.uuid === over.id) {
-                  newIndex = index;
-                }
-              });
               dispatch(sortScript({ active: active.id as string, over: over.id as string }));
             }
           }}
@@ -665,7 +648,7 @@ function ScriptList() {
     const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
     let SortableItem;
     if (sortIndex !== -1) {
-      SortableItem = (props: any) => {
+      const SortableItemComponent = (props: any) => {
         const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
 
         const style = {
@@ -695,6 +678,8 @@ function ScriptList() {
 
         return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
       };
+      SortableItemComponent.displayName = 'SortableItem';
+      SortableItem = SortableItemComponent;
     }
 
     setComponents({
@@ -705,7 +690,7 @@ function ScriptList() {
       },
     });
     setDealColumns(dealColumns);
-  }, [newColumns]);
+  }, [newColumns, dispatch, sensors]);
 
   return (
     <Card
@@ -773,7 +758,7 @@ function ScriptList() {
                       case "disable":
                         enableAction(false);
                         break;
-                      case "export":
+                      case "export": {
                         const uuids: string[] = [];
                         select.forEach((item) => {
                           uuids.push(item.uuid);
@@ -790,6 +775,7 @@ function ScriptList() {
                           });
                         });
                         break;
+                      }
                       case "delete":
                         if (confirm(t("list.confirm_delete"))) {
                           const uuids = select.map((item) => item.uuid);
@@ -929,7 +915,6 @@ function ScriptList() {
                     style={{ width: "80px" }}
                     size="mini"
                     value={
-                      // eslint-disable-next-line no-nested-ternary
                       newColumns[selectColumn].width === 0
                         ? t("auto")
                         : newColumns[selectColumn].width === -1

@@ -1,15 +1,9 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
-import { GetSender, Group } from "@Packages/message/server";
+import type { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
+import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
-import {
-  Script,
-  SCRIPT_STATUS,
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_TYPE_NORMAL,
-  ScriptDAO,
-} from "@App/app/repo/scripts";
+import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
 import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
@@ -29,7 +23,7 @@ import { type ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
-import { GMInfoEnv } from "../content/types";
+import type { GMInfoEnv } from "../content/types";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -243,7 +237,7 @@ export class RuntimeService {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
-    let messageFlag = await this.getMessageFlag();
+    const messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
       const registerScripts = await Promise.all(
@@ -393,7 +387,7 @@ export class RuntimeService {
       return { flag: "", scripts: [] };
     }
 
-    const [scriptFlag, __] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
+    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
     const chromeSender = sender.getSender() as MessageSender;
 
     // 匹配当前页面的脚本
@@ -447,7 +441,7 @@ export class RuntimeService {
     ]);
 
     // 更新资源使用了file协议的脚本
-    let needUpdateRegisteredUserScripts = enableScript.filter((script) => {
+    const needUpdateRegisteredUserScripts = enableScript.filter((script) => {
       let uriList: string[] = [];
       // @require
       if (Array.isArray(script.metadata.require)) {
@@ -458,10 +452,9 @@ export class RuntimeService {
         uriList = uriList.concat(
           script.metadata.resource
             .map((resourceInfo) => {
-              let split = resourceInfo.trim().split(/\s+/);
+              const split = resourceInfo.trim().split(/\s+/);
               if (split.length >= 2) {
-                let resourceKey = split[0];
-                let resourceUri = split[1];
+                const resourceUri = split[1];
                 return resourceUri;
               }
             })
@@ -482,15 +475,15 @@ export class RuntimeService {
       scriptRegisterInfoList = (
         await Promise.all(
           scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
-            let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+            const scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
             if (scriptRes) {
-              let originScriptCode = scriptRegisterInfo.js[0]["code"];
+              const originScriptCode = scriptRegisterInfo.js[0]["code"];
               let scriptResCode = scriptRes.code;
               if (scriptResCode === "") {
                 scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
               }
-              let scriptCode = compileScriptCode(scriptRes, scriptResCode);
-              let scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+              const scriptCode = compileScriptCode(scriptRes, scriptResCode);
+              const scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
               // 若代码一致，则不更新
               if (originScriptCode === scriptInjectCode) {
                 return;

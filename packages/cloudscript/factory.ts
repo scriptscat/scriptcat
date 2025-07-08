@@ -1,5 +1,5 @@
-import { ExportTarget } from "@App/app/repo/export";
-import { ExportParams } from "./cloudscript";
+import type { ExportTarget } from "@App/app/repo/export";
+import type { ExportParams } from "./cloudscript";
 import LocalCloudScript from "./local";
 
 export interface CloudScriptParams {

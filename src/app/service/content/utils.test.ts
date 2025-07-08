@@ -94,9 +94,9 @@ describe("Symbol", () => {
 describe("Object", () => {
   const _this = proxyContext({}, {});
   it("hasOwnProperty", () => {
-    expect(_this.hasOwnProperty("test1")).toEqual(false);
+    expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";
-    expect(_this.hasOwnProperty("test1")).toEqual(true);
-    expect(_this.hasOwnProperty("test")).toEqual(false);
+    expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
+    expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
   });
 });

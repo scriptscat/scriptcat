@@ -1,5 +1,5 @@
 import { Repo } from "./repo";
-import { Resource } from "./resource";
+import type { Resource } from "./resource";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;

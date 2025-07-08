@@ -1,9 +1,9 @@
 // gm api 权限验证
-import { Script } from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import { type Permission, PermissionDAO } from "@App/app/repo/permission";
 import { type Group } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import { Api, Request } from "./types";
+import type { Api, Request } from "./types";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
@@ -118,7 +118,7 @@ export default class PermissionVerify {
       throw new Error("grant is undefined");
     }
     for (let i = 0; i < grant.length; i += 1) {
-      let grantName = grant[i];
+      const grantName = grant[i];
       if (
         // 名称相等
         grantName === request.api ||

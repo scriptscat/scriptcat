@@ -1,20 +1,22 @@
 import { v4 as uuidv4 } from "uuid";
-import {
+import type {
   Metadata,
   Script,
+  ScriptCode} from "@App/app/repo/scripts";
+import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
-  ScriptCode,
   ScriptCodeDAO,
   ScriptDAO,
 } from "@App/app/repo/scripts";
-import { Subscribe, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO, Metadata as SubMetadata } from "@App/app/repo/subscribe";
+import type { Subscribe, Metadata as SubMetadata } from "@App/app/repo/subscribe";
+import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
-import { InstallSource } from "@App/app/service/service_worker/types";
+import type { InstallSource } from "@App/app/service/service_worker/types";
 import { parseUserConfig } from "./yaml"; 
 
 export function getMetadataStr(code: string): string | null {

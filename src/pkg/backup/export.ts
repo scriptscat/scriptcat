@@ -1,7 +1,7 @@
-import FileSystem from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 import { base64ToBlob } from "../utils/script";
 import { toStorageValueStr } from "../utils/utils";
-import { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
+import type { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
 import { md5OfText } from "../utils/crypto";
 
 export default class BackupExport {

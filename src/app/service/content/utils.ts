@@ -159,8 +159,6 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           if (context["window"][name]) {
             return context["window"][name];
           }
-        default:
-          break;
       }
       if (name !== "undefined") {
         if (has(thisContext, name)) {

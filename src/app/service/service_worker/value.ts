@@ -1,8 +1,8 @@
 import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
+import type Logger from "@App/app/logger/logger";
 import { type Script, ScriptDAO } from "@App/app/repo/scripts";
 import { ValueDAO } from "@App/app/repo/value";
-import { type GetSender, type Group } from "@Packages/message/server";
+import type { GetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
 import Cache from "@App/app/cache";
@@ -185,14 +185,14 @@ export class ValueService {
     });
   }
 
-  setScriptValue(data: { uuid: string; key: string; value: any }, sender: GetSender) {
+  setScriptValue(data: { uuid: string; key: string; value: any }, _sender: GetSender) {
     return this.setValue(data.uuid, data.key, data.value, {
       runFlag: "user",
       tabId: -2,
     });
   }
 
-  setScriptValues(data: { uuid: string; values: { [key: string]: any } }, sender: GetSender) {
+  setScriptValues(data: { uuid: string; values: { [key: string]: any } }, _sender: GetSender) {
     return this.setValues(data, {
       runFlag: "user",
       tabId: -2,

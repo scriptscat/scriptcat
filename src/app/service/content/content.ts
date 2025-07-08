@@ -57,7 +57,8 @@ export default class ContentRuntime {
             });
           }
           case "GM_addElement": {
-            let [parentNodeId, tagName, attr] = data.params;
+            const [parentNodeId, tagName, tmpAttr] = data.params;
+            let attr = tmpAttr;
             let parentNode: EventTarget | undefined;
             if (parentNodeId) {
               parentNode = (this.msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable no-undef */
 const fs = require("fs");
 const JSZip = require("jszip");
 const ChromeExtension = require("crx");
@@ -119,6 +121,6 @@ crx
     fs.writeFileSync(`./dist/${package.name}-v${package.version}-chrome.crx`, crxBuffer);
   })
   .catch((err) => {
-    // eslint-disable-next-line no-console
+     
     console.error(err);
   });

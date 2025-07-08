@@ -1,6 +1,6 @@
 import type { File, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
-import BaiduFileSystem from "./baidu";
+import type BaiduFileSystem from "./baidu";
 
 export class BaiduFileReader implements FileReader {
   file: File;

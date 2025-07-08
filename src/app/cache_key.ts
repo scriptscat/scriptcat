@@ -1,4 +1,4 @@
-import { ConfirmParam } from "./service/service_worker/permission_verify";
+import type { ConfirmParam } from "./service/service_worker/permission_verify";
 
 export default class CacheKey {
   // 加载脚本信息时的缓存

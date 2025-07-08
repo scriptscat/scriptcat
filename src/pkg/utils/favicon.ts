@@ -43,7 +43,7 @@ export async function extractFavicons(
         faviconUrls.push({ match: domain.match, website: "", icon: "" });
       }
     } catch (error) {
-      console.error(`Failed to fetch favicon for ${domain}:`, error);
+      console.error(`Failed to fetch favicon for ${domain.domain || domain.match}:`, error);
     }
   });
   // 等待所有favicon获取完成
@@ -58,7 +58,7 @@ export async function extractFavicons(
 function extractDomainFromPattern(pattern: string): string | null {
   try {
     // 处理match模式: scheme://host/path
-    const matchPattern = /^(http|https|\*):\/\/([^\/]+)(?:\/(.*))?$/;
+    const matchPattern = /^(http|https|\*):\/\/([^/]+)(?:\/(.*))?$/;
     const matches = pattern.match(matchPattern);
 
     if (matches) {
@@ -101,29 +101,6 @@ function extractDomainFromPattern(pattern: string): string | null {
     return null;
   }
 }
-
-/* // 暂时保留旧版本
-function parseFaviconsOld(html: string, callback: (href: string) => void) {
-
-  // Early exit if no link tags
-  if (!html.toLowerCase().includes("<link")) return;
-
-  // 解析HTML
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-
-  // 查找favicon链接
-  const linkElements = doc.querySelectorAll(
-    "link[rel*='icon'], link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']"
-  );
-  linkElements.forEach((link) => {
-    const href = link.getAttribute("href");
-    if (href) {
-      callback(href);
-    }
-  });
-}
-*/
 
 function parseFaviconsNew(html: string, callback: (href: string) => void) {
 

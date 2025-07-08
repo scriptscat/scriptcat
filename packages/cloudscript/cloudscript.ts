@@ -1,5 +1,5 @@
-import { Script } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
+import type { Script } from "@App/app/repo/scripts";
+import type { Value } from "@App/app/repo/value";
 import { valueClient } from "@App/pages/store/features/script";
 
 export type ExportCookies = {
