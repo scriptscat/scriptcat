@@ -2,26 +2,25 @@
 import Cache from "@App/app/cache";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Channel } from "@App/app/message/channel";
-import { MessageHander, MessageSender } from "@App/app/message/message";
+import { type Channel } from "@App/app/message/channel";
+import type { MessageHander, MessageSender } from "@App/app/message/message";
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import { base64ToBlob } from "@App/pkg/utils/script";
-import { isFirefox } from "@App/pkg/utils/utils";
+import { base64ToBlob, isFirefox } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
 import FileSystemFactory from "@Pkg/filesystem/factory";
-import FileSystem from "@Pkg/filesystem/filesystem";
+import type FileSystem from "@Pkg/filesystem/filesystem";
 import { joinPath } from "@Pkg/filesystem/utils";
-import i18next from "i18next";
+import { t } from "i18next";
 import { i18nName } from "@App/locales/locales";
 import { isWarpTokenError } from "@Pkg/filesystem/error";
 import PermissionVerify, {
-  ConfirmParam,
-  IPermissionVerify,
+  type ConfirmParam,
+  type IPermissionVerify,
 } from "./permission_verify";
 import {
   dealFetch,
@@ -219,18 +218,18 @@ export default class GMApi {
         }
       }
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = config.url;
+      metadata[t("script_name")] = i18nName(request.script);
+      metadata[t("request_domain")] = url.hostname;
+      metadata[t("request_url")] = config.url;
 
       return Promise.resolve({
         permission: "cors",
         permissionValue: url.hostname,
-        title: i18next.t("script_accessing_cross_origin_resource"),
+        title: t("script_accessing_cross_origin_resource"),
         metadata,
-        describe: i18next.t("confirm_operation_description"),
+        describe: t("confirm_operation_description"),
         wildcard: true,
-        permissionContent: i18next.t("domain"),
+        permissionContent: t("domain"),
       } as ConfirmParam);
     },
     alias: ["GM.xmlHttpRequest"],
@@ -691,15 +690,15 @@ export default class GMApi {
         );
       }
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.host;
+      metadata[t("script_name")] = i18nName(request.script);
+      metadata[t("request_domain")] = url.host;
       return Promise.resolve({
         permission: "cookie",
         permissionValue: url.host,
-        title: i18next.t("access_cookie_content")!,
+        title: t("access_cookie_content")!,
         metadata,
-        describe: i18next.t("confirm_script_operation")!,
-        permissionContent: i18next.t("cookie_domain")!,
+        describe: t("confirm_script_operation")!,
+        permissionContent: t("cookie_domain")!,
         uuid: "",
       });
     },
@@ -838,15 +837,15 @@ export default class GMApi {
       }
       const dir = details.baseDir ? details.baseDir : request.script.uuid;
       const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = i18nName(request.script);
+      metadata[t("script_name")] = i18nName(request.script);
       return Promise.resolve({
         permission: "file_storage",
         permissionValue: dir,
-        title: i18next.t("script_operation_title"),
+        title: t("script_operation_title"),
         metadata,
-        describe: i18next.t("script_operation_description", { dir }),
+        describe: t("script_operation_description", { dir }),
         wildcard: false,
-        permissionContent: i18next.t("script_permission_content"),
+        permissionContent: t("script_permission_content"),
       } as ConfirmParam);
     },
     alias: ["GM.xmlHttpRequest"],

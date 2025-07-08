@@ -5,9 +5,9 @@ import {
   MessageHander,
   MessageSender,
 } from "@App/app/message/message";
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
-import { Value, ValueDAO } from "@App/app/repo/value";
-import { ValueUpdateData } from "@App/runtime/content/exec_script";
+import { type Script, ScriptDAO } from "@App/app/repo/scripts";
+import { type Value, ValueDAO } from "@App/app/repo/value";
+import { type ValueUpdateData } from "@App/runtime/content/exec_script";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { isEqual } from "lodash";
 import { db } from "@App/app/repo/dao";

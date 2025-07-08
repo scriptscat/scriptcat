@@ -1,5 +1,5 @@
 import LoggerCore from "../logger/core";
-import { Channel } from "./channel";
+import { type Channel } from "./channel";
 import {
   ChannelManager,
   MessageHander,

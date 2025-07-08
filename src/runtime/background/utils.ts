@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Channel } from "@App/app/message/channel";
+import { type Channel } from "@App/app/message/channel";
 import { SCRIPT_STATUS_ENABLE, Script } from "@App/app/repo/scripts";
 import { isFirefox } from "@App/pkg/utils/utils";
 import MessageCenter from "@App/app/message/center";

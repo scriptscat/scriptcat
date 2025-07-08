@@ -3,10 +3,10 @@ import { v4 as uuidv4 } from "uuid";
 import CacheKey from "@App/pkg/utils/cache_key";
 import JSZip from "jszip";
 import ZipFileSystem from "@Pkg/filesystem/zip/zip";
-import dayjs from "dayjs";
 import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import { dayFormat } from "@App/pkg/utils/day_format";
 import { Handler } from "../manager";
 import SynchronizeManager from "./manager";
 
@@ -79,7 +79,7 @@ export default class SynchronizeEventListener {
     chrome.downloads.download({
       url,
       saveAs: true,
-      filename: `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`,
+      filename: `scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`,
     });
     return Promise.resolve();
   }
@@ -103,9 +103,7 @@ export default class SynchronizeEventListener {
       await cloudFs.createDir("ScriptCat");
       cloudFs = await cloudFs.openDir("ScriptCat");
       // 云端文件系统写入文件
-      const file = await cloudFs.create(
-        `scriptcat-backup-${dayjs().format("YYYY-MM-DDTHH-mm-ss")}.zip`
-      );
+      const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
         await zip.generateAsync({
           type: "blob",

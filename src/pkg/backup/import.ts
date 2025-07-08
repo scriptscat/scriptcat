@@ -2,8 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import { isText } from "../utils/istextorbinary";
-import { blobToBase64 } from "../utils/script";
-import { parseStorageValue } from "../utils/utils";
+import { blobToBase64, parseStorageValue } from "../utils/utils";
 import {
   BackupData,
   ResourceBackup,

@@ -80,7 +80,7 @@ export interface Script {
 }
 
 // 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
-export interface ScriptRunResouce extends Script {
+export interface ScriptRunResource extends Script {
   grantMap: { [key: string]: string };
   value: { [key: string]: Value };
   flag: string;

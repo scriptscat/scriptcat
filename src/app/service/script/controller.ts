@@ -1,6 +1,6 @@
 import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
-import { ScriptInfo } from "@App/pkg/utils/script";
+import { type ScriptInfo } from "@App/pkg/utils/script";
 import IoC from "@App/app/ioc";
 import MessageInternal from "../../message/internal";
 import { ScriptEvent } from "./event";

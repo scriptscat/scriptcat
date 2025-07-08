@@ -2,74 +2,9 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable default-case */
 import LoggerCore from "@App/app/logger/core";
-import { Metadata } from "@App/app/repo/scripts";
 import Logger from "@App/app/logger/logger";
-import MessageInternal from "@App/app/message/internal";
-import { CronTime } from "cron";
-import dayjs from "dayjs";
-import semver from "semver";
-import { enc, MD5 } from "crypto-js";
-
-export function nextTime(crontab: string): string {
-  let oncePos = 0;
-  if (crontab.indexOf("once") !== -1) {
-    const vals = crontab.split(" ");
-    vals.forEach((val, index) => {
-      if (val === "once") {
-        oncePos = index;
-      }
-    });
-    if (vals.length === 5) {
-      oncePos += 1;
-    }
-  }
-  let cron: CronTime;
-  try {
-    cron = new CronTime(crontab.replace(/once/g, "*"));
-  } catch (e) {
-    throw new Error("错误的定时表达式");
-  }
-  if (oncePos) {
-    switch (oncePos) {
-      case 1: // 每分钟
-        return cron.sendAt().toFormat("yyyy-MM-dd HH:mm 每分钟运行一次");
-      case 2: // 每小时
-        return cron
-          .sendAt()
-          .plus({ hour: 1 })
-          .toFormat("yyyy-MM-dd HH 每小时运行一次");
-      case 3: // 每天
-        return cron
-          .sendAt()
-          .plus({ day: 1 })
-          .toFormat("yyyy-MM-dd 每天运行一次");
-      case 4: // 每月
-        return cron
-          .sendAt()
-          .plus({ month: 1 })
-          .toFormat("yyyy-MM 每月运行一次");
-      case 5: // 每星期
-        return cron
-          .sendAt()
-          .plus({ week: 1 })
-          .toFormat("yyyy-MM-dd 每星期运行一次");
-    }
-    throw new Error("错误表达式");
-  }
-  return cron.sendAt().toFormat("yyyy-MM-dd HH:mm:ss");
-}
-
-export function formatTime(time: Date) {
-  return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function formatUnixTime(time: number) {
-  return dayjs.unix(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function semTime(time: Date) {
-  return dayjs().to(dayjs(time));
-}
+import type { Metadata } from "@App/app/repo/scripts";
+import type MessageInternal from "@App/app/message/internal";
 
 export function randomString(e: number) {
   e = e || 32;
@@ -92,8 +27,8 @@ export function dealScript(source: string): string {
   return dealSymbol(source);
 }
 
-export function isFirefox() {
-  navigator.userAgent.includes("Firefox");
+export function isFirefox(): boolean {
+  return navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -199,34 +134,6 @@ export function tryConnect(
   }, 5000);
 }
 
-// 对比版本大小
-export function ltever(
-  newVersion: string,
-  oldVersion: string,
-  logger?: Logger
-) {
-  // 先验证符不符合语义化版本规范
-  try {
-    return semver.lte(newVersion, oldVersion);
-  } catch (e) {
-    logger?.warn(
-      "does not conform to the Semantic Versioning specification",
-      Logger.E(e)
-    );
-  }
-  const newVer = newVersion.split(".");
-  const oldVer = oldVersion.split(".");
-  for (let i = 0; i < newVer.length; i += 1) {
-    if (Number(newVer[i]) > Number(oldVer[i])) {
-      return false;
-    }
-    if (Number(newVer[i]) < Number(oldVer[i])) {
-      return true;
-    }
-  }
-  return true;
-}
-
 // 检查订阅规则是否改变,是否能够静默更新
 export function checkSilenceUpdate(
   oldMeta: Metadata,
@@ -252,18 +159,6 @@ export function checkSilenceUpdate(
     }
   }
   return true;
-}
-
-export function calculateMd5(blob: Blob) {
-  const reader = new FileReader();
-  reader.readAsBinaryString(blob);
-  return new Promise<string>((resolve) => {
-    reader.onloadend = () => {
-      // @ts-ignore
-      const hash = MD5(enc.Latin1.parse(reader.result)).toString();
-      resolve(hash);
-    };
-  });
 }
 
 // 在当前页后打开一个新页面
@@ -314,4 +209,82 @@ export function fixCoding(text: string): string {
     .replace(/\b[a-z]{4,8}:\s*['"]\[(.)-(.)\]['"]/g, (match, start, end) =>
       match.replace(`${start}-${end}`, `${toXChar(start)}-${toXChar(end)}`)
     );
+}
+
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string>reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/*
+export function blobToText(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.readAsText(blob);
+  });
+}
+*/
+
+export function base64ToBlob(dataURI: string) {
+  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
+  const byteString = atob(dataURI.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+
+  for (let i = 0; i < byteString.length; i += 1) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mimeString });
+}
+
+/*
+export function base64ToStr(base64: string): string {
+  try {
+    return decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => {
+          return `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`;
+        })
+        .join("")
+    );
+  } catch (e) {
+    LoggerCore.getInstance()
+      .logger({ utils: "base64ToStr" })
+      .debug("base64 to string failed", Logger.E(e));
+  }
+  return "";
+}
+*/
+
+/*
+export function strToBase64(str: string): string {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
+      return String.fromCharCode(parseInt(`0x${p1}`, 16));
+    })
+  );
+}
+*/
+
+export function getMetadataStr(code: string): string | null {
+  const start = code.indexOf("==UserScript==");
+  const end = code.indexOf("==/UserScript==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `// ${code.substring(start, end + 15)}`;
+}
+
+export function getUserConfigStr(code: string): string | null {
+  const start = code.indexOf("==UserConfig==");
+  const end = code.indexOf("==/UserConfig==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `/* ${code.substring(start, end + 15)} */`;
 }

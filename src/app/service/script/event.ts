@@ -8,7 +8,7 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptDAO,
 } from "../../repo/scripts";
-import ScriptManager, { InstallSource } from "./manager";
+import ScriptManager, { type InstallSource } from "./manager";
 
 export type ScriptEvent =
   | "upsert"

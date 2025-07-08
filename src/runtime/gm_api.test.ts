@@ -1,13 +1,13 @@
 // gm api 单元测试
 // 初始化runtime环境
 import initTestEnv from "@App/pkg/utils/test_utils";
-import BgGMApi from "./background/gm_api";
+import GMApi from "./background/gm_api";
 import LoggerCore from "@App/app/logger/core";
 import MessageCenter from "@App/app/message/center";
-import { ScriptDAO, ScriptRunResouce } from "@App/app/repo/scripts";
+import { ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import MessageInternal from "@App/app/message/internal";
 import ValueManager from "@App/app/service/value/manager";
-import ExecScript, { ValueUpdateData } from "./content/exec_script";
+import ExecScript, { type ValueUpdateData } from "./content/exec_script";
 import { newMockXhr } from "mock-xmlhttprequest";
 import chromeMock from "@Pkg/chrome-extension-mock";
 import PermissionController from "@App/app/service/permission/controller";
@@ -28,7 +28,7 @@ IoC.registerInstance(MessageCenter, center).alias([
 ]);
 IoC.registerInstance(ValueManager, new ValueManager(center, center));
 
-const backgroundApi = new BgGMApi(center, new PermissionVerify());
+const backgroundApi = new GMApi(center, new PermissionVerify());
 backgroundApi.start();
 
 const internal = new MessageInternal("background");
@@ -76,7 +76,7 @@ const scriptRes = {
   runFlag: "test",
   value: {},
   grantMap: {},
-} as unknown as ScriptRunResouce;
+} as unknown as ScriptRunResource;
 scriptRes.sourceCode = scriptRes.code;
 
 const exec = new ExecScript(scriptRes, internal);
@@ -664,7 +664,7 @@ describe("GM.*", () => {
     runFlag: "test",
     value: {},
     grantMap: {},
-  } as unknown as ScriptRunResouce;
+  } as unknown as ScriptRunResource;
   scriptRes.sourceCode = scriptRes.code;
 
   const exec = new ExecScript(scriptRes, internal);

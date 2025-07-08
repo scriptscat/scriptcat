@@ -72,7 +72,8 @@ import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import SynchronizeController from "@App/app/service/synchronize/controller";
 import { useTranslation } from "react-i18next";
-import { nextTime, semTime } from "@App/pkg/utils/utils";
+import { nextTime } from "@App/pkg/utils/cron";
+import { semTime } from "@App/pkg/utils/dayjs";
 import { i18nName } from "@App/locales/locales";
 import { SystemConfig } from "@App/pkg/config/config";
 import {

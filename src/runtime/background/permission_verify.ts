@@ -4,10 +4,10 @@ import { Permission, PermissionDAO } from "@App/app/repo/permission";
 import { Script } from "@App/app/repo/scripts";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import MessageQueue from "@App/pkg/utils/message_queue";
+import Queue from "@App/pkg/utils/queue";
 import IoC from "@App/app/ioc";
 import { MessageHander } from "@App/app/message/message";
-import { Api, Request } from "./gm_api";
+import type { Api, Request } from "./gm_api";
 
 export interface ConfirmParam {
   // 权限名
@@ -103,12 +103,12 @@ export default class PermissionVerify {
   permissionDAO: PermissionDAO;
 
   // 确认队列
-  confirmQueue: MessageQueue<{
+  confirmQueue: Queue<{
     request: Request;
     confirm: ConfirmParam | boolean;
     resolve: (value: boolean) => void;
     reject: (reason: any) => void;
-  }> = new MessageQueue();
+  }> = new Queue();
 
   removePermissionCache(scriptId: number) {
     // 先删除缓存

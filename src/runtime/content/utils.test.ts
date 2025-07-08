@@ -1,4 +1,4 @@
-import { init, proxyContext, writables } from "./utils";
+import { init, proxyContext } from "./utils";
 
 describe("proxy context", () => {
   const context: any = {};

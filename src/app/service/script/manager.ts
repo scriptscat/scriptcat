@@ -7,11 +7,8 @@ import IoC from "@App/app/ioc";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { SystemConfig } from "@App/pkg/config/config";
-import {
-  checkSilenceUpdate,
-  ltever,
-  openInCurrentTab,
-} from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, openInCurrentTab } from "@App/pkg/utils/utils";
+import { ltever } from "@App/pkg/utils/semver";
 import Manager from "../manager";
 import { Script, SCRIPT_STATUS_DISABLE, ScriptDAO } from "../../repo/scripts";
 import ScriptEventListener from "./event";

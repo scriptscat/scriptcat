@@ -2,7 +2,7 @@ import IoC from "@App/app/ioc";
 import { Resource } from "@App/app/repo/resource";
 import { Script } from "@App/app/repo/scripts";
 import ResourceController from "@App/app/service/resource/controller";
-import { base64ToBlob } from "@App/pkg/utils/script";
+import { base64ToBlob } from "@App/pkg/utils/utils";
 import {
   Button,
   Drawer,

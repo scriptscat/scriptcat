@@ -22,7 +22,7 @@ import IoC from "@App/app/ioc";
 import SubscribeController from "@App/app/service/subscribe/controller";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { semTime } from "@App/pkg/utils/utils";
+import { semTime } from "@App/pkg/utils/dayjs";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
 

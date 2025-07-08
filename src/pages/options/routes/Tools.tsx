@@ -17,7 +17,7 @@ import SynchronizeController from "@App/app/service/synchronize/controller";
 import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
 import { SystemConfig } from "@App/pkg/config/config";
 import { File, FileReader } from "@Pkg/filesystem/filesystem";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";

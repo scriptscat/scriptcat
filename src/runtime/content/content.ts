@@ -2,7 +2,7 @@ import { ExternalMessage } from "@App/app/const";
 import MessageContent from "@App/app/message/content";
 import MessageInternal from "@App/app/message/internal";
 import { MessageHander, MessageManager } from "@App/app/message/message";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { ScriptRunResource } from "@App/app/repo/scripts";
 
 // content页的处理
 export default class ContentRuntime {
@@ -18,7 +18,7 @@ export default class ContentRuntime {
     this.internalMessage = internalMessage;
   }
 
-  start(resp: { scripts: ScriptRunResouce[] }) {
+  start(resp: { scripts: ScriptRunResource[] }) {
     // 由content到background
     // 转发gmApi消息
     this.contentMessage.setHandler("gmApi", (action, data) => {

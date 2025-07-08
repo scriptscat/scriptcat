@@ -1,7 +1,7 @@
 /* eslint-disable func-names */
 /* eslint-disable max-classes-per-file */
 import { MessageManager } from "@App/app/message/message";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 
 export class CATRetryError {
@@ -24,7 +24,7 @@ export class BgExecScriptWarp extends ExecScript {
 
   setInterval: Map<number, boolean>;
 
-  constructor(scriptRes: ScriptRunResouce, message: MessageManager) {
+  constructor(scriptRes: ScriptRunResource, message: MessageManager) {
     const thisContext: { [key: string]: any } = {};
     const setTimeout = new Map<number, any>();
     const setInterval = new Map<number, any>();

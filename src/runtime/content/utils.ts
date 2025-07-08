@@ -1,11 +1,8 @@
-import { MessageManager } from "@App/app/message/message";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { has } from "@App/pkg/utils/lodash";
-import GMApi, { ApiValue, GMContext } from "./gm_api";
 
 // 构建脚本运行代码
-export function compileScriptCode(scriptRes: ScriptRunResouce): string {
+export function compileScriptCode(scriptRes: ScriptRunResource): string {
   let { code } = scriptRes;
   let require = "";
   if (scriptRes.metadata.require) {
@@ -30,86 +27,8 @@ export function compileScript(code: string): ScriptFunc {
   return <ScriptFunc>new Function("context", "GM_info", code);
 }
 
-export function compileInjectScript(script: ScriptRunResouce): string {
+export function compileInjectScript(script: ScriptRunResource): string {
   return `window['${script.flag}']=function(context,GM_info){\n${script.code}\n}`;
-}
-
-// 设置api依赖
-function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
-  if (apiVal.param.depend) {
-    for (let i = 0; i < apiVal.param.depend.length; i += 1) {
-      const value = apiVal.param.depend[i];
-      const dependApi = GMContext.apis.get(value);
-      if (!dependApi) {
-        return;
-      }
-      if (value.startsWith("GM.")) {
-        const [, t] = value.split(".");
-        (<{ [key: string]: any }>context.GM)[t] = dependApi.api.bind(context);
-      } else {
-        context[value] = dependApi.api.bind(context);
-      }
-      setDepend(context, dependApi);
-    }
-  }
-}
-
-// 构建沙盒上下文
-export function createContext(
-  scriptRes: ScriptRunResouce,
-  GMInfo: any,
-  message: MessageManager
-): GMApi {
-  // 按照GMApi构建
-  const context: { [key: string]: any } = {
-    scriptRes,
-    message,
-    valueChangeListener: new Map<
-      number,
-      { name: string; listener: GMTypes.ValueChangeListener }
-    >(),
-    sendMessage: GMApi.prototype.sendMessage,
-    connect: GMApi.prototype.connect,
-    runFlag: uuidv4(),
-    valueUpdate: GMApi.prototype.valueUpdate,
-    GM: { Info: GMInfo },
-    GM_info: GMInfo,
-  };
-  if (scriptRes.metadata.grant) {
-    scriptRes.metadata.grant.forEach((val) => {
-      const api = GMContext.apis.get(val);
-      if (!api) {
-        return;
-      }
-      if (val.startsWith("GM.")) {
-        const [, t] = val.split(".");
-        (<{ [key: string]: any }>context.GM)[t] = api.api.bind(context);
-      } else if (val === "GM_cookie") {
-        // 特殊处理GM_cookie.list之类
-        context[val] = api.api.bind(context);
-        // eslint-disable-next-line func-names, camelcase
-        const GM_cookie = function (action: string) {
-          return (
-            details: GMTypes.CookieDetails,
-            done: (
-              cookie: GMTypes.Cookie[] | any,
-              error: any | undefined
-            ) => void
-          ) => {
-            return context[val](action, details, done);
-          };
-        };
-        context[val].list = GM_cookie("list");
-        context[val].delete = GM_cookie("delete");
-        context[val].set = GM_cookie("set");
-      } else {
-        context[val] = api.api.bind(context);
-      }
-      setDepend(context, api);
-    });
-  }
-  context.unsafeWindow = window;
-  return <GMApi>context;
 }
 
 export const writables: { [key: string]: any } = {
