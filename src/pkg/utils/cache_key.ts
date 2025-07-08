@@ -1,6 +1,6 @@
 // 缓存key,所有缓存相关的key都需要定义在此
 // 使用装饰器维护缓存值
-import { ConfirmParam } from "@App/runtime/background/permission_verify";
+import { type ConfirmParam } from "@App/runtime/background/permission_verify";
 
 export default class CacheKey {
   // 缓存触发器

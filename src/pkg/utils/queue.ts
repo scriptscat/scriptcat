@@ -1,5 +1,5 @@
 // 一个简单的消息队列,可以使用pop阻塞等待消息
-export default class MessageQueue<T> {
+export default class Queue<T> {
   list: T[] = [];
 
   resolve?: (data: T) => void;

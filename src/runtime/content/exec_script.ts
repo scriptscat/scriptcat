@@ -1,19 +1,19 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
-  MessageManager,
-  MessageSender,
+  type MessageManager,
+  type MessageSender,
   ProxyMessageManager,
 } from "@App/app/message/message";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
+import { type Value } from "@App/app/repo/value";
 import GMApi from "./gm_api";
 import {
   compileScript,
-  createContext,
   proxyContext,
-  ScriptFunc,
+  type ScriptFunc,
 } from "./utils";
+import { createContext } from "./create_context";
 
 export type ValueUpdateData = {
   oldValue: any;
@@ -22,7 +22,7 @@ export type ValueUpdateData = {
 };
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
-  scriptRes: ScriptRunResouce;
+  scriptRes: ScriptRunResource;
 
   scriptFunc: ScriptFunc;
 
@@ -38,7 +38,7 @@ export default class ExecScript {
   GM_info: any;
 
   constructor(
-    scriptRes: ScriptRunResouce,
+    scriptRes: ScriptRunResource,
     message: MessageManager,
     scriptFunc?: ScriptFunc,
     thisContext?: { [key: string]: any }

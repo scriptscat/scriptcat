@@ -1,5 +1,4 @@
 import IoC from "@App/app/ioc";
-import crypto from "crypto-js";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { MessageHander } from "@App/app/message/message";
@@ -13,17 +12,18 @@ import { ResourceLinkDAO } from "@App/app/repo/resource_link";
 import { Script } from "@App/app/repo/scripts";
 import axios from "axios";
 import Cache from "@App/app/cache";
-import { blobToBase64 } from "@App/pkg/utils/script";
+import { blobToBase64 } from "@App/pkg/utils/utils";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import Manager from "../manager";
+import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 
 // 资源管理器,负责资源的更新获取等操作
 
 function calculateHash(blob: Blob): Promise<ResourceHash> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.readAsBinaryString(blob);
+    reader.readAsArrayBuffer(blob);
     reader.onloadend = () => {
       if (!reader.result) {
         resolve({
@@ -34,13 +34,7 @@ function calculateHash(blob: Blob): Promise<ResourceHash> {
           sha512: "",
         });
       } else {
-        resolve({
-          md5: crypto.MD5(<string>reader.result).toString(),
-          sha1: crypto.SHA1(<string>reader.result).toString(),
-          sha256: crypto.SHA256(<string>reader.result).toString(),
-          sha384: crypto.SHA384(<string>reader.result).toString(),
-          sha512: crypto.SHA512(<string>reader.result).toString(),
-        });
+        resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
       }
     };
   });

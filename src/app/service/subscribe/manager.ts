@@ -6,7 +6,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import {
   Subscribe,
   SUBSCRIBE_STATUS_ENABLE,
-  SubscribeDAO,
+  SubscribeDAO
 } from "@App/app/repo/subscribe";
 import { SubscribeScript } from "@App/pkg/backup/struct";
 import { SystemConfig } from "@App/pkg/config/config";
@@ -14,16 +14,13 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import {
   fetchScriptInfo,
   prepareSubscribeByCode,
-  ScriptInfo,
+  type ScriptInfo
 } from "@App/pkg/utils/script";
-import {
-  checkSilenceUpdate,
-  InfoNotification,
-  ltever,
-} from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
+import { ltever } from "@App/pkg/utils/semver";
 import Hook from "../hook";
 import Manager from "../manager";
-import ScriptManager, { InstallSource } from "../script/manager";
+import ScriptManager, { type InstallSource } from "../script/manager";
 
 @IoC.Singleton(MessageHander, ScriptManager, SystemConfig)
 export default class SubscribeManager extends Manager {

@@ -7,7 +7,7 @@ import {
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
-  ScriptRunResouce,
+  ScriptRunResource,
 } from "@App/app/repo/scripts";
 import { CronJob } from "cron";
 import IoC from "@App/app/ioc";
@@ -30,7 +30,7 @@ export default class SandboxRuntime {
   execScripts: Map<number, ExecScript> = new Map();
 
   retryList: {
-    script: ScriptRunResouce;
+    script: ScriptRunResource;
     retryTime: number;
   }[] = [];
 
@@ -59,7 +59,7 @@ export default class SandboxRuntime {
     }, 5000);
   }
 
-  joinRetryList(script: ScriptRunResouce) {
+  joinRetryList(script: ScriptRunResource) {
     if (script.nextruntime) {
       this.retryList.push({
         script,
@@ -99,7 +99,7 @@ export default class SandboxRuntime {
   }
 
   // 直接运行脚本
-  start(script: ScriptRunResouce): Promise<boolean> {
+  start(script: ScriptRunResource): Promise<boolean> {
     return this.execScript(script, true);
   }
 
@@ -116,7 +116,7 @@ export default class SandboxRuntime {
     return Promise.resolve(true);
   }
 
-  enable(script: ScriptRunResouce): Promise<boolean> {
+  enable(script: ScriptRunResource): Promise<boolean> {
     // 如果正在运行,先释放
     if (this.execScripts.has(script.id)) {
       this.disable(script.id);
@@ -158,7 +158,7 @@ export default class SandboxRuntime {
   }
 
   // 执行脚本
-  execScript(script: ScriptRunResouce, execOnce?: boolean) {
+  execScript(script: ScriptRunResource, execOnce?: boolean) {
     const logger = this.logger.with({ scriptId: script.id, name: script.name });
     if (this.execScripts.has(script.id)) {
       // 释放掉资源
@@ -217,7 +217,7 @@ export default class SandboxRuntime {
     return ret;
   }
 
-  crontabScript(script: ScriptRunResouce) {
+  crontabScript(script: ScriptRunResource) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
       throw new Error("错误的crontab表达式");
@@ -264,7 +264,7 @@ export default class SandboxRuntime {
     return Promise.resolve(!flag);
   }
 
-  crontabExec(script: ScriptRunResouce, oncePos: number) {
+  crontabExec(script: ScriptRunResource, oncePos: number) {
     if (oncePos) {
       return () => {
         // 没有最后一次执行时间表示之前都没执行过,直接执行

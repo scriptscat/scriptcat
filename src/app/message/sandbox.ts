@@ -1,4 +1,4 @@
-import { Channel } from "./channel";
+import { type Channel } from "./channel";
 import {
   ChannelManager,
   MessageHander,

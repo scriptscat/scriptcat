@@ -1,6 +1,6 @@
 import IoC from "@App/app/ioc";
 import { Script } from "@App/app/repo/scripts";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import {
   Descriptions,
   Divider,

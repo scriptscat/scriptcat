@@ -54,6 +54,11 @@ module.exports = {
         args: "none",
       },
     ],
+    "import/order": "off",
+    "import/no-duplicates": "off",
+    "import/prefer-default-export": "off",
+    "no-plusplus": "off",
+    "prettier/prettier": "off",
   },
   settings: {
     "import/resolver": {

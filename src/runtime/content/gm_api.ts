@@ -2,19 +2,14 @@
 /* eslint-disable max-classes-per-file */
 import { ExtVersion } from "@App/app/const";
 import LoggerCore from "@App/app/logger/core";
-import { Channel, ChannelHandler } from "@App/app/message/channel";
-import MessageContent from "@App/app/message/content";
-import { MessageManager } from "@App/app/message/message";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import {
-  base64ToBlob,
-  blobToBase64,
-  getMetadataStr,
-  getUserConfigStr,
-  parseUserConfig,
-} from "@App/pkg/utils/script";
+import { type Channel, ChannelHandler } from "@App/app/message/channel";
+import type MessageContent from "@App/app/message/content";
+import { type MessageManager } from "@App/app/message/message";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
+import { getMetadataStr, getUserConfigStr, base64ToBlob, blobToBase64 } from "@App/pkg/utils/utils";
+import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { v4 as uuidv4 } from "uuid";
-import { ValueUpdateData } from "./exec_script";
+import { type ValueUpdateData } from "./exec_script";
 
 interface ApiParam {
   depend?: string[];
@@ -66,17 +61,14 @@ export class GMContext {
   }
 }
 
-export default class GMApi {
-  scriptRes!: ScriptRunResouce;
+export class GM_Base {
+  runFlag!: string;
 
   message!: MessageManager;
 
-  runFlag!: string;
+  scriptRes!: ScriptRunResource;
 
-  valueChangeListener = new Map<
-    number,
-    { name: string; listener: GMTypes.ValueChangeListener }
-  >();
+  valueChangeListener!: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>;
 
   // 单次回调使用
   public sendMessage(api: string, params: any[]) {
@@ -129,9 +121,18 @@ export default class GMApi {
       });
     }
   }
+}
+
+export default class GMApi extends GM_Base {
+
+  valueChangeListener = new Map<
+    number,
+    { name: string; listener: GMTypes.ValueChangeListener }
+  >();
+
 
   // 获取脚本信息和管理器信息
-  static GM_info(script: ScriptRunResouce) {
+  static GM_info(script: ScriptRunResource) {
     const metadataStr = getMetadataStr(script.sourceCode);
     const userConfigStr = getUserConfigStr(script.sourceCode) || "";
     const options = {

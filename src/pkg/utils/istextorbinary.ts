@@ -4,9 +4,6 @@
 // copy from istextorbinary
 // 由于未知原因,该包在jest中运行提示"Cannot find module",故将其代码简化并copy到此处
 
-// Import
-import type Buffer from "buffer";
-
 export interface EncodingOpts {
   /** Defaults to 24 */
   chunkLength?: number;

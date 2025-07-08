@@ -1,12 +1,12 @@
 import { ExternalMessage, ExternalWhitelist } from "@App/app/const";
 import MessageContent from "@App/app/message/content";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import ExecScript, { ValueUpdateData } from "./exec_script";
-import { addStyle, ScriptFunc } from "./utils";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
+import ExecScript, { type ValueUpdateData } from "./exec_script";
+import { addStyle, type ScriptFunc } from "./utils";
 
 // 注入脚本的沙盒环境
 export default class InjectRuntime {
-  scripts: ScriptRunResouce[];
+  scripts: ScriptRunResource[];
 
   flag: string;
 
@@ -16,7 +16,7 @@ export default class InjectRuntime {
 
   constructor(
     message: MessageContent,
-    scripts: ScriptRunResouce[],
+    scripts: ScriptRunResource[],
     flag: string
   ) {
     this.message = message;
@@ -54,7 +54,7 @@ export default class InjectRuntime {
     this.externalMessage();
   }
 
-  execScript(script: ScriptRunResouce, scriptFunc: ScriptFunc) {
+  execScript(script: ScriptRunResource, scriptFunc: ScriptFunc) {
     // @ts-ignore
     delete window[script.flag];
     const exec = new ExecScript(

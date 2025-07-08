@@ -1,6 +1,6 @@
 import IoC from "@App/app/ioc";
 import PermissionController from "@App/app/service/permission/controller";
-import { ConfirmParam } from "@App/runtime/background/permission_verify";
+import { type ConfirmParam } from "@App/runtime/background/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";

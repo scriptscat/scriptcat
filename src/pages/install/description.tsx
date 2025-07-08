@@ -14,7 +14,7 @@ import ScriptController from "@App/app/service/script/controller";
 import {
   prepareScriptByCode,
   prepareSubscribeByCode,
-  ScriptInfo,
+  type ScriptInfo,
 } from "@App/pkg/utils/script";
 import {
   Metadata,
@@ -22,7 +22,7 @@ import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
-import { nextTime } from "@App/pkg/utils/utils";
+import { nextTime } from "@App/pkg/utils/cron";
 import IoC from "@App/app/ioc";
 import { Subscribe, SUBSCRIBE_STATUS_ENABLE } from "@App/app/repo/subscribe";
 import SubscribeController from "@App/app/service/subscribe/controller";

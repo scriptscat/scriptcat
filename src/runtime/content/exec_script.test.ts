@@ -1,5 +1,5 @@
 import initTestEnv from "@App/pkg/utils/test_utils";
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
@@ -18,7 +18,7 @@ const scriptRes = {
   grantMap: {
     none: true,
   },
-} as unknown as ScriptRunResouce;
+} as unknown as ScriptRunResource;
 
 // @ts-ignore
 const noneExec = new ExecScript(scriptRes);
@@ -33,7 +33,7 @@ const scriptRes2 = {
   sourceCode: "sourceCode",
   value: {},
   grantMap: {},
-} as unknown as ScriptRunResouce;
+} as unknown as ScriptRunResource;
 
 // @ts-ignore
 const sandboxExec = new ExecScript(scriptRes2);

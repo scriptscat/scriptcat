@@ -2,6 +2,13 @@
 
 import Logger from "@App/app/logger/logger";
 
+export interface Url {
+  scheme: string;
+  host: string;
+  path: string;
+  search: string;
+}
+
 export default class Match<T> {
   protected cache = new Map<string, T[]>();
 
@@ -203,13 +210,6 @@ export class UrlMatch<T> extends Match<T> {
     this.cache.set(url, ret);
     return ret;
   }
-}
-
-export interface Url {
-  scheme: string;
-  host: string;
-  path: string;
-  search: string;
 }
 
 export class UrlInclude<T> extends UrlMatch<T> {

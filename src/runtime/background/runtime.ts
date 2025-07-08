@@ -1,6 +1,6 @@
 // 脚本运行时,主要负责脚本的加载和匹配
 // 油猴脚本将监听页面的创建,将代码注入到页面中
-import MessageSandbox from "@App/app/message/sandbox";
+import type MessageSandbox from "@App/app/message/sandbox";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import {
@@ -9,7 +9,7 @@ import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
-  ScriptRunResouce,
+  ScriptRunResource,
   SCRIPT_RUN_STATUS_RUNNING,
   Metadata,
 } from "@App/app/repo/scripts";
@@ -23,13 +23,13 @@ import {
   TargetTag,
 } from "@App/app/message/message";
 import ScriptManager from "@App/app/service/script/manager";
-import { Channel } from "@App/app/message/channel";
+import { type Channel } from "@App/app/message/channel";
 import IoC from "@App/app/ioc";
 import Manager from "@App/app/service/manager";
 import Hook from "@App/app/service/hook";
 import { i18nName } from "@App/locales/locales";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
-import GMApi, { Request } from "./gm_api";
+import GMApi, { type Request } from "./gm_api";
 import { genScriptMenu } from "./utils";
 
 export type RuntimeEvent = "start" | "stop" | "watchRunStatus";
@@ -69,12 +69,12 @@ export default class Runtime extends Manager {
 
   logger: Logger;
 
-  match: UrlMatch<ScriptRunResouce> = new UrlMatch();
+  match: UrlMatch<ScriptRunResource> = new UrlMatch();
 
-  include: UrlInclude<ScriptRunResouce> = new UrlInclude();
+  include: UrlInclude<ScriptRunResource> = new UrlInclude();
 
   // 自定义排除
-  customizeExclude: UrlMatch<ScriptRunResouce> = new UrlMatch();
+  customizeExclude: UrlMatch<ScriptRunResource> = new UrlMatch();
 
   static hook = new Hook<"runStatus">();
 
@@ -410,7 +410,7 @@ export default class Runtime extends Manager {
           exclude.forEach((val) => {
             addRunScript(sender.tabId!, val, false, 0);
           });
-          const filter: ScriptRunResouce[] = this.matchUrl(
+          const filter: ScriptRunResource[] = this.matchUrl(
             sender.url,
             (script) => {
               // 如果是iframe,判断是否允许在iframe里运行
@@ -545,7 +545,7 @@ export default class Runtime extends Manager {
     // 脚本更新先更新资源
     await this.resourceManager.checkScriptResource(script);
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      return this.enable(script as ScriptRunResouce);
+      return this.enable(script as ScriptRunResource);
     }
     return this.disable(script);
   }
@@ -554,7 +554,7 @@ export default class Runtime extends Manager {
     const scripts = this.match.match(url);
     // 再include中匹配
     scripts.push(...this.include.match(url));
-    const filter: { [key: string]: ScriptRunResouce } = {};
+    const filter: { [key: string]: ScriptRunResource } = {};
     // 去重
     scripts.forEach((script) => {
       if (filterFunc && filterFunc(script)) {
@@ -570,8 +570,8 @@ export default class Runtime extends Manager {
   async scriptDelete(script: Script): Promise<boolean> {
     // 清理匹配资源
     if (script.type === SCRIPT_TYPE_NORMAL) {
-      this.match.del(<ScriptRunResouce>script);
-      this.include.del(<ScriptRunResouce>script);
+      this.match.del(<ScriptRunResource>script);
+      this.include.del(<ScriptRunResource>script);
     } else {
       this.unloadBackgroundScript(script);
     }
@@ -597,7 +597,7 @@ export default class Runtime extends Manager {
   }
 
   // 加载页面脚本
-  loadPageScript(script: ScriptRunResouce) {
+  loadPageScript(script: ScriptRunResource) {
     // 重构code
     const logger = this.logger.with({
       scriptId: script.id,
@@ -605,8 +605,8 @@ export default class Runtime extends Manager {
     });
     script.code = dealScript(compileInjectScript(script));
 
-    this.match.del(<ScriptRunResouce>script);
-    this.include.del(<ScriptRunResouce>script);
+    this.match.del(<ScriptRunResource>script);
+    this.include.del(<ScriptRunResource>script);
     if (script.metadata.match) {
       script.metadata.match.forEach((url) => {
         try {
@@ -649,11 +649,11 @@ export default class Runtime extends Manager {
 
   // 卸载页面脚本
   unloadPageScript(script: Script) {
-    return this.loadPageScript(<ScriptRunResouce>script);
+    return this.loadPageScript(<ScriptRunResource>script);
   }
 
   // 加载并启动后台脚本
-  loadBackgroundScript(script: ScriptRunResouce): Promise<boolean> {
+  loadBackgroundScript(script: ScriptRunResource): Promise<boolean> {
     this.runBackScript.set(script.id, script);
     return new Promise((resolve, reject) => {
       // 清除重试数据
@@ -706,8 +706,8 @@ export default class Runtime extends Manager {
     });
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResouce> {
-    const ret: ScriptRunResouce = <ScriptRunResouce>Object.assign(script);
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
 
     // 自定义配置
     if (ret.selfMetadata) {

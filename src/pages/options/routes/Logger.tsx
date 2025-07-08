@@ -15,7 +15,7 @@ import { Logger, LoggerDAO } from "@App/app/repo/logger";
 import LogLabel, { Labels, Query } from "@App/pages/components/LogLabel";
 import { IconPlus } from "@arco-design/web-react/icon";
 import { useSearchParams } from "react-router-dom";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { SystemConfig } from "@App/pkg/config/config";
 import IoC from "@App/app/ioc";
 import { useTranslation } from "react-i18next";
