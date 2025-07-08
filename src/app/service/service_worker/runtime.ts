@@ -22,7 +22,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { GMInfoEnv } from "../content/types";
 
 export class RuntimeService {

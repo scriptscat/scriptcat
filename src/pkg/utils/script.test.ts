@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { parseMetadata, getMetadataStr, getUserConfigStr } from "./script";
+import { parseMetadata } from "./script"
+import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml"
 
 describe("parseMetadata", () => {
