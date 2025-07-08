@@ -109,465 +109,468 @@ function ScriptList() {
     });
   }, [dispatch]);
 
-  const columns: ColumnProps[] = useMemo(() => [
-    {
-      title: "#",
-      dataIndex: "sort",
-      width: 70,
-      key: "#",
-      sorter: (a, b) => a.sort - b.sort,
-      render(col) {
-        if (col < 0) {
-          return "-";
-        }
-        return col + 1;
-      },
-    },
-    {
-      key: "title",
-      title: t("enable"),
-      width: t("script_list_enable_width"),
-      dataIndex: "status",
-      className: "script-enable",
-      sorter(a, b) {
-        return a.status - b.status;
-      },
-      filters: [
-        {
-          text: t("enable"),
-          value: SCRIPT_STATUS_ENABLE,
+  const columns: ColumnProps[] = useMemo(
+    () => [
+      {
+        title: "#",
+        dataIndex: "sort",
+        width: 70,
+        key: "#",
+        sorter: (a, b) => a.sort - b.sort,
+        render(col) {
+          if (col < 0) {
+            return "-";
+          }
+          return col + 1;
         },
-        {
-          text: t("disable"),
-          value: SCRIPT_STATUS_DISABLE,
-        },
-      ],
-      onFilter: (value, row) => row.status === value,
-      render: (col, item: ScriptLoading) => {
-        return (
-          <Switch
-            checked={item.status === SCRIPT_STATUS_ENABLE}
-            loading={item.enableLoading}
-            disabled={item.enableLoading}
-            onChange={(checked) => {
-              dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }));
-            }}
-          />
-        );
       },
-    },
-    {
-      key: "name",
-      title: t("name"),
-      dataIndex: "name",
-      sorter: (a, b) => a.name.localeCompare(b.name),
-      filterIcon: <IconSearch />,
-      filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
-        return (
-          <div className="arco-table-custom-filter">
-            <Input.Search
-              ref={inputRef}
-              searchButton
-              placeholder={t("enter_script_name")!}
-              value={filterKeys[0] || ""}
-              onChange={(value) => {
-                setFilterKeys(value ? [value] : []);
-              }}
-              onSearch={() => {
-                confirm();
+      {
+        key: "title",
+        title: t("enable"),
+        width: t("script_list_enable_width"),
+        dataIndex: "status",
+        className: "script-enable",
+        sorter(a, b) {
+          return a.status - b.status;
+        },
+        filters: [
+          {
+            text: t("enable"),
+            value: SCRIPT_STATUS_ENABLE,
+          },
+          {
+            text: t("disable"),
+            value: SCRIPT_STATUS_DISABLE,
+          },
+        ],
+        onFilter: (value, row) => row.status === value,
+        render: (col, item: ScriptLoading) => {
+          return (
+            <Switch
+              checked={item.status === SCRIPT_STATUS_ENABLE}
+              loading={item.enableLoading}
+              disabled={item.enableLoading}
+              onChange={(checked) => {
+                dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }));
               }}
             />
-          </div>
-        );
+          );
+        },
       },
-      onFilter: (value: string, row) => {
-        if (!value) {
-          return true;
-        }
-        value = value.toLocaleLowerCase();
-        row.name = row.name.toLocaleLowerCase();
-        const i18n = i18nName(row).toLocaleLowerCase();
-        // 空格分开关键字搜索
-        const keys = value.split(" ");
-        for (const key of keys) {
-          if (row.name.includes(key) || i18n.includes(key)) {
+      {
+        key: "name",
+        title: t("name"),
+        dataIndex: "name",
+        sorter: (a, b) => a.name.localeCompare(b.name),
+        filterIcon: <IconSearch />,
+        filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+          return (
+            <div className="arco-table-custom-filter">
+              <Input.Search
+                ref={inputRef}
+                searchButton
+                placeholder={t("enter_script_name")!}
+                value={filterKeys[0] || ""}
+                onChange={(value) => {
+                  setFilterKeys(value ? [value] : []);
+                }}
+                onSearch={() => {
+                  confirm();
+                }}
+              />
+            </div>
+          );
+        },
+        onFilter: (value: string, row) => {
+          if (!value) {
             return true;
           }
-        }
-        return false;
-      },
-      onFilterDropdownVisibleChange: (visible) => {
-        if (visible) {
-          setTimeout(() => inputRef.current!.focus(), 150);
-        }
-      },
-      className: "max-w-[240px]",
-      render: (col, item: ListType) => {
-        return (
-          <Tooltip content={col} position="tl">
-            <Link
-              to={`/script/editor/${item.uuid}`}
-              style={{
-                textDecoration: "none",
-              }}
-            >
-              <Text
+          value = value.toLocaleLowerCase();
+          row.name = row.name.toLocaleLowerCase();
+          const i18n = i18nName(row).toLocaleLowerCase();
+          // 空格分开关键字搜索
+          const keys = value.split(" ");
+          for (const key of keys) {
+            if (row.name.includes(key) || i18n.includes(key)) {
+              return true;
+            }
+          }
+          return false;
+        },
+        onFilterDropdownVisibleChange: (visible) => {
+          if (visible) {
+            setTimeout(() => inputRef.current!.focus(), 150);
+          }
+        },
+        className: "max-w-[240px]",
+        render: (col, item: ListType) => {
+          return (
+            <Tooltip content={col} position="tl">
+              <Link
+                to={`/script/editor/${item.uuid}`}
                 style={{
-                  display: "block",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  lineHeight: "20px",
+                  textDecoration: "none",
                 }}
               >
-                <ScriptIcons script={item} size={20} />
-                {i18nName(item)}
-              </Text>
-            </Link>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: t("version"),
-      dataIndex: "version",
-      key: "version",
-      width: 120,
-      align: "center",
-      render(col, item: Script) {
-        return item.metadata.version && item.metadata.version[0];
-      },
-    },
-    {
-      key: "apply_to_run_status",
-      title: t("apply_to_run_status"),
-      width: t("script_list_apply_to_run_status_width"),
-      className: "apply_to_run_status",
-      render(col, item: ListType) {
-        const toLogger = () => {
-          navigate({
-            pathname: "logger",
-            search: `query=${encodeURIComponent(
-              JSON.stringify([
-                { key: "uuid", value: item.uuid },
-                {
-                  key: "component",
-                  value: "GM_log",
-                },
-              ])
-            )}`,
-          });
-        };
-        if (item.type === SCRIPT_TYPE_NORMAL) {
-          // 处理站点icon
-          return (
-            <>
-              <Avatar.Group size={20}>
-                {item.favorite &&
-                  // 排序并且只显示前5个
-                  // 排序将有icon的放在前面
-                  [...item.favorite]
-                    .sort((a, b) => {
-                      if (a.icon && !b.icon) return -1;
-                      if (!a.icon && b.icon) return 1;
-                      return a.match.localeCompare(b.match);
-                    })
-                    .slice(0, 4)
-                    .map((fav) => (
-                      <Avatar
-                        key={fav.match}
-                        shape="square"
-                        style={{
-                          backgroundColor: "unset",
-                          borderWidth: 1,
-                        }}
-                        className={fav.website ? "cursor-pointer" : "cursor-default"}
-                        onClick={() => {
-                          if (fav.website) {
-                            window.open(fav.website, "_blank");
-                          }
-                        }}
-                      >
-                        {fav.icon ? (
-                          <img title={fav.match} src={fav.icon} />
-                        ) : (
-                          <TbWorldWww title={fav.match} color="#aaa" size={24} />
-                        )}
-                      </Avatar>
-                    ))}
-                {item.favorite && item.favorite.length > 4 && "..."}
-              </Avatar.Group>
-            </>
+                <Text
+                  style={{
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    lineHeight: "20px",
+                  }}
+                >
+                  <ScriptIcons script={item} size={20} />
+                  {i18nName(item)}
+                </Text>
+              </Link>
+            </Tooltip>
           );
-        }
-        let tooltip = "";
-        if (item.type === SCRIPT_TYPE_BACKGROUND) {
-          tooltip = t("background_script_tooltip");
-        } else {
-          tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
-        }
-        return (
-          <Tooltip content={tooltip}>
-            <Tag
-              icon={<IconClockCircle />}
-              color="blue"
-              bordered
-              style={{
-                cursor: "pointer",
-              }}
-              onClick={toLogger}
-            >
-              {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-            </Tag>
-          </Tooltip>
-        );
+        },
       },
-    },
-    {
-      title: t("source"),
-      dataIndex: "origin",
-      key: "origin",
-      width: 100,
-      render(col, item: Script) {
-        if (item.subscribeUrl) {
+      {
+        title: t("version"),
+        dataIndex: "version",
+        key: "version",
+        width: 120,
+        align: "center",
+        render(col, item: Script) {
+          return item.metadata.version && item.metadata.version[0];
+        },
+      },
+      {
+        key: "apply_to_run_status",
+        title: t("apply_to_run_status"),
+        width: t("script_list_apply_to_run_status_width"),
+        className: "apply_to_run_status",
+        render(col, item: ListType) {
+          const toLogger = () => {
+            navigate({
+              pathname: "logger",
+              search: `query=${encodeURIComponent(
+                JSON.stringify([
+                  { key: "uuid", value: item.uuid },
+                  {
+                    key: "component",
+                    value: "GM_log",
+                  },
+                ])
+              )}`,
+            });
+          };
+          if (item.type === SCRIPT_TYPE_NORMAL) {
+            // 处理站点icon
+            return (
+              <>
+                <Avatar.Group size={20}>
+                  {item.favorite &&
+                    // 排序并且只显示前5个
+                    // 排序将有icon的放在前面
+                    [...item.favorite]
+                      .sort((a, b) => {
+                        if (a.icon && !b.icon) return -1;
+                        if (!a.icon && b.icon) return 1;
+                        return a.match.localeCompare(b.match);
+                      })
+                      .slice(0, 4)
+                      .map((fav) => (
+                        <Avatar
+                          key={fav.match}
+                          shape="square"
+                          style={{
+                            backgroundColor: "unset",
+                            borderWidth: 1,
+                          }}
+                          className={fav.website ? "cursor-pointer" : "cursor-default"}
+                          onClick={() => {
+                            if (fav.website) {
+                              window.open(fav.website, "_blank");
+                            }
+                          }}
+                        >
+                          {fav.icon ? (
+                            <img title={fav.match} src={fav.icon} />
+                          ) : (
+                            <TbWorldWww title={fav.match} color="#aaa" size={24} />
+                          )}
+                        </Avatar>
+                      ))}
+                  {item.favorite && item.favorite.length > 4 && "..."}
+                </Avatar.Group>
+              </>
+            );
+          }
+          let tooltip = "";
+          if (item.type === SCRIPT_TYPE_BACKGROUND) {
+            tooltip = t("background_script_tooltip");
+          } else {
+            tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+          }
           return (
-            <Tooltip
-              content={
-                <p style={{ margin: 0 }}>
-                  {t("subscription_link")}: {decodeURIComponent(item.subscribeUrl)}
-                </p>
-              }
-            >
+            <Tooltip content={tooltip}>
               <Tag
-                icon={<IconLink />}
-                color="orange"
+                icon={<IconClockCircle />}
+                color="blue"
+                bordered
+                style={{
+                  cursor: "pointer",
+                }}
+                onClick={toLogger}
+              >
+                {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+              </Tag>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        title: t("source"),
+        dataIndex: "origin",
+        key: "origin",
+        width: 100,
+        render(col, item: Script) {
+          if (item.subscribeUrl) {
+            return (
+              <Tooltip
+                content={
+                  <p style={{ margin: 0 }}>
+                    {t("subscription_link")}: {decodeURIComponent(item.subscribeUrl)}
+                  </p>
+                }
+              >
+                <Tag
+                  icon={<IconLink />}
+                  color="orange"
+                  bordered
+                  style={{
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("subscription_installation")}
+                </Tag>
+              </Tooltip>
+            );
+          }
+          if (!item.origin) {
+            return (
+              <Tag
+                icon={<IconEdit />}
+                color="purple"
                 bordered
                 style={{
                   cursor: "pointer",
                 }}
               >
-                {t("subscription_installation")}
+                {t("manually_created")}
+              </Tag>
+            );
+          }
+          return (
+            <Tooltip
+              content={
+                <p style={{ margin: 0, padding: 0 }}>
+                  {t("script_link")}: {decodeURIComponent(item.origin)}
+                </p>
+              }
+            >
+              <Tag
+                icon={<IconUserAdd color="" />}
+                color="green"
+                bordered
+                style={{
+                  cursor: "pointer",
+                }}
+              >
+                {t("user_installation")}
               </Tag>
             </Tooltip>
           );
-        }
-        if (!item.origin) {
+        },
+      },
+      {
+        title: t("home"),
+        dataIndex: "home",
+        align: "center",
+        key: "home",
+        width: 100,
+        render(col, item: Script) {
+          return <ListHomeRender script={item} />;
+        },
+      },
+      {
+        title: t("sorting"),
+        className: "script-sort",
+        key: "sort",
+        width: 80,
+        align: "center",
+        render() {
           return (
-            <Tag
-              icon={<IconEdit />}
-              color="purple"
-              bordered
+            <IconMenu
               style={{
-                cursor: "pointer",
+                cursor: "move",
               }}
-            >
-              {t("manually_created")}
-            </Tag>
+            />
           );
-        }
-        return (
-          <Tooltip
-            content={
-              <p style={{ margin: 0, padding: 0 }}>
-                {t("script_link")}: {decodeURIComponent(item.origin)}
-              </p>
-            }
-          >
-            <Tag
-              icon={<IconUserAdd color="" />}
-              color="green"
-              bordered
+        },
+      },
+      {
+        title: t("last_updated"),
+        dataIndex: "updatetime",
+        align: "center",
+        key: "updatetime",
+        width: t("script_list_last_updated_width"),
+        sorter: (a, b) => a.updatetime - b.updatetime,
+        render(col, script: Script) {
+          return (
+            <span
               style={{
                 cursor: "pointer",
               }}
-            >
-              {t("user_installation")}
-            </Tag>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: t("home"),
-      dataIndex: "home",
-      align: "center",
-      key: "home",
-      width: 100,
-      render(col, item: Script) {
-        return <ListHomeRender script={item} />;
-      },
-    },
-    {
-      title: t("sorting"),
-      className: "script-sort",
-      key: "sort",
-      width: 80,
-      align: "center",
-      render() {
-        return (
-          <IconMenu
-            style={{
-              cursor: "move",
-            }}
-          />
-        );
-      },
-    },
-    {
-      title: t("last_updated"),
-      dataIndex: "updatetime",
-      align: "center",
-      key: "updatetime",
-      width: t("script_list_last_updated_width"),
-      sorter: (a, b) => a.updatetime - b.updatetime,
-      render(col, script: Script) {
-        return (
-          <span
-            style={{
-              cursor: "pointer",
-            }}
-            onClick={() => {
-              if (!script.checkUpdateUrl) {
-                Message.warning(t("update_not_supported")!);
-                return;
-              }
-              Message.info({
-                id: "checkupdate",
-                content: t("checking_for_updates"),
-              });
-              scriptClient
-                .requestCheckUpdate(script.uuid)
-                .then((res) => {
-                  console.log("res", res);
-                  if (res) {
-                    Message.warning({
-                      id: "checkupdate",
-                      content: t("new_version_available"),
-                    });
-                  } else {
-                    Message.success({
-                      id: "checkupdate",
-                      content: t("latest_version"),
-                    });
-                  }
-                })
-                .catch((e) => {
-                  Message.error({
-                    id: "checkupdate",
-                    content: `${t("update_check_failed")}: ${e.message}`,
-                  });
+              onClick={() => {
+                if (!script.checkUpdateUrl) {
+                  Message.warning(t("update_not_supported")!);
+                  return;
+                }
+                Message.info({
+                  id: "checkupdate",
+                  content: t("checking_for_updates"),
                 });
-            }}
-          >
-            {semTime(new Date(col))}
-          </span>
-        );
-      },
-    },
-    {
-      title: t("action"),
-      dataIndex: "action",
-      key: "action",
-      width: 160,
-      render(col, item: ScriptLoading) {
-        return (
-          <Button.Group>
-            <Link to={`/script/editor/${item.uuid}`}>
-              <Button
-                type="text"
-                icon={<RiPencilFill />}
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-              />
-            </Link>
-            <Popconfirm
-              title={t("confirm_delete_script")}
-              icon={<RiDeleteBin5Fill />}
-              onOk={() => {
-                dispatch(requestDeleteScript(item.uuid));
+                scriptClient
+                  .requestCheckUpdate(script.uuid)
+                  .then((res) => {
+                    console.log("res", res);
+                    if (res) {
+                      Message.warning({
+                        id: "checkupdate",
+                        content: t("new_version_available"),
+                      });
+                    } else {
+                      Message.success({
+                        id: "checkupdate",
+                        content: t("latest_version"),
+                      });
+                    }
+                  })
+                  .catch((e) => {
+                    Message.error({
+                      id: "checkupdate",
+                      content: `${t("update_check_failed")}: ${e.message}`,
+                    });
+                  });
               }}
             >
-              <Button
-                type="text"
-                icon={<RiDeleteBin5Fill />}
-                loading={item.actionLoading}
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-              />
-            </Popconfirm>
-            {item.config && (
-              <Button
-                type="text"
-                icon={<RiSettings3Fill />}
-                onClick={() => {
-                  new ValueClient(message).getScriptValue(item).then((newValues) => {
-                    setUserConfig({
-                      userConfig: { ...item.config! },
-                      script: item,
-                      values: newValues,
-                    });
-                  });
-                }}
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-              />
-            )}
-            {item.type !== SCRIPT_TYPE_NORMAL && (
-              <Button
-                type="text"
-                icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-                loading={item.actionLoading}
-                onClick={async () => {
-                  if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-                    // Stop script
-                    Message.loading({
-                      id: "script-stop",
-                      content: t("stopping_script"),
-                    });
-                    await dispatch(requestStopScript(item.uuid));
-                    Message.success({
-                      id: "script-stop",
-                      content: t("script_stopped"),
-                      duration: 3000,
-                    });
-                  } else {
-                    Message.loading({
-                      id: "script-run",
-                      content: t("starting_script"),
-                    });
-                    await dispatch(requestRunScript(item.uuid));
-                    Message.success({
-                      id: "script-run",
-                      content: t("script_started"),
-                      duration: 3000,
-                    });
-                  }
-                }}
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-              />
-            )}
-            {item.metadata.cloudcat && (
-              <Button
-                type="text"
-                icon={<RiUploadCloudFill />}
-                onClick={() => {
-                  setCloudScript(item);
-                }}
-                style={{
-                  color: "var(--color-text-2)",
-                }}
-              />
-            )}
-          </Button.Group>
-        );
+              {semTime(new Date(col))}
+            </span>
+          );
+        },
       },
-    },
-  ], [t, dispatch, inputRef, navigate]);
+      {
+        title: t("action"),
+        dataIndex: "action",
+        key: "action",
+        width: 160,
+        render(col, item: ScriptLoading) {
+          return (
+            <Button.Group>
+              <Link to={`/script/editor/${item.uuid}`}>
+                <Button
+                  type="text"
+                  icon={<RiPencilFill />}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              </Link>
+              <Popconfirm
+                title={t("confirm_delete_script")}
+                icon={<RiDeleteBin5Fill />}
+                onOk={() => {
+                  dispatch(requestDeleteScript(item.uuid));
+                }}
+              >
+                <Button
+                  type="text"
+                  icon={<RiDeleteBin5Fill />}
+                  loading={item.actionLoading}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              </Popconfirm>
+              {item.config && (
+                <Button
+                  type="text"
+                  icon={<RiSettings3Fill />}
+                  onClick={() => {
+                    new ValueClient(message).getScriptValue(item).then((newValues) => {
+                      setUserConfig({
+                        userConfig: { ...item.config! },
+                        script: item,
+                        values: newValues,
+                      });
+                    });
+                  }}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              )}
+              {item.type !== SCRIPT_TYPE_NORMAL && (
+                <Button
+                  type="text"
+                  icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
+                  loading={item.actionLoading}
+                  onClick={async () => {
+                    if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+                      // Stop script
+                      Message.loading({
+                        id: "script-stop",
+                        content: t("stopping_script"),
+                      });
+                      await dispatch(requestStopScript(item.uuid));
+                      Message.success({
+                        id: "script-stop",
+                        content: t("script_stopped"),
+                        duration: 3000,
+                      });
+                    } else {
+                      Message.loading({
+                        id: "script-run",
+                        content: t("starting_script"),
+                      });
+                      await dispatch(requestRunScript(item.uuid));
+                      Message.success({
+                        id: "script-run",
+                        content: t("script_started"),
+                        duration: 3000,
+                      });
+                    }
+                  }}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              )}
+              {item.metadata.cloudcat && (
+                <Button
+                  type="text"
+                  icon={<RiUploadCloudFill />}
+                  onClick={() => {
+                    setCloudScript(item);
+                  }}
+                  style={{
+                    color: "var(--color-text-2)",
+                  }}
+                />
+              )}
+            </Button.Group>
+          );
+        },
+      },
+    ],
+    [t, dispatch, inputRef, navigate]
+  );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
 
@@ -595,7 +598,8 @@ function ScriptList() {
         })
       );
     });
-  }, [columns, openUserConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -678,7 +682,7 @@ function ScriptList() {
 
         return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
       };
-      SortableItemComponent.displayName = 'SortableItem';
+      SortableItemComponent.displayName = "SortableItem";
       SortableItem = SortableItemComponent;
     }
 
@@ -690,7 +694,8 @@ function ScriptList() {
       },
     });
     setDealColumns(dealColumns);
-  }, [newColumns, dispatch, sensors]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newColumns]);
 
   return (
     <Card

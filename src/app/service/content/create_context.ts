@@ -4,7 +4,7 @@ import type { ApiValue } from "./types";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
-import { GM_Base } from "./gm_base";
+import { GM_Base } from "./gm_api";
 
 // 设置api依赖
 function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
