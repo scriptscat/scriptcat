@@ -33,7 +33,8 @@ export default class GoogleDriveFileSystem implements FileSystem {
 
   create(path: string): Promise<FileWriter> {
     return Promise.resolve(new GoogleDriveFileWriter(this, joinPath(this.path, path)));
-  }  async createDir(dir: string): Promise<void> {
+  }
+  async createDir(dir: string): Promise<void> {
     if (!dir) {
       return Promise.resolve();
     }
@@ -42,16 +43,16 @@ export default class GoogleDriveFileSystem implements FileSystem {
     const dirs = fullPath.split("/").filter(Boolean);
 
     // 从根目录开始逐级创建目录
-    let parentId = "root";
+    let parentId = "appDataFolder";
     let currentPath = "";
 
     // 逐级创建目录，使用缓存减少重复请求
     for (const dirName of dirs) {
       currentPath = joinPath(currentPath, dirName);
-      
+
       // 先检查缓存
       let folderId = this.pathToIdCache.get(currentPath);
-      
+
       if (!folderId) {
         // 缓存中没有，查找目录是否已存在
         let folder = await this.findFolderByName(dirName, parentId);
@@ -60,21 +61,22 @@ export default class GoogleDriveFileSystem implements FileSystem {
           folder = await this.createFolder(dirName, parentId);
         }
         folderId = folder.id;
-        
+
         // 更新缓存
         this.pathToIdCache.set(currentPath, folderId);
       }
-      
+
       parentId = folderId;
     }
-    
+
     return Promise.resolve();
-  }  async findFolderByName(name: string, parentId: string): Promise<{ id: string; name: string } | null> {
+  }
+  async findFolderByName(name: string, parentId: string): Promise<{ id: string; name: string } | null> {
     const query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
     const response = await this.request(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&spaces=appDataFolder`
     );
-    
+
     if (response.files && response.files.length > 0) {
       return response.files[0];
     }
@@ -85,7 +87,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const response = await this.request("https://www.googleapis.com/drive/v3/files", {
+    const response = await this.request("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder", {
       method: "POST",
       headers: myHeaders,
       body: JSON.stringify({
@@ -136,18 +138,19 @@ export default class GoogleDriveFileSystem implements FileSystem {
         }
         return data;
       });
-  }  async delete(path: string): Promise<void> {
+  }
+  async delete(path: string): Promise<void> {
     const fullPath = joinPath(this.path, path);
-    
+
     // 首先，找到要删除的文件或文件夹
     const fileId = await this.getFileId(fullPath);
     if (!fileId) {
       throw new Error(`File or directory not found: ${path}`);
     }
-    
+
     // 删除文件或文件夹
     await this.request(
-      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      `https://www.googleapis.com/drive/v3/files/${fileId}?spaces=appDataFolder`,
       {
         method: "DELETE",
       },
@@ -157,55 +160,57 @@ export default class GoogleDriveFileSystem implements FileSystem {
         throw new Error(await resp.text());
       }
     });
-    
+
     // 清除相关缓存
     this.clearRelatedCache(fullPath);
-  }async getFileId(path: string): Promise<string | null> {
+  }
+  async getFileId(path: string): Promise<string | null> {
     if (path === "/" || path === "") {
-      return "root";
+      return "appDataFolder";
     }
-    
+
     // 先检查缓存
     const cachedId = this.pathToIdCache.get(path);
     if (cachedId) {
       return cachedId;
     }
-    
+
     // 从根目录开始逐级查找
     const pathParts = path.split("/").filter(Boolean);
-    let parentId = "root";
+    let parentId = "appDataFolder";
     let currentPath = "";
-    
+
     // 逐级查找路径
     for (const part of pathParts) {
       currentPath = joinPath(currentPath, part);
-      
+
       // 检查这个路径是否已经缓存
       const cachedPartId = this.pathToIdCache.get(currentPath);
       if (cachedPartId) {
         parentId = cachedPartId;
         continue;
       }
-      
+
       const query = `name='${part}' and '${parentId}' in parents and trashed=false`;
       const response = await this.request(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&spaces=appDataFolder`
       );
-      
+
       if (!response.files || response.files.length === 0) {
         return null;
       }
-      
+
       parentId = response.files[0].id;
-      
+
       // 缓存这个路径的ID
       this.pathToIdCache.set(currentPath, parentId);
     }
-    
+
     return parentId;
-  }  async list(): Promise<File[]> {
-    let folderId = "root";
-    
+  }
+  async list(): Promise<File[]> {
+    let folderId = "appDataFolder";
+
     // 获取当前目录的ID
     if (this.path !== "/") {
       const foundId = await this.getFileId(this.path);
@@ -214,13 +219,13 @@ export default class GoogleDriveFileSystem implements FileSystem {
       }
       folderId = foundId;
     }
-    
+
     // 列出目录内容
     const query = `'${folderId}' in parents and trashed=false`;
     const response = await this.request(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime)`
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,md5Checksum,createdTime,modifiedTime)&spaces=appDataFolder`
     );
-    
+
     const list: File[] = [];
     if (response.files) {
       for (const item of response.files) {
@@ -234,7 +239,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
         });
       }
     }
-    
+
     return list;
   }
 
@@ -242,51 +247,44 @@ export default class GoogleDriveFileSystem implements FileSystem {
   async findFileInDirectory(fileName: string, parentId: string): Promise<string | null> {
     const query = `name='${fileName}' and '${parentId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
     const response = await this.request(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&spaces=appDataFolder`
     );
-    
+
     if (response.files && response.files.length > 0) {
       return response.files[0].id;
     }
     return null;
   }
-  
+
   // 清除相关缓存
   clearRelatedCache(path: string): void {
     // 清除路径缓存
-    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter(p => p.startsWith(path));
-    pathsToRemove.forEach(p => this.pathToIdCache.delete(p));
+    const pathsToRemove = Array.from(this.pathToIdCache.keys()).filter((p) => p.startsWith(path));
+    pathsToRemove.forEach((p) => this.pathToIdCache.delete(p));
   }
 
   async getDirUrl(): Promise<string> {
-    // Retrieve the folder ID for the current path
-    const folderId = await this.getFileId(this.path);
-    if (!folderId) {
-      throw new Error(`Directory not found: ${this.path}`);
-    }
-    
-    // Construct and return the Google Drive folder URL
-    return `https://drive.google.com/drive/folders/${folderId}`;
+    throw new Error("Method not implemented.");
   }
 
   // 确保目录存在并返回目录ID，优化Writer避免重复获取
   async ensureDirExists(dirPath: string): Promise<string> {
     if (dirPath === "/" || dirPath === "") {
-      return "root";
+      return "appDataFolder";
     }
-    
+
     // 先检查缓存
     const cachedId = this.pathToIdCache.get(dirPath);
     if (cachedId) {
       return cachedId;
     }
-    
+
     // 如果没有缓存，使用getFileId方法
     const foundId = await this.getFileId(dirPath);
     if (!foundId) {
       throw new Error(`Failed to create or find directory: ${dirPath}`);
     }
-    
+
     // 缓存结果
     this.pathToIdCache.set(dirPath, foundId);
     return foundId;

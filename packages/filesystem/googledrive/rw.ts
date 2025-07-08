@@ -20,7 +20,7 @@ export class GoogleDriveFileReader implements FileReader {
     }
 
     // 获取文件内容
-    const data = await this.fs.request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {}, true);
+    const data = await this.fs.request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&spaces=appDataFolder`, {}, true);
 
     if (data.status !== 200) {
       return Promise.reject(await data.text());
@@ -78,7 +78,7 @@ export class GoogleDriveFileWriter implements FileWriter {
     formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
     formData.append("file", content instanceof Blob ? content : new Blob([content]));
 
-    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&spaces=appDataFolder`, {
       method: "PATCH",
       body: formData,
     });
@@ -98,7 +98,7 @@ export class GoogleDriveFileWriter implements FileWriter {
     formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
     formData.append("file", content instanceof Blob ? content : new Blob([content]));
 
-    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`, {
+    await this.fs.request(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&spaces=appDataFolder`, {
       method: "POST",
       body: formData,
     });
