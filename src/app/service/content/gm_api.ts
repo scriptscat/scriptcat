@@ -1,7 +1,7 @@
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
-import { base64ToBlob } from "@App/pkg/utils/script";
+import { base64ToBlob } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";

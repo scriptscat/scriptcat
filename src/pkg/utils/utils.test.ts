@@ -1,5 +1,6 @@
 import { describe, test, expect, it } from "vitest";
-import { ltever, checkSilenceUpdate } from "./utils";
+import { checkSilenceUpdate } from "./utils";
+import { ltever } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
 

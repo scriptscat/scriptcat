@@ -5,7 +5,8 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { ltever } from "@App/pkg/utils/semver";
 import type {
   Script,
   SCRIPT_RUN_STATUS,

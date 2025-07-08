@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { isText } from "../utils/istextorbinary";
-import { blobToBase64 } from "../utils/script";
+import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
 import type {
   BackupData,

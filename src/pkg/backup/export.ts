@@ -1,5 +1,5 @@
 import type FileSystem from "@Packages/filesystem/filesystem";
-import { base64ToBlob } from "../utils/script";
+import { base64ToBlob } from "../utils/utils";
 import { toStorageValueStr } from "../utils/utils";
 import type { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
 import { md5OfText } from "../utils/crypto";

@@ -1,6 +1,4 @@
-import Logger from "@App/app/logger/logger";
 import type { Metadata, Script } from "@App/app/repo/scripts";
-import semver from "semver";
 
 export function randomString(e = 32): string {
   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
@@ -86,27 +84,6 @@ export function parseStorageValue(str: string): unknown {
     default:
       return str;
   }
-}
-
-// 对比版本大小
-export function ltever(newVersion: string, oldVersion: string, logger?: Logger) {
-  // 先验证符不符合语义化版本规范
-  try {
-    return semver.lte(newVersion, oldVersion);
-  } catch (e) {
-    logger?.warn("does not conform to the Semantic Versioning specification", Logger.E(e));
-  }
-  const newVer = newVersion.split(".");
-  const oldVer = oldVersion.split(".");
-  for (let i = 0; i < newVer.length; i++) {
-    if (Number(newVer[i]) > Number(oldVer[i])) {
-      return false;
-    }
-    if (Number(newVer[i]) < Number(oldVer[i])) {
-      return true;
-    }
-  }
-  return true;
 }
 
 // 在当前页后打开一个新页面
@@ -219,3 +196,43 @@ export function getBrowserVersion(): number {
 export function isEdge(): boolean {
   return navigator.userAgent.indexOf("Edg/") !== -1;
 }
+
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string>reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/*
+export function blobToText(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.readAsText(blob);
+  });
+}
+*/
+
+export function base64ToBlob(dataURI: string) {
+  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
+  const byteString = atob(dataURI.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+
+  for (let i = 0; i < byteString.length; i += 1) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mimeString });
+}
+
+/*
+export function strToBase64(str: string): string {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
+      return String.fromCharCode(parseInt(`0x${p1}`, 16));
+    })
+  );
+}
+*/
