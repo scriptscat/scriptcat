@@ -15,7 +15,7 @@ function generateChangelog() {
     
     // 执行 npm run changlog 命令
     console.log('📝 执行 gitmoji-changelog 生成changelog...');
-    execSync('gitmoji-changelog --author --group-similar-commits', { 
+    execSync('gitmoji-changelog init --author=true --group-similar-commits=true', { 
       stdio: 'inherit',
       cwd: process.cwd()
     });
