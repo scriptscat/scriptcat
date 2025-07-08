@@ -75,9 +75,9 @@ Pre-release versions are versions before the official release. They are usually 
 
 You can get pre-release versions from the [Release](https://github.com/scriptscat/scriptcat/releases) page or from the extension store pages below:
 
-- [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)
 - [Chrome](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN)
 - [Edge](https://microsoftedge.microsoft.com/addons/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)
+- [Firefox](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)
 
 In addition to pre-releases, ScriptCat also builds the extension on [Github Action](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) every time code is committed and merged into the main branch. If you want to experience the latest features or fixes, you can visit the [Github Action](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) page to download.
 
