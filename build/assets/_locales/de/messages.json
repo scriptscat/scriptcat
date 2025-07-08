@@ -1,6 +1,6 @@
 {
   "i18n": {
-    "message": "I18n"
+    "message": "i18n"
   },
   "scriptcat": {
     "message": "ScriptCat"
@@ -9,6 +9,6 @@
     "message": "ScriptCat Beta"
   },
   "scriptcat_description": {
-    "message": "Mọi thứ đều có thể viết được, cho phép trình duyệt của bạn làm được nhiều việc hơn!"
+    "message": "Alles kann geskriptet werden, damit Ihr Browser mehr kann!"
   }
 }

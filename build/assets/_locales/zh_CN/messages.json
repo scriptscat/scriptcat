@@ -5,7 +5,10 @@
   "scriptcat": {
     "message": "脚本猫"
   },
+  "scriptcat_beta": {
+    "message": "脚本猫 Beta"
+  },
   "scriptcat_description": {
-    "message": "万物皆可脚本化,让你的浏览器可以做更多的事情!"
+    "message": "万物皆可脚本化，让你的浏览器可以做更多的事情！"
   }
 }
