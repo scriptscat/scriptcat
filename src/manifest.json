@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_scriptcat__",
-  "version": "0.19.0.1200",
+  "version": "1.0.0",
   "author": "CodFrm",
   "description": "__MSG_scriptcat_description__",
   "options_ui": {
