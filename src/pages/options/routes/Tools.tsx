@@ -13,7 +13,7 @@ import {
   Space,
 } from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import { RefInputType } from "@arco-design/web-react/es/Input/interface";

@@ -1,76 +1,14 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { base64ToBlob, parseUserConfig } from "@App/pkg/utils/script";
-import { ValueUpdateData } from "./exec_script";
-import { ExtVersion } from "@App/app/const";
-import { Message, MessageConnect } from "@Packages/message/server";
-import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import type { Message, MessageConnect } from "@Packages/message/types";
+import type { CustomEventMessage } from "@Packages/message/custom_event_message";
+import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
+import { base64ToBlob } from "@App/pkg/utils/script";
 import LoggerCore from "@App/app/logger/core";
-import { connect, sendMessage } from "@Packages/message/client";
 import EventEmitter from "eventemitter3";
-import { getStorageName } from "@App/pkg/utils/utils";
-import { MessageRequest, type NotificationMessageOption } from "../service_worker/gm_api";
-import { ScriptLoadInfo } from "../service_worker/runtime";
-import { ScriptMenuItem } from "../service_worker/popup";
+import GMContext from "./gm_context";
+import { GM_Base } from "./gm_base";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 
-interface ApiParam {
-  depend?: string[];
-}
-
-export interface ApiValue {
-  api: any;
-  param: ApiParam;
-}
-
-export interface GMInfoEnv {
-  userAgentData: typeof GM_info.userAgentData;
-  sandboxMode: typeof GM_info.sandboxMode;
-  isIncognito: typeof GM_info.isIncognito;
-}
-
-export class GMContext {
-  static apis: Map<string, ApiValue> = new Map();
-
-  public static API(param: ApiParam = {}) {
-    return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
-      const key = propertyName;
-      if (/^(GM|window)Dot/.test(key)) {
-        GMContext.apis.set(
-          key.replace(/^(GM|window)Dot(.)/, (_, a, b) => `${a}.${b.toLowerCase()}`),
-          {
-            api: descriptor.value,
-            param,
-          }
-        );
-        return;
-      }
-      GMContext.apis.set(key, {
-        api: descriptor.value,
-        param,
-      });
-      // 兼容GM.*
-      let dot = key.replace("_", ".");
-      if (dot !== key) {
-        // 特殊处理GM.*一些大小写不一致的情况
-        switch (dot) {
-          case "GM.xmlhttpRequest":
-            dot = "GM.xmlHttpRequest";
-            break;
-        }
-        GMContext.apis.set(dot, {
-          api: descriptor.value,
-          param,
-        });
-      }
-    };
-  }
-}
-
-export default class GMApi {
-  scriptRes!: ScriptRunResouce;
-
-  runFlag!: string;
-
-  valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+export default class GMApi extends GM_Base {
 
   /**
    * <tag, notificationId>
@@ -78,95 +16,15 @@ export default class GMApi {
   notificationTagMap = new Map<string, string>();
 
   constructor(
-    private prefix: string,
-    private message: Message
-  ) {}
-
-  // 单次回调使用
-  public sendMessage(api: string, params: any[]) {
-    return sendMessage(this.message, this.prefix + "/runtime/gmApi", {
-      uuid: this.scriptRes.uuid,
-      api,
-      params,
-      runFlag: this.runFlag,
-    } as MessageRequest);
+    public prefix: string,
+    public message: Message,
+    public scriptRes: ScriptRunResource,
+  ) {
+    const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+    const EE: EventEmitter = new EventEmitter();
+    super(prefix, message, scriptRes, valueChangeListener, EE);
   }
-
-  // 长连接使用,connect只用于接受消息,不发送消息
-  public connect(api: string, params: any[]) {
-    return connect(this.message, this.prefix + "/runtime/gmApi", {
-      uuid: this.scriptRes.uuid,
-      api,
-      params,
-      runFlag: this.runFlag,
-    } as MessageRequest);
-  }
-
-  public valueUpdate(data: ValueUpdateData) {
-    if (data.uuid === this.scriptRes.uuid || data.storageName === getStorageName(this.scriptRes)) {
-      // 触发,并更新值
-      if (data.value === undefined) {
-        if (this.scriptRes.value[data.key] !== undefined) {
-          delete this.scriptRes.value[data.key];
-        }
-      } else {
-        this.scriptRes.value[data.key] = data.value;
-      }
-      this.valueChangeListener.forEach((item) => {
-        if (item.name === data.key) {
-          item.listener(data.key, data.oldValue, data.value, data.sender.runFlag !== this.runFlag, data.sender.tabId);
-        }
-      });
-    }
-  }
-
-  emitEvent(event: string, eventId: string, data: any) {
-    this.EE.emit(event + ":" + eventId, data);
-  }
-
-  // 获取脚本信息和管理器信息
-  static GM_info(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
-    const options = {
-      description: script.metadata.description?.[0] || null,
-      matches: script.metadata.match || [],
-      includes: script.metadata.include || [],
-      "run-at": script.metadata["run-at"]?.[0] || "document-idle",
-      "run-in": script.metadata["run-in"] || [],
-      icon: script.metadata.icon?.[0] || null,
-      icon64: script.metadata.icon64?.[0] || null,
-      header: script.metadataStr,
-      grant: script.metadata.grant || [],
-      connects: script.metadata.connect || [],
-    };
-    return {
-      downloadMode: "native",
-      isIncognito: envInfo.isIncognito,
-      // relaxedCsp
-      sandboxMode: envInfo.sandboxMode,
-      scriptWillUpdate: true,
-      scriptHandler: "ScriptCat",
-      userAgentData: envInfo.userAgentData,
-      // "" => null
-      scriptUpdateURL: script.downloadUrl || null,
-      scriptMetaStr: script.metadataStr,
-      userConfig: parseUserConfig(script.userConfigStr),
-      userConfigStr: script.userConfigStr,
-      // scriptSource: script.sourceCode,
-      version: ExtVersion,
-      script: {
-        // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
-        name: script.name,
-        namespace: script.namespace,
-        version: script.metadata.version?.[0],
-        author: script.author,
-        lastModified: script.updatetime,
-        downloadURL: script.downloadUrl || null,
-        updateURL: script.checkUpdateUrl || null,
-        ...options,
-      },
-    };
-  }
-
+  
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
   @GMContext.API()
   public GM_getValue(key: string, defaultValue?: any) {
@@ -314,7 +172,7 @@ export default class GMApi {
 
   menuMap: Map<number, string> | undefined;
 
-  EE: EventEmitter = new EventEmitter();
+  
 
   @GMContext.API()
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {

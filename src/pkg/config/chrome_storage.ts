@@ -45,7 +45,7 @@ export default class ChromeStorage {
     return new Promise((resolve) => {
       const ret: { [key: string]: any } = {};
       const prefix = this.buildKey("");
-      this.storage.get((items) => {
+      this.storage.get((items: { [key: string]: any }) => {
         Object.keys(items).forEach((key) => {
           if (key.startsWith(prefix)) {
             ret[key.substring(prefix.length)] = items[key];

@@ -6,7 +6,7 @@ import { Logger, LoggerDAO } from "@App/app/repo/logger";
 import LogLabel, { Labels, Query } from "@App/pages/components/LogLabel";
 import { IconPlus } from "@arco-design/web-react/icon";
 import { useSearchParams } from "react-router-dom";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { useTranslation } from "react-i18next";
 
 function LoggerPage() {

@@ -1,5 +1,5 @@
+import type { Message, MessageConnect, MessageSend } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { Message, MessageConnect, MessageSend } from "./server";
 import EventEmitter from "eventemitter3";
 
 // 通过 window.postMessage/onmessage 实现通信

@@ -1,5 +1,5 @@
 import { Server } from "@Packages/message/server";
-import { WindowMessage } from "@Packages/message/window_message";
+import { type WindowMessage } from "@Packages/message/window_message";
 import { preparationSandbox } from "../offscreen/client";
 import { Runtime } from "./runtime";
 

@@ -1,15 +1,15 @@
 import LoggerCore from "@App/app/logger/core";
-import crypto from "crypto-js";
 import Logger from "@App/app/logger/logger";
 import { Resource, ResourceDAO, ResourceHash, ResourceType } from "@App/app/repo/resource";
 import { Script } from "@App/app/repo/scripts";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { Group } from "@Packages/message/server";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { type Group } from "@Packages/message/server";
+import { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/script";
-import { ResourceBackup } from "@App/pkg/backup/struct";
 import { subscribeScriptDelete } from "../queue";
 import Cache from "@App/app/cache";
+import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 
 export class ResourceService {
   logger: Logger;
@@ -200,14 +200,7 @@ export class ResourceService {
             sha512: "",
           });
         } else {
-          const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>reader.result);
-          resolve({
-            md5: crypto.MD5(wordArray).toString(),
-            sha1: crypto.SHA1(wordArray).toString(),
-            sha256: crypto.SHA256(wordArray).toString(),
-            sha384: crypto.SHA384(wordArray).toString(),
-            sha512: crypto.SHA512(wordArray).toString(),
-          });
+          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
         }
       };
     });

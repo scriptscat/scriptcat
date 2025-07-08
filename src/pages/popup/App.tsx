@@ -17,7 +17,7 @@ import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
-import { ScriptMenu } from "@App/app/service/service_worker/popup";
+import { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { localePath } from "@App/locales/locales";
 import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";

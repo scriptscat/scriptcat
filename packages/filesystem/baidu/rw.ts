@@ -1,6 +1,5 @@
-import { calculateMd5 } from "@App/pkg/utils/utils";
-import { MD5 } from "crypto-js";
-import { File, FileReader, FileWriter } from "../filesystem";
+import type { File, FileReader, FileWriter } from "../filesystem";
+import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import BaiduFileSystem from "./baidu";
 
 export class BaiduFileReader implements FileReader {
@@ -55,7 +54,7 @@ export class BaiduFileWriter implements FileWriter {
     if (content instanceof Blob) {
       return calculateMd5(content);
     }
-    return MD5(content).toString();
+    return md5OfText(content);
   }
 
   async write(content: string | Blob): Promise<void> {

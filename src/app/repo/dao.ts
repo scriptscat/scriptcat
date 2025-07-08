@@ -96,7 +96,7 @@ export abstract class DAO<T> {
   }
 
   public update(id: number, changes: { [key: string]: any }) {
-    return this.table.update(id, changes);
+    return this.table.update(id, <any>changes);
   }
 
   public count() {

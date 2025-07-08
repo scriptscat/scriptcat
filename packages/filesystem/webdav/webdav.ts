@@ -1,5 +1,6 @@
 import { AuthType, createClient, FileStat, WebDAVClient } from "webdav";
-import FileSystem, { File, FileReader, FileWriter } from "../filesystem";
+import type FileSystem from "../filesystem";
+import type { File, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";

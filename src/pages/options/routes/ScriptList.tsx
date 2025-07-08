@@ -61,7 +61,8 @@ import { CSS } from "@dnd-kit/utilities";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import { useTranslation } from "react-i18next";
-import { nextTime, semTime } from "@App/pkg/utils/utils";
+import { nextTime } from "@App/pkg/utils/cron";
+import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { ListHomeRender, ScriptIcons } from "./utils";
@@ -804,8 +805,9 @@ function ScriptList() {
                           // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
                           [...select].reverse().forEach((script) => {
                             // 找到脚本当前的位置
-                            const scriptIndex = currentScripts.findIndex(s => s.uuid === script.uuid);
-                            if (scriptIndex > 0) { // 如果不是已经在最顶部
+                            const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
+                            if (scriptIndex > 0) {
+                              // 如果不是已经在最顶部
                               // 将脚本置顶（移动到第一个位置）
                               dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
                             }

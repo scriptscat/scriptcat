@@ -1,4 +1,4 @@
-import { MessageSend } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { OffscreenManager } from "./app/service/offscreen";

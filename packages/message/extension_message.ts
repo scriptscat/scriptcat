@@ -1,4 +1,4 @@
-import { Message, MessageConnect, MessageSend, MessageSender } from "./server";
+import type { Message, MessageConnect, MessageSend, MessageSender } from "./types";
 
 export class ExtensionMessageSend implements MessageSend {
   constructor() {}

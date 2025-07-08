@@ -5,16 +5,17 @@ import {
   SCRIPT_RUN_STATUS_ERROR,
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_TYPE_BACKGROUND,
-  ScriptRunResouce,
+  ScriptRunResource,
 } from "@App/app/repo/scripts";
 import { Server } from "@Packages/message/server";
 import { WindowMessage } from "@Packages/message/window_message";
 import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
-import ExecScript, { ValueUpdateData } from "../content/exec_script";
+import ExecScript from "../content/exec_script";
+import type { ValueUpdateData } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
+import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
 
@@ -76,7 +77,7 @@ export class Runtime {
     }
   }
 
-  async enableScript(script: ScriptRunResouce) {
+  async enableScript(script: ScriptRunResource) {
     // 开启脚本
     // 如果正在运行,先释放
     if (this.execScripts.has(script.uuid)) {
@@ -292,7 +293,7 @@ export class Runtime {
     return true;
   }
 
-  async runScript(script: ScriptRunResouce) {
+  async runScript(script: ScriptRunResource) {
     const exec = this.execScripts.get(script.uuid);
     // 如果正在运行,先释放
     if (exec) {

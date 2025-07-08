@@ -1,5 +1,5 @@
 import { SystemConfig } from "@App/pkg/config/config";
-import i18n, { Callback } from "i18next";
+import i18n, { Callback, t } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -17,6 +17,8 @@ import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 import "dayjs/locale/ja";
 import "dayjs/locale/de";
+
+// 为了发挥 ESM 的 Tree-Shaking 等功能，日后应转用 data-fns 之类的 ESM 库
 
 dayjs.extend(relativeTime);
 
@@ -101,5 +103,7 @@ export async function matchLanguage() {
   }
   return "";
 }
+
+export { t };
 
 export default i18n;

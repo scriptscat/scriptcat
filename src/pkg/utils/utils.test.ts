@@ -1,5 +1,6 @@
 import { describe, test, expect, it } from "vitest";
-import { nextTime, ltever, checkSilenceUpdate } from "./utils";
+import { ltever, checkSilenceUpdate } from "./utils";
+import { nextTime } from "./cron";
 import dayjs from "dayjs";
 
 describe("nextTime", () => {

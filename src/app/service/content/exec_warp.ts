@@ -1,7 +1,7 @@
 import ExecScript from "./exec_script";
-import { Message } from "@Packages/message/server";
-import { ScriptLoadInfo } from "../service_worker/runtime";
-import { GMInfoEnv } from "./gm_api";
+import type { Message } from "@Packages/message/types";
+import type { ScriptLoadInfo } from "../service_worker/types";
+import type { GMInfoEnv } from "./types";
 
 export class CATRetryError {
   msg: string;

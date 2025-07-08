@@ -1,15 +1,15 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
+import { type Script, ScriptDAO } from "@App/app/repo/scripts";
 import { ValueDAO } from "@App/app/repo/value";
-import { GetSender, Group } from "@Packages/message/server";
-import { RuntimeService } from "./runtime";
-import { PopupService } from "./popup";
+import { type GetSender, type Group } from "@Packages/message/server";
+import { type RuntimeService } from "./runtime";
+import { type PopupService } from "./popup";
 import Cache from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { ValueUpdateData, ValueUpdateSender } from "../content/exec_script";
+import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
 import { subscribeScriptDelete } from "../queue";
-import { MessageQueue } from "@Packages/message/message_queue";
+import { type MessageQueue } from "@Packages/message/message_queue";
 
 export class ValueService {
   logger: Logger;

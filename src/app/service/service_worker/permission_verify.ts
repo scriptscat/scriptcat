@@ -1,14 +1,14 @@
 // gm api 权限验证
-import Cache from "@App/app/cache";
 import { Script } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
-import { Api, Request } from "./gm_api";
-import Queue from "@App/pkg/utils/queue";
+import { type Permission, PermissionDAO } from "@App/app/repo/permission";
+import { type Group } from "@Packages/message/server";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { Api, Request } from "./types";
+import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { Permission, PermissionDAO } from "@App/app/repo/permission";
-import { Group } from "@Packages/message/server";
+import { v4 as uuidv4 } from "uuid";
+import Queue from "@App/pkg/utils/queue";
 import { subscribeScriptDelete } from "../queue";
-import { MessageQueue } from "@Packages/message/message_queue";
 
 export interface ConfirmParam {
   // 权限名

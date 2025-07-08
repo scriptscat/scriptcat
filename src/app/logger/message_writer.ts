@@ -1,5 +1,5 @@
-import { LogLabel, LogLevel, Writer } from "./core";
-import { MessageSend } from "@Packages/message/server";
+import type { LogLabel, LogLevel, Writer } from "./core";
+import type { MessageSend } from "@Packages/message/types";
 
 // 通过通讯机制写入日志
 export default class MessageWriter implements Writer {

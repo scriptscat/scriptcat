@@ -13,14 +13,14 @@ import {
   SCRIPT_STATUS_ENABLE,
   ScriptCodeDAO,
   ScriptDAO,
-  ScriptRunResouce,
+  ScriptRunResource,
 } from "@App/app/repo/scripts";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { InstallSource } from ".";
-import { ResourceService } from "./resource";
-import { ValueService } from "./value";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { InstallSource } from "./types";
+import { type ResourceService } from "./resource";
+import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
-import { SystemConfig } from "@App/pkg/config/config";
+import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -145,7 +145,7 @@ export class ScriptService {
 
   public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuidv4())
+    return fetchScriptInfo(url, source, false, uuid)
       .then((info) => {
         Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
         setTimeout(() => {
@@ -300,8 +300,8 @@ export class ScriptService {
     return this.scriptCodeDAO.get(uuid);
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResouce> {
-    const ret: ScriptRunResouce = <ScriptRunResouce>Object.assign(script);
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
 
     // 自定义配置
     if (ret.selfMetadata) {
@@ -438,7 +438,7 @@ export class ScriptService {
       this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-        return false;
+      return false;
     }
     return true;
   }

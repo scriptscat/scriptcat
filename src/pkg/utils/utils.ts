@@ -1,58 +1,6 @@
 import Logger from "@App/app/logger/logger";
 import { Metadata, Script } from "@App/app/repo/scripts";
-import { CronTime } from "cron";
-import crypto from "crypto-js";
-import dayjs from "dayjs";
 import semver from "semver";
-
-export function nextTime(crontab: string): string {
-  let oncePos = 0;
-  if (crontab.indexOf("once") !== -1) {
-    const vals = crontab.split(" ");
-    vals.forEach((val, index) => {
-      if (val === "once") {
-        oncePos = index;
-      }
-    });
-    if (vals.length === 5) {
-      oncePos++;
-    }
-  }
-  let cron: CronTime;
-  try {
-    cron = new CronTime(crontab.replace(/once/g, "*"));
-  } catch {
-    throw new Error("错误的定时表达式");
-  }
-  if (oncePos) {
-    switch (oncePos) {
-      case 1: // 每分钟
-        return cron.sendAt().toFormat("yyyy-MM-dd HH:mm 每分钟运行一次");
-      case 2: // 每小时
-        return cron.sendAt().plus({ hour: 1 }).toFormat("yyyy-MM-dd HH 每小时运行一次");
-      case 3: // 每天
-        return cron.sendAt().plus({ day: 1 }).toFormat("yyyy-MM-dd 每天运行一次");
-      case 4: // 每月
-        return cron.sendAt().plus({ month: 1 }).toFormat("yyyy-MM 每月运行一次");
-      case 5: // 每星期
-        return cron.sendAt().plus({ week: 1 }).toFormat("yyyy-MM-dd 每星期运行一次");
-    }
-    throw new Error("错误表达式");
-  }
-  return cron.sendAt().toFormat("yyyy-MM-dd HH:mm:ss");
-}
-
-export function formatTime(time: Date) {
-  return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function formatUnixTime(time: number) {
-  return dayjs.unix(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function semTime(time: Date) {
-  return dayjs().to(dayjs(time));
-}
 
 export function randomString(e = 32): string {
   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
@@ -231,21 +179,6 @@ export function getIcon(script: Script): string | undefined {
     (script.metadata.icon64 && script.metadata.icon64[0]) ||
     (script.metadata.icon64url && script.metadata.icon64url[0])
   );
-}
-
-export function calculateMd5(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsArrayBuffer(blob);
-    reader.onloadend = () => {
-      if (!reader.result) {
-        reject(new Error("result is null"));
-      } else {
-        const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>reader.result);
-        resolve(crypto.MD5(wordArray).toString());
-      }
-    };
-  });
 }
 
 export function errorMsg(e: any): string {
