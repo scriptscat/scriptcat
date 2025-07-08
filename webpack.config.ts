@@ -7,8 +7,8 @@ import ESLintPlugin from "eslint-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import { presetAttributify, presetUno } from "unocss";
+import UnoCSS from "@unocss/webpack";
 
-const UnoCSS = require("@unocss/webpack").default;
 const ProgressBarPlugin = require("progress-bar-webpack-plugin");
 const MonacoLocalesPlugin = require("monaco-editor-locales-plugin");
 
