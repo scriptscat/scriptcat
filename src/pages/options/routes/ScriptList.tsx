@@ -598,7 +598,6 @@ function ScriptList() {
         })
       );
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 处理拖拽排序
@@ -694,7 +693,6 @@ function ScriptList() {
       },
     });
     setDealColumns(dealColumns);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newColumns]);
 
   return (

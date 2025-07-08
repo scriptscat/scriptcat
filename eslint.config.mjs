@@ -46,6 +46,7 @@ export default [
         }
       ],
       ...reactHooks.configs.recommended.rules,
+      "react-hooks/exhaustive-deps": "off",
     },
   },
   { ignores: ["dist/", "example/"] },
