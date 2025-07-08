@@ -5,13 +5,13 @@ import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { Metadata } from "@App/app/repo/scripts";
-import enUS from "./en/translation.json";
-import viVN from "./vi/translation.json";
+import enUS from "./en-US/translation.json";
+import viVN from "./vi-VN/translation.json";
 import zhCN from "./zh-CN/translation.json";
 import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
-import jaJP from "./ja/translation.json";
-import deDE from "./de/translation.json";
+import jaJP from "./ja-JP/translation.json";
+import deDE from "./de-DE/translation.json";
 import "dayjs/locale/en";
 import "dayjs/locale/vi";
 import "dayjs/locale/zh-cn";
@@ -44,12 +44,12 @@ export function initLocales(systemConfig: SystemConfig) {
     },
     resources: {
       "en-US": { title: "English", translation: enUS },
-      "vi-VN": { title: "Tiếng Việt", translation: viVN },
       "zh-CN": { title: "简体中文", translation: zhCN },
       "zh-TW": { title: "繁体中文", translation: zhTW },
-      "ach-UG": { title: "伪语言", translation: achUG },
       "ja-JP": { title: "日本語", translation: jaJP },
       "de-DE": { title: "Deutsch", translation: deDE },
+      "vi-VN": { title: "Tiếng Việt", translation: viVN },
+      "ach-UG": { title: "伪语言", translation: achUG },
     },
   });
 
