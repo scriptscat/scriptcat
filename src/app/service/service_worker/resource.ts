@@ -7,7 +7,7 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64 } from "@App/pkg/utils/script";
+import { blobToBase64 } from "@App/pkg/utils/utils";
 import { subscribeScriptDelete } from "../queue";
 import Cache from "@App/app/cache";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";

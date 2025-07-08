@@ -7,7 +7,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
 import { evaluateGMInfo } from "./gm_info";
-import { type GM_Base } from "./gm_base";
+import { type GM_Base } from "./gm_api";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {

@@ -147,42 +147,6 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   return ret;
 }
 
-export function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
-    reader.readAsDataURL(blob);
-  });
-}
-
-export function blobToText(blob: Blob): Promise<string | null> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
-    reader.readAsText(blob);
-  });
-}
-
-export function base64ToBlob(dataURI: string) {
-  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
-  const byteString = atob(dataURI.split(",")[1]);
-  const arrayBuffer = new ArrayBuffer(byteString.length);
-  const intArray = new Uint8Array(arrayBuffer);
-
-  for (let i = 0; i < byteString.length; i += 1) {
-    intArray[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([intArray], { type: mimeString });
-}
-
-export function strToBase64(str: string): string {
-  return btoa(
-    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
-      return String.fromCharCode(parseInt(`0x${p1}`, 16));
-    })
-  );
-}
-
 // 通过代码解析出脚本信息
 export function prepareScriptByCode(
   code: string,
