@@ -1,0 +1,20 @@
+{
+    "addons": {
+        "{44ab8538-2642-46b0-8a57-3942dbc1a33b}": {
+            "updates": [
+                {
+                    "version": "0.16.7",
+                    "update_link": "https://github.com/scriptcat/scriptcat/releases/download/v0.16.7/scriptcat-firefox-0.16.7.zip"
+                }
+            ]
+        },
+        "{8e515334-52b5-4cc5-b4e8-675d50af677d}": {
+            "updates": [
+                {
+                    "version": "0.16.7",
+                    "update_link": "https://github.com/scriptcat/scriptcat/releases/download/v0.16.7/scriptcat-firefox-0.16.7.zip"
+                }
+            ]
+        }
+    }
+}
