@@ -274,7 +274,7 @@ function App() {
           // 如果选择不再检查更新，可以在这里设置脚本的更新配置
           if (disableUpdates && upsertScript) {
             // 这里可以设置脚本禁用自动更新的逻辑
-            (upsertScript as Script).checkUpdate = false; // 假设有这个属性
+            (upsertScript as Script).checkUpdate = false;
           }
 
           await scriptClient.install(upsertScript as Script, code);
@@ -377,9 +377,11 @@ function App() {
                           <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
                             {isUpdate ? t("update_script") : t("install_script")} {t("without_closing_window")}
                           </Menu.Item>
-                          <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
-                            {isUpdate ? t("update_script") : t("install_script")} {t("no_more_updates")}
-                          </Menu.Item>
+                          {!scriptInfo?.userSubscribe && (
+                            <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
+                              {isUpdate ? t("update_script") : t("install_script")} {t("no_more_updates")}
+                            </Menu.Item>
+                          )}
                         </Menu>
                       }
                       position="bottom"
