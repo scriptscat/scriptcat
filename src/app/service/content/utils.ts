@@ -19,13 +19,15 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   }
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
   const code = [requireCode, scriptCode, sourceURL].join("\n");
+  // 处理name中的特殊符号
+  const name = scriptRes.name.replace(/["]/g, "\\$1");
   return `  with(context){
       return ((factory) => {
           try {
             return factory.apply(context, []);
           } catch (e) {
             if (e.message && e.stack) {
-                console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
+                console.error("ERROR: Execution of script '${name}' failed! " + e.message);
                 console.log(e.stack);
             } else {
                 console.error(e);
