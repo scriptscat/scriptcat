@@ -22,7 +22,7 @@ import {
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import type { ReactNode} from "react";
+import type { ReactNode } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
@@ -33,6 +33,7 @@ import { useDropzone } from "react-dropzone";
 import { systemConfig } from "@App/pages/store/global";
 import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
+import { arcoLocale } from "@App/locales/arco";
 
 const readFile = (file: File): Promise<string> => {
   return new Promise((resolve) => {
@@ -137,6 +138,7 @@ const MainLayout: React.FC<{
       renderEmpty={() => {
         return <Empty description={t("no_data")} />;
       }}
+      locale={arcoLocale(i18n.language)}
     >
       <Layout>
         <Layout.Header
