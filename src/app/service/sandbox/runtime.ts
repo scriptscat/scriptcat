@@ -18,7 +18,7 @@ import type { ValueUpdateData } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();

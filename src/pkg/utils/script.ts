@@ -19,24 +19,6 @@ import { nextTime } from "./cron";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { parseUserConfig } from "./yaml"; 
 
-export function getMetadataStr(code: string): string | null {
-  const start = code.indexOf("==UserScript==");
-  const end = code.indexOf("==/UserScript==");
-  if (start === -1 || end === -1) {
-    return null;
-  }
-  return `// ${code.substring(start, end + 15)}`;
-}
-
-export function getUserConfigStr(code: string): string | null {
-  const start = code.indexOf("==UserConfig==");
-  const end = code.indexOf("==/UserConfig==");
-  if (start === -1 || end === -1) {
-    return null;
-  }
-  return `/* ${code.substring(start, end + 15)} */`;
-}
-
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
   let regex = /\/\/\s*==UserScript==([\s\S]+?)\/\/\s*==\/UserScript==/m;
