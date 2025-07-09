@@ -972,6 +972,7 @@ function ScriptList() {
           </Card>
         )}
         <Table
+          key="script-list-table"
           className="arco-drag-table-container"
           components={components}
           rowKey="uuid"
