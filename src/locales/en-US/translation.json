@@ -272,6 +272,8 @@
   "update_script": "Update Script",
   "install_subscribe": "Install Subscription",
   "update_subscribe": "Update Subscription",
+  "without_closing_window": "Without Closing Window",
+  "no_more_updates": "No More Updates",
   "invalid_link": "Invalid Link",
   "subscribe_install_label": "This subscription will install the following scripts",
   "script_runs_in": "Script will run on the following websites",

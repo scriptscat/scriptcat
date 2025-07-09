@@ -1,8 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type {
-  Metadata,
-  Script,
-  ScriptCode} from "@App/app/repo/scripts";
+import type { Metadata, Script, ScriptCode } from "@App/app/repo/scripts";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
@@ -17,7 +14,7 @@ import type { Subscribe, Metadata as SubMetadata } from "@App/app/repo/subscribe
 import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
 import type { InstallSource } from "@App/app/service/service_worker/types";
-import { parseUserConfig } from "./yaml"; 
+import { parseUserConfig } from "./yaml";
 
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
@@ -112,10 +109,9 @@ export function copyScript(script: Script, old: Script): Script {
   // ret.delayruntime = old.delayruntime;
   ret.error = old.error;
   ret.sort = old.sort;
-  if (!ret.selfMetadata) {
-    ret.selfMetadata = old.selfMetadata || {};
-  }
+  ret.selfMetadata = old.selfMetadata || {};
   ret.subscribeUrl = old.subscribeUrl;
+  ret.checkUpdate = old.checkUpdate;
   ret.status = old.status;
   return ret;
 }
@@ -192,6 +188,7 @@ export function prepareScriptByCode(
       namespace: metadata.namespace && metadata.namespace[0],
       originDomain: domain,
       origin: url,
+      checkUpdate: true,
       checkUpdateUrl,
       downloadUrl,
       config: parseUserConfig(code),

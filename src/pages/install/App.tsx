@@ -1,7 +1,20 @@
-import { Avatar, Button, Grid, Message, Space, Switch, Tag, Tooltip, Typography } from "@arco-design/web-react";
+import {
+  Avatar,
+  Button,
+  Dropdown,
+  Grid,
+  Message,
+  Menu,
+  Space,
+  Switch,
+  Tag,
+  Tooltip,
+  Typography,
+} from "@arco-design/web-react";
+import { IconDown } from "@arco-design/web-react/icon";
 import CodeEditor from "../components/CodeEditor";
-import { useEffect, useState } from "react";
-import type { Metadata, Script} from "@App/app/repo/scripts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Metadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
@@ -11,121 +24,28 @@ import { prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/scri
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 
-type Permission = { label: string; color?: string; value: string[] }[];
+// Types
+interface PermissionItem {
+  label: string;
+  color?: string;
+  value: string[];
+}
+
+type Permission = PermissionItem[];
 
 const closeWindow = () => {
   window.close();
 };
 
-function App() {
-  // 脚本信息包括脚本代码、下载url、metadata等信息，通过service_worker的缓存获取
+// Custom hooks
+const useScriptInstall = () => {
   const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  // 是系统检测到脚本更新时打开的窗口会有一个倒计时
-  const [countdown, setCountdown] = useState<number>(-1);
-  // 脚本信息
   const [upsertScript, setUpsertScript] = useState<Script | Subscribe>();
-  // 脚本代码
   const [code, setCode] = useState<string>("");
-  // 对比代码
   const [diffCode, setDiffCode] = useState<string>();
-  // 更新的情况下会有老版本的脚本信息
   const [oldScript, setOldScript] = useState<Script | Subscribe>();
-  // 脚本开启状态
-  const [enable, setEnable] = useState<boolean>(false);
-  // 按钮文案
-  const [btnText, setBtnText] = useState<string>("");
-  // 是否是更新
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   const { t } = useTranslation();
-
-  const metadata: Metadata = scriptInfo?.metadata || {};
-  const permission: Permission = [];
-  const description = [];
-  if (scriptInfo) {
-    if (scriptInfo.userSubscribe) {
-      permission.push({
-        label: t("subscribe_install_label"),
-        color: "#ff0000",
-        value: metadata.scripturl!,
-      });
-    }
-    if (metadata.match) {
-      permission.push({ label: t("script_runs_in"), value: metadata.match });
-    }
-    if (metadata.connect) {
-      permission.push({
-        label: t("script_has_full_access_to"),
-        color: "#F9925A",
-        value: metadata.connect,
-      });
-    }
-    if (metadata.require) {
-      permission.push({ label: t("script_requires"), value: metadata.require });
-    }
-
-    let isCookie = false;
-    metadata.grant?.forEach((val) => {
-      if (val === "GM_cookie") {
-        isCookie = true;
-      }
-    });
-    if (isCookie) {
-      description.push(
-        <Typography.Text type="error" key="cookie">
-          {t("cookie_warning")}
-        </Typography.Text>
-      );
-    }
-    if (metadata.crontab) {
-      description.push(<Typography.Text key="crontab">{t("scheduled_script_description_1")}</Typography.Text>);
-      description.push(
-        <Typography.Text key="cronta-nexttime">
-          {t("scheduled_script_description_2", {
-            expression: metadata.crontab[0],
-            time: nextTime(metadata.crontab[0]),
-          })}
-        </Typography.Text>
-      );
-    } else if (metadata.background) {
-      description.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
-    }
-  }
-
-  // 不推荐的内容标签与描述
-  const antifeatures: {
-    [key: string]: { color: string; title: string; description: string };
-  } = {
-    "referral-link": {
-      color: "purple",
-      title: t("antifeature_referral_link_title"),
-      description: t("antifeature_referral_link_description"),
-    },
-    ads: {
-      color: "orange",
-      title: t("antifeature_ads_title"),
-      description: t("antifeature_ads_description"),
-    },
-    payment: {
-      color: "magenta",
-      title: t("antifeature_payment_title"),
-      description: t("antifeature_payment_description"),
-    },
-    miner: {
-      color: "orangered",
-      title: t("antifeature_miner_title"),
-      description: t("antifeature_miner_description"),
-    },
-    membership: {
-      color: "blue",
-      title: t("antifeature_membership_title"),
-      description: t("antifeature_membership_description"),
-    },
-    tracking: {
-      color: "pinkpurple",
-      title: t("antifeature_tracking_title"),
-      description: t("antifeature_tracking_description"),
-    },
-  };
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -133,17 +53,19 @@ function App() {
     if (!uuid) {
       return;
     }
-    scriptClient
-      .getInstallInfo(uuid)
-      .then(async (info: ScriptInfo) => {
+
+    const loadScriptInfo = async () => {
+      try {
+        const info: ScriptInfo = await scriptClient.getInstallInfo(uuid);
         if (!info) {
           throw new Error("fetch script info failed");
         }
-        // 如果是更新的情况下, 获取老版本的脚本信息
+
         let prepare:
           | { script: Script; oldScript?: Script; oldScriptCode?: string }
           | { subscribe: Subscribe; oldSubscribe?: Subscribe };
         let action: Script | Subscribe;
+
         if (info.userSubscribe) {
           prepare = await prepareSubscribeByCode(info.code, info.url);
           action = prepare.subscribe;
@@ -167,26 +89,238 @@ function App() {
             setIsUpdate(true);
           }
         }
-        setScriptInfo(info);
-        setEnable(action.status === SCRIPT_STATUS_ENABLE);
-        setUpsertScript(action);
-      })
-      .catch((e: any) => {
-        Message.error(t("script_info_load_failed") + " " + e.message);
-      });
-  }, [isUpdate, t]);
 
+        setScriptInfo(info);
+        setUpsertScript(action);
+      } catch (e: any) {
+        Message.error(t("script_info_load_failed") + " " + e.message);
+      }
+    };
+
+    loadScriptInfo();
+  }, [t]);
+
+  return {
+    scriptInfo,
+    upsertScript,
+    setUpsertScript,
+    code,
+    diffCode,
+    oldScript,
+    isUpdate,
+  };
+};
+
+const usePermissions = (scriptInfo: ScriptInfo | undefined, metadata: Metadata) => {
+  const { t } = useTranslation();
+
+  return useMemo(() => {
+    const permissions: Permission = [];
+
+    if (!scriptInfo) return permissions;
+
+    if (scriptInfo.userSubscribe) {
+      permissions.push({
+        label: t("subscribe_install_label"),
+        color: "#ff0000",
+        value: metadata.scripturl!,
+      });
+    }
+
+    if (metadata.match) {
+      permissions.push({ label: t("script_runs_in"), value: metadata.match });
+    }
+
+    if (metadata.connect) {
+      permissions.push({
+        label: t("script_has_full_access_to"),
+        color: "#F9925A",
+        value: metadata.connect,
+      });
+    }
+
+    if (metadata.require) {
+      permissions.push({ label: t("script_requires"), value: metadata.require });
+    }
+
+    return permissions;
+  }, [scriptInfo, metadata, t]);
+};
+
+const useScriptDescription = (scriptInfo: ScriptInfo | undefined, metadata: Metadata) => {
+  const { t } = useTranslation();
+
+  return useMemo(() => {
+    const description: JSX.Element[] = [];
+
+    if (!scriptInfo) return description;
+
+    const isCookie = metadata.grant?.some((val) => val === "GM_cookie");
+    if (isCookie) {
+      description.push(
+        <Typography.Text type="error" key="cookie">
+          {t("cookie_warning")}
+        </Typography.Text>
+      );
+    }
+
+    if (metadata.crontab) {
+      description.push(<Typography.Text key="crontab">{t("scheduled_script_description_1")}</Typography.Text>);
+      description.push(
+        <Typography.Text key="cronta-nexttime">
+          {t("scheduled_script_description_2", {
+            expression: metadata.crontab[0],
+            time: nextTime(metadata.crontab[0]),
+          })}
+        </Typography.Text>
+      );
+    } else if (metadata.background) {
+      description.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
+    }
+
+    return description;
+  }, [scriptInfo, metadata, t]);
+};
+
+const useAntiFeatures = () => {
+  const { t } = useTranslation();
+
+  return useMemo(() => {
+    const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
+      "referral-link": {
+        color: "purple",
+        title: t("antifeature_referral_link_title"),
+        description: t("antifeature_referral_link_description"),
+      },
+      ads: {
+        color: "orange",
+        title: t("antifeature_ads_title"),
+        description: t("antifeature_ads_description"),
+      },
+      payment: {
+        color: "magenta",
+        title: t("antifeature_payment_title"),
+        description: t("antifeature_payment_description"),
+      },
+      miner: {
+        color: "orangered",
+        title: t("antifeature_miner_title"),
+        description: t("antifeature_miner_description"),
+      },
+      membership: {
+        color: "blue",
+        title: t("antifeature_membership_title"),
+        description: t("antifeature_membership_description"),
+      },
+      tracking: {
+        color: "pinkpurple",
+        title: t("antifeature_tracking_title"),
+        description: t("antifeature_tracking_description"),
+      },
+    };
+
+    return antifeatures;
+  }, [t]);
+};
+
+function App() {
+  const [countdown, setCountdown] = useState<number>(-1);
+  const [enable, setEnable] = useState<boolean>(false);
+  const [btnText, setBtnText] = useState<string>("");
+  const { t } = useTranslation();
+
+  const { scriptInfo, upsertScript, setUpsertScript, code, diffCode, oldScript, isUpdate } = useScriptInstall();
+
+  const metadata: Metadata = scriptInfo?.metadata || {};
+  const permissions = usePermissions(scriptInfo, metadata);
+  const description = useScriptDescription(scriptInfo, metadata);
+  const antifeatures = useAntiFeatures();
+
+  // 更新按钮文案和页面标题
   useEffect(() => {
     if (scriptInfo?.userSubscribe) {
       setBtnText(isUpdate ? t("update_subscribe")! : t("install_subscribe"));
     } else {
       setBtnText(isUpdate ? t("update_script")! : t("install_script"));
     }
-    // 修改网页显示title
+
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript)} - ScriptCat`;
     }
   }, [isUpdate, scriptInfo, upsertScript, t]);
+
+  // 设置脚本状态
+  useEffect(() => {
+    if (upsertScript) {
+      setEnable(upsertScript.status === SCRIPT_STATUS_ENABLE);
+    }
+  }, [upsertScript]);
+
+  const handleInstall = useCallback(
+    async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+      if (!upsertScript) {
+        Message.error(t("script_info_load_failed")!);
+        return;
+      }
+
+      const { closeAfterInstall: shouldClose = true, noMoreUpdates: disableUpdates = false } = options;
+
+      try {
+        if (scriptInfo?.userSubscribe) {
+          await subscribeClient.install(upsertScript as Subscribe);
+          Message.success(t("subscribe_success")!);
+          setBtnText(t("subscribe_success")!);
+        } else {
+          // 如果选择不再检查更新，可以在这里设置脚本的更新配置
+          if (disableUpdates && upsertScript) {
+            // 这里可以设置脚本禁用自动更新的逻辑
+            (upsertScript as Script).checkUpdate = false; // 假设有这个属性
+          }
+
+          await scriptClient.install(upsertScript as Script, code);
+          if (isUpdate) {
+            Message.success(t("install.update_success")!);
+            setBtnText(t("install.update_success")!);
+          } else {
+            Message.success(t("install_success")!);
+            setBtnText(t("install_success")!);
+          }
+        }
+
+        if (shouldClose) {
+          setTimeout(() => {
+            closeWindow();
+          }, 500);
+        }
+      } catch (e) {
+        const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
+        Message.error(`${errorMessage}: ${e}`);
+      }
+    },
+    [upsertScript, scriptInfo, code, isUpdate, t]
+  );
+
+  const handleStatusChange = useCallback(
+    (checked: boolean) => {
+      setUpsertScript((script) => {
+        if (!script) {
+          return script;
+        }
+        script.status = checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+        setEnable(checked);
+        return script;
+      });
+    },
+    [setUpsertScript]
+  );
+
+  const handleClose = useCallback(() => {
+    if (countdown === -1) {
+      closeWindow();
+    } else {
+      setCountdown(-1);
+    }
+  }, [countdown]);
 
   return (
     <div className="h-full">
@@ -205,20 +339,7 @@ function App() {
                   <Tooltip
                     content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
                   >
-                    <Switch
-                      style={{ marginLeft: "8px" }}
-                      checked={enable}
-                      onChange={(checked) => {
-                        setUpsertScript((script) => {
-                          if (!script) {
-                            return script;
-                          }
-                          script.status = checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
-                          setEnable(checked);
-                          return script;
-                        });
-                      }}
-                    />
+                    <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
                   </Tooltip>
                 </Typography.Text>
               </div>
@@ -246,62 +367,27 @@ function App() {
               </div>
               <div className="text-end">
                 <Space>
-                  <Button
-                    type="primary"
-                    size="small"
-                    onClick={() => {
-                      if (!upsertScript) {
-                        Message.error(t("script_info_load_failed")!);
-                        return;
+                  <Button.Group>
+                    <Button type="primary" size="small" onClick={() => handleInstall()}>
+                      {btnText}
+                    </Button>
+                    <Dropdown
+                      droplist={
+                        <Menu>
+                          <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
+                            {isUpdate ? t("update_script") : t("install_script")} {t("without_closing_window")}
+                          </Menu.Item>
+                          <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
+                            {isUpdate ? t("update_script") : t("install_script")} {t("no_more_updates")}
+                          </Menu.Item>
+                        </Menu>
                       }
-                      if (scriptInfo?.userSubscribe) {
-                        subscribeClient
-                          .install(upsertScript as Subscribe)
-                          .then(() => {
-                            Message.success(t("subscribe_success")!);
-                            setBtnText(t("subscribe_success")!);
-                            setTimeout(() => {
-                              closeWindow();
-                            }, 500);
-                          })
-                          .catch((e) => {
-                            Message.error(`${t("subscribe_failed")}: ${e}`);
-                          });
-                        return;
-                      }
-                      scriptClient
-                        .install(upsertScript as Script, code)
-                        .then(() => {
-                          if (isUpdate) {
-                            Message.success(t("install.update_success")!);
-                            setBtnText(t("install.update_success")!);
-                          } else {
-                            Message.success(t("install_success")!);
-                            setBtnText(t("install_success")!);
-                          }
-                          setTimeout(() => {
-                            closeWindow();
-                          }, 500);
-                        })
-                        .catch((e) => {
-                          Message.error(`${t("install_failed")}: ${e}`);
-                        });
-                    }}
-                  >
-                    {btnText}
-                  </Button>
-                  <Button
-                    type="primary"
-                    status="danger"
-                    size="small"
-                    onClick={() => {
-                      if (countdown === -1) {
-                        closeWindow();
-                      } else {
-                        setCountdown(-1);
-                      }
-                    }}
-                  >
+                      position="bottom"
+                    >
+                      <Button type="primary" size="small" icon={<IconDown />} />
+                    </Dropdown>
+                  </Button.Group>
+                  <Button type="primary" status="danger" size="small" onClick={handleClose}>
                     {countdown === -1 ? t("close") : `${t("stop")} (${countdown})`}
                   </Button>
                 </Space>
@@ -361,7 +447,7 @@ function App() {
           </Grid.Col>
           <Grid.Col span={24}>
             <Grid.Row>
-              {permission.map((item) => (
+              {permissions.map((item) => (
                 <Grid.Col
                   key={item.label}
                   span={8}
