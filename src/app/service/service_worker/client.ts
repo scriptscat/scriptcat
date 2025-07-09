@@ -155,6 +155,10 @@ export class ScriptClient extends Client {
     );
     return stat;
   }
+
+  setCheckUpdateUrl(uuid: string, checkUpdate: boolean, checkUpdateUrl?: string) {
+    return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
+  }
 }
 
 export class ResourceClient extends Client {

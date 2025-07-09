@@ -7,16 +7,8 @@ import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type {
-  Script,
-  SCRIPT_RUN_STATUS,
-  ScriptDAO,
-  ScriptRunResource} from "@App/app/repo/scripts";
-import {
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-  ScriptCodeDAO
-} from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import type { InstallSource } from "./types";
 import { type ResourceService } from "./resource";
@@ -497,6 +489,10 @@ export class ScriptService {
     this.scriptDAO.all().then(async (scripts) => {
       const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
       scripts.forEach(async (script) => {
+        // 不检查更新
+        if (script.checkUpdate === false) {
+          return;
+        }
         // 是否检查禁用脚本
         if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
           return;
@@ -577,6 +573,18 @@ export class ScriptService {
     return this.openInstallPageByUrl(url, "user");
   }
 
+  setCheckUpdateUrl({
+    uuid,
+    checkUpdate,
+    checkUpdateUrl,
+  }: {
+    uuid: string;
+    checkUpdate: boolean;
+    checkUpdateUrl?: string;
+  }) {
+    return this.scriptDAO.update(uuid, { checkUpdate, downloadUrl: checkUpdateUrl, checkUpdateUrl });
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -597,6 +605,7 @@ export class ScriptService {
     this.group.on("sortScript", this.sortScript.bind(this));
     this.group.on("importByUrl", this.importByUrl.bind(this));
     this.group.on("installByCode", this.installByCode.bind(this));
+    this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

@@ -46,6 +46,7 @@ export interface Script {
   author?: string; // 脚本作者
   originDomain?: string; // 脚本来源域名
   origin?: string; // 脚本来源
+  checkUpdate?: boolean; // 是否检查更新
   checkUpdateUrl?: string; // 检查更新URL
   downloadUrl?: string; // 脚本下载URL
   metadata: Metadata; // 脚本的元数据
