@@ -3,6 +3,7 @@ const JSZip = require("jszip");
 const ChromeExtension = require("crx");
 const { execSync } = require("child_process");
 const semver = require("semver");
+
 const manifest = require("../src/manifest.json");
 const package = require("../package.json");
 
@@ -78,7 +79,46 @@ firefoxManifest.browser_specific_settings = {
 };
 
 const chrome = new JSZip();
-const firefox = new JSZip();
+
+// 生成Firefox XPI文件
+async function generateFirefoxXPI() {
+  try {
+    // eslint-disable-next-line no-console
+    console.log("生成Firefox XPI文件...");
+
+    // 确保目标目录存在Firefox manifest
+    if (!fs.existsSync("./dist/firefox-ext/manifest.json")) {
+      throw new Error("未找到Firefox扩展文件，请先运行构建");
+    }
+
+    const webExtCmd = `npx web-ext build --source-dir=./dist/firefox-ext --artifacts-dir=./dist --overwrite-dest`;
+    
+    execSync(webExtCmd, {
+      stdio: "inherit",
+      cwd: process.cwd(),
+    });
+
+    // 查找生成的zip文件并重命名为xpi
+    const distFiles = fs.readdirSync("./dist");
+    const builtFile = distFiles.find((file) => file.endsWith(".zip") && !file.includes("chrome"));
+    
+    if (builtFile) {
+      const newName = `${package.name}-v${package.version}-firefox.xpi`;
+      fs.renameSync(`./dist/${builtFile}`, `./dist/${newName}`);
+      // eslint-disable-next-line no-console
+      console.log(`✅ 已生成Firefox XPI: ${newName}`);
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("❌ 生成XPI文件失败:", error.message);
+    // eslint-disable-next-line no-console
+    console.log("💡 请检查：");
+    // eslint-disable-next-line no-console
+    console.log("   1. 确保web-ext工具已正确安装");
+    // eslint-disable-next-line no-console
+    console.log("   2. 检查Firefox扩展目录是否完整");
+  }
+}
 
 function addDir(zip, localDir, toDir, filters) {
   const files = fs.readdirSync(localDir);
@@ -98,17 +138,55 @@ function addDir(zip, localDir, toDir, filters) {
 }
 
 chrome.file("manifest.json", JSON.stringify(chromeManifest));
-firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
 addDir(chrome, "./dist/ext", "", ["manifest.json"]);
-addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]);
-// 添加ts.worker.js名字为gz
-firefox.file(
-  "src/ts.worker.js.gz",
-  fs.readFileSync("./dist/ext/src/ts.worker.js")
+
+// 为Firefox创建单独的目录
+if (!fs.existsSync("./dist/firefox-ext")) {
+  fs.mkdirSync("./dist/firefox-ext", { recursive: true });
+}
+
+// 将Firefox manifest写入单独的目录
+fs.writeFileSync(
+  "./dist/firefox-ext/manifest.json",
+  JSON.stringify(firefoxManifest, null, 2)
 );
 
-// 导出zip包
+// 复制其他文件到Firefox目录
+function copyDirSync(src, dest, excludes = []) {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+
+  const files = fs.readdirSync(src);
+  files.forEach((file) => {
+    if (excludes.includes(file)) return;
+
+    const srcPath = `${src}/${file}`;
+    const destPath = `${dest}/${file}`;
+    const stats = fs.statSync(srcPath);
+
+    if (stats.isDirectory()) {
+      copyDirSync(srcPath, destPath, excludes);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  });
+}
+
+// 复制文件到Firefox目录（排除manifest.json和ts.worker.js）
+copyDirSync("./dist/ext", "./dist/firefox-ext", [
+  "manifest.json",
+  "ts.worker.js",
+]);
+
+// 添加Firefox专用的ts.worker.js.gz文件
+fs.copyFileSync(
+  "./dist/ext/src/ts.worker.js",
+  "./dist/firefox-ext/src/ts.worker.js.gz"
+);
+
+// 导出zip包 - Chrome
 chrome
   .generateNodeStream({
     type: "nodebuffer",
@@ -121,7 +199,29 @@ chrome
     )
   );
 
-firefox
+// 导出zip包 - Firefox
+const firefoxZip = new JSZip();
+
+// 读取Firefox专用目录中的所有文件
+function addDirToZip(zip, localDir, toDir = "") {
+  const files = fs.readdirSync(localDir);
+  files.forEach((file) => {
+    const localPath = `${localDir}/${file}`;
+    const toPath = toDir ? `${toDir}/${file}` : file;
+    const stats = fs.statSync(localPath);
+    if (stats.isDirectory()) {
+      addDirToZip(zip, localPath, toPath);
+    } else {
+      zip.file(toPath, fs.readFileSync(localPath));
+    }
+  });
+}
+
+// 将Firefox目录的内容添加到zip
+addDirToZip(firefoxZip, "./dist/firefox-ext");
+
+// 生成Firefox zip文件
+firefoxZip
   .generateNodeStream({
     type: "nodebuffer",
     streamFiles: true,
@@ -131,7 +231,11 @@ firefox
     fs.createWriteStream(
       `./dist/${package.name}-v${package.version}-firefox.zip`
     )
-  );
+  )
+  .on("close", () => {
+    // Firefox zip文件生成完成后，生成xpi文件
+    generateFirefoxXPI();
+  });
 
 // 处理crx
 const crx = new ChromeExtension({
