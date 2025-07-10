@@ -24,23 +24,39 @@ export class ResourceService {
     this.resourceDAO.enableCache();
   }
 
-  public async getResource(uuid: string, url: string, _type: ResourceType): Promise<Resource | undefined> {
+  public async getResource(
+    uuid: string,
+    url: string,
+    _type: ResourceType,
+    load: boolean
+  ): Promise<Resource | undefined> {
     const res = await this.getResourceModel(url);
     if (res) {
       return res;
     }
+    if (load) {
+      // 如果没有缓存，则尝试加载资源
+      try {
+        return await this.updateResource(uuid, url, _type);
+      } catch (e: any) {
+        this.logger.error("load resource error", { url }, Logger.E(e));
+      }
+    } else {
+      // 如果没有缓存则不加载，则返回undefined，但是会在后台异步加载
+      this.updateResource(uuid, url, _type);
+    }
     return undefined;
   }
 
-  public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+  public async getScriptResources(script: Script, load: boolean): Promise<{ [key: string]: Resource }> {
     return {
-      ...((await this.getResourceByType(script, "require")) || {}),
-      ...((await this.getResourceByType(script, "require-css")) || {}),
-      ...((await this.getResourceByType(script, "resource")) || {}),
+      ...((await this.getResourceByType(script, "require", load)) || {}),
+      ...((await this.getResourceByType(script, "require-css", load)) || {}),
+      ...((await this.getResourceByType(script, "resource", load)) || {}),
     };
   }
 
-  async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
+  async getResourceByType(script: Script, type: ResourceType, load: boolean): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
       return {};
     }
@@ -67,7 +83,7 @@ export class ResourceService {
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;
           } else {
-            const res = await this.getResource(script.uuid, path, type);
+            const res = await this.getResource(script.uuid, path, type, load);
             if (res) {
               ret[resourceKey] = res;
             }
@@ -113,6 +129,7 @@ export class ResourceService {
     return ret;
   }
 
+  // 检查资源是否存在,如果不存在则重新加载
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
     if (res) {
@@ -294,8 +311,12 @@ export class ResourceService {
     return await this.resourceDAO.update(data.meta.url, res);
   }
 
+  requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+    return this.getScriptResources(script, false);
+  }
+
   init() {
-    this.group.on("getScriptResources", this.getScriptResources.bind(this));
+    this.group.on("getScriptResources", this.requestGetScriptResources.bind(this));
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源

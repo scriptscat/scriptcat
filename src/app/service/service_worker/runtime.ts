@@ -425,7 +425,7 @@ export class RuntimeService {
       }),
       // 加载resource
       ...enableScript.map(async (script) => {
-        const resource = await this.resource.getScriptResources(script);
+        const resource = await this.resource.getScriptResources(script, false);
         script.resource = resource;
       }),
       // 加载code相关的信息
@@ -648,7 +648,6 @@ export class RuntimeService {
       scriptMatch[key] = val;
       // 优化性能，将不需要的信息去掉
       // 而且可能会超过缓存的存储限制
-      // @ts-ignore
       scriptMatch[key].code = "";
       scriptMatch[key].value = {};
       scriptMatch[key].resource = {};

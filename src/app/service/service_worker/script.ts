@@ -307,7 +307,7 @@ export class ScriptService {
 
     ret.value = await this.valueService.getScriptValue(ret);
 
-    ret.resource = await this.resourceService.getScriptResources(ret);
+    ret.resource = await this.resourceService.getScriptResources(ret, true);
 
     ret.flag = randomString(16);
     const code = await this.getCode(ret.uuid);
