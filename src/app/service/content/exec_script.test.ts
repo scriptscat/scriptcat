@@ -12,15 +12,13 @@ const scriptRes = {
   id: 0,
   name: "test",
   metadata: {
+    grant: ["none"],
     version: ["1.0.0"],
   },
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  grantMap: {
-    none: true,
-  },
-  testMode: true
+  testMode: true,
 } as unknown as ScriptRunResource;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
@@ -44,8 +42,7 @@ const scriptRes2 = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  grantMap: {},
-  testMode: true
+  testMode: true,
 } as unknown as ScriptRunResource;
 
 // @ts-ignore
@@ -53,18 +50,20 @@ const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, 
 
 describe("GM_info", () => {
   it("none", async () => {
-    scriptRes.code = "return GM_info";
+    scriptRes.code = "return {_this:this,GM_info};";
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
     const ret = await noneExec.exec();
-    expect(ret.version).toEqual(ExtVersion);
-    expect(ret.script.version).toEqual("1.0.0");
+    expect(ret.GM_info.version).toEqual(ExtVersion);
+    expect(ret.GM_info.script.version).toEqual("1.0.0");
+    expect(ret._this).toEqual({});
   });
   it("sandbox", async () => {
-    scriptRes2.code = "return GM_info";
+    scriptRes2.code = "return {_this:this,GM_info};";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
-    expect(ret.version).toEqual(ExtVersion);
-    expect(ret.script.version).toEqual("1.0.0");
+    expect(ret.GM_info.version).toEqual(ExtVersion);
+    expect(ret.GM_info.script.version).toEqual("1.0.0");
+    expect(ret._this).not.toEqual({});
   });
 });
 
@@ -129,5 +128,34 @@ describe("sandbox", () => {
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("3");
+  });
+});
+
+describe("this", () => {
+  it("onload", async () => {
+    scriptRes2.code = `onload = ()=>{};return onload;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // this.onload 不会影响 global.onload
+    expect(global.onload).toBeNull();
+  });
+  it("undefined variable", async () => {
+    scriptRes2.code = `return typeof testVar;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual("undefined");
+  });
+  it("undefined variable in global", async () => {
+    scriptRes2.code = `return testVar;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    // 在沙盒中访问未定义的变量会抛出错误
+    try {
+      await sandboxExec.exec();
+      // 如果没有抛出错误，测试应该失败
+      expect.fail("Expected an error to be thrown when accessing undefined variable");
+    } catch (e: any) {
+      expect(e.message).toContain("testVar is not defined");
+    }
   });
 });
