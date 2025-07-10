@@ -228,10 +228,10 @@ describe("@grant GM", () => {
     expect(ret).toEqual({
       "GM.getValue": expect.any(Function),
       "GM.getTab": expect.any(Function),
-      "GM.setTab": expect.any(Function),
+      "GM.saveTab": expect.any(Function),
       GM_getValue: undefined,
       GM_getTab: undefined,
-      GM_setTab: undefined,
+      GM_saveTab: undefined,
     });
   });
 });
