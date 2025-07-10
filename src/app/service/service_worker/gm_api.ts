@@ -742,6 +742,7 @@ export default class GMApi {
       statusCode: 0,
       responseHeader: "",
     };
+    let finalUrl = "";
     // 等待response
     this.gmXhrHeadersReceived.addListener(
       "headersReceived:" + requestId,
@@ -750,6 +751,7 @@ export default class GMApi {
           resultParam.responseHeader += header.name + ": " + header.value + "\n";
         });
         resultParam.statusCode = details.statusCode;
+        finalUrl = this.cache.get("gmXhrRequest:finalUrl:" + requestId);
         this.gmXhrHeadersReceived.removeAllListeners("headersReceived:" + requestId);
       }
     );
@@ -763,6 +765,10 @@ export default class GMApi {
       // 发送到content
       // 替换msg.data.responseHeaders
       msg.data.responseHeaders = resultParam.responseHeader || msg.data.responseHeaders;
+      // 替换finalUrl
+      if (finalUrl) {
+        msg.data.finalUrl = finalUrl;
+      }
       sender.getConnect().sendMessage(msg);
     });
     sender.getConnect().onDisconnect(() => {
@@ -855,12 +861,11 @@ export default class GMApi {
   async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    const _ = await Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
-        tabData = tabData || {};
-        tabData[tabId] = data;
-        return tabData;
-      });
+    const _ = await Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+      tabData = tabData || {};
+      tabData[tabId] = data;
+      return tabData;
+    });
     return true;
   }
 
@@ -1173,6 +1178,8 @@ export default class GMApi {
               rule.action.requestHeaders = rule.action.requestHeaders?.filter(
                 (header) => header.header.toLowerCase() !== "cookie"
               );
+              // 设置重定向url，获取到实际的请求地址
+              this.cache.set("gmXhrRequest:finalUrl:" + requestId, location);
               chrome.declarativeNetRequest.updateSessionRules({
                 removeRuleIds: [parseInt(requestId)],
                 addRules: [rule],
@@ -1183,6 +1190,7 @@ export default class GMApi {
             // 删除关联与DNR
             this.cache.delete("gmXhrRequest:" + details.requestId);
             this.cache.delete("dnrRule:" + requestId);
+            this.cache.delete("gmXhrRequest:finalUrl:" + requestId);
             chrome.declarativeNetRequest.updateSessionRules({
               removeRuleIds: [parseInt(requestId)],
             });
