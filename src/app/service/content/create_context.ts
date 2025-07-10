@@ -31,6 +31,8 @@ export function createContext(
     },
     grantSet: new Set(),
   });
+  // 若考虑完全禁止外部查阅 API 的实作，应考虑 defaultFnMap.get(this)
+  // 现在没有这个理由，则使用性能较高的 .defaultFn
   const createStubCallable = () => function (this: { [key: string]: any }) {
     const f = this.defaultFn;
     if (!f) throw new Error("this stub is not callable.");

@@ -3,7 +3,7 @@ import type { ApiParam, ApiValue } from "./types";
 const apis: Map<string, ApiValue[]> = new Map();
 
 export function GMContextApiGet(name: string): ApiValue[] | undefined {
-  // 回傳 Api 列表
+  // 回传 Api 列表
   return apis.get(name);
 }
 
@@ -31,11 +31,11 @@ export default class GMContext {
       let { follow } = param;
       const { alias } = param;
       if (!follow) {
-        follow = key; // follow 是实际 @grant 的权限
+        follow = key; // follow 是实际 @grant 的权限；使用follow时，不要使用alias以避免混乱
       }
       GMContextApiSet(follow, key, descriptor.value, param);
       if (alias) {
-        // 如果有别名，则使用别名
+        // 追加别名呼叫（参数和回传完全一致，为 GM_xxx 与 GM.xxx 等问题设计）
         GMContextApiSet(alias, alias, descriptor.value, param);
       }
     };

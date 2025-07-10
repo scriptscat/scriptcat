@@ -22,6 +22,7 @@ export interface IGM_Base {
 const integrity = {}; // 僅防止非法实例化
 
 // GM_Base 定义内部用变量和函数。均使用@protected
+// 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
 class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected runFlag!: string;
@@ -119,7 +120,7 @@ export default class GMApi extends GM_Base {
     public message: Message,
     public scriptRes: ScriptRunResource
   ) {
-    // testing only
+    // testing only 仅供测试用
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE: EventEmitter = new EventEmitter();
     super(
