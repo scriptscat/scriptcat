@@ -6,7 +6,13 @@ import { GMContextApiGet } from "./gm_context";
 import { GM_Base } from "./gm_api";
 
 // 构建沙盒上下文
-export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPrefix: string, message: Message, grantSet: Set<string>) {
+export function createContext(
+  scriptRes: ScriptRunResource,
+  GMInfo: any,
+  envPrefix: string,
+  message: Message,
+  scriptGrants: Set<string>
+) {
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
   const EE: EventEmitter = new EventEmitter();
@@ -23,7 +29,7 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
     window: {
       onurlchange: null,
     },
-    grantSet: new Set()
+    grantSet: new Set(),
   });
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
@@ -32,7 +38,7 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
     if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
     for (const t of s) {
-      const fnKeyArray = t.fnKey.split('.');
+      const fnKeyArray = t.fnKey.split(".");
       const m = fnKeyArray.length - 1;
       let g = context;
       for (let i = 0; i < m; i++) {
@@ -50,29 +56,10 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
       }
     }
     return true;
-  }
-  for (const grant of grantSet) {
+  };
+  for (const grant of scriptGrants) {
     __methodInject__(grant);
   }
-  // if (scriptRes.metadata.grant) {
-  //   // 处理GM.与GM_，将GM_与GM.都复制一份
-  //   const grant: string[] = [];
-  //   scriptRes.metadata.grant.forEach((val) => {
-  //     // if (val.startsWith("GM_")) {
-  //     //   const t = val.slice(3);
-  //     //   grant.push(`GM.${t}`);
-  //     // } else if (val.startsWith("GM.")) {
-  //     //   grant.push(val);
-  //     // }
-  //     // grant.push(val);
-  //     grant.push(val);
-  //   });
-  //   // 去重
-  //   const uniqueGrant = new Set(grant);
-  //   for(const grant of uniqueGrant){
-  //     context.__methodInject__(grant);
-  //   }
-  // }
   context.unsafeWindow = window;
   return context;
 }
