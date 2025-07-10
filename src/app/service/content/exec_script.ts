@@ -7,7 +7,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
 import { evaluateGMInfo } from "./gm_info";
-import { type GM_Base } from "./gm_api";
+import { type IGM_Base } from "./gm_api";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -19,7 +19,7 @@ export default class ExecScript {
 
   proxyContent: any;
 
-  sandboxContent?: GM_Base;
+  sandboxContent?: IGM_Base;
 
   GM_info: any;
 

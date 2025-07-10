@@ -11,7 +11,15 @@ import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 
-export class GM_Base {
+// 内部函数呼叫定义
+export interface IGM_Base {
+  sendMessage(api: string, params: any[]): Promise<any>;
+  connect(api: string, params: any[]): Promise<any>;
+  valueUpdate(data: ValueUpdateData): void;
+  emitEvent(event: string, eventId: string, data: any): void;
+}
+
+export class GM_Base implements IGM_Base {
   runFlag!: string;
 
   constructor(
