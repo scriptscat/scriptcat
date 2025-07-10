@@ -17,7 +17,7 @@ export default class ExecScript {
 
   logger: Logger;
 
-  proxyContent: any;
+  proxyContent: typeof globalThis;
 
   sandboxContent?: IGM_Base;
 
@@ -28,8 +28,8 @@ export default class ExecScript {
     envPrefix: "content" | "offscreen",
     message: Message,
     code: string | ScriptFunc,
-    envInfo: GMInfoEnv,
-    thisContext?: { [key: string]: any }
+    envInfo: GMInfoEnv, 
+    globalInjection?: {[key:string]:any} // 主要是全域API. @grant none 时无效
   ) {
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
@@ -51,7 +51,10 @@ export default class ExecScript {
     } else {
       // 构建脚本GM上下文
       this.sandboxContent = createContext(scriptRes, this.GM_info, envPrefix, message, grantSet);
-      this.proxyContent = proxyContext(global, this.sandboxContent, thisContext);
+      if (globalInjection) {
+        Object.assign(this.sandboxContent, globalInjection);
+      }
+      this.proxyContent = proxyContext(global, this.sandboxContent);
     }
   }
 
@@ -64,9 +67,14 @@ export default class ExecScript {
     this.sandboxContent?.valueUpdate(data);
   }
 
+  /**
+   * @see {@link compileScriptCode}
+   * @returns 
+   */
   exec() {
     this.logger.debug("script start");
-    return this.scriptFunc.apply(this.proxyContent, [this.proxyContent, this.GM_info]);
+    const context = this.proxyContent;
+    return this.scriptFunc.call(null, context, this.scriptRes.name);
   }
 
   stop() {

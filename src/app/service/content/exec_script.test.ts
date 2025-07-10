@@ -32,7 +32,7 @@ const envInfo: GMInfoEnv = {
 };
 
 // @ts-ignore
-const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo, undefined);
+const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo);
 
 const scriptRes2 = {
   id: 0,
@@ -47,7 +47,7 @@ const scriptRes2 = {
 } as unknown as ScriptRunResource;
 
 // @ts-ignore
-const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo, undefined);
+const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo);
 
 describe("GM_info", () => {
   it("none", async () => {

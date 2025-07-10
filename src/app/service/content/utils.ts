@@ -16,6 +16,12 @@ const has = (object: any, key: any) => {
 }
 
 // 构建脚本运行代码
+/**
+ * @see {@link ExecScript}
+ * @param scriptRes 
+ * @param scriptCode 
+ * @returns 
+ */
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
   let requireCode = "";
@@ -30,31 +36,41 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
       .join("\n");
   }
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
-  const code = [requireCode, scriptCode, sourceURL].join("\n");
-  // 处理name中的特殊符号
-  const name = scriptRes.name.replace(/["]/g, "\\$1");
-  return `  with(context){
-      return ((factory) => {
-          try {
-            return factory.apply(context, []);
-          } catch (e) {
-            if (e.message && e.stack) {
-                console.error("ERROR: Execution of script '${name}' failed! " + e.message);
-                console.log(e.stack);
-            } else {
-                console.error(e);
-            }
-          }
-
-      })(async function(){
-          ${code}
-      })
-  }`;
+  const preCode = [requireCode].join("\n"); // 不需要 async 封装
+  const code = [scriptCode, sourceURL].join("\n"); // 需要 async 封裝
+  // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
+  // arguments = [context: globalThis, scriptName: string, errorHandling: function]
+//   const onErrorCode = `arguments[2] = (e) => {
+//   if (e.message && e.stack) {
+//       const n = arguments[1];
+//       console.error("ERROR: Execution of script '" + n + "' failed! " + e.message);
+//       console.log(e.stack);
+//   } else {
+//       console.error(e);
+//   }
+// };`
+//   return `${onErrorCode}
+// try {
+//   with(arguments[0]){
+//     ${preCode}
+//     [((async function(){
+//     ${code}
+//     })().catch(arguments[2]),0)];
+//   }
+// } catch (e) {
+//   arguments[2](e);
+// }`;
+  return `with(arguments[0]){
+${preCode}
+[((async function(){
+${code}
+})(),0)];
+}`;
 }
 
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return <ScriptFunc>new Function("context", "GM_info", code);
+  return <ScriptFunc>new Function(code);
 }
 /**
  * 将脚本函数编译为注入脚本代码
@@ -68,8 +84,8 @@ export function compileInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   scriptCode = scriptCode ?? script.code;
-  return `window['${script.flag}'] = function(context, GM_info){
-${autoDeleteMountFunction ? `  try{delete window['${script.flag}'];}catch(e){};` : ""}${scriptCode}}`;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
+  return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
 export const writables: { [key: string]: any } = {
@@ -108,53 +124,59 @@ Object.keys(descs).forEach((key) => {
   }
 });
 
-export function warpObject(thisContext: object, ...context: object[]) {
+export function warpObject(exposedObject: object, ...context: object[]) {
   // 处理Object上的方法
-  thisContext.hasOwnProperty = (name: PropertyKey) => {
+  exposedObject.hasOwnProperty = (name: PropertyKey) => {
     return (
-      Object.hasOwnProperty.call(thisContext, name) || context.some((val) => Object.hasOwnProperty.call(val, name))
+      Object.hasOwnProperty.call(exposedObject, name) || context.some((val) => Object.hasOwnProperty.call(val, name))
     );
   };
-  thisContext.isPrototypeOf = (name: object) => {
-    return Object.isPrototypeOf.call(thisContext, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
+  exposedObject.isPrototypeOf = (name: object) => {
+    return Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
   };
-  thisContext.propertyIsEnumerable = (name: PropertyKey) => {
+  exposedObject.propertyIsEnumerable = (name: PropertyKey) => {
     return (
-      Object.propertyIsEnumerable.call(thisContext, name) ||
+      Object.propertyIsEnumerable.call(exposedObject, name) ||
       context.some((val) => Object.propertyIsEnumerable.call(val, name))
     );
   };
 }
 
+type GMWorldContext = ((typeof globalThis) & ({
+  [key: string | number | symbol]: any;
+}) | ({
+  [key: string | number | symbol]: any;
+}));
+
 // 拦截上下文
-export function proxyContext(global: any, context: any, thisContext?: { [key: string]: any }) {
+export function proxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
   const special = Object.assign(writables);
+  const exposedObject: Context = <Context>{};
   // 处理某些特殊的属性
   // 后台脚本要不要考虑不能使用eval?
-  if (!thisContext) {
-    thisContext = {};
+  exposedObject.eval = global.eval;
+  // exposedObject.define = undefined;
+  warpObject(exposedObject, special, global);
+  // 把 GM Api (或其他全域API) 复製到 exposedObject
+  for (const key of Object.keys(context)) {
+    if (key in protect) continue;
+    exposedObject[key] = context[key];
   }
-  thisContext.eval = global.eval;
-  thisContext.define = undefined;
-  warpObject(thisContext, special, global, context);
   // @ts-ignore
-  const proxy = new Proxy(context, {
-    defineProperty(_, name, desc) {
-      if (Object.defineProperty(thisContext, name, desc)) {
-        return true;
-      }
-      return false;
+  const exposedProxy = new Proxy(exposedObject, {
+    defineProperty(target, name, desc) {
+      return Reflect.defineProperty(target, name, desc);
     },
     get(_, name): any {
       switch (name) {
         case "window":
         case "self":
         case "globalThis":
-          return proxy;
+          return exposedProxy;
         case "top":
         case "parent":
           if (global[name] === global.self) {
-            return special.global || proxy;
+            return special.global || exposedProxy;
           }
           return global.top;
         case "close":
@@ -165,9 +187,9 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           }
       }
       if (name !== "undefined") {
-        if (has(thisContext, name)) {
+        if (has(exposedObject, name)) {
           // @ts-ignore
-          return thisContext[name];
+          return exposedObject[name];
         }
         if (typeof name === "string") {
           if (has(context, name)) {
@@ -216,35 +238,29 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           //   return true;
           // }
           return true;
+        case "undefined":
+          return false;
         default:
           break;
       }
-      if (name !== "undefined") {
-        if (typeof name === "string") {
-          if (has(unscopables, name)) {
-            return false;
-          }
-          if (has(thisContext, name)) {
-            return true;
-          }
-          if (has(context, name)) {
-            if (has(protect, name)) {
-              return false;
-            }
-            return true;
-          }
-          if (has(special, name)) {
-            return true;
-          }
-          // 只处理onxxxx的事件
-          if (has(global, name)) {
-            if (name.startsWith("on")) {
-              return true;
-            }
-          }
-        } else if (typeof name === "symbol") {
-          return has(thisContext, name);
+      if (typeof name === "string") {
+        if (has(unscopables, name)) {
+          return false;
         }
+        if (has(exposedObject, name)) {
+          return true;
+        }
+        if (has(special, name)) {
+          return true;
+        }
+        // 只处理onxxxx的事件
+        if (has(global, name)) {
+          if (name.startsWith("on")) {
+            return true;
+          }
+        }
+      } else if (typeof name === "symbol") {
+        return has(exposedObject, name);
       }
       return false;
     },
@@ -270,24 +286,24 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
         if (has(global, name) && name.startsWith("on")) {
           const eventName = name.slice(2);
           if (val === undefined) {
-            global.removeEventListener(eventName, thisContext[name]);
+            global.removeEventListener(eventName, exposedObject[name]);
           } else {
-            if (thisContext[name]) {
-              global.removeEventListener(eventName, thisContext[name]);
+            if (exposedObject[name]) {
+              global.removeEventListener(eventName, exposedObject[name]);
             }
             global.addEventListener(eventName, val);
           }
-          thisContext[name] = val;
+          exposedObject[name] = val;
           return true;
         }
       }
       // @ts-ignore
-      thisContext[name] = val;
+      exposedObject[name] = val;
       return true;
     },
     getOwnPropertyDescriptor(_, name) {
       try {
-        let ret = Object.getOwnPropertyDescriptor(thisContext, name);
+        let ret = Object.getOwnPropertyDescriptor(exposedObject, name);
         if (ret) {
           return ret;
         }
@@ -303,8 +319,8 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
       }
     },
   });
-  proxy[Symbol.toStringTag] = "Window";
-  return proxy;
+  exposedProxy[Symbol.toStringTag] = "Window";
+  return exposedProxy;
 }
 
 export function addStyle(css: string): HTMLElement {
