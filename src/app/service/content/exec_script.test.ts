@@ -200,6 +200,7 @@ describe("@grant GM", () => {
       GM_saveTab: this.GM_saveTab,
       GM_cookie: this.GM_cookie,
       ["GM_cookie.list"]: this.GM_cookie.list,
+      ["GM.cookie"]: this.GM.cookie,
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -212,11 +213,12 @@ describe("@grant GM", () => {
       GM_saveTab: expect.any(Function),
       GM_cookie: expect.any(Function),
       ["GM_cookie.list"]: expect.any(Function),
+      ["GM.cookie"]: undefined,
     });
   });
   it("GM.*", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab"];
+    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab", "GM.cookie"];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     script.code = `return {
@@ -226,6 +228,8 @@ describe("@grant GM", () => {
       GM_getValue: this.GM_getValue,
       GM_getTab: this.GM_getTab,
       GM_saveTab: this.GM_saveTab,
+      GM_cookie: this.GM_cookie,
+      ["GM.cookie"]: this.GM.cookie,
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -236,6 +240,8 @@ describe("@grant GM", () => {
       GM_getValue: undefined,
       GM_getTab: undefined,
       GM_saveTab: undefined,
+      GM_cookie: undefined,
+      ["GM.cookie"]: expect.any(Object),
     });
   });
 });
