@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
-import { GM_Base } from "./gm_api";
+import { createGMBase } from "./gm_api";
 
 // 构建沙盒上下文
 export function createContext(
@@ -16,7 +16,7 @@ export function createContext(
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
   const EE: EventEmitter = new EventEmitter();
-  const context = GM_Base.create({
+  const context = createGMBase({
     prefix: envPrefix,
     message,
     scriptRes,
