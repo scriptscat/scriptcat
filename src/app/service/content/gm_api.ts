@@ -21,25 +21,6 @@ export interface IGM_Base {
 
 const integrity = {}; // 僅防止非法实例化
 
-const GM_cookie = (
-  a: IGM_Base,
-  action: string,
-  details: GMTypes.CookieDetails,
-  done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
-) => {
-  // 如果url和域名都没有，自动填充当前url
-  if (!details.url && !details.domain) {
-    details.url = window.location.href;
-  }
-  a.sendMessage("GM_cookie", [action, details])
-    .then((resp: any) => {
-      done && done(resp, undefined);
-    })
-    .catch((err) => {
-      done && done(undefined, err);
-    });
-};
-
 // GM_Base 定义内部用变量和函数。均使用@protected
 export class GM_Base implements IGM_Base {
   @GMContext.protected()
@@ -126,28 +107,6 @@ export class GM_Base implements IGM_Base {
   }
 }
 
-const GM_getValue = (a: GMApi, key: string, defaultValue?: any) => {
-  const ret = a.scriptRes.value[key];
-  if (ret !== undefined) {
-    return ret;
-  }
-  return defaultValue;
-};
-
-const GM_setValue = (a: GMApi, key: string, value: any) => {
-  // 对object的value进行一次转化
-  if (typeof value === "object") {
-    value = JSON.parse(JSON.stringify(value));
-  }
-  if (value === undefined) {
-    delete a.scriptRes.value[key];
-    a.sendMessage("GM_setValue", [key]);
-  } else {
-    a.scriptRes.value[key] = value;
-    a.sendMessage("GM_setValue", [key, value]);
-  }
-};
-
 // GMApi 定义 外部用API函数。不使用@protected
 export default class GMApi extends GM_Base {
   /**
@@ -177,49 +136,71 @@ export default class GMApi extends GM_Base {
 
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
   @GMContext.API()
-  public ["GM_getValue"](key: string, defaultValue?: any) {
-    return GM_getValue(this, key, defaultValue);
+  public GM_getValue(key: string, defaultValue?: any) {
+    return GMApi.GM_getValue(this, key, defaultValue);
+  }
+
+  static GM_getValue(a: GMApi, key: string, defaultValue?: any) {
+    const ret = a.scriptRes.value[key];
+    if (ret !== undefined) {
+      return ret;
+    }
+    return defaultValue;
   }
 
   @GMContext.API()
   public ["GM.getValue"](key: string, defaultValue?: any): Promise<any> {
     // 兼容GM.getValue
     return new Promise((resolve) => {
-      const ret = GM_getValue(this, key, defaultValue);
+      const ret = GMApi.GM_getValue(this, key, defaultValue);
       resolve(ret);
     });
   }
 
   @GMContext.API()
-  public ["GM_setValue"](key: string, value: any) {
-    GM_setValue(this, key, value);
+  public GM_setValue(key: string, value: any) {
+    GMApi.GM_setValue(this, key, value);
+  }
+
+  static GM_setValue(a: GMApi, key: string, value: any) {
+    // 对object的value进行一次转化
+    if (typeof value === "object") {
+      value = JSON.parse(JSON.stringify(value));
+    }
+    if (value === undefined) {
+      delete a.scriptRes.value[key];
+      a.sendMessage("GM_setValue", [key]);
+    } else {
+      a.scriptRes.value[key] = value;
+      a.sendMessage("GM_setValue", [key, value]);
+    }
   }
 
   @GMContext.API()
   public ["GM.setValue"](key: string, value: any): Promise<void> {
     // Asynchronous wrapper for GM_setValue to support GM.setValue
     return new Promise((resolve) => {
-      GM_setValue(this, key, value);
+      GMApi.GM_setValue(this, key, value);
       resolve();
     });
   }
 
   @GMContext.API()
-  public ["GM_deleteValue"](name: string): void {
-    GM_setValue(this, name, undefined);
+  public GM_deleteValue(name: string): void {
+    GMApi.GM_setValue(this, name, undefined);
   }
 
   @GMContext.API()
   public ["GM.deleteValue"](name: string): Promise<void> {
     // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
     return new Promise((resolve) => {
-      GM_setValue(this, name, undefined);
+      GMApi.GM_setValue(this, name, undefined);
       resolve();
     });
   }
 
   @GMContext.API()
-  public ["GM_listValues"](): string[] {
+  public GM_listValues(): string[] {
     return Object.keys(this.scriptRes.value);
   }
 
@@ -233,7 +214,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  public ["GM_setValues"](values: { [key: string]: any }) {
+  public GM_setValues(values: { [key: string]: any }) {
     if (values == null) {
       throw new Error("GM_setValues: values must not be null or undefined");
     }
@@ -242,12 +223,12 @@ export default class GMApi extends GM_Base {
     }
     Object.keys(values).forEach((key) => {
       const value = values[key];
-      GM_setValue(this, key, value);
+      GMApi.GM_setValue(this, key, value);
     });
   }
 
   @GMContext.API()
-  public ["GM_getValues"](keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
+  public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
     if (keysOrDefaults == null) {
       // Returns all values
       return this.scriptRes.value;
@@ -267,7 +248,7 @@ export default class GMApi extends GM_Base {
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       Object.keys(keysOrDefaults).forEach((key) => {
         const defaultValue = keysOrDefaults[key];
-        result[key] = GM_getValue(this, key, defaultValue);
+        result[key] = GMApi.GM_getValue(this, key, defaultValue);
       });
     }
     return result;
@@ -285,13 +266,13 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  public ["GM_deleteValues"](keys: string[]) {
+  public GM_deleteValues(keys: string[]) {
     if (!Array.isArray(keys)) {
-      console.warn(" GM_deleteValues: keys must be string[]");
+      console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
     keys.forEach((key) => {
-      GM_setValue(this, key, undefined);
+      GMApi.GM_setValue(this, key, undefined);
     });
   }
 
@@ -305,8 +286,6 @@ export default class GMApi extends GM_Base {
   }
 
   eventId: number = 0;
-
-  menuMap: Map<number, string> | undefined;
 
   @GMContext.API()
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
@@ -352,7 +331,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ follow: "GM.cookie" })
   ["GM.cookie.set"](details: GMTypes.CookieDetails) {
     return new Promise((resolve, reject) => {
-      GM_cookie(this, "set", details, (cookie, error) => {
+      GMApi.GM_cookie(this, "set", details, (cookie, error) => {
         error ? reject(error) : resolve(cookie);
       });
     });
@@ -361,7 +340,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ follow: "GM.cookie" })
   ["GM.cookie.list"](details: GMTypes.CookieDetails) {
     return new Promise((resolve, reject) => {
-      GM_cookie(this, "list", details, (cookie, error) => {
+      GMApi.GM_cookie(this, "list", details, (cookie, error) => {
         error ? reject(error) : resolve(cookie);
       });
     });
@@ -370,7 +349,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ follow: "GM.cookie" })
   ["GM.cookie.delete"](details: GMTypes.CookieDetails) {
     return new Promise((resolve, reject) => {
-      GM_cookie(this, "delete", details, (cookie, error) => {
+      GMApi.GM_cookie(this, "delete", details, (cookie, error) => {
         error ? reject(error) : resolve(cookie);
       });
     });
@@ -381,7 +360,7 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    GM_cookie(this, "set", details, done);
+    GMApi.GM_cookie(this, "set", details, done);
   }
 
   @GMContext.API({ follow: "GM_cookie" })
@@ -389,7 +368,7 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    GM_cookie(this, "list", details, done);
+    GMApi.GM_cookie(this, "list", details, done);
   }
 
   @GMContext.API({ follow: "GM_cookie" })
@@ -397,7 +376,7 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    GM_cookie(this, "delete", details, done);
+    GMApi.GM_cookie(this, "delete", details, done);
   }
 
   @GMContext.API()
@@ -406,8 +385,29 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    GM_cookie(this, action, details, done);
+    GMApi.GM_cookie(this, action, details, done);
   }
+
+  static GM_cookie(
+    a: IGM_Base,
+    action: string,
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    // 如果url和域名都没有，自动填充当前url
+    if (!details.url && !details.domain) {
+      details.url = window.location.href;
+    }
+    a.sendMessage("GM_cookie", [action, details])
+      .then((resp: any) => {
+        done && done(resp, undefined);
+      })
+      .catch((err) => {
+        done && done(undefined, err);
+      });
+  }
+
+  menuMap: Map<number, string> | undefined;
 
   @GMContext.API()
   GM_registerMenuCommand(
