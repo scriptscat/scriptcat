@@ -1,7 +1,18 @@
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 
-import { has } from "@App/pkg/utils/lodash";
 import type { ScriptFunc } from "./types";
+
+// undefined 和 null 以外，使用 hasOwnProperty 检查
+// 不使用 != 避免类型转换比较
+const has = (object: any, key: any) => {
+  switch (object) {
+    case undefined:
+    case null:
+      return false;
+    default:
+      return Object.prototype.hasOwnProperty.call(object, key);
+  }
+}
 
 // 构建脚本运行代码
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
@@ -210,9 +221,9 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           return true;
         case "top":
         case "parent":
-          if (global[name] === global.self) {
-            return true;
-          }
+          // if (global[name] === global.self) {
+          //   return true;
+          // }
           return true;
         default:
           break;
@@ -266,13 +277,14 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
         }
         // 只处理onxxxx的事件
         if (has(global, name) && name.startsWith("on")) {
+          const eventName = name.slice(2);
           if (val === undefined) {
-            global.removeEventListener(name.slice(2), thisContext[name]);
+            global.removeEventListener(eventName, thisContext[name]);
           } else {
             if (thisContext[name]) {
-              global.removeEventListener(name.slice(2), thisContext[name]);
+              global.removeEventListener(eventName, thisContext[name]);
             }
-            global.addEventListener(name.slice(2), val);
+            global.addEventListener(eventName, val);
           }
           thisContext[name] = val;
           return true;

@@ -458,7 +458,7 @@ export class RuntimeService {
                 return resourceUri;
               }
             })
-            .filter((it) => it != null)
+            .filter((it) => it !== undefined)
         );
       }
       return uriList.some((uri) => {
@@ -497,7 +497,7 @@ export class RuntimeService {
             }
           })
         )
-      ).filter((it) => it != null);
+      ).filter((it) => it !== undefined);
       // 批量更新
       if (scriptRegisterInfoList.length) {
         try {

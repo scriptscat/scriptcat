@@ -110,7 +110,7 @@ export class ScriptClient extends Client {
             return json;
           });
         const { code, data, msg } = scriptInfo;
-        if (code != 0) {
+        if (code !== 0) {
           // 无脚本访问权限
           return { success: false, msg };
         } else {
