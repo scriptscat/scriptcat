@@ -255,8 +255,8 @@ export class GM_Base implements IGM_Base {
   // @GMContext.protected()
   // protected protect!: any;
 
-  @GMContext.protected()
-  public __methodInject__!: any;
+  // @GMContext.protected()
+  // public __methodInject__!: any;
 
   @GMContext.protected()
   public context!: any;

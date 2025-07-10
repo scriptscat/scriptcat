@@ -23,35 +23,36 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
     window: {
       onurlchange: null,
     },
-    __methodInject__(grant: string): boolean {
-      const grantSet = this.grantSet || (this.grantSet = new Set());
-      const s = GMContextApiGet(grant);
-      if (!s) return false; // @grant 的定义未实作，略过 (返回 false 表示 @grant 不存在)
-      if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
-      grantSet.add(grant);
-      for (const t of s) {
-        const fnKeyArray = t.fnKey.split('.');
-        const m = fnKeyArray.length - 1;
-        let g = context;
-        for (let i = 0; i < m; i++) {
-          const part = fnKeyArray[i];
-          g = g[part] || (g[part] = {});
-        }
-        const finalPart = fnKeyArray[m];
-        if (g[finalPart]) continue;
-        g[finalPart] = t.api.bind(this);
-        const depend = t?.param?.depend;
-        if (depend) {
-          for (const grant of depend) {
-            this.__methodInject__(grant);
-          }
+    grantSet: new Set()
+  });
+  const __methodInject__ = (grant: string): boolean => {
+    const grantSet: Set<string> = context.grantSet;
+    const s = GMContextApiGet(grant);
+    if (!s) return false; // @grant 的定义未实作，略过 (返回 false 表示 @grant 不存在)
+    if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
+    grantSet.add(grant);
+    for (const t of s) {
+      const fnKeyArray = t.fnKey.split('.');
+      const m = fnKeyArray.length - 1;
+      let g = context;
+      for (let i = 0; i < m; i++) {
+        const part = fnKeyArray[i];
+        g = g[part] || (g[part] = {});
+      }
+      const finalPart = fnKeyArray[m];
+      if (g[finalPart]) continue;
+      g[finalPart] = t.api.bind(context);
+      const depend = t?.param?.depend;
+      if (depend) {
+        for (const grant of depend) {
+          __methodInject__(grant);
         }
       }
-      return true;
     }
-  });
+    return true;
+  }
   for (const grant of grantSet) {
-    context.__methodInject__(grant);
+    __methodInject__(grant);
   }
   // if (scriptRes.metadata.grant) {
   //   // 处理GM.与GM_，将GM_与GM.都复制一份
