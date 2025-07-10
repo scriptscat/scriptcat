@@ -20,6 +20,7 @@ const scriptRes = {
   grantMap: {
     none: true,
   },
+  testMode: true
 } as unknown as ScriptRunResource;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
@@ -44,6 +45,7 @@ const scriptRes2 = {
   sourceCode: "sourceCode",
   value: {},
   grantMap: {},
+  testMode: true
 } as unknown as ScriptRunResource;
 
 // @ts-ignore

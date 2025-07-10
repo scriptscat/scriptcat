@@ -60,6 +60,16 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 // } catch (e) {
 //   arguments[2](e);
 // }`;
+
+  if (scriptRes.testMode) {
+    // 测试时需要回传值
+    return `with(arguments[0]){
+${preCode}
+return (function(){
+${code}
+})();
+}`;
+  }
   return `with(arguments[0]){
 ${preCode}
 [((async function(){

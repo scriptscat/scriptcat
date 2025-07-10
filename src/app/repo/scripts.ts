@@ -79,6 +79,7 @@ export interface ScriptRunResource extends Script {
   value: { [key: string]: any };
   flag: string;
   resource: { [key: string]: Resource };
+  testMode?: boolean
 }
 
 export class ScriptDAO extends Repo<Script> {

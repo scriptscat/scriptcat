@@ -267,23 +267,20 @@ export class GM_Base implements IGM_Base {
   @GMContext.protected()
   public eventId!: number;
 
-  @GMContext.protected()
-  public integrity!: any;
+  // @GMContext.protected()
+  // public integrity!: any;
 
   constructor(
-    options: any = null
+    options: any = null,
+    obj: any = null
   ) {
-
-    if(options?.integrity !== integrity) throw new TypeError("Illegal invocation");
-
+    if(obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
-
   }
 
   @GMContext.protected()
   static create(options: { [key:string]: any}){
-    options.integrity = integrity;
-    return (new GM_Base(options)) as GM_Base & { [key:string]: any };
+    return (new GM_Base(options, integrity)) as GM_Base & { [key:string]: any };
   }
 
   // 单次回调使用
@@ -371,13 +368,12 @@ export default class GMApi extends GM_Base {
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE: EventEmitter = new EventEmitter();
     super({
-      integrity,
       prefix,
       message,
       scriptRes,
       valueChangeListener,
       EE
-    });
+    }, integrity);
   }
 
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
