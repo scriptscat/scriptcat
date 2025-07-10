@@ -135,7 +135,15 @@ describe("this", () => {
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(expect.any(Function));
-    // this.onload 不会影响 global.onload
+    // global.onload
+    expect(global.onload).toBeNull();
+  });
+  it("this.onload", async () => {
+    scriptRes2.code = `this.onload = () => "ok"; return this.onload;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // global.onload
     expect(global.onload).toBeNull();
   });
   it("undefined variable", async () => {
@@ -155,5 +163,23 @@ describe("this", () => {
     } catch (e: any) {
       expect(e.message).toContain("testVar is not defined");
     }
+  });
+});
+
+describe("none this", () => {
+  it("onload", async () => {
+    scriptRes2.code = `onload = ()=>{};return onload;`;
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await noneExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // global.onload
+    expect(global.onload).toEqual(expect.any(Function));
+    global.onload = null; // 清理全局变量
+  });
+  it("this.test", async () => {
+    scriptRes2.code = `this.test = "ok";return this.test;`;
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await noneExec.exec();
+    expect(ret).toEqual("ok");
   });
 });
