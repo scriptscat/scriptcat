@@ -711,7 +711,7 @@ export class RuntimeService {
       return undefined;
     }
 
-    scriptRes.code = compileInjectScript(scriptRes);
+    scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
     const patternMatches = dealPatternMatches(matches);
     const scriptMatchInfo: ScriptMatchInfo = Object.assign(

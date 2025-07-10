@@ -72,10 +72,9 @@ export function compileScript(code: string): ScriptFunc {
  */
 export function compileInjectScript(
   script: ScriptRunResource,
-  scriptCode?: string,
+  scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  scriptCode = scriptCode ?? script.code;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
   return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
