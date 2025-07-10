@@ -785,18 +785,7 @@ export default class GMApi extends GM_Base {
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
     return GM_xmlhttpRequest(this, details)
   }
-  @GMContext.API({
-    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
-  })
-  public GM_xmlHttpRequest(details: GMTypes.XHRDetails) {
-    return GM_xmlhttpRequest(this, details)
-  }
-  @GMContext.API({
-    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
-  })
-  public ['GM.xmlhttpRequest'](details: GMTypes.XHRDetails) {
-    return GM_xmlhttpRequest(this, details)
-  }
+
   @GMContext.API({
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })

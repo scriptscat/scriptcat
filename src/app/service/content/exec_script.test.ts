@@ -5,6 +5,7 @@ import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
 import type { GMInfoEnv } from "./types";
+import { ScriptLoadInfo } from "../service_worker/types";
 
 initTestEnv();
 
@@ -181,5 +182,56 @@ describe("none this", () => {
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await noneExec.exec();
     expect(ret).toEqual("ok");
+  });
+});
+
+describe("@grant GM", () => {
+  it("GM_", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab"];
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    script.code = `return {
+      ["GM.getValue"]: GM.getValue,
+      ["GM.getTab"]: GM.getTab,
+      ["GM.setTab"]: GM.setTab,
+      GM_getValue: this.GM_getValue,
+      GM_getTab: this.GM_getTab,
+      GM_saveTab: this.GM_saveTab,
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual({
+      "GM.getValue": undefined,
+      "GM.getTab": undefined,
+      "GM.setTab": undefined,
+      GM_getValue: expect.any(Function),
+      GM_getTab: expect.any(Function),
+      GM_saveTab: expect.any(Function),
+    });
+  });
+  it("GM.*", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab"];
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    script.code = `return {
+      ["GM.getValue"]: GM.getValue,
+      ["GM.getTab"]: GM.getTab,
+      ["GM.saveTab"]: GM.saveTab,
+      GM_getValue: this.GM_getValue,
+      GM_getTab: this.GM_getTab,
+      GM_saveTab: this.GM_saveTab,
+    }`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual({
+      "GM.getValue": expect.any(Function),
+      "GM.getTab": expect.any(Function),
+      "GM.setTab": expect.any(Function),
+      GM_getValue: undefined,
+      GM_getTab: undefined,
+      GM_setTab: undefined,
+    });
   });
 });
