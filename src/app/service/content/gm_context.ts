@@ -7,7 +7,7 @@ export function GMContextApiGet(name: string): ApiValue[] | undefined {
   return apis.get(name);
 }
 
-export function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
+function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
   // 一个 @grant 可以扩充多个 API 函数
   let m: ApiValue[] | undefined = apis.get(grant);
   if (!m) apis.set(grant, (m = []));

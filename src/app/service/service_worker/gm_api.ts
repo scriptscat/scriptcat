@@ -8,7 +8,7 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
-import PermissionVerify from "./permission_verify";
+import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
@@ -133,7 +133,7 @@ export default class GMApi {
 
   async handlerRequest(data: MessageRequest, sender: GetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
-    const api = PermissionVerify.apis.get(data.api);
+    const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");
     }
@@ -159,7 +159,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    async confirm(request: Request) {
+    confirm: async (request: Request) => {
       if (request.params[0] === "store") {
         return true;
       }
@@ -812,7 +812,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_openInTab",
+    link: ["GM_openInTab"],
   })
   async GM_closeInTab(request: Request): Promise<boolean> {
     try {
@@ -939,7 +939,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_notification",
+    link: ["GM_notification"],
   })
   GM_closeNotification(request: Request) {
     if (request.params.length === 0) {
@@ -951,7 +951,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_notification",
+    link: ["GM_notification"],
   })
   GM_updateNotification(request: Request) {
     if (isFirefox()) {
@@ -1055,8 +1055,8 @@ export default class GMApi {
     await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
-  @PermissionVerify.API({ alias: ["window.close"] })
-  async windowDotClose(request: Request, sender: GetSender) {
+  @PermissionVerify.API()
+  async ["window.close"](request: Request, sender: GetSender) {
     /*
      * Note: for security reasons it is not allowed to close the last tab of a window.
      * https://www.tampermonkey.net/documentation.php#api:window.close
@@ -1066,8 +1066,8 @@ export default class GMApi {
     await chrome.tabs.remove(sender.getSender().tab?.id as number);
   }
 
-  @PermissionVerify.API({ alias: ["window.focus"] })
-  async windowDotFocus(request: Request, sender: GetSender) {
+  @PermissionVerify.API()
+  async ["window.focus"](request: Request, sender: GetSender) {
     await chrome.tabs.update(sender.getSender().tab?.id as number, {
       active: true,
     });

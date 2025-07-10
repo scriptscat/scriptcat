@@ -1134,12 +1134,12 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   ["window.close"]() {
-    return this.sendMessage("windowDotClose", []);
+    return this.sendMessage("window.close", []);
   }
 
   @GMContext.API()
   ["window.focus"]() {
-    return this.sendMessage("windowDotFocus", []);
+    return this.sendMessage("window.focus", []);
   }
 }
 
