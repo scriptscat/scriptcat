@@ -5,7 +5,7 @@ import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
 import type { GMInfoEnv } from "./types";
-import { ScriptLoadInfo } from "../service_worker/types";
+import type { ScriptLoadInfo } from "../service_worker/types";
 
 initTestEnv();
 
