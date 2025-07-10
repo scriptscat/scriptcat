@@ -45,7 +45,7 @@ export interface ApiParam {
   alias?: string[];
   // 关联
   link?: string[];
-  // 兼容GM.* 及 CAT.*
+  // 兼容GM.*
   dotAlias?: boolean 
 }
 
@@ -68,7 +68,7 @@ export default class PermissionVerify {
 
   public static API(param: ApiParam = {}) {
     if (param.dotAlias === undefined) {
-      param.dotAlias = true; // 预设兼容GM.* 及 CAT.*
+      param.dotAlias = true; // 预设兼容GM.*
     }
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
@@ -76,9 +76,9 @@ export default class PermissionVerify {
         descriptor.value,
         param
       );
-      // 兼容GM.* 及 CAT.*
-      if (param.dotAlias && key.includes('_')) {
-        const dot = key.replace("_", ".");
+      // 兼容GM.*
+      if (param.dotAlias && key.includes('GM_')) {
+        const dot = key.replace("GM_", "GM.");
         if (param.alias) {
           param.alias.push(dot);
         } else {
