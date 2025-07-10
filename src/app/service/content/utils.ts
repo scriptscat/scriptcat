@@ -37,44 +37,26 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   }
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
   const preCode = [requireCode].join("\n"); // 不需要 async 封装
-  const code = [scriptCode, sourceURL].join("\n"); // 需要 async 封裝
+  const code = [scriptCode, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
-  // arguments = [context: globalThis, scriptName: string, errorHandling: function]
-//   const onErrorCode = `arguments[2] = (e) => {
-//   if (e.message && e.stack) {
-//       const n = arguments[1];
-//       console.error("ERROR: Execution of script '" + n + "' failed! " + e.message);
-//       console.log(e.stack);
-//   } else {
-//       console.error(e);
-//   }
-// };`
-//   return `${onErrorCode}
-// try {
-//   with(arguments[0]){
-//     ${preCode}
-//     [((async function(){
-//     ${code}
-//     })().catch(arguments[2]),0)];
-//   }
-// } catch (e) {
-//   arguments[2](e);
-// }`;
-
-  if (scriptRes.testMode) {
-    // 测试时需要回传值
-    return `with(arguments[0]){
-${preCode}
-return (function(){
-${code}
-})();
-}`;
+  // this = context: globalThis
+  // arguments = [named: Object, scriptName: string]
+  // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
+  // 使用sandboxContent时，arguments[0]为undefined
+  return `try {
+  with(this){
+    ${preCode}
+    return (async function({GM,GM_info}){
+    ${code}
+    })(arguments[0]||{GM,GM_info});
   }
-  return `with(arguments[0]){
-${preCode}
-[((async function(){
-${code}
-})(),0)];
+} catch (e) {
+  if (e.message && e.stack) {
+      console.error("ERROR: Execution of script '" + arguments[1] + "' failed! " + e.message);
+      console.log(e.stack);
+  } else {
+      console.error(e);
+  }
 }`;
 }
 
@@ -174,9 +156,9 @@ export function proxyContext<const Context extends GMWorldContext>(global: Conte
   }
   // @ts-ignore
   const exposedProxy = new Proxy(exposedObject, {
-    defineProperty(target, name, desc) {
-      return Reflect.defineProperty(target, name, desc);
-    },
+    // defineProperty(target, name, desc) {
+    //   return Reflect.defineProperty(target, name, desc);
+    // },
     get(_, name): any {
       switch (name) {
         case "window":

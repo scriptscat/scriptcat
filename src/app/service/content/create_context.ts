@@ -6,7 +6,7 @@ import { GMContextApiGet } from "./gm_context";
 import { GM_Base } from "./gm_api";
 
 // 构建沙盒上下文
-export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPrefix: string, message: Message, grantSet: Set<string>): GM_Base {
+export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPrefix: string, message: Message, grantSet: Set<string>) {
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
   const EE: EventEmitter = new EventEmitter();
@@ -74,5 +74,5 @@ export function createContext(scriptRes: ScriptRunResource, GMInfo: any, envPref
   //   }
   // }
   context.unsafeWindow = window;
-  return <GM_Base>context;
+  return context;
 }

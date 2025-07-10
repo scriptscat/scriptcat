@@ -19,9 +19,9 @@ export default class ExecScript {
 
   proxyContent: typeof globalThis;
 
-  sandboxContent?: IGM_Base;
+  sandboxContent?: IGM_Base & { [key: string]: any };
 
-  GM_info: any;
+  named?: { [key: string]: any };
 
   constructor(
     scriptRes: ScriptLoadInfo,
@@ -37,7 +37,7 @@ export default class ExecScript {
       uuid: this.scriptRes.uuid,
       name: this.scriptRes.name,
     });
-    this.GM_info = evaluateGMInfo(envInfo, this.scriptRes);
+    const GM_info = evaluateGMInfo(envInfo, this.scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
       this.scriptFunc = compileScript(code);
@@ -48,9 +48,12 @@ export default class ExecScript {
     if (grantSet.has("none")) {
       // 不注入任何GM api
       this.proxyContent = global;
+      // ScriptCat行为：GM.info 和 GM_info 同时注入
+      // 不改变Context情况下，以 named 传多於一个全域变量
+      this.named = {GM: {info: GM_info}, GM_info};
     } else {
       // 构建脚本GM上下文
-      this.sandboxContent = createContext(scriptRes, this.GM_info, envPrefix, message, grantSet);
+      this.sandboxContent = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
       if (globalInjection) {
         Object.assign(this.sandboxContent, globalInjection);
       }
@@ -74,7 +77,7 @@ export default class ExecScript {
   exec() {
     this.logger.debug("script start");
     const context = this.proxyContent;
-    return this.scriptFunc.call(null, context, this.scriptRes.name);
+    return this.scriptFunc.call(context, this.named, this.scriptRes.name);
   }
 
   stop() {

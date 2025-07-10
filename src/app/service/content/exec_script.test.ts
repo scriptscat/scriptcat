@@ -18,7 +18,6 @@ const scriptRes = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  testMode: true,
 } as unknown as ScriptRunResource;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
@@ -42,7 +41,6 @@ const scriptRes2 = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  testMode: true,
 } as unknown as ScriptRunResource;
 
 // @ts-ignore
