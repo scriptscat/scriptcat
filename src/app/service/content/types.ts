@@ -23,6 +23,7 @@ export type ValueUpdateData = {
 export interface ApiParam {
   follow?: string;
   depend?: string[];
+  alias?: string;
 }
 
 export interface ApiValue {

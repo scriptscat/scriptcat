@@ -265,6 +265,14 @@ export default class GMApi extends GM_Base {
     });
   }
 
+  @GMContext.API({ depend: ["GM_setValues"] })
+  public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
+    return new Promise((resolve) => {
+      this.GM_setValues(values);
+      resolve();
+    });
+  }
+
   @GMContext.API()
   public GM_deleteValues(keys: string[]) {
     if (!Array.isArray(keys)) {
@@ -287,19 +295,19 @@ export default class GMApi extends GM_Base {
 
   eventId: number = 0;
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.addValueChangeListener" })
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
     this.eventId += 1;
     this.valueChangeListener.set(this.eventId, { name, listener });
     return this.eventId;
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.removeValueChangeListener" })
   public GM_removeValueChangeListener(listenerId: number): void {
     this.valueChangeListener.delete(listenerId);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.log" })
   GM_log(message: string, level: GMTypes.LoggerLevel = "info", ...labels: GMTypes.LoggerLabel[]) {
     if (typeof message !== "string") {
       message = JSON.stringify(message);
@@ -409,7 +417,7 @@ export default class GMApi extends GM_Base {
 
   menuMap: Map<number, string> | undefined;
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.registerMenuCommand" })
   GM_registerMenuCommand(
     name: string,
     listener: (inputValue?: any) => void,
@@ -456,7 +464,7 @@ export default class GMApi extends GM_Base {
     return this.GM_registerMenuCommand(...args);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.addStyle" })
   GM_addStyle(css: string) {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
@@ -480,7 +488,7 @@ export default class GMApi extends GM_Base {
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(parentNode: EventTarget | string, tagName: any, attrs?: any) {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
@@ -509,7 +517,7 @@ export default class GMApi extends GM_Base {
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.unregisterMenuCommand" })
   GM_unregisterMenuCommand(id: number): void {
     if (!this.menuMap) {
       this.menuMap = new Map();
@@ -574,20 +582,10 @@ export default class GMApi extends GM_Base {
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
   @GMContext.API({
+    alias: "GM.xmlHttpRequest",
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
-    return GMApi.GM_xmlhttpRequest(this, details);
-  }
-
-  @GMContext.API({
-    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
-  })
-  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails) {
-    return GMApi.GM_xmlhttpRequest(this, details);
-  }
-
-  static GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
     const u = new URL(details.url, window.location.href);
     if (details.headers) {
       Object.keys(details.headers).forEach((key) => {
@@ -636,7 +634,7 @@ export default class GMApi extends GM_Base {
             return Promise.all(
               values.map(async (val) => {
                 if (val instanceof File) {
-                  const url = await a.CAT_createBlobUrl(val);
+                  const url = await this.CAT_createBlobUrl(val);
                   data.push({
                     key,
                     type: "file",
@@ -658,7 +656,7 @@ export default class GMApi extends GM_Base {
       } else if (details.data instanceof Blob) {
         // 处理blob
         param.dataType = "Blob";
-        param.data = await a.CAT_createBlobUrl(details.data);
+        param.data = await this.CAT_createBlobUrl(details.data);
       } else {
         param.data = details.data;
       }
@@ -680,11 +678,11 @@ export default class GMApi extends GM_Base {
         return async (xhr: GMTypes.XHRResponse) => {
           if (xhr.response) {
             if (responseType === "document") {
-              xhr.response = await a.CAT_fetchDocument(<string>xhr.response);
+              xhr.response = await this.CAT_fetchDocument(<string>xhr.response);
               xhr.responseXML = xhr.response;
               xhr.responseType = "document";
             } else {
-              const resp = await a.CAT_fetchBlob(<string>xhr.response);
+              const resp = await this.CAT_fetchBlob(<string>xhr.response);
               if (responseType === "arraybuffer") {
                 xhr.response = await resp.arrayBuffer();
               } else {
@@ -725,7 +723,7 @@ export default class GMApi extends GM_Base {
       }
 
       // 发送信息
-      a.connect("GM_xmlhttpRequest", [param]).then((con) => {
+      this.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
         con.onMessage((data: { action: string; data: any }) => {
           // 处理返回
@@ -777,7 +775,7 @@ export default class GMApi extends GM_Base {
     };
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.download" })
   GM_download(url: GMTypes.DownloadDetails | string, filename?: string): GMTypes.AbortHandle<void> {
     let details: GMTypes.DownloadDetails;
     if (typeof url === "string") {
@@ -838,6 +836,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({
     depend: ["GM_closeNotification", "GM_updateNotification"],
+    alias: "GM.notification",
   })
   public async GM_notification(
     detail: GMTypes.NotificationDetails | string,
@@ -956,17 +955,17 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.closeNotification" })
   public GM_closeNotification(id: string): void {
     this.sendMessage("GM_closeNotification", [id]);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.updateNotification" })
   public GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void {
     this.sendMessage("GM_updateNotification", [id, details]);
   }
 
-  @GMContext.API({ depend: ["GM_closeInTab"] })
+  @GMContext.API({ depend: ["GM_closeInTab"], alias: "GM.openInTab" })
   public GM_openInTab(url: string, options?: GMTypes.OpenTabOptions | boolean): GMTypes.Tab {
     let option: GMTypes.OpenTabOptions = {};
     if (arguments.length === 1) {
@@ -1019,19 +1018,19 @@ export default class GMApi extends GM_Base {
     return ret;
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.closeInTab" })
   public GM_closeInTab(tabid: string) {
     return this.sendMessage("GM_closeInTab", [tabid]);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.getTab" })
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
       callback(data ?? {});
     });
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.saveTab" })
   GM_saveTab(obj: object) {
     if (typeof obj === "object") {
       obj = JSON.parse(JSON.stringify(obj));
@@ -1039,14 +1038,14 @@ export default class GMApi extends GM_Base {
     this.sendMessage("GM_saveTab", [obj]);
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.getTabs" })
   GM_getTabs(callback: (objs: { [key: string | number]: object }) => any) {
     this.sendMessage("GM_getTabs", []).then((resp) => {
       callback(resp);
     });
   }
 
-  @GMContext.API()
+  @GMContext.API({ alias: "GM.setClipboard" })
   GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
     this.sendMessage("GM_setClipboard", [data, info])
       .then(() => {

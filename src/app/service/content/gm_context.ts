@@ -12,6 +12,13 @@ export function GMContextApiSet(grant: string, fnKey: string, api: any, param: A
   let m: ApiValue[] | undefined = apis.get(grant);
   if (!m) apis.set(grant, m = []);
   m.push({ fnKey, api, param });
+  
+  // 如果有别名，也在别名下注册 API
+  if (param.alias) {
+    let aliasM: ApiValue[] | undefined = apis.get(param.alias);
+    if (!aliasM) apis.set(param.alias, aliasM = []);
+    aliasM.push({ fnKey, api, param });
+  }
 }
 
 export const protect: { [key: string]: any } = {};
