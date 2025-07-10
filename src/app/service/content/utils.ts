@@ -48,7 +48,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
     ${preCode}
     return (async function({GM,GM_info}){
     ${code}
-    })(arguments[0]||{GM,GM_info});
+    }).call(this,arguments[0]||{GM,GM_info});
   }
 } catch (e) {
   if (e.message && e.stack) {
