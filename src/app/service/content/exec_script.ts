@@ -44,16 +44,13 @@ export default class ExecScript {
     } else {
       this.scriptFunc = code;
     }
-    const grantMap: { [key: string]: boolean } = {};
-    scriptRes.metadata.grant?.forEach((key) => {
-      grantMap[key] = true;
-    });
-    if (grantMap.none) {
+    const grantSet = new Set(scriptRes.metadata.grant || []);
+    if (grantSet.has('none')) {
       // 不注入任何GM api
       this.proxyContent = global;
     } else {
       // 构建脚本GM上下文
-      this.sandboxContent = createContext(scriptRes, this.GM_info, envPrefix, message);
+      this.sandboxContent = createContext(scriptRes, this.GM_info, envPrefix, message, grantSet);
       this.proxyContent = proxyContext(global, this.sandboxContent, thisContext);
     }
   }

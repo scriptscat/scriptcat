@@ -21,10 +21,12 @@ export type ValueUpdateData = {
 // gm_api.ts
 
 export interface ApiParam {
+  follow?: string;
   depend?: string[];
 }
 
 export interface ApiValue {
+  fnKey: string;
   api: any;
   param: ApiParam;
 }

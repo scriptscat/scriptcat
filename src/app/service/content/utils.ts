@@ -1,6 +1,7 @@
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 
 import type { ScriptFunc } from "./types";
+import { protect } from "./gm_context";
 
 // undefined 和 null 以外，使用 hasOwnProperty 检查
 // 不使用 != 避免类型转换比较
@@ -136,16 +137,6 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
   thisContext.eval = global.eval;
   thisContext.define = undefined;
   warpObject(thisContext, special, global, context);
-  // keyword是与createContext时同步的,避免访问到context的内部变量
-  const contextKeyword: { [key: string]: any } = {
-    message: 1,
-    valueChangeListener: 1,
-    connect: 1,
-    runFlag: 1,
-    valueUpdate: 1,
-    sendMessage: 1,
-    scriptRes: 1,
-  };
   // @ts-ignore
   const proxy = new Proxy(context, {
     defineProperty(_, name, desc) {
@@ -180,7 +171,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
         }
         if (typeof name === "string") {
           if (has(context, name)) {
-            if (has(contextKeyword, name)) {
+            if (has(protect, name)) {
               return undefined;
             }
             return context[name];
@@ -237,7 +228,7 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
             return true;
           }
           if (has(context, name)) {
-            if (has(contextKeyword, name)) {
+            if (has(protect, name)) {
               return false;
             }
             return true;
