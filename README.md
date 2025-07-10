@@ -24,7 +24,7 @@ ScriptCat
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
 ![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
 
-## 关于脚本猫
+## 关于
 
 ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于油猴的设计理念，完全兼容油猴脚本。它不仅支持传统的用户脚本，还创新性地实现了后台脚本运行框架，提供丰富的API扩展，让脚本能够完成更多强大的功能。内置优秀的代码编辑器，支持智能补全和语法检查，让脚本开发更加高效流畅。
 
@@ -65,9 +65,11 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 | 浏览器 | 商店链接 | 状态 |
 |--------|----------|------|
-| Chrome | [Chrome 商店](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) | ✅ 可用 |
-| Edge | [Edge 商店](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) | ✅ 可用 |
-| Firefox | [Firefox 商店](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) | ✅ 可用 |
+| Chrome | [正式版本](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta版本](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ 可用 |
+| Edge | [正式版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ 可用 |
+| Firefox | [正式版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
+| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ 可用 |
+| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | 每次提交触发 |
 
 #### 手动安装
 
@@ -79,42 +81,13 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 1. **从脚本市场获取**：访问 [ScriptCat 脚本站](https://scriptcat.org/search) 或其他用户脚本市场
 2. **后台脚本专区**：体验独有的 [后台脚本](https://scriptcat.org/zh-CN/search?script_type=3)
-3. **兼容性**：支持绝大部分油猴脚本，可直接安装使用
+3. **兼容性**：支持绝大部分油猴脚本，可直接安装使用，如果遇到不兼容的脚本，欢迎通过 [issue](https://github.com/scriptscat/scriptcat/issues) 反馈给我们。
 
 #### 开发脚本
 
-查看我们的 [开发文档](https://docs.scriptcat.org/docs/dev/) 学习如何编写脚本。文档涵盖了从基础到高级的所有内容，即使是其他油猴管理器用户也可以参考。
-
----
-
-## 📚 详细说明
-
-### 高级用户指南
-
-#### 脚本管理
-
-可以从各大用户脚本市场[获取脚本](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC)进行安装。安装方式与油猴完全相同，如果遇到不兼容的脚本，欢迎通过 [issue](https://github.com/scriptscat/scriptcat/issues) 反馈给我们。
-
-#### 开发者资源
-
-[开发文档](https://docs.scriptcat.org/docs/dev/)持续完善中。由于采用了与油猴相似的设计理念，两者有很多相通之处，即使你在使用其他油猴管理器，也可以参考我们的文档进行开发！
+查看我们的 [开发文档](https://docs.scriptcat.org/docs/dev/)与[开发指南](https://learn.scriptcat.org/) 学习如何编写脚本。文档涵盖了从基础到高级的所有内容，让你在编写脚本时得心应手。
 
 如果发现文档有错误或希望贡献内容，可以点击文档页面的"编辑此页"进行修改。
-
-### ⚡ Beta 版本
-
-想要体验最新功能？我们提供了预发布版本供测试：
-
-**获取方式：**
-
-- [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) - 稳定的预发布版本
-- [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) - 每次代码提交后的最新构建
-
-**Beta 版本商店：**
-
-- [Chrome Beta](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN)
-- [Edge Beta](https://microsoftedge.microsoft.com/addons/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)
-- [Firefox Beta](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)
 
 ---
 

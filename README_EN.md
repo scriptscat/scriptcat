@@ -65,9 +65,11 @@ ScriptCat is a powerful userscript manager based on Tampermonkey's design philos
 
 | Browser | Store Link | Status |
 |---------|------------|--------|
-| Chrome | [Chrome Store](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) | ✅ Available |
-| Edge | [Edge Store](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) | ✅ Available |
-| Firefox | [Firefox Store](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) | ✅ Available |
+| Chrome | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ Available |
+| Edge | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Available |
+| Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
+| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ Available |
+| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | Triggered on every commit |
 
 #### Manual Installation
 
@@ -79,46 +81,15 @@ If you cannot access extension stores, download the latest ZIP package from [Git
 
 1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/search) or other userscript markets
 2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/zh-CN/search?script_type=3)
-3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly
+3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
 
 #### Developing Scripts
 
-Check our [Development Documentation](https://docs.scriptcat.org/docs/dev/) to learn how to write scripts. The documentation covers everything from basics to advanced topics, and users of other userscript managers can also refer to it.
-
----
-
-## 📚 Detailed Information
-
-### Advanced User Guide
-
-#### Script Management
-
-You can install scripts from various userscript markets by [getting scripts](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC). The installation method is exactly the same as Tampermonkey. If you encounter incompatible scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
-
-#### Developer Resources
-
-Our [Development Documentation](https://docs.scriptcat.org/docs/dev/) is continuously improving. Due to the similar design philosophy with Tampermonkey, there are many commonalities between them. Even if you're using other userscript managers, you can refer to our documentation for development!
+Check our [Development Documentation](https://docs.scriptcat.org/docs/dev/) and [Developer Guide](https://learn.scriptcat.org/) to learn how to write scripts. The documentation covers everything from basics to advanced topics, making script development effortless.
 
 If you find errors in the documentation or want to contribute content, you can click "Edit this page" on the documentation page to make modifications.
 
-### ⚡ Beta Versions
-
-Want to experience the latest features? We provide pre-release versions for testing:
-
-**Getting Beta Versions:**
-
-- [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) - Stable pre-release versions
-- [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) - Latest builds after each code commit
-
-**Beta Version Stores:**
-
-- [Chrome Beta](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN)
-- [Edge Beta](https://microsoftedge.microsoft.com/addons/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)
-- [Firefox Beta](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)
-
 ---
-
-## Instructions
 
 ## 🤝 Contributing
 
