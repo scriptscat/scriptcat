@@ -2,7 +2,7 @@ import { CronTime } from "cron";
 
 export function nextTime(crontab: string): string {
   let oncePos = 0;
-  if (crontab.indexOf("once") !== -1) {
+  if (crontab.includes("once")) {
     const vals = crontab.split(" ");
     vals.forEach((val, index) => {
       if (val === "once") {

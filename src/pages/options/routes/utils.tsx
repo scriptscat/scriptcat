@@ -20,7 +20,7 @@ export function scriptListSort(result: Script[]) {
 export function installUrlToHome(installUrl: string) {
   try {
     // 解析scriptcat
-    if (installUrl.indexOf("scriptcat.org") !== -1) {
+    if (installUrl.includes("scriptcat.org")) {
       const id = installUrl.split("/")[5];
       return (
         <Button type="text" iconOnly size="small" target="_blank" href={`https://scriptcat.org/script-show-page/${id}`}>
@@ -28,7 +28,7 @@ export function installUrlToHome(installUrl: string) {
         </Button>
       );
     }
-    if (installUrl.indexOf("greasyfork.org") !== -1) {
+    if (installUrl.includes("greasyfork.org")) {
       const id = installUrl.split("/")[4];
       return (
         <Button type="text" iconOnly size="small" target="_blank" href={`https://greasyfork.org/scripts/${id}`}>
@@ -36,7 +36,7 @@ export function installUrlToHome(installUrl: string) {
         </Button>
       );
     }
-    if (installUrl.indexOf("raw.githubusercontent.com") !== -1) {
+    if (installUrl.includes("raw.githubusercontent.com")) {
       const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
       return (
         <Button
@@ -52,7 +52,7 @@ export function installUrlToHome(installUrl: string) {
         />
       );
     }
-    if (installUrl.indexOf("github.com") !== -1) {
+    if (installUrl.includes("github.com")) {
       const repo = `${installUrl.split("/")[3]}/${installUrl.split("/")[4]}`;
       return (
         <Button

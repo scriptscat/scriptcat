@@ -108,7 +108,7 @@ function SubscribeList() {
           </div>
         );
       },
-      onFilter: (value, row) => (value ? row.name.indexOf(value) !== -1 : true),
+      onFilter: (value, row) => (!value || row.name.includes(value)),
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
           setTimeout(() => inputRef.current!.focus(), 150);

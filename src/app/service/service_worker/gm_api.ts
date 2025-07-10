@@ -178,7 +178,7 @@ export default class GMApi {
       if (request.script.metadata.connect) {
         const { connect } = request.script.metadata;
         flag =
-          connect.indexOf("*") !== -1 ||
+          connect.includes("*") ||
           connect.findIndex((connectHostName) => url.hostname.endsWith(connectHostName)) !== -1;
       }
       if (!flag) {
