@@ -28,8 +28,8 @@ export default class ExecScript {
     envPrefix: "content" | "offscreen",
     message: Message,
     code: string | ScriptFunc,
-    envInfo: GMInfoEnv, 
-    globalInjection?: {[key:string]:any} // 主要是全域API. @grant none 时无效
+    envInfo: GMInfoEnv,
+    globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效
   ) {
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
@@ -45,7 +45,7 @@ export default class ExecScript {
       this.scriptFunc = code;
     }
     const grantSet = new Set(scriptRes.metadata.grant || []);
-    if (grantSet.has('none')) {
+    if (grantSet.has("none")) {
       // 不注入任何GM api
       this.proxyContent = global;
     } else {
@@ -69,7 +69,7 @@ export default class ExecScript {
 
   /**
    * @see {@link compileScriptCode}
-   * @returns 
+   * @returns
    */
   exec() {
     this.logger.debug("script start");
