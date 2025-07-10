@@ -241,7 +241,7 @@ describe("@grant GM", () => {
       GM_getTab: undefined,
       GM_saveTab: undefined,
       GM_cookie: undefined,
-      ["GM.cookie"]: expect.any(Object),
+      ["GM.cookie"]: expect.any(Function),
     });
   });
 });
