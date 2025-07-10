@@ -31,6 +31,11 @@ export function createContext(
     },
     grantSet: new Set(),
   });
+  const createStubCallable = () => function (this: { [key: string]: any }) {
+    const f = this.defaultFn;
+    if (!f) throw new Error("this stub is not callable.");
+    return f(context);
+  }
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
@@ -39,30 +44,13 @@ export function createContext(
     grantSet.add(grant);
     for (const t of s) {
       const fnKeyArray = t.fnKey.split(".");
-      const m = fnKeyArray.length - 1;
+      const m = fnKeyArray.length;
       let g = context;
       for (let i = 0; i < m; i++) {
         const part = fnKeyArray[i];
-        g = g[part] || (g[part] = {});
+        g = g[part] || (g[part] = createStubCallable()); // 建立占位函数物件
       }
-      const finalPart = fnKeyArray[m];
-      if (g[finalPart]) {
-        // 如果已存在且当前要设置的是一个函数，需要特殊处理
-        // 保持现有的属性，同时让对象可调用
-        if (typeof t.api === 'function' && typeof g[finalPart] === 'object') {
-          const existingObj = g[finalPart];
-          const boundApi = t.api.bind(context);
-          // 创建一个可调用的对象，保留现有属性
-          const callableObj = function(...args: any[]) {
-            return boundApi(...args);
-          };
-          // 复制现有属性到新的可调用对象
-          Object.assign(callableObj, existingObj);
-          g[finalPart] = callableObj;
-        }
-        continue;
-      }
-      g[finalPart] = t.api.bind(context);
+      g.defaultFn = t.api; // 定义占位函数物件的实作行为
       const depend = t?.param?.depend;
       if (depend) {
         for (const grant of depend) {
