@@ -582,10 +582,32 @@ export default class GMApi extends GM_Base {
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
   @GMContext.API({
-    alias: "GM.xmlHttpRequest",
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
+    return GMApi.GM_xmlhttpRequest(this, details);
+  }
+
+  @GMContext.API({ depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"] })
+  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> {
+    let abort: { abort: () => void };
+    const ret = new Promise<GMTypes.XHRResponse>((resolve, reject) => {
+      details.onloadend = (xhr: GMTypes.XHRResponse) => {
+        resolve(xhr);
+      };
+      details.onerror = (error: any) => {
+        reject(error);
+      };
+      abort = GMApi.GM_xmlhttpRequest(this, details);
+    });
+    //@ts-ignore
+    ret.abort = () => {
+      abort && abort.abort && abort.abort();
+    };
+    return ret;
+  }
+
+  static GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
     const u = new URL(details.url, window.location.href);
     if (details.headers) {
       Object.keys(details.headers).forEach((key) => {
@@ -634,7 +656,7 @@ export default class GMApi extends GM_Base {
             return Promise.all(
               values.map(async (val) => {
                 if (val instanceof File) {
-                  const url = await this.CAT_createBlobUrl(val);
+                  const url = await a.CAT_createBlobUrl(val);
                   data.push({
                     key,
                     type: "file",
@@ -656,7 +678,7 @@ export default class GMApi extends GM_Base {
       } else if (details.data instanceof Blob) {
         // 处理blob
         param.dataType = "Blob";
-        param.data = await this.CAT_createBlobUrl(details.data);
+        param.data = await a.CAT_createBlobUrl(details.data);
       } else {
         param.data = details.data;
       }
@@ -678,11 +700,11 @@ export default class GMApi extends GM_Base {
         return async (xhr: GMTypes.XHRResponse) => {
           if (xhr.response) {
             if (responseType === "document") {
-              xhr.response = await this.CAT_fetchDocument(<string>xhr.response);
+              xhr.response = await a.CAT_fetchDocument(<string>xhr.response);
               xhr.responseXML = xhr.response;
               xhr.responseType = "document";
             } else {
-              const resp = await this.CAT_fetchBlob(<string>xhr.response);
+              const resp = await a.CAT_fetchBlob(<string>xhr.response);
               if (responseType === "arraybuffer") {
                 xhr.response = await resp.arrayBuffer();
               } else {
@@ -723,7 +745,7 @@ export default class GMApi extends GM_Base {
       }
 
       // 发送信息
-      this.connect("GM_xmlhttpRequest", [param]).then((con) => {
+      a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
         con.onMessage((data: { action: string; data: any }) => {
           // 处理返回
@@ -1045,7 +1067,7 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  @GMContext.API({ alias: "GM.setClipboard" })
+  @GMContext.API({})
   GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
     this.sendMessage("GM_setClipboard", [data, info])
       .then(() => {
@@ -1058,6 +1080,11 @@ export default class GMApi extends GM_Base {
           cb();
         }
       });
+  }
+
+  @GMContext.API({ depend: ["GM_setClipboard"] })
+  ["GM.setClipboard"](data: string, info?: string | { type?: string; minetype?: string }) {
+    return this.sendMessage("GM_setClipboard", [data, info]);
   }
 
   @GMContext.API()

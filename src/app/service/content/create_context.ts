@@ -46,7 +46,22 @@ export function createContext(
         g = g[part] || (g[part] = {});
       }
       const finalPart = fnKeyArray[m];
-      if (g[finalPart]) continue;
+      if (g[finalPart]) {
+        // 如果已存在且当前要设置的是一个函数，需要特殊处理
+        // 保持现有的属性，同时让对象可调用
+        if (typeof t.api === 'function' && typeof g[finalPart] === 'object') {
+          const existingObj = g[finalPart];
+          const boundApi = t.api.bind(context);
+          // 创建一个可调用的对象，保留现有属性
+          const callableObj = function(...args: any[]) {
+            return boundApi(...args);
+          };
+          // 复制现有属性到新的可调用对象
+          Object.assign(callableObj, existingObj);
+          g[finalPart] = callableObj;
+        }
+        continue;
+      }
       g[finalPart] = t.api.bind(context);
       const depend = t?.param?.depend;
       if (depend) {

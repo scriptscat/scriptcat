@@ -188,7 +188,7 @@ describe("none this", () => {
 describe("@grant GM", () => {
   it("GM_", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab"];
+    script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab", "GM_cookie"];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     script.code = `return {
@@ -198,6 +198,8 @@ describe("@grant GM", () => {
       GM_getValue: this.GM_getValue,
       GM_getTab: this.GM_getTab,
       GM_saveTab: this.GM_saveTab,
+      GM_cookie: this.GM_cookie,
+      ["GM_cookie.list"]: this.GM_cookie.list,
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -208,6 +210,8 @@ describe("@grant GM", () => {
       GM_getValue: expect.any(Function),
       GM_getTab: expect.any(Function),
       GM_saveTab: expect.any(Function),
+      GM_cookie: expect.any(Function),
+      ["GM_cookie.list"]: expect.any(Function),
     });
   });
   it("GM.*", async () => {
