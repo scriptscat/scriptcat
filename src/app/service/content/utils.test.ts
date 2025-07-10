@@ -62,7 +62,7 @@ describe("window", () => {
 });
 
 describe("兼容问题", () => {
-  const _this = proxyContext({}, {});
+  const _this = proxyContext<{ [key: string]: any }>({}, {});
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it("Uncaught TypeError: Illegal invocation #189", () => {
     return new Promise((resolve) => {
@@ -77,7 +77,7 @@ describe("兼容问题", () => {
 });
 
 describe("Symbol", () => {
-  const _this = proxyContext({}, {});
+  const _this = proxyContext<{ [key: string]: any } & any>({}, {});
   // 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
   it("Symbol", () => {
     const s = Symbol("test");
@@ -92,7 +92,7 @@ describe("Symbol", () => {
 
 // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
 describe("Object", () => {
-  const _this = proxyContext({}, {});
+  const _this = proxyContext<{ [key: string]: any }>({}, {});
   it("hasOwnProperty", () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";

@@ -11,18 +11,271 @@ import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 
-export class GM_Base {
-  runFlag!: string;
+// 内部函数呼叫定义
+export interface IGM_Base {
+  sendMessage(api: string, params: any[]): Promise<any>;
+  connect(api: string, params: any[]): Promise<any>;
+  valueUpdate(data: ValueUpdateData): void;
+  emitEvent(event: string, eventId: string, data: any): void;
+}
+
+const integrity = {}; // 僅防止非法实例化
+
+const GM_cookie = (
+  a: IGM_Base,
+  action: string,
+  details: GMTypes.CookieDetails,
+  done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+) => {
+  // 如果url和域名都没有，自动填充当前url
+  if (!details.url && !details.domain) {
+    details.url = window.location.href;
+  }
+  a.sendMessage("GM_cookie", [action, details])
+    .then((resp: any) => {
+      done && done(resp, undefined);
+    })
+    .catch((err) => {
+      done && done(undefined, err);
+    });
+}
+
+const GM_xmlhttpRequest = function (a: GMApi, details: GMTypes.XHRDetails) {
+
+    const u = new URL(details.url, window.location.href);
+    if (details.headers) {
+      Object.keys(details.headers).forEach((key) => {
+        if (key.toLowerCase() === "cookie") {
+          details.cookie = details.headers![key];
+          delete details.headers![key];
+        }
+      });
+    }
+
+    const param: GMSend.XHRDetails = {
+      method: details.method,
+      timeout: details.timeout,
+      url: u.href,
+      headers: details.headers,
+      cookie: details.cookie,
+      context: details.context,
+      responseType: details.responseType,
+      overrideMimeType: details.overrideMimeType,
+      anonymous: details.anonymous,
+      user: details.user,
+      password: details.password,
+      redirect: details.redirect,
+    };
+    if (!param.headers) {
+      param.headers = {};
+    }
+    if (details.nocache) {
+      param.headers["Cache-Control"] = "no-cache";
+    }
+    let connect: MessageConnect;
+    const handler = async () => {
+      // 处理数据
+      if (details.data instanceof FormData) {
+        // 处理FormData
+        param.dataType = "FormData";
+        const data: Array<GMSend.XHRFormData> = [];
+        const keys: { [key: string]: boolean } = {};
+        details.data.forEach((val, key) => {
+          keys[key] = true;
+        });
+        // 处理FormData中的数据
+        await Promise.all(
+          Object.keys(keys).map((key) => {
+            const values = (<FormData>details.data).getAll(key);
+            return Promise.all(
+              values.map(async (val) => {
+                if (val instanceof File) {
+                  const url = await a.CAT_createBlobUrl(val);
+                  data.push({
+                    key,
+                    type: "file",
+                    val: url,
+                    filename: val.name,
+                  });
+                } else {
+                  data.push({
+                    key,
+                    type: "text",
+                    val,
+                  });
+                }
+              })
+            );
+          })
+        );
+        param.data = data;
+      } else if (details.data instanceof Blob) {
+        // 处理blob
+        param.dataType = "Blob";
+        param.data = await a.CAT_createBlobUrl(details.data);
+      } else {
+        param.data = details.data;
+      }
+
+      // 处理返回数据
+      let readerStream: ReadableStream<Uint8Array> | undefined;
+      let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+      // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
+      // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
+      const responseType = details.responseType?.toLocaleLowerCase();
+      const warpResponse = (old: (xhr: GMTypes.XHRResponse) => void) => {
+        if (responseType === "stream") {
+          readerStream = new ReadableStream<Uint8Array>({
+            start(ctrl) {
+              controller = ctrl;
+            },
+          });
+        }
+        return async (xhr: GMTypes.XHRResponse) => {
+          if (xhr.response) {
+            if (responseType === "document") {
+              xhr.response = await a.CAT_fetchDocument(<string>xhr.response);
+              xhr.responseXML = xhr.response;
+              xhr.responseType = "document";
+            } else {
+              const resp = await a.CAT_fetchBlob(<string>xhr.response);
+              if (responseType === "arraybuffer") {
+                xhr.response = await resp.arrayBuffer();
+              } else {
+                xhr.response = resp;
+              }
+            }
+          }
+          if (responseType === "stream") {
+            xhr.response = readerStream;
+          }
+          old(xhr);
+        };
+      };
+      if (
+        responseType === "arraybuffer" ||
+        responseType === "blob" ||
+        responseType === "document" ||
+        responseType === "stream"
+      ) {
+        if (details.onload) {
+          details.onload = warpResponse(details.onload);
+        }
+        if (details.onreadystatechange) {
+          details.onreadystatechange = warpResponse(details.onreadystatechange);
+        }
+        if (details.onloadend) {
+          details.onloadend = warpResponse(details.onloadend);
+        }
+        // document类型读取blob,然后在content页转化为document对象
+        if (responseType === "document") {
+          param.responseType = "blob";
+        }
+        if (responseType === "stream") {
+          if (details.onloadstart) {
+            details.onloadstart = warpResponse(details.onloadstart);
+          }
+        }
+      }
+
+      // 发送信息
+      a.connect("GM_xmlhttpRequest", [param]).then((con) => {
+        connect = con;
+        con.onMessage((data: { action: string; data: any }) => {
+          // 处理返回
+          switch (data.action) {
+            case "onload":
+              details.onload?.(data.data);
+              break;
+            case "onloadend":
+              details.onloadend?.(data.data);
+              break;
+            case "onloadstart":
+              details.onloadstart?.(data.data);
+              break;
+            case "onprogress":
+              details.onprogress?.(data.data);
+              break;
+            case "onreadystatechange":
+              details.onreadystatechange && details.onreadystatechange(data.data);
+              break;
+            case "ontimeout":
+              details.ontimeout?.();
+              break;
+            case "onerror":
+              details.onerror?.("");
+              break;
+            case "onabort":
+              details.onabort?.();
+              break;
+            case "onstream":
+              controller?.enqueue(new Uint8Array(data.data));
+              break;
+            default:
+              LoggerCore.logger().warn("GM_xmlhttpRequest resp is error", {
+                data,
+              });
+              break;
+          }
+        });
+      });
+    };
+    // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
+    handler();
+    return {
+      abort: () => {
+        if (connect) {
+          connect.disconnect();
+        }
+      },
+    };
+}
+
+// GM_Base 定义内部用变量和函数。均使用@protected
+export class GM_Base implements IGM_Base {
+
+  @GMContext.protected()
+  protected runFlag!: string;
+
+  @GMContext.protected()
+  protected prefix!: string;
+
+  @GMContext.protected()
+  protected message!: Message;
+
+  @GMContext.protected()
+  protected scriptRes!: ScriptRunResource;
+
+  @GMContext.protected()
+  protected valueChangeListener!: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>;
+
+  @GMContext.protected()
+  protected EE!: EventEmitter;
+
+  @GMContext.protected()
+  public context!: any;
+
+  @GMContext.protected()
+  public grantSet!: any;
+
+  @GMContext.protected()
+  public eventId!: number;
 
   constructor(
-    public prefix: string,
-    public message: Message,
-    public scriptRes: ScriptRunResource,
-    public valueChangeListener: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>,
-    public EE: EventEmitter
-  ) {}
+    options: any = null,
+    obj: any = null
+  ) {
+    if(obj !== integrity) throw new TypeError("Illegal invocation");
+    Object.assign(this, options);
+  }
+
+  @GMContext.protected()
+  static create(options: { [key:string]: any}){
+    return (new GM_Base(options, integrity)) as GM_Base & { [key:string]: any };
+  }
 
   // 单次回调使用
+  @GMContext.protected()
   public sendMessage(api: string, params: any[]) {
     return sendMessage(this.message, this.prefix + "/runtime/gmApi", {
       uuid: this.scriptRes.uuid,
@@ -33,6 +286,7 @@ export class GM_Base {
   }
 
   // 长连接使用,connect只用于接受消息,不发送消息
+  @GMContext.protected()
   public connect(api: string, params: any[]) {
     return connect(this.message, this.prefix + "/runtime/gmApi", {
       uuid: this.scriptRes.uuid,
@@ -42,6 +296,7 @@ export class GM_Base {
     } as MessageRequest);
   }
 
+  @GMContext.protected()
   public valueUpdate(data: ValueUpdateData) {
     if (data.uuid === this.scriptRes.uuid || data.storageName === getStorageName(this.scriptRes)) {
       // 触发,并更新值
@@ -60,11 +315,35 @@ export class GM_Base {
     }
   }
 
+  @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
     this.EE.emit(event + ":" + eventId, data);
   }
 }
 
+const GM_getValue = (a: GMApi, key: string, defaultValue?: any) => {
+  const ret = a.scriptRes.value[key];
+  if (ret !== undefined) {
+    return ret;
+  }
+  return defaultValue;
+}
+
+const GM_setValue = (a: GMApi, key: string, value: any) => {
+  // 对object的value进行一次转化
+  if (typeof value === "object") {
+    value = JSON.parse(JSON.stringify(value));
+  }
+  if (value === undefined) {
+    delete a.scriptRes.value[key];
+    a.sendMessage("GM_setValue", [key]);
+  } else {
+    a.scriptRes.value[key] = value;
+    a.sendMessage("GM_setValue", [key, value]);
+  }
+}
+
+// GMApi 定义 外部用API函数。不使用@protected
 export default class GMApi extends GM_Base {
   /**
    * <tag, notificationId>
@@ -76,84 +355,77 @@ export default class GMApi extends GM_Base {
     public message: Message,
     public scriptRes: ScriptRunResource
   ) {
+    // testing only
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE: EventEmitter = new EventEmitter();
-    super(prefix, message, scriptRes, valueChangeListener, EE);
+    super({
+      prefix,
+      message,
+      scriptRes,
+      valueChangeListener,
+      EE
+    }, integrity);
   }
 
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
   @GMContext.API()
-  public GM_getValue(key: string, defaultValue?: any) {
-    const ret = this.scriptRes.value[key];
-    if (ret !== undefined) {
-      return ret;
-    }
-    return defaultValue;
+  public ['GM_getValue'](key: string, defaultValue?: any) {
+    return GM_getValue(this, key, defaultValue);
   }
 
-  @GMContext.API({ depend: ["GM_getValue"] })
-  public GMDotGetValue(key: string, defaultValue?: any): Promise<any> {
+  @GMContext.API()
+  public ['GM.getValue'](key: string, defaultValue?: any): Promise<any> {
     // 兼容GM.getValue
     return new Promise((resolve) => {
-      const ret = this.GM_getValue(key, defaultValue);
+      const ret = GM_getValue(this, key, defaultValue);
       resolve(ret);
     });
   }
 
   @GMContext.API()
-  public GM_setValue(key: string, value: any) {
-    // 对object的value进行一次转化
-    if (typeof value === "object") {
-      value = JSON.parse(JSON.stringify(value));
-    }
-    if (value === undefined) {
-      delete this.scriptRes.value[key];
-      this.sendMessage("GM_setValue", [key]);
-    } else {
-      this.scriptRes.value[key] = value;
-      this.sendMessage("GM_setValue", [key, value]);
-    }
+  public ['GM_setValue'](key: string, value: any) {
+    GM_setValue(this, key, value);
   }
 
-  @GMContext.API({ depend: ["GM_setValue"] })
-  public GMDotSetValue(key: string, value: any): Promise<void> {
+  @GMContext.API()
+  public ['GM.setValue'](key: string, value: any): Promise<void> {
     // Asynchronous wrapper for GM_setValue to support GM.setValue
     return new Promise((resolve) => {
-      this.GM_setValue(key, value);
-      resolve();
-    });
-  }
-
-  @GMContext.API({ depend: ["GM_setValue"] })
-  public GM_deleteValue(name: string): void {
-    this.GM_setValue(name, undefined);
-  }
-
-  @GMContext.API({ depend: ["GM_deleteValue"] })
-  public GMDotDeleteValue(name: string): Promise<void> {
-    // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
-    return new Promise((resolve) => {
-      this.GM_deleteValue(name);
+      GM_setValue(this, key, value);
       resolve();
     });
   }
 
   @GMContext.API()
-  public GM_listValues(): string[] {
+  public ['GM_deleteValue'](name: string): void {
+    GM_setValue(this, name, undefined);
+  }
+
+  @GMContext.API()
+  public ['GM.deleteValue'](name: string): Promise<void> {
+    // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
+    return new Promise((resolve) => {
+      GM_setValue(this, name, undefined);
+      resolve();
+    });
+  }
+
+  @GMContext.API()
+  public ['GM_listValues'](): string[] {
     return Object.keys(this.scriptRes.value);
   }
 
-  @GMContext.API({ depend: ["GM_listValues"] })
-  public GMDotListValues(): Promise<string[]> {
+  @GMContext.API()
+  public ['GM.listValues'](): Promise<string[]> {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
     return new Promise((resolve) => {
-      const ret = this.GM_listValues();
+      const ret = Object.keys(this.scriptRes.value);
       resolve(ret);
     });
   }
 
-  @GMContext.API({ depend: ["GM_setValue"] })
-  public GM_setValues(values: { [key: string]: any }) {
+  @GMContext.API()
+  public ['GM_setValues'](values: { [key: string]: any }) {
     if (values == null) {
       throw new Error("GM_setValues: values must not be null or undefined");
     }
@@ -162,12 +434,12 @@ export default class GMApi extends GM_Base {
     }
     Object.keys(values).forEach((key) => {
       const value = values[key];
-      return this.GM_setValue(key, value);
+      GM_setValue(this, key, value);
     });
   }
 
-  @GMContext.API({ depend: ["GM_getValue"] })
-  public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
+  @GMContext.API()
+  public ['GM_getValues'](keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
     if (keysOrDefaults == null) {
       // Returns all values
       return this.scriptRes.value;
@@ -187,7 +459,7 @@ export default class GMApi extends GM_Base {
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       Object.keys(keysOrDefaults).forEach((key) => {
         const defaultValue = keysOrDefaults[key];
-        result[key] = this.GM_getValue(key, defaultValue);
+        result[key] = GM_getValue(this, key, defaultValue);
       });
     }
     return result;
@@ -195,7 +467,7 @@ export default class GMApi extends GM_Base {
 
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
-  public GMDotGetValues(
+  public ['GM.getValues'](
     keysOrDefaults: { [key: string]: any } | string[] | null | undefined
   ): Promise<{ [key: string]: any }> {
     return new Promise((resolve) => {
@@ -204,20 +476,20 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  @GMContext.API({ depend: ["GM_deleteValue"] })
-  public GM_deleteValues(keys: string[]) {
+  @GMContext.API()
+  public ['GM_deleteValues'](keys: string[]) {
     if (!Array.isArray(keys)) {
       console.warn(" GM_deleteValues: keys must be string[]");
       return;
     }
     keys.forEach((key) => {
-      this.GM_deleteValue(key);
+      GM_setValue(this, key, undefined);
     });
   }
 
   // Asynchronous wrapper for GM.deleteValues
   @GMContext.API({ depend: ["GM_deleteValues"] })
-  public GMDotDeleteValues(keys: string[]): Promise<void> {
+  public ['GM.deleteValues'](keys: string[]): Promise<void> {
     return new Promise((resolve) => {
       this.GM_deleteValues(keys);
       resolve();
@@ -269,23 +541,78 @@ export default class GMApi extends GM_Base {
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
   }
 
+
+  @GMContext.API({ follow: 'GM.cookie' })
+  ['GM.cookie.set'](
+    details: GMTypes.CookieDetails
+  ) {
+    return new Promise((resolve, reject) => {
+      GM_cookie(this, "set", details, (cookie, error) => {
+        error ? reject(error) : resolve(cookie);
+      });
+    });
+  }
+
+
+
+  @GMContext.API({ follow: 'GM.cookie' })
+  ['GM.cookie.list'](
+    details: GMTypes.CookieDetails
+  ) {
+    return new Promise((resolve, reject) => {
+      GM_cookie(this, "list", details, (cookie, error) => {
+        error ? reject(error) : resolve(cookie);
+      });
+    });
+  }
+
+
+  @GMContext.API({ follow: 'GM.cookie' })
+  ['GM.cookie.delete'](
+    details: GMTypes.CookieDetails
+  ) {
+    return new Promise((resolve, reject) => {
+      GM_cookie(this, "delete", details, (cookie, error) => {
+        error ? reject(error) : resolve(cookie);
+      });
+    });
+  }
+
+
+  @GMContext.API({ follow: 'GM_cookie' })
+  ['GM_cookie.set'](
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    GM_cookie(this, "set", details, done);
+  }
+
+
+  @GMContext.API({ follow: 'GM_cookie' })
+  ['GM_cookie.list'](
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    GM_cookie(this, "list", details, done);
+  }
+
+
+  @GMContext.API({ follow: 'GM_cookie' })
+  ['GM_cookie.delete'](
+    details: GMTypes.CookieDetails,
+    done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
+  ) {
+    GM_cookie(this, "delete", details, done);
+  }
+
+
   @GMContext.API()
   GM_cookie(
     action: string,
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    // 如果url和域名都没有，自动填充当前url
-    if (!details.url && !details.domain) {
-      details.url = window.location.href;
-    }
-    this.sendMessage("GM_cookie", [action, details])
-      .then((resp: any) => {
-        done && done(resp, undefined);
-      })
-      .catch((err) => {
-        done && done(undefined, err);
-      });
+      GM_cookie(this, action, details, done);
   }
 
   @GMContext.API()
@@ -456,193 +783,25 @@ export default class GMApi extends GM_Base {
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
-    const u = new URL(details.url, window.location.href);
-    if (details.headers) {
-      Object.keys(details.headers).forEach((key) => {
-        if (key.toLowerCase() === "cookie") {
-          details.cookie = details.headers![key];
-          delete details.headers![key];
-        }
-      });
-    }
-
-    const param: GMSend.XHRDetails = {
-      method: details.method,
-      timeout: details.timeout,
-      url: u.href,
-      headers: details.headers,
-      cookie: details.cookie,
-      context: details.context,
-      responseType: details.responseType,
-      overrideMimeType: details.overrideMimeType,
-      anonymous: details.anonymous,
-      user: details.user,
-      password: details.password,
-      redirect: details.redirect,
-    };
-    if (!param.headers) {
-      param.headers = {};
-    }
-    if (details.nocache) {
-      param.headers["Cache-Control"] = "no-cache";
-    }
-    let connect: MessageConnect;
-    const handler = async () => {
-      // 处理数据
-      if (details.data instanceof FormData) {
-        // 处理FormData
-        param.dataType = "FormData";
-        const data: Array<GMSend.XHRFormData> = [];
-        const keys: { [key: string]: boolean } = {};
-        details.data.forEach((val, key) => {
-          keys[key] = true;
-        });
-        // 处理FormData中的数据
-        await Promise.all(
-          Object.keys(keys).map((key) => {
-            const values = (<FormData>details.data).getAll(key);
-            return Promise.all(
-              values.map(async (val) => {
-                if (val instanceof File) {
-                  const url = await this.CAT_createBlobUrl(val);
-                  data.push({
-                    key,
-                    type: "file",
-                    val: url,
-                    filename: val.name,
-                  });
-                } else {
-                  data.push({
-                    key,
-                    type: "text",
-                    val,
-                  });
-                }
-              })
-            );
-          })
-        );
-        param.data = data;
-      } else if (details.data instanceof Blob) {
-        // 处理blob
-        param.dataType = "Blob";
-        param.data = await this.CAT_createBlobUrl(details.data);
-      } else {
-        param.data = details.data;
-      }
-
-      // 处理返回数据
-      let readerStream: ReadableStream<Uint8Array> | undefined;
-      let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
-      // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
-      // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
-      const responseType = details.responseType?.toLocaleLowerCase();
-      const warpResponse = (old: (xhr: GMTypes.XHRResponse) => void) => {
-        if (responseType === "stream") {
-          readerStream = new ReadableStream<Uint8Array>({
-            start(ctrl) {
-              controller = ctrl;
-            },
-          });
-        }
-        return async (xhr: GMTypes.XHRResponse) => {
-          if (xhr.response) {
-            if (responseType === "document") {
-              xhr.response = await this.CAT_fetchDocument(<string>xhr.response);
-              xhr.responseXML = xhr.response;
-              xhr.responseType = "document";
-            } else {
-              const resp = await this.CAT_fetchBlob(<string>xhr.response);
-              if (responseType === "arraybuffer") {
-                xhr.response = await resp.arrayBuffer();
-              } else {
-                xhr.response = resp;
-              }
-            }
-          }
-          if (responseType === "stream") {
-            xhr.response = readerStream;
-          }
-          old(xhr);
-        };
-      };
-      if (
-        responseType === "arraybuffer" ||
-        responseType === "blob" ||
-        responseType === "document" ||
-        responseType === "stream"
-      ) {
-        if (details.onload) {
-          details.onload = warpResponse(details.onload);
-        }
-        if (details.onreadystatechange) {
-          details.onreadystatechange = warpResponse(details.onreadystatechange);
-        }
-        if (details.onloadend) {
-          details.onloadend = warpResponse(details.onloadend);
-        }
-        // document类型读取blob,然后在content页转化为document对象
-        if (responseType === "document") {
-          param.responseType = "blob";
-        }
-        if (responseType === "stream") {
-          if (details.onloadstart) {
-            details.onloadstart = warpResponse(details.onloadstart);
-          }
-        }
-      }
-
-      // 发送信息
-      this.connect("GM_xmlhttpRequest", [param]).then((con) => {
-        connect = con;
-        con.onMessage((data: { action: string; data: any }) => {
-          // 处理返回
-          switch (data.action) {
-            case "onload":
-              details.onload?.(data.data);
-              break;
-            case "onloadend":
-              details.onloadend?.(data.data);
-              break;
-            case "onloadstart":
-              details.onloadstart?.(data.data);
-              break;
-            case "onprogress":
-              details.onprogress?.(data.data);
-              break;
-            case "onreadystatechange":
-              details.onreadystatechange && details.onreadystatechange(data.data);
-              break;
-            case "ontimeout":
-              details.ontimeout?.();
-              break;
-            case "onerror":
-              details.onerror?.("");
-              break;
-            case "onabort":
-              details.onabort?.();
-              break;
-            case "onstream":
-              controller?.enqueue(new Uint8Array(data.data));
-              break;
-            default:
-              LoggerCore.logger().warn("GM_xmlhttpRequest resp is error", {
-                data,
-              });
-              break;
-          }
-        });
-      });
-    };
-    // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
-    handler();
-    return {
-      abort: () => {
-        if (connect) {
-          connect.disconnect();
-        }
-      },
-    };
+    return GM_xmlhttpRequest(this, details)
+  }
+  @GMContext.API({
+    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
+  })
+  public GM_xmlHttpRequest(details: GMTypes.XHRDetails) {
+    return GM_xmlhttpRequest(this, details)
+  }
+  @GMContext.API({
+    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
+  })
+  public ['GM.xmlhttpRequest'](details: GMTypes.XHRDetails) {
+    return GM_xmlhttpRequest(this, details)
+  }
+  @GMContext.API({
+    depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
+  })
+  public ['GM.xmlHttpRequest'](details: GMTypes.XHRDetails) {
+    return GM_xmlhttpRequest(this, details)
   }
 
   @GMContext.API()
@@ -942,7 +1101,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_getResourceText"] })
-  public GMDotGetResourceText(name: string): Promise<string | undefined> {
+  public ['GM.getResourceText'](name: string): Promise<string | undefined> {
     // Asynchronous wrapper for GM_getResourceText to support GM.getResourceText
     return new Promise((resolve) => {
       const ret = this.GM_getResourceText(name);
@@ -967,7 +1126,7 @@ export default class GMApi extends GM_Base {
 
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
   @GMContext.API({ depend: ["GM_getResourceURL"] })
-  public GMDotGetResourceUrl(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+  public ['GM.getResourceUrl'](name: string, isBlobUrl?: boolean): Promise<string | undefined> {
     // Asynchronous wrapper for GM_getResourceURL to support GM.getResourceURL
     return new Promise((resolve) => {
       const ret = this.GM_getResourceURL(name, isBlobUrl);
@@ -976,12 +1135,12 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  windowDotClose() {
+  ['window.close']() {
     return this.sendMessage("windowDotClose", []);
   }
 
   @GMContext.API()
-  windowDotFocus() {
+  ['window.focus']() {
     return this.sendMessage("windowDotFocus", []);
   }
 }

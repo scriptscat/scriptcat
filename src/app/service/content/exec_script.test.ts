@@ -12,14 +12,12 @@ const scriptRes = {
   id: 0,
   name: "test",
   metadata: {
+    grant: ["none"],
     version: ["1.0.0"],
   },
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  grantMap: {
-    none: true,
-  },
 } as unknown as ScriptRunResource;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
@@ -32,7 +30,7 @@ const envInfo: GMInfoEnv = {
 };
 
 // @ts-ignore
-const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo, undefined);
+const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo);
 
 const scriptRes2 = {
   id: 0,
@@ -43,26 +41,27 @@ const scriptRes2 = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-  grantMap: {},
 } as unknown as ScriptRunResource;
 
 // @ts-ignore
-const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo, undefined);
+const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo);
 
 describe("GM_info", () => {
   it("none", async () => {
-    scriptRes.code = "return GM_info";
+    scriptRes.code = "return {_this:this,GM_info};";
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
     const ret = await noneExec.exec();
-    expect(ret.version).toEqual(ExtVersion);
-    expect(ret.script.version).toEqual("1.0.0");
+    expect(ret.GM_info.version).toEqual(ExtVersion);
+    expect(ret.GM_info.script.version).toEqual("1.0.0");
+    expect(ret._this).toEqual(global);
   });
   it("sandbox", async () => {
-    scriptRes2.code = "return GM_info";
+    scriptRes2.code = "return {_this:this,GM_info};";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
-    expect(ret.version).toEqual(ExtVersion);
-    expect(ret.script.version).toEqual("1.0.0");
+    expect(ret.GM_info.version).toEqual(ExtVersion);
+    expect(ret.GM_info.script.version).toEqual("1.0.0");
+    expect(ret._this).toEqual(sandboxExec.proxyContent);
   });
 });
 
@@ -127,5 +126,60 @@ describe("sandbox", () => {
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("3");
+  });
+});
+
+describe("this", () => {
+  it("onload", async () => {
+    scriptRes2.code = `onload = ()=>{};return onload;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // global.onload
+    expect(global.onload).toBeNull();
+  });
+  it("this.onload", async () => {
+    scriptRes2.code = `this.onload = () => "ok"; return this.onload;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // global.onload
+    expect(global.onload).toBeNull();
+  });
+  it("undefined variable", async () => {
+    scriptRes2.code = `return typeof testVar;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual("undefined");
+  });
+  it("undefined variable in global", async () => {
+    scriptRes2.code = `return testVar;`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    // 在沙盒中访问未定义的变量会抛出错误
+    try {
+      await sandboxExec.exec();
+      // 如果没有抛出错误，测试应该失败
+      expect.fail("Expected an error to be thrown when accessing undefined variable");
+    } catch (e: any) {
+      expect(e.message).toContain("testVar is not defined");
+    }
+  });
+});
+
+describe("none this", () => {
+  it("onload", async () => {
+    scriptRes2.code = `onload = ()=>{};return onload;`;
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await noneExec.exec();
+    expect(ret).toEqual(expect.any(Function));
+    // global.onload
+    expect(global.onload).toEqual(expect.any(Function));
+    global.onload = null; // 清理全局变量
+  });
+  it("this.test", async () => {
+    scriptRes2.code = `this.test = "ok";return this.test;`;
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await noneExec.exec();
+    expect(ret).toEqual("ok");
   });
 });

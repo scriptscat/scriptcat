@@ -7,7 +7,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
 import { evaluateGMInfo } from "./gm_info";
-import { type GM_Base } from "./gm_api";
+import { type IGM_Base } from "./gm_api";
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -17,11 +17,11 @@ export default class ExecScript {
 
   logger: Logger;
 
-  proxyContent: any;
+  proxyContent: typeof globalThis;
 
-  sandboxContent?: GM_Base;
+  sandboxContent?: IGM_Base & { [key: string]: any };
 
-  GM_info: any;
+  named?: { [key: string]: any };
 
   constructor(
     scriptRes: ScriptLoadInfo,
@@ -29,7 +29,7 @@ export default class ExecScript {
     message: Message,
     code: string | ScriptFunc,
     envInfo: GMInfoEnv,
-    thisContext?: { [key: string]: any }
+    globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效
   ) {
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
@@ -37,24 +37,27 @@ export default class ExecScript {
       uuid: this.scriptRes.uuid,
       name: this.scriptRes.name,
     });
-    this.GM_info = evaluateGMInfo(envInfo, this.scriptRes);
+    const GM_info = evaluateGMInfo(envInfo, this.scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
       this.scriptFunc = compileScript(code);
     } else {
       this.scriptFunc = code;
     }
-    const grantMap: { [key: string]: boolean } = {};
-    scriptRes.metadata.grant?.forEach((key) => {
-      grantMap[key] = true;
-    });
-    if (grantMap.none) {
+    const grantSet = new Set(scriptRes.metadata.grant || []);
+    if (grantSet.has("none")) {
       // 不注入任何GM api
       this.proxyContent = global;
+      // ScriptCat行为：GM.info 和 GM_info 同时注入
+      // 不改变Context情况下，以 named 传多於一个全域变量
+      this.named = {GM: {info: GM_info}, GM_info};
     } else {
       // 构建脚本GM上下文
-      this.sandboxContent = createContext(scriptRes, this.GM_info, envPrefix, message);
-      this.proxyContent = proxyContext(global, this.sandboxContent, thisContext);
+      this.sandboxContent = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
+      if (globalInjection) {
+        Object.assign(this.sandboxContent, globalInjection);
+      }
+      this.proxyContent = proxyContext(global, this.sandboxContent);
     }
   }
 
@@ -67,9 +70,14 @@ export default class ExecScript {
     this.sandboxContent?.valueUpdate(data);
   }
 
+  /**
+   * @see {@link compileScriptCode}
+   * @returns
+   */
   exec() {
     this.logger.debug("script start");
-    return this.scriptFunc.apply(this.proxyContent, [this.proxyContent, this.GM_info]);
+    const context = this.proxyContent;
+    return this.scriptFunc.call(context, this.named, this.scriptRes.name);
   }
 
   stop() {
