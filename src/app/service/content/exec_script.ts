@@ -17,9 +17,9 @@ export default class ExecScript {
 
   logger: Logger;
 
-  proxyContent: typeof globalThis;
+  proxyContext: typeof globalThis;
 
-  sandboxContent?: IGM_Base & { [key: string]: any };
+  sandboxContext?: IGM_Base & { [key: string]: any };
 
   named?: { [key: string]: any };
 
@@ -47,27 +47,27 @@ export default class ExecScript {
     const grantSet = new Set(scriptRes.metadata.grant || []);
     if (grantSet.has("none")) {
       // 不注入任何GM api
-      this.proxyContent = global;
+      this.proxyContext = global;
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 不改变Context情况下，以 named 传多於一个全域变量
       this.named = {GM: {info: GM_info}, GM_info};
     } else {
       // 构建脚本GM上下文
-      this.sandboxContent = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
+      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, grantSet);
       if (globalInjection) {
-        Object.assign(this.sandboxContent, globalInjection);
+        Object.assign(this.sandboxContext, globalInjection);
       }
-      this.proxyContent = proxyContext(global, this.sandboxContent);
+      this.proxyContext = proxyContext(global, this.sandboxContext);
     }
   }
 
   emitEvent(event: string, eventId: string, data: any) {
     this.logger.debug("emit event", { event, eventId, data });
-    this.sandboxContent?.emitEvent(event, eventId, data);
+    this.sandboxContext?.emitEvent(event, eventId, data);
   }
 
   valueUpdate(data: ValueUpdateData) {
-    this.sandboxContent?.valueUpdate(data);
+    this.sandboxContext?.valueUpdate(data);
   }
 
   /**
@@ -76,7 +76,7 @@ export default class ExecScript {
    */
   exec() {
     this.logger.debug("script start");
-    const context = this.proxyContent;
+    const context = this.proxyContext;
     return this.scriptFunc.call(context, this.named, this.scriptRes.name);
   }
 
