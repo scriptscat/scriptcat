@@ -6,7 +6,6 @@ import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
-import { GMContextApiGet } from "./gm_context";
 
 initTestEnv();
 
