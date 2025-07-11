@@ -32,10 +32,13 @@ export function createContext(
     grantSet: new Set(),
   });
   // 兼容GM.Cookie.* ，外部無法查阅 API 的实作
-  const createStubCallable = () => function (this: { [key: string]: any }, ...args: any) {
-    const key = this.defaultFn;
-    if (!key) throw new Error("this stub is not callable.");
-    return context[`.fn::${key}`](...args);
+  const createStubCallable = () => {
+    const f = (...args: any) => {
+      const key = (<any>f).defaultFn;
+      if (!key) throw new Error("this stub is not callable.");
+      return context[`.fn::${key}`](...args);
+    }
+    return f;
   }
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
