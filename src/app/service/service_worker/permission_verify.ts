@@ -35,7 +35,7 @@ export interface UserConfirm {
 export type ApiParamConfirmFn = (request: Request) => Promise<boolean | ConfirmParam>;
 
 export interface ApiParam {
-  // 默认提供的函数（未使用？）
+  // 默认提供的函数
   default?: boolean;
   // 是否只有后台环境中才能执行
   background?: boolean;
@@ -46,7 +46,7 @@ export interface ApiParam {
   // 关联
   link?: string[];
   // 兼容GM.*
-  dotAlias?: boolean 
+  dotAlias?: boolean;
 }
 
 export interface ApiValue {
@@ -65,19 +65,15 @@ function PermissionVerifyApiSet(key: string, api: any, param: ApiParam): void {
 }
 
 export default class PermissionVerify {
-
   public static API(param: ApiParam = {}) {
     if (param.dotAlias === undefined) {
       param.dotAlias = true; // 预设兼容GM.*
     }
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
-      PermissionVerifyApiSet(key,
-        descriptor.value,
-        param
-      );
+      PermissionVerifyApiSet(key, descriptor.value, param);
       // 兼容GM.*
-      if (param.dotAlias && key.includes('GM_')) {
+      if (param.dotAlias && key.includes("GM_")) {
         const dot = key.replace("GM_", "GM.");
         if (param.alias) {
           param.alias.push(dot);
@@ -89,10 +85,7 @@ export default class PermissionVerify {
       // 处理别名
       if (param.alias) {
         for (const alias of param.alias) {
-          PermissionVerifyApiSet(alias,
-            descriptor.value,
-            param
-          );
+          PermissionVerifyApiSet(alias, descriptor.value, param);
         }
       }
     };
@@ -118,7 +111,7 @@ export default class PermissionVerify {
   // 验证是否有权限
   async verify(request: Request, api: ApiValue): Promise<boolean> {
     const { alias, link, confirm } = api.param;
-    if (api.param.default) { // （未使用？）
+    if (api.param.default) {
       return true;
     }
     // 没有其它条件,从metadata.grant中判断

@@ -206,17 +206,17 @@ describe("@grant GM", () => {
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual({
-      "GM.getValue": undefined,
-      "GM.getTab": undefined,
-      "GM.setTab": undefined,
-      GM_getValue: expect.any(Function),
-      GM_getTab: expect.any(Function),
-      GM_saveTab: expect.any(Function),
-      GM_cookie: expect.any(Function),
-      ["GM_cookie.list"]: expect.any(Function),
-      ["GM.cookie"]: undefined,
-    });
+    expect(ret["GM.getValue"]).toBeUndefined();
+    expect(ret["GM.getTab"]).toBeUndefined();
+    expect(ret["GM.setTab"]).toBeUndefined();
+    expect(ret.GM_getValue.defaultFn).toEqual(GMContextApiGet("GM_getValue")![0].api);
+    expect(ret.GM_getTab.defaultFn).toEqual(GMContextApiGet("GM_getTab")![0].api);
+    expect(ret.GM_saveTab.defaultFn).toEqual(GMContextApiGet("GM_saveTab")![0].api);
+    expect(ret.GM_cookie.defaultFn).toEqual(GMContextApiGet("GM_cookie")!.find((v) => v.fnKey === "GM_cookie")!.api);
+    expect(ret["GM_cookie.list"].defaultFn).toEqual(
+      GMContextApiGet("GM_cookie")!.find((v) => v.fnKey === "GM_cookie.list")!.api
+    );
+    expect(ret["GM.cookie"]).toBeUndefined();
   });
   it("GM.*", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
@@ -235,16 +235,15 @@ describe("@grant GM", () => {
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual({
-      "GM.getValue": expect.any(Function),
-      "GM.getTab": expect.any(Function),
-      "GM.saveTab": expect.any(Function),
-      GM_getValue: undefined,
-      GM_getTab: undefined,
-      GM_saveTab: undefined,
-      GM_cookie: undefined,
-      ["GM.cookie"]: expect.any(Function),
-    });
+    expect(ret["GM.getValue"].defaultFn).toEqual(GMContextApiGet("GM.getValue")![0].api);
+    expect(ret["GM.getTab"].defaultFn).toEqual(GMContextApiGet("GM.getTab")![0].api);
+    expect(ret["GM.saveTab"].defaultFn).toEqual(GMContextApiGet("GM.saveTab")![0].api);
+    expect(ret.GM_getValue).toBeUndefined();
+    expect(ret.GM_getTab).toBeUndefined();
+    expect(ret.GM_saveTab).toBeUndefined();
+    expect(ret.GM_cookie).toBeUndefined();
+    expect(ret["GM.cookie"]).not.toBeUndefined();
+    expect(ret["GM.cookie"].list.defaultFn).toEqual(GMContextApiGet("GM.cookie")!.find((v) => v.fnKey === "GM.cookie.list")!.api);
   });
 });
 
@@ -257,6 +256,6 @@ describe("window.*", () => {
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual(GMContextApiGet("window.close")![0].api);
+    expect(ret.defaultFn).toEqual(GMContextApiGet("window.close")![0].api);
   });
 });
