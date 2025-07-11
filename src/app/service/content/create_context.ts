@@ -3,34 +3,11 @@ import { v4 as uuidv4 } from "uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
-import { createGMBase } from "./gm_api";
+import { createGMBase, type GMApiType } from "./gm_api";
 
-// 构建沙盒上下文
-export function createContext(
-  scriptRes: ScriptRunResource,
-  GMInfo: any,
-  envPrefix: string,
-  message: Message,
-  scriptGrants: Set<string>
-) {
-  // 按照GMApi构建
-  const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
-  const EE: EventEmitter = new EventEmitter();
-  const context = createGMBase({
-    prefix: envPrefix,
-    message,
-    scriptRes,
-    valueChangeListener,
-    EE,
-    runFlag: uuidv4(),
-    eventId: 10000,
-    GM: { info: GMInfo },
-    GM_info: GMInfo,
-    window: {
-      onurlchange: null,
-    },
-    grantSet: new Set(),
-  });
+function _createContext(options:{[key:string]:any}, scriptGrants:Set<string> | string[]){
+  const context = createGMBase(options);
+
   const grantedAPIs: { [key: string]: any } = {};
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
@@ -64,6 +41,59 @@ export function createContext(
       g = g[part] || (g[part] = (grantedAPIs[s] || {}));
     }
   }
-  context.unsafeWindow = window;
+  return <GMApiType>context;
+}
+
+// 构建沙盒上下文
+export function createContext(
+  scriptRes: ScriptRunResource,
+  GMInfo: any,
+  envPrefix: string,
+  message: Message,
+  scriptGrants: Set<string> | string[]
+) {
+  // 按照GMApi构建
+  const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+  const EE: EventEmitter = new EventEmitter();
+  const context = _createContext({
+    prefix: envPrefix,
+    message,
+    scriptRes,
+    valueChangeListener,
+    EE,
+    runFlag: uuidv4(),
+    eventId: 10000,
+    GM: { info: GMInfo },
+    GM_info: GMInfo,
+    window: {
+      onurlchange: null,
+    },
+    grantSet: new Set(),
+    unsafeWindow: window
+  }, scriptGrants);
+  return context;
+}
+
+// 构建测试用沙盒上下文
+export function createTestContext(
+  prefix: string,
+  message: Message,
+  scriptRes: ScriptRunResource,
+  scriptGrants: Set<string> | string[]
+) {
+
+  const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+  const EE: EventEmitter = new EventEmitter();
+  const context = _createContext({
+    prefix,
+    message,
+    scriptRes,
+    valueChangeListener,
+    EE,
+    notificationTagMap: new Map(),
+    eventId: 0,
+    grantSet: new Set(),
+  }, scriptGrants);
+
   return context;
 }

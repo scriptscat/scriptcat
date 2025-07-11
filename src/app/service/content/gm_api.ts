@@ -108,8 +108,8 @@ class GM_Base implements IGM_Base {
   }
 }
 
-// GMApi 定义 外部用API函数。不使用@protected
-export default class GMApi extends GM_Base {
+// GMApi 定义 外部用API函数。不使用@protected。定義API用。不導出
+class GMApi extends GM_Base {
   /**
    * <tag, notificationId>
    */
@@ -1157,3 +1157,5 @@ export const { createGMBase } = GM_Base;
 
 // 從 GMApi 對象中解構出內部函數，用於後續本地使用，不導出
 const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_xmlhttpRequest } = GMApi;
+
+export type GMApiType = InstanceType<typeof GMApi>;
