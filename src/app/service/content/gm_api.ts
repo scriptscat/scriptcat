@@ -357,6 +357,15 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ follow: "GM.cookie" })
+  ["GM.cookie"](action: string, details: GMTypes.CookieDetails) {
+    return new Promise((resolve, reject) => {
+      _GM_cookie(this, action, details, (cookie, error) => {
+        error ? reject(error) : resolve(cookie);
+      });
+    });
+  }
+
+  @GMContext.API({ follow: "GM.cookie" })
   ["GM.cookie.set"](details: GMTypes.CookieDetails) {
     return new Promise((resolve, reject) => {
       _GM_cookie(this, "set", details, (cookie, error) => {
