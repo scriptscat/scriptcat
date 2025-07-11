@@ -31,12 +31,11 @@ export function createContext(
     },
     grantSet: new Set(),
   });
-  // 若考虑完全禁止外部查阅 API 的实作，应考虑 defaultFnMap.get(this)
-  // 现在没有这个理由，则使用性能较高的 .defaultFn
-  const createStubCallable = () => function (this: { [key: string]: any }) {
-    const f = this.defaultFn;
-    if (!f) throw new Error("this stub is not callable.");
-    return f(context);
+  // 兼容GM.Cookie.* ，外部無法查阅 API 的实作
+  const createStubCallable = () => function (this: { [key: string]: any }, ...args: any) {
+    const key = this.defaultFn;
+    if (!key) throw new Error("this stub is not callable.");
+    return context[`.fn::${key}`](...args);
   }
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
@@ -45,6 +44,7 @@ export function createContext(
     if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
     for (const t of s) {
+      context[`.fn::${t.fnKey}`] = t.api;
       const fnKeyArray = t.fnKey.split(".");
       const m = fnKeyArray.length;
       let g = context;
@@ -52,7 +52,7 @@ export function createContext(
         const part = fnKeyArray[i];
         g = g[part] || (g[part] = createStubCallable()); // 建立占位函数物件
       }
-      g.defaultFn = t.api; // 定义占位函数物件的实作行为
+      g.defaultFn = t.fnKey; // 定义占位函数物件的实作行为
       const depend = t?.param?.depend;
       if (depend) {
         for (const grant of depend) {
