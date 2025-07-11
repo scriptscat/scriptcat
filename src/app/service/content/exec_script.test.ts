@@ -309,7 +309,7 @@ describe("GM Api", () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_getValues"];
-    script.code = `return GM_getValues(["test2", "test3", "test1"])).join("-");`;
+    script.code = `return GM_getValues(["test2", "test3", "test1"]).join("-");`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
@@ -321,7 +321,7 @@ describe("GM Api", () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.getValues"];
-    script.code = `return GM.getValues(["test2", "test3", "test1"])).then(v=>v.join("-"));`;
+    script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v.join("-"));`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
