@@ -207,11 +207,11 @@ describe("@grant GM", () => {
     expect(ret["GM.getValue"]).toBeUndefined();
     expect(ret["GM.getTab"]).toBeUndefined();
     expect(ret["GM.setTab"]).toBeUndefined();
-    expect(ret.GM_getValue).toEqual(expect.any(Function));
-    expect(ret.GM_getTab).toEqual(expect.any(Function));
-    expect(ret.GM_saveTab).toEqual(expect.any(Function));
-    expect(ret.GM_cookie).toEqual(expect.any(Function));
-    expect(ret["GM_cookie.list"]).toEqual(expect.any(Function));
+    expect(ret.GM_getValue.name).toEqual("bound GM_getValue");
+    expect(ret.GM_getTab.name).toEqual("bound GM_getTab");
+    expect(ret.GM_saveTab.name).toEqual("bound GM_saveTab");
+    expect(ret.GM_cookie.name).toEqual("bound GM_cookie");
+    expect(ret["GM_cookie.list"].name).toEqual("bound GM_cookie.list");
     expect(ret["GM.cookie"]).toBeUndefined();
   });
   it("GM.*", async () => {
@@ -231,15 +231,15 @@ describe("@grant GM", () => {
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret["GM.getValue"]).toEqual(expect.any(Function));
-    expect(ret["GM.getTab"]).toEqual(expect.any(Function));
-    expect(ret["GM.saveTab"]).toEqual(expect.any(Function));
+    expect(ret["GM.getValue"].name).toEqual("bound GM.getValue");
+    expect(ret["GM.getTab"].name).toEqual("bound GM_getTab");
+    expect(ret["GM.saveTab"].name).toEqual("bound GM_saveTab");
     expect(ret.GM_getValue).toBeUndefined();
     expect(ret.GM_getTab).toBeUndefined();
     expect(ret.GM_saveTab).toBeUndefined();
     expect(ret.GM_cookie).toBeUndefined();
-    expect(ret["GM.cookie"]).not.toBeUndefined();
-    expect(ret["GM.cookie"].list).toEqual(expect.any(Function));
+    expect(ret["GM.cookie"].name).toEqual("bound GM.cookie");
+    expect(ret["GM.cookie"].list.name).toEqual("bound GM.cookie.list");
   });
 });
 
