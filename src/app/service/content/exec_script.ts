@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { createContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, proxyContext } from "./utils";
+import { compileScript, createProxyContext } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
@@ -57,7 +57,7 @@ export default class ExecScript {
       if (globalInjection) {
         Object.assign(this.sandboxContext, globalInjection);
       }
-      this.proxyContext = proxyContext(global, this.sandboxContext);
+      this.proxyContext = createProxyContext(global, this.sandboxContext);
     }
   }
 

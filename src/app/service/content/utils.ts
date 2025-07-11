@@ -140,7 +140,7 @@ type GMWorldContext = ((typeof globalThis) & ({
 }));
 
 // 拦截上下文
-export function proxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
+export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
   const special = Object.assign(writables);
   const exposedObject: Context = <Context>{};
   // 处理某些特殊的属性
