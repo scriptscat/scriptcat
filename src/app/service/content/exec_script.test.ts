@@ -255,3 +255,17 @@ describe("window.*", () => {
     expect(ret.defaultFn).toEqual("window.close");
   });
 });
+
+describe("GM Api", () => {
+  it("GM_getValue", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.value = { test: "ok" };
+    script.metadata.grant = ["GM_getValue"];
+    script.code = `return GM_getValue("test");`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual("ok");
+  });
+});

@@ -40,6 +40,7 @@ describe("proxy context", () => {
     expect(global["okk"]).toEqual(undefined);
   });
 
+  // https://github.com/scriptscat/scriptcat/issues/273
   it("禁止穿透global对象", () => {
     expect(_this["gbok"]).toBeUndefined();
   });
