@@ -43,17 +43,17 @@ export function createContext(
     if (!s) return false; // @grant 的定义未实作，略过 (返回 false 表示 @grant 不存在)
     if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
-    for (const t of s) {
-      context[`.fn::${t.fnKey}`] = t.api;
-      const fnKeyArray = t.fnKey.split(".");
+    for (const {fnKey, api, param} of s) {
+      context[`.fn::${fnKey}`] = api;
+      const fnKeyArray = fnKey.split(".");
       const m = fnKeyArray.length;
       let g = context;
       for (let i = 0; i < m; i++) {
         const part = fnKeyArray[i];
         g = g[part] || (g[part] = createStubCallable()); // 建立占位函数物件
       }
-      g.defaultFn = t.fnKey; // 定义占位函数物件的实作行为
-      const depend = t?.param?.depend;
+      g.defaultFn = fnKey; // 定义占位函数物件的实作行为
+      const depend = param?.depend;
       if (depend) {
         for (const grant of depend) {
           __methodInject__(grant);
