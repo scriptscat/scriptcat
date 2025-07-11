@@ -207,11 +207,11 @@ describe("@grant GM", () => {
     expect(ret["GM.getValue"]).toBeUndefined();
     expect(ret["GM.getTab"]).toBeUndefined();
     expect(ret["GM.setTab"]).toBeUndefined();
-    expect(ret.GM_getValue.defaultFn).toEqual("GM_getValue");
-    expect(ret.GM_getTab.defaultFn).toEqual("GM_getTab");
-    expect(ret.GM_saveTab.defaultFn).toEqual("GM_saveTab");
-    expect(ret.GM_cookie.defaultFn).toEqual("GM_cookie");
-    expect(ret["GM_cookie.list"].defaultFn).toEqual("GM_cookie.list");
+    expect(ret.GM_getValue).toEqual(expect.any(Function));
+    expect(ret.GM_getTab).toEqual(expect.any(Function));
+    expect(ret.GM_saveTab).toEqual(expect.any(Function));
+    expect(ret.GM_cookie).toEqual(expect.any(Function));
+    expect(ret["GM_cookie.list"]).toEqual(expect.any(Function));
     expect(ret["GM.cookie"]).toBeUndefined();
   });
   it("GM.*", async () => {
@@ -231,15 +231,15 @@ describe("@grant GM", () => {
     }`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret["GM.getValue"].defaultFn).toEqual("GM.getValue");
-    expect(ret["GM.getTab"].defaultFn).toEqual("GM.getTab");
-    expect(ret["GM.saveTab"].defaultFn).toEqual("GM.saveTab");
+    expect(ret["GM.getValue"]).toEqual(expect.any(Function));
+    expect(ret["GM.getTab"]).toEqual(expect.any(Function));
+    expect(ret["GM.saveTab"]).toEqual(expect.any(Function));
     expect(ret.GM_getValue).toBeUndefined();
     expect(ret.GM_getTab).toBeUndefined();
     expect(ret.GM_saveTab).toBeUndefined();
     expect(ret.GM_cookie).toBeUndefined();
     expect(ret["GM.cookie"]).not.toBeUndefined();
-    expect(ret["GM.cookie"].list.defaultFn).toEqual("GM.cookie.list");
+    expect(ret["GM.cookie"].list).toEqual(expect.any(Function));
   });
 });
 
@@ -252,7 +252,7 @@ describe("window.*", () => {
     const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret.defaultFn).toEqual("window.close");
+    expect(ret).toEqual(expect.any(Function));
   });
 });
 

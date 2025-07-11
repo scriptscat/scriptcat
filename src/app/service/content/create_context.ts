@@ -31,15 +31,7 @@ export function createContext(
     },
     grantSet: new Set(),
   });
-  // 兼容GM.Cookie.* ，外部無法查阅 API 的实作
-  const createStubCallable = () => {
-    const f = (...args: any) => {
-      const key = (<any>f).defaultFn;
-      if (!key) throw new Error("this stub is not callable.");
-      return context[`.fn::${key}`](...args);
-    }
-    return f;
-  }
+  const grantedAPIs: { [key: string]: any } = {};
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
@@ -47,15 +39,7 @@ export function createContext(
     if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
     for (const {fnKey, api, param} of s) {
-      context[`.fn::${fnKey}`] = api;
-      const fnKeyArray = fnKey.split(".");
-      const m = fnKeyArray.length;
-      let g = context;
-      for (let i = 0; i < m; i++) {
-        const part = fnKeyArray[i];
-        g = g[part] || (g[part] = createStubCallable()); // 建立占位函数物件
-      }
-      g.defaultFn = fnKey; // 定义占位函数物件的实作行为
+      grantedAPIs[fnKey] = api.bind(context);
       const depend = param?.depend;
       if (depend) {
         for (const grant of depend) {
@@ -67,6 +51,18 @@ export function createContext(
   };
   for (const grant of scriptGrants) {
     __methodInject__(grant);
+  }
+  // 兼容GM.Cookie.*
+  for (const fnKey of Object.keys(grantedAPIs)) {
+    const fnKeyArray = fnKey.split(".");
+    const m = fnKeyArray.length;
+    let g = context;
+    let s = '';
+    for (let i = 0; i < m; i++) {
+      const part = fnKeyArray[i];
+      s += `${(i ? '.' : '')}${part}`;
+      g = g[part] || (g[part] = grantedAPIs[s]);
+    }
   }
   context.unsafeWindow = window;
   return context;
