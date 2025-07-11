@@ -164,8 +164,8 @@ export default class GMApi {
         return true;
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
-      if (!detail.url && !detail.domain) {
-        throw new Error("there must be one of url or domain");
+      if (!detail.url) {
+        throw new Error("there must be one of url");
       }
       let url: URL = <URL>{};
       if (detail.url) {
@@ -211,8 +211,8 @@ export default class GMApi {
     if (detail.domain) {
       detail.domain = detail.domain.trim();
     }
-    if (!detail.url && !detail.domain) {
-      throw new Error("there must be one of url or domain");
+    if (!detail.url) {
+      throw new Error("there must be one of url");
     }
     if (typeof detail.partitionKey !== "object" || detail.partitionKey == null) {
       detail.partitionKey = {};
@@ -258,8 +258,8 @@ export default class GMApi {
         break;
       }
       case "set": {
-        if (!detail.url || !detail.name) {
-          throw new Error("set operation must have name and value");
+        if (!detail.url || !detail.name || !detail.value) {
+          throw new Error("set operation must have url, name and value");
         }
         await chrome.cookies.set({
           url: detail.url,
