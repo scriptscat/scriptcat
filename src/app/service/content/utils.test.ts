@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { init, proxyContext } from "./utils";
+import { init, createProxyContext } from "./utils";
 
 describe("proxy context", () => {
   const context: any = {};
@@ -15,7 +15,7 @@ describe("proxy context", () => {
   };
   init.set("onload", true);
   init.set("location", true);
-  const _this = proxyContext(global, context);
+  const _this = createProxyContext(global, context);
 
   it("set contenxt", () => {
     _this["md5"] = "ok";
@@ -40,6 +40,7 @@ describe("proxy context", () => {
     expect(global["okk"]).toEqual(undefined);
   });
 
+  // https://github.com/scriptscat/scriptcat/issues/273
   it("禁止穿透global对象", () => {
     expect(_this["gbok"]).toBeUndefined();
   });
@@ -55,14 +56,14 @@ describe("proxy context", () => {
 
 // 只允许访问onxxxxx
 describe("window", () => {
-  const _this = proxyContext({ onanimationstart: null }, {});
+  const _this = createProxyContext({ onanimationstart: null }, {});
   it("window", () => {
     expect(_this.onanimationstart).toBeNull();
   });
 });
 
 describe("兼容问题", () => {
-  const _this = proxyContext<{ [key: string]: any }>({}, {});
+  const _this = createProxyContext<{ [key: string]: any }>({}, {});
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it("Uncaught TypeError: Illegal invocation #189", () => {
     return new Promise((resolve) => {
@@ -77,7 +78,7 @@ describe("兼容问题", () => {
 });
 
 describe("Symbol", () => {
-  const _this = proxyContext<{ [key: string]: any } & any>({}, {});
+  const _this = createProxyContext<{ [key: string]: any } & any>({}, {});
   // 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
   it("Symbol", () => {
     const s = Symbol("test");
@@ -92,7 +93,7 @@ describe("Symbol", () => {
 
 // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
 describe("Object", () => {
-  const _this = proxyContext<{ [key: string]: any }>({}, {});
+  const _this = createProxyContext<{ [key: string]: any }>({}, {});
   it("hasOwnProperty", () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";

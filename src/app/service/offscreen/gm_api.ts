@@ -37,7 +37,7 @@ export default class GMApi {
           response.response = URL.createObjectURL(blob);
         }
         try {
-          if (xhr.getResponseHeader("Content-Type")?.indexOf("text") !== -1) {
+          if (xhr.getResponseHeader("Content-Type")?.includes("text")) {
             // 如果是文本类型,则尝试转换为文本
             response.responseText = await blob.text();
           }

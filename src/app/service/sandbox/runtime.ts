@@ -180,7 +180,7 @@ export class Runtime {
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;
       let crontab = val;
-      if (crontab.indexOf("once") !== -1) {
+      if (crontab.includes("once")) {
         const vals = crontab.split(" ");
         vals.forEach((item, index) => {
           if (item === "once") {

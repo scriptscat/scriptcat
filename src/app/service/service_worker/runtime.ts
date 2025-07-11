@@ -593,7 +593,7 @@ export class RuntimeService {
         await chrome.userScripts.register(scripts);
       } catch (e: any) {
         this.logger.error("register inject.js error", Logger.E(e));
-        if (e.message?.indexOf("Duplicate script ID") !== -1) {
+        if (e.message?.includes("Duplicate script ID")) {
           // 如果是重复注册, 则更新
           try {
             await chrome.userScripts.update(scripts);

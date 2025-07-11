@@ -194,7 +194,7 @@ export function getBrowserVersion(): number {
 
 // 判断是否为Edge浏览器
 export function isEdge(): boolean {
-  return navigator.userAgent.indexOf("Edg/") !== -1;
+  return navigator.userAgent.includes("Edg/");
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {

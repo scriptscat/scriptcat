@@ -40,7 +40,7 @@ function LoggerPage() {
               }
               break;
             case "=~":
-              if (typeof value === "string" && value.indexOf(query.value) === -1) {
+              if (typeof value === "string" && !value.includes(query.value)) {
                 return;
               }
               break;
@@ -50,7 +50,7 @@ function LoggerPage() {
               }
               break;
             case "!~":
-              if (typeof value === "string" && value.indexOf(query.value) === -1) {
+              if (typeof value === "string" && !value.includes(query.value)) {
                 return;
               }
               break;

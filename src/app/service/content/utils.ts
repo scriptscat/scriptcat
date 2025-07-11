@@ -42,7 +42,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
   // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
-  // 使用sandboxContent时，arguments[0]为undefined
+  // 使用sandboxContext时，arguments[0]为undefined
   return `try {
   with(this){
     ${preCode}
@@ -140,7 +140,7 @@ type GMWorldContext = ((typeof globalThis) & ({
 }));
 
 // 拦截上下文
-export function proxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
+export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
   const special = Object.assign(writables);
   const exposedObject: Context = <Context>{};
   // 处理某些特殊的属性

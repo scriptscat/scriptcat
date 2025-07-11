@@ -6,6 +6,7 @@
 // @author       You
 // @match        https://bbs.tampermonkey.net.cn/
 // @grant        GM_cookie
+// @grant        GM.cookie
 // @connect      example.com
 // ==/UserScript==
 
@@ -40,3 +41,7 @@ GM_cookie("set", {
         })
     });
 });
+
+console.log("async GM.cookie.list", await GM.cookie.list({
+    domain: "example.com"
+}));

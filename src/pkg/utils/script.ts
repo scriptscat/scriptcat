@@ -80,7 +80,7 @@ export async function fetchScriptInfo(
   if (resp.status !== 200) {
     throw new Error("fetch script info failed");
   }
-  if (resp.headers.get("content-type")?.indexOf("text/html") !== -1) {
+  if (resp.headers.get("content-type")?.includes("text/html")) {
     throw new Error("url is html");
   }
 
@@ -169,7 +169,7 @@ export function prepareScriptByCode(
     } else {
       checkUpdateUrl = url.replace("user.js", "meta.js");
     }
-    if (url.indexOf("/") !== -1) {
+    if (url.includes("/")) {
       urlSplit = url.split("/");
       if (urlSplit[2]) {
         [, domain] = urlSplit;

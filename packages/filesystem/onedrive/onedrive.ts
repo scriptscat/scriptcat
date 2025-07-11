@@ -73,7 +73,7 @@ export default class OneDriveFileSystem implements FileSystem {
   request(url: string, config?: RequestInit, nothen?: boolean): Promise<Response | any> {
     config = config || {};
     const headers = <Headers>config.headers || new Headers();
-    if (url.indexOf("uploadSession") === -1) {
+    if (!url.includes("uploadSession")) {
       headers.append(`Authorization`, `Bearer ${this.accessToken}`);
     }
     config.headers = headers;
