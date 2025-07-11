@@ -61,7 +61,7 @@ export function createContext(
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
       s += `${(i ? '.' : '')}${part}`;
-      g = g[part] || (g[part] = grantedAPIs[s]);
+      g = g[part] || (g[part] = (grantedAPIs[s] || {}));
     }
   }
   context.unsafeWindow = window;
