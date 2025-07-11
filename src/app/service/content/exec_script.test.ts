@@ -6,6 +6,8 @@ import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
+import GMApi from "./gm_api";
+import { GMContextApiGet } from "./gm_context";
 
 initTestEnv();
 
@@ -243,5 +245,18 @@ describe("@grant GM", () => {
       GM_cookie: undefined,
       ["GM.cookie"]: expect.any(Function),
     });
+  });
+});
+
+describe("window.*", () => {
+  it("window.close", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.metadata.grant = ["window.close"];
+    script.code = `return window.close;`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual(GMContextApiGet("window.close")![0].api);
   });
 });
