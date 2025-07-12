@@ -368,10 +368,10 @@ function App() {
               <div className="text-end">
                 <Space>
                   <Button.Group>
-                    <Button type="primary" size="small" onClick={() => handleInstall()}>
+                    <Button key="primary_install" type="primary" size="small" onClick={() => handleInstall()}>
                       {btnText}
                     </Button>
-                    <Dropdown
+                    <Dropdown key="install_dropdown"
                       droplist={
                         <Menu>
                           <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
@@ -386,7 +386,7 @@ function App() {
                       }
                       position="bottom"
                     >
-                      <Button type="primary" size="small" icon={<IconDown />} />
+                      <Button key="btn_down" type="primary" size="small" icon={<IconDown />} />
                     </Dropdown>
                   </Button.Group>
                   <Button type="primary" status="danger" size="small" onClick={handleClose}>
