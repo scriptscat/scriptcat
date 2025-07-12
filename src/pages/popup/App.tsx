@@ -187,7 +187,7 @@ function App() {
                           const browserInfo = `${navigator.userAgent}`;
                           const issueUrl =
                             `https://github.com/scriptscat/scriptcat/issues/new?` +
-                            `template=bug_report${localePath === "en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
+                            `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
                             `browser-version=${encodeURIComponent(browserInfo)}`;
                           window.open(issueUrl, "_blank");
                           break;
