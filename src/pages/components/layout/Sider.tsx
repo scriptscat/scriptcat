@@ -176,7 +176,7 @@ const Sider: React.FC = () => {
                 setCollapsed(!collapsed);
               }}
             >
-              {collapsed ? <IconRight /> : <IconLeft />} {t("collapsible")}
+              {collapsed ? <IconRight /> : <IconLeft />} {t("hide_sidebar")}
             </MenuItem>
           </Menu>
         </div>
