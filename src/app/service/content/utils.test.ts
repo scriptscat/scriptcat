@@ -69,14 +69,14 @@ describe("proxy context", () => {
 
 // 只允许访问onxxxxx
 describe("window", () => {
-  const _this = createProxyContext({ onanimationstart: null }, {});
+  const _this = createProxyContext<{ [key: string]: any} & any>({ onanimationstart: null }, {});
   it("onxxxxx", () => {
     expect(_this.onanimationstart).toBeNull();
   });
 });
 
 describe("兼容问题", () => {
-  const _this = createProxyContext<{ [key: string]: any }>({}, {});
+  const _this = createProxyContext<{ [key: string]: any} & any>({}, {});
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it("Uncaught TypeError: Illegal invocation #189", () => {
     return new Promise((resolve) => {
@@ -106,7 +106,7 @@ describe("Symbol", () => {
 
 // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
 describe("Object", () => {
-  const _this = createProxyContext<{ [key: string]: any }>({}, {});
+  const _this = createProxyContext<{ [key: string]: any} & any>({}, {});
   it("hasOwnProperty", () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
     _this.test1 = "ok";

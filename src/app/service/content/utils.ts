@@ -43,12 +43,13 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   // arguments = [named: Object, scriptName: string]
   // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
   // 使用sandboxContext时，arguments[0]为undefined
+  // 在userScript API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
   with(this){
-    ${preCode}
-    return (async({GM,GM_info})=>{
-    ${code}
-    })(arguments[0]||{GM,GM_info});
+${preCode}
+    return (async function({GM,GM_info}){
+${code}
+    }).call(this,arguments[0]||{GM,GM_info});
   }
 } catch (e) {
   if (e.message && e.stack) {
