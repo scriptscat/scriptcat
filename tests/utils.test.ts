@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import GMApi from "@App/app/service/content/gm_api";
+import { createTestContext } from "@App/app/service/content/create_context";
 
 initTestEnv();
 
@@ -29,9 +29,9 @@ describe("测试GMApi环境", async () => {
     checktime: 0,
   };
   await new ScriptDAO().save(script);
-  const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
+  const gmApi = createTestContext("serviceWorker", msg, <ScriptRunResource>{
     uuid: script.uuid
-  });
+  }, ["GM_xmlhttpRequest"]);
   const mockXhr = newMockXhr();
   mockXhr.onSend = async (request) => {
     return request.respond(200, {}, "example");
