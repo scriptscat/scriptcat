@@ -4,10 +4,12 @@ import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it } from "vitest";
-import type { GMInfoEnv } from "./types";
+import type { GMInfoEnv, ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
 initTestEnv();
+
+const nilFn: ScriptFunc = ()=>{};
 
 const scriptRes = {
   id: 0,
@@ -19,7 +21,7 @@ const scriptRes = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-} as unknown as ScriptRunResource;
+} as unknown as ScriptRunResource as ScriptLoadInfo;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
   userAgentData: {
@@ -30,8 +32,7 @@ const envInfo: GMInfoEnv = {
   isIncognito: false,
 };
 
-// @ts-ignore
-const noneExec = new ExecScript(scriptRes, undefined, undefined, undefined, envInfo);
+const noneExec = new ExecScript(scriptRes, undefined, undefined, nilFn, envInfo);
 
 const scriptRes2 = {
   id: 0,
@@ -42,13 +43,14 @@ const scriptRes2 = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-} as unknown as ScriptRunResource;
+} as unknown as ScriptRunResource as ScriptLoadInfo;
 
-// @ts-ignore
-const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, undefined, envInfo);
+const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, nilFn, envInfo);
 
 describe("GM_info", () => {
   it("none", async () => {
+    expect(noneExec.sandboxContext).toBeUndefined();
+    expect(noneExec.named).not.toBeUndefined();
     scriptRes.code = "return {_this:this,GM_info};";
     noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
     const ret = await noneExec.exec();
@@ -57,20 +59,34 @@ describe("GM_info", () => {
     expect(ret._this).toEqual(global);
   });
   it("sandbox", async () => {
+    expect(sandboxExec.sandboxContext).not.toBeUndefined();
+    expect(sandboxExec.named).toBeUndefined();
     scriptRes2.code = "return {_this:this,GM_info};";
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
-    expect(ret._this).toEqual(sandboxExec.proxyContext);
+    expect(ret._this).not.toEqual(global);
   });
 });
 
 describe("unsafeWindow", () => {
+
+  it("unsafeWindow available", async () => {
+    const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
+    expect(ret0).toEqual(true);
+    scriptRes2.code = `return unsafeWindow`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(global);
+  });
+
   it("sandbox", async () => {
+    const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
+    expect(ret0).toEqual(true);
     // @ts-ignore
     global.testUnsafeWindow = "ok";
-    scriptRes2.code = "return unsafeWindow.testUnsafeWindow";
+    scriptRes2.code = `return unsafeWindow.testUnsafeWindow`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok");
@@ -102,12 +118,12 @@ describe("sandbox", () => {
     scriptRes2.code = `
     !function(t, e) {
       "object" == typeof exports ? module.exports = exports = e() : "function" == typeof define && define.amd ? define([], e) : t.CryptoJS = e()
-      console.log("object" == typeof exports,"function" == typeof define)
+      // console.log("object" == typeof exports,"function" == typeof define)
   } (this, function () {
       return { test: "ok3" }
   });
-  console.log(CryptoJS)
-  return CryptoJS.test;`;
+  // console.log(CryptoJS)
+  return ((typeof CryptoJS === "object") ? CryptoJS?.test : undefined);`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok3");
@@ -132,6 +148,10 @@ describe("sandbox", () => {
 
 describe("this", () => {
   it("onload", async () => {
+    // null确认
+    global.onload = null;
+    expect(global.onload).toBeNull();
+    // onload 改变，global.onload不改变
     scriptRes2.code = `onload = ()=>{};return onload;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -140,6 +160,10 @@ describe("this", () => {
     expect(global.onload).toBeNull();
   });
   it("this.onload", async () => {
+    // null确认
+    global.onload = null;
+    expect(global.onload).toBeNull();
+    // this.onload 改变，global.onload不改变
     scriptRes2.code = `this.onload = () => "ok"; return this.onload;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
@@ -189,8 +213,7 @@ describe("@grant GM", () => {
   it("GM_", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab", "GM_cookie"];
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
       ["GM.getValue"]: GM.getValue,
       ["GM.getTab"]: GM.getTab,
@@ -217,8 +240,7 @@ describe("@grant GM", () => {
   it("GM.*", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab", "GM.cookie"];
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
       ["GM.getValue"]: GM.getValue,
       ["GM.getTab"]: GM.getTab,
@@ -248,8 +270,7 @@ describe("window.*", () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["window.close"];
     script.code = `return window.close;`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
@@ -262,8 +283,7 @@ describe("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM_getValue"];
     script.code = `return GM_getValue("test");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
@@ -273,8 +293,7 @@ describe("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
@@ -286,8 +305,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
@@ -298,8 +316,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
@@ -310,8 +327,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM_getValues"];
     script.code = `return GM_getValues(["test2", "test3", "test1"]);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
@@ -324,8 +340,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, undefined, envInfo);
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");

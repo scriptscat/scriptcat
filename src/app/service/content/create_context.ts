@@ -9,8 +9,8 @@ import { createGMBase } from "./gm_api";
 export function createContext(
   scriptRes: ScriptRunResource,
   GMInfo: any,
-  envPrefix: string,
-  message: Message,
+  envPrefix: string | undefined,
+  message: Message | undefined,
   scriptGrants: Set<string>
 ) {
   // 按照GMApi构建
@@ -35,7 +35,7 @@ export function createContext(
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
-    if (!s) return false; // @grant 的定义未实作，略过 (返回 false 表示 @grant 不存在)
+    if (!s) return false; // @grant 的定义未实装，略过 (返回 false 表示 @grant 不存在)
     if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
     for (const {fnKey, api, param} of s) {

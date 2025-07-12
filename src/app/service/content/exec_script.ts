@@ -25,8 +25,8 @@ export default class ExecScript {
 
   constructor(
     scriptRes: ScriptLoadInfo,
-    envPrefix: "content" | "offscreen",
-    message: Message,
+    envPrefix: "content" | "offscreen" | undefined,
+    message: Message | undefined,
     code: string | ScriptFunc,
     envInfo: GMInfoEnv,
     globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效
