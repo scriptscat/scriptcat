@@ -272,9 +272,9 @@ export function createProxyContext<const Context extends GMWorldContext>(global:
 
       // return new Proxy(<Context>myCopy, {
       //   get(target, prop, receiver) {
-      //     // 由於Context全拦截，我們沒有方法判斷這個get是 typeof xxx 還是 xxx
-      //     // (不拦截的話會觸發全域變量存取讀寫)
-      //     // 因此總是傳回 undefined 而不報錯
+      //     // 由於Context全拦截，我们没有方法判断这个get是 typeof xxx 还是 xxx
+      //     // (不拦截的话会触发全域变量存取读写)
+      //     // 因此总是传回 undefined 而不报错
       //     if(Reflect.has(target, prop)){
       //       return Reflect.get(target, prop, receiver);
       //     }
