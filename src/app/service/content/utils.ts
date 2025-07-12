@@ -258,37 +258,39 @@ export function createProxyContext<const Context extends GMWorldContext>(global:
     configurable: true,
     get() {
       delete (<any>this).$;
-      return new Proxy(<Context>myCopy, {
-        get(target, prop, receiver) {
-          // 由於Context全拦截，我們沒有方法判斷這個get是 typeof xxx 還是 xxx
-          // (不拦截的話會觸發全域變量存取讀寫)
-          // 因此總是傳回 undefined 而不報錯
-          if(Reflect.has(target, prop)){
-            return Reflect.get(target, prop, receiver);
-          }
-          // throw new ReferenceError(`${String(prop)} is not defined.`);
-          return undefined;
-        },
-        has(_target, _key) {
-          // 全拦截，避免 userscript 改变 global window 变量 （包括删除及生成）
-          // 强制针对所有"属性"为[[HasProperty]]，即 `* in $` 总是 true
-          return true;
-        },
-        set(target, key, value, receiver) {
-          // if (Reflect.has(target, key)) {
-            // Allow updating existing properties in the context
-            return Reflect.set(target, key, value, receiver);
-          // }
-          // Prevent creating new properties
-          // throw new ReferenceError(`Cannot create variable ${String(key)} in sandbox`);
-        },
-        deleteProperty(target, key) {
-          if (Reflect.has(target, key)) {
-            return Reflect.deleteProperty(target, key);
-          }
-          return false;
-        }
-      });
+      return myCopy;
+
+      // return new Proxy(<Context>myCopy, {
+      //   get(target, prop, receiver) {
+      //     // 由於Context全拦截，我們沒有方法判斷這個get是 typeof xxx 還是 xxx
+      //     // (不拦截的話會觸發全域變量存取讀寫)
+      //     // 因此總是傳回 undefined 而不報錯
+      //     if(Reflect.has(target, prop)){
+      //       return Reflect.get(target, prop, receiver);
+      //     }
+      //     // throw new ReferenceError(`${String(prop)} is not defined.`);
+      //     return undefined;
+      //   },
+      //   has(_target, _key) {
+      //     // 全拦截，避免 userscript 改变 global window 变量 （包括删除及生成）
+      //     // 强制针对所有"属性"为[[HasProperty]]，即 `* in $` 总是 true
+      //     return true;
+      //   },
+      //   set(target, key, value, receiver) {
+      //     // if (Reflect.has(target, key)) {
+      //       // Allow updating existing properties in the context
+      //       return Reflect.set(target, key, value, receiver);
+      //     // }
+      //     // Prevent creating new properties
+      //     // throw new ReferenceError(`Cannot create variable ${String(key)} in sandbox`);
+      //   },
+      //   deleteProperty(target, key) {
+      //     if (Reflect.has(target, key)) {
+      //       return Reflect.deleteProperty(target, key);
+      //     }
+      //     return false;
+      //   }
+      // });
     }
   }
 
