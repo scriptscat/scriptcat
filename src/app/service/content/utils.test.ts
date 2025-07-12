@@ -23,12 +23,25 @@ describe("proxy context", () => {
     expect(global["md5"]).toEqual(undefined);
   });
 
-  it("set window null", () => {
-    _this["onload"] = "ok";
-    expect(_this["onload"]).toEqual("ok");
-    expect(global["onload"]).toEqual(null);
-    _this["onload"] = undefined;
-    expect(_this["onload"]).toEqual(undefined);
+  it("set window.onload null", () => {
+    // null確認
+    _this["onload"] = null;
+    global["onload"] = null;
+    expect(_this["onload"]).toBeNull();
+    expect(global["onload"]).toBeNull();
+    // _this.onload
+    _this["onload"] = function thisOnLoad() { };
+    expect(_this["onload"]?.name).toEqual("thisOnLoad");
+    expect(global["onload"]).toBeNull();
+    // global.onload
+    _this["onload"] = null;
+    global["onload"] = function globalOnLoad() { };
+    expect(_this["onload"]).toBeNull();
+    expect(global["onload"]?.name).toEqual("globalOnLoad");
+    global["onload"] = null;
+    // 還原確認
+    expect(_this["onload"]).toBeNull();
+    expect(global["onload"]).toBeNull();
   });
 
   it("update", () => {
@@ -57,7 +70,7 @@ describe("proxy context", () => {
 // 只允许访问onxxxxx
 describe("window", () => {
   const _this = createProxyContext({ onanimationstart: null }, {});
-  it("window", () => {
+  it("onxxxxx", () => {
     expect(_this.onanimationstart).toBeNull();
   });
 });
