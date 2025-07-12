@@ -4,11 +4,11 @@ import {
   IconBook,
   IconBug,
   IconGithub,
-  IconHome,
   IconMoreVertical,
   IconNotification,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
 import React, { useEffect, useMemo, useState } from "react";
@@ -135,6 +135,7 @@ function App() {
             <div className="flex flex-row items-center">
               <Switch
                 size="small"
+                className="mr-1"
                 checked={isEnableScript}
                 onChange={(val) => {
                   setIsEnableScript(val);
@@ -143,7 +144,7 @@ function App() {
               />
               <Button
                 type="text"
-                icon={<IconHome />}
+                icon={<IconSettings />}
                 iconOnly
                 onClick={() => {
                   // 用a链接的方式,vivaldi竟然会直接崩溃

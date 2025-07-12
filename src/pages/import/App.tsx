@@ -57,7 +57,7 @@ const ScriptListItem = React.memo(
                 : t("no_operation"))}
           </span>
         </Space>
-        <div className="flex flex-col justify-between" style={{ minWidth: "80px", textAlign: "center" }}>
+        <div className="flex flex-col justify-center" style={{ minWidth: "80px", textAlign: "center" }}>
           <span className="text-sm color-gray-5">{t("enable_script")}</span>
           <div className="text-center">
             <Switch
