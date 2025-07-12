@@ -9,7 +9,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 
 initTestEnv();
 
-const nilFn: ScriptFunc = ()=>{};
+const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
   id: 0,
@@ -21,7 +21,7 @@ const scriptRes = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-} as unknown as ScriptRunResource as ScriptLoadInfo;
+} as unknown as ScriptLoadInfo;
 const envInfo: GMInfoEnv = {
   sandboxMode: "raw",
   userAgentData: {
@@ -32,6 +32,7 @@ const envInfo: GMInfoEnv = {
   isIncognito: false,
 };
 
+// @ts-ignore
 const noneExec = new ExecScript(scriptRes, undefined, undefined, nilFn, envInfo);
 
 const scriptRes2 = {
@@ -45,6 +46,7 @@ const scriptRes2 = {
   value: {},
 } as unknown as ScriptRunResource as ScriptLoadInfo;
 
+// @ts-ignore
 const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, nilFn, envInfo);
 
 describe("GM_info", () => {
@@ -71,7 +73,6 @@ describe("GM_info", () => {
 });
 
 describe("unsafeWindow", () => {
-
   it("unsafeWindow available", async () => {
     const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
@@ -100,7 +101,6 @@ describe("unsafeWindow", () => {
     expect(ret2).toEqual(undefined);
   });
 
-
   it("sandbox NodeFilter", async () => {
     const nodeFilter = global.NodeFilter;
     expect(nodeFilter).toEqual(expect.any(Function));
@@ -113,7 +113,6 @@ describe("unsafeWindow", () => {
     const ret2 = await sandboxExec.exec();
     expect(ret2).toEqual(nodeFilter);
   });
-
 });
 
 describe("sandbox", () => {
@@ -317,7 +316,6 @@ describe("GM Api", () => {
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
   });
-
 
   it("GM_listValues", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;

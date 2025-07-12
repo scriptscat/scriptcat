@@ -9,8 +9,8 @@ import { createGMBase } from "./gm_api";
 export function createContext(
   scriptRes: ScriptRunResource,
   GMInfo: any,
-  envPrefix: string | undefined,
-  message: Message | undefined,
+  envPrefix: string,
+  message: Message,
   scriptGrants: Set<string>
 ) {
   // 按照GMApi构建
@@ -35,10 +35,10 @@ export function createContext(
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
-    if (!s) return false; // @grant 的定义未实装，略过 (返回 false 表示 @grant 不存在)
-    if (grantSet.has(grant)) return true; // 重覆的@grant，略过 (返回 true 表示 @grant 存在)
+    if (!s) return false; // @grant 的定义未实现，略过 (返回 false 表示 @grant 不存在)
+    if (grantSet.has(grant)) return true; // 重复的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
-    for (const {fnKey, api, param} of s) {
+    for (const { fnKey, api, param } of s) {
       grantedAPIs[fnKey] = api.bind(context);
       const depend = param?.depend;
       if (depend) {
@@ -57,11 +57,11 @@ export function createContext(
     const fnKeyArray = fnKey.split(".");
     const m = fnKeyArray.length;
     let g = context;
-    let s = '';
+    let s = "";
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
-      s += `${(i ? '.' : '')}${part}`;
-      g = g[part] || (g[part] = (grantedAPIs[s] || {}));
+      s += `${i ? "." : ""}${part}`;
+      g = g[part] || (g[part] = grantedAPIs[s] || {});
     }
   }
   context.unsafeWindow = window;
