@@ -473,7 +473,7 @@ function ScriptList() {
         render(col, item: ScriptLoading) {
           return (
             <Button.Group>
-              <Link to={`/script/editor/${item.uuid}`}>
+              <Link key="btn_edit" to={`/script/editor/${item.uuid}`}>
                 <Button
                   type="text"
                   icon={<RiPencilFill />}
@@ -482,7 +482,7 @@ function ScriptList() {
                   }}
                 />
               </Link>
-              <Popconfirm
+              <Popconfirm key="btn_delete"
                 title={t("confirm_delete_script")}
                 icon={<RiDeleteBin5Fill />}
                 onOk={() => {
@@ -499,7 +499,7 @@ function ScriptList() {
                 />
               </Popconfirm>
               {item.config && (
-                <Button
+                <Button key="btn_setting3fill"
                   type="text"
                   icon={<RiSettings3Fill />}
                   onClick={() => {
@@ -517,7 +517,7 @@ function ScriptList() {
                 />
               )}
               {item.type !== SCRIPT_TYPE_NORMAL && (
-                <Button
+                <Button key="btn_running_state"
                   type="text"
                   icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
                   loading={item.actionLoading}
@@ -553,7 +553,7 @@ function ScriptList() {
                 />
               )}
               {item.metadata.cloudcat && (
-                <Button
+                <Button key="btn_upload_cloudcat"
                   type="text"
                   icon={<RiUploadCloudFill />}
                   onClick={() => {

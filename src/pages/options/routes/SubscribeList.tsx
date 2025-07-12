@@ -64,8 +64,11 @@ function SubscribeList() {
             loading={item.loading}
             disabled={item.loading}
             onChange={(checked) => {
-              list[index].loading = true;
-              setList([...list]);
+              setList((prevList) =>
+                prevList.map((item, i) =>
+                  i === index ? { ...item, loading: true } : item
+                )
+              );
               subscribeClient
                 .enable(item.url, checked)
                 .then(() => {
@@ -75,8 +78,11 @@ function SubscribeList() {
                   Message.error(err);
                 })
                 .finally(() => {
-                  list[index].loading = false;
-                  setList([...list]);
+                  setList((prevList) =>
+                    prevList.map((item, i) =>
+                      i === index ? { ...item, loading: false } : item
+                    )
+                  );
                 });
             }}
           />
