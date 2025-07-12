@@ -85,7 +85,7 @@ type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
 const getAllPropertyDescriptors = (
   obj: any,
-  callback: ForEachCallback<[string | symbol, TypedPropertyDescriptor<any> & PropertyDescriptor]>
+  callback: ForEachCallback<[string | symbol, PropertyDescriptor]>
 ) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
@@ -93,10 +93,9 @@ const getAllPropertyDescriptors = (
     obj = Object.getPrototypeOf(obj);
   }
 };
-
 // 需要用到全局的
 // myCopy 不进行with变量拦截
-export const unscopables: { [key: string]: boolean } = {
+export const unscopables: Record<PropertyKey, any> = {
   // NodeFilter: true,
   // RegExp: true,
   "this": true,
@@ -143,11 +142,7 @@ const ownDescs = Object.getOwnPropertyDescriptors(global);
 
 // overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改 
 // 覆盖原有的 OwnPropertyDescriptor定义 或 父类的PropertyDescriptor定义
-const overridedDescs: ({
-  [x: string]: TypedPropertyDescriptor<any>;
-} & {
-  [x: string]: PropertyDescriptor;
-}) = {};
+const overridedDescs: Record<string, PropertyDescriptor> = {};
 
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
@@ -207,17 +202,7 @@ export const initCopy = Object.create(Object.getPrototypeOf(global), {
   ...overridedDescs
 });
 
-type GMWorldContext = ((typeof globalThis) & ({
-  [key: string | number | symbol]: any;
-  window: any;
-  self: any;
-  globalThis: any;
-}) | ({
-  [key: string | number | symbol]: any;
-  window: any;
-  self: any;
-  globalThis: any;
-}));
+type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
 const isEventListenerFunc = (x: any) => typeof x === 'function';
 const isPrimitive = (x: any) => x !== Object(x);
@@ -251,7 +236,8 @@ export function createProxyContext<const Context extends GMWorldContext>(global:
       delete desc.writable;
       delete desc.value;
     } else if (desc?.get) {
-      // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
+      // 真實的 window 物件中部份属性(self, parent) 存在setter. 意義不明
+      // 为避免做成混乱，ScriptCat脚本的沙盒不提供setter（即不能修改）
       // (像window.document, 能写 window.document = null 不会报错但赋值不变)
       desc.get = createFuncWrapper(desc.get);
       desc.set = undefined;
@@ -317,29 +303,36 @@ export function createProxyContext<const Context extends GMWorldContext>(global:
   // 脚本window设置
   const exposedWindow = myCopy;
   // 把 GM Api (或其他全域API) 复製到 脚本window
-  // 请手动检查避开key与window的属性setter有衝突
+  // 请手动检查避开key，防止与window的属性setter有衝突 或 属性名重覆
   for (const key of Object.keys(context)) {
     if (key in protect || key === 'window') continue;
     exposedWindow[key] = context[key]; // window以外
   }
 
-  if (context.window?.close) {
-    exposedWindow.close = context.window.close;
+  // 把 GM context物件的 window属性內容移至exposedWindow
+  // 由於目前只有 window.close, window.open, window.onurlchange, 不需要循环 window
+  const cWindow = context.window;
+
+  // @grant window.close
+  if (cWindow?.close) {
+    exposedWindow.close = cWindow.close;
   }
 
-  if (context.window?.focus) {
-    exposedWindow.focus = context.window.focus;
+  // @grant window.focus
+  if (cWindow?.focus) {
+    exposedWindow.focus = cWindow.focus;
   }
 
-  if (context.window?.onurlchange === null) {
-    // 目前 TM 只支援 null. ScriptCat预设null？
+  // @grant window.onurlchange
+  if (cWindow?.onurlchange === null) {
+    // 目前 TM 只支援 null. ScriptCat不需要grant预设啟用？
     exposedWindow.onurlchange = null;
   }
 
   return exposedWindow;
 }
 
-export function addStyle(css: string): HTMLElement {
+export function addStyle(css: string): HTMLStyleElement {
   const dom = document.createElement("style");
   dom.textContent = css;
   if (document.head) {

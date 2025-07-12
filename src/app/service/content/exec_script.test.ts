@@ -1,4 +1,3 @@
-import { type ScriptRunResource } from "@App/app/repo/scripts";
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
@@ -44,7 +43,7 @@ const scriptRes2 = {
   code: "console.log('test')",
   sourceCode: "sourceCode",
   value: {},
-} as unknown as ScriptRunResource as ScriptLoadInfo;
+} as unknown as ScriptLoadInfo;
 
 // @ts-ignore
 const sandboxExec = new ExecScript(scriptRes2, undefined, undefined, nilFn, envInfo);
@@ -231,6 +230,7 @@ describe("@grant GM", () => {
   it("GM_", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_getTab", "GM_saveTab", "GM_cookie"];
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
       ["GM.getValue"]: GM.getValue,
@@ -258,6 +258,7 @@ describe("@grant GM", () => {
   it("GM.*", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab", "GM.cookie"];
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
       ["GM.getValue"]: GM.getValue,
@@ -288,6 +289,7 @@ describe("window.*", () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.metadata.grant = ["window.close"];
     script.code = `return window.close;`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -301,6 +303,7 @@ describe("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM_getValue"];
     script.code = `return GM_getValue("test");`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -311,6 +314,7 @@ describe("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -322,6 +326,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM_listValues"];
     script.code = `return GM_listValues().join("-");`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -333,6 +338,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -344,6 +350,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM_getValues"];
     script.code = `return GM_getValues(["test2", "test3", "test1"]);`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
@@ -357,6 +364,7 @@ describe("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
+    // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
