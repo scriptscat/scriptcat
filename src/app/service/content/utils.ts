@@ -3,17 +3,7 @@ import type { ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { protect } from "./gm_context";
 
-// undefined 和 null 以外，使用 hasOwnProperty 检查
-// 不使用 != 避免类型转换比较
-const has = (object: any, key: any) => {
-  switch (object) {
-    case undefined:
-    case null:
-      return false;
-    default:
-      return Object.prototype.hasOwnProperty.call(object, key);
-  }
-}
+const noEval = false;
 
 // 构建脚本运行代码
 /**
@@ -41,15 +31,15 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
-  // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
-  // 使用sandboxContext时，arguments[0]为undefined
+  // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用於全域拦截context
+  // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
   // 在userScript API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
-  with(this){
+  with(arguments[0]||this.$){
 ${preCode}
-    return (async function({GM,GM_info}){
+    return (async function(){
 ${code}
-    }).call(this,arguments[0]||{GM,GM_info});
+    }).call(this);
   }
 } catch (e) {
   if (e.message && e.stack) {
@@ -80,239 +70,260 @@ export function compileInjectScript(
   return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
-export const writables: { [key: string]: any } = {
-  addEventListener: global.addEventListener.bind(global),
-  removeEventListener: global.removeEventListener.bind(global),
-  dispatchEvent: global.dispatchEvent.bind(global),
-};
+type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
 
-// 记录初始的window字段
-export const init = new Map<string, boolean>();
+// 取物件本身及所有父类(不包含Object)的PropertyDescriptor
+const getAllPropertyDescriptors = (
+  obj: any,
+  callback: ForEachCallback<[string | symbol, TypedPropertyDescriptor<any> & PropertyDescriptor]>
+) => {
+  while (obj && obj !== Object) {
+    const descs = Object.getOwnPropertyDescriptors(obj);
+    Object.entries(descs).forEach(callback);
+    obj = Object.getPrototypeOf(obj);
+  }
+};
 
 // 需要用到全局的
+// myCopy 不进行with变量拦截
 export const unscopables: { [key: string]: boolean } = {
-  NodeFilter: true,
-  RegExp: true,
+  // NodeFilter: true,
+  // RegExp: true,
+  "this": true,
+  "arguments": true,
+  // "await": true,
+  // "define": true,
+  // "module": true,
+  // "exports": true
 };
 
-// 复制原有的,防止被前端网页复写
-const descs = Object.getOwnPropertyDescriptors(global);
-Object.keys(descs).forEach((key) => {
-  const desc = descs[key];
-  // 可写但不在特殊配置writables中
-  if (desc && desc.writable && !writables[key]) {
-    if (typeof desc.value === "function") {
-      // 判断是否需要bind，例如Object、Function这些就不需要bind
-      if (desc.value.prototype) {
-        writables[key] = desc.value;
-      } else {
-        writables[key] = desc.value.bind(global);
-      }
-    } else {
-      writables[key] = desc.value;
-    }
-  } else {
-    init.set(key, true);
-  }
-});
+// 在 CacheSet 加入的propKeys将会在myCopy实装阶段时设置
+const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
 
-export function warpObject(exposedObject: object, ...context: object[]) {
-  // 处理Object上的方法
-  exposedObject.hasOwnProperty = (name: PropertyKey) => {
-    return (
-      Object.hasOwnProperty.call(exposedObject, name) || context.some((val) => Object.hasOwnProperty.call(val, name))
-    );
-  };
-  exposedObject.isPrototypeOf = (name: object) => {
-    return Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
-  };
-  exposedObject.propertyIsEnumerable = (name: PropertyKey) => {
-    return (
-      Object.propertyIsEnumerable.call(exposedObject, name) ||
-      context.some((val) => Object.propertyIsEnumerable.call(val, name))
-    );
-  };
+// 用 eventHandling 机制模拟 onxxxxxxx 事件设置
+const createEventProp = (eventName: string) => {
+  // 赋值变量
+  let registered: EventListenerOrEventListenerObject | null = null;
+  return {
+    get() {
+      return registered;
+    },
+    set(newVal: EventListenerOrEventListenerObject | any) {
+      if (newVal !== registered) {
+        if (isEventListenerFunc(registered)) {
+          // 停止当前事件监听
+          global.removeEventListener(eventName, registered!);
+        }
+        if (isPrimitive(newVal)) {
+          // 按照实际操作，primitive types (number, string, boolean, ...) 会被转换成 null
+          newVal = null;
+        } else if (isEventListenerFunc(newVal)) {
+          // 非primitive types 的话，只考虑 function type
+          // Symbol, Object (包括 EventListenerObject ) 等只会保存而不进行事件监听
+          global.addEventListener(eventName, newVal);
+        }
+        registered = newVal;
+      }
+    }
+  }
 }
+
+const ownDescs = Object.getOwnPropertyDescriptors(global);
+
+// overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改 
+// 覆盖原有的 OwnPropertyDescriptor定义 或 父类的PropertyDescriptor定义
+const overridedDescs: ({
+  [x: string]: TypedPropertyDescriptor<any>;
+} & {
+  [x: string]: PropertyDescriptor;
+}) = {};
+
+// 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
+// 主要是找出哪些 function值， setter/getter 需要替换 global window
+getAllPropertyDescriptors(global, ([key, desc]) => {
+  if (!desc || descsCache.has(key) || typeof key !== 'string') return;
+  descsCache.add(key);
+
+  if (desc.writable) {
+    // 属性 value
+
+    const value = desc.value;
+
+    // 替换 function 的 this 为 实际的 global window
+    // 例：父类的 addEventListener
+    if (typeof value === "function" && !value.prototype) {
+      const boundValue = value.bind(global);
+      overridedDescs[key] = {
+        ...desc,
+        value: boundValue
+      }
+    }
+
+  } else {
+    if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith('on')) {
+      // 替换 onxxxxx 事件赋值操作
+      // 例：(window.)onload, (window.)onerror
+      const eventName = (<string>key).slice(2);
+      const eventSetterGetter = createEventProp(eventName);
+      overridedDescs[key] = {
+        ...desc,
+        ...eventSetterGetter
+      };
+    } else {
+
+      if (desc.get || desc.set) {
+        // 替换 getter setter 的 this 为 实际的 global window
+        // 例：(window.)location, (window.)document
+        overridedDescs[key] = {
+          ...desc,
+          get: desc?.get?.bind(global),
+          set: desc?.set?.bind(global),
+        };
+
+      }
+
+    }
+  }
+
+});
+descsCache.clear(); // 内存释放
+
+// initCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
+// OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
+//  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
+export const initCopy = Object.create(Object.getPrototypeOf(global), {
+  ...ownDescs,
+  ...overridedDescs
+});
 
 type GMWorldContext = ((typeof globalThis) & ({
   [key: string | number | symbol]: any;
+  window: any;
+  self: any;
+  globalThis: any;
 }) | ({
   [key: string | number | symbol]: any;
+  window: any;
+  self: any;
+  globalThis: any;
 }));
+
+const isEventListenerFunc = (x: any) => typeof x === 'function';
+const isPrimitive = (x: any) => x !== Object(x);
 
 // 拦截上下文
 export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
-  const special = Object.assign(writables);
-  const exposedObject: Context = <Context>{};
-  // 处理某些特殊的属性
-  // 后台脚本要不要考虑不能使用eval?
-  exposedObject.eval = global.eval;
-  // exposedObject.define = undefined;
-  warpObject(exposedObject, special, global);
-  // 把 GM Api (或其他全域API) 复製到 exposedObject
-  for (const key of Object.keys(context)) {
-    if (key in protect) continue;
-    exposedObject[key] = context[key];
+
+  // let withContext: Context | undefined | { [key: string]: any } = undefined;
+  // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
+
+  const ownDescs = Object.getOwnPropertyDescriptors(initCopy);
+
+  let myCopy: typeof initCopy | undefined = undefined;
+
+  const createFuncWrapper = (f: () => any) => {
+    return function (this: any) {
+      const ret = f.call(global);
+      if (ret === global) return myCopy;
+      return ret;
+    }
   }
-  // @ts-ignore
-  const exposedProxy = new Proxy(exposedObject, {
-    // defineProperty(target, name, desc) {
-    //   return Reflect.defineProperty(target, name, desc);
-    // },
-    get(_, name): any {
-      switch (name) {
-        case "window":
-        case "self":
-        case "globalThis":
-          return exposedProxy;
-        case "top":
-        case "parent":
-          if (global[name] === global.self) {
-            return special.global || exposedProxy;
+
+  for (const key of ["window", "self", "globalThis", "top", "parent"]) {
+    const desc = ownDescs[key];
+    if (desc?.value === global) {
+      // globalThis
+      // 避免 self referencing, 改以 getter 形式
+      desc.get = function () { return myCopy };
+      desc.set = undefined;
+      // 为了 value 转 getter/setter，必须删除 writable 和 value
+      delete desc.writable;
+      delete desc.value;
+    } else if (desc?.get) {
+      // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
+      // (像window.document, 能写 window.document = null 不会报错但赋值不变)
+      desc.get = createFuncWrapper(desc.get);
+      desc.set = undefined;
+    }
+  }
+  if (noEval) {
+    if (ownDescs?.eval?.value) {
+      ownDescs.eval.value = undefined;
+    }
+  }
+
+  // 一次性 get, 用於 with(this.$) 设计
+  ownDescs.$ = {
+    enumerable: false,
+    configurable: true,
+    get() {
+      delete (<any>this).$;
+      return new Proxy(<Context>myCopy, {
+        get(target, prop, receiver) {
+          // 由於Context全拦截，我們沒有方法判斷這個get是 typeof xxx 還是 xxx
+          // (不拦截的話會觸發全域變量存取讀寫)
+          // 因此總是傳回 undefined 而不報錯
+          if(Reflect.has(target, prop)){
+            return Reflect.get(target, prop, receiver);
           }
-          return global.top;
-        case "close":
-        case "focus":
-        case "onurlchange":
-          if (context["window"][name]) {
-            return context["window"][name];
-          }
-      }
-      if (name !== "undefined") {
-        if (has(exposedObject, name)) {
-          // @ts-ignore
-          return exposedObject[name];
-        }
-        if (typeof name === "string") {
-          if (has(context, name)) {
-            if (has(protect, name)) {
-              return undefined;
-            }
-            return context[name];
-          }
-          if (has(special, name)) {
-            if (typeof special[name] === "function" && !(<{ prototype: any }>special[name]).prototype) {
-              return (<{ bind: any }>special[name]).bind(global);
-            }
-            return special[name];
-          }
-          if (has(global, name)) {
-            // 特殊处理onxxxx的事件
-            if (name.startsWith("on")) {
-              if (typeof global[name] === "function" && !(<{ prototype: any }>global[name]).prototype) {
-                return (<{ bind: any }>global[name]).bind(global);
-              }
-              return global[name];
-            }
-          }
-          if (init.has(name)) {
-            const val = global[name];
-            if (typeof val === "function" && !(<{ prototype: any }>val).prototype) {
-              return (<{ bind: any }>val).bind(global);
-            }
-            return val;
-          }
-        } else if (name === Symbol.unscopables) {
-          return unscopables;
-        }
-      }
-      return undefined;
-    },
-    has(_, name) {
-      switch (name) {
-        case "window":
-        case "self":
-        case "globalThis":
+          // throw new ReferenceError(`${String(prop)} is not defined.`);
+          return undefined;
+        },
+        has(_target, _key) {
+          // 全拦截，避免 userscript 改变 global window 变量 （包括删除及生成）
+          // 强制针对所有"属性"为[[HasProperty]]，即 `* in $` 总是 true
           return true;
-        case "top":
-        case "parent":
-          // if (global[name] === global.self) {
-          //   return true;
+        },
+        set(target, key, value, receiver) {
+          // if (Reflect.has(target, key)) {
+            // Allow updating existing properties in the context
+            return Reflect.set(target, key, value, receiver);
           // }
-          return true;
-        case "undefined":
-          return false;
-        default:
-          break;
-      }
-      if (typeof name === "string") {
-        if (has(unscopables, name)) {
-          return false;
-        }
-        if (has(exposedObject, name)) {
-          return true;
-        }
-        if (has(special, name)) {
-          return true;
-        }
-        // 只处理onxxxx的事件
-        if (has(global, name)) {
-          if (name.startsWith("on")) {
-            return true;
+          // Prevent creating new properties
+          // throw new ReferenceError(`Cannot create variable ${String(key)} in sandbox`);
+        },
+        deleteProperty(target, key) {
+          if (Reflect.has(target, key)) {
+            return Reflect.deleteProperty(target, key);
           }
-        }
-      } else if (typeof name === "symbol") {
-        return has(exposedObject, name);
-      }
-      return false;
-    },
-    set(_, name: string, val) {
-      switch (name) {
-        case "window":
-        case "self":
-        case "globalThis":
           return false;
-        default:
-      }
-      if (has(special, name)) {
-        special[name] = val;
-        return true;
-      }
-      if (init.has(name)) {
-        const des = Object.getOwnPropertyDescriptor(global, name);
-        // 只读的return
-        if (des && des.get && !des.set && des.configurable) {
-          return true;
         }
-        // 只处理onxxxx的事件
-        if (has(global, name) && name.startsWith("on")) {
-          const eventName = name.slice(2);
-          if (val === undefined) {
-            global.removeEventListener(eventName, exposedObject[name]);
-          } else {
-            if (exposedObject[name]) {
-              global.removeEventListener(eventName, exposedObject[name]);
-            }
-            global.addEventListener(eventName, val);
-          }
-          exposedObject[name] = val;
-          return true;
-        }
-      }
-      // @ts-ignore
-      exposedObject[name] = val;
-      return true;
-    },
-    getOwnPropertyDescriptor(_, name) {
-      try {
-        let ret = Object.getOwnPropertyDescriptor(exposedObject, name);
-        if (ret) {
-          return ret;
-        }
-        ret = Object.getOwnPropertyDescriptor(context, name);
-        if (ret) {
-          return ret;
-        }
-        ret = Object.getOwnPropertyDescriptor(global, name);
-        return ret;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (e) {
-        return undefined;
-      }
-    },
-  });
-  exposedProxy[Symbol.toStringTag] = "Window";
-  return exposedProxy;
+      });
+    }
+  }
+
+  // 把初始Copy加上特殊变量后，生成一份新Copy
+  myCopy = Object.create(Object.getPrototypeOf(initCopy), ownDescs);
+
+  // 用於避开myCopy的with拦截
+  myCopy[Symbol.unscopables] = {
+    ...(myCopy[Symbol.unscopables] || {}),
+    ...unscopables
+  };
+
+  // 脚本window设置
+  const exposedWindow = myCopy;
+  // 把 GM Api (或其他全域API) 复製到 脚本window
+  // 请手动检查避开key与window的属性setter有衝突
+  for (const key of Object.keys(context)) {
+    if (key in protect || key === 'window') continue;
+    exposedWindow[key] = context[key]; // window以外
+  }
+
+  if (context.window?.close) {
+    exposedWindow.close = context.window.close;
+  }
+
+  if (context.window?.focus) {
+    exposedWindow.focus = context.window.focus;
+  }
+
+  if (context.window?.onurlchange === null) {
+    // 目前 TM 只支援 null. ScriptCat预设null？
+    exposedWindow.onurlchange = null;
+  }
+
+  return exposedWindow;
 }
 
 export function addStyle(css: string): HTMLElement {
