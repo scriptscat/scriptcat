@@ -13,14 +13,14 @@ const has = (object: any, key: any) => {
     default:
       return Object.prototype.hasOwnProperty.call(object, key);
   }
-}
+};
 
 // 构建脚本运行代码
 /**
  * @see {@link ExecScript}
- * @param scriptRes 
- * @param scriptCode 
- * @returns 
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
  */
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
@@ -43,7 +43,12 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
   // arguments = [named: Object, scriptName: string]
   // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
   // 使用sandboxContext时，arguments[0]为undefined
-  return `try {
+  if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
+    return `(async function(){
+      ${code}
+    })();`;
+  } else {
+    return `try {
   with(this){
     ${preCode}
     return (async({GM,GM_info})=>{
@@ -58,6 +63,7 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
       console.error(e);
   }
 }`;
+  }
 }
 
 // 通过脚本代码编译脚本函数
@@ -66,17 +72,21 @@ export function compileScript(code: string): ScriptFunc {
 }
 /**
  * 将脚本函数编译为注入脚本代码
- * @param script
+ * @param scriptRes
  * @param scriptCode
  * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
  */
 export function compileInjectScript(
-  script: ScriptRunResource,
+  scriptRes: ScriptRunResource,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${scriptRes.flag}']}catch(e){}` : "";
+  if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
+    return scriptCode;
+  } else {
+    return `window['${scriptRes.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  }
 }
 
 export const writables: { [key: string]: any } = {
@@ -123,7 +133,9 @@ export function warpObject(exposedObject: object, ...context: object[]) {
     );
   };
   exposedObject.isPrototypeOf = (name: object) => {
-    return Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
+    return (
+      Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name))
+    );
   };
   exposedObject.propertyIsEnumerable = (name: PropertyKey) => {
     return (
@@ -133,11 +145,13 @@ export function warpObject(exposedObject: object, ...context: object[]) {
   };
 }
 
-type GMWorldContext = ((typeof globalThis) & ({
-  [key: string | number | symbol]: any;
-}) | ({
-  [key: string | number | symbol]: any;
-}));
+type GMWorldContext =
+  | (typeof globalThis & {
+      [key: string | number | symbol]: any;
+    })
+  | {
+      [key: string | number | symbol]: any;
+    };
 
 // 拦截上下文
 export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
