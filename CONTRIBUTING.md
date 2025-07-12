@@ -61,8 +61,8 @@ ScriptCat的文档在另外的仓库中：[scriptcat.org](https://docs.scriptcat
 特性可以帮助你。如果你需要在本地预览修改后的文档，可以使用以下命令安装文档依赖并启动dev server：
 
 ```bash
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 ### 帮助我们翻译
