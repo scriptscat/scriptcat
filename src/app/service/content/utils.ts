@@ -70,6 +70,16 @@ export function compileInjectScript(
   return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
+const shouldFnBind = (f: any) => {
+  if (typeof f !== 'function') return false;
+  if ('prototype' in f) return false; // 避免getter, 使用 in operator
+  // window中的函式，大写开头不用於直接呼叫 （例如NodeFilter) 
+  const { name } = f;
+  if (!name) return false;
+  const e = name.charCodeAt(0);
+  return (e >= 97 && e <= 122);
+}
+
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
 
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
@@ -151,7 +161,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
 
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
-    if (typeof value === "function" && !value.prototype) {
+    if (shouldFnBind(value)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,

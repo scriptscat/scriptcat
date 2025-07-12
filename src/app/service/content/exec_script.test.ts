@@ -79,6 +79,10 @@ describe("unsafeWindow", () => {
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(global);
+    scriptRes2.code = `return window`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret3 = await sandboxExec.exec();
+    expect(ret3).not.toEqual(global);
   });
 
   it("sandbox", async () => {
@@ -95,6 +99,21 @@ describe("unsafeWindow", () => {
     const ret2 = await sandboxExec.exec();
     expect(ret2).toEqual(undefined);
   });
+
+
+  it("sandbox NodeFilter", async () => {
+    const nodeFilter = global.NodeFilter;
+    expect(nodeFilter).toEqual(expect.any(Function));
+    scriptRes2.code = `return unsafeWindow.NodeFilter`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual(nodeFilter);
+    scriptRes2.code = "return window.NodeFilter";
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret2 = await sandboxExec.exec();
+    expect(ret2).toEqual(nodeFilter);
+  });
+
 });
 
 describe("sandbox", () => {
