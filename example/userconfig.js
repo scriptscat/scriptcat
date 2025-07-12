@@ -5,8 +5,8 @@
 // @description  会在页面上显示用户配置,可以可视化的进行配置
 // @author       You
 // @background
-// @grant GM_getValue
-// @grant CAT_userConfig
+// @grant        GM_getValue
+// @grant        CAT_userConfig
 // ==/UserScript==
 
 /* ==UserConfig==

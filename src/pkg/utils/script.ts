@@ -1,41 +1,20 @@
 import { v4 as uuidv4 } from "uuid";
+import type { Metadata, Script, ScriptCode } from "@App/app/repo/scripts";
 import {
-  Metadata,
-  Script,
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
-  ScriptAndCode,
-  ScriptCode,
   ScriptCodeDAO,
   ScriptDAO,
-  UserConfig,
 } from "@App/app/repo/scripts";
-import YAML from "yaml";
-import { Subscribe, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO, Metadata as SubMetadata } from "@App/app/repo/subscribe";
-import { nextTime } from "./utils";
-import { InstallSource } from "@App/app/service/service_worker";
-
-export function getMetadataStr(code: string): string | null {
-  const start = code.indexOf("==UserScript==");
-  const end = code.indexOf("==/UserScript==");
-  if (start === -1 || end === -1) {
-    return null;
-  }
-  return `// ${code.substring(start, end + 15)}`;
-}
-
-export function getUserConfigStr(code: string): string | null {
-  const start = code.indexOf("==UserConfig==");
-  const end = code.indexOf("==/UserConfig==");
-  if (start === -1 || end === -1) {
-    return null;
-  }
-  return `/* ${code.substring(start, end + 15)} */`;
-}
+import type { Subscribe, Metadata as SubMetadata } from "@App/app/repo/subscribe";
+import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import { nextTime } from "./cron";
+import type { InstallSource } from "@App/app/service/service_worker/types";
+import { parseUserConfig } from "./yaml";
 
 export function parseMetadata(code: string): Metadata | null {
   let issub = false;
@@ -77,23 +56,6 @@ export function parseMetadata(code: string): Metadata | null {
   return ret;
 }
 
-export function parseUserConfig(code: string): UserConfig | undefined {
-  const regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;
-  const config = regex.exec(code);
-  if (!config) {
-    return undefined;
-  }
-  const configs = config[1].trim().split(/[-]{3,}/);
-  const ret: UserConfig = {};
-  configs.forEach((val) => {
-    const obj: UserConfig = YAML.parse(val);
-    Object.keys(obj || {}).forEach((key) => {
-      ret[key] = obj[key];
-    });
-  });
-  return ret;
-}
-
 export type ScriptInfo = {
   url: string;
   code: string;
@@ -118,7 +80,7 @@ export async function fetchScriptInfo(
   if (resp.status !== 200) {
     throw new Error("fetch script info failed");
   }
-  if (resp.headers.get("content-type")?.indexOf("text/html") !== -1) {
+  if (resp.headers.get("content-type")?.includes("text/html")) {
     throw new Error("url is html");
   }
 
@@ -147,10 +109,9 @@ export function copyScript(script: Script, old: Script): Script {
   // ret.delayruntime = old.delayruntime;
   ret.error = old.error;
   ret.sort = old.sort;
-  if (!ret.selfMetadata) {
-    ret.selfMetadata = old.selfMetadata || {};
-  }
+  ret.selfMetadata = old.selfMetadata || {};
   ret.subscribeUrl = old.subscribeUrl;
+  ret.checkUpdate = old.checkUpdate;
   ret.status = old.status;
   return ret;
 }
@@ -162,42 +123,6 @@ export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
   ret.createtime = old.createtime;
   ret.status = old.status;
   return ret;
-}
-
-export function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string>reader.result);
-    reader.readAsDataURL(blob);
-  });
-}
-
-export function blobToText(blob: Blob): Promise<string | null> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(<string | null>reader.result);
-    reader.readAsText(blob);
-  });
-}
-
-export function base64ToBlob(dataURI: string) {
-  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
-  const byteString = atob(dataURI.split(",")[1]);
-  const arrayBuffer = new ArrayBuffer(byteString.length);
-  const intArray = new Uint8Array(arrayBuffer);
-
-  for (let i = 0; i < byteString.length; i += 1) {
-    intArray[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([intArray], { type: mimeString });
-}
-
-export function strToBase64(str: string): string {
-  return btoa(
-    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
-      return String.fromCharCode(parseInt(`0x${p1}`, 16));
-    })
-  );
 }
 
 // 通过代码解析出脚本信息
@@ -244,7 +169,7 @@ export function prepareScriptByCode(
     } else {
       checkUpdateUrl = url.replace("user.js", "meta.js");
     }
-    if (url.indexOf("/") !== -1) {
+    if (url.includes("/")) {
       urlSplit = url.split("/");
       if (urlSplit[2]) {
         [, domain] = urlSplit;
@@ -263,6 +188,7 @@ export function prepareScriptByCode(
       namespace: metadata.namespace && metadata.namespace[0],
       originDomain: domain,
       origin: url,
+      checkUpdate: true,
       checkUpdateUrl,
       downloadUrl,
       config: parseUserConfig(code),

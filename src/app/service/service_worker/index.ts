@@ -1,21 +1,19 @@
-import { Server } from "@Packages/message/server";
-import { MessageQueue } from "@Packages/message/message_queue";
+import { ExtServer, ExtVersion } from "@App/app/const";
+import { type Server } from "@Packages/message/server";
+import { type MessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
-import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
+import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
+import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
-import { ExtServer, ExtVersion } from "@App/app/const";
-import { systemConfig } from "@App/pages/store/global";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
-import { Logger, LoggerDAO } from "@App/app/repo/logger";
-
-export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
+import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 
 // service worker的管理器
 export default class ServiceWorkerManager {

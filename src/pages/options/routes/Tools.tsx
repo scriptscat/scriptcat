@@ -13,16 +13,16 @@ import {
   Space,
 } from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
-import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
-import { File, FileReader } from "@Packages/filesystem/filesystem";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemFactory from "@Packages/filesystem/factory";
+import type { File, FileReader } from "@Packages/filesystem/filesystem";
 import { message, systemConfig } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
-import { SystemConfig } from "@App/pkg/config/config";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { migrateToChromeStorage } from "@App/app/migrate";
 
@@ -162,9 +162,9 @@ function Tools() {
                     list = list.filter((file) => file.name.endsWith(".zip"));
                     if (list.length === 0) {
                       Message.info(t("no_backup_files")!);
-                      return;
+                    } else {
+                      setBackupFileList(list);
                     }
-                    setBackupFileList(list);
                   } catch (e) {
                     Message.error(`${t("get_backup_files_failed")}: ${e}`);
                   }

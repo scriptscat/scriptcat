@@ -1,5 +1,5 @@
-import { LoggerDAO } from "../repo/logger";
-import { LogLabel, LogLevel, Writer } from "./core";
+import type { LoggerDAO } from "../repo/logger";
+import type { LogLabel, LogLevel, Writer } from "./core";
 
 // 使用indexdb作为日志存储
 export default class DBWriter implements Writer {

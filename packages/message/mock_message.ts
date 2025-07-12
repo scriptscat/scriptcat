@@ -1,5 +1,5 @@
+import type { Message, MessageConnect, MessageSend } from "./types";
 import EventEmitter from "eventemitter3";
-import { Message, MessageConnect, MessageSend } from "./server";
 import { sleep } from "@App/pkg/utils/utils";
 
 export class MockMessageConnect implements MessageConnect {

@@ -2,7 +2,7 @@ import { ExtServer, ExtServerApi } from "@App/app/const";
 import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
-type NetDiskType = "baidu" | "onedrive";
+type NetDiskType = "baidu" | "onedrive" | "googledrive";
 
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
@@ -42,7 +42,7 @@ export function NetDisk(netDiskType: NetDiskType) {
             clearInterval(t);
             resolve();
           }
-        } catch (e) {
+        } catch (_) {
           clearInterval(t);
           resolve();
         }
@@ -61,7 +61,7 @@ export function NetDisk(netDiskType: NetDiskType) {
                 clearInterval(t);
                 resolve();
               }
-            } catch (e) {
+            } catch (_) {
               clearInterval(t);
               resolve();
             }
@@ -86,7 +86,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     if (resp) {
       token = resp.value;
     }
-  } catch (e) {
+  } catch (_) {
     // ignore
   }
   // token不存在,或者没有accessToken,重新获取
@@ -131,7 +131,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
         key,
         value: token,
       });
-    } catch (e) {
+    } catch (_) {
       // 报错返回原token
       return token.accessToken;
     }

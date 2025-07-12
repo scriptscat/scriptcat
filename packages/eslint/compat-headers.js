@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable no-undef */
 const compat_headers = require("eslint-plugin-userscripts/dist/data/compat-headers.js");
 
 const compatMap = {

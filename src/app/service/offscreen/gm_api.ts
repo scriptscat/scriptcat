@@ -1,6 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { GetSender, Group, MessageConnect } from "@Packages/message/server";
+import type { GetSender, Group } from "@Packages/message/server";
+import type { MessageConnect } from "@Packages/message/types";
 
 export default class GMApi {
   logger: Logger = LoggerCore.logger().with({ service: "gmApi" });
@@ -36,7 +37,7 @@ export default class GMApi {
           response.response = URL.createObjectURL(blob);
         }
         try {
-          if (xhr.getResponseHeader("Content-Type")?.indexOf("text") !== -1) {
+          if (xhr.getResponseHeader("Content-Type")?.includes("text")) {
             // 如果是文本类型,则尝试转换为文本
             response.responseText = await blob.text();
           }
@@ -80,14 +81,10 @@ export default class GMApi {
     return response;
   }
 
-  CAT_fetch(details: GMSend.XHRDetails, sender: GetSender) {
-    throw new Error("Method not implemented.");
-  }
-
   async xmlHttpRequest(details: GMSend.XHRDetails, sender: GetSender) {
     if (details.responseType === "stream") {
       // 只有fetch支持ReadableStream
-      return this.CAT_fetch(details, sender);
+      throw new Error("Method not implemented.");
     }
     const xhr = new XMLHttpRequest();
     const con = sender.getConnect();

@@ -1,7 +1,7 @@
-/* eslint-disable max-classes-per-file */
-/* eslint-disable import/prefer-default-export */
-import JSZip, { JSZipObject } from "jszip";
-import { FileReader, FileWriter } from "../filesystem";
+ 
+import type { JSZipObject } from "jszip";
+import type JSZip from "jszip";
+import type { FileReader, FileWriter } from "../filesystem";
 
 export class ZipFileReader implements FileReader {
   zipObject: JSZipObject;

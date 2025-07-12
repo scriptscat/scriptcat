@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_scriptcat__",
-  "version": "0.18.2.1100",
+  "version": "1.0.0.1100",
   "author": "CodFrm",
   "description": "__MSG_scriptcat_description__",
   "options_ui": {
@@ -21,7 +21,7 @@
   "icons": {
     "128": "assets/logo.png"
   },
-  "default_locale": "zh_CN",
+  "default_locale": "en",
   "permissions": [
     "tabs",
     "alarms",

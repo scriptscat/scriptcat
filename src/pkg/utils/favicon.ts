@@ -43,13 +43,13 @@ export async function extractFavicons(
         faviconUrls.push({ match: domain.match, website: "", icon: "" });
       }
     } catch (error) {
-      console.error(`Failed to fetch favicon for ${domain}:`, error);
+      console.error(`Failed to fetch favicon for ${domain.domain || domain.match}:`, error);
     }
   });
   // 等待所有favicon获取完成
   await Promise.all(fetchPromises);
 
-  return [...faviconUrls];
+  return faviconUrls.slice();
 }
 
 /**
@@ -58,7 +58,7 @@ export async function extractFavicons(
 function extractDomainFromPattern(pattern: string): string | null {
   try {
     // 处理match模式: scheme://host/path
-    const matchPattern = /^(http|https|\*):\/\/([^\/]+)(?:\/(.*))?$/;
+    const matchPattern = /^(http|https|\*):\/\/([^/]+)(?:\/(.*))?$/;
     const matches = pattern.match(matchPattern);
 
     if (matches) {
@@ -66,14 +66,14 @@ function extractDomainFromPattern(pattern: string): string | null {
 
       // 删除最后的*
       // 例如 "example.com*" 变为 "example.com"
-      if (host.endsWith("*")) {
+      while (host.endsWith("*")) {
         host = host.slice(0, -1);
       }
 
       // 删除 * 通配符
       // 例如 "*.example.com" 变为 "example.com"
       // a.*.example.com 变为 "example.com"
-      if (host.includes("*")) {
+      while (host.includes("*")) {
         // 从最后一个 * 开始删除
         const lastAsteriskIndex = host.lastIndexOf("*");
         host = host.slice(lastAsteriskIndex + 1);
@@ -81,7 +81,7 @@ function extractDomainFromPattern(pattern: string): string | null {
 
       // 删除第一个.
       // 例如 ".example.com" 变为 "example.com"
-      if (host.startsWith(".")) {
+      while (host.startsWith(".")) {
         host = host.slice(1);
       }
 
@@ -100,6 +100,29 @@ function extractDomainFromPattern(pattern: string): string | null {
   } catch {
     return null;
   }
+}
+
+function parseFaviconsNew(html: string, callback: (href: string) => void) {
+
+  // Early exit if no link tags
+  if (!html.toLowerCase().includes("<link")) return;
+
+  // Regex to match favicon-related link tags
+  const faviconRegex = /<link[^>]+rel=["'](?:icon|apple-touch-icon|apple-touch-icon-precomposed)["'][^>]*>/gi;
+  const hrefRegex = /href=["'](.*?)["']/i;
+
+  // Find all matching link tags
+  const matches = html.match(faviconRegex);
+  if (matches) {
+    for (const match of matches) {
+      const hrefMatch = match.match(hrefRegex);
+      if (hrefMatch && hrefMatch[1]) {
+        callback(hrefMatch[1]);
+      }
+    }
+  }
+
+  return;
 }
 
 /**
@@ -126,20 +149,7 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
     const response = await fetch(url, { signal });
     const html = await response.text();
 
-    // 解析HTML
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    // 查找favicon链接
-    const linkElements = doc.querySelectorAll(
-      "link[rel*='icon'], link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']"
-    );
-    linkElements.forEach((link) => {
-      const href = link.getAttribute("href");
-      if (href) {
-        icons.push(resolveUrl(href, url));
-      }
-    });
+    parseFaviconsNew(html, (href) => icons.push(resolveUrl(href, url)));
 
     // 检查默认favicon位置
     if (icons.length === 0) {

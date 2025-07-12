@@ -1,5 +1,5 @@
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
-import JSZip from "jszip";
+import type JSZip from "jszip";
 import BackupImport from "./import";
 
 // 解析备份文件

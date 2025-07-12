@@ -1,7 +1,9 @@
 import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Joyride, { Step } from "react-joyride";
-import { Path, useLocation, useNavigate } from "react-router-dom";
+import type { Step } from "react-joyride";
+import Joyride from "react-joyride";
+import type { Path} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
 
 const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> = (_props, ref) => {

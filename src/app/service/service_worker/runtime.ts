@@ -1,18 +1,13 @@
-import { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
-import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
-import {
-  Script,
-  SCRIPT_STATUS,
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_TYPE_NORMAL,
-  ScriptDAO,
-  ScriptRunResouce,
-} from "@App/app/repo/scripts";
-import { ValueService } from "./value";
+import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
+import type { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
+import type { GetSender, Group } from "@Packages/message/server";
+import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
+import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
 import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
-import { ScriptService } from "./script";
+import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
 import { isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
@@ -23,30 +18,12 @@ import { sendMessage } from "@Packages/message/client";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
-import { SystemConfig } from "@App/pkg/config/config";
-import { ResourceService } from "./resource";
+import { type SystemConfig } from "@App/pkg/config/config";
+import { type ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
-
-// 为了优化性能，存储到缓存时删除了code、value与resource
-export interface ScriptMatchInfo extends ScriptRunResouce {
-  matches: string[];
-  excludeMatches: string[];
-  customizeExcludeMatches: string[];
-}
-
-export interface ScriptLoadInfo extends ScriptMatchInfo {
-  metadataStr: string; // 脚本元数据字符串
-  userConfigStr: string; // 用户配置字符串
-}
-
-export interface EmitEventRequest {
-  uuid: string;
-  event: string;
-  eventId: string;
-  data?: any;
-}
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import type { GMInfoEnv } from "../content/types";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -58,6 +35,7 @@ export class RuntimeService {
 
   isEnableDeveloperMode = false;
   isEnableUserscribe = true;
+  userAgentData: typeof GM_info.userAgentData = {};
 
   constructor(
     private systemConfig: SystemConfig,
@@ -70,6 +48,25 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
+  }
+
+  async initUserAgentData() {
+    // @ts-ignore
+    if (navigator.userAgentData) {
+      // @ts-ignore
+      this.userAgentData = {
+        // @ts-ignore
+        brands: navigator.userAgentData.brands,
+        // @ts-ignore
+        mobile: navigator.userAgentData.mobile,
+        // @ts-ignore
+        platform: navigator.userAgentData.platform,
+      };
+      // 处理architecture和bitness
+      const platformInfo = await chrome.runtime.getPlatformInfo();
+      this.userAgentData.architecture = platformInfo.nacl_arch;
+      this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+    }
   }
 
   async init() {
@@ -206,6 +203,8 @@ export class RuntimeService {
     });
     // 加载黑名单
     this.loadBlacklist(await this.systemConfig.getBlacklist());
+    // 初始化一下userAgentData
+    this.initUserAgentData();
   }
 
   private loadBlacklist(blacklist: string) {
@@ -238,7 +237,7 @@ export class RuntimeService {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
-    let messageFlag = await this.getMessageFlag();
+    const messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 根据messageFlag来判断是否已经注册过了
       const registerScripts = await Promise.all(
@@ -388,8 +387,8 @@ export class RuntimeService {
       return { flag: "", scripts: [] };
     }
 
-    const [scriptFlag, __] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
-    const chromeSender = sender.getSender() as chrome.runtime.MessageSender;
+    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
+    const chromeSender = sender.getSender() as MessageSender;
 
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
@@ -426,7 +425,7 @@ export class RuntimeService {
       }),
       // 加载resource
       ...enableScript.map(async (script) => {
-        const resource = await this.resource.getScriptResources(script);
+        const resource = await this.resource.getScriptResources(script, false);
         script.resource = resource;
       }),
       // 加载code相关的信息
@@ -442,7 +441,7 @@ export class RuntimeService {
     ]);
 
     // 更新资源使用了file协议的脚本
-    let needUpdateRegisteredUserScripts = enableScript.filter((script) => {
+    const needUpdateRegisteredUserScripts = enableScript.filter((script) => {
       let uriList: string[] = [];
       // @require
       if (Array.isArray(script.metadata.require)) {
@@ -453,14 +452,13 @@ export class RuntimeService {
         uriList = uriList.concat(
           script.metadata.resource
             .map((resourceInfo) => {
-              let split = resourceInfo.trim().split(/\s+/);
+              const split = resourceInfo.trim().split(/\s+/);
               if (split.length >= 2) {
-                let resourceKey = split[0];
-                let resourceUri = split[1];
+                const resourceUri = split[1];
                 return resourceUri;
               }
             })
-            .filter((it) => it != null)
+            .filter((it) => it !== undefined)
         );
       }
       return uriList.some((uri) => {
@@ -477,15 +475,15 @@ export class RuntimeService {
       scriptRegisterInfoList = (
         await Promise.all(
           scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
-            let scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+            const scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
             if (scriptRes) {
-              let originScriptCode = scriptRegisterInfo.js[0]["code"];
+              const originScriptCode = scriptRegisterInfo.js[0]["code"];
               let scriptResCode = scriptRes.code;
               if (scriptResCode === "") {
                 scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
               }
-              let scriptCode = compileScriptCode(scriptRes, scriptResCode);
-              let scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+              const scriptCode = compileScriptCode(scriptRes, scriptResCode);
+              const scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
               // 若代码一致，则不更新
               if (originScriptCode === scriptInjectCode) {
                 return;
@@ -499,7 +497,7 @@ export class RuntimeService {
             }
           })
         )
-      ).filter((it) => it != null);
+      ).filter((it) => it !== undefined);
       // 批量更新
       if (scriptRegisterInfoList.length) {
         try {
@@ -515,7 +513,15 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
-    return { flag: scriptFlag, scripts: enableScript };
+    return {
+      flag: scriptFlag,
+      scripts: enableScript,
+      envInfo: {
+        sandboxMode: "raw",
+        isIncognito: chrome.extension.inIncognitoContext,
+        userAgentData: this.userAgentData,
+      } as GMInfoEnv,
+    };
   }
 
   // 停止脚本
@@ -587,7 +593,7 @@ export class RuntimeService {
         await chrome.userScripts.register(scripts);
       } catch (e: any) {
         this.logger.error("register inject.js error", Logger.E(e));
-        if (e.message?.indexOf("Duplicate script ID") !== -1) {
+        if (e.message?.includes("Duplicate script ID")) {
           // 如果是重复注册, 则更新
           try {
             await chrome.userScripts.update(scripts);
@@ -642,7 +648,6 @@ export class RuntimeService {
       scriptMatch[key] = val;
       // 优化性能，将不需要的信息去掉
       // 而且可能会超过缓存的存储限制
-      // @ts-ignore
       scriptMatch[key].code = "";
       scriptMatch[key].value = {};
       scriptMatch[key].resource = {};
@@ -705,7 +710,7 @@ export class RuntimeService {
       return undefined;
     }
 
-    scriptRes.code = compileInjectScript(scriptRes);
+    scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
     const patternMatches = dealPatternMatches(matches);
     const scriptMatchInfo: ScriptMatchInfo = Object.assign(

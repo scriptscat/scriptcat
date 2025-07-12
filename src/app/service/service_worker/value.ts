@@ -1,16 +1,15 @@
 import LoggerCore from "@App/app/logger/core";
-import Logger from "@App/app/logger/logger";
-import { Script, SCRIPT_TYPE_NORMAL, ScriptDAO } from "@App/app/repo/scripts";
+import type Logger from "@App/app/logger/logger";
+import { type Script, ScriptDAO } from "@App/app/repo/scripts";
 import { ValueDAO } from "@App/app/repo/value";
-import { GetSender, Group, MessageSend } from "@Packages/message/server";
-import { RuntimeService } from "./runtime";
-import { PopupService } from "./popup";
-import { sendMessage } from "@Packages/message/client";
+import type { GetSender, Group } from "@Packages/message/server";
+import { type RuntimeService } from "./runtime";
+import { type PopupService } from "./popup";
 import Cache from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { ValueUpdateData, ValueUpdateSender } from "../content/exec_script";
+import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
 import { subscribeScriptDelete } from "../queue";
-import { MessageQueue } from "@Packages/message/message_queue";
+import { type MessageQueue } from "@Packages/message/message_queue";
 
 export class ValueService {
   logger: Logger;
@@ -186,14 +185,14 @@ export class ValueService {
     });
   }
 
-  setScriptValue(data: { uuid: string; key: string; value: any }, sender: GetSender) {
+  setScriptValue(data: { uuid: string; key: string; value: any }, _sender: GetSender) {
     return this.setValue(data.uuid, data.key, data.value, {
       runFlag: "user",
       tabId: -2,
     });
   }
 
-  setScriptValues(data: { uuid: string; values: { [key: string]: any } }, sender: GetSender) {
+  setScriptValues(data: { uuid: string; values: { [key: string]: any } }, _sender: GetSender) {
     return this.setValues(data, {
       runFlag: "user",
       tabId: -2,

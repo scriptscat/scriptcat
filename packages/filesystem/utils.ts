@@ -1,5 +1,3 @@
-/* eslint-disable import/prefer-default-export */
-
 export function joinPath(...paths: string[]): string {
   let path = "";
   paths.forEach((value) => {

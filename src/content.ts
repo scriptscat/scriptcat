@@ -24,5 +24,5 @@ client.pageLoad().then((data) => {
   const extServer = new Server("content", extMsg);
   // 初始化运行环境
   const runtime = new ContentRuntime(extServer, server, send, msg);
-  runtime.start(data.scripts);
+  runtime.start(data.scripts, data.envInfo);
 });

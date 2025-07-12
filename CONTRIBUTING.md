@@ -1,3 +1,5 @@
+[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
+
 # ScriptCat 贡献指南
 
 我们非常感谢你为 ScriptCat 做出贡献！本指南旨在帮助你以更规范的方式向 ScriptCat 提交贡献，因此请务必认真阅读。

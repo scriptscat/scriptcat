@@ -30,7 +30,18 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
-  // isIncognito: boolean;
+  isIncognito: boolean;
+  sandboxMode: "raw"; // "js" | "raw" | "none";
+  userAgentData: {
+    brands?: {
+      brand: string;
+      version: string;
+    }[];
+    mobile?: boolean;
+    platform?: string;
+    architecture?: string;
+    bitness?: string;
+  };
   downloadMode: "native"; // "native" | "disabled" | "browser";
   script: {
     author?: string;
@@ -90,7 +101,9 @@ declare function GM_setValues(values: { [key: string]: any }): void;
 declare function GM_getValue(name: string, defaultValue?: any): any;
 
 // 获取多个值, 如果keysOrDefaults是一个对象, 则使用对象的值作为默认值
-declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): { [key: string]: any };
+declare function GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined): {
+  [key: string]: any;
+};
 
 declare function GM_deleteValue(name: string): void;
 
@@ -346,6 +359,7 @@ declare namespace GMTypes {
   interface Cookie {
     domain: string;
     name: string;
+    partitionKey: { topLevelSite?: string };
     value: string;
     session: boolean;
     hostOnly: boolean;
@@ -353,6 +367,7 @@ declare namespace GMTypes {
     path: string;
     httpOnly: boolean;
     secure: boolean;
+    sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
   }
 
   // tabid是只有后台脚本监听才有的参数

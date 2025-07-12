@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import BackupExport from "./export";
 import BackupImport from "./import";
-import { BackupData } from "./struct";
+import type { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import { initTestEnv } from "@Tests/utils";

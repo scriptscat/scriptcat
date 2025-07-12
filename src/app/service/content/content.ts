@@ -1,7 +1,9 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
+import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
-import { CustomEventMessage } from "@Packages/message/custom_event_message";
-import { forwardMessage, Message, MessageSend, Server } from "@Packages/message/server";
+import { type CustomEventMessage } from "@Packages/message/custom_event_message";
+import { forwardMessage, type Server } from "@Packages/message/server";
+import type { Message, MessageSend } from "@Packages/message/types";
+import type { GMInfoEnv } from "./types";
 
 // content页的处理
 export default class ContentRuntime {
@@ -12,7 +14,7 @@ export default class ContentRuntime {
     private msg: Message
   ) {}
 
-  start(scripts: ScriptRunResouce[]) {
+  start(scripts: ScriptRunResource[], envInfo: GMInfoEnv) {
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject
       return sendMessage(this.msg, "inject/runtime/emitEvent", data);
@@ -55,7 +57,8 @@ export default class ContentRuntime {
             });
           }
           case "GM_addElement": {
-            let [parentNodeId, tagName, attr] = data.params;
+            const [parentNodeId, tagName, tmpAttr] = data.params;
+            let attr = tmpAttr;
             let parentNode: EventTarget | undefined;
             if (parentNodeId) {
               parentNode = (this.msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);
@@ -101,6 +104,6 @@ export default class ContentRuntime {
       }
     );
     const client = new Client(this.msg, "inject");
-    client.do("pageLoad", { scripts });
+    client.do("pageLoad", { scripts, envInfo });
   }
 }

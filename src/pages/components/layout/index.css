@@ -9,3 +9,13 @@
 .action-tools>.arco-btn {
     padding: 0 8px;
 }
+
+.arco-dropdown-menu-item,
+.arco-dropdown-menu-item a {
+    display: flex;
+    align-items: center;
+}
+
+:is(.arco-dropdown-menu-pop-header, .arco-dropdown-menu-item, .arco-dropdown-menu-item a) > svg {
+    margin-right: .5em;
+}

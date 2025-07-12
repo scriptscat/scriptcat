@@ -1,12 +1,28 @@
-import { ScriptRunResouce } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
-import GMApi, { ApiValue, GMContext } from "./gm_api";
-import { has } from "@App/pkg/utils/lodash";
-import { Message } from "@Packages/message/server";
-import EventEmitter from "eventemitter3";
+import type { ScriptRunResource } from "@App/app/repo/scripts";
+
+import type { ScriptFunc } from "./types";
+import { protect } from "./gm_context";
+
+// undefined 和 null 以外，使用 hasOwnProperty 检查
+// 不使用 != 避免类型转换比较
+const has = (object: any, key: any) => {
+  switch (object) {
+    case undefined:
+    case null:
+      return false;
+    default:
+      return Object.prototype.hasOwnProperty.call(object, key);
+  }
+};
 
 // 构建脚本运行代码
-export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: string): string {
+/**
+ * @see {@link ExecScript}
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
+ */
+export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
   let requireCode = "";
   if (Array.isArray(scriptRes.metadata.require)) {
@@ -20,37 +36,39 @@ export function compileScriptCode(scriptRes: ScriptRunResouce, scriptCode?: stri
       .join("\n");
   }
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
-  const code = [requireCode, scriptCode, sourceURL].join("\n");
+  const preCode = [requireCode].join("\n"); // 不需要 async 封装
+  const code = [scriptCode, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
+  // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
+  // this = context: globalThis
+  // arguments = [named: Object, scriptName: string]
+  // @grant none 时，不让 preCode 中的外部代码存取 GM 跟 GM_info，以arguments[0]存取 GM 跟 GM_info
+  // 使用sandboxContext时，arguments[0]为undefined
   if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
     return `(async function(){
       ${code}
     })();`;
   } else {
-    return `  with(context){
-      return ((factory) => {
-          try {
-            return factory.apply(context, []);
-          } catch (e) {
-            if (e.message && e.stack) {
-                console.error("ERROR: Execution of script '${scriptRes.name}' failed! " + e.message);
-                console.log(e.stack);
-            } else {
-                console.error(e);
-            }
-          }
-
-      })(async function(){
-          ${code}
-      })
-  }`;
+    return `try {
+  with(this){
+    ${preCode}
+    return (async({GM,GM_info})=>{
+    ${code}
+    })(arguments[0]||{GM,GM_info});
+  }
+} catch (e) {
+  if (e.message && e.stack) {
+      console.error("ERROR: Execution of script '" + arguments[1] + "' failed! " + e.message);
+      console.log(e.stack);
+  } else {
+      console.error(e);
+  }
+}`;
   }
 }
 
-export type ScriptFunc = (context: any, GM_info: any) => any;
-
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return <ScriptFunc>new Function("context", "GM_info", code);
+  return <ScriptFunc>new Function(code);
 }
 /**
  * 将脚本函数编译为注入脚本代码
@@ -59,128 +77,16 @@ export function compileScript(code: string): ScriptFunc {
  * @param [autoDeleteMountFunction=false] 是否自动删除挂载的函数
  */
 export function compileInjectScript(
-  scriptRes: ScriptRunResouce,
-  scriptCode?: string,
+  scriptRes: ScriptRunResource,
+  scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  scriptCode = scriptCode ?? scriptRes.code;
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${scriptRes.flag}']}catch(e){}` : "";
   if (scriptRes.metadata["run-at"]?.[0] === "document-start" && scriptRes.metadata.grant?.includes("none")) {
     return scriptCode;
   } else {
-    return `window['${scriptRes.flag}'] = function(context, GM_info){
-${autoDeleteMountFunction ? `  try{delete window['${scriptRes.flag}'];}catch(e){};` : ""}${scriptCode}}`;
+    return `window['${scriptRes.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
   }
-}
-
-// 设置api依赖
-function setDepend(context: { [key: string]: any }, apiVal: ApiValue) {
-  if (apiVal.param.depend) {
-    for (let i = 0; i < apiVal.param.depend.length; i += 1) {
-      const value = apiVal.param.depend[i];
-      const dependApi = GMContext.apis.get(value);
-      if (!dependApi) {
-        return;
-      }
-      if (value.startsWith("GM.")) {
-        const [, t] = value.split(".");
-        (<{ [key: string]: any }>context.GM)[t] = dependApi.api.bind(context);
-      } else {
-        context[value] = dependApi.api.bind(context);
-      }
-      setDepend(context, dependApi);
-    }
-  }
-}
-
-// 构建沙盒上下文
-export function createContext(scriptRes: ScriptRunResouce, GMInfo: any, envPrefix: string, message: Message): GMApi {
-  // 按照GMApi构建
-  const context: { [key: string]: any } = {
-    prefix: envPrefix,
-    message: message,
-    scriptRes,
-    valueChangeListener: new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>(),
-    sendMessage: GMApi.prototype.sendMessage,
-    connect: GMApi.prototype.connect,
-    runFlag: uuidv4(),
-    eventId: 10000,
-    valueUpdate: GMApi.prototype.valueUpdate,
-    emitEvent: GMApi.prototype.emitEvent,
-    EE: new EventEmitter(),
-    GM: { info: GMInfo },
-    GM_info: GMInfo,
-    window: {
-      onurlchange: null,
-    },
-  };
-  if (scriptRes.metadata.grant) {
-    const GM_cookie = function (action: string) {
-      return (
-        details: GMTypes.CookieDetails,
-        done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
-      ) => {
-        return context["GM_cookie"](action, details, done);
-      };
-    };
-    // 处理GM.与GM_，将GM_与GM.都复制一份
-    const grant: string[] = [];
-    scriptRes.metadata.grant.forEach((val) => {
-      if (val.startsWith("GM_")) {
-        const t = val.slice(3);
-        grant.push(`GM.${t}`);
-      } else if (val.startsWith("GM.")) {
-        grant.push(val);
-      }
-      grant.push(val);
-    });
-    // 去重
-    const uniqueGrant = new Set(grant);
-    uniqueGrant.forEach((val) => {
-      const api = GMContext.apis.get(val);
-      if (!api) {
-        return;
-      }
-      if (/^(GM|window)\./.test(val)) {
-        const [n, t] = val.split(".");
-        if (t === "cookie") {
-          const createGMCookePromise = (action: string) => {
-            return (details: GMTypes.CookieDetails = {}) => {
-              return new Promise((resolve, reject) => {
-                let fn = GM_cookie(action);
-                fn(details, function (cookie, error) {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(cookie);
-                  }
-                });
-              });
-            };
-          };
-          context[n][t] = {
-            list: createGMCookePromise("list"),
-            delete: createGMCookePromise("delete"),
-            set: createGMCookePromise("set"),
-          };
-          context["GM_cookie"] = api.api.bind(context);
-        } else {
-          (<{ [key: string]: any }>context[n])[t] = api.api.bind(context);
-        }
-      } else if (val === "GM_cookie") {
-        // 特殊处理GM_cookie.list之类
-        context[val] = api.api.bind(context);
-
-        context[val].list = GM_cookie("list");
-        context[val].delete = GM_cookie("delete");
-        context[val].set = GM_cookie("set");
-      } else {
-        context[val] = api.api.bind(context);
-      }
-      setDepend(context, api);
-    });
-  }
-  context.unsafeWindow = window;
-  return <GMApi>context;
 }
 
 export const writables: { [key: string]: any } = {
@@ -219,63 +125,63 @@ Object.keys(descs).forEach((key) => {
   }
 });
 
-export function warpObject(thisContext: object, ...context: object[]) {
+export function warpObject(exposedObject: object, ...context: object[]) {
   // 处理Object上的方法
-  thisContext.hasOwnProperty = (name: PropertyKey) => {
+  exposedObject.hasOwnProperty = (name: PropertyKey) => {
     return (
-      Object.hasOwnProperty.call(thisContext, name) || context.some((val) => Object.hasOwnProperty.call(val, name))
+      Object.hasOwnProperty.call(exposedObject, name) || context.some((val) => Object.hasOwnProperty.call(val, name))
     );
   };
-  thisContext.isPrototypeOf = (name: object) => {
-    return Object.isPrototypeOf.call(thisContext, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
-  };
-  thisContext.propertyIsEnumerable = (name: PropertyKey) => {
+  exposedObject.isPrototypeOf = (name: object) => {
     return (
-      Object.propertyIsEnumerable.call(thisContext, name) ||
+      Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name))
+    );
+  };
+  exposedObject.propertyIsEnumerable = (name: PropertyKey) => {
+    return (
+      Object.propertyIsEnumerable.call(exposedObject, name) ||
       context.some((val) => Object.propertyIsEnumerable.call(val, name))
     );
   };
 }
 
+type GMWorldContext =
+  | (typeof globalThis & {
+      [key: string | number | symbol]: any;
+    })
+  | {
+      [key: string | number | symbol]: any;
+    };
+
 // 拦截上下文
-export function proxyContext(global: any, context: any, thisContext?: { [key: string]: any }) {
+export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
   const special = Object.assign(writables);
+  const exposedObject: Context = <Context>{};
   // 处理某些特殊的属性
   // 后台脚本要不要考虑不能使用eval?
-  if (!thisContext) {
-    thisContext = {};
+  exposedObject.eval = global.eval;
+  // exposedObject.define = undefined;
+  warpObject(exposedObject, special, global);
+  // 把 GM Api (或其他全域API) 复製到 exposedObject
+  for (const key of Object.keys(context)) {
+    if (key in protect) continue;
+    exposedObject[key] = context[key];
   }
-  thisContext.eval = global.eval;
-  thisContext.define = undefined;
-  warpObject(thisContext, special, global, context);
-  // keyword是与createContext时同步的,避免访问到context的内部变量
-  const contextKeyword: { [key: string]: any } = {
-    message: 1,
-    valueChangeListener: 1,
-    connect: 1,
-    runFlag: 1,
-    valueUpdate: 1,
-    sendMessage: 1,
-    scriptRes: 1,
-  };
   // @ts-ignore
-  const proxy = new Proxy(context, {
-    defineProperty(_, name, desc) {
-      if (Object.defineProperty(thisContext, name, desc)) {
-        return true;
-      }
-      return false;
-    },
+  const exposedProxy = new Proxy(exposedObject, {
+    // defineProperty(target, name, desc) {
+    //   return Reflect.defineProperty(target, name, desc);
+    // },
     get(_, name): any {
       switch (name) {
         case "window":
         case "self":
         case "globalThis":
-          return proxy;
+          return exposedProxy;
         case "top":
         case "parent":
           if (global[name] === global.self) {
-            return special.global || proxy;
+            return special.global || exposedProxy;
           }
           return global.top;
         case "close":
@@ -284,17 +190,15 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           if (context["window"][name]) {
             return context["window"][name];
           }
-        default:
-          break;
       }
       if (name !== "undefined") {
-        if (has(thisContext, name)) {
+        if (has(exposedObject, name)) {
           // @ts-ignore
-          return thisContext[name];
+          return exposedObject[name];
         }
         if (typeof name === "string") {
           if (has(context, name)) {
-            if (has(contextKeyword, name)) {
+            if (has(protect, name)) {
               return undefined;
             }
             return context[name];
@@ -335,39 +239,33 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
           return true;
         case "top":
         case "parent":
-          if (global[name] === global.self) {
-            return true;
-          }
+          // if (global[name] === global.self) {
+          //   return true;
+          // }
           return true;
+        case "undefined":
+          return false;
         default:
           break;
       }
-      if (name !== "undefined") {
-        if (typeof name === "string") {
-          if (has(unscopables, name)) {
-            return false;
-          }
-          if (has(thisContext, name)) {
-            return true;
-          }
-          if (has(context, name)) {
-            if (has(contextKeyword, name)) {
-              return false;
-            }
-            return true;
-          }
-          if (has(special, name)) {
-            return true;
-          }
-          // 只处理onxxxx的事件
-          if (has(global, name)) {
-            if (name.startsWith("on")) {
-              return true;
-            }
-          }
-        } else if (typeof name === "symbol") {
-          return has(thisContext, name);
+      if (typeof name === "string") {
+        if (has(unscopables, name)) {
+          return false;
         }
+        if (has(exposedObject, name)) {
+          return true;
+        }
+        if (has(special, name)) {
+          return true;
+        }
+        // 只处理onxxxx的事件
+        if (has(global, name)) {
+          if (name.startsWith("on")) {
+            return true;
+          }
+        }
+      } else if (typeof name === "symbol") {
+        return has(exposedObject, name);
       }
       return false;
     },
@@ -391,25 +289,26 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
         }
         // 只处理onxxxx的事件
         if (has(global, name) && name.startsWith("on")) {
+          const eventName = name.slice(2);
           if (val === undefined) {
-            global.removeEventListener(name.slice(2), thisContext[name]);
+            global.removeEventListener(eventName, exposedObject[name]);
           } else {
-            if (thisContext[name]) {
-              global.removeEventListener(name.slice(2), thisContext[name]);
+            if (exposedObject[name]) {
+              global.removeEventListener(eventName, exposedObject[name]);
             }
-            global.addEventListener(name.slice(2), val);
+            global.addEventListener(eventName, val);
           }
-          thisContext[name] = val;
+          exposedObject[name] = val;
           return true;
         }
       }
       // @ts-ignore
-      thisContext[name] = val;
+      exposedObject[name] = val;
       return true;
     },
     getOwnPropertyDescriptor(_, name) {
       try {
-        let ret = Object.getOwnPropertyDescriptor(thisContext, name);
+        let ret = Object.getOwnPropertyDescriptor(exposedObject, name);
         if (ret) {
           return ret;
         }
@@ -425,13 +324,13 @@ export function proxyContext(global: any, context: any, thisContext?: { [key: st
       }
     },
   });
-  proxy[Symbol.toStringTag] = "Window";
-  return proxy;
+  exposedProxy[Symbol.toStringTag] = "Window";
+  return exposedProxy;
 }
 
 export function addStyle(css: string): HTMLElement {
   const dom = document.createElement("style");
-  dom.innerHTML = css;
+  dom.textContent = css;
   if (document.head) {
     return document.head.appendChild(dom);
   }

@@ -1,4 +1,5 @@
-const { configs, rules } = require("eslint-plugin-userscripts");
+/* eslint-disable @typescript-eslint/no-require-imports */
+const { configs } = require("eslint-plugin-userscripts");
 
 // 默认规则
 const config = {

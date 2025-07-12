@@ -1,7 +1,13 @@
-import { Export, ExportDAO, ExportTarget } from "@App/app/repo/export";
-import { Script } from "@App/app/repo/scripts";
+import type { Export, ExportTarget } from "@App/app/repo/export";
+import { ExportDAO } from "@App/app/repo/export";
+import type { Script} from "@App/app/repo/scripts";
+import { ScriptCodeDAO } from "@App/app/repo/scripts";
 import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
+import type { ExportParams} from "@Packages/cloudscript/cloudscript";
+import { parseExportCookie, parseExportValue } from "@Packages/cloudscript/cloudscript";
+import CloudScriptFactory from "@Packages/cloudscript/factory";
+import JSZip from "jszip";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,7 +21,7 @@ function defaultParams(script: Script) {
 }
 
 const CloudScriptPlan: React.FC<{
-  // eslint-disable-next-line react/require-default-props
+   
   script?: Script;
   onClose: () => void;
 }> = ({ script, onClose }) => {
@@ -93,8 +99,7 @@ const CloudScriptPlan: React.FC<{
         setModel((prevModel) => {
           if (!prevModel) {
             prevModel = {
-              id: 0,
-              scriptId: script!.id,
+              uuid: script!.uuid,
               target: "local",
               params: {},
             };
@@ -116,7 +121,12 @@ const CloudScriptPlan: React.FC<{
             zip: jszip,
             ...params,
           });
-          cloudScript.exportCloud(script, values, cookies);
+          const code = await new ScriptCodeDAO().findByUUID(script.uuid);
+          if (!code) {
+            Message.error(t("invalid_script_code"));
+            return;
+          }
+          cloudScript.exportCloud(script, code.code, values, cookies);
           // 生成文件,并下载
           const files = await jszip.generateAsync({
             type: "blob",

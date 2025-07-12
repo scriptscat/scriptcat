@@ -1,4 +1,4 @@
-import { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
+import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";

@@ -1,6 +1,5 @@
-import { SystemConfig } from "@App/pkg/config/config";
 import { createAppSlice } from "../hooks";
-import { PayloadAction } from "@reduxjs/toolkit";
+import type { PayloadAction } from "@reduxjs/toolkit";
 import { editor } from "monaco-editor";
 
 function setAutoMode() {

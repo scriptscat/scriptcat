@@ -4,6 +4,7 @@ export default class I18n {
   }
 
   getAcceptLanguages(callback: (lngs: string[]) => void) {
-    // callback(["zh-CN"]);
+    callback && callback(["zh-CN"]);
+    return Promise.resolve(["zh-CN"]);
   }
 }

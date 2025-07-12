@@ -1,4 +1,5 @@
-import { Linter } from "eslint-linter-browserify";
+/* eslint-disable @typescript-eslint/no-require-imports */
+const { Linter } = require("eslint-linter-browserify");
 const { rules } = require("eslint-plugin-userscripts");
 
 // eslint语法检查,使用webworker

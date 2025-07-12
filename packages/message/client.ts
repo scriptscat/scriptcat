@@ -1,5 +1,5 @@
+import type { MessageConnect, MessageSend } from "./types";
 import LoggerCore from "@App/app/logger/core";
-import { MessageConnect, MessageSend } from "./server";
 import Logger from "@App/app/logger/logger";
 
 export async function sendMessage(msg: MessageSend, action: string, data?: any): Promise<any> {

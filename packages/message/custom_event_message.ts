@@ -1,6 +1,6 @@
-import { Message, MessageConnect } from "./server";
+import type { Message, MessageConnect } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { PostMessage, WindowMessageBody, WindowMessageConnect } from "./window_message";
+import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 

@@ -1,5 +1,7 @@
-import { describe, test, expect, it } from "vitest";
-import { parseMetadata, getMetadataStr, getUserConfigStr, parseUserConfig } from "./script";
+import { describe, test, expect } from "vitest";
+import { parseMetadata } from "./script"
+import { getMetadataStr, getUserConfigStr } from "./utils";
+import { parseUserConfig } from "./yaml"
 
 describe("parseMetadata", () => {
   test("解析标准UserScript元数据", () => {

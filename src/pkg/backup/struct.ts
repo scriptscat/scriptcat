@@ -1,4 +1,7 @@
-/* eslint-disable camelcase */
+import type { Script } from "@App/app/repo/scripts";
+import type { Subscribe } from "@App/app/repo/subscribe";
+
+ 
 
 export type ResourceMeta = {
   name: string;
@@ -78,6 +81,17 @@ export type ScriptBackupData = {
   resources: ResourceBackup[];
   // 为了兼容暴力猴而设置的字段
   enabled?: boolean;
+};
+
+export type ScriptData = ScriptBackupData & {
+  script?: { script: Script; oldScript?: Script };
+  install: boolean;
+  error?: string;
+};
+
+export type SubscribeData = SubscribeBackupData & {
+  subscribe?: Subscribe;
+  install: boolean;
 };
 
 export type SubscribeScript = {

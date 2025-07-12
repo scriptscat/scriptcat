@@ -1,27 +1,21 @@
 import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
-import { Group } from "@Packages/message/server";
+import { v4 as uuidv4 } from "uuid";
+import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, InfoNotification, ltever, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
-import {
-  Script,
-  SCRIPT_RUN_STATUS,
-  SCRIPT_STATUS_DISABLE,
-  SCRIPT_STATUS_ENABLE,
-  ScriptCodeDAO,
-  ScriptDAO,
-  ScriptRunResouce,
-} from "@App/app/repo/scripts";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { InstallSource } from ".";
-import { ResourceService } from "./resource";
-import { ValueService } from "./value";
+import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { ltever } from "@App/pkg/utils/semver";
+import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import type { InstallSource } from "./types";
+import { type ResourceService } from "./resource";
+import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
-import { SystemConfig } from "@App/pkg/config/config";
-import i18n, { localePath } from "@App/locales/locales";
+import { type SystemConfig } from "@App/pkg/config/config";
+import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 
 export class ScriptService {
@@ -145,7 +139,7 @@ export class ScriptService {
 
   public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuidv4())
+    return fetchScriptInfo(url, source, false, uuid)
       .then((info) => {
         Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
         setTimeout(() => {
@@ -300,8 +294,8 @@ export class ScriptService {
     return this.scriptCodeDAO.get(uuid);
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResouce> {
-    const ret: ScriptRunResouce = <ScriptRunResouce>Object.assign(script);
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
 
     // 自定义配置
     if (ret.selfMetadata) {
@@ -313,7 +307,7 @@ export class ScriptService {
 
     ret.value = await this.valueService.getScriptValue(ret);
 
-    ret.resource = await this.resourceService.getScriptResources(ret);
+    ret.resource = await this.resourceService.getScriptResources(ret, true);
 
     ret.flag = randomString(16);
     const code = await this.getCode(ret.uuid);
@@ -438,7 +432,7 @@ export class ScriptService {
       this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-        return false;
+      return false;
     }
     return true;
   }
@@ -495,6 +489,10 @@ export class ScriptService {
     this.scriptDAO.all().then(async (scripts) => {
       const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
       scripts.forEach(async (script) => {
+        // 不检查更新
+        if (script.checkUpdate === false) {
+          return;
+        }
         // 是否检查禁用脚本
         if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
           return;
@@ -575,6 +573,18 @@ export class ScriptService {
     return this.openInstallPageByUrl(url, "user");
   }
 
+  setCheckUpdateUrl({
+    uuid,
+    checkUpdate,
+    checkUpdateUrl,
+  }: {
+    uuid: string;
+    checkUpdate: boolean;
+    checkUpdateUrl?: string;
+  }) {
+    return this.scriptDAO.update(uuid, { checkUpdate, downloadUrl: checkUpdateUrl, checkUpdateUrl });
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -595,6 +605,7 @@ export class ScriptService {
     this.group.on("sortScript", this.sortScript.bind(this));
     this.group.on("importByUrl", this.importByUrl.bind(this));
     this.group.on("installByCode", this.installByCode.bind(this));
+    this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create("checkScriptUpdate", {

@@ -1,68 +1,13 @@
-import Logger from "@App/app/logger/logger";
-import { Metadata, Script } from "@App/app/repo/scripts";
-import { CronTime } from "cron";
-import crypto from "crypto-js";
-import dayjs from "dayjs";
-import semver from "semver";
+import type { Metadata, Script } from "@App/app/repo/scripts";
 
-export function nextTime(crontab: string): string {
-  let oncePos = 0;
-  if (crontab.indexOf("once") !== -1) {
-    const vals = crontab.split(" ");
-    vals.forEach((val, index) => {
-      if (val === "once") {
-        oncePos = index;
-      }
-    });
-    if (vals.length === 5) {
-      oncePos += 1;
-    }
-  }
-  let cron: CronTime;
-  try {
-    cron = new CronTime(crontab.replace(/once/g, "*"));
-  } catch {
-    throw new Error("错误的定时表达式");
-  }
-  if (oncePos) {
-    switch (oncePos) {
-      case 1: // 每分钟
-        return cron.sendAt().toFormat("yyyy-MM-dd HH:mm 每分钟运行一次");
-      case 2: // 每小时
-        return cron.sendAt().plus({ hour: 1 }).toFormat("yyyy-MM-dd HH 每小时运行一次");
-      case 3: // 每天
-        return cron.sendAt().plus({ day: 1 }).toFormat("yyyy-MM-dd 每天运行一次");
-      case 4: // 每月
-        return cron.sendAt().plus({ month: 1 }).toFormat("yyyy-MM 每月运行一次");
-      case 5: // 每星期
-        return cron.sendAt().plus({ week: 1 }).toFormat("yyyy-MM-dd 每星期运行一次");
-    }
-    throw new Error("错误表达式");
-  }
-  return cron.sendAt().toFormat("yyyy-MM-dd HH:mm:ss");
-}
-
-export function formatTime(time: Date) {
-  return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function formatUnixTime(time: number) {
-  return dayjs.unix(time).format("YYYY-MM-DD HH:mm:ss");
-}
-
-export function semTime(time: Date) {
-  return dayjs().to(dayjs(time));
-}
-
-export function randomString(e: number) {
-  e = e || 32;
+export function randomString(e = 32): string {
   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
   const a = t.length;
-  let n = "";
-  for (let i = 0; i < e; i += 1) {
-    n += t.charAt(Math.floor(Math.random() * a));
+  const n = new Array(e);
+  for (let i = 0; i < e; i++) {
+    n[i] = t[(Math.random() * a) | 0];
   }
-  return n;
+  return n.join('');
 }
 
 export function dealSymbol(source: string): string {
@@ -76,10 +21,7 @@ export function dealScript(source: string): string {
 }
 
 export function isFirefox() {
-  if (navigator.userAgent.indexOf("Firefox") >= 0) {
-    return true;
-  }
-  return false;
+  return navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -144,27 +86,6 @@ export function parseStorageValue(str: string): unknown {
   }
 }
 
-// 对比版本大小
-export function ltever(newVersion: string, oldVersion: string, logger?: Logger) {
-  // 先验证符不符合语义化版本规范
-  try {
-    return semver.lte(newVersion, oldVersion);
-  } catch (e) {
-    logger?.warn("does not conform to the Semantic Versioning specification", Logger.E(e));
-  }
-  const newVer = newVersion.split(".");
-  const oldVer = oldVersion.split(".");
-  for (let i = 0; i < newVer.length; i += 1) {
-    if (Number(newVer[i]) > Number(oldVer[i])) {
-      return false;
-    }
-    if (Number(newVer[i]) < Number(oldVer[i])) {
-      return true;
-    }
-  }
-  return true;
-}
-
 // 在当前页后打开一个新页面
 export function openInCurrentTab(url: string) {
   chrome.tabs.query(
@@ -205,7 +126,7 @@ export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolea
     });
   // 老的里面没有新的就需要用户确认了
   const keys = Object.keys(newConnect);
-  for (let i = 0; i < keys.length; i += 1) {
+  for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     if (!oldConnect[key]) {
       return false;
@@ -235,21 +156,6 @@ export function getIcon(script: Script): string | undefined {
     (script.metadata.icon64 && script.metadata.icon64[0]) ||
     (script.metadata.icon64url && script.metadata.icon64url[0])
   );
-}
-
-export function calculateMd5(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsArrayBuffer(blob);
-    reader.onloadend = () => {
-      if (!reader.result) {
-        reject(new Error("result is null"));
-      } else {
-        const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>reader.result);
-        resolve(crypto.MD5(wordArray).toString());
-      }
-    };
-  });
 }
 
 export function errorMsg(e: any): string {
@@ -288,5 +194,63 @@ export function getBrowserVersion(): number {
 
 // 判断是否为Edge浏览器
 export function isEdge(): boolean {
-  return navigator.userAgent.indexOf("Edg/") !== -1;
+  return navigator.userAgent.includes("Edg/");
+}
+
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string>reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/*
+export function blobToText(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(<string | null>reader.result);
+    reader.readAsText(blob);
+  });
+}
+*/
+
+export function base64ToBlob(dataURI: string) {
+  const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
+  const byteString = atob(dataURI.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+
+  for (let i = 0; i < byteString.length; i += 1) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mimeString });
+}
+
+/*
+export function strToBase64(str: string): string {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
+      return String.fromCharCode(parseInt(`0x${p1}`, 16));
+    })
+  );
+}
+*/
+
+export function getMetadataStr(code: string): string | null {
+  const start = code.indexOf("==UserScript==");
+  const end = code.indexOf("==/UserScript==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `// ${code.substring(start, end + 15)}`;
+}
+
+export function getUserConfigStr(code: string): string | null {
+  const start = code.indexOf("==UserConfig==");
+  const end = code.indexOf("==/UserConfig==");
+  if (start === -1 || end === -1) {
+    return null;
+  }
+  return `/* ${code.substring(start, end + 15)} */`;
 }

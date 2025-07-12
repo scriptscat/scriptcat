@@ -1,6 +1,7 @@
 import React from "react";
 import { Input, Select, Space } from "@arco-design/web-react";
-import FileSystemFactory, { FileSystemType } from "@Packages/filesystem/factory";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
 
 const FileSystemParams: React.FC<{
@@ -36,6 +37,10 @@ const FileSystemParams: React.FC<{
     {
       key: "onedrive",
       name: "OneDrive",
+    },
+    {
+      key: "googledrive",
+      name: "Google Drive",
     },
   ];
 

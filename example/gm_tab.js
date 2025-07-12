@@ -5,7 +5,7 @@
 // @description  打开一个标签页
 // @author       You
 // @match        https://bbs.tampermonkey.net.cn/
-// @grant GM_openInTab
+// @grant        GM_openInTab
 // ==/UserScript==
 
 const tab = GM_openInTab("https://scriptcat.org/search");

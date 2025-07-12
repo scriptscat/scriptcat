@@ -1,18 +1,19 @@
-import { Script, ScriptCode, ScriptRunResouce } from "@App/app/repo/scripts";
+import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/scripts";
+import { type Resource } from "@App/app/repo/resource";
+import { type Subscribe } from "@App/app/repo/subscribe";
+import { type Permission } from "@App/app/repo/permission";
+import type { InstallSource, ScriptMenu, ScriptMenuItem } from "./types";
 import { Client } from "@Packages/message/client";
-import { InstallSource } from ".";
-import { Resource } from "@App/app/repo/resource";
-import { MessageSend } from "@Packages/message/server";
-import { ScriptMenu, ScriptMenuItem } from "./popup";
-import PermissionVerify, { ConfirmParam, UserConfirm } from "./permission_verify";
-import { FileSystemType } from "@Packages/filesystem/factory";
+import type { MessageSend } from "@Packages/message/types";
+import type PermissionVerify from "./permission_verify";
+import { type UserConfirm } from "./permission_verify";
+import { type FileSystemType } from "@Packages/filesystem/factory";
 import { v4 as uuidv4 } from "uuid";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { Subscribe } from "@App/app/repo/subscribe";
-import { Permission } from "@App/app/repo/permission";
-import { ResourceBackup } from "@App/pkg/backup/struct";
-import { VSCodeConnect } from "../offscreen/vscode-connect";
+import { type ResourceBackup } from "@App/pkg/backup/struct";
+import { type VSCodeConnect } from "../offscreen/vscode-connect";
+import type { GMInfoEnv } from "../content/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -59,7 +60,7 @@ export class ScriptClient extends Client {
     return this.do("getCode", uuid);
   }
 
-  getScriptRunResource(script: Script): Promise<ScriptRunResouce> {
+  getScriptRunResource(script: Script): Promise<ScriptRunResource> {
     return this.do("getScriptRunResource", script);
   }
 
@@ -109,7 +110,7 @@ export class ScriptClient extends Client {
             return json;
           });
         const { code, data, msg } = scriptInfo;
-        if (code != 0) {
+        if (code !== 0) {
           // 无脚本访问权限
           return { success: false, msg };
         } else {
@@ -129,7 +130,7 @@ export class ScriptClient extends Client {
     if (urls.length == 0) {
       return;
     }
-    const results = await Promise.allSettled(
+    const results = (await Promise.allSettled(
       urls.map(async (url) => {
         const formattedResult = await this.formatUrl(url);
         if (formattedResult instanceof Object) {
@@ -139,7 +140,7 @@ export class ScriptClient extends Client {
         }
       })
       // this.do 只会resolve 不会reject
-    ) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
+    )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
     const stat = results.reduce(
       (obj, result, index) => {
         if (result.value.success) {
@@ -153,6 +154,10 @@ export class ScriptClient extends Client {
       { success: 0, fail: 0, msg: [] as string[] }
     );
     return stat;
+  }
+
+  setCheckUpdateUrl(uuid: string, checkUpdate: boolean, checkUpdateUrl?: string) {
+    return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
   }
 }
 
@@ -201,7 +206,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResouce[] }> {
+  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
     return this.do("pageLoad");
   }
 

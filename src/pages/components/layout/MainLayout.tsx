@@ -11,24 +11,29 @@ import {
   Space,
   Typography,
 } from "@arco-design/web-react";
-import { RefTextAreaType } from "@arco-design/web-react/es/Input";
+import type { RefTextAreaType } from "@arco-design/web-react/es/Input";
 import {
   IconCheckCircle,
   IconCloseCircle,
   IconDesktop,
   IconDown,
+  IconLanguage,
   IconLink,
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import React, { ReactNode, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import "./index.css";
 import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
 import { useDropzone } from "react-dropzone";
+import { systemConfig } from "@App/pages/store/global";
+import i18n, { matchLanguage } from "@App/locales/locales";
+import "./index.css";
+import { arcoLocale } from "@App/locales/arco";
 
 const readFile = (file: File): Promise<string> => {
   return new Promise((resolve) => {
@@ -57,7 +62,6 @@ const uploadFiles = async (files: File[], importByUrlsFunc: (urls: string[]) => 
   importByUrlsFunc(urls);
 };
 
-
 const MainLayout: React.FC<{
   children: ReactNode;
   className: string;
@@ -67,6 +71,7 @@ const MainLayout: React.FC<{
   const dispatch = useAppDispatch();
   const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
   const importByUrlsLocal = async (urls: string[]) => {
@@ -104,11 +109,36 @@ const MainLayout: React.FC<{
     },
   });
 
+  const languageList: { key: string; title: string }[] = [];
+  Object.keys(i18n.store.data).forEach((key) => {
+    if (key === "ach-UG") {
+      return;
+    }
+    languageList.push({
+      key,
+      title: i18n.store.data[key].title as string,
+    });
+  });
+  languageList.push({
+    key: "help",
+    title: t("help_translate"),
+  });
+
+  useEffect(() => {
+    // 当没有匹配语言时显示语言按钮
+    matchLanguage().then((result) => {
+      if (!result) {
+        setShowLanguage(true);
+      }
+    });
+  });
+
   return (
     <ConfigProvider
       renderEmpty={() => {
         return <Empty description={t("no_data")} />;
       }}
+      locale={arcoLocale(i18n.language)}
     >
       <Layout>
         <Layout.Header
@@ -130,12 +160,7 @@ const MainLayout: React.FC<{
               setImportVisible(false);
             }}
           >
-            <Input.TextArea
-              ref={importRef}
-              rows={8}
-              placeholder={t("import_script_placeholder")}
-              defaultValue=""
-            />
+            <Input.TextArea ref={importRef} rows={8} placeholder={t("import_script_placeholder")} defaultValue="" />
           </Modal>
           <div className="flex row items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
@@ -232,6 +257,40 @@ const MainLayout: React.FC<{
                 className="!text-lg"
               />
             </Dropdown>
+            {showLanguage && (
+              <Dropdown
+                droplist={
+                  <Menu>
+                    {languageList.map((value) => (
+                      <Menu.Item
+                        key={value.key}
+                        onClick={() => {
+                          if (value.key === "help") {
+                            window.open("https://crowdin.com/project/scriptcat", "_blank");
+                            return;
+                          }
+                          systemConfig.setLanguage(value.key);
+                          Message.success(t("language_change_tip")!);
+                        }}
+                      >
+                        {value.title}
+                      </Menu.Item>
+                    ))}
+                  </Menu>
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  iconOnly
+                  icon={<IconLanguage />}
+                  style={{
+                    color: "var(--color-text-1)",
+                  }}
+                  className="!text-lg"
+                ></Button>
+              </Dropdown>
+            )}
           </Space>
         </Layout.Header>
         <Layout

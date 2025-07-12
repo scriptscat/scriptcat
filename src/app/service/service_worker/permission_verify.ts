@@ -1,14 +1,14 @@
 // gm api 权限验证
+import type { Script } from "@App/app/repo/scripts";
+import { type Permission, PermissionDAO } from "@App/app/repo/permission";
+import { type Group } from "@Packages/message/server";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import type { Api, Request } from "./types";
 import Cache from "@App/app/cache";
-import { Script } from "@App/app/repo/scripts";
-import { v4 as uuidv4 } from "uuid";
-import { Api, Request } from "./gm_api";
-import Queue from "@App/pkg/utils/queue";
 import CacheKey from "@App/app/cache_key";
-import { Permission, PermissionDAO } from "@App/app/repo/permission";
-import { Group } from "@Packages/message/server";
+import { v4 as uuidv4 } from "uuid";
+import Queue from "@App/pkg/utils/queue";
 import { subscribeScriptDelete } from "../queue";
-import { MessageQueue } from "@Packages/message/message_queue";
 
 export interface ConfirmParam {
   // 权限名
@@ -32,17 +32,21 @@ export interface UserConfirm {
   type: number; // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
 }
 
+export type ApiParamConfirmFn = (request: Request) => Promise<boolean | ConfirmParam>;
+
 export interface ApiParam {
   // 默认提供的函数
   default?: boolean;
   // 是否只有后台环境中才能执行
   background?: boolean;
   // 是否需要弹出页面让用户进行确认
-  confirm?: (request: Request) => Promise<boolean | ConfirmParam>;
+  confirm?: ApiParamConfirmFn;
   // 别名
   alias?: string[];
   // 关联
-  link?: string | string[];
+  link?: string[];
+  // 兼容GM.*
+  dotAlias?: boolean;
 }
 
 export interface ApiValue {
@@ -50,27 +54,27 @@ export interface ApiValue {
   param: ApiParam;
 }
 
-export interface IPermissionVerify {
-  verify(request: Request, api: ApiValue): Promise<boolean>;
+const apis: Map<string, ApiValue> = new Map();
+
+export function PermissionVerifyApiGet(name: string): ApiValue | undefined {
+  return apis.get(name);
+}
+
+function PermissionVerifyApiSet(key: string, api: any, param: ApiParam): void {
+  apis.set(key, { api, param });
 }
 
 export default class PermissionVerify {
-  static apis: Map<string, ApiValue> = new Map();
-
   public static API(param: ApiParam = {}) {
+    if (param.dotAlias === undefined) {
+      param.dotAlias = true; // 预设兼容GM.*
+    }
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
-      PermissionVerify.apis.set(key, {
-        api: descriptor.value,
-        param,
-      });
+      PermissionVerifyApiSet(key, descriptor.value, param);
       // 兼容GM.*
-      const dot = key.replace("_", ".");
-      if (dot !== key) {
-        PermissionVerify.apis.set(dot, {
-          api: descriptor.value,
-          param,
-        });
+      if (param.dotAlias && key.includes("GM_")) {
+        const dot = key.replace("GM_", "GM.");
         if (param.alias) {
           param.alias.push(dot);
         } else {
@@ -80,12 +84,9 @@ export default class PermissionVerify {
 
       // 处理别名
       if (param.alias) {
-        param.alias.forEach((alias) => {
-          PermissionVerify.apis.set(alias, {
-            api: descriptor.value,
-            param,
-          });
-        });
+        for (const alias of param.alias) {
+          PermissionVerifyApiSet(alias, descriptor.value, param);
+        }
       }
     };
   }
@@ -109,6 +110,7 @@ export default class PermissionVerify {
 
   // 验证是否有权限
   async verify(request: Request, api: ApiValue): Promise<boolean> {
+    const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
     }
@@ -118,21 +120,19 @@ export default class PermissionVerify {
       throw new Error("grant is undefined");
     }
     for (let i = 0; i < grant.length; i += 1) {
-      let grantName = grant[i];
+      const grantName = grant[i];
       if (
         // 名称相等
         grantName === request.api ||
         // 别名相等
-        (api.param.alias && api.param.alias.includes(grantName)) ||
-        // 有关联的
-        (typeof api.param.link === "string" && grantName === api.param.link) ||
+        (alias && alias.includes(grantName)) ||
         // 关联包含
-        (Array.isArray(api.param.link) && api.param.link.includes(grantName))
+        (link && link.includes(grantName))
       ) {
         // 需要用户确认
         let result = true;
-        if (api.param.confirm) {
-          result = await this.pushConfirmQueue(request, api);
+        if (confirm) {
+          result = await this.pushConfirmQueue(request, confirm);
         }
         return result;
       }
@@ -157,8 +157,8 @@ export default class PermissionVerify {
   }
 
   // 确认队列,为了防止一次性打开过多的窗口
-  async pushConfirmQueue(request: Request, api: ApiValue): Promise<boolean> {
-    const confirm = await api.param.confirm!(request);
+  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn): Promise<boolean> {
+    const confirm = await confirmFn(request);
     if (confirm === true) {
       return true;
     }

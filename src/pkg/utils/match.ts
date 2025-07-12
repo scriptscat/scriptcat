@@ -21,7 +21,7 @@ export default class Match<T> {
   }
 
   protected parseURL(url: string): Url | undefined {
-    if (url.indexOf("*http") === 0) {
+    if (url.startsWith("*http")) {
       url = url.substring(1);
     }
     const match = /^(.+?):\/\/(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);

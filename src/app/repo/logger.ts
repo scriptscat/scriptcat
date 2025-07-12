@@ -1,4 +1,4 @@
-import { LogLabel, LogLevel } from "../logger/core";
+import type { LogLabel, LogLevel } from "../logger/core";
 import { DAO, db } from "./dao";
 
 export interface Logger {

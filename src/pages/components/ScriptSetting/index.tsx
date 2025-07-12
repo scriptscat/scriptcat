@@ -1,10 +1,12 @@
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
-import { formatUnixTime } from "@App/pkg/utils/utils";
-import { Descriptions, Divider, Drawer, Empty, Input, Message } from "@arco-design/web-react";
+import type { Script } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
+import { Checkbox, Descriptions, Divider, Drawer, Empty, Input, Message } from "@arco-design/web-react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
+import { scriptClient } from "@App/pages/store/features/script";
 
 const ScriptSetting: React.FC<{
   script: Script;
@@ -14,6 +16,7 @@ const ScriptSetting: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const scriptDAO = new ScriptDAO();
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
+  const [checkUpdate, setCheckUpdate] = useState<boolean>(false);
 
   const { t } = useTranslation();
 
@@ -21,6 +24,7 @@ const ScriptSetting: React.FC<{
     if (script) {
       scriptDAO.get(script.uuid).then((v) => {
         setCheckUpdateUrl(v?.downloadUrl || "");
+        setCheckUpdate(v?.checkUpdate === false ? false : true);
       });
     }
   }, [script]);
@@ -66,6 +70,20 @@ const ScriptSetting: React.FC<{
         title={t("update")}
         data={[
           {
+            label: t("check_update"),
+            value: (
+              <Checkbox
+                checked={checkUpdate}
+                onChange={(val) => {
+                  setCheckUpdate(val);
+                  scriptClient.setCheckUpdateUrl(script.uuid, val, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success")!);
+                  });
+                }}
+              />
+            ),
+          },
+          {
             label: t("update_url"),
             value: (
               <Input
@@ -74,11 +92,9 @@ const ScriptSetting: React.FC<{
                   setCheckUpdateUrl(e);
                 }}
                 onBlur={() => {
-                  scriptDAO
-                    .update(script.uuid, { downloadUrl: checkUpdateUrl, checkUpdateUrl: checkUpdateUrl })
-                    .then(() => {
-                      Message.success(t("update_success")!);
-                    });
+                  scriptClient.setCheckUpdateUrl(script.uuid, checkUpdate, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success")!);
+                  });
                 }}
               />
             ),

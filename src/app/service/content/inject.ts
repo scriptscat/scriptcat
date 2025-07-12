@@ -1,8 +1,10 @@
-import { Message, Server } from "@Packages/message/server";
-import ExecScript, { ValueUpdateData } from "./exec_script";
-import { addStyle, ScriptFunc } from "./utils";
+import { type Server } from "@Packages/message/server";
+import type { Message } from "@Packages/message/types";
+import ExecScript from "./exec_script";
+import type { ValueUpdateData, GMInfoEnv, ScriptFunc } from "./types";
+import { addStyle } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
+import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 
@@ -12,7 +14,8 @@ export class InjectRuntime {
   constructor(
     private server: Server,
     private msg: Message,
-    private scripts: ScriptLoadInfo[]
+    private scripts: ScriptLoadInfo[],
+    private envInfo: GMInfoEnv
   ) {}
 
   start() {
@@ -51,7 +54,7 @@ export class InjectRuntime {
 
   externalMessage() {
     // 对外接口白名单
-    let msg = this.msg;
+    const msg = this.msg;
     for (let i = 0; i < ExternalWhitelist.length; i += 1) {
       if (window.location.host.endsWith(ExternalWhitelist[i])) {
         // 注入
@@ -84,7 +87,7 @@ export class InjectRuntime {
   execScript(script: ScriptLoadInfo, scriptFunc: ScriptFunc) {
     // @ts-ignore
     delete window[script.flag];
-    const exec = new ExecScript(script, "content", this.msg, scriptFunc);
+    const exec = new ExecScript(script, "content", this.msg, scriptFunc, this.envInfo);
     this.execList.push(exec);
     // 注入css
     if (script.metadata["require-css"]) {

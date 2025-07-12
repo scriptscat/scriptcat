@@ -1,57 +1,39 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import { Script, ScriptDAO } from "@App/app/repo/scripts";
-import { ExtMessageSender, GetSender, Group, MessageSend } from "@Packages/message/server";
-import { ValueService } from "@App/app/service/service_worker/value";
-import PermissionVerify, { ConfirmParam } from "./permission_verify";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { GetSender, type Group } from "@Packages/message/server";
+import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { MockMessageConnect } from "@Packages/message/mock_message";
+import { type ValueService } from "@App/app/service/service_worker/value";
+import type { ConfirmParam } from "./permission_verify";
+import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import Cache, { incr } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { EmitEventRequest, RuntimeService } from "./runtime";
+import { type RuntimeService } from "./runtime";
 import { getIcon, isFirefox } from "@App/pkg/utils/utils";
-import { MockMessageConnect } from "@Packages/message/mock_message";
+import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
-import { SystemConfig } from "@App/pkg/config/config";
 import FileSystemFactory from "@Packages/filesystem/factory";
-import FileSystem from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
+import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 
 // GMApi,处理脚本的GM API调用请求
 
-export type MessageRequest = {
-  uuid: string; // 脚本id
-  api: string;
-  runFlag: string;
-  params: any[];
-};
-
-export type Request = MessageRequest & {
-  script: Script;
-};
-
-export type RequestResultParams = {
+type RequestResultParams = {
   requestId: number;
   statusCode: number;
   responseHeader: string;
 };
 
-export type NotificationMessageOption = {
-  event: "click" | "buttonClick" | "close";
-  params: {
-    /**
-     * event为buttonClick时存在该值
-     *
-     * buttonClick的index
-     */
-    index?: number;
-    /**
-     * 是否是用户点击
-     */
-    byUser?: boolean;
-  };
-};
+// GMExternalDependencies接口定义
+// 为了支持外部依赖注入，方便测试和扩展
+interface IGMExternalDependencies {
+  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
+}
 
 /**
  * 这里的值如果末尾是-结尾，将会判断使用.startsWith()判断，否则使用.includes()
@@ -101,7 +83,7 @@ export const checkHasUnsafeHeaders = (key: string) => {
     return true;
   }
   // ends with "-"
-  let specialHeaderKeys = ["proxy-", "sec-"];
+  const specialHeaderKeys = ["proxy-", "sec-"];
   if (specialHeaderKeys.some((specialHeaderKey) => key.startsWith(specialHeaderKey))) {
     return true;
   }
@@ -114,13 +96,8 @@ type NotificationData = {
   sender: ExtMessageSender;
 };
 
-export type Api = (request: Request, con: GetSender) => Promise<any>;
-
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
-export interface IGMExternalDependencies {
-  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
-}
 
 export class GMExternalDependencies implements IGMExternalDependencies {
   constructor(private runtimeService: RuntimeService) {}
@@ -156,7 +133,7 @@ export default class GMApi {
 
   async handlerRequest(data: MessageRequest, sender: GetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
-    const api = PermissionVerify.apis.get(data.api);
+    const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");
     }
@@ -182,13 +159,13 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    async confirm(request: Request) {
+    confirm: async (request: Request) => {
       if (request.params[0] === "store") {
         return true;
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
-      if (!detail.url && !detail.domain) {
-        throw new Error("there must be one of url or domain");
+      if (!detail.url) {
+        throw new Error("there must be one of url");
       }
       let url: URL = <URL>{};
       if (detail.url) {
@@ -201,7 +178,7 @@ export default class GMApi {
       if (request.script.metadata.connect) {
         const { connect } = request.script.metadata;
         flag =
-          connect.indexOf("*") !== -1 ||
+          connect.includes("*") ||
           connect.findIndex((connectHostName) => url.hostname.endsWith(connectHostName)) !== -1;
       }
       if (!flag) {
@@ -234,8 +211,8 @@ export default class GMApi {
     if (detail.domain) {
       detail.domain = detail.domain.trim();
     }
-    if (!detail.url && !detail.domain) {
-      throw new Error("there must be one of url or domain");
+    if (!detail.url) {
+      throw new Error("there must be one of url");
     }
     if (typeof detail.partitionKey !== "object" || detail.partitionKey == null) {
       detail.partitionKey = {};
@@ -245,7 +222,7 @@ export default class GMApi {
       detail.partitionKey.topLevelSite = undefined;
     }
     // 处理tab的storeid
-    let tabId = sender.getExtMessageSender().tabId;
+    const tabId = sender.getExtMessageSender().tabId;
     let storeId: string | undefined;
     if (tabId !== -1) {
       const stores = await chrome.cookies.getAllCookieStores();
@@ -256,7 +233,7 @@ export default class GMApi {
     }
     switch (param[0]) {
       case "list": {
-        let cookies = await chrome.cookies.getAll({
+        const cookies = await chrome.cookies.getAll({
           domain: detail.domain,
           name: detail.name,
           path: detail.path,
@@ -281,8 +258,8 @@ export default class GMApi {
         break;
       }
       case "set": {
-        if (!detail.url || !detail.name) {
-          throw new Error("set operation must have name and value");
+        if (!detail.url || !detail.name || !detail.value) {
+          throw new Error("set operation must have url, name and value");
         }
         await chrome.cookies.set({
           url: detail.url,
@@ -357,7 +334,7 @@ export default class GMApi {
       } as ConfirmParam;
     },
   })
-  async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
+  async CAT_fileStorage(request: Request): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
       chrome.tabs.create({
@@ -486,7 +463,7 @@ export default class GMApi {
       }
 
       // 追加该网站本身存储的cookie
-      let tabId = sender.getExtMessageSender().tabId;
+      const tabId = sender.getExtMessageSender().tabId;
       let storeId: string | undefined;
       if (tabId !== -1) {
         const stores = await chrome.cookies.getAllCookieStores();
@@ -496,7 +473,7 @@ export default class GMApi {
         }
       }
 
-      let cookies = await chrome.cookies.getAll({
+      const cookies = await chrome.cookies.getAll({
         domain: undefined,
         name: undefined,
         path: undefined,
@@ -606,7 +583,7 @@ export default class GMApi {
 
   CAT_fetch(config: GMSend.XHRDetails, con: GetSender, resultParam: RequestResultParams) {
     const { url } = config;
-    let connect = con.getConnect();
+    const connect = con.getConnect();
     return fetch(url, {
       method: config.method || "GET",
       body: <any>config.data,
@@ -646,10 +623,9 @@ export default class GMApi {
       if (!reader) {
         throw new Error("read is not found");
       }
-      const _this = this;
-      reader.read().then(function read({ done, value }) {
+      const readData = ({ done, value }: { done: boolean; value?: Uint8Array }) => {
         if (done) {
-          const data = _this.dealFetch(config, resp, 4, resultParam);
+          const data = this.dealFetch(config, resp, 4, resultParam);
           data.responseHeaders = resultParam.responseHeader || data.responseHeaders;
           connect.sendMessage({
             action: "onreadystatechange",
@@ -666,11 +642,12 @@ export default class GMApi {
         } else {
           connect.sendMessage({
             action: "onstream",
-            data: Array.from(value),
+            data: Array.from(value!),
           });
-          reader.read().then(read);
+          reader.read().then(readData);
         }
-      });
+      };
+      reader.read().then(readData);
       send.responseHeaders = resultParam.responseHeader || send.responseHeaders;
       connect.sendMessage({
         action: "onloadstart",
@@ -737,11 +714,12 @@ export default class GMApi {
 
     params.headers["X-Scriptcat-GM-XHR-Request-Id"] = requestId.toString();
     params.headers = await this.buildDNRRule(requestId, request.params[0], sender);
-    let resultParam: RequestResultParams = {
+    const resultParam: RequestResultParams = {
       requestId,
       statusCode: 0,
       responseHeader: "",
     };
+    let finalUrl = "";
     // 等待response
     this.gmXhrHeadersReceived.addListener(
       "headersReceived:" + requestId,
@@ -750,6 +728,7 @@ export default class GMApi {
           resultParam.responseHeader += header.name + ": " + header.value + "\n";
         });
         resultParam.statusCode = details.statusCode;
+        finalUrl = this.cache.get("gmXhrRequest:finalUrl:" + requestId);
         this.gmXhrHeadersReceived.removeAllListeners("headersReceived:" + requestId);
       }
     );
@@ -763,6 +742,10 @@ export default class GMApi {
       // 发送到content
       // 替换msg.data.responseHeaders
       msg.data.responseHeaders = resultParam.responseHeader || msg.data.responseHeaders;
+      // 替换finalUrl
+      if (finalUrl) {
+        msg.data.finalUrl = finalUrl;
+      }
       sender.getConnect().sendMessage(msg);
     });
     sender.getConnect().onDisconnect(() => {
@@ -829,7 +812,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_openInTab",
+    link: ["GM_openInTab"],
   })
   async GM_closeInTab(request: Request): Promise<boolean> {
     try {
@@ -855,12 +838,11 @@ export default class GMApi {
   async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    const _ = await Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
-        tabData = tabData || {};
-        tabData[tabId] = data;
-        return tabData;
-      });
+    await Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+      tabData = tabData || {};
+      tabData[tabId] = data;
+      return tabData;
+    });
     return true;
   }
 
@@ -957,7 +939,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_notification",
+    link: ["GM_notification"],
   })
   GM_closeNotification(request: Request) {
     if (request.params.length === 0) {
@@ -969,7 +951,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({
-    link: "GM_notification",
+    link: ["GM_notification"],
   })
   GM_updateNotification(request: Request) {
     if (isFirefox()) {
@@ -1068,13 +1050,13 @@ export default class GMApi {
 
   @PermissionVerify.API()
   async GM_setClipboard(request: Request) {
-    let [data, type] = request.params;
-    type = type || "text/plain";
-    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type });
+    const [data, type] = request.params;
+    const clipboardType = type || "text/plain";
+    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
-  @PermissionVerify.API({ alias: ["window.close"] })
-  async windowDotClose(request: Request, sender: GetSender) {
+  @PermissionVerify.API()
+  async ["window.close"](request: Request, sender: GetSender) {
     /*
      * Note: for security reasons it is not allowed to close the last tab of a window.
      * https://www.tampermonkey.net/documentation.php#api:window.close
@@ -1084,8 +1066,8 @@ export default class GMApi {
     await chrome.tabs.remove(sender.getSender().tab?.id as number);
   }
 
-  @PermissionVerify.API({ alias: ["window.focus"] })
-  async windowDotFocus(request: Request, sender: GetSender) {
+  @PermissionVerify.API()
+  async ["window.focus"](request: Request, sender: GetSender) {
     await chrome.tabs.update(sender.getSender().tab?.id as number, {
       active: true,
     });
@@ -1173,6 +1155,8 @@ export default class GMApi {
               rule.action.requestHeaders = rule.action.requestHeaders?.filter(
                 (header) => header.header.toLowerCase() !== "cookie"
               );
+              // 设置重定向url，获取到实际的请求地址
+              this.cache.set("gmXhrRequest:finalUrl:" + requestId, location);
               chrome.declarativeNetRequest.updateSessionRules({
                 removeRuleIds: [parseInt(requestId)],
                 addRules: [rule],
@@ -1183,6 +1167,7 @@ export default class GMApi {
             // 删除关联与DNR
             this.cache.delete("gmXhrRequest:" + details.requestId);
             this.cache.delete("dnrRule:" + requestId);
+            this.cache.delete("gmXhrRequest:finalUrl:" + requestId);
             chrome.declarativeNetRequest.updateSessionRules({
               removeRuleIds: [parseInt(requestId)],
             });

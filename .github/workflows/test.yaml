@@ -23,9 +23,14 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
       - name: Unit Test
         run: |
-          pnpm i --frozen-lockfile
           pnpm test
           pnpm run coverage
 

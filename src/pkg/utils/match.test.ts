@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { dealPatternMatches, parsePatternMatchesURL, UrlMatch } from "./match";
-import path from "path";
 
 // https://developer.chrome.com/docs/extensions/mv3/match_patterns/
 describe("UrlMatch-google", () => {

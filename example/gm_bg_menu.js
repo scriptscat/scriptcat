@@ -5,8 +5,8 @@
 // @description  在后台脚本中使用菜单
 // @author       You
 // @background
-// @grant GM_registerMenuCommand
-// @grant GM_unregisterMenuCommand
+// @grant        GM_registerMenuCommand
+// @grant        GM_unregisterMenuCommand
 // ==/UserScript==
 
 return new Promise((resolve) => {

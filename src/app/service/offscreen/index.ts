@@ -1,6 +1,7 @@
-import { forwardMessage, MessageSend, Server } from "@Packages/message/server";
+import { forwardMessage, Server } from "@Packages/message/server";
+import type { MessageSend } from "@Packages/message/types";
 import { ScriptService } from "./script";
-import { Logger, LoggerDAO } from "@App/app/repo/logger";
+import { type Logger } from "@App/app/repo/logger";
 import { WindowMessage } from "@Packages/message/window_message";
 import { ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";

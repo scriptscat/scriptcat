@@ -1,9 +1,9 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { isText } from "../utils/istextorbinary";
-import { blobToBase64 } from "../utils/script";
+import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
-import {
+import type {
   BackupData,
   ResourceBackup,
   ResourceMeta,
@@ -12,8 +12,10 @@ import {
   SubscribeBackupData,
   SubscribeOptionsFile,
   ValueStorage,
+  ScriptData, SubscribeData,
 } from "./struct";
-import FileSystem, { File } from "@Packages/filesystem/filesystem";
+import type { File } from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 
 type ViolentmonkeyFile = {
   scripts: {
@@ -225,8 +227,8 @@ export default class BackupImport {
 
     // 将map转化为数组
     return ({
-      script: Array.from(map.values()),
-      subscribe: Array.from(subscribe.values()),
+      script: (<ScriptData[]>Array.from(map.values())),
+      subscribe: (<SubscribeData[]>Array.from(subscribe.values())),
     });
   }
 

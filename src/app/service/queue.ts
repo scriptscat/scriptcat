@@ -1,8 +1,7 @@
-import { MessageQueue } from "@Packages/message/message_queue";
-import { Script, SCRIPT_RUN_STATUS } from "../repo/scripts";
-import { InstallSource } from "./service_worker";
-import { Subscribe } from "../repo/subscribe";
-import { ScriptMenuItem } from "./service_worker/popup";
+import type { Script, SCRIPT_RUN_STATUS } from "../repo/scripts";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import type { InstallSource, ScriptMenuItem } from "./service_worker/types";
+import type { Subscribe } from "../repo/subscribe";
 
 export function subscribeScriptInstall(
   messageQueue: MessageQueue,

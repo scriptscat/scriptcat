@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 export type SyncType = "script" | "subscribe";
 
 export type SyncAction = "update" | "delete";

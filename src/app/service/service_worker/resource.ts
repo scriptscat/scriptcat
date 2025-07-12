@@ -1,15 +1,16 @@
 import LoggerCore from "@App/app/logger/core";
-import crypto from "crypto-js";
 import Logger from "@App/app/logger/logger";
-import { Resource, ResourceDAO, ResourceHash, ResourceType } from "@App/app/repo/resource";
-import { Script } from "@App/app/repo/scripts";
-import { MessageQueue } from "@Packages/message/message_queue";
-import { Group } from "@Packages/message/server";
+import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
+import { ResourceDAO } from "@App/app/repo/resource";
+import type { Script } from "@App/app/repo/scripts";
+import { type MessageQueue } from "@Packages/message/message_queue";
+import { type Group } from "@Packages/message/server";
+import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64 } from "@App/pkg/utils/script";
-import { ResourceBackup } from "@App/pkg/backup/struct";
+import { blobToBase64 } from "@App/pkg/utils/utils";
 import { subscribeScriptDelete } from "../queue";
 import Cache from "@App/app/cache";
+import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 
 export class ResourceService {
   logger: Logger;
@@ -23,23 +24,39 @@ export class ResourceService {
     this.resourceDAO.enableCache();
   }
 
-  public async getResource(uuid: string, url: string, type: ResourceType): Promise<Resource | undefined> {
-    let res = await this.getResourceModel(url);
+  public async getResource(
+    uuid: string,
+    url: string,
+    _type: ResourceType,
+    load: boolean
+  ): Promise<Resource | undefined> {
+    const res = await this.getResourceModel(url);
     if (res) {
       return res;
+    }
+    if (load) {
+      // 如果没有缓存，则尝试加载资源
+      try {
+        return await this.updateResource(uuid, url, _type);
+      } catch (e: any) {
+        this.logger.error("load resource error", { url }, Logger.E(e));
+      }
+    } else {
+      // 如果没有缓存则不加载，则返回undefined，但是会在后台异步加载
+      this.updateResource(uuid, url, _type);
     }
     return undefined;
   }
 
-  public async getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+  public async getScriptResources(script: Script, load: boolean): Promise<{ [key: string]: Resource }> {
     return {
-      ...((await this.getResourceByType(script, "require")) || {}),
-      ...((await this.getResourceByType(script, "require-css")) || {}),
-      ...((await this.getResourceByType(script, "resource")) || {}),
+      ...((await this.getResourceByType(script, "require", load)) || {}),
+      ...((await this.getResourceByType(script, "require-css", load)) || {}),
+      ...((await this.getResourceByType(script, "resource", load)) || {}),
     };
   }
 
-  async getResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
+  async getResourceByType(script: Script, type: ResourceType, load: boolean): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
       return {};
     }
@@ -66,7 +83,7 @@ export class ResourceService {
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;
           } else {
-            const res = await this.getResource(script.uuid, path, type);
+            const res = await this.getResource(script.uuid, path, type, load);
             if (res) {
               ret[resourceKey] = res;
             }
@@ -112,6 +129,7 @@ export class ResourceService {
     return ret;
   }
 
+  // 检查资源是否存在,如果不存在则重新加载
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
     if (res) {
@@ -200,14 +218,7 @@ export class ResourceService {
             sha512: "",
           });
         } else {
-          const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>reader.result);
-          resolve({
-            md5: crypto.MD5(wordArray).toString(),
-            sha1: crypto.SHA1(wordArray).toString(),
-            sha256: crypto.SHA256(wordArray).toString(),
-            sha384: crypto.SHA384(wordArray).toString(),
-            sha512: crypto.SHA512(wordArray).toString(),
-          });
+          resolve(calculateHashFromArrayBuffer(<ArrayBuffer>reader.result));
         }
       };
     });
@@ -223,7 +234,7 @@ export class ResourceService {
     const [hash, arrayBuffer, base64] = await Promise.all([
       this.calculateHash(data),
       data.arrayBuffer(),
-      blobToBase64(data)
+      blobToBase64(data),
     ]);
     const resource: Resource = {
       url: u.url,
@@ -282,10 +293,7 @@ export class ResourceService {
     if (!res) {
       // 新增资源
       const blob = new Blob([data.source!]);
-      const [hash, base64] = await Promise.all([
-        this.calculateHash(blob),
-        blobToBase64(blob)
-      ]);
+      const [hash, base64] = await Promise.all([this.calculateHash(blob), blobToBase64(blob)]);
       res = {
         url: data.meta.url,
         content: data.source!,
@@ -303,14 +311,18 @@ export class ResourceService {
     return await this.resourceDAO.update(data.meta.url, res);
   }
 
+  requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+    return this.getScriptResources(script, false);
+  }
+
   init() {
-    this.group.on("getScriptResources", this.getScriptResources.bind(this));
+    this.group.on("getScriptResources", this.requestGetScriptResources.bind(this));
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源
     subscribeScriptDelete(this.mq, (data) => {
       // 使用事务当锁，避免并发删除导致数据不一致
-      Cache.getInstance().tx("resource_lock", async (start) => {
+      Cache.getInstance().tx("resource_lock", async (_start) => {
         const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
         });

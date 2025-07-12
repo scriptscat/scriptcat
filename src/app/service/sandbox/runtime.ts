@@ -1,22 +1,24 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import type {
+  ScriptRunResource} from "@App/app/repo/scripts";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_RUN_STATUS_ERROR,
   SCRIPT_RUN_STATUS_RUNNING,
-  SCRIPT_TYPE_BACKGROUND,
-  ScriptRunResouce,
+  SCRIPT_TYPE_BACKGROUND
 } from "@App/app/repo/scripts";
-import { Server } from "@Packages/message/server";
-import { WindowMessage } from "@Packages/message/window_message";
+import type { Server } from "@Packages/message/server";
+import type { WindowMessage } from "@Packages/message/window_message";
 import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
-import ExecScript, { ValueUpdateData } from "../content/exec_script";
+import type ExecScript from "../content/exec_script";
+import type { ValueUpdateData } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
-import { EmitEventRequest, ScriptLoadInfo } from "../service_worker/runtime";
+import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/script";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -76,7 +78,7 @@ export class Runtime {
     }
   }
 
-  async enableScript(script: ScriptRunResouce) {
+  async enableScript(script: ScriptRunResource) {
     // 开启脚本
     // 如果正在运行,先释放
     if (this.execScripts.has(script.uuid)) {
@@ -178,7 +180,7 @@ export class Runtime {
     script.metadata.crontab.forEach((val) => {
       let oncePos = 0;
       let crontab = val;
-      if (crontab.indexOf("once") !== -1) {
+      if (crontab.includes("once")) {
         const vals = crontab.split(" ");
         vals.forEach((item, index) => {
           if (item === "once") {
@@ -292,7 +294,7 @@ export class Runtime {
     return true;
   }
 
-  async runScript(script: ScriptRunResouce) {
+  async runScript(script: ScriptRunResource) {
     const exec = this.execScripts.get(script.uuid);
     // 如果正在运行,先释放
     if (exec) {

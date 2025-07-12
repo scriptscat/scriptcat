@@ -1,5 +1,5 @@
-import { WebDAVClient } from "webdav";
-import { FileReader, FileWriter } from "../filesystem";
+import type { WebDAVClient } from "webdav";
+import type { FileReader, FileWriter } from "../filesystem";
 
 export class WebDAVFileReader implements FileReader {
   client: WebDAVClient;
