@@ -104,7 +104,8 @@ export const unscopables: { [key: string]: boolean } = {
   // "await": true,
   // "define": true,
   // "module": true,
-  // "exports": true
+  // "exports": true,
+  [Symbol.unscopables]: true,
 };
 
 // 在 CacheSet 加入的propKeys将会在myCopy实装阶段时设置
