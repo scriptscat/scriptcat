@@ -75,7 +75,7 @@ export default class ExecScript {
   exec() {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
-    const context = sandboxContext ? createProxyContext(global, sandboxContext) : global; // this.$ 只能执行一次
+    const context = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
     return this.scriptFunc.call(context, this.named, this.scriptRes.name);
   }
 

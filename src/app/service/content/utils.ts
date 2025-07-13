@@ -209,7 +209,7 @@ const isEventListenerFunc = (x: any) => typeof x === 'function';
 const isPrimitive = (x: any) => x !== Object(x);
 
 // 拦截上下文
-export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {
+export function createProxyContext<const Context extends GMWorldContext>(context: any): Context {
 
   // let withContext: Context | undefined | { [key: string]: any } = undefined;
   // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
