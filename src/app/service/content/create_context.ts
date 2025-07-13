@@ -238,7 +238,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
       delete desc.writable;
       delete desc.value;
     } else if (desc?.get) {
-      // 真實的 window 物件中部份属性(self, parent) 存在setter. 意義不明
+      // 真实的 window 物件中部份属性(self, parent) 存在setter. 意义不明
       // 为避免做成混乱，ScriptCat脚本的沙盒不提供setter（即不能修改）
       // (像window.document, 能写 window.document = null 不会报错但赋值不变)
       desc.get = createFuncWrapper(desc.get);
@@ -256,24 +256,40 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     enumerable: false,
     configurable: true,
     get() {
-      delete (<any>this).$;
-      return myCopy;
+      delete (<any>this).$; // 一次性
+      return myCopy; // 非拦截（TM相容）
 
+      // // 非拦截：只限沙盒成员 （TM相容）
+      // // 半拦截：沙盒成员 + 全域成员，显示undefined不报错
+      // // 全拦截：所有变数名称，显示undefined不报错
       // return new Proxy(<Context>myCopy, {
       //   get(target, prop, receiver) {
-      //     // 由於Context全拦截，我们没有方法判断这个get是 typeof xxx 还是 xxx
+      //     // --- 全拦截 --- 
+      //     // 由於Context全拦截，所有变数名都会被这个Proxy拦截，然后呼叫get
       //     // (不拦截的话会触发全域变量存取读写)
+      //     // 我们没有方法判断这个get是 typeof xxx 还是 xxx
       //     // 因此总是传回 undefined 而不报错
-      //     if(Reflect.has(target, prop)){
+      //     // --- 半拦截 ---
+      //     // 由於Context半拦截，全域成员也会被这个Proxy拦截，然后呼叫get
+      //     // (不拦截的话会触发全域变量存取读写)
+      //     // 我们没有方法判断这个get是 typeof xxx 还是 xxx
+      //     // 因此总是传回 undefined 而不报错
+      //     if (Reflect.has(target, prop)) {
       //       return Reflect.get(target, prop, receiver);
       //     }
-      //     // throw new ReferenceError(`${String(prop)} is not defined.`);
+      //     // 不报错 // throw new ReferenceError(`${String(prop)} is not defined.`);
       //     return undefined;
       //   },
       //   has(_target, _key) {
+      //     let ret;
+      //     // --- 全拦截 ---
       //     // 全拦截，避免 userscript 改变 global window 变量 （包括删除及生成）
       //     // 强制针对所有"属性"为[[HasProperty]]，即 `* in $` 总是 true
-      //     return true;
+      //     ret = true;
+      //     // --- 半拦截 ---
+      //     // 拦截 沙盒成员 + 全域成员
+      //     ret = Reflect.has(_target, _key) || Reflect.has(global, _key);
+      //     return ret;
       //   },
       //   set(target, key, value, receiver) {
       //     // if (Reflect.has(target, key)) {
@@ -311,7 +327,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     exposedWindow[key] = context[key]; // window以外
   }
 
-  // 把 GM context物件的 window属性內容移至exposedWindow
+  // 把 GM context物件的 window属性内容移至exposedWindow
   // 由於目前只有 window.close, window.open, window.onurlchange, 不需要循环 window
   const cWindow = context.window;
 
