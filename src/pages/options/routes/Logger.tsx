@@ -201,12 +201,10 @@ function LoggerPage() {
                       value={query}
                       labels={labels}
                       onChange={(v) => {
-                        querys[index] = v;
-                        setQuerys([...querys]);
+                        setQuerys(prev => prev.map((query, i) => i === index ? v : query));
                       }}
                       onClose={() => {
-                        querys.splice(index, 1);
-                        setQuerys([...querys]);
+                        setQuerys(prev => prev.filter((_query, i) => i !== index));
                       }}
                     />
                   ))}
@@ -305,7 +303,7 @@ function LoggerPage() {
               }}
               size="small"
               dataSource={queryLogs}
-              render={(item: Logger, _index) => (
+              render={(item: Logger) => (
                 <List.Item
                   key={item.id}
                   style={{

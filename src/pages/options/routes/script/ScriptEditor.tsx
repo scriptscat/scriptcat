@@ -210,27 +210,33 @@ function ScriptEditor() {
                 return [newScript, ...prev];
               });
             } else {
-              setScriptList((prev) => {
-                prev.map((script: Script) => {
-                  if (script.uuid === newScript.uuid) {
-                    script.name = newScript.name;
-                  }
-                });
-                return [...prev];
-              });
+              const uuid = newScript.uuid;
+              const name = newScript.name;
+              setScriptList((prev) =>
+                prev.map((script: Script) =>
+                  script.uuid === uuid ? {
+                    ...script,
+                    name
+                  } : script
+                )
+              );
               Message.success(t("save_success"));
             }
-            setEditors((prev) => {
-              for (let i = 0; i < prev.length; i += 1) {
-                if (prev[i].script.uuid === newScript.uuid) {
-                  prev[i].code = e.getValue();
-                  prev[i].isChanged = false;
-                  prev[i].script.name = newScript.name;
-                  break;
-                }
-              }
-              return [...prev];
-            });
+            const uuid = newScript.uuid;
+            const name = newScript.name;
+            setEditors((prev) =>
+              prev.map((item) =>
+                item.script.uuid === uuid ? {
+                  ...item,
+                  code: e.getValue(),
+                  isChanged: false,
+                  script: {
+                    ...item.script,
+                    name
+                  }
+                } : item
+              )
+            );
             return newScript;
           })
           .catch((err: any) => {
@@ -397,36 +403,38 @@ function ScriptEditor() {
           if (scripts[i].uuid === uuid) {
             // 如果已经打开则激活
             scriptCodeDAO.findByUUID(uuid).then((code) => {
+              const uuid = scripts[i].uuid;
               setEditors((prev) => {
-                const flag = prev.some((item) => item.script.uuid === scripts[i].uuid);
+                const flag = prev.some((item) => item.script.uuid === uuid);
                 if (flag) {
-                  return prev.map((item) => {
-                    if (item.script.uuid === scripts[i].uuid) {
-                      item.active = true;
-                    } else {
-                      item.active = false;
+                  return prev.map((item) =>
+                    item.script.uuid === uuid ? {
+                      ...item,
+                      active: true
+                    } : {
+                      ...item,
+                      active: false
                     }
-                    return item;
-                  });
+                  );
+                } else {
+                  const newEditor = {
+                    script: scripts[i],
+                    code: code?.code || "",
+                    active: true,
+                    hotKeys,
+                    isChanged: false,
+                  };
+                  return [...prev, newEditor];
                 }
-                prev.push({
-                  script: scripts[i],
-                  code: code?.code || "",
-                  active: true,
-                  hotKeys,
-                  isChanged: false,
-                });
-                return prev;
               });
-              setSelectSciptButtonAndTab(scripts[i].uuid);
+              setSelectSciptButtonAndTab(uuid);
             });
             break;
           }
         }
       } else {
         emptyScript(template || "", hotKeys, target).then((e) => {
-          editors.push(e);
-          setEditors([...editors]);
+          setEditors(prev => [...prev, e]);
         });
       }
     });
@@ -465,60 +473,68 @@ function ScriptEditor() {
 
   // 对tab点击右键进行的操作
   useEffect(() => {
-    let newEditors = [];
     let selectEditorIndex: number = 0;
     // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
     if (rightOperationTab) {
        
       switch (rightOperationTab.key) {
         case "1":
-          newEditors = editors.filter((item) => item.script.uuid !== rightOperationTab.uuid);
-          if (newEditors.length > 0) {
-            // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
-            if (rightOperationTab.selectSciptButtonAndTab === rightOperationTab.uuid) {
-              if (newEditors.length > 0) {
-                newEditors[0].active = true;
-                setSelectSciptButtonAndTab(newEditors[0].script.uuid);
+          setEditors(prev => {
+            prev = prev.filter((item) => item.script.uuid !== rightOperationTab.uuid);
+            if (prev.length > 0) {
+              // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
+              if (rightOperationTab.selectSciptButtonAndTab === rightOperationTab.uuid) {
+                prev[0] = {
+                  ...prev[0],
+                  active: true
+                };
+                const chooseTabUUID = prev[0].script.uuid;
+                setSelectSciptButtonAndTab(chooseTabUUID);
+                return prev;
+              } else {
+                const prevTabUUID = rightOperationTab.selectSciptButtonAndTab;
+                setSelectSciptButtonAndTab(prevTabUUID);
+                // 之前选中的tab
+                return prev.map((item) =>
+                  item.script.uuid === prevTabUUID ? {
+                    ...item,
+                    active: true
+                  } : {
+                    ...item,
+                    active: false
+                  }
+                )
               }
             } else {
-              setSelectSciptButtonAndTab(rightOperationTab.selectSciptButtonAndTab);
-              // 之前选中的tab
-              editors.filter((item) => {
-                if (item.script.uuid === rightOperationTab.selectSciptButtonAndTab) {
-                  item.active = true;
-                } else {
-                  item.active = false;
-                }
-                return item.script.uuid === rightOperationTab.selectSciptButtonAndTab;
-              });
+              return [];
             }
-          }
-          setEditors([...newEditors]);
+          });
           break;
         case "2":
-          newEditors = editors.filter((item) => item.script.uuid === rightOperationTab.uuid);
           setSelectSciptButtonAndTab(rightOperationTab.uuid);
-          setEditors([...newEditors]);
+          setEditors((prev) => prev.filter((item) => item.script.uuid === rightOperationTab.uuid));
           break;
         case "3":
-          editors.map((item, index) => {
-            if (item.script.uuid === rightOperationTab.uuid) {
-              selectEditorIndex = index;
-            }
-            return null;
+          setEditors((prev) => {
+            prev.some((item, index) => {
+              if (item.script.uuid === rightOperationTab.uuid) {
+                selectEditorIndex = index;
+                return true;
+              }
+            });
+            return prev.slice(selectEditorIndex);
           });
-          newEditors = editors.splice(selectEditorIndex);
-          setEditors([...newEditors]);
           break;
         case "4":
-          editors.map((item, index) => {
-            if (item.script.uuid === rightOperationTab.uuid) {
-              selectEditorIndex = index;
-            }
-            return null;
+          setEditors((prev) => {
+            prev.some((item, index) => {
+              if (item.script.uuid === rightOperationTab.uuid) {
+                selectEditorIndex = index;
+                return true;
+              }
+            });
+            return prev.slice(0, selectEditorIndex + 1)
           });
-          newEditors = editors.splice(0, selectEditorIndex + 1);
-          setEditors([...newEditors]);
       }
     }
   }, [rightOperationTab]);
@@ -548,23 +564,23 @@ function ScriptEditor() {
       }
 
       // 删除目标编辑器
-      const newEditors = prev.filter((_, index) => index !== targetIndex);
+      prev = prev.filter((_, index) => index !== targetIndex);
 
       // 如果删除的是当前激活的编辑器，需要激活其他编辑器
-      if (targetEditor.active && newEditors.length > 0) {
+      if (targetEditor.active && prev.length > 0) {
         let nextActiveIndex;
-        if (targetIndex >= newEditors.length) {
+        if (targetIndex >= prev.length) {
           // 如果删除的是最后一个，激活前一个
-          nextActiveIndex = newEditors.length - 1;
+          nextActiveIndex = prev.length - 1;
         } else {
           // 否则激活下一个（原来的下一个现在在同样的位置）
           nextActiveIndex = targetIndex;
         }
-        newEditors[nextActiveIndex].active = true;
-        setSelectSciptButtonAndTab(newEditors[nextActiveIndex].script.uuid);
+        prev[nextActiveIndex].active = true;
+        setSelectSciptButtonAndTab(prev[nextActiveIndex].script.uuid);
       }
 
-      return newEditors;
+      return prev;
     });
   };
 
@@ -827,14 +843,14 @@ function ScriptEditor() {
                           if (!code) {
                             return;
                           }
-                          editors.push({
+                          const newEditor = {
                             script,
                             code: code.code,
                             active: true,
                             hotKeys,
                             isChanged: false,
-                          });
-                          setEditors([...editors]);
+                          }
+                          setEditors((prev) => [...prev, newEditor]);
                         });
                       }
                     }}
@@ -896,15 +912,20 @@ function ScriptEditor() {
               overflow: "inherit",
             }}
             onChange={(index: string) => {
-              editors.forEach((_, i) => {
-                if (i.toString() === index) {
-                  setSelectSciptButtonAndTab(editors[i].script.uuid);
-                  editors[i].active = true;
-                } else {
-                  editors[i].active = false;
-                }
-                setEditors([...editors]);
-              });
+              setEditors((prev) =>
+                prev.map((editor, i) =>
+                  `${i}` === index ? {
+                    ...editor,
+                    active: (
+                      setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
+                      true
+                    )
+                  } : {
+                    ...editor,
+                    active: false
+                  }
+                )
+              );
             }}
             onAddTab={() => {
               emptyScript(template || "", hotKeys).then((e) => {
@@ -913,8 +934,7 @@ function ScriptEditor() {
                     item.active = false;
                   });
                   setSelectSciptButtonAndTab(e.script.uuid);
-                  prev.push(e);
-                  return [...prev];
+                  return [...prev, e];
                 });
               });
             }}
@@ -992,30 +1012,30 @@ function ScriptEditor() {
                     code={item.code}
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {
-                      setEditors((prev) => {
-                        prev.forEach((v) => {
-                          if (v.script.uuid === item.script.uuid) {
-                            v.editor = e;
-                            // 编辑器实例创建后立即聚焦一次
-                            if (v.active) {
-                              setTimeout(() => e.focus(), 100);
-                            }
-                          }
-                        });
-                        return [...prev];
-                      });
+                      setEditors((prev) =>
+                        prev.map((v) =>
+                          v.script.uuid === item.script.uuid ? {
+                            ...v,
+                            editor: (
+                              v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
+                              e
+                            ),
+                          } : v
+                        )
+                      );
                     }}
                     onChange={(code) => {
                       const isChanged = !(item.code === code);
                       if (isChanged !== item.isChanged) {
-                        setEditors((prev) => {
-                          prev.forEach((v) => {
-                            if (v.script.uuid === item.script.uuid) {
-                              v.isChanged = isChanged;
-                            }
-                          });
-                          return [...prev];
-                        });
+                        const uuid = item.script.uuid;
+                        setEditors((prev) =>
+                          prev.map(v =>
+                            v.script.uuid === uuid ? {
+                              ...v,
+                              isChanged
+                            } : v
+                          )
+                        );
                       }
                     }}
                   />

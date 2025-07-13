@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Collapse,
@@ -44,237 +44,6 @@ function isExclude(script: ScriptMenu, host: string) {
   return false;
 }
 
-// 用于popup页的脚本操作列表
-const ScriptMenuList: React.FC<{
-  script: ScriptMenu[];
-  isBackscript: boolean;
-  currentUrl: string;
-}> = ({ script, isBackscript, currentUrl }) => {
-  const [list, setList] = useState([] as ScriptMenu[]);
-  const [expandMenuIndex, setExpandMenuIndex] = useState<{
-    [key: string]: boolean;
-  }>({});
-  const { t } = useTranslation();
-  const [menuExpandNum, setMenuExpandNum] = useState(5);
-
-  let url: URL;
-  try {
-    url = new URL(currentUrl);
-  } catch (e: any) {
-    console.error("Invalid URL:", e);
-  }
-  useEffect(() => {
-    setList(script);
-    // 注册菜单快捷键
-    const listeners: ((e: KeyboardEvent) => void)[] = [];
-    script.forEach((item) => {
-      item.menus.forEach((menu) => {
-        if (menu.options?.accessKey) {
-          const listener = (e: KeyboardEvent) => {
-            if (e.key.toUpperCase() === menu.options!.accessKey!.toUpperCase()) {
-              sendMenuAction(item.uuid, menu);
-            }
-          };
-          document.addEventListener("keypress", listener);
-          listeners.push(listener);
-        }
-      });
-    });
-    return () => {
-      listeners.forEach((listener) => {
-        document.removeEventListener("keypress", listener);
-      });
-    };
-  }, [script]);
-
-  useEffect(() => {
-    // 监听脚本运行状态
-    const unsub = subscribeScriptRunStatus(messageQueue, ({ uuid, runStatus }) => {
-      setList((prev) => {
-        const newList = [...prev];
-        const index = newList.findIndex((item) => item.uuid === uuid);
-        if (index !== -1) {
-          newList[index].runStatus = runStatus;
-        }
-        return newList;
-      });
-    });
-    // 获取配置
-    systemConfig.getMenuExpandNum().then((num) => {
-      setMenuExpandNum(num);
-    });
-    return () => {
-      unsub();
-    };
-  }, []);
-
-  return (
-    <>
-      {list.length === 0 && <Empty description={t("no_data")} />}
-      {list.map((item, index) => (
-        <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
-          <CollapseItem
-            header={
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-                title={
-                  item.enable
-                    ? item.runNumByIframe
-                      ? t("script_total_runs", {
-                          runNum: item.runNum,
-                          runNumByIframe: item.runNumByIframe,
-                        })!
-                      : t("script_total_runs_single", { runNum: item.runNum })!
-                    : t("script_disabled")!
-                }
-              >
-                <Space>
-                  <Switch
-                    size="small"
-                    checked={item.enable}
-                    onChange={(checked) => {
-                      scriptClient
-                        .enable(item.uuid, checked)
-                        .then(() => {
-                          setList((prevList) =>
-                            prevList.map((item1, _i) =>
-                              item1 === item ? { ...item1, enable: checked } : item1
-                            )
-                          );
-                        })
-                        .catch((err) => {
-                          Message.error(err);
-                        });
-                    }}
-                  />
-                  <span
-                    style={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
-                      lineHeight: "20px",
-                    }}
-                  >
-                    <ScriptIcons script={item} size={20} />
-                    {i18nName(item)}
-                  </span>
-                </Space>
-              </div>
-            }
-            name={item.uuid}
-            contentStyle={{ padding: "0 0 0 40px" }}
-          >
-            <div className="flex flex-col">
-              {isBackscript && (
-                <Button
-                  className="text-left"
-                  type="secondary"
-                  icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
-                  onClick={() => {
-                    if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-                      runtimeClient.runScript(item.uuid);
-                    } else {
-                      runtimeClient.stopScript(item.uuid);
-                    }
-                  }}
-                >
-                  {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
-                </Button>
-              )}
-              <Button
-                className="text-left"
-                type="secondary"
-                icon={<IconEdit />}
-                onClick={() => {
-                  window.open(`/src/options.html#/script/editor/${item.uuid}`, "_blank");
-                  window.close();
-                }}
-              >
-                {t("edit")}
-              </Button>
-              {url && (
-                <Button
-                  className="text-left"
-                  status="warning"
-                  type="secondary"
-                  icon={<IconMinus />}
-                  onClick={() => {
-                    scriptClient.excludeUrl(item.uuid, `*://${url.host}/*`, isExclude(item, url.host)).finally(() => {
-                      window.close();
-                    });
-                  }}
-                >
-                  {isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")}
-                  {` ${url.host} ${t("exclude_execution")}`}
-                </Button>
-              )}
-              <Popconfirm
-                title={t("confirm_delete_script")}
-                icon={<IconDelete />}
-                onOk={() => {
-                  setList(list.filter((i) => i.uuid !== item.uuid));
-                  scriptClient.delete(item.uuid).catch((e) => {
-                    Message.error(`{t('delete_failed')}: ${e}`);
-                  });
-                }}
-              >
-                <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
-                  {t("delete")}
-                </Button>
-              </Popconfirm>
-            </div>
-          </CollapseItem>
-          <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
-            {/* 判断菜单数量，再判断是否展开 */}
-            {(item.menus.length > menuExpandNum
-              ? expandMenuIndex[index]
-                ? item.menus
-                : item.menus?.slice(0, menuExpandNum)
-              : item.menus
-            )?.map((menu) => {
-              console.log("menu", menu);
-              return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
-            })}
-            {item.menus.length > menuExpandNum && (
-              <Button
-                className="text-left"
-                key="expand"
-                type="secondary"
-                icon={expandMenuIndex[index] ? <IconCaretUp /> : <IconCaretDown />}
-                onClick={() => {
-                  setExpandMenuIndex({
-                    ...expandMenuIndex,
-                    [index]: !expandMenuIndex[index],
-                  });
-                }}
-              >
-                {expandMenuIndex[index] ? t("collapse") : t("expand")}
-              </Button>
-            )}
-            {item.hasUserConfig && (
-              <Button
-                className="text-left"
-                key="config"
-                type="secondary"
-                icon={<IconSettings />}
-                onClick={() => {
-                  window.open(`/src/options.html#/?userConfig=${item.uuid}`, "_blank");
-                  window.close();
-                }}
-              >
-                {t("user_config")}
-              </Button>
-            )}
-          </div>
-        </Collapse>
-      ))}
-    </>
-  );
-};
 
 const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
@@ -289,7 +58,7 @@ type MenuItemProps = {
   uuid: string;
 };
 
-const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
+const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
   const initialValue = menu.options?.inputDefaultValue;
 
   const InputMenu = (() => {
@@ -342,6 +111,284 @@ const MenuItem: React.FC<MenuItemProps> = ({ menu, uuid }) => {
       )}
     </Form>
   );
-};
+});
+MenuItem.displayName = 'MenuItem';
+
+// 用于popup页的脚本操作列表
+const ScriptMenuList = React.memo(({ script, isBackscript, currentUrl }: {
+  script: ScriptMenu[];
+  isBackscript: boolean;
+  currentUrl: string;
+}) => {
+  const [list, setList] = useState([] as ScriptMenu[]);
+  const [expandMenuIndex, setExpandMenuIndex] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const { t } = useTranslation();
+  const [menuExpandNum, setMenuExpandNum] = useState(5);
+
+  let url: URL;
+  try {
+    url = new URL(currentUrl);
+  } catch (e: any) {
+    console.error("Invalid URL:", e);
+  }
+  useEffect(() => {
+    setList(script);
+    // 注册菜单快捷键
+    const listeners: ((e: KeyboardEvent) => void)[] = [];
+    script.forEach((item) => {
+      item.menus.forEach((menu) => {
+        if (menu.options?.accessKey) {
+          const listener = (e: KeyboardEvent) => {
+            if (e.key.toUpperCase() === menu.options!.accessKey!.toUpperCase()) {
+              sendMenuAction(item.uuid, menu);
+            }
+          };
+          document.addEventListener("keypress", listener);
+          listeners.push(listener);
+        }
+      });
+    });
+    return () => {
+      listeners.forEach((listener) => {
+        document.removeEventListener("keypress", listener);
+      });
+    };
+  }, [script]);
+
+  useEffect(() => {
+    let isMounted = true;
+    // 监听脚本运行状态
+    const unsub = subscribeScriptRunStatus(messageQueue, ({ uuid, runStatus }) => {
+      if (!isMounted) return;
+      setList((prevList) =>
+        prevList.map((item) =>
+          item.uuid === uuid ? { ...item, runStatus } : item
+        )
+      );
+    });
+    // 获取配置
+    systemConfig.getMenuExpandNum().then((num) => {
+      if (!isMounted) return;
+      setMenuExpandNum(num);
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, []);
+
+  const handleEnableChange = useCallback((item: ScriptMenu, checked: boolean) => {
+    scriptClient
+      .enable(item.uuid, checked)
+      .then(() => {
+        setList((prevList) =>
+          prevList.map((item1) =>
+            item1 === item ? { ...item1, enable: checked } : item1
+          )
+        );
+      })
+      .catch((err) => {
+        Message.error(err);
+      });
+  }, []);
+
+
+  const handleRunScript = useCallback((item: ScriptMenu) => {
+    if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+      runtimeClient.runScript(item.uuid);
+    } else {
+      runtimeClient.stopScript(item.uuid);
+    }
+  }, []);
+
+  const handleEditScript = useCallback((uuid: string) => {
+    window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
+    window.close();
+  }, []);
+
+  const handleExcludeUrl = useCallback((item: ScriptMenu, urlHost: string) => {
+    scriptClient.excludeUrl(item.uuid, `*://${urlHost}/*`, isExclude(item, urlHost)).finally(() => {
+      window.close();
+    });
+  }, []);
+
+  const handleDeleteScript = useCallback((uuid: string) => {
+    setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+    scriptClient.delete(uuid).catch((e) => {
+      Message.error(`{t('delete_failed')}: ${e}`);
+    });
+  }, []);
+
+  const handleExpandMenu = useCallback((index: number) => {
+    setExpandMenuIndex((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  }, []);
+
+  const handleOpenUserConfig = useCallback((uuid: string) => {
+    window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
+    window.close();
+  }, []);
+
+  const CollapseHeader = React.memo(({ item, onEnableChange }: {
+    item: ScriptMenu;
+    onEnableChange: (item: ScriptMenu, checked: boolean) => void;
+  }) => {
+
+    return (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+        title={
+          item.enable
+            ? item.runNumByIframe
+              ? t("script_total_runs", {
+                runNum: item.runNum,
+                runNumByIframe: item.runNumByIframe,
+              })!
+              : t("script_total_runs_single", { runNum: item.runNum })!
+            : t("script_disabled")!
+        }
+      >
+        <Space>
+          <Switch
+            size="small"
+            checked={item.enable}
+            onChange={(checked) => onEnableChange(item, checked)}
+          />
+          <span
+            style={{
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
+              lineHeight: "20px",
+            }}
+          >
+            <ScriptIcons script={item} size={20} />
+            {i18nName(item)}
+          </span>
+        </Space>
+      </div>
+    )
+
+  });
+  CollapseHeader.displayName = 'CollapseHeader';
+
+
+  const ListMenuItem = React.memo(({ item, index }: {
+    item: ScriptMenu;
+    index: number
+  }) => {
+
+    const visibleMenus = useMemo(() => {
+      return item.menus.length > menuExpandNum && !expandMenuIndex[index]
+        ? item.menus.slice(0, menuExpandNum)
+        : item.menus;
+    }, [item.menus, expandMenuIndex, index, menuExpandNum]);
+
+    const isExpand = useMemo(() => expandMenuIndex[index], [expandMenuIndex, index]);
+
+    const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
+
+    return (
+
+      <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
+        <CollapseItem
+          header={<CollapseHeader item={item} onEnableChange={handleEnableChange} />}
+          name={item.uuid}
+          contentStyle={{ padding: "0 0 0 40px" }}
+        >
+          <div className="flex flex-col">
+            {isBackscript && (
+              <Button
+                className="text-left"
+                type="secondary"
+                icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
+                onClick={() => handleRunScript(item)}
+              >
+                {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
+              </Button>
+            )}
+            <Button
+              className="text-left"
+              type="secondary"
+              icon={<IconEdit />}
+              onClick={() => handleEditScript(item.uuid)}
+            >
+              {t("edit")}
+            </Button>
+            {url && (
+              <Button
+                className="text-left"
+                status="warning"
+                type="secondary"
+                icon={<IconMinus />}
+                onClick={() => handleExcludeUrl(item, url.host)}
+              >
+                {isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")}
+                {` ${url.host} ${t("exclude_execution")}`}
+              </Button>
+            )}
+            <Popconfirm
+              title={t("confirm_delete_script")}
+              icon={<IconDelete />}
+              onOk={() => handleDeleteScript(item.uuid)}
+            >
+              <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
+                {t("delete")}
+              </Button>
+            </Popconfirm>
+          </div>
+        </CollapseItem>
+        <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
+          {/* 判断菜单数量，再判断是否展开 */}
+          {visibleMenus.map((menu) => {
+            console.log("menu", menu);
+            return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
+          })}
+          {shouldShowMore && (
+            <Button
+              className="text-left"
+              key="expand"
+              type="secondary"
+              icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
+              onClick={() => handleExpandMenu(index)}
+            >
+              {isExpand ? t("collapse") : t("expand")}
+            </Button>
+          )}
+          {item.hasUserConfig && (
+            <Button
+              className="text-left"
+              key="config"
+              type="secondary"
+              icon={<IconSettings />}
+              onClick={() => handleOpenUserConfig(item.uuid)}
+            >
+              {t("user_config")}
+            </Button>
+          )}
+        </div>
+      </Collapse>
+
+    );
+
+  });
+
+  ListMenuItem.displayName = 'ListMenuItem';
+
+  return (
+    <>
+      {list.length === 0 && <Empty description={t("no_data")} />}
+      {list.map((item, index) => <ListMenuItem item={item} index={index} />)}
+    </>
+  );
+});
 
 export default ScriptMenuList;
