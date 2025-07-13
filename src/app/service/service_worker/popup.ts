@@ -5,16 +5,9 @@ import { type RuntimeService } from "./runtime";
 import type { ScriptMatchInfo, ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import Cache from "@App/app/cache";
-import type {
-  Script,
-  ScriptDAO} from "@App/app/repo/scripts";
-import {
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_TYPE_NORMAL,
-  SCRIPT_RUN_STATUS_RUNNING,
-} from "@App/app/repo/scripts";
-import type {
-  ScriptMenuRegisterCallbackValue} from "../queue";
+import type { Script, ScriptDAO } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import type { ScriptMenuRegisterCallbackValue } from "../queue";
 import {
   subscribeScriptDelete,
   subscribeScriptEnable,
@@ -23,7 +16,6 @@ import {
   subscribeScriptRunStatus,
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils";
-
 
 // 处理popup页面的数据
 export class PopupService {

@@ -1,12 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type {
-  ScriptRunResource} from "@App/app/repo/scripts";
+import type { ScriptRunResource } from "@App/app/repo/scripts";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_RUN_STATUS_ERROR,
   SCRIPT_RUN_STATUS_RUNNING,
-  SCRIPT_TYPE_BACKGROUND
+  SCRIPT_TYPE_BACKGROUND,
 } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
 import type { WindowMessage } from "@Packages/message/window_message";

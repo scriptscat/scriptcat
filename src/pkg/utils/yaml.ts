@@ -1,7 +1,5 @@
 import { parse } from "yaml";
-import type {
-  UserConfig,
-} from "@App/app/repo/scripts";
+import type { UserConfig } from "@App/app/repo/scripts";
 
 export function parseUserConfig(code: string): UserConfig | undefined {
   const regex = /\/\*\s*==UserConfig==([\s\S]+?)\s*==\/UserConfig==\s*\*\//m;

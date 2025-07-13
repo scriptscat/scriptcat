@@ -139,9 +139,7 @@ const ScriptMenuList: React.FC<{
                         .enable(item.uuid, checked)
                         .then(() => {
                           setList((prevList) =>
-                            prevList.map((item1, _i) =>
-                              item1 === item ? { ...item1, enable: checked } : item1
-                            )
+                            prevList.map((item1, _i) => (item1 === item ? { ...item1, enable: checked } : item1))
                           );
                         })
                         .catch((err) => {

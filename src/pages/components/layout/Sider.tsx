@@ -106,47 +106,27 @@ const Sider: React.FC = () => {
                 }
               >
                 <Menu.Item key="scriptcat/docs/dev/">
-                  <a
-                    href="https://docs.scriptcat.org/docs/dev/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://docs.scriptcat.org/docs/dev/" target="_blank" rel="noreferrer">
                     <RiFileCodeLine /> {t("api_docs")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="scriptcat/docs/learn/">
-                  <a
-                    href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
                     <RiFileCodeLine /> {t("development_guide")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="scriptcat/userscript">
-                  <a
-                    href="https://scriptcat.org/search"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
                     <IconLink /> {t("script_gallery")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="tampermonkey/bbs">
-                  <a
-                    href="https://bbs.tampermonkey.net.cn/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
                     <IconLink /> {t("community_forum")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="GitHub">
-                  <a
-                    href="https://github.com/scriptscat/scriptcat"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
                     <IconGithub /> GitHub
                   </a>
                 </Menu.Item>
@@ -160,11 +140,7 @@ const Sider: React.FC = () => {
                 <RiGuideLine /> {t("guide")}
               </Menu.Item>
               <Menu.Item key="scriptcat/docs/use/">
-                <a
-                  href="https://docs.scriptcat.org/docs/use/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a href="https://docs.scriptcat.org/docs/use/" target="_blank" rel="noreferrer">
                   <RiFileCodeLine /> {t("user_guide")}
                 </a>
               </Menu.Item>

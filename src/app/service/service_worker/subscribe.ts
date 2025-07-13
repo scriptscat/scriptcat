@@ -1,14 +1,8 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import type {
-  Subscribe,
-  SubscribeScript} from "@App/app/repo/subscribe";
-import {
-  SUBSCRIBE_STATUS_DISABLE,
-  SUBSCRIBE_STATUS_ENABLE,
-  SubscribeDAO
-} from "@App/app/repo/subscribe";
+import type { Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
+import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
@@ -67,13 +61,19 @@ export class SubscribeService {
     try {
       await Promise.all([
         // 删除相关脚本
-        this.scriptDAO.find((_, value) => {
-          return value.subscribeUrl === url;
-        }).then(scripts => Promise.all(scripts.map((script) => {
-          return this.scriptService.deleteScript(script.uuid);
-        }))),
+        this.scriptDAO
+          .find((_, value) => {
+            return value.subscribeUrl === url;
+          })
+          .then((scripts) =>
+            Promise.all(
+              scripts.map((script) => {
+                return this.scriptService.deleteScript(script.uuid);
+              })
+            )
+          ),
         // 删除订阅
-        this.subscribeDAO.delete(url)
+        this.subscribeDAO.delete(url),
       ]);
       logger.info("delete subscribe success");
       return true;

@@ -280,7 +280,6 @@ describe("GM Api", () => {
     expect(ret).toEqual("ok!");
   });
 
-
   it("GM_listValues", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };

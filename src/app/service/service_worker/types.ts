@@ -22,7 +22,6 @@ export interface EmitEventRequest {
   data?: any;
 }
 
-
 // GMApi,处理脚本的GM API调用请求
 
 export type MessageRequest = {
@@ -53,7 +52,6 @@ export type NotificationMessageOption = {
 };
 
 export type Api = (request: Request, con: GetSender) => Promise<any>;
-
 
 // popup
 

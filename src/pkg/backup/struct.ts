@@ -1,8 +1,6 @@
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 
- 
-
 export type ResourceMeta = {
   name: string;
   url: string;

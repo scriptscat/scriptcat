@@ -13,14 +13,14 @@ const has = (object: any, key: any) => {
     default:
       return Object.prototype.hasOwnProperty.call(object, key);
   }
-}
+};
 
 // 构建脚本运行代码
 /**
  * @see {@link ExecScript}
- * @param scriptRes 
- * @param scriptCode 
- * @returns 
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
  */
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
@@ -123,7 +123,9 @@ export function warpObject(exposedObject: object, ...context: object[]) {
     );
   };
   exposedObject.isPrototypeOf = (name: object) => {
-    return Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name));
+    return (
+      Object.isPrototypeOf.call(exposedObject, name) || context.some((val) => Object.isPrototypeOf.call(val, name))
+    );
   };
   exposedObject.propertyIsEnumerable = (name: PropertyKey) => {
     return (
@@ -133,11 +135,13 @@ export function warpObject(exposedObject: object, ...context: object[]) {
   };
 }
 
-type GMWorldContext = ((typeof globalThis) & ({
-  [key: string | number | symbol]: any;
-}) | ({
-  [key: string | number | symbol]: any;
-}));
+type GMWorldContext =
+  | (typeof globalThis & {
+      [key: string | number | symbol]: any;
+    })
+  | {
+      [key: string | number | symbol]: any;
+    };
 
 // 拦截上下文
 export function createProxyContext<const Context extends GMWorldContext>(global: Context, context: any): Context {

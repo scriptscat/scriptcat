@@ -50,7 +50,7 @@ export default class ExecScript {
       this.proxyContext = global;
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 不改变Context情况下，以 named 传多於一个全域变量
-      this.named = {GM: {info: GM_info}, GM_info};
+      this.named = { GM: { info: GM_info }, GM_info };
     } else {
       // 构建脚本GM上下文
       this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, grantSet);

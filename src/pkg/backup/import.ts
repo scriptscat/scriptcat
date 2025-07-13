@@ -12,7 +12,8 @@ import type {
   SubscribeBackupData,
   SubscribeOptionsFile,
   ValueStorage,
-  ScriptData, SubscribeData,
+  ScriptData,
+  SubscribeData,
 } from "./struct";
 import type { File } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
@@ -39,7 +40,7 @@ export default class BackupImport {
     this.logger = LoggerCore.logger({ component: "backupImport" });
   }
 
-  async getFileContent(file: File, toJson: boolean, type?: "string" | "blob") : Promise<string | any> {
+  async getFileContent(file: File, toJson: boolean, type?: "string" | "blob"): Promise<string | any> {
     const fileReader = await this.fs.open(file);
     const fileContent = await fileReader.read(type);
     if (toJson) return JSON.parse(fileContent);
@@ -60,7 +61,7 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 12);
       const subData = {
-        source: <string>(await this.getFileContent(file, false))
+        source: <string>await this.getFileContent(file, false),
       } as SubscribeBackupData;
       subscribe.set(key, subData);
       return true;
@@ -72,7 +73,7 @@ export default class BackupImport {
         return false;
       }
       const key = name.substring(0, name.length - 22);
-      const data = <SubscribeOptionsFile>(await this.getFileContent(file, true));
+      const data = <SubscribeOptionsFile>await this.getFileContent(file, true);
       subscribe.get(key)!.options = data;
       return true;
     });
@@ -86,7 +87,7 @@ export default class BackupImport {
       // 遍历与脚本同名的文件
       const key = name.substring(0, name.length - 8);
       const backupData = {
-        code: <string>(await this.getFileContent(file, false)),
+        code: <string>await this.getFileContent(file, false),
         storage: { data: {}, ts: 0 },
         requires: [],
         requiresCss: [],
@@ -102,7 +103,7 @@ export default class BackupImport {
         return false;
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ScriptOptionsFile>(await this.getFileContent(file, true));
+      const data = <ScriptOptionsFile>await this.getFileContent(file, true);
       map.get(key)!.options = data;
       return true;
     });
@@ -113,7 +114,7 @@ export default class BackupImport {
         return false;
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ValueStorage>(await this.getFileContent(file, true));
+      const data = <ValueStorage>await this.getFileContent(file, true);
       Object.keys(data.data).forEach((dataKey) => {
         data.data[dataKey] = parseStorageValue(data.data[dataKey]);
       });
@@ -165,7 +166,7 @@ export default class BackupImport {
           type,
         });
       }
-      const data = <ResourceMeta>(await this.getFileContent(file, true));
+      const data = <ResourceMeta>await this.getFileContent(file, true);
       map.get(key)![type].push({
         meta: data,
       } as never as ResourceBackup);
@@ -226,10 +227,10 @@ export default class BackupImport {
     }
 
     // 将map转化为数组
-    return ({
-      script: (<ScriptData[]>Array.from(map.values())),
-      subscribe: (<SubscribeData[]>Array.from(subscribe.values())),
-    });
+    return {
+      script: <ScriptData[]>Array.from(map.values()),
+      subscribe: <SubscribeData[]>Array.from(subscribe.values()),
+    };
   }
 
   async dealFile(files: File[], handler: (file: File) => Promise<boolean>): Promise<File[]> {

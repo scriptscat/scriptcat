@@ -72,7 +72,7 @@ const ScriptListItem = React.memo(
   }
 );
 
-ScriptListItem.displayName = 'ScriptListItem';
+ScriptListItem.displayName = "ScriptListItem";
 
 function App() {
   const [scripts, setScripts] = useState<ScriptData[]>([]);

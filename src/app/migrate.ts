@@ -1,12 +1,12 @@
 import { getStorageName } from "@App/pkg/utils/utils";
 import { db } from "./repo/dao";
-import type { Script, ScriptAndCode} from "./repo/scripts";
+import type { Script, ScriptAndCode } from "./repo/scripts";
 import { ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
-import type { Subscribe} from "./repo/subscribe";
+import type { Subscribe } from "./repo/subscribe";
 import { SubscribeDAO } from "./repo/subscribe";
-import type { Value} from "./repo/value";
+import type { Value } from "./repo/value";
 import { ValueDAO } from "./repo/value";
-import type { Permission} from "./repo/permission";
+import type { Permission } from "./repo/permission";
 import { PermissionDAO } from "./repo/permission";
 
 // 迁移数据到chrome.storage
@@ -19,7 +19,8 @@ export function migrateToChromeStorage() {
       const scriptDAO = new ScriptDAO();
       const scriptCodeDAO = new ScriptCodeDAO();
       console.log("开始迁移脚本数据", scripts.length);
-      await Promise.all( // 不处理 Promise.reject ?
+      await Promise.all(
+        // 不处理 Promise.reject ?
         scripts.map(async (script: ScriptAndCode) => {
           const {
             uuid,

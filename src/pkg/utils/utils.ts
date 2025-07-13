@@ -7,7 +7,7 @@ export function randomString(e = 32): string {
   for (let i = 0; i < e; i++) {
     n[i] = t[(Math.random() * a) | 0];
   }
-  return n.join('');
+  return n.join("");
 }
 
 export function dealSymbol(source: string): string {

@@ -18,10 +18,7 @@ export class LoggerDAO extends DAO<Logger> {
   }
 
   async queryLogs(startTime: number, endTime: number) {
-    const ret = await this.table
-      .where("createtime")
-      .between(startTime, endTime)
-      .toArray();
+    const ret = await this.table.where("createtime").between(startTime, endTime).toArray();
 
     return ret.sort((a, b) => b.createtime - a.createtime);
   }
