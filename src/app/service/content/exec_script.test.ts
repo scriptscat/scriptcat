@@ -2,7 +2,7 @@ import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
 import { initTestEnv } from "@Tests/utils";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
@@ -415,17 +415,30 @@ describe("沙盒环境测试", async () => {
     expect(_this["onload"]).toBeNull();
     expect(_global["onload"]).toBeNull();
     // _this.onload
-    _this["onload"] = function thisOnLoad() {};
+    const mockFn = vi.fn();
+    _this["onload"] = function thisOnLoad() {
+      mockFn();
+    };
     expect(_this["onload"]?.name).toEqual("thisOnLoad");
     expect(_global["onload"]).toBeNull();
+    // 验证调用
+    global.dispatchEvent(new Event("load"));
+    expect(mockFn).toHaveBeenCalledTimes(1);
+    // 验证删除
+    delete _this["onload"];
+    expect(_this["onload"]).toEqual(null);// 删除应该是null，而不是undefined
+    // 验证删除后调用
+    global.dispatchEvent(new Event("load"));
+    expect(mockFn).toHaveBeenCalledTimes(1); // 删除后不应该再调用
+
     _this["onload"] = null;
     _global["onload"] = function globalOnLoad() {};
     expect(_this["onload"]).toBeNull();
     expect(_global["onload"]?.name).toEqual("globalOnLoad");
     _global["onload"] = null;
     // 還原確認
-    expect(_this["onload"]).toBeNull();
-    expect(_global["onload"]).toBeNull();
+    expect(_this["onload"]).toEqual(null);
+    expect(_global["onload"]).toEqual(null);
   });
 
   it("update", () => {

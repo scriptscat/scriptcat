@@ -71,6 +71,7 @@ export const createContext = (
 
 const noEval = false;
 
+// 判断是否应该将函数绑定到global
 const shouldFnBind = (f: any) => {
   if (typeof f !== 'function') return false;
   if ('prototype' in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
@@ -121,14 +122,14 @@ const createEventProp = (eventName: string) => {
     },
     set(newVal: EventListenerOrEventListenerObject | any) {
       if (newVal !== registered) {
-        if (isEventListenerFunc(registered)) {
+        if (isFunction(registered)) {
           // 停止当前事件监听
           global.removeEventListener(eventName, registered!);
         }
         if (isPrimitive(newVal)) {
           // 按照实际操作，primitive types (number, string, boolean, ...) 会被转换成 null
           newVal = null;
-        } else if (isEventListenerFunc(newVal)) {
+        } else if (isFunction(newVal)) {
           // 非primitive types 的话，只考虑 function type
           // Symbol, Object (包括 EventListenerObject ) 等只会保存而不进行事件监听
           global.addEventListener(eventName, newVal);
@@ -206,7 +207,7 @@ const initCopy = Object.create(Object.getPrototypeOf(global), {
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
-const isEventListenerFunc = (x: any) => typeof x === 'function';
+const isFunction = (x: any) => typeof x === 'function';
 const isPrimitive = (x: any) => x !== Object(x);
 
 // 拦截上下文
