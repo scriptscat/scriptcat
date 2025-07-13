@@ -214,7 +214,7 @@ function Tools() {
               bordered={false}
               dataSource={backupFileList}
               render={(item: File) => (
-                <List.Item key={item.name}>
+                <List.Item key={`${item.name}_${item.updatetime}`}>
                   <List.Item.Meta title={item.name} description={formatUnixTime(item.updatetime / 1000)} />
                   <Space className="w-full justify-end">
                     <Button
