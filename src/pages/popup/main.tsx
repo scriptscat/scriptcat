@@ -21,11 +21,11 @@ loggerCore.logger().debug("popup page start");
 
 const Root = (
   <Provider store={store}>
-    <div style={{ borderBottom: "1px solid var(--color-neutral-3)" }} >
+    <div style={{ borderBottom: "1px solid var(--color-neutral-3)" }}>
       <App />
     </div>
   </Provider>
-)
+);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root

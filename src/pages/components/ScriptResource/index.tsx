@@ -15,7 +15,6 @@ type ResourceListItem = {
 } & Resource;
 
 const ScriptResource: React.FC<{
-   
   script?: Script;
   visible: boolean;
   onOk: () => void;
@@ -49,7 +48,7 @@ const ScriptResource: React.FC<{
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
-       
+
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -68,7 +67,7 @@ const ScriptResource: React.FC<{
           </div>
         );
       },
-      onFilter: (value, row) => (!value || row.key.includes(value)),
+      onFilter: (value, row) => !value || row.key.includes(value),
       onFilterDropdownVisibleChange: (v) => {
         if (v) {
           setTimeout(() => inputRef.current!.focus(), 150);

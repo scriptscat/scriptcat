@@ -4,9 +4,7 @@ export default class Notifications {
   onClosedHandler?: (id: string, byUser: boolean) => void;
 
   onClosed = {
-    addListener: (
-      callback: (notificationId: string, byUser: boolean) => void
-    ) => {
+    addListener: (callback: (notificationId: string, byUser: boolean) => void) => {
       this.onClosedHandler = callback;
     },
   };
@@ -14,9 +12,7 @@ export default class Notifications {
   onButtonClickedHandler?: (id: string, index: number) => void;
 
   onButtonClicked = {
-    addListener: (
-      callback: (notificationId: string, buttonIndex: number) => void
-    ) => {
+    addListener: (callback: (notificationId: string, buttonIndex: number) => void) => {
       this.onButtonClickedHandler = callback;
     },
   };
@@ -33,10 +29,7 @@ export default class Notifications {
     },
   };
 
-  create(
-    options: chrome.notifications.NotificationOptions,
-    callback?: (id: string) => void
-  ) {
+  create(options: chrome.notifications.NotificationOptions, callback?: (id: string) => void) {
     const id = Math.random().toString();
     this.notification.set(id, true);
     if (callback) {

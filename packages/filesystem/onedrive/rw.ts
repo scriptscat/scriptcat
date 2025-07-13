@@ -15,10 +15,7 @@ export class OneDriveFileReader implements FileReader {
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
     const data = await this.fs.request(
-      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(
-        this.file.path,
-        this.file.name
-      )}:/content`,
+      `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(this.file.path, this.file.name)}:/content`,
       {},
       true
     );
@@ -65,23 +62,20 @@ export class OneDriveFileWriter implements FileWriter {
     let myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
     const uploadUrl = await this.fs
-      .request(
-        `https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/createUploadSession`,
-        {
-          method: "POST",
-          headers: myHeaders,
-          body: JSON.stringify({
-            item: {
-              "@microsoft.graph.conflictBehavior": "replace",
-              // description: "description",
-              // fileSystemInfo: {
-              //   "@odata.type": "microsoft.graph.fileSystemInfo",
-              // },
-              // name: this.path.substring(this.path.lastIndexOf("/") + 1),
-            },
-          }),
-        }
-      )
+      .request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/createUploadSession`, {
+        method: "POST",
+        headers: myHeaders,
+        body: JSON.stringify({
+          item: {
+            "@microsoft.graph.conflictBehavior": "replace",
+            // description: "description",
+            // fileSystemInfo: {
+            //   "@odata.type": "microsoft.graph.fileSystemInfo",
+            // },
+            // name: this.path.substring(this.path.lastIndexOf("/") + 1),
+          },
+        }),
+      })
       .then((data) => {
         if (data.error) {
           throw new Error(JSON.stringify(data));
@@ -89,10 +83,7 @@ export class OneDriveFileWriter implements FileWriter {
         return data.uploadUrl;
       });
     myHeaders = new Headers();
-    myHeaders.append(
-      "Content-Range",
-      `bytes 0-${parseInt(size, 10) - 1}/${size}`
-    );
+    myHeaders.append("Content-Range", `bytes 0-${parseInt(size, 10) - 1}/${size}`);
     return this.fs.request(uploadUrl, {
       method: "PUT",
       body: content,

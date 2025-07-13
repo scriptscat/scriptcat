@@ -1,7 +1,7 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { createAppSlice } from "../hooks";
-import type { Script, SCRIPT_RUN_STATUS} from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import { arrayMove } from "@dnd-kit/sortable";
 import {

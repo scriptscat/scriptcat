@@ -42,12 +42,15 @@ export default class BaiduFileSystem implements FileSystem {
     urlencoded.append("rtype", "3");
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-    const data = await this.request(`https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.accessToken}`, {
-      method: "POST",
-      headers: myHeaders,
-      body: urlencoded,
-      redirect: "follow",
-    });
+    const data = await this.request(
+      `https://pan.baidu.com/rest/2.0/xpan/file?method=create&access_token=${this.accessToken}`,
+      {
+        method: "POST",
+        headers: myHeaders,
+        body: urlencoded,
+        redirect: "follow",
+      }
+    );
     if (data.errno) {
       throw new Error(JSON.stringify(data));
     }

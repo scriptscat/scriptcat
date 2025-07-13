@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Script} from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { Space, Popconfirm, Button, Divider, Typography, Modal, Input } from "@arco-design/web-react";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";

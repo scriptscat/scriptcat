@@ -127,14 +127,14 @@ export default class OneDriveFileSystem implements FileSystem {
     }
     const data = await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${path}/children`);
     const list: File[] = data.value.map((val: any) => {
-      return ({
+      return {
         name: val.name,
         path: this.path,
         size: val.size,
         digest: val.eTag,
         createtime: new Date(val.createdDateTime).getTime(),
         updatetime: new Date(val.lastModifiedDateTime).getTime(),
-      });
+      };
     });
     return list;
   }

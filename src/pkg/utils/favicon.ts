@@ -103,7 +103,6 @@ function extractDomainFromPattern(pattern: string): string | null {
 }
 
 function parseFaviconsNew(html: string, callback: (href: string) => void) {
-
   // Early exit if no link tags
   if (!html.toLowerCase().includes("<link")) return;
 

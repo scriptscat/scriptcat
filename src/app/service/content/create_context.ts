@@ -67,28 +67,25 @@ export const createContext = (
   }
   context.unsafeWindow = window;
   return context;
-}
+};
 
 const noEval = false;
 
 // 判断是否应该将函数绑定到global
 const shouldFnBind = (f: any) => {
-  if (typeof f !== 'function') return false;
-  if ('prototype' in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
-  // window中的函式，大写开头不用於直接呼叫 （例如NodeFilter) 
+  if (typeof f !== "function") return false;
+  if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
+  // window中的函式，大写开头不用於直接呼叫 （例如NodeFilter)
   const { name } = f;
   if (!name) return false;
   const e = name.charCodeAt(0);
-  return (e >= 97 && e <= 122);
-}
+  return e >= 97 && e <= 122;
+};
 
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
 
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
-const getAllPropertyDescriptors = (
-  obj: any,
-  callback: ForEachCallback<[string | symbol, PropertyDescriptor]>
-) => {
+const getAllPropertyDescriptors = (obj: any, callback: ForEachCallback<[string | symbol, PropertyDescriptor]>) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
     Object.entries(descs).forEach(callback);
@@ -100,8 +97,8 @@ const getAllPropertyDescriptors = (
 const unscopables: Record<PropertyKey, any> = {
   // NodeFilter: true,
   // RegExp: true,
-  "this": true,
-  "arguments": true,
+  this: true,
+  arguments: true,
   // "await": true,
   // "define": true,
   // "module": true,
@@ -138,20 +135,20 @@ const createEventProp = (eventName: string) => {
         }
         registered = newVal;
       }
-    }
-  }
-}
+    },
+  };
+};
 
 const ownDescs = Object.getOwnPropertyDescriptors(global);
 
-// overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改 
+// overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改
 // 覆盖原有的 OwnPropertyDescriptor定义 或 父类的PropertyDescriptor定义
 const overridedDescs: Record<string, PropertyDescriptor> = {};
 
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
 getAllPropertyDescriptors(global, ([key, desc]) => {
-  if (!desc || descsCache.has(key) || typeof key !== 'string') return;
+  if (!desc || descsCache.has(key) || typeof key !== "string") return;
   descsCache.add(key);
 
   if (desc.writable) {
@@ -162,26 +159,23 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
     if (shouldFnBind(value)) {
-
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,
-        value: boundValue
-      }
+        value: boundValue,
+      };
     }
-
   } else {
-    if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith('on')) {
+    if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
       // 替换 onxxxxx 事件赋值操作
       // 例：(window.)onload, (window.)onerror
       const eventName = (<string>key).slice(2);
       const eventSetterGetter = createEventProp(eventName);
       overridedDescs[key] = {
         ...desc,
-        ...eventSetterGetter
+        ...eventSetterGetter,
       };
     } else {
-
       if (desc.get || desc.set) {
         // 替换 getter setter 的 this 为 实际的 global window
         // 例：(window.)location, (window.)document
@@ -190,12 +184,9 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
           get: desc?.get?.bind(global),
           set: desc?.set?.bind(global),
         };
-
       }
-
     }
   }
-
 });
 descsCache.clear(); // 内存释放
 
@@ -204,17 +195,16 @@ descsCache.clear(); // 内存释放
 //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
 const initCopy = Object.create(Object.getPrototypeOf(global), {
   ...ownDescs,
-  ...overridedDescs
+  ...overridedDescs,
 });
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
-const isFunction = (x: any) => typeof x === 'function';
+const isFunction = (x: any) => typeof x === "function";
 const isPrimitive = (x: any) => x !== Object(x);
 
 // 拦截上下文
 export const createProxyContext = <const Context extends GMWorldContext>(context: any): Context => {
-
   // let withContext: Context | undefined | { [key: string]: any } = undefined;
   // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
 
@@ -227,15 +217,17 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
       const ret = f.call(global);
       if (ret === global) return myCopy;
       return ret;
-    }
-  }
+    };
+  };
 
   for (const key of ["window", "self", "globalThis", "top", "parent"]) {
     const desc = ownDescs[key];
     if (desc?.value === global) {
       // globalThis
       // 避免 self referencing, 改以 getter 形式
-      desc.get = function () { return myCopy };
+      desc.get = function () {
+        return myCopy;
+      };
       desc.set = undefined;
       // 为了 value 转 getter/setter，必须删除 writable 和 value
       delete desc.writable;
@@ -267,7 +259,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
       // // 全拦截：所有变数名称，显示undefined不报错
       // return new Proxy(<Context>myCopy, {
       //   get(target, prop, receiver) {
-      //     // --- 全拦截 --- 
+      //     // --- 全拦截 ---
       //     // 由於Context全拦截，所有变数名都会被这个Proxy拦截，然后呼叫get
       //     // (不拦截的话会触发全域变量存取读写)
       //     // 我们没有方法判断这个get是 typeof xxx 还是 xxx
@@ -309,8 +301,8 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
       //     return false;
       //   }
       // });
-    }
-  }
+    },
+  };
 
   // 把初始Copy加上特殊变量后，生成一份新Copy
   myCopy = Object.create(Object.getPrototypeOf(initCopy), ownDescs);
@@ -318,7 +310,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   // 用於避开myCopy的with拦截
   myCopy[Symbol.unscopables] = {
     ...(myCopy[Symbol.unscopables] || {}),
-    ...unscopables
+    ...unscopables,
   };
 
   // 脚本window设置
@@ -326,7 +318,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   // 把 GM Api (或其他全域API) 复製到 脚本window
   // 请手动检查避开key，防止与window的属性setter有衝突 或 属性名重覆
   for (const key of Object.keys(context)) {
-    if (key in protect || key === 'window') continue;
+    if (key in protect || key === "window") continue;
     exposedWindow[key] = context[key]; // window以外
   }
 
@@ -351,4 +343,4 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   }
 
   return exposedWindow;
-}
+};

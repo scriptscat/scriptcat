@@ -34,7 +34,7 @@ beforeAll(async () => {
 
 describe("GM xmlHttpRequest", () => {
   const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
-    uuid: script.uuid
+    uuid: script.uuid,
   });
   const mockXhr = newMockXhr();
   mockXhr.onSend = async (request) => {

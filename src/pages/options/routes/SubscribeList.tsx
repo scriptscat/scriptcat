@@ -64,11 +64,7 @@ function SubscribeList() {
             loading={item.loading}
             disabled={item.loading}
             onChange={(checked) => {
-              setList((prevList) =>
-                prevList.map((item, i) =>
-                  i === index ? { ...item, loading: true } : item
-                )
-              );
+              setList((prevList) => prevList.map((item, i) => (i === index ? { ...item, loading: true } : item)));
               subscribeClient
                 .enable(item.url, checked)
                 .then(() => {
@@ -78,11 +74,7 @@ function SubscribeList() {
                   Message.error(err);
                 })
                 .finally(() => {
-                  setList((prevList) =>
-                    prevList.map((item, i) =>
-                      i === index ? { ...item, loading: false } : item
-                    )
-                  );
+                  setList((prevList) => prevList.map((item, i) => (i === index ? { ...item, loading: false } : item)));
                 });
             }}
           />
@@ -114,7 +106,7 @@ function SubscribeList() {
           </div>
         );
       },
-      onFilter: (value, row) => (!value || row.name.includes(value)),
+      onFilter: (value, row) => !value || row.name.includes(value),
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
           setTimeout(() => inputRef.current!.focus(), 150);

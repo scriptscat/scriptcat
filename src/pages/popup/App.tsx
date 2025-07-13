@@ -47,7 +47,6 @@ function App() {
   let url: URL | undefined;
   try {
     url = new URL(currentUrl);
-   
   } catch (_: any) {
     // ignore error
   }

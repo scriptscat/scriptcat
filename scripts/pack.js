@@ -121,6 +121,5 @@ crx
     fs.writeFileSync(`./dist/${package.name}-v${package.version}-chrome.crx`, crxBuffer);
   })
   .catch((err) => {
-     
     console.error(err);
   });

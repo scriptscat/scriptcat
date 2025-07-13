@@ -5,9 +5,9 @@ import type { ScriptFunc } from "./types";
 // 构建脚本运行代码
 /**
  * @see {@link ExecScript}
- * @param scriptRes 
- * @param scriptCode 
- * @returns 
+ * @param scriptRes
+ * @param scriptCode
+ * @returns
  */
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;

@@ -14,7 +14,7 @@ export default defineConfig({
     // List setup file
     setupFiles: ["./tests/vitest.setup.ts"],
     env: {
-      VI_TESTING: 'true'
-    }
+      VI_TESTING: "true",
+    },
   },
 });
