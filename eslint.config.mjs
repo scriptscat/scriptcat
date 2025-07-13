@@ -1,5 +1,7 @@
 import { fixupConfigRules } from "@eslint/compat";
 import js from "@eslint/js";
+import prettier from "eslint-config-prettier";
+import prettierPlugin from "eslint-plugin-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactJsx from "eslint-plugin-react/configs/jsx-runtime.js";
 import react from "eslint-plugin-react/configs/recommended.js";
@@ -31,6 +33,7 @@ export default [
   {
     plugins: {
       "react-hooks": reactHooks,
+      prettier: prettierPlugin,
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
@@ -40,14 +43,16 @@ export default [
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
-          "argsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_",
-          "caughtErrorsIgnorePattern": "^_"
-        }
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
       ],
       ...reactHooks.configs.recommended.rules,
       "react-hooks/exhaustive-deps": "off",
+      "prettier/prettier": "error",
     },
   },
+  prettier,
   { ignores: ["dist/", "example/"] },
 ];

@@ -101,7 +101,7 @@ const Sider: React.FC = () => {
                 key="/external_links"
                 title={
                   <>
-                    <RiLinkM /> {t("external_links")}
+                    <RiLinkM /> <span className="grow">{t("external_links")}</span>
                   </>
                 }
               >
@@ -176,7 +176,7 @@ const Sider: React.FC = () => {
                 setCollapsed(!collapsed);
               }}
             >
-              {collapsed ? <IconRight /> : <IconLeft />} {t("collapsible")}
+              {collapsed ? <IconRight /> : <IconLeft />} {t("hide_sidebar")}
             </MenuItem>
           </Menu>
         </div>

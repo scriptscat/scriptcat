@@ -1,5 +1,5 @@
 import type { SystemConfig } from "@App/pkg/config/config";
-import type { Callback} from "i18next";
+import type { Callback } from "i18next";
 import i18n, { t } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
@@ -53,10 +53,10 @@ export function initLocales(systemConfig: SystemConfig) {
     },
   });
 
-  systemConfig.getLanguage().then(lng => {
+  systemConfig.getLanguage().then((lng) => {
     changeLanguage(lng);
     if (lng !== "zh-CN") {
-      localePath = "en";
+      localePath = "/en";
     }
   });
 }

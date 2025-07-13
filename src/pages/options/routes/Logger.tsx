@@ -197,7 +197,7 @@ function LoggerPage() {
                 <Space>
                   {querys.map((query, index) => (
                     <LogLabel
-                      key={query.key + query.value}
+                      key={`${query.key}_${query.value}_${index}`}
                       value={query}
                       labels={labels}
                       onChange={(v) => {
@@ -305,9 +305,9 @@ function LoggerPage() {
               }}
               size="small"
               dataSource={queryLogs}
-              render={(item: Logger, index) => (
+              render={(item: Logger, _index) => (
                 <List.Item
-                  key={index}
+                  key={item.id}
                   style={{
                     background:
                        
