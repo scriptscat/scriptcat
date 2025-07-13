@@ -193,7 +193,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   const createEventProp = (key: string) => {
     const eventName = (<string>key).slice(2);
     // 赋值变量
-    const eventObject: EventListenerOrEventListenerObject & { fn: any } = {
+    const eventObject: EventListenerObject & { fn: any } = {
       fn: null,
       handleEvent(event) {
         const fn = mySandbox[key];
@@ -222,7 +222,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
         // console.log(`Getting global ${eventName} handler:`, eventObject.fn);
         return eventObject.fn;
       },
-      set(newVal: EventListenerOrEventListenerObject | any) {
+      set(newVal: EventListener | any) {
         // console.log(`Setting global ${eventName} handler:`, newVal);
         const { fn } = eventObject;
         if (newVal !== fn) {
