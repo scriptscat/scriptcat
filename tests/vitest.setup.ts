@@ -16,7 +16,7 @@ if (!("onanimationstart" in global)) {
     },
     get() {
       return val;
-    }
+    },
   });
 }
 
@@ -35,16 +35,21 @@ if (!("onload" in global)) {
     },
     get() {
       return val;
-    }
+    },
   });
 }
 
 Object.assign(global, {
-  setTimeoutForTest(...args: any) { // 注意： function XXX (){} 会导致 Class prototype 出现
+  setTimeoutForTest(...args: any) {
+    // 注意： function XXX (){} 会导致 Class prototype 出现
     //@ts-ignore
-    if (typeof this === 'object' && this && this !== global) throw new TypeError("Illegal invocation");
+    if (typeof this === "object" && this && this !== global) throw new TypeError("Illegal invocation");
     //@ts-ignore
     return this.setTimeout(...args);
-  }
+  },
 });
 
+//@ts-ignore
+global.sandboxTestValue = "sandboxTestValue";
+//@ts-ignore
+global.sandboxTestValue2 = "sandboxTestValue2";

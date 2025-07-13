@@ -118,9 +118,11 @@ const createEventProp = (eventName: string) => {
   let registered: EventListenerOrEventListenerObject | null = null;
   return {
     get() {
+      console.log(`Getting global ${eventName} handler:`, registered);
       return registered;
     },
     set(newVal: EventListenerOrEventListenerObject | any) {
+      console.log(`Setting global ${eventName} handler:`, newVal);
       if (newVal !== registered) {
         if (isFunction(registered)) {
           // 停止当前事件监听

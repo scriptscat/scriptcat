@@ -387,20 +387,37 @@ describe("沙盒环境测试", async () => {
 
   const _global = <any>global;
 
-  it("gbok", () => {
-    expect(_global["gbok"]).toEqual("gbok");
-    expect(_global["gbok2"]).toEqual("gbok2");
-    expect(_global["gbok3"]?.name).toEqual("gbok3");
-    expect(_global["gbok4"]?.name).toEqual("gbok4");
-    expect(_global["gbok5"]?.test).toEqual("gbok5");
-    expect(_global["gbok6"]?.test).toEqual("gbok6");
-  });
-
   scriptRes2.code = `return [this, window];`;
   sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
   const [_win, _this] = await sandboxExec.exec();
   expect(_win).toEqual(expect.any(Object));
   expect(_win.setTimeout).toEqual(expect.any(Function));
+
+  describe("测试全局变量访问性", () => {
+    it("global gbok", () => {
+      expect(_global["gbok"]).toEqual("gbok");
+      expect(_global["gbok2"]).toEqual("gbok2");
+      expect(_global["gbok3"]?.name).toEqual("gbok3");
+      expect(_global["gbok4"]?.name).toEqual("gbok4");
+      expect(_global["gbok5"]?.test).toEqual("gbok5");
+      expect(_global["gbok6"]?.test).toEqual("gbok6");
+      // 这是后来新加入的值，沙盒中应该是无法访问的
+      expect(_this["gbok"]).toEqual(undefined);
+    });
+    it("global sandboxTestValue", () => {
+      expect(_global["sandboxTestValue"]).toEqual("sandboxTestValue");
+      // 这是初始的值，沙盒中应该是可以访问的
+      expect(_this["sandboxTestValue"]).toEqual("sandboxTestValue");
+      // 删除不应该穿透到全局
+      delete _this["sandboxTestValue"];
+      expect(_this["sandboxTestValue"]).toBeUndefined();
+      expect(_global["sandboxTestValue"]).toEqual("sandboxTestValue");
+      // 全局删除同理
+      delete _global["sandboxTestValue2"];
+      expect(_this["sandboxTestValue2"]).toEqual("sandboxTestValue2");
+      expect(_global["sandboxTestValue2"]).toBeUndefined();
+    });
+  });
 
   it("set contenxt", () => {
     _this["test_md5"] = "ok";
