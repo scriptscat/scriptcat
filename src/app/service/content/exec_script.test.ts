@@ -373,3 +373,143 @@ describe("GM Api", () => {
     expect(ret.test3).toEqual("67");
   });
 });
+
+describe("沙盒环境测试", async () => {
+
+  //@ts-ignore
+  global.gbok = "gbok";
+  Object.assign(global, {gbok2: "gbok2"});
+  //@ts-ignore
+  global.gbok3 = function gbok3(){};
+  Object.assign(global, {gbok4: function gbok4(){}});
+  //@ts-ignore
+  global.gbok5 = {test: "gbok5"}; 
+  Object.assign(global, {gbok6: {test: "gbok6"}});
+
+  const _global = <any>global;
+
+  it("gbok", () => {
+    expect(_global["gbok"]).toEqual("gbok");
+    expect(_global["gbok2"]).toEqual("gbok2");
+    expect(_global["gbok3"]?.name).toEqual("gbok3");
+    expect(_global["gbok4"]?.name).toEqual("gbok4");
+    expect(_global["gbok5"]?.test).toEqual("gbok5");
+    expect(_global["gbok6"]?.test).toEqual("gbok6");
+  });
+
+  scriptRes2.code = `return [this, window];`;
+  sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+  const [_win, _this] = await sandboxExec.exec();
+  expect(_win).toEqual(expect.any(Object));
+  expect(_win.setTimeout).toEqual(expect.any(Function));
+
+  it("set contenxt", () => {
+    _this["test_md5"] = "ok";
+    expect(_this["test_md5"]).toEqual("ok");
+    expect(_global["test_md5"]).toEqual(undefined);
+  });
+
+  it("set window.onload null", () => {
+    // null確認
+    _this["onload"] = null;
+    _global["onload"] = null;
+    expect(_this["onload"]).toBeNull();
+    expect(_global["onload"]).toBeNull();
+    // _this.onload
+    _this["onload"] = function thisOnLoad() { };
+    expect(_this["onload"]?.name).toEqual("thisOnLoad");
+    expect(_global["onload"]).toBeNull();
+    _this["onload"] = null;
+    _global["onload"] = function globalOnLoad() { };
+    expect(_this["onload"]).toBeNull();
+    expect(_global["onload"]?.name).toEqual("globalOnLoad");
+    _global["onload"] = null;
+    // 還原確認
+    expect(_this["onload"]).toBeNull();
+    expect(_global["onload"]).toBeNull();
+  });
+
+  it("update", () => {
+    _this["okk"] = "ok";
+    expect(_this["okk"]).toEqual("ok");
+    expect(_global["okk"]).toEqual(undefined);
+    _this["okk"] = "ok2";
+    expect(_this["okk"]).toEqual("ok2");
+    expect(_global["okk"]).toEqual(undefined);
+  });
+
+  // https://github.com/scriptscat/scriptcat/issues/273
+  it("禁止穿透global对象", () => {
+    expect(_this["gbok"]).toBeUndefined();
+    expect(_this["gbok2"]).toBeUndefined();
+    expect(_this["gbok3"]).toBeUndefined();
+    expect(_this["gbok4"]).toBeUndefined();
+    expect(_this["gbok5"]).toBeUndefined();
+    expect(_this["gbok6"]).toBeUndefined();
+  });
+
+  it("禁止修改window", () => {
+    // expect(() => (_this["window"] = "ok")).toThrow();
+    expect(() => {
+      const before = _this["window"];
+      _this["window"] = "ok";
+      if (before !== _this["window"]) throw new Error('err');
+    }).toThrow();
+  });
+
+  it("访问location", () => {
+    expect(_this.location).not.toBeUndefined();
+  });
+
+  // 只允许访问onxxxxx
+  it("window.onxxxxx", () => {
+    expect(_this.onanimationstart).toBeNull();
+  });
+
+  it("[兼容问题] Ensure Illegal invocation can be tested", () => {
+    expect(global.setTimeout.name).toEqual("setTimeout");
+    //@ts-ignore
+    expect(global.setTimeoutForTest.name).toEqual("setTimeoutForTest");
+    expect(_this.setTimeoutForTest.name).toEqual("bound setTimeoutForTest");
+    //@ts-ignore
+    expect(() => global.setTimeout.call(global, () => { }, 1)).not.toThrow();
+    //@ts-ignore
+    expect(() => global.setTimeoutForTest.call(global, () => { }, 1)).not.toThrow();
+    //@ts-ignore
+    expect(() => global.setTimeoutForTest.call({}, () => { }, 1)).toThrow();
+  });
+  // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
+  it("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
+    return new Promise((resolve) => {
+      console.log(_this.setTimeoutForTest.prototype);
+      _this.setTimeoutForTest(resolve, 100);
+    });
+  });
+  // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
+  it("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
+    expect(() => _this.Object.freeze({})).not.toThrow();
+  });
+
+  const tag = (<any>global)[Symbol.toStringTag]; // 实际环境：'[object Window]' 测试环境：'[object global]'
+
+  // 允许往global写入Symbol属性,影响内容: https://bbs.tampermonkey.net.cn/thread-5509-1-1.html
+  it("Symbol", () => {
+    const s = Symbol("test");
+    _this[s] = "ok";
+    expect(_this[s]).toEqual("ok");
+  });
+  // toString.call(window)返回的是'[object Object]',影响内容: https://github.com/scriptscat/scriptcat/issues/260
+  it("toString.call(window)", () => {
+    expect(toString.call(_this)).toEqual(`[object ${tag}]`); // 与 global 一致
+    expect(toString.call(_this)).not.toEqual("[object Object]"); // 不是 [object Object]
+  });
+
+  // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
+  it("[穿透测试] Object.hasOwnProperty", () => {
+    expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(false);
+    _this.test1 = "ok";
+    expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
+    expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
+  });
+
+});

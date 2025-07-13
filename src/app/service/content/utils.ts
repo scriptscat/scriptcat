@@ -72,7 +72,7 @@ export function compileInjectScript(
 
 const shouldFnBind = (f: any) => {
   if (typeof f !== 'function') return false;
-  if ('prototype' in f) return false; // 避免getter, 使用 in operator
+  if ('prototype' in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
   // window中的函式，大写开头不用於直接呼叫 （例如NodeFilter) 
   const { name } = f;
   if (!name) return false;
@@ -158,6 +158,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
     if (shouldFnBind(value)) {
+
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,
