@@ -219,11 +219,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     };
     return {
       get() {
-        console.log(`Getting global ${eventName} handler:`, eventObject.fn);
+        // console.log(`Getting global ${eventName} handler:`, eventObject.fn);
         return eventObject.fn;
       },
       set(newVal: EventListenerOrEventListenerObject | any) {
-        console.log(`Setting global ${eventName} handler:`, newVal);
+        // console.log(`Setting global ${eventName} handler:`, newVal);
         const { fn } = eventObject;
         if (newVal !== fn) {
           if (isPrimitive(newVal)) {
