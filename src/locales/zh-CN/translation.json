@@ -47,7 +47,7 @@
   "every_day": "每天",
   "every_week": "每周",
   "update_disabled_scripts": "更新已禁用脚本",
-  "silent_update_non_critical_changes": "悄悄更新非重大变更",
+  "silent_update_non_critical_changes": "静默更新非重大变更",
   "enable_eslint": "开启 ESLint",
   "eslint_rules": "ESLint规则",
   "enter_eslint_rules": "请输入 ESLint 规则，可以从 https://eslint.org/play/ 下载配置",
