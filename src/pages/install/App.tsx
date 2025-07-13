@@ -375,11 +375,11 @@ function App() {
                       droplist={
                         <Menu>
                           <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
-                            {isUpdate ? t("update_script") : t("install_script")} {t("without_closing_window")}
+                            {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
                           </Menu.Item>
                           {!scriptInfo?.userSubscribe && (
                             <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
-                              {isUpdate ? t("update_script") : t("install_script")} {t("no_more_updates")}
+                              {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
                             </Menu.Item>
                           )}
                         </Menu>

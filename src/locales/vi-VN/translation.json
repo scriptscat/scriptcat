@@ -397,7 +397,7 @@
   "only_background_scheduled_can_run": "只有后台脚本/定时脚本才能运行",
   "preparing_script_resources": "正在准备脚本资源...",
   "build_success_message": "构建成功, 可以在扩展页打开开发者工具在控制台中查看输出",
-  "script_storage_tooltip": "可以管理脚本GM_value的储存数据",
+  "script_storage_tooltip": "可以管理脚本的储存数据（GM_value）",
   "script_resource_tooltip": "管理@resource,@require下载的资源",
   "script_setting_tooltip": "对脚本进行一些自定义设置",
   "script_modified_close_confirm": "脚本已修改, 关闭后会丢失修改, 是否继续?",
