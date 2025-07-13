@@ -375,16 +375,15 @@ describe("GM Api", () => {
 });
 
 describe("沙盒环境测试", async () => {
-
   //@ts-ignore
   global.gbok = "gbok";
-  Object.assign(global, {gbok2: "gbok2"});
+  Object.assign(global, { gbok2: "gbok2" });
   //@ts-ignore
-  global.gbok3 = function gbok3(){};
-  Object.assign(global, {gbok4: function gbok4(){}});
+  global.gbok3 = function gbok3() {};
+  Object.assign(global, { gbok4: function gbok4() {} });
   //@ts-ignore
-  global.gbok5 = {test: "gbok5"}; 
-  Object.assign(global, {gbok6: {test: "gbok6"}});
+  global.gbok5 = { test: "gbok5" };
+  Object.assign(global, { gbok6: { test: "gbok6" } });
 
   const _global = <any>global;
 
@@ -416,11 +415,11 @@ describe("沙盒环境测试", async () => {
     expect(_this["onload"]).toBeNull();
     expect(_global["onload"]).toBeNull();
     // _this.onload
-    _this["onload"] = function thisOnLoad() { };
+    _this["onload"] = function thisOnLoad() {};
     expect(_this["onload"]?.name).toEqual("thisOnLoad");
     expect(_global["onload"]).toBeNull();
     _this["onload"] = null;
-    _global["onload"] = function globalOnLoad() { };
+    _global["onload"] = function globalOnLoad() {};
     expect(_this["onload"]).toBeNull();
     expect(_global["onload"]?.name).toEqual("globalOnLoad");
     _global["onload"] = null;
@@ -453,7 +452,7 @@ describe("沙盒环境测试", async () => {
     expect(() => {
       const before = _this["window"];
       _this["window"] = "ok";
-      if (before !== _this["window"]) throw new Error('err');
+      if (before !== _this["window"]) throw new Error("err");
     }).toThrow();
   });
 
@@ -472,11 +471,11 @@ describe("沙盒环境测试", async () => {
     expect(global.setTimeoutForTest.name).toEqual("setTimeoutForTest");
     expect(_this.setTimeoutForTest.name).toEqual("bound setTimeoutForTest");
     //@ts-ignore
-    expect(() => global.setTimeout.call(global, () => { }, 1)).not.toThrow();
+    expect(() => global.setTimeout.call(global, () => {}, 1)).not.toThrow();
     //@ts-ignore
-    expect(() => global.setTimeoutForTest.call(global, () => { }, 1)).not.toThrow();
+    expect(() => global.setTimeoutForTest.call(global, () => {}, 1)).not.toThrow();
     //@ts-ignore
-    expect(() => global.setTimeoutForTest.call({}, () => { }, 1)).toThrow();
+    expect(() => global.setTimeoutForTest.call({}, () => {}, 1)).toThrow();
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
@@ -512,4 +511,15 @@ describe("沙盒环境测试", async () => {
     expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
   });
 
+  it("RegExp", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    script.code = `const str = "12345";
+const reg = /(123)/;
+str.match(reg);`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    await exec.exec();
+    expect(RegExp.$1).toEqual("123");
+  });
 });
