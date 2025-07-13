@@ -1,8 +1,8 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext } from "./create_context";
+import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, createProxyContext } from "./utils";
+import { compileScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
