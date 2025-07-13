@@ -427,7 +427,7 @@ describe("沙盒环境测试", async () => {
 
   describe("set window.onload null", () => {
     it("初始状态确认", () => {
-      // null確認
+      // null确认
       _this["onload"] = null;
       _global["onload"] = null;
       expect(_this["onload"]).toBeNull();
@@ -454,19 +454,22 @@ describe("沙盒环境测试", async () => {
         expect(mockFn).toHaveBeenCalledTimes(1);
       });
 
-      it("删除 onload 后应该为 null", () => {
-        const mockFn = vi.fn();
-        _this["onload"] = function thisOnLoad() {
-          mockFn();
-        };
-        // 验证删除
-        delete _this["onload"];
-        expect(_this["onload"]).toBeNull(); // 删除应该是null，而不是undefined
+      // 在模拟环境无法测试：在实际操作中和TM一致
+      // 在非拦截式沙盒裡删除 沙盒onload 后，会取得页面的真onload
+      // 在非拦截式沙盒裡删除 真onload 后，会变undefined
+      // it("删除 onload 后应该为 null", () => {
+      //   const mockFn = vi.fn();
+      //   _this["onload"] = function thisOnLoad() {
+      //     mockFn();
+      //   };
+      //   // 验证删除
+      //   delete _this["onload"];
+      //   expect(_this["onload"]).toBeNull(); // 删除应该是null，而不是undefined
 
-        // 验证删除后调用
-        global.dispatchEvent(new Event("load"));
-        expect(mockFn).not.toHaveBeenCalled(); // 删除后不应该再调用
-      });
+      //   // 验证删除后调用
+      //   global.dispatchEvent(new Event("load"));
+      //   expect(mockFn).not.toHaveBeenCalled(); // 删除后不应该再调用
+      // });
     });
 
     describe("全局环境 onload 设置", () => {
@@ -479,7 +482,7 @@ describe("沙盒环境测试", async () => {
 
       it("清理后状态确认", () => {
         _global["onload"] = null;
-        // 還原確認
+        // 还原确认
         expect(_this["onload"]).toEqual(null);
         expect(_global["onload"]).toEqual(null);
       });
