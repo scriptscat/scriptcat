@@ -408,37 +408,65 @@ describe("沙盒环境测试", async () => {
     expect(_global["test_md5"]).toEqual(undefined);
   });
 
-  it("set window.onload null", () => {
-    // null確認
-    _this["onload"] = null;
-    _global["onload"] = null;
-    expect(_this["onload"]).toBeNull();
-    expect(_global["onload"]).toBeNull();
-    // _this.onload
-    const mockFn = vi.fn();
-    _this["onload"] = function thisOnLoad() {
-      mockFn();
-    };
-    expect(_this["onload"]?.name).toEqual("thisOnLoad");
-    expect(_global["onload"]).toBeNull();
-    // 验证调用
-    global.dispatchEvent(new Event("load"));
-    expect(mockFn).toHaveBeenCalledTimes(1);
-    // 验证删除
-    delete _this["onload"];
-    expect(_this["onload"]).toEqual(null);// 删除应该是null，而不是undefined
-    // 验证删除后调用
-    global.dispatchEvent(new Event("load"));
-    expect(mockFn).toHaveBeenCalledTimes(1); // 删除后不应该再调用
+  describe("set window.onload null", () => {
+    it("初始状态确认", () => {
+      // null確認
+      _this["onload"] = null;
+      _global["onload"] = null;
+      expect(_this["onload"]).toBeNull();
+      expect(_global["onload"]).toBeNull();
+    });
 
-    _this["onload"] = null;
-    _global["onload"] = function globalOnLoad() {};
-    expect(_this["onload"]).toBeNull();
-    expect(_global["onload"]?.name).toEqual("globalOnLoad");
-    _global["onload"] = null;
-    // 還原確認
-    expect(_this["onload"]).toEqual(null);
-    expect(_global["onload"]).toEqual(null);
+    describe("沙盒环境 onload 设置", () => {
+      it("设置 _this.onload 不影响 global.onload", () => {
+        const mockFn = vi.fn();
+        _this["onload"] = function thisOnLoad() {
+          mockFn();
+        };
+        expect(_this["onload"]?.name).toEqual("thisOnLoad");
+        expect(_global["onload"]).toBeNull();
+      });
+
+      it("验证 onload 事件调用", () => {
+        const mockFn = vi.fn();
+        _this["onload"] = function thisOnLoad() {
+          mockFn();
+        };
+        // 验证调用
+        global.dispatchEvent(new Event("load"));
+        expect(mockFn).toHaveBeenCalledTimes(1);
+      });
+
+      it("删除 onload 后应该为 null", () => {
+        const mockFn = vi.fn();
+        _this["onload"] = function thisOnLoad() {
+          mockFn();
+        };
+        // 验证删除
+        delete _this["onload"];
+        expect(_this["onload"]).toBeNull(); // 删除应该是null，而不是undefined
+
+        // 验证删除后调用
+        global.dispatchEvent(new Event("load"));
+        expect(mockFn).not.toHaveBeenCalled(); // 删除后不应该再调用
+      });
+    });
+
+    describe("全局环境 onload 设置", () => {
+      it("设置 global.onload 不影响 _this.onload", () => {
+        _this["onload"] = null;
+        _global["onload"] = function globalOnLoad() {};
+        expect(_this["onload"]).toBeNull();
+        expect(_global["onload"]?.name).toEqual("globalOnLoad");
+      });
+
+      it("清理后状态确认", () => {
+        _global["onload"] = null;
+        // 還原確認
+        expect(_this["onload"]).toEqual(null);
+        expect(_global["onload"]).toEqual(null);
+      });
+    });
   });
 
   it("update", () => {
