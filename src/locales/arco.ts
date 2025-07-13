@@ -4,6 +4,7 @@ import zhTW from "@arco-design/web-react/es/locale/zh-TW";
 import jaJP from "@arco-design/web-react/es/locale/ja-JP";
 import deDE from "@arco-design/web-react/es/locale/de-DE";
 import viVN from "@arco-design/web-react/es/locale/vi-VN";
+import ruRU from "@arco-design/web-react/es/locale/ru-RU";
 import type { Locale } from "@arco-design/web-react/es/locale/interface";
 
 export function arcoLocale(lang: string): Locale {
@@ -22,6 +23,9 @@ export function arcoLocale(lang: string): Locale {
     case "vi-VN":
       // @ts-ignore
       return viVN;
+    case "ru-RU":
+      // @ts-ignore
+      return ruRU;
     default:
       return enUS;
   }

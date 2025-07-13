@@ -12,12 +12,14 @@ import zhTW from "./zh-TW/translation.json";
 import achUG from "./ach-UG/translation.json";
 import jaJP from "./ja-JP/translation.json";
 import deDE from "./de-DE/translation.json";
+import ruRU from "./ru-RU/translation.json";
 import "dayjs/locale/en";
 import "dayjs/locale/vi";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 import "dayjs/locale/ja";
 import "dayjs/locale/de";
+import "dayjs/locale/ru";
 
 // 为了发挥 ESM 的 Tree-Shaking 等功能，日后应转用 data-fns 之类的 ESM 库
 
@@ -49,6 +51,7 @@ export function initLocales(systemConfig: SystemConfig) {
       "ja-JP": { title: "日本語", translation: jaJP },
       "de-DE": { title: "Deutsch", translation: deDE },
       "vi-VN": { title: "Tiếng Việt", translation: viVN },
+      "ru-RU": { title: "Русский", translation: ruRU },
       "ach-UG": { title: "伪语言", translation: achUG },
     },
   });
