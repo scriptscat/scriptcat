@@ -583,4 +583,21 @@ str.match(reg);`;
     await exec.exec();
     expect(RegExp.$1).toEqual("123");
   });
+  it("沙盒之间不应该共享变量", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.code = `this.testVar = "ok"; return {testVar:this.testVar,testVar2:this.testVar2};`;
+    // @ts-ignore
+    const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec1.scriptFunc = compileScript(compileScriptCode(script));
+    const ret1 = await exec1.exec();
+    expect(ret1).toEqual({ testVar: "ok", testVar2: undefined });
+
+    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.code = `this.testVar2 = "ok"; return {testVar:this.testVar,testVar2:this.testVar2};`;
+    // @ts-ignore
+    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    exec2.scriptFunc = compileScript(compileScriptCode(script));
+    const ret2 = await exec2.exec();
+    expect(ret2).toEqual({ testVar: undefined, testVar2: "ok" });
+  });
 });
