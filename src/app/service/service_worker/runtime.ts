@@ -512,7 +512,7 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
-    console.log("pageLoad", enableScript);
+    // console.log("pageLoad", enableScript);
     return {
       flag: scriptFlag,
       scripts: enableScript,

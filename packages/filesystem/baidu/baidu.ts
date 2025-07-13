@@ -1,4 +1,3 @@
-import { isFirefox } from "@App/pkg/utils/utils";
 import { AuthVerify } from "../auth";
 import type FileSystem from "../filesystem";
 import type { File, FileReader, FileWriter } from "../filesystem";

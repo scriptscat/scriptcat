@@ -58,9 +58,12 @@ const chromeManifest = { ...manifest };
 delete chromeManifest.content_security_policy;
 
 delete firefoxManifest.sandbox;
-firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
+// firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
-  gecko: { strict_min_version: "91.1.0" },
+  gecko: {
+    id: "{8e515334-52b5-4cc5-b4e8-675d50af677d}",
+    strict_min_version: "91.1.0",
+  },
 };
 
 const chrome = new JSZip();

@@ -21,7 +21,9 @@ export function dealScript(source: string): string {
 }
 
 export function isFirefox() {
-  return navigator.userAgent.includes("Firefox");
+  //@ts-ignore
+  return typeof mozInnerScreenX !== "undefined";
+  // return navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {
@@ -176,9 +178,8 @@ export function isUserScriptsAvailable() {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
-    chrome.userScripts.getScripts();
-    // 兼容chrome的写法
-    return !!chrome.userScripts;
+    const ret: Promise<chrome.userScripts.RegisteredUserScript[]> = chrome.userScripts.getScripts();
+    return ret !== undefined && ret !== null;
   } catch {
     // Not available.
     return false;
@@ -198,6 +199,43 @@ export function getBrowserVersion(): number {
 // 判断是否为Edge浏览器
 export function isEdge(): boolean {
   return navigator.userAgent.includes("Edg/");
+}
+
+export enum BrowserType {
+  Edge = 2,
+  Chrome = 1,
+  chromeA = 4, // ~ 120
+  chromeB = 8, // 121 ~ 137
+  chromeC = 16, // 138 ~
+}
+
+export function getBrowserType() {
+  const o = {
+    firefox: 0, // Firefox, Zen
+    webkit: 0, // Safari, Orion
+    chrome: 0, // Chrome, Chromium, Brave, Edge
+    unknown: 0,
+  };
+  if (isFirefox()) {
+    o.firefox = 1;
+  } else {
+    //@ts-ignore
+    const isWebkitBased = typeof webkitIndexedDB === "object";
+    if (isWebkitBased) {
+      o.webkit = 1;
+    } else {
+      //@ts-ignore
+      const isChromeBased = typeof webkitRequestAnimationFrame === "function";
+      if (isChromeBased) {
+        const isEdgeBrowser = isEdge();
+        const chromeVersion = getBrowserVersion();
+        o.chrome = (isEdgeBrowser ? 2 : 1) | (chromeVersion < 120 ? 4 : chromeVersion < 138 ? 8 : 16);
+      } else {
+        o.unknown = 1;
+      }
+    }
+  }
+  return o;
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {

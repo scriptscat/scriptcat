@@ -542,7 +542,9 @@ export default class GMApi {
         if (checkHasUnsafeHeaders(key)) {
           requestHeaders.push({
             header: key,
-            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+            operation:
+              chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
+              ("set" as chrome.declarativeNetRequest.HeaderOperation),
             value: headerValue.toString(),
           });
           deleteHeader = true;
@@ -550,7 +552,9 @@ export default class GMApi {
       } else {
         requestHeaders.push({
           header: key,
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation:
+            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
+            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
         });
         deleteHeader = true;
       }
