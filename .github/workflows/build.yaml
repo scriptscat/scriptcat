@@ -38,10 +38,34 @@ jobs:
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: all-artifacts
+          name: production-artifacts
           path: |
-            dist/*.zip
             dist/*.crx
+            dist/*.zip
+
+      - name: Repack Chrome ZIP to remove top-level folder
+        run: |
+          mkdir temp-unzip-chrome
+          unzip "dist/scriptcat-v*chrome.zip" -d temp-unzip-chrome
+          cd temp-unzip-chrome
+          zip -r ../dist/scriptcat-chrome.zip ./*
+          cd ..
+
+      - name: Repack Firefox ZIP to remove top-level folder
+        run: |
+          mkdir temp-unzip-firefox
+          unzip "dist/scriptcat-v*firefox.zip" -d temp-unzip-firefox
+          cd temp-unzip-firefox
+          zip -r ../dist/scriptcat-firefox.zip ./*
+          cd ..
+
+      - name: Archive development artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: development-artifacts
+          path: |
+            dist/scriptcat-firefox.zip
+            dist/scriptcat-chrome.zip
 
       - name: Archive extension
         uses: actions/upload-artifact@v4
