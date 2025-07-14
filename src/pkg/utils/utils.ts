@@ -94,6 +94,11 @@ export function openInCurrentTab(url: string) {
       active: true,
     },
     (tabs) => {
+      if (chrome.runtime.lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.query:", chrome.runtime.lastError);
+        // 因为API报错，我们不应无视并尝试强行打开新页面
+        return;
+      }
       if (tabs.length) {
         chrome.tabs.create({
           url,
@@ -172,13 +177,18 @@ export function errorMsg(e: any): string {
   return "";
 }
 
-export function isUserScriptsAvailable() {
+// 预计报错有机会在异步Promise裡发生，不一定是 chrome.userScripts.getScripts
+export async function isUserScriptsAvailable() {
   try {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
-    const ret: Promise<chrome.userScripts.RegisteredUserScript[]> = chrome.userScripts.getScripts();
-    return ret !== undefined && ret !== null;
+    const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
+      // 放不存在的uuid. 我们只需要知道API能否执行。不需要完整所有userScripts
+      ids: ["65471e40-f2c4-4d07-8224-24ccc24fa291", "da5365aa-de3c-4db3-87fb-0311513424e4"],
+    });
+    // 返回一个阵列的话表示API能正常使用 （有执行权限）
+    return ret !== undefined && ret !== null && typeof ret[Symbol.iterator] === "function";
   } catch {
     // Not available.
     return false;

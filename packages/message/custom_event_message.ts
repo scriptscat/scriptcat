@@ -78,6 +78,7 @@ export class CustomEventMessage implements Message {
         data,
       };
       this.nativeSend(body);
+      // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
       resolve(new WindowMessageConnect(body.messageId, this.EE, new CustomEventPostMessage(this)));
     });
   }
@@ -97,21 +98,28 @@ export class CustomEventMessage implements Message {
       detail,
     });
     window.dispatchEvent(ev);
+    // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
   }
 
   sendMessage(data: any): Promise<any> {
-    return new Promise((resolve) => {
+    return new Promise((resolve: ((value: any) => void) | null) => {
       const body: WindowMessageBody = {
         messageId: uuidv4(),
         type: "sendMessage",
         data,
       };
-      const callback = (body: WindowMessageBody) => {
-        this.EE.removeListener("response:" + body.messageId, callback);
-        resolve(body.data);
+      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+        if (callback !== null) {
+          this.EE.removeListener("response:" + body.messageId, callback);
+          resolve!(body.data);
+          callback = null; // 设为 null 提醒JS引擎可以GC
+          resolve = null;
+        }
       };
       this.EE.addListener("response:" + body.messageId, callback);
       this.nativeSend(body);
+      // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
+      callback = null;
     });
   }
 
@@ -125,12 +133,17 @@ export class CustomEventMessage implements Message {
       data,
     };
     let ret: any;
-    const callback = (body: WindowMessageBody) => {
-      this.EE.removeListener("response:" + body.messageId, callback);
-      ret = body.data;
+    let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+      if (callback !== null) {
+        this.EE.removeListener("response:" + body.messageId, callback);
+        ret = body.data;
+        callback = null; // 设为 null 提醒JS引擎可以GC
+      }
     };
     this.EE.addListener("response:" + body.messageId, callback);
     this.nativeSend(body);
+    // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
+    callback = null;
     return ret;
   }
 

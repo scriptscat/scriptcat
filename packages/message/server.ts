@@ -36,7 +36,7 @@ export class Server {
     message: Message,
     private enableConnect: boolean = true
   ) {
-    this.enableConnect &&
+    if (this.enableConnect) {
       message.onConnect((msg: any, con: MessageConnect) => {
         this.logger.trace("server onConnect", { msg });
         if (msg.action.startsWith(prefix)) {
@@ -44,6 +44,7 @@ export class Server {
         }
         return false;
       });
+    }
 
     message.onMessage((msg: { action: string; data: any }, sendResponse, sender) => {
       this.logger.trace("server onMessage", { msg: msg as any });

@@ -36,7 +36,7 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    (chrome.webRequest.onBeforeSendHeaders || chrome.webRequest.onBeforeRequest).addListener(
+    chrome.webRequest.onBeforeSendHeaders.addListener(
       (req: chrome.webRequest.OnBeforeSendHeadersDetails) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
@@ -80,7 +80,10 @@ export class ScriptService {
               },
               () => {
                 if (chrome.runtime.lastError) {
-                  console.error(chrome.runtime.lastError);
+                  console.error(
+                    "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+                    chrome.runtime.lastError
+                  );
                 }
               }
             );
@@ -131,7 +134,10 @@ export class ScriptService {
       },
       () => {
         if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
+          console.error(
+            "chrome.runtime.lastError in chrome.declarativeNetRequest.updateDynamicRules:",
+            chrome.runtime.lastError
+          );
         }
       }
     );
@@ -608,9 +614,20 @@ export class ScriptService {
     this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
-    chrome.alarms.create("checkScriptUpdate", {
-      delayInMinutes: 10,
-      periodInMinutes: 10,
-    });
+    chrome.alarms.create(
+      "checkScriptUpdate",
+      {
+        delayInMinutes: 10,
+        periodInMinutes: 10,
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+        }
+      }
+    );
   }
 }

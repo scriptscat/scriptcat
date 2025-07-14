@@ -13,6 +13,11 @@ function loadCache(): Promise<any> {
   }
   loadCachePromise = new Promise((resolve) => {
     chrome.storage.local.get((result: { [key: string]: any } | undefined) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+        // 无视storage API错误，继续执行
+      }
       cache = result;
       resolve(cache);
     });
@@ -63,6 +68,11 @@ export abstract class Repo<T> {
         });
       }
       chrome.storage.local.set(data, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve(val);
       });
     });
@@ -80,6 +90,11 @@ export abstract class Repo<T> {
     return new Promise((resolve) => {
       key = this.joinKey(key);
       chrome.storage.local.get(key, (result) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve(result[key]);
       });
     });
@@ -111,6 +126,11 @@ export abstract class Repo<T> {
     const loadData = () => {
       return new Promise<T[]>((resolve) => {
         chrome.storage.local.get((result: { [key: string]: T }) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+            // 无视storage API错误，继续执行
+          }
           resolve(this.filter(result, filters));
         });
       });
@@ -132,6 +152,11 @@ export abstract class Repo<T> {
     }
     return new Promise<void>((resolve) => {
       chrome.storage.local.remove(this.joinKey(key), () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve();
       });
     });

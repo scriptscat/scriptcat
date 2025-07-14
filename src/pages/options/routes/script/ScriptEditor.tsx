@@ -116,11 +116,18 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
       if (target === "initial") {
         const url = await new Promise<string>((resolve) => {
           chrome.storage.local.get(["activeTabUrl"], (result) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+              chrome.storage.local.remove(["activeTabUrl"]);
+              resolve("https://*/*");
+              return;
+            }
             chrome.storage.local.remove(["activeTabUrl"]);
             if (result.activeTabUrl) {
               resolve(result.activeTabUrl.url);
             } else {
-              resolve("undefind");
+              resolve("https://*/*");
             }
           });
         });

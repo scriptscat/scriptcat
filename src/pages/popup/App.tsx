@@ -34,6 +34,7 @@ function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
+  const [permissionReqResult, setPermissionReqResult] = useState("");
   const [checkUpdate, setCheckUpdate] = useState<Parameters<typeof systemConfig.setCheckUpdate>[0]>({
     version: ExtVersion,
     notice: "",
@@ -88,6 +89,11 @@ function App() {
     const queryTabInfo = () => {
       // 只跑一次 tab 资讯，不绑定在 currentUrl
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
+          return;
+        }
         if (!isMounted || !tabs.length) return;
         const newUrl = tabs[0].url || "";
         setCurrentUrl((prev) => {
@@ -153,7 +159,13 @@ function App() {
     [currentUrl]
   );
 
-  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(isUserScriptsAvailable());
+  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(false);
+
+  const updateIsUserScriptsAvailableState = async () => {
+    const flag = await isUserScriptsAvailable();
+    setIsUserScriptsAvailableState(flag);
+  };
+  updateIsUserScriptsAvailableState();
 
   const warningMessageHTML = useMemo(() => {
     // 可使用UserScript的话，不查browserType
@@ -178,21 +190,23 @@ function App() {
 
   const [showRequestButton, setShowRequestButton] = useState(false);
   //@ts-ignore
-  if (chrome?.permissions?.contains && chrome?.permissions?.request) {
+  if (chrome.permissions?.contains && chrome.permissions?.request) {
     chrome.permissions.contains(
       {
         permissions: ["userScripts"],
       },
       function (permissionOK) {
-        if (chrome.runtime.lastError) {
-          console.error("Error:", chrome.runtime.lastError.message);
-        } else {
-          if (permissionOK === false) {
-            // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
-            // chrome.permissions.request 应该可以执行
-            // 因此在这裡显示按钮
-            setShowRequestButton(true);
-          }
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.permissions.contains:", lastError.message);
+          // runtime 错误的话不显示按钮
+          return;
+        }
+        if (permissionOK === false) {
+          // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
+          // chrome.permissions.request 应该可以执行
+          // 因此在这裡显示按钮
+          setShowRequestButton(true);
         }
       }
     );
@@ -216,26 +230,27 @@ function App() {
         <Button
           onClick={() => {
             chrome.permissions.request({ permissions: ["userScripts"] }, function (granted) {
-              if (chrome.runtime.lastError) {
-                console.error("Error:", chrome.runtime.lastError.message);
+              const lastError = chrome.runtime.lastError;
+              if (lastError) {
+                granted = false;
+                console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
+              }
+              if (granted) {
+                console.log("Permission granted");
+                setPermissionReqResult("✅");
+                // 需要进行UserScript API相关的通讯初始化
+                // 或是使用 用 chrome.permissions.onAdded.addListener
+                // 及 chrome.permissions.onRemoved.addListener
+                // 来实现
+                updateIsUserScriptsAvailableState();
               } else {
-                if (granted) {
-                  console.log("Permission granted");
-                  alert("Permission granted");
-                  // 需要进行UserScript API相关的通讯初始化
-                  // 或是使用 用 chrome.permissions.onAdded.addListener
-                  // 及 chrome.permissions.onRemoved.addListener
-                  // 来实现
-                  setIsUserScriptsAvailableState(isUserScriptsAvailable());
-                } else {
-                  console.log("Permission denied");
-                  alert("Permission denied");
-                }
+                console.log("Permission denied");
+                setPermissionReqResult("❎");
               }
             });
           }}
         >
-          {t("request_permission")}
+          {t("request_permission")} {permissionReqResult}
         </Button>
       )}
       {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}

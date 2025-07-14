@@ -12,6 +12,11 @@ export class ExtCache implements CacheStorage {
   get(key: string): Promise<any> {
     return new Promise((resolve) => {
       chrome.storage.session.get(key, (value) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.get:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve(value[key]);
       });
     });
@@ -24,6 +29,11 @@ export class ExtCache implements CacheStorage {
           [key]: value,
         },
         () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.storage.session.set:", lastError);
+            // 无视storage API错误，继续执行
+          }
           resolve();
         }
       );
@@ -33,6 +43,11 @@ export class ExtCache implements CacheStorage {
   batchSet(data: { [key: string]: any }): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.session.set(data, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.set:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve();
       });
     });
@@ -41,6 +56,11 @@ export class ExtCache implements CacheStorage {
   has(key: string): Promise<boolean> {
     return new Promise((resolve) => {
       chrome.storage.session.get(key, (value) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.get:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve(value[key] !== undefined);
       });
     });
@@ -49,6 +69,11 @@ export class ExtCache implements CacheStorage {
   del(key: string): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.session.remove(key, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.remove:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve();
       });
     });
@@ -57,6 +82,11 @@ export class ExtCache implements CacheStorage {
   clear(): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.session.clear(() => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.clear:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve();
       });
     });
@@ -65,6 +95,11 @@ export class ExtCache implements CacheStorage {
   list(): Promise<string[]> {
     return new Promise((resolve) => {
       chrome.storage.session.get(null, (value) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.storage.session.get:", lastError);
+          // 无视storage API错误，继续执行
+        }
         resolve(Object.keys(value));
       });
     });

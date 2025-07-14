@@ -7,6 +7,7 @@ import reactJsx from "eslint-plugin-react/configs/jsx-runtime.js";
 import react from "eslint-plugin-react/configs/recommended.js";
 import ts from "typescript-eslint";
 import globals from "globals";
+import requireLastErrorCheck from "./eslint-rules/require-last-error-check.js";
 
 export default [
   {
@@ -34,6 +35,11 @@ export default [
     plugins: {
       "react-hooks": reactHooks,
       prettier: prettierPlugin,
+      "chrome-error": {
+        rules: {
+          "require-last-error-check": requireLastErrorCheck,
+        },
+      },
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
@@ -52,6 +58,7 @@ export default [
       "react-hooks/exhaustive-deps": "off",
       "prettier/prettier": "error",
       "react/prop-types": "off",
+      "chrome-error/require-last-error-check": "error",
     },
   },
   prettier,
