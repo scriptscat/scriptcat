@@ -47,12 +47,7 @@ const Sider: React.FC = () => {
       <SiderGuide ref={guideRef} />
       <Layout.Sider className="h-full" collapsed={collapsed} width={170}>
         <div className="flex flex-col justify-between h-full">
-          <Menu
-            style={{ width: "100%" }}
-            selectedKeys={[menuSelect]}
-            selectable
-            onClickMenuItem={handleMenuClick}
-          >
+          <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
               <MenuItem key="/" className="menu-script">
                 <IconCode /> {t("installed_scripts")}

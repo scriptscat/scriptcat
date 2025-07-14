@@ -213,10 +213,12 @@ function ScriptEditor() {
               const name = newScript.name;
               setScriptList((prev) =>
                 prev.map((script: Script) =>
-                  script.uuid === uuid ? {
-                    ...script,
-                    name
-                  } : script
+                  script.uuid === uuid
+                    ? {
+                        ...script,
+                        name,
+                      }
+                    : script
                 )
               );
               Message.success(t("save_success"));
@@ -225,15 +227,17 @@ function ScriptEditor() {
             const name = newScript.name;
             setEditors((prev) =>
               prev.map((item) =>
-                item.script.uuid === uuid ? {
-                  ...item,
-                  code: e.getValue(),
-                  isChanged: false,
-                  script: {
-                    ...item.script,
-                    name
-                  }
-                } : item
+                item.script.uuid === uuid
+                  ? {
+                      ...item,
+                      code: e.getValue(),
+                      isChanged: false,
+                      script: {
+                        ...item.script,
+                        name,
+                      },
+                    }
+                  : item
               )
             );
             return newScript;
@@ -406,13 +410,15 @@ function ScriptEditor() {
                 const flag = prev.some((item) => item.script.uuid === uuid);
                 if (flag) {
                   return prev.map((item) =>
-                    item.script.uuid === uuid ? {
-                      ...item,
-                      active: true
-                    } : {
-                      ...item,
-                      active: false
-                    }
+                    item.script.uuid === uuid
+                      ? {
+                          ...item,
+                          active: true,
+                        }
+                      : {
+                          ...item,
+                          active: false,
+                        }
                   );
                 } else {
                   const newEditor = {
@@ -432,7 +438,7 @@ function ScriptEditor() {
         }
       } else {
         emptyScript(template || "", hotKeys, target).then((e) => {
-          setEditors(prev => [...prev, e]);
+          setEditors((prev) => [...prev, e]);
         });
       }
     });
@@ -476,14 +482,14 @@ function ScriptEditor() {
     if (rightOperationTab) {
       switch (rightOperationTab.key) {
         case "1":
-          setEditors(prev => {
+          setEditors((prev) => {
             prev = prev.filter((item) => item.script.uuid !== rightOperationTab.uuid);
             if (prev.length > 0) {
               // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
               if (rightOperationTab.selectSciptButtonAndTab === rightOperationTab.uuid) {
                 prev[0] = {
                   ...prev[0],
-                  active: true
+                  active: true,
                 };
                 const chooseTabUUID = prev[0].script.uuid;
                 setSelectSciptButtonAndTab(chooseTabUUID);
@@ -493,14 +499,16 @@ function ScriptEditor() {
                 setSelectSciptButtonAndTab(prevTabUUID);
                 // 之前选中的tab
                 return prev.map((item) =>
-                  item.script.uuid === prevTabUUID ? {
-                    ...item,
-                    active: true
-                  } : {
-                    ...item,
-                    active: false
-                  }
-                )
+                  item.script.uuid === prevTabUUID
+                    ? {
+                        ...item,
+                        active: true,
+                      }
+                    : {
+                        ...item,
+                        active: false,
+                      }
+                );
               }
             } else {
               return [];
@@ -530,7 +538,7 @@ function ScriptEditor() {
                 return true;
               }
             });
-            return prev.slice(0, selectEditorIndex + 1)
+            return prev.slice(0, selectEditorIndex + 1);
           });
       }
     }
@@ -846,7 +854,7 @@ function ScriptEditor() {
                             active: true,
                             hotKeys,
                             isChanged: false,
-                          }
+                          };
                           setEditors((prev) => [...prev, newEditor]);
                         });
                       }
@@ -911,16 +919,17 @@ function ScriptEditor() {
             onChange={(index: string) => {
               setEditors((prev) =>
                 prev.map((editor, i) =>
-                  `${i}` === index ? {
-                    ...editor,
-                    active: (
-                      setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
-                      true
-                    )
-                  } : {
-                    ...editor,
-                    active: false
-                  }
+                  `${i}` === index
+                    ? {
+                        ...editor,
+                        active:
+                          (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
+                          true),
+                      }
+                    : {
+                        ...editor,
+                        active: false,
+                      }
                 )
               );
             }}
@@ -1009,13 +1018,14 @@ function ScriptEditor() {
                     callbackEditor={(e) => {
                       setEditors((prev) =>
                         prev.map((v) =>
-                          v.script.uuid === item.script.uuid ? {
-                            ...v,
-                            editor: (
-                              v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
-                              e
-                            ),
-                          } : v
+                          v.script.uuid === item.script.uuid
+                            ? {
+                                ...v,
+                                editor:
+                                  (v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
+                                  e),
+                              }
+                            : v
                         )
                       );
                     }}
@@ -1024,11 +1034,13 @@ function ScriptEditor() {
                       if (isChanged !== item.isChanged) {
                         const uuid = item.script.uuid;
                         setEditors((prev) =>
-                          prev.map(v =>
-                            v.script.uuid === uuid ? {
-                              ...v,
-                              isChanged
-                            } : v
+                          prev.map((v) =>
+                            v.script.uuid === uuid
+                              ? {
+                                  ...v,
+                                  isChanged,
+                                }
+                              : v
                           )
                         );
                       }

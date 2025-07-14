@@ -19,13 +19,17 @@ function SubscribeList() {
   const { t } = useTranslation(); // 使用 useTranslation hook
 
   const setListEntry = async (index: number, obj: any) => {
-    setList(prev => prev.map((item, i) =>
-      i === index ? {
-        ...item,
-        ...obj
-      } : item
-    ));
-  }
+    setList((prev) =>
+      prev.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              ...obj,
+            }
+          : item
+      )
+    );
+  };
 
   useEffect(() => {
     const dao = new SubscribeDAO();
@@ -87,8 +91,8 @@ function SubscribeList() {
                   setListEntry(index, {
                     loading: false,
                     ...(statusChange && {
-                      status: checked ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE
-                    })
+                      status: checked ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE,
+                    }),
                   });
                 });
             }}

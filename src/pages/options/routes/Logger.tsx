@@ -200,10 +200,10 @@ function LoggerPage() {
                       value={query}
                       labels={labels}
                       onChange={(v) => {
-                        setQuerys(prev => prev.map((query, i) => i === index ? v : query));
+                        setQuerys((prev) => prev.map((query, i) => (i === index ? v : query)));
                       }}
                       onClose={() => {
-                        setQuerys(prev => prev.filter((_query, i) => i !== index));
+                        setQuerys((prev) => prev.filter((_query, i) => i !== index));
                       }}
                     />
                   ))}

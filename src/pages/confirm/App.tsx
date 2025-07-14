@@ -57,7 +57,7 @@ function App() {
     };
   };
 
-  const metadata = useMemo(()=>(confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
+  const metadata = useMemo(() => (confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
 
   return (
     <div className="h-full">

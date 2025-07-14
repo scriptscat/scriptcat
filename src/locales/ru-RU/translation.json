@@ -409,7 +409,7 @@
   "close_other_tabs": "Закрыть другие вкладки",
   "close_left_tabs": "Закрыть левые вкладки",
   "close_right_tabs": "Закрыть правые вкладки",
-  "import_script_placeholder": "Поддерживается ввод абсолютных ссылок скриптов, заканчивающихся на .user.js, или ссылок страницы установки ScriptCat\\nМожно заполнять в несколько строк, по одной на строку\\nПример:\\nhttps://example.com/test.user.js \\nhttps://scriptcat.org/zh-CN/script-show-page/1234",
+  "import_script_placeholder": "Поддерживается ввод абсолютных ссылок скриптов, заканчивающихся на .user.js, или ссылок страницы установки ScriptCat\nМожно заполнять в несколько строк, по одной на строку\nПример:\nhttps://example.com/test.user.js \nhttps://scriptcat.org/zh-CN/script-show-page/1234",
   "invalid_script_code": "Неверный код скрипта",
   "build_failed": "Ошибка сборки",
   "drag_script_here_to_upload": "Перетащите скрипт сюда для загрузки",
