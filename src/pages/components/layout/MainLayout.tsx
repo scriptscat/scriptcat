@@ -54,11 +54,7 @@ const readFile = (file: File): Promise<string> => {
 
 const uploadFiles = async (files: File[], importByUrlsFunc: (urls: string[]) => Promise<void>) => {
   // const filterFiles = files.filter((f) => f.name.endsWith(".js"));
-  const urls = await Promise.all(
-    files.map((file) => {
-      return readFile(file);
-    })
-  );
+  const urls = await Promise.all(files.map((file) => readFile(file)));
   importByUrlsFunc(urls);
 };
 

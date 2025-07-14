@@ -11,7 +11,7 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import React, { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
@@ -51,57 +51,141 @@ function App() {
     // ignore error
   }
 
+  /*
   useEffect(() => {
+    let isMounted = true;
     const loadConfig = async () => {
       const [isEnableScript, checkUpdate] = await Promise.all([
         systemConfig.getEnableScript(),
         systemConfig.getCheckUpdate(),
       ]);
+      if (!isMounted) return;
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
     loadConfig();
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs.length) {
-        return;
-      }
+      if (!isMounted || !tabs.length) return;
       const newUrl = tabs[0].url || "";
       if (newUrl !== currentUrl) {
         setCurrentUrl(newUrl);
         popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
+          if (!isMounted) return;
           // 按照开启状态和更新时间排序
           const list = resp.scriptList;
-          list.sort((a, b) => {
-            if (a.enable === b.enable) {
+          list.sort((a, b) =>
+            //@ts-ignore
+            (b.enable - a.enable) || (
               // 根据菜单数排序
-              if (a.menus.length !== b.menus.length) {
-                return b.menus.length - a.menus.length;
-              }
-              if (a.runNum !== b.runNum) {
-                return b.runNum - a.runNum;
-              }
-              return b.updatetime - a.updatetime;
-            }
-            return a.enable ? -1 : 1;
-          });
+              (b.menus.length - a.menus.length) || (b.runNum - a.runNum) || (b.updatetime - a.updatetime)
+            )
+          );
           setScriptList(list);
           setBackScriptList(resp.backScriptList);
           setIsBlacklist(resp.isBlacklist);
         });
       }
     });
+    return () => {
+      isMounted = false;
+    }
   }, [currentUrl]);
+  */
 
-  // Memoize ScriptMenuList to prevent unnecessary re-renders
-  const memoizedScriptList = useMemo(
-    () => <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />,
-    [scriptList, currentUrl]
-  );
+  useEffect(() => {
+    let isMounted = true;
 
-  const memoizedBackScriptList = useMemo(
-    () => <ScriptMenuList script={backScriptList} isBackscript currentUrl={currentUrl} />,
-    [backScriptList, currentUrl]
-  );
+    const onCurrentUrlUpdated = (tabs: chrome.tabs.Tab[]) => {
+      checkScriptEnableAndUpdate();
+      popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
+        if (!isMounted) return;
+        // 按照开启状态和更新时间排序
+        const list = resp.scriptList;
+        list.sort((a, b) =>
+          //@ts-ignore
+          (b.enable - a.enable) || (
+            // 根据菜单数排序
+            (b.menus.length - a.menus.length) || (b.runNum - a.runNum) || (b.updatetime - a.updatetime)
+          )
+        );
+        setScriptList(list);
+        setBackScriptList(resp.backScriptList);
+        setIsBlacklist(resp.isBlacklist);
+        checkScriptEnableAndUpdate();
+      });
+    }
+
+    const checkScriptEnableAndUpdate = async () => {
+      const [isEnableScript, checkUpdate] = await Promise.all([
+        systemConfig.getEnableScript(),
+        systemConfig.getCheckUpdate(),
+      ]);
+      if (!isMounted) return;
+      setIsEnableScript(isEnableScript);
+      setCheckUpdate(checkUpdate);
+    }
+    const queryTabInfo = () => {
+      // 只跑一次 tab 资讯，不绑定在 currentUrl
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (!isMounted || !tabs.length) return;
+        const newUrl = tabs[0].url || "";
+        setCurrentUrl(prev => {
+          if (newUrl !== prev) {
+            onCurrentUrlUpdated(tabs);
+          }
+          return newUrl;
+        });
+      });
+    };
+
+    checkScriptEnableAndUpdate();
+    queryTabInfo();
+    return () => { isMounted = false };
+  }, []);
+
+  const handleEnableScriptChange = useCallback((val: boolean) => {
+    setIsEnableScript(val);
+    systemConfig.setEnableScript(val);
+  }, []);
+
+  const handleSettingsClick = useCallback(() => {
+    // 用a链接的方式,vivaldi竟然会直接崩溃
+    window.open("/src/options.html", "_blank");
+  }, []);
+
+  const handleNotificationClick = useCallback(() => {
+    setShowAlert(prev => !prev);
+    const updatedCheckUpdate = { ...checkUpdate, isRead: true };
+    setCheckUpdate(updatedCheckUpdate);
+    systemConfig.setCheckUpdate(updatedCheckUpdate);
+  }, [checkUpdate]);
+
+  const handleMenuClick = useCallback(async (key: string) => {
+    switch (key) {
+      case "newScript":
+        await chrome.storage.local.set({
+          activeTabUrl: { url: currentUrl },
+        });
+        window.open("/src/options.html#/script/editor?target=initial", "_blank");
+        break;
+      case "checkUpdate":
+        await scriptClient.requestCheckUpdate("");
+        window.close();
+        break;
+      case "report_issue": {
+        const browserInfo = `${navigator.userAgent}`;
+        const issueUrl =
+          `https://github.com/scriptscat/scriptcat/issues/new?` +
+          `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
+          `browser-version=${encodeURIComponent(browserInfo)}`;
+        window.open(issueUrl, "_blank");
+        break;
+      }
+      default:
+        window.open(key, "_blank");
+        break;
+    }
+  }, [currentUrl]);
 
   const isUserScriptsAvailableFlag = isUserScriptsAvailable();
 
@@ -136,31 +220,20 @@ function App() {
                 size="small"
                 className="mr-1"
                 checked={isEnableScript}
-                onChange={(val) => {
-                  setIsEnableScript(val);
-                  systemConfig.setEnableScript(val);
-                }}
+                onChange={handleEnableScriptChange}
               />
               <Button
                 type="text"
                 icon={<IconSettings />}
                 iconOnly
-                onClick={() => {
-                  // 用a链接的方式,vivaldi竟然会直接崩溃
-                  window.open("/src/options.html", "_blank");
-                }}
+                onClick={handleSettingsClick}
               />
               <Badge count={checkUpdate.isRead ? 0 : 1} dot offset={[-8, 6]}>
                 <Button
                   type="text"
                   icon={<IconNotification />}
                   iconOnly
-                  onClick={() => {
-                    setShowAlert(!showAlert);
-                    checkUpdate.isRead = true;
-                    setCheckUpdate(checkUpdate);
-                    systemConfig.setCheckUpdate(checkUpdate);
-                  }}
+                  onClick={handleNotificationClick}
                 />
               </Badge>
               <Dropdown
@@ -169,34 +242,7 @@ function App() {
                     style={{
                       maxHeight: "none",
                     }}
-                    onClickMenuItem={async (key) => {
-                      switch (key) {
-                        case "newScript":
-                          await chrome.storage.local.set({
-                            activeTabUrl: {
-                              url: currentUrl,
-                            },
-                          });
-                          window.open("/src/options.html#/script/editor?target=initial", "_blank");
-                          break;
-                        case "checkUpdate":
-                          await scriptClient.requestCheckUpdate("");
-                          window.close();
-                          break;
-                        case "report_issue": {
-                          const browserInfo = `${navigator.userAgent}`;
-                          const issueUrl =
-                            `https://github.com/scriptscat/scriptcat/issues/new?` +
-                            `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
-                            `browser-version=${encodeURIComponent(browserInfo)}`;
-                          window.open(issueUrl, "_blank");
-                          break;
-                        }
-                        default:
-                          window.open(key, "_blank");
-                          break;
-                      }
-                    }}
+                    onClickMenuItem={handleMenuClick}
                   >
                     <Menu.Item key="newScript">
                       <IconPlus style={iconStyle} />
@@ -253,7 +299,7 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            {memoizedScriptList}
+            <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
           </CollapseItem>
 
           <CollapseItem
@@ -262,7 +308,7 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            {memoizedBackScriptList}
+            <ScriptMenuList script={backScriptList} isBackscript={true} currentUrl={currentUrl} />
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">

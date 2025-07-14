@@ -231,12 +231,15 @@ function App() {
   }, []);
 
   const handleScriptToggle = useCallback((index: number) => {
+    let bool: boolean;
     setScripts((prevScripts) => {
-      const newScripts = [...prevScripts];
-      newScripts[index] = { ...newScripts[index], install: !newScripts[index].install };
-      setSelectAll((prev) => [newScripts.every((script) => script.install), prev[1]]);
-      return newScripts;
+      prevScripts = prevScripts.map((script, i) =>
+        i === index ? { ...script, install: !script.install } : script
+      );
+      bool = prevScripts.every((script) => script.install);
+      return prevScripts;
     });
+    setSelectAll((prev) => [bool, prev[1]]);
   }, []);
 
   const handleScriptToggleClick = useCallback(
@@ -247,20 +250,20 @@ function App() {
   );
 
   const handleScriptStatusToggle = useCallback((index: number, checked: boolean) => {
-    setScripts((prevScripts) => {
-      const newScripts = [...prevScripts];
-      newScripts[index] = {
-        ...newScripts[index],
-        script: {
-          ...newScripts[index].script!,
+    setScripts((prevScripts) =>
+      prevScripts.map((prevScript, i) => 
+        i === index ? {
+          ...prevScript,
           script: {
-            ...newScripts[index].script!.script,
-            status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+            ...prevScript.script!,
+            script: {
+              ...prevScript.script!.script,
+              status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+            },
           },
-        },
-      };
-      return newScripts;
-    });
+        } : prevScript
+      )
+    );
   }, []);
 
   return (
