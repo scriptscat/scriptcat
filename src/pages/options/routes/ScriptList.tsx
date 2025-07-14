@@ -97,7 +97,6 @@ const MemoizedAvatar = React.memo(
     </Avatar>
   )
 );
-
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
 function ScriptList() {
