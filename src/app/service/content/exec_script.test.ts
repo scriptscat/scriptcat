@@ -585,19 +585,67 @@ str.match(reg);`;
   });
   it("沙盒之间不应该共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.code = `this.testVar = "ok"; return {testVar:this.testVar,testVar2:this.testVar2};`;
+    script.code = `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
     // @ts-ignore
     const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec1.scriptFunc = compileScript(compileScriptCode(script));
     const ret1 = await exec1.exec();
-    expect(ret1).toEqual({ testVar: "ok", testVar2: undefined });
+    expect(ret1).toEqual({ testVar: "ok", testVar2: undefined, ttest1: "string", ttest2: "number" });
 
     const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
-    script.code = `this.testVar2 = "ok"; return {testVar:this.testVar,testVar2:this.testVar2};`;
+    script2.code = `this.testVar2 = "ok"; ttest2 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
     // @ts-ignore
     const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
-    exec2.scriptFunc = compileScript(compileScriptCode(script));
+    exec2.scriptFunc = compileScript(compileScriptCode(script2));
     const ret2 = await exec2.exec();
-    expect(ret2).toEqual({ testVar: undefined, testVar2: "ok" });
+    expect(ret2).toEqual({ testVar: undefined, testVar2: "ok", ttest1: "number", ttest2: "string" });
+
+    const script3 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script3.code = `onload = function (){return 123}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
+    // @ts-ignore
+    const exec3 = new ExecScript(script3, undefined, undefined, nilFn, envInfo);
+    exec3.scriptFunc = compileScript(compileScriptCode(script3));
+    const ret3 = await exec3.exec();
+    expect(ret3.onload).toEqual(expect.any(Function));
+    expect(ret3.thisOnload).toEqual(expect.any(Function));
+    expect(ret3.winOnload).toEqual(expect.any(Function));
+    expect(ret3.thisOnload).toEqual(ret3.onload);
+    expect(ret3.winOnload).toEqual(ret3.onload);
+    const cacheRet3Onload = ret3.onload;
+
+    const script4 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script4.code = `onload = function (){return 456}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
+    // @ts-ignore
+    const exec4 = new ExecScript(script4, undefined, undefined, nilFn, envInfo);
+    exec4.scriptFunc = compileScript(compileScriptCode(script4));
+    const ret4 = await exec4.exec();
+    expect(ret4.onload).toEqual(expect.any(Function));
+    expect(ret4.thisOnload).toEqual(expect.any(Function));
+    expect(ret4.winOnload).toEqual(expect.any(Function));
+    expect(ret4.thisOnload).toEqual(ret4.onload);
+    expect(ret4.winOnload).toEqual(ret4.onload);
+
+    // onload3 不等如 onload4
+    expect(ret4.onload).not.toEqual(cacheRet3Onload);
+    // onload3, onload4 能各自独立执行输出 123 及 456
+    expect(cacheRet3Onload() + ret4.onload()).toEqual(579);
+  });
+
+  it("沙盒之间能用unsafeWindow（及全局作用域）共享变量", async () => {
+    const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script.code = `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
+    // @ts-ignore
+    const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec1.scriptFunc = compileScript(compileScriptCode(script));
+    const ret1 = await exec1.exec();
+    expect(ret1).toEqual({ testSVar1: "shareA", testSVar2: undefined, ggaa1: "string", ggaa2: "undefined" });
+
+    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script2.code = `unsafeWindow.testSVar2 = "shareB"; ggaa2 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
+    // @ts-ignore
+    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    const ret2 = await exec2.exec();
+    expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
   });
 });

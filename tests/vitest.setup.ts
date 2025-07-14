@@ -53,3 +53,8 @@ Object.assign(global, {
 global.sandboxTestValue = "sandboxTestValue";
 //@ts-ignore
 global.sandboxTestValue2 = "sandboxTestValue2";
+
+//@ts-ignore
+global.ttest1 = 1;
+//@ts-ignore
+global.ttest2 = 2;
