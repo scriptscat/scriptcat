@@ -289,7 +289,7 @@ function App() {
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key="https://docs.scriptcat.org/">
+                    <Menu.Item key={`https://docs.scriptcat.org${localePath}`}>
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>

@@ -14,6 +14,7 @@ import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
+import { localePath } from "@App/locales/locales";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -154,7 +155,7 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
+          chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
         } else if (details.reason === "update") {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const lastError = chrome.runtime.lastError;
