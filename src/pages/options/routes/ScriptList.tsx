@@ -80,26 +80,25 @@ import { store } from "@App/pages/store/store";
 
 type ListType = ScriptLoading;
 
-
 // Memoized Avatar component to prevent unnecessary re-renders
-const MemoizedAvatar = React.memo(({ fav, onClick }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
-  <Avatar
-    key={fav.match}
-    shape="square"
-    style={{
-      backgroundColor: "unset",
-      borderWidth: 1,
-    }}
-    className={fav.website ? "cursor-pointer" : "cursor-default"}
-    onClick={onClick}
-  >
-    {fav.icon ? (
-      <img title={fav.match} src={fav.icon} />
-    ) : (
-      <TbWorldWww title={fav.match} color="#aaa" size={24} />
-    )}
-  </Avatar>
-));
+const MemoizedAvatar = React.memo(
+  ({ fav, onClick }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
+    <Avatar
+      key={fav.match}
+      shape="square"
+      style={{
+        backgroundColor: "unset",
+        borderWidth: 1,
+      }}
+      className={fav.website ? "cursor-pointer" : "cursor-default"}
+      onClick={onClick}
+    >
+      {fav.icon ? <img title={fav.match} src={fav.icon} /> : <TbWorldWww title={fav.match} color="#aaa" size={24} />}
+    </Avatar>
+  )
+);
+
+MemoizedAvatar.displayName = "MemoizedAvatar";
 
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
@@ -604,7 +603,7 @@ function ScriptList() {
       setNewColumns(
         columns.map((item) => ({
           ...item,
-          width: (columnWidth[item.key!] ?? item.width)
+          width: columnWidth[item.key!] ?? item.width,
         }))
       );
     });
@@ -796,9 +795,9 @@ function ScriptList() {
                           Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
                         }
                         break;
-                      case "pin_to_top":
+                      case "pin_to_top": {
                         // 将选中的脚本置顶
-                        let l = select.length;
+                        const l = select.length;
                         if (l > 0) {
                           // 获取当前所有脚本列表
                           const currentScripts = store.getState().script.scripts;
@@ -819,6 +818,7 @@ function ScriptList() {
                           });
                         }
                         break;
+                      }
                       // 批量检查更新
                       case "check_update":
                         if (confirm(t("list.confirm_update")!)) {
@@ -889,9 +889,7 @@ function ScriptList() {
                         key="auto"
                         onClick={() => {
                           setNewColumns((cols) =>
-                            cols.map((col, i) =>
-                              i === selectColumn ? { ...col, width: 0 } : col
-                            )
+                            cols.map((col, i) => (i === selectColumn ? { ...col, width: 0 } : col))
                           );
                         }}
                       >
@@ -901,9 +899,7 @@ function ScriptList() {
                         key="hide"
                         onClick={() => {
                           setNewColumns((cols) =>
-                            cols.map((col, i) =>
-                              i === selectColumn ? { ...col, width: -1 } : col
-                            )
+                            cols.map((col, i) => (i === selectColumn ? { ...col, width: -1 } : col))
                           );
                         }}
                       >
@@ -914,13 +910,15 @@ function ScriptList() {
                         onClick={() => {
                           setNewColumns((cols) =>
                             cols.map((col, i) =>
-                              i === selectColumn ? {
-                                ...col, width: (
-                                  (newColumns[selectColumn].width as number) > 0
-                                    ? newColumns[selectColumn].width
-                                    : columns[selectColumn].width
-                                )
-                              } : col
+                              i === selectColumn
+                                ? {
+                                    ...col,
+                                    width:
+                                      (newColumns[selectColumn].width as number) > 0
+                                        ? newColumns[selectColumn].width
+                                        : columns[selectColumn].width,
+                                  }
+                                : col
                             )
                           );
                         }}
@@ -944,10 +942,8 @@ function ScriptList() {
                     }
                     onChange={(val) => {
                       setNewColumns((cols) =>
-                        cols.map((col, i) =>
-                          i === selectColumn ? { ...col, width: parseInt(val, 10) } : col
-                        )
-                      )
+                        cols.map((col, i) => (i === selectColumn ? { ...col, width: parseInt(val, 10) } : col))
+                      );
                     }}
                   />
                 </Dropdown>

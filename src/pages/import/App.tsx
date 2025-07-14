@@ -233,9 +233,7 @@ function App() {
   const handleScriptToggle = useCallback((index: number) => {
     let bool: boolean;
     setScripts((prevScripts) => {
-      prevScripts = prevScripts.map((script, i) =>
-        i === index ? { ...script, install: !script.install } : script
-      );
+      prevScripts = prevScripts.map((script, i) => (i === index ? { ...script, install: !script.install } : script));
       bool = prevScripts.every((script) => script.install);
       return prevScripts;
     });
@@ -251,17 +249,19 @@ function App() {
 
   const handleScriptStatusToggle = useCallback((index: number, checked: boolean) => {
     setScripts((prevScripts) =>
-      prevScripts.map((prevScript, i) => 
-        i === index ? {
-          ...prevScript,
-          script: {
-            ...prevScript.script!,
-            script: {
-              ...prevScript.script!.script,
-              status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-            },
-          },
-        } : prevScript
+      prevScripts.map((prevScript, i) =>
+        i === index
+          ? {
+              ...prevScript,
+              script: {
+                ...prevScript.script!,
+                script: {
+                  ...prevScript.script!.script,
+                  status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+                },
+              },
+            }
+          : prevScript
       )
     );
   }, []);
