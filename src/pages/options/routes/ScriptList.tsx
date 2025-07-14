@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -95,7 +95,12 @@ const MemoizedAvatar = React.memo(
     >
       {fav.icon ? <img title={fav.match} src={fav.icon} /> : <TbWorldWww title={fav.match} color="#aaa" size={24} />}
     </Avatar>
-  )
+  ),
+  (prev, next) => {
+    return (
+      prev.fav.match === next.fav.match && prev.fav.icon === next.fav.icon && prev.fav.website === next.fav.website
+    );
+  }
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
@@ -127,6 +132,111 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
+
+  const FavoriteAvatars = React.memo(
+    ({
+      favorites,
+    }: {
+      favorites: {
+        match: string;
+        website?: string;
+        icon?: string;
+      }[];
+    }) => {
+      const processed = useMemo(() => {
+        // 排序并且只显示前5个
+        // 排序将有icon的放在前面
+        return [...favorites]
+          .sort((a, b) => {
+            if (a.icon && !b.icon) return -1;
+            if (!a.icon && b.icon) return 1;
+            return a.match.localeCompare(b.match);
+          })
+          .slice(0, 4);
+      }, [favorites]);
+
+      console.log("Processed favorites:", processed);
+      return (
+        <Avatar.Group size={20}>
+          {processed.map((fav) => (
+            <MemoizedAvatar
+              key={fav.match}
+              fav={fav}
+              onClick={() => {
+                if (fav.website) {
+                  window.open(fav.website, "_blank");
+                }
+              }}
+            />
+          ))}
+          {favorites.length > 4 && "..."}
+        </Avatar.Group>
+      );
+    }
+  );
+  FavoriteAvatars.displayName = "FavoriteAvatars";
+
+  const RunApplyTooltip = React.memo(({ item }: { item: ScriptLoading }) => {
+    const toLoggerCallback = useCallback(() => {
+      navigate({
+        pathname: "logger",
+        search: `query=${encodeURIComponent(
+          JSON.stringify([
+            { key: "uuid", value: item.uuid },
+            {
+              key: "component",
+              value: "GM_log",
+            },
+          ])
+        )}`,
+      });
+    }, [item.uuid]);
+    let tooltip = "";
+    if (item.type === SCRIPT_TYPE_BACKGROUND) {
+      tooltip = t("background_script_tooltip");
+    } else {
+      tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+    }
+    return (
+      <Tooltip content={tooltip}>
+        <Tag
+          icon={<IconClockCircle />}
+          color="blue"
+          bordered
+          style={{
+            cursor: "pointer",
+          }}
+          onClick={toLoggerCallback}
+        >
+          {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+        </Tag>
+      </Tooltip>
+    );
+  });
+  RunApplyTooltip.displayName = "RunApplyTooltip";
+
+  const RunApplyGroup = React.memo(
+    ({ item }: { item: ScriptLoading }) => {
+      console.log("RunApplyGroup", item);
+      if (item.type === SCRIPT_TYPE_NORMAL) {
+        // 处理站点icon
+        console.log("Rendering FavoriteAvatars for:", item.favorite);
+        return item.favorite && <FavoriteAvatars favorites={item.favorite} />;
+      } else {
+        return <RunApplyTooltip item={item} />;
+      }
+    },
+    (prev, next) => {
+      return (
+        prev.item.type === next.item.type &&
+        prev.item.uuid === next.item.uuid &&
+        prev.item.favorite === next.item.favorite &&
+        prev.item.metadata === next.item.metadata &&
+        prev.item.runStatus === next.item.runStatus
+      );
+    }
+  );
+  RunApplyGroup.displayName = "RunApplyGroup";
 
   const columns: ColumnProps[] = useMemo(
     () => [
@@ -264,72 +374,7 @@ function ScriptList() {
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
         render(col, item: ListType) {
-          const toLogger = () => {
-            navigate({
-              pathname: "logger",
-              search: `query=${encodeURIComponent(
-                JSON.stringify([
-                  { key: "uuid", value: item.uuid },
-                  {
-                    key: "component",
-                    value: "GM_log",
-                  },
-                ])
-              )}`,
-            });
-          };
-          if (item.type === SCRIPT_TYPE_NORMAL) {
-            // 处理站点icon
-            return (
-              <>
-                <Avatar.Group size={20}>
-                  {item.favorite &&
-                    // 排序并且只显示前5个
-                    // 排序将有icon的放在前面
-                    [...item.favorite]
-                      .sort((a, b) => {
-                        if (a.icon && !b.icon) return -1;
-                        if (!a.icon && b.icon) return 1;
-                        return a.match.localeCompare(b.match);
-                      })
-                      .slice(0, 4)
-                      .map((fav) => (
-                        <MemoizedAvatar
-                          key={fav.match}
-                          fav={fav}
-                          onClick={() => {
-                            if (fav.website) {
-                              window.open(fav.website, "_blank");
-                            }
-                          }}
-                        />
-                      ))}
-                  {item.favorite && item.favorite.length > 4 && "..."}
-                </Avatar.Group>
-              </>
-            );
-          }
-          let tooltip = "";
-          if (item.type === SCRIPT_TYPE_BACKGROUND) {
-            tooltip = t("background_script_tooltip");
-          } else {
-            tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
-          }
-          return (
-            <Tooltip content={tooltip}>
-              <Tag
-                icon={<IconClockCircle />}
-                color="blue"
-                bordered
-                style={{
-                  cursor: "pointer",
-                }}
-                onClick={toLogger}
-              >
-                {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-              </Tag>
-            </Tooltip>
-          );
+          return <RunApplyGroup item={item} />;
         },
       },
       {

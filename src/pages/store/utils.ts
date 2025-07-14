@@ -6,15 +6,6 @@ import Cache from "@App/app/cache";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
 
-// 将数组分成指定大小的批次
-const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize));
-  }
-  return chunks;
-};
-
 // 处理单个脚本的favicon
 const processScriptFavicon = async (script: Script) => {
   return {
@@ -26,28 +17,22 @@ const processScriptFavicon = async (script: Script) => {
       // 从缓存中获取favicon图标
       const systemClient = new SystemClient(message);
       const newIcons = await Promise.all(
-        icons.map((icon) => {
+        icons.map(async (icon) => {
+          let iconUrl = "";
           // 没有的话缓存到本地使用URL.createObjectURL
-          if (!icon.icon) {
-            return {
-              match: icon.match,
-              website: icon.website,
-              icon: "",
-            };
+          if (icon.icon) {
+            try {
+              // 因为需要持久化URL.createObjectURL，所以需要通过调用到offscreen来创建
+              iconUrl = await systemClient.loadFavicon(icon.icon);
+            } catch (_) {
+              // ignored
+            }
           }
-          // 因为需要持久化URL.createObjectURL，所以需要通过调用到offscreen来创建
-          return systemClient
-            .loadFavicon(icon.icon)
-            .then((url) => ({
-              match: icon.match,
-              website: icon.website,
-              icon: url,
-            }))
-            .catch(() => ({
-              match: icon.match,
-              website: icon.website,
-              icon: "",
-            }));
+          return {
+            match: icon.match,
+            website: icon.website,
+            icon: iconUrl,
+          };
         })
       );
       return newIcons;
@@ -55,15 +40,33 @@ const processScriptFavicon = async (script: Script) => {
   };
 };
 
+type FavIconResult = {
+  uuid: string;
+  fav: {
+    match: string;
+    icon?: string;
+  }[];
+};
+
 // 在scriptSlice创建后处理favicon加载，以批次方式处理
 export const loadScriptFavicons = (scripts: Script[]) => {
-  const batchSize = 20; // 每批处理20个脚本
-  const scriptChunks = chunkArray(scripts, batchSize);
-  // 逐批处理脚本
-  for (const chunk of scriptChunks) {
-    Promise.all(chunk.map(processScriptFavicon)).then((chunkResults) => {
-      // 每完成一批就更新一次store
-      store.dispatch(scriptSlice.actions.setScriptFavicon(chunkResults));
+  const results: FavIconResult[] = [];
+  let waiting = false;
+  for (const script of scripts) {
+    processScriptFavicon(script).then((result: FavIconResult) => {
+      results.push(result);
+      // 下一个 MacroTask 执行。
+      // 使用 requestAnimationFrame 而非setTimeout 是因为前台才要显示。而且网页绘画中时会延后这个
+      if (!waiting) {
+        requestAnimationFrame(() => {
+          waiting = false;
+          if (!results.length) return;
+          const chunkResults: FavIconResult[] = results.slice(0);
+          results.length = 0;
+          store.dispatch(scriptSlice.actions.setScriptFavicon(chunkResults));
+        });
+        waiting = true;
+      }
     });
   }
 };
