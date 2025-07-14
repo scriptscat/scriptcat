@@ -579,7 +579,7 @@ export class RuntimeService {
           },
         ]);
       } catch (e) {
-        LoggerCore.logger().error("update inject.js error", Logger.E(e));
+        this.logger.error("update inject.js error", Logger.E(e));
         throw e;
       }
       const scripts: chrome.userScripts.RegisteredUserScript[] = [
