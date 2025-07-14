@@ -409,7 +409,7 @@
   "close_other_tabs": "Andere Tabs schließen",
   "close_left_tabs": "Linke Tabs schließen",
   "close_right_tabs": "Rechte Tabs schließen",
-  "import_script_placeholder": "Unterstützt die Eingabe von absoluten Links von Skripten, die mit .user.js enden, oder ScriptCat-Installationsseiten-Links\\nMehrzeilige Eingabe möglich, eine pro Zeile\\nBeispiel:\\nhttps://example.com/test.user.js \\nhttps://scriptcat.org/zh-CN/script-show-page/1234",
+  "import_script_placeholder": "Unterstützt die Eingabe von absoluten Links von Skripten, die mit .user.js enden, oder ScriptCat-Installationsseiten-Links\nMehrzeilige Eingabe möglich, eine pro Zeile\nBeispiel:\nhttps://example.com/test.user.js \nhttps://scriptcat.org/zh-CN/script-show-page/1234",
   "invalid_script_code": "Ungültiger Skriptcode",
   "build_failed": "Build fehlgeschlagen",
   "drag_script_here_to_upload": "Skript hierher ziehen zum Hochladen",
