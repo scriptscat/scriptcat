@@ -120,14 +120,14 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
             if (lastError) {
               console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
               chrome.storage.local.remove(["activeTabUrl"]);
-              resolve("undefind");
+              resolve("https://*/*");
               return;
             }
             chrome.storage.local.remove(["activeTabUrl"]);
             if (result.activeTabUrl) {
               resolve(result.activeTabUrl.url);
             } else {
-              resolve("undefind");
+              resolve("https://*/*");
             }
           });
         });

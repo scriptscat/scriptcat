@@ -88,7 +88,6 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptConnect:", lastError);
-          // API出错不进行连接监听
         }
         const handler = (msg: any) => {
           port!.onMessage.removeListener(handler);
