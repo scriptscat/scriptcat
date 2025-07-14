@@ -80,6 +80,11 @@ export default class ServiceWorkerManager {
 
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.onAlarm:", lastError);
+        // 非预期的异常API错误，停止处理
+      }
       switch (alarm.name) {
         case "checkScriptUpdate":
           script.checkScriptUpdate();
@@ -103,11 +108,27 @@ export default class ServiceWorkerManager {
     });
     // 12小时检查一次扩展更新
     chrome.alarms.get("checkUpdate", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+        // 非预期的异常API错误，停止处理
+      }
       if (!alarm) {
-        chrome.alarms.create("checkUpdate", {
-          delayInMinutes: 0,
-          periodInMinutes: 12 * 60,
-        });
+        chrome.alarms.create(
+          "checkUpdate",
+          {
+            delayInMinutes: 0,
+            periodInMinutes: 12 * 60,
+          },
+          () => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+              // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+              console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+            }
+          }
+        );
       }
     });
 
@@ -127,23 +148,27 @@ export default class ServiceWorkerManager {
 
     if (process.env.NODE_ENV === "production") {
       chrome.runtime.onInstalled.addListener((details) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
+          // chrome.runtime.onInstalled API出错不进行后续处理
+        }
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
         } else if (details.reason === "update") {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
+              // 查詢 tabs 失敗不进行后续处理
+            }
             // 如果有激活窗口, 则打开更新文档
             // 如果当前窗口正在播放 audio, 则在后台打开
-            if (tabs.length > 0) {
-              chrome.tabs.create({
-                url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
-                active: tabs[0].audible === true ? false : true,
-              });
-            } else {
-              chrome.tabs.create({
-                url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
-                active: false,
-              });
-            }
+            const active = tabs.length === 0 ? false : tabs[0].audible === true ? false : true;
+            chrome.tabs.create({
+              url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+              active: active,
+            });
           });
         }
       });

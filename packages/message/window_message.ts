@@ -100,15 +100,19 @@ export class WindowMessage implements Message {
 
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage(data: any): Promise<any> {
-    return new Promise((resolve) => {
+    return new Promise((resolve: ((value: any) => void) | null) => {
       const body: WindowMessageBody = {
         messageId: uuidv4(),
         type: "sendMessage",
         data,
       };
-      const callback = (body: WindowMessageBody) => {
-        this.EE.removeListener("response:" + body.messageId, callback);
-        resolve(body.data);
+      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+        if (callback !== null) {
+          this.EE.removeListener("response:" + body.messageId, callback!);
+          resolve!(body.data);
+          callback = null; // 设为 null 提醒JS引擎可以GC
+          resolve = null;
+        }
       };
       this.EE.addListener("response:" + body.messageId, callback);
       this.target.postMessage(body, "*");
@@ -214,9 +218,12 @@ export class ServiceWorkerMessageSend implements MessageSend {
         type: "sendMessage",
         data,
       };
-      const callback = (body: WindowMessageBody) => {
-        this.EE.removeListener("response:" + body.messageId, callback);
-        resolve(body.data);
+      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+        if (callback !== null) {
+          this.EE.removeListener("response:" + body.messageId, callback);
+          resolve(body.data);
+          callback = null; // 设为 null 提醒JS引擎可以GC
+        }
       };
       this.EE.addListener("response:" + body.messageId, callback);
       this.target!.postMessage(body);

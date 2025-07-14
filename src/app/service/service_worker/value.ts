@@ -117,6 +117,12 @@ export class ValueService {
     };
 
     chrome.tabs.query({}, (tabs) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
+        // 没有 tabs 资讯，无法发推送到 tabs
+        return;
+      }
       // 推送到所有加载了本脚本的tab中
       tabs.forEach(async (tab) => {
         const scriptMenu = await this.popup!.getScriptMenu(tab.id!);

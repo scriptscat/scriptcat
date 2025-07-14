@@ -123,6 +123,12 @@ export class PopupService {
   updateScriptMenu() {
     // 获取当前页面并更新菜单
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
+        // 无法获取当前页面
+        return;
+      }
       if (!tabs.length) {
         return;
       }
@@ -326,6 +332,12 @@ export class PopupService {
 
     // 监听tab开关
     chrome.tabs.onRemoved.addListener((tabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
+        // 没有 tabId 资讯，无法释放数据
+        return;
+      }
       // 清理数据tab关闭需要释放的数据
       this.txUpdateScriptMenu(tabId, async (script) => {
         script.forEach((script) => {
@@ -343,10 +355,22 @@ export class PopupService {
     });
     // 监听页面切换加载菜单
     chrome.tabs.onActivated.addListener((activeInfo) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onActivated:", lastError);
+        // 没有 tabId 资讯，无法加载菜单
+        return;
+      }
       this.genScriptMenu(activeInfo.tabId);
     });
     // 处理chrome菜单点击
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.contextMenus.onClicked:", lastError);
+        // 出现错误不处理chrome菜单点击
+        return;
+      }
       const menuIds = (info.menuItemId as string).split("_");
       if (menuIds.length === 4) {
         const [, , uuid, id] = menuIds;
@@ -392,12 +416,18 @@ export class PopupService {
         scripts: ScriptMatchInfo[];
       }) => {
         this.addScriptRunNumber({ tabId, frameId, scripts });
-        // 设置角标和脚本
+        // 设置角标
         chrome.action.getBadgeText(
           {
             tabId: tabId,
           },
           (res: string) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.action.getBadgeText:", lastError);
+              // 出现错误不设置角标
+              return;
+            }
             if (res || scripts.length) {
               chrome.action.setBadgeText({
                 text: (scripts.length + (parseInt(res, 10) || 0)).toString(),

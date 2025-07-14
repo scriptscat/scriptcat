@@ -24,6 +24,11 @@ export default interface CloudScript {
 function getCookies(detail: chrome.cookies.GetAllDetails): Promise<chrome.cookies.Cookie[]> {
   return new Promise((resolve) => {
     chrome.cookies.getAll(detail, (cookies) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.cookies.getAll:", lastError);
+        // 无视错误继续执行
+      }
       resolve(cookies);
     });
   });

@@ -275,9 +275,20 @@ export class SubscribeService {
     });
 
     // 定时检查更新, 每10分钟检查一次
-    chrome.alarms.create("checkSubscribeUpdate", {
-      delayInMinutes: 10,
-      periodInMinutes: 10,
-    });
+    chrome.alarms.create(
+      "checkSubscribeUpdate",
+      {
+        delayInMinutes: 10,
+        periodInMinutes: 10,
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+        }
+      }
+    );
   }
 }

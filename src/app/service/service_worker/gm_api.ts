@@ -29,6 +29,9 @@ type RequestResultParams = {
   responseHeader: string;
 };
 
+type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOptions}`;
+type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
+
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
 interface IGMExternalDependencies {
@@ -529,7 +532,7 @@ export default class GMApi {
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = reqeustId;
     rule.action = {
-      type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
+      type: "modifyHeaders",
       requestHeaders: requestHeaders,
     };
     rule.priority = 1;
@@ -982,6 +985,11 @@ export default class GMApi {
           filename: params.name,
         },
         () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
+            // 下载API出现问题但继续执行
+          }
           sender.getConnect().sendMessage({ action: "onload" });
         }
       );
@@ -1095,15 +1103,30 @@ export default class GMApi {
       }
     };
     chrome.notifications.onClosed.addListener((notificationId, byUser) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.notifications.onClosed:", lastError);
+        // 无视 通知API 错误
+      }
       send("close", notificationId, {
         byUser,
       });
       Cache.getInstance().del(`GM_notification:${notificationId}`);
     });
     chrome.notifications.onClicked.addListener((notificationId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.notifications.onClosed:", lastError);
+        // 无视 通知API 错误
+      }
       send("click", notificationId);
     });
     chrome.notifications.onButtonClicked.addListener((notificationId, index) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.notifications.onClosed:", lastError);
+        // 无视 通知API 错误
+      }
       send("buttonClick", notificationId, {
         index,
       });
@@ -1112,14 +1135,20 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
-    const reqOpt: `${chrome.webRequest.OnBeforeSendHeadersOptions}`[] = ["requestHeaders"];
-    const respOpt: `${chrome.webRequest.OnHeadersReceivedOptions}`[] = ["responseHeaders"];
+    const reqOpt: OnBeforeSendHeadersOptions[] = ["requestHeaders"];
+    const respOpt: OnHeadersReceivedOptions[] = ["responseHeaders"];
     if (!isFirefox()) {
       reqOpt.push("extraHeaders");
       respOpt.push("extraHeaders");
     }
     chrome.webRequest.onBeforeSendHeaders.addListener(
       (details) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeSendHeaders:", lastError);
+          // webRequest API 出错不进行后续处理
+          return undefined;
+        }
         if (details.tabId === -1) {
           // 判断是否存在X-Scriptcat-GM-XHR-Request-Id
           // 讲请求id与chrome.webRequest的请求id关联
@@ -1140,6 +1169,12 @@ export default class GMApi {
     );
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeSendHeaders:", lastError);
+          // webRequest API 出错不进行后续处理
+          return undefined;
+        }
         if (details.tabId === -1) {
           // 判断请求是否与gmXhrRequest关联
           const requestId = this.cache.get("gmXhrRequest:" + details.requestId);
@@ -1195,6 +1230,12 @@ export default class GMApi {
     this.handlerNotification();
 
     chrome.tabs.onRemoved.addListener(async (tabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
+        // chrome.tabs.onRemoved API 出错不进行后续处理
+        return undefined;
+      }
       // 处理GM_openInTab关闭事件
       const sender = (await Cache.getInstance().get(`GM_openInTab:${tabId}`)) as {
         uuid: string;

@@ -11,6 +11,12 @@ export class MessageQueue {
 
   constructor() {
     chrome.runtime.onMessage.addListener((msg) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
+        // 消息API发生错误因此不继续执行
+        return false;
+      }
       if (msg.action === "messageQueue") {
         this.handler(msg.data);
       }

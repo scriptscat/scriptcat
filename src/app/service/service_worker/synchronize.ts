@@ -143,9 +143,9 @@ export class SynchronizeService {
       storage.data[key] = values[key];
     });
 
-    const requires = await this.resource.getResourceByType(script, "require");
-    const requiresCss = await this.resource.getResourceByType(script, "require-css");
-    const resources = await this.resource.getResourceByType(script, "resource");
+    const requires = await this.resource.getResourceByType(script, "require", false);
+    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
+    const resources = await this.resource.getResourceByType(script, "resource", false);
 
     ret.requires = this.resourceToBackdata(requires);
     ret.requiresCss = this.resourceToBackdata(requiresCss);
@@ -607,10 +607,26 @@ export class SynchronizeService {
         await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
         chrome.alarms.get("cloudSync", (alarm) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+            // 非预期的异常API错误，停止处理
+          }
           if (!alarm) {
-            chrome.alarms.create("cloudSync", {
-              periodInMinutes: 60,
-            });
+            chrome.alarms.create(
+              "cloudSync",
+              {
+                periodInMinutes: 60,
+              },
+              () => {
+                const lastError = chrome.runtime.lastError;
+                if (lastError) {
+                  console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+                  // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+                  console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+                }
+              }
+            );
           }
         });
       });

@@ -53,6 +53,12 @@ export function NetDisk(netDiskType: NetDiskType) {
           url: `${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`,
         })
         .then(({ id: tabId }) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.tabs.create:", lastError);
+            // 没有 tabId 无法执行
+            return;
+          }
           const t = setInterval(async () => {
             try {
               const tab = await chrome.tabs.get(tabId!);

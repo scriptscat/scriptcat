@@ -60,7 +60,7 @@ export class RuntimeService {
         platform: userAgentData.platform,
       };
       // 处理architecture和bitness
-      if (chrome?.runtime?.getPlatformInfo) {
+      if (chrome.runtime.getPlatformInfo) {
         const platformInfo = await chrome.runtime.getPlatformInfo();
         this.userAgentData.architecture = platformInfo.nacl_arch;
         this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
@@ -88,7 +88,7 @@ export class RuntimeService {
     this.group.on("pageLoad", this.pageLoad.bind(this));
 
     // 检查是否开启了开发者模式
-    this.isEnableDeveloperMode = isUserScriptsAvailable();
+    this.isEnableDeveloperMode = await isUserScriptsAvailable();
     if (!this.isEnableDeveloperMode) {
       // 未开启加上警告引导
       // 判断是否首次
@@ -517,7 +517,7 @@ export class RuntimeService {
       scripts: enableScript,
       envInfo: {
         sandboxMode: "raw",
-        isIncognito: chrome?.extension?.inIncognitoContext ?? undefined,
+        isIncognito: chrome.extension?.inIncognitoContext ?? undefined,
         userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
     };
@@ -798,21 +798,17 @@ export class RuntimeService {
         },
       });
       if (res.length > 0) {
-        await chrome.userScripts.update([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("update registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.update([registerScript]);
+        } catch (e) {
+          logger.error("update registerScript error", Logger.E(e));
+        }
       } else {
-        await chrome.userScripts.register([registerScript], () => {
-          if (chrome.runtime.lastError) {
-            logger.error("registerScript error", {
-              error: chrome.runtime.lastError,
-            });
-          }
-        });
+        try {
+          await chrome.userScripts.register([registerScript]);
+        } catch (e) {
+          logger.error("registerScript error", Logger.E(e));
+        }
       }
       await Cache.getInstance().set("registryScript:" + script.uuid, true);
     }
