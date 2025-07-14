@@ -512,7 +512,6 @@ export class RuntimeService {
       scripts: enableScript,
     });
 
-    // console.log("pageLoad", enableScript);
     return {
       flag: scriptFlag,
       scripts: enableScript,
@@ -566,22 +565,6 @@ export class RuntimeService {
         csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
         messaging: true,
       });
-      try {
-        // 注册content.js
-        await chrome.scripting.registerContentScripts([
-          {
-            id: "scriptcat-content",
-            js: ["/src/content.js"],
-            matches: ["<all_urls>"],
-            allFrames: true,
-            runAt: "document_start",
-            world: "ISOLATED",
-          },
-        ]);
-      } catch (e) {
-        this.logger.error("update inject.js error", Logger.E(e));
-        throw e;
-      }
       const scripts: chrome.userScripts.RegisteredUserScript[] = [
         {
           id: "scriptcat-inject",
@@ -815,17 +798,21 @@ export class RuntimeService {
         },
       });
       if (res.length > 0) {
-        try {
-          await chrome.userScripts.update([registerScript]);
-        } catch (e) {
-          logger.error("update registerScript error", Logger.E(e));
-        }
+        await chrome.userScripts.update([registerScript], () => {
+          if (chrome.runtime.lastError) {
+            logger.error("update registerScript error", {
+              error: chrome.runtime.lastError,
+            });
+          }
+        });
       } else {
-        try {
-          await chrome.userScripts.register([registerScript]);
-        } catch (e) {
-          logger.error("registerScript error", Logger.E(e));
-        }
+        await chrome.userScripts.register([registerScript], () => {
+          if (chrome.runtime.lastError) {
+            logger.error("registerScript error", {
+              error: chrome.runtime.lastError,
+            });
+          }
+        });
       }
       await Cache.getInstance().set("registryScript:" + script.uuid, true);
     }

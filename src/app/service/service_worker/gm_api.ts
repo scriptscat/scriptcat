@@ -437,54 +437,23 @@ export default class GMApi {
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
-        operation:
-          chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
-          ("remove" as chrome.declarativeNetRequest.HeaderOperation),
+        operation: "remove",
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
-    Object.keys(headers).forEach((key) => {
-      const lowKey = key.toLowerCase();
-      if (headers[key]) {
-        if (unsafeHeaders[lowKey] || lowKey.startsWith("sec-") || lowKey.startsWith("proxy-")) {
-          if (headers[key]) {
-            requestHeaders.push({
-              header: key,
-              operation:
-                chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
-                ("set" as chrome.declarativeNetRequest.HeaderOperation),
-              value: headers[key],
-            });
-          }
-          delete headers[key];
-        }
-      } else {
-        requestHeaders.push({
-          header: key,
-          operation:
-            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
-            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
-        });
-        delete headers[key];
-      }
-    });
     // 判断是否是anonymous
     if (params.anonymous) {
       // 如果是anonymous，并且有cookie，则设置为自定义的cookie
       if (params.cookie) {
         requestHeaders.push({
           header: "cookie",
-          operation:
-            chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
-            ("set" as chrome.declarativeNetRequest.HeaderOperation),
+          operation: "set",
           value: params.cookie,
         });
       } else {
         // 否则删除cookie
         requestHeaders.push({
           header: "cookie",
-          operation:
-            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
-            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
+          operation: "remove",
         });
       }
     } else {
@@ -542,9 +511,7 @@ export default class GMApi {
         if (checkHasUnsafeHeaders(key)) {
           requestHeaders.push({
             header: key,
-            operation:
-              chrome?.declarativeNetRequest?.HeaderOperation?.SET ??
-              ("set" as chrome.declarativeNetRequest.HeaderOperation),
+            operation: "set",
             value: headerValue.toString(),
           });
           deleteHeader = true;
@@ -552,9 +519,7 @@ export default class GMApi {
       } else {
         requestHeaders.push({
           header: key,
-          operation:
-            chrome?.declarativeNetRequest?.HeaderOperation?.REMOVE ??
-            ("remove" as chrome.declarativeNetRequest.HeaderOperation),
+          operation: "remove",
         });
         deleteHeader = true;
       }
@@ -576,7 +541,7 @@ export default class GMApi {
       }
     });
     rule.condition = {
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST],
+      resourceTypes: ["xmlhttprequest"],
       urlFilter: params.url,
       requestMethods: [(params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod],
       excludedTabIds: excludedTabIds,
@@ -1147,8 +1112,8 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
-    const reqOpt: ("requestHeaders" | "blocking" | "extraHeaders")[] = ["requestHeaders"];
-    const respOpt: ("blocking" | "extraHeaders" | "responseHeaders")[] = ["responseHeaders"];
+    const reqOpt: `${chrome.webRequest.OnBeforeSendHeadersOptions}`[] = ["requestHeaders"];
+    const respOpt: `${chrome.webRequest.OnHeadersReceivedOptions}`[] = ["responseHeaders"];
     if (!isFirefox()) {
       reqOpt.push("extraHeaders");
       respOpt.push("extraHeaders");
