@@ -44,6 +44,7 @@ type FavIconResult = {
   uuid: string;
   fav: {
     match: string;
+    website?: string;
     icon?: string;
   }[];
 };
