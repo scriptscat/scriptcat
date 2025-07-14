@@ -56,12 +56,13 @@ const firefoxManifest = { ...manifest };
 const chromeManifest = { ...manifest };
 
 delete chromeManifest.content_security_policy;
+delete chromeManifest.optional_permissions;
+delete chromeManifest.background.scripts;
 
 delete firefoxManifest.sandbox;
 // firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
-    id: "{8e515334-52b5-4cc5-b4e8-675d50af677d}",
     strict_min_version: "91.1.0",
   },
 };
@@ -103,13 +104,13 @@ chrome
   })
   .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-chrome.zip`));
 
-firefox
-  .generateNodeStream({
-    type: "nodebuffer",
-    streamFiles: true,
-    compression: "DEFLATE",
-  })
-  .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
+// firefox
+//   .generateNodeStream({
+//     type: "nodebuffer",
+//     streamFiles: true,
+//     compression: "DEFLATE",
+//   })
+//   .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
 
 // 处理crx
 const crx = new ChromeExtension({

@@ -105,6 +105,5 @@ export default class ContentRuntime {
     );
     const client = new Client(this.msg, "inject");
     client.do("pageLoad", { scripts, envInfo });
-    // console.log("pageLoad", scripts, envInfo);
   }
 }

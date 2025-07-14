@@ -23,7 +23,6 @@ export function dealScript(source: string): string {
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
-  // return navigator.userAgent.includes("Firefox");
 }
 
 export function InfoNotification(title: string, msg: string) {

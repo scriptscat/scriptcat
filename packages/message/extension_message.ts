@@ -5,31 +5,16 @@ export class ExtensionMessageSend implements MessageSend {
 
   connect(data: any): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      const runtime = chrome.runtime;
-      if (typeof runtime?.connect !== "undefined") {
-        const con = runtime?.connect();
-        con.postMessage(data);
-        resolve(new ExtensionMessageConnect(con));
-      } else {
-        // Fallback using sendMessage
-        runtime?.sendMessage({ _emulateConnect: true, ...data }, (_resp) => {
-          const fakePort = {
-            postMessage: (_data: any) => {}, // stub
-            onMessage: {
-              addListener: () => {},
-              removeListener: () => {},
-            },
-          } as any;
-          resolve(new ExtensionMessageConnect(fakePort));
-        });
-      }
+      const con = chrome.runtime.connect();
+      con.postMessage(data);
+      resolve(new ExtensionMessageConnect(con));
     });
   }
 
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage(data: any): Promise<any> {
     return new Promise((resolve) => {
-      chrome.runtime?.sendMessage(data, (resp) => {
+      chrome.runtime.sendMessage(data, (resp) => {
         resolve(resp);
       });
     });
@@ -39,31 +24,13 @@ export class ExtensionMessageSend implements MessageSend {
 // 由于service worker的限制，特殊处理chrome.runtime.onConnect/Message
 export class ServiceWorkerMessage extends ExtensionMessageSend implements Message {
   onConnect(callback: (data: any, con: MessageConnect) => void): void {
-    const runtime = chrome.runtime;
-    if (typeof runtime?.onConnect !== "undefined") {
-      runtime?.onConnect.addListener((port) => {
-        const handler = (msg: any) => {
-          port.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port));
-        };
-        port.onMessage.addListener(handler);
-      });
-    } else {
-      // Fallback using onMessage as a poor man's port emulation
-      runtime?.onMessage?.addListener((msg, _sender, sendResponse) => {
-        if (msg && msg._emulateConnect) {
-          const fakePort = {
-            postMessage: (data: any) => sendResponse(data),
-            onMessage: {
-              addListener: () => {},
-              removeListener: () => {},
-            },
-          } as any;
-          callback(msg, fakePort);
-          return true;
-        }
-      });
-    }
+    chrome.runtime.onConnect.addListener((port) => {
+      const handler = (msg: any) => {
+        port.onMessage.removeListener(handler);
+        callback(msg, new ExtensionMessageConnect(port));
+      };
+      port.onMessage.addListener(handler);
+    });
   }
 
   onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
@@ -81,36 +48,18 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
     super();
   }
 
-  onConnect(callback: (data: any, con: MessageConnect) => void): void {
-    const runtime = chrome.runtime;
-    if (typeof runtime?.onConnect !== "undefined") {
-      runtime?.onConnect.addListener((port) => {
-        const handler = (msg: any) => {
-          port.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port));
-        };
-        port.onMessage.addListener(handler);
-      });
-    } else {
-      // Fallback using onMessage as a poor man's port emulation
-      runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
-        if (msg && msg._emulateConnect) {
-          const fakePort = {
-            postMessage: (data: any) => sendResponse(data),
-            onMessage: {
-              addListener: () => {},
-              removeListener: () => {},
-            },
-          } as any;
-          callback(msg, fakePort);
-          return true;
-        }
-      });
-    }
+  onConnect(callback: (data: any, con: MessageConnect) => void) {
+    chrome.runtime.onConnect.addListener((port) => {
+      const handler = (msg: any) => {
+        port.onMessage.removeListener(handler);
+        callback(msg, new ExtensionMessageConnect(port));
+      };
+      port.onMessage.addListener(handler);
+    });
 
     if (this.onUserScript) {
       // 监听用户脚本的连接
-      chrome.runtime?.onUserScriptConnect?.addListener((port: any) => {
+      chrome.runtime.onUserScriptConnect.addListener((port) => {
         const handler = (msg: any) => {
           port.onMessage.removeListener(handler);
           callback(msg, new ExtensionMessageConnect(port));
@@ -122,7 +71,7 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
 
   // 注意chrome.runtime.onMessage.addListener的回调函数需要返回true才能处理异步请求
   onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
-    chrome.runtime?.onMessage?.addListener((msg, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.action === "messageQueue") {
         return false;
       }
@@ -130,7 +79,7 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
     });
     if (this.onUserScript) {
       // 监听用户脚本的消息
-      chrome.runtime?.onUserScriptMessage?.addListener((msg, sender, sendResponse) => {
+      chrome.runtime.onUserScriptMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === "messageQueue") {
           return false;
         }

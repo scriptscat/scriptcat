@@ -51,47 +51,6 @@ function App() {
     // ignore error
   }
 
-  /*
-  useEffect(() => {
-    let isMounted = true;
-    const loadConfig = async () => {
-      const [isEnableScript, checkUpdate] = await Promise.all([
-        systemConfig.getEnableScript(),
-        systemConfig.getCheckUpdate(),
-      ]);
-      if (!isMounted) return;
-      setIsEnableScript(isEnableScript);
-      setCheckUpdate(checkUpdate);
-    };
-    loadConfig();
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!isMounted || !tabs.length) return;
-      const newUrl = tabs[0].url || "";
-      if (newUrl !== currentUrl) {
-        setCurrentUrl(newUrl);
-        popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
-          if (!isMounted) return;
-          // 按照开启状态和更新时间排序
-          const list = resp.scriptList;
-          list.sort((a, b) =>
-            //@ts-ignore
-            (b.enable - a.enable) || (
-              // 根据菜单数排序
-              (b.menus.length - a.menus.length) || (b.runNum - a.runNum) || (b.updatetime - a.updatetime)
-            )
-          );
-          setScriptList(list);
-          setBackScriptList(resp.backScriptList);
-          setIsBlacklist(resp.isBlacklist);
-        });
-      }
-    });
-    return () => {
-      isMounted = false;
-    }
-  }, [currentUrl]);
-  */
-
   useEffect(() => {
     let isMounted = true;
 
