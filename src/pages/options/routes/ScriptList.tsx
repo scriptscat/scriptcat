@@ -144,7 +144,7 @@ function ScriptList() {
       }[];
     }) => {
       const processed = useMemo(() => {
-        // 排序并且只显示前5个
+        // 排序并且只显示前4个
         // 排序将有icon的放在前面
         return [...favorites]
           .sort((a, b) => {
