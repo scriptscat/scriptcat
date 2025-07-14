@@ -95,7 +95,7 @@ export function openInCurrentTab(url: string) {
     },
     (tabs) => {
       if (chrome.runtime.lastError) {
-        console.log("chrome.runtime.lastError in chrome.tabs.query:", chrome.runtime.lastError);
+        console.error("chrome.runtime.lastError in chrome.tabs.query:", chrome.runtime.lastError);
         // 因为API报错，我们不应无视并尝试强行打开新页面
         return;
       }
