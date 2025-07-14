@@ -155,7 +155,6 @@ function ScriptList() {
           .slice(0, 4);
       }, [favorites]);
 
-      console.log("Processed favorites:", processed);
       return (
         <Avatar.Group size={20}>
           {processed.map((fav) => (
@@ -217,10 +216,8 @@ function ScriptList() {
 
   const RunApplyGroup = React.memo(
     ({ item }: { item: ScriptLoading }) => {
-      console.log("RunApplyGroup", item);
       if (item.type === SCRIPT_TYPE_NORMAL) {
         // 处理站点icon
-        console.log("Rendering FavoriteAvatars for:", item.favorite);
         return item.favorite && <FavoriteAvatars favorites={item.favorite} />;
       } else {
         return <RunApplyTooltip item={item} />;
