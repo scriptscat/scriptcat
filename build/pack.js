@@ -66,7 +66,14 @@ delete firefoxManifest.sandbox;
 // firefoxManifest.content_security_policy =
 // "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
-  gecko: { strict_min_version: "91.1.0" },
+  gecko: {
+    id: `${
+      version.prerelease.length
+        ? "scriptcat-beta@scriptcat.org"
+        : "scriptcat@scriptcat.org"
+    }`,
+    strict_min_version: "91.1.0",
+  },
 };
 
 const chrome = new JSZip();
