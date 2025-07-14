@@ -52,20 +52,19 @@ export class RuntimeService {
 
   async initUserAgentData() {
     // @ts-ignore
-    if (navigator.userAgentData) {
-      // @ts-ignore
+    const userAgentData = navigator.userAgentData;
+    if (userAgentData) {
       this.userAgentData = {
-        // @ts-ignore
-        brands: navigator.userAgentData.brands,
-        // @ts-ignore
-        mobile: navigator.userAgentData.mobile,
-        // @ts-ignore
-        platform: navigator.userAgentData.platform,
+        brands: userAgentData.brands,
+        mobile: userAgentData.mobile,
+        platform: userAgentData.platform,
       };
       // 处理architecture和bitness
-      const platformInfo = await chrome.runtime.getPlatformInfo();
-      this.userAgentData.architecture = platformInfo.nacl_arch;
-      this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+      if (chrome?.runtime?.getPlatformInfo) {
+        const platformInfo = await chrome.runtime.getPlatformInfo();
+        this.userAgentData.architecture = platformInfo.nacl_arch;
+        this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+      }
     }
   }
 

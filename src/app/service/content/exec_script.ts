@@ -1,8 +1,8 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext } from "./create_context";
+import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, createProxyContext } from "./utils";
+import { compileScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
@@ -17,7 +17,7 @@ export default class ExecScript {
 
   logger: Logger;
 
-  proxyContext: typeof globalThis;
+  // proxyContext: typeof globalThis;
 
   sandboxContext?: IGM_Base & { [key: string]: any };
 
@@ -47,7 +47,6 @@ export default class ExecScript {
     const grantSet = new Set(scriptRes.metadata.grant || []);
     if (grantSet.has("none")) {
       // 不注入任何GM api
-      this.proxyContext = global;
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 不改变Context情况下，以 named 传多於一个全域变量
       this.named = { GM: { info: GM_info }, GM_info };
@@ -57,7 +56,6 @@ export default class ExecScript {
       if (globalInjection) {
         Object.assign(this.sandboxContext, globalInjection);
       }
-      this.proxyContext = createProxyContext(global, this.sandboxContext);
     }
   }
 
@@ -76,7 +74,8 @@ export default class ExecScript {
    */
   exec() {
     this.logger.debug("script start");
-    const context = this.proxyContext;
+    const sandboxContext = this.sandboxContext;
+    const context = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
     return this.scriptFunc.call(context, this.named, this.scriptRes.name);
   }
 
