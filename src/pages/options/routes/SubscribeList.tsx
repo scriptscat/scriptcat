@@ -121,7 +121,7 @@ function SubscribeList() {
           </div>
         );
       },
-      onFilter: (value, row) => (!value || row.name.includes(value)),
+      onFilter: (value, row) => !value || row.name.includes(value),
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
           setTimeout(() => inputRef.current!.focus(), 150);

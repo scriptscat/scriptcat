@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { BackTop, Button, Card, DatePicker, Input, List, Message, Space } from "@arco-design/web-react";
 import dayjs from "dayjs";
 import Text from "@arco-design/web-react/es/Typography/text";
-import type { Logger} from "@App/app/repo/logger";
+import type { Logger } from "@App/app/repo/logger";
 import { LoggerDAO } from "@App/app/repo/logger";
 import type { Labels, Query } from "@App/pages/components/LogLabel";
 import LogLabel from "@App/pages/components/LogLabel";
@@ -55,7 +55,6 @@ function LoggerPage() {
               }
               break;
             default:
-               
               if (value != query.value) {
                 return;
               }
@@ -308,9 +307,8 @@ function LoggerPage() {
                   key={item.id}
                   style={{
                     background:
-                       
                       item.level === "error"
-                        ? "var(--color-danger-light-2)"  
+                        ? "var(--color-danger-light-2)"
                         : item.level === "warn"
                           ? "var(--color-warning-light-2)"
                           : item.level === "info"

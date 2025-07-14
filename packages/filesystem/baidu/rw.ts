@@ -120,7 +120,7 @@ export class BaiduFileWriter implements FileWriter {
         body: urlencoded,
       }
     );
-    if(data.errno) {
+    if (data.errno) {
       throw new Error(JSON.stringify(data));
     }
   }

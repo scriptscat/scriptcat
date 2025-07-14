@@ -1,9 +1,9 @@
-import type { Script} from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import type { editor} from "monaco-editor";
+import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
@@ -131,19 +131,18 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   const prepareScript = await prepareScriptByCode(code, "", uuidv4());
   const { script } = prepareScript;
 
-  return ({
+  return {
     script,
     code,
     active: true,
     hotKeys,
     isChanged: false,
-  });
+  };
 };
 
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 const popstate = () => {
-   
   if (confirm(i18n.t("script_modified_leave_confirm"))) {
     window.history.back();
     window.removeEventListener("popstate", popstate);
@@ -265,7 +264,6 @@ function ScriptEditor() {
             This will be defined during an API method callback if there was an error
           */
           if (chrome.runtime.lastError) {
-             
             console.log(t("save_as_failed") + ": ", chrome.runtime.lastError);
             Message.error(`${t("save_as_failed")}: ${chrome.runtime.lastError.message}`);
           } else {
@@ -476,7 +474,6 @@ function ScriptEditor() {
     let selectEditorIndex: number = 0;
     // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
     if (rightOperationTab) {
-       
       switch (rightOperationTab.key) {
         case "1":
           setEditors(prev => {
@@ -956,7 +953,6 @@ function ScriptEditor() {
                     position="bl"
                     droplist={
                       <Menu
-                         
                         onClickMenuItem={(key) => {
                           setRightOperationTab({
                             ...rightOperationTab,
@@ -975,9 +971,8 @@ function ScriptEditor() {
                   >
                     <span
                       style={{
-                         
                         color: e.isChanged
-                          ? "rgb(var(--orange-5))"  
+                          ? "rgb(var(--orange-5))"
                           : e.script.uuid === selectSciptButtonAndTab
                             ? "rgb(var(--green-7))"
                             : e.active

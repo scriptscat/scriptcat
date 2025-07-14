@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next"; // 添加这行导入语句
 import type { Script, UserConfig } from "@App/app/repo/scripts";
-import type {
-  FormInstance} from "@arco-design/web-react";
+import type { FormInstance } from "@arco-design/web-react";
 import {
   Checkbox,
   Form,

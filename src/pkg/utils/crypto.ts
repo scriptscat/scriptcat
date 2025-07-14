@@ -27,11 +27,11 @@ function calculateMD5FromArrayBuffer(a: ArrayBuffer) {
 
 export function calculateHashFromArrayBuffer(a: ArrayBuffer) {
   const wordArray = crypto.lib.WordArray.create(<ArrayBuffer>a);
-  return({
+  return {
     md5: crypto.MD5(wordArray).toString(),
     sha1: crypto.SHA1(wordArray).toString(),
     sha256: crypto.SHA256(wordArray).toString(),
     sha384: crypto.SHA384(wordArray).toString(),
     sha512: crypto.SHA512(wordArray).toString(),
-  });
+  };
 }

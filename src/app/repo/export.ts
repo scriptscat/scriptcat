@@ -16,7 +16,7 @@ export interface Export {
 export class ExportDAO extends Repo<Export> {
   public tableName = "export";
 
-  constructor() {    
+  constructor() {
     super("export");
   }
 

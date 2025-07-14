@@ -86,8 +86,6 @@ declare const GM_info: {
   [key: string]: unknown;
 };
 
-
-
 declare function GM_listValues(): string[];
 
 declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;

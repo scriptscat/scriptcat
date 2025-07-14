@@ -1,4 +1,3 @@
- 
 import type { JSZipObject } from "jszip";
 import type JSZip from "jszip";
 import type { FileReader, FileWriter } from "../filesystem";

@@ -259,7 +259,7 @@ export class SynchronizeService {
     chrome.downloads.download({
       url,
       saveAs: true,
-      filename: `scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`,
+      filename: `scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`,
     });
     return;
   }
@@ -277,7 +277,7 @@ export class SynchronizeService {
       await cloudFs.createDir("ScriptCat");
       cloudFs = await cloudFs.openDir("ScriptCat");
       // 云端文件系统写入文件
-      const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date, "YYYY-MM-DDTHH-mm-ss")}.zip`);
+      const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
         await zip.generateAsync({
           type: "blob",

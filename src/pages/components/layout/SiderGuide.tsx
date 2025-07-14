@@ -2,7 +2,7 @@ import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Step } from "react-joyride";
 import Joyride from "react-joyride";
-import type { Path} from "react-router-dom";
+import type { Path } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
 
