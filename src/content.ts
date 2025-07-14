@@ -21,7 +21,9 @@ client.pageLoad().then((data) => {
   const extMsg = new ExtensionMessage();
   const msg = new CustomEventMessage(data.flag, true);
   const server = new Server("content", msg);
-  const extServer = new Server("content", extMsg);
+  // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
+  // 所以不需要处理连接，设置为false
+  const extServer = new Server("content", extMsg, false);
   // 初始化运行环境
   const runtime = new ContentRuntime(extServer, server, send, msg);
   runtime.start(data.scripts, data.envInfo);

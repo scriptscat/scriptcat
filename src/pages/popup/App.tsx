@@ -11,7 +11,7 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
@@ -20,7 +20,7 @@ import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { localePath } from "@App/locales/locales";
-import { getBrowserVersion, isEdge, isUserScriptsAvailable } from "@App/pkg/utils/utils";
+import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -50,47 +50,6 @@ function App() {
   } catch (_: any) {
     // ignore error
   }
-
-  /*
-  useEffect(() => {
-    let isMounted = true;
-    const loadConfig = async () => {
-      const [isEnableScript, checkUpdate] = await Promise.all([
-        systemConfig.getEnableScript(),
-        systemConfig.getCheckUpdate(),
-      ]);
-      if (!isMounted) return;
-      setIsEnableScript(isEnableScript);
-      setCheckUpdate(checkUpdate);
-    };
-    loadConfig();
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!isMounted || !tabs.length) return;
-      const newUrl = tabs[0].url || "";
-      if (newUrl !== currentUrl) {
-        setCurrentUrl(newUrl);
-        popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
-          if (!isMounted) return;
-          // 按照开启状态和更新时间排序
-          const list = resp.scriptList;
-          list.sort((a, b) =>
-            //@ts-ignore
-            (b.enable - a.enable) || (
-              // 根据菜单数排序
-              (b.menus.length - a.menus.length) || (b.runNum - a.runNum) || (b.updatetime - a.updatetime)
-            )
-          );
-          setScriptList(list);
-          setBackScriptList(resp.backScriptList);
-          setIsBlacklist(resp.isBlacklist);
-        });
-      }
-    });
-    return () => {
-      isMounted = false;
-    }
-  }, [currentUrl]);
-  */
 
   useEffect(() => {
     let isMounted = true;
@@ -194,27 +153,90 @@ function App() {
     [currentUrl]
   );
 
-  const isUserScriptsAvailableFlag = isUserScriptsAvailable();
+  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(isUserScriptsAvailable());
+
+  const warningMessageHTML = useMemo(() => {
+    // 可使用UserScript的话，不查browserType
+    const browserType = !isUserScriptsAvailableState ? getBrowserType() : null;
+
+    const warningMessageHTML = browserType
+      ? browserType.firefox
+        ? t("develop_mode_guide")
+        : browserType.chrome
+          ? browserType.chrome & BrowserType.chromeA
+            ? t("lower_version_browser_guide")
+            : browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome
+              ? t("allow_user_script_guide")
+              : t("develop_mode_guide") // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
+          : "UNKNOWN"
+      : "";
+
+    return warningMessageHTML;
+  }, [isUserScriptsAvailableState]);
+
+  // 权限要求详见：https://github.com/mdn/webextensions-examples/blob/main/userScripts-mv3/options.mjs
+
+  const [showRequestButton, setShowRequestButton] = useState(false);
+  //@ts-ignore
+  if (chrome?.permissions?.contains && chrome?.permissions?.request) {
+    chrome.permissions.contains(
+      {
+        permissions: ["userScripts"],
+      },
+      function (permissionOK) {
+        if (chrome.runtime.lastError) {
+          console.error("Error:", chrome.runtime.lastError.message);
+        } else {
+          if (permissionOK === false) {
+            // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
+            // chrome.permissions.request 应该可以执行
+            // 因此在这裡显示按钮
+            setShowRequestButton(true);
+          }
+        }
+      }
+    );
+  }
 
   return (
     <>
-      {!isUserScriptsAvailableFlag && (
+      {warningMessageHTML && (
         <Alert
           type="warning"
           content={
             <div
               dangerouslySetInnerHTML={{
-                __html:
-                  // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-                  getBrowserVersion() < 120
-                    ? t("lower_version_browser_guide")
-                    : getBrowserVersion() >= 138 && !isEdge()
-                      ? t("allow_user_script_guide")
-                      : t("develop_mode_guide"),
+                __html: warningMessageHTML,
               }}
             />
           }
         />
+      )}
+      {showRequestButton && (
+        <Button
+          onClick={() => {
+            chrome.permissions.request({ permissions: ["userScripts"] }, function (granted) {
+              if (chrome.runtime.lastError) {
+                console.error("Error:", chrome.runtime.lastError.message);
+              } else {
+                if (granted) {
+                  console.log("Permission granted");
+                  alert("Permission granted");
+                  // 需要进行UserScript API相关的通讯初始化
+                  // 或是使用 用 chrome.permissions.onAdded.addListener
+                  // 及 chrome.permissions.onRemoved.addListener
+                  // 来实现
+                  setIsUserScriptsAvailableState(isUserScriptsAvailable());
+                } else {
+                  console.log("Permission denied");
+                  alert("Permission denied");
+                }
+              }
+            });
+          }}
+        >
+          {t("request_permission")}
+        </Button>
       )}
       {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}
       <Card

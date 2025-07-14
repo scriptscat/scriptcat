@@ -517,8 +517,8 @@ export class RuntimeService {
       scripts: enableScript,
       envInfo: {
         sandboxMode: "raw",
-        isIncognito: chrome.extension.inIncognitoContext,
-        userAgentData: this.userAgentData,
+        isIncognito: chrome?.extension?.inIncognitoContext ?? undefined,
+        userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
     };
   }
@@ -558,7 +558,7 @@ export class RuntimeService {
       }
 
       messageFlag = await this.getAndGenMessageFlag();
-      const injectJs = await fetch("inject.js").then((res) => res.text());
+      const injectJs = await fetch("/src/inject.js").then((res) => res.text());
       // 替换ScriptFlag
       const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
       chrome.userScripts.configureWorld({

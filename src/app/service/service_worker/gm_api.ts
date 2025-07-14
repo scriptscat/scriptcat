@@ -437,7 +437,7 @@ export default class GMApi {
     const requestHeaders = [
       {
         header: "X-Scriptcat-GM-XHR-Request-Id",
-        operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+        operation: "remove",
       },
     ] as chrome.declarativeNetRequest.ModifyHeaderInfo[];
     // 判断是否是anonymous
@@ -446,14 +446,14 @@ export default class GMApi {
       if (params.cookie) {
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+          operation: "set",
           value: params.cookie,
         });
       } else {
         // 否则删除cookie
         requestHeaders.push({
           header: "cookie",
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation: "remove",
         });
       }
     } else {
@@ -511,7 +511,7 @@ export default class GMApi {
         if (checkHasUnsafeHeaders(key)) {
           requestHeaders.push({
             header: key,
-            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+            operation: "set",
             value: headerValue.toString(),
           });
           deleteHeader = true;
@@ -519,7 +519,7 @@ export default class GMApi {
       } else {
         requestHeaders.push({
           header: key,
-          operation: chrome.declarativeNetRequest.HeaderOperation.REMOVE,
+          operation: "remove",
         });
         deleteHeader = true;
       }
@@ -541,7 +541,7 @@ export default class GMApi {
       }
     });
     rule.condition = {
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST],
+      resourceTypes: ["xmlhttprequest"],
       urlFilter: params.url,
       requestMethods: [(params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod],
       excludedTabIds: excludedTabIds,
@@ -1112,6 +1112,12 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
+    const reqOpt: `${chrome.webRequest.OnBeforeSendHeadersOptions}`[] = ["requestHeaders"];
+    const respOpt: `${chrome.webRequest.OnHeadersReceivedOptions}`[] = ["responseHeaders"];
+    if (!isFirefox()) {
+      reqOpt.push("extraHeaders");
+      respOpt.push("extraHeaders");
+    }
     chrome.webRequest.onBeforeSendHeaders.addListener(
       (details) => {
         if (details.tabId === -1) {
@@ -1130,7 +1136,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["requestHeaders", "extraHeaders"]
+      reqOpt
     );
     chrome.webRequest.onHeadersReceived.addListener(
       (details) => {
@@ -1179,7 +1185,7 @@ export default class GMApi {
         urls: ["<all_urls>"],
         types: ["xmlhttprequest"],
       },
-      ["responseHeaders", "extraHeaders"]
+      respOpt
     );
   }
 

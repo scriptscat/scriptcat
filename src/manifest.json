@@ -9,7 +9,10 @@
     "open_in_tab": true
   },
   "background": {
-    "service_worker": "src/service_worker.js"
+    "service_worker": "src/service_worker.js",
+    "scripts": [
+      "src/service_worker.js"
+    ]
   },
   "incognito": "split",
   "action": {
@@ -39,7 +42,12 @@
     "unlimitedStorage",
     "declarativeNetRequest"
   ],
-  "host_permissions": ["<all_urls>"],
+  "optional_permissions": [
+    "userScripts"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "sandbox": {
     "pages": ["src/sandbox.html"]
   }

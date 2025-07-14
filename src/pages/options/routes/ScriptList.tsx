@@ -795,7 +795,7 @@ function ScriptList() {
                           Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
                         }
                         break;
-                      case "pin_to_top":
+                      case "pin_to_top": {
                         // 将选中的脚本置顶
                         l = select.length;
                         if (l > 0) {
@@ -818,6 +818,7 @@ function ScriptList() {
                           });
                         }
                         break;
+                      }
                       // 批量检查更新
                       case "check_update":
                         if (confirm(t("list.confirm_update")!)) {

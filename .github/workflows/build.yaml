@@ -40,10 +40,10 @@ jobs:
       - name: Archive production artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: all-artifacts
+          name: production-artifacts
           path: |
-            dist/*.zip
             dist/*.crx
+            dist/*.zip
 
       - name: Archive extension
         uses: actions/upload-artifact@v4
@@ -51,3 +51,4 @@ jobs:
           name: scriptcat
           path: |
             dist/ext/*
+
