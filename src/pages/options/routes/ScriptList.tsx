@@ -80,6 +80,27 @@ import { store } from "@App/pages/store/store";
 
 type ListType = ScriptLoading;
 
+
+// Memoized Avatar component to prevent unnecessary re-renders
+const MemoizedAvatar = React.memo(({ fav, onClick }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
+  <Avatar
+    key={fav.match}
+    shape="square"
+    style={{
+      backgroundColor: "unset",
+      borderWidth: 1,
+    }}
+    className={fav.website ? "cursor-pointer" : "cursor-default"}
+    onClick={onClick}
+  >
+    {fav.icon ? (
+      <img title={fav.match} src={fav.icon} />
+    ) : (
+      <TbWorldWww title={fav.match} color="#aaa" size={24} />
+    )}
+  </Avatar>
+));
+
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
     script: Script;
@@ -275,26 +296,15 @@ function ScriptList() {
                       })
                       .slice(0, 4)
                       .map((fav) => (
-                        <Avatar
+                        <MemoizedAvatar
                           key={fav.match}
-                          shape="square"
-                          style={{
-                            backgroundColor: "unset",
-                            borderWidth: 1,
-                          }}
-                          className={fav.website ? "cursor-pointer" : "cursor-default"}
+                          fav={fav}
                           onClick={() => {
                             if (fav.website) {
                               window.open(fav.website, "_blank");
                             }
                           }}
-                        >
-                          {fav.icon ? (
-                            <img title={fav.match} src={fav.icon} />
-                          ) : (
-                            <TbWorldWww title={fav.match} color="#aaa" size={24} />
-                          )}
-                        </Avatar>
+                        />
                       ))}
                   {item.favorite && item.favorite.length > 4 && "..."}
                 </Avatar.Group>
@@ -592,10 +602,10 @@ function ScriptList() {
     }
     systemConfig.getScriptListColumnWidth().then((columnWidth) => {
       setNewColumns(
-        columns.map((item) => {
-          item.width = columnWidth[item.key!] ?? item.width;
-          return item;
-        })
+        columns.map((item) => ({
+          ...item,
+          width: (columnWidth[item.key!] ?? item.width)
+        }))
       );
     });
   }, []);
@@ -788,11 +798,13 @@ function ScriptList() {
                         break;
                       case "pin_to_top":
                         // 将选中的脚本置顶
-                        if (select.length > 0) {
+                        let l = select.length;
+                        if (l > 0) {
                           // 获取当前所有脚本列表
                           const currentScripts = store.getState().script.scripts;
                           // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
-                          [...select].reverse().forEach((script) => {
+                          for (let i = l - 1; i >= 0; i--) {
+                            const script = select[i];
                             // 找到脚本当前的位置
                             const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
                             if (scriptIndex > 0) {
@@ -800,7 +812,7 @@ function ScriptList() {
                               // 将脚本置顶（移动到第一个位置）
                               dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
                             }
-                          });
+                          }
                           Message.success({
                             content: t("scripts_pinned_to_top"),
                             duration: 3000,
@@ -876,10 +888,11 @@ function ScriptList() {
                       <Menu.Item
                         key="auto"
                         onClick={() => {
-                          setNewColumns((cols) => {
-                            cols[selectColumn].width = 0;
-                            return [...cols];
-                          });
+                          setNewColumns((cols) =>
+                            cols.map((col, i) =>
+                              i === selectColumn ? { ...col, width: 0 } : col
+                            )
+                          );
                         }}
                       >
                         {t("auto")}
@@ -887,10 +900,11 @@ function ScriptList() {
                       <Menu.Item
                         key="hide"
                         onClick={() => {
-                          setNewColumns((cols) => {
-                            cols[selectColumn].width = -1;
-                            return [...cols];
-                          });
+                          setNewColumns((cols) =>
+                            cols.map((col, i) =>
+                              i === selectColumn ? { ...col, width: -1 } : col
+                            )
+                          );
                         }}
                       >
                         {t("hide")}
@@ -898,13 +912,17 @@ function ScriptList() {
                       <Menu.Item
                         key="custom"
                         onClick={() => {
-                          setNewColumns((cols) => {
-                            cols[selectColumn].width =
-                              (newColumns[selectColumn].width as number) > 0
-                                ? newColumns[selectColumn].width
-                                : columns[selectColumn].width;
-                            return [...cols];
-                          });
+                          setNewColumns((cols) =>
+                            cols.map((col, i) =>
+                              i === selectColumn ? {
+                                ...col, width: (
+                                  (newColumns[selectColumn].width as number) > 0
+                                    ? newColumns[selectColumn].width
+                                    : columns[selectColumn].width
+                                )
+                              } : col
+                            )
+                          );
                         }}
                       >
                         {t("custom")}
@@ -925,10 +943,11 @@ function ScriptList() {
                           : newColumns[selectColumn].width?.toString()
                     }
                     onChange={(val) => {
-                      setNewColumns((cols) => {
-                        cols[selectColumn].width = parseInt(val, 10);
-                        return [...cols];
-                      });
+                      setNewColumns((cols) =>
+                        cols.map((col, i) =>
+                          i === selectColumn ? { ...col, width: parseInt(val, 10) } : col
+                        )
+                      )
                     }}
                   />
                 </Dropdown>

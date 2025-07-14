@@ -17,7 +17,7 @@ import {
   IconSubscribe,
   IconTool,
 } from "@arco-design/web-react/icon";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
@@ -38,6 +38,10 @@ const Sider: React.FC = () => {
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
 
+  const handleMenuClick = useCallback((key: string) => {
+    setMenuSelect(key);
+  }, []);
+
   return (
     <HashRouter>
       <SiderGuide ref={guideRef} />
@@ -47,9 +51,7 @@ const Sider: React.FC = () => {
             style={{ width: "100%" }}
             selectedKeys={[menuSelect]}
             selectable
-            onClickMenuItem={(key) => {
-              setMenuSelect(key);
-            }}
+            onClickMenuItem={handleMenuClick}
           >
             <CustomLink to="/">
               <MenuItem key="/" className="menu-script">
@@ -81,9 +83,7 @@ const Sider: React.FC = () => {
             style={{ width: "100%", borderTop: "1px solid var(--color-bg-5)" }}
             selectedKeys={[]}
             selectable
-            onClickMenuItem={(key) => {
-              setMenuSelect(key);
-            }}
+            onClickMenuItem={handleMenuClick}
             mode="pop"
           >
             <Menu.SubMenu

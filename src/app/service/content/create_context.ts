@@ -92,11 +92,9 @@ const getAllPropertyDescriptors = (obj: any, callback: ForEachCallback<[string |
     obj = Object.getPrototypeOf(obj);
   }
 };
-// 需要用到全局的
+
 // mySandbox 不进行with变量拦截
 const unscopables: Record<PropertyKey, any> = {
-  // NodeFilter: true,
-  // RegExp: true,
   this: true,
   arguments: true,
   // "await": true,
@@ -190,6 +188,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   };
 
   // 用 eventHandling 机制模拟 onxxxxxxx 事件设置
+  // 监听事件实际上的方法是eventObject.handleEvent
   const createEventProp = (key: string) => {
     const eventName = (<string>key).slice(2);
     // 赋值变量
@@ -202,28 +201,14 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
           this.fn = null;
         } else {
           fn.call(mySandbox, event);
-          // const ret = fn.call(sandbox, event);
-          // 與TM相同行為，不處理returnValue
-          // if (typeof ret === "boolean" && ret === false) {
-          //   event.preventDefault();
-          //   event.stopPropagation();
-          // } else if (eventName === "beforeunload" && typeof ret === "string") {
-          //   event.preventDefault();
-          //   //@ts-ignore
-          //   event.returnValue = ret;
-          //   return ret;
-          // }
-          // return ret;
         }
       },
     };
     return {
       get() {
-        // console.log(`Getting global ${eventName} handler:`, eventObject.fn);
         return eventObject.fn;
       },
       set(newVal: EventListener | any) {
-        // console.log(`Setting global ${eventName} handler:`, newVal);
         const { fn } = eventObject;
         if (newVal !== fn) {
           if (isPrimitive(newVal)) {
@@ -288,54 +273,6 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     get() {
       delete (<any>this).$; // 一次性
       return mySandbox; // 非拦截（TM相容）
-
-      // // 非拦截：只限沙盒成员 （TM相容）
-      // // 半拦截：沙盒成员 + 全域成员，显示undefined不报错
-      // // 全拦截：所有变数名称，显示undefined不报错
-      // return new Proxy(<Context>mySandbox, {
-      //   get(target, prop, receiver) {
-      //     // --- 全拦截 ---
-      //     // 由於Context全拦截，所有变数名都会被这个Proxy拦截，然后呼叫get
-      //     // (不拦截的话会触发全域变量存取读写)
-      //     // 我们没有方法判断这个get是 typeof xxx 还是 xxx
-      //     // 因此总是传回 undefined 而不报错
-      //     // --- 半拦截 ---
-      //     // 由於Context半拦截，全域成员也会被这个Proxy拦截，然后呼叫get
-      //     // (不拦截的话会触发全域变量存取读写)
-      //     // 我们没有方法判断这个get是 typeof xxx 还是 xxx
-      //     // 因此总是传回 undefined 而不报错
-      //     if (Reflect.has(target, prop)) {
-      //       return Reflect.get(target, prop, receiver);
-      //     }
-      //     // 不报错 // throw new ReferenceError(`${String(prop)} is not defined.`);
-      //     return undefined;
-      //   },
-      //   has(_target, _key) {
-      //     let ret;
-      //     // --- 全拦截 ---
-      //     // 全拦截，避免 userscript 改变 global window 变量 （包括删除及生成）
-      //     // 强制针对所有"属性"为[[HasProperty]]，即 `* in $` 总是 true
-      //     ret = true;
-      //     // --- 半拦截 ---
-      //     // 拦截 沙盒成员 + 全域成员
-      //     ret = Reflect.has(_target, _key) || Reflect.has(global, _key);
-      //     return ret;
-      //   },
-      //   set(target, key, value, receiver) {
-      //     // if (Reflect.has(target, key)) {
-      //       // Allow updating existing properties in the context
-      //       return Reflect.set(target, key, value, receiver);
-      //     // }
-      //     // Prevent creating new properties
-      //     // throw new ReferenceError(`Cannot create variable ${String(key)} in sandbox`);
-      //   },
-      //   deleteProperty(target, key) {
-      //     if (Reflect.has(target, key)) {
-      //       return Reflect.deleteProperty(target, key);
-      //     }
-      //     return false;
-      //   }
-      // });
     },
   };
 

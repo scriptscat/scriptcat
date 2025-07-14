@@ -106,7 +106,7 @@ function Setting() {
             <span>{t("language")}:</span>
             <Select
               value={language}
-              className="w-24"
+              className="w-32"
               onChange={(value) => {
                 if (value === "help") {
                   window.open("https://crowdin.com/project/scriptcat", "_blank");
