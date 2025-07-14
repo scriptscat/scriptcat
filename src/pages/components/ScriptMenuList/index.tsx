@@ -365,7 +365,7 @@ const ScriptMenuList = React.memo(
       <>
         {list.length === 0 && <Empty description={t("no_data")} />}
         {list.map((item, index) => (
-          <ListMenuItem key={index} item={item} index={index} />
+          <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
         ))}
       </>
     );

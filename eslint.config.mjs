@@ -51,6 +51,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       "react-hooks/exhaustive-deps": "off",
       "prettier/prettier": "error",
+      "react/prop-types": "off",
     },
   },
   prettier,

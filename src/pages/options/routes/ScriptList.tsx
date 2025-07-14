@@ -763,6 +763,7 @@ function ScriptList() {
                         dispatch(enableLoading({ uuids: uuids, loading: false }));
                       });
                     };
+                    let l: number | undefined;
                     switch (action) {
                       case "enable":
                         enableAction(true);
@@ -797,7 +798,7 @@ function ScriptList() {
                         break;
                       case "pin_to_top": {
                         // 将选中的脚本置顶
-                        const l = select.length;
+                        l = select.length;
                         if (l > 0) {
                           // 获取当前所有脚本列表
                           const currentScripts = store.getState().script.scripts;
