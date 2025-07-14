@@ -170,15 +170,15 @@ export class ServiceWorkerMessageSend implements MessageSend {
 
   async init() {
     if (!this.target && self.clients) {
-      const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
-      // 找到offscreen.html窗口
-      this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html")) as PostMessage;
       if (!this.listened) {
         this.listened = true;
         self.addEventListener("message", (e) => {
           this.messageHandle(e.data);
         });
       }
+      const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+      // 找到offscreen.html窗口
+      this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html")) as PostMessage;
     }
   }
 
