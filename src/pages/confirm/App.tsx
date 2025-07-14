@@ -1,6 +1,6 @@
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { permissionClient } from "../store/features/script";
 
@@ -57,17 +57,17 @@ function App() {
     };
   };
 
+  const metadata = useMemo(()=>(confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
+
   return (
     <div className="h-full">
       <Space direction="vertical">
         <span className="text-2xl font-500">{confirm?.title}</span>
-        {confirm &&
-          confirm.metadata &&
-          Object.keys(confirm.metadata).map((key) => (
-            <span className="text-base" key={key}>
-              {key}: {confirm!.metadata![key]}
-            </span>
-          ))}
+        {metadata.map((key) => (
+          <span className="text-base" key={key}>
+            {key}: {confirm!.metadata![key]}
+          </span>
+        ))}
         <span className="text-xl font-500">{confirm?.describe}</span>
         <div>
           <Button type="primary" onClick={handleConfirm(false, 1)}>
