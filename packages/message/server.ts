@@ -31,14 +31,19 @@ export class Server {
 
   private logger = LoggerCore.getInstance().logger({ service: "messageServer" });
 
-  constructor(prefix: string, message: Message) {
-    message.onConnect((msg: any, con: MessageConnect) => {
-      this.logger.trace("server onConnect", { msg });
-      if (msg.action.startsWith(prefix)) {
-        return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
-      }
-      return false;
-    });
+  constructor(
+    prefix: string,
+    message: Message,
+    private enableConnect: boolean = true
+  ) {
+    this.enableConnect &&
+      message.onConnect((msg: any, con: MessageConnect) => {
+        this.logger.trace("server onConnect", { msg });
+        if (msg.action.startsWith(prefix)) {
+          return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
+        }
+        return false;
+      });
 
     message.onMessage((msg: { action: string; data: any }, sendResponse, sender) => {
       this.logger.trace("server onMessage", { msg: msg as any });
