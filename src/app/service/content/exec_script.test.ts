@@ -648,4 +648,26 @@ str.match(reg);`;
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
   });
+
+  it("测试SC沙盒与TM沙盒有相近的特殊处理", async () => {
+    const script1 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script1.code = `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`;
+    // @ts-ignore
+    const exec1 = new ExecScript(script1, undefined, undefined, nilFn, envInfo);
+    exec1.scriptFunc = compileScript(compileScriptCode(script1));
+    const ret1 = await exec1.exec();
+    expect(ret1.onfocus).toEqual(expect.any(Function));
+    expect(ret1.onresize).toBeNull();
+    expect(ret1.onblur).toBeNull();
+
+    const script2 = Object.assign({}, scriptRes2) as ScriptLoadInfo;
+    script2.code = `window.onfocus = function(){}; window.onresize = 123; window.onblur = "123"; const {onfocus, onresize, onblur} = window; const ret = {onfocus, onresize, onblur}; window.onfocus = null; window.onresize = null; window.onblur = null; return ret;`;
+    // @ts-ignore
+    const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
+    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    const ret2 = await exec2.exec();
+    expect(ret2.onfocus).toEqual(expect.any(Function));
+    expect(ret2.onresize).toBeNull();
+    expect(ret2.onblur).toBeNull();
+  });
 });

@@ -39,6 +39,60 @@ if (!("onload" in global)) {
   });
 }
 
+//@ts-ignore
+delete global.onresize;
+
+if (!("onresize" in global)) {
+  // Define or mock the global handler
+  Object.defineProperty(global, "onresize", {
+    configurable: true,
+    enumerable: true,
+    set(_newVal) {
+      console.log("测试用.onresize.set");
+    },
+    get() {
+      console.log("测试用.onresize.get");
+      return null;
+    },
+  });
+}
+
+//@ts-ignore
+delete global.onblur;
+
+if (!("onblur" in global)) {
+  // Define or mock the global handler
+  Object.defineProperty(global, "onblur", {
+    configurable: true,
+    enumerable: true,
+    set(_newVal) {
+      console.log("测试用.onblur.set");
+    },
+    get() {
+      console.log("测试用.onblur.get");
+      return null;
+    },
+  });
+}
+
+//@ts-ignore
+delete global.onfocus;
+
+if (!("onblur" in global)) {
+  // Define or mock the global handler
+  Object.defineProperty(global, "onfocus", {
+    configurable: true,
+    enumerable: true,
+    set(_newVal) {
+      console.log("测试用.onfocus.set");
+    },
+    get() {
+      console.log("测试用.onfocus.get");
+      return null;
+    },
+  });
+}
+
 Object.assign(global, {
   setTimeoutForTest(...args: any) {
     // 注意： function XXX (){} 会导致 Class prototype 出现
