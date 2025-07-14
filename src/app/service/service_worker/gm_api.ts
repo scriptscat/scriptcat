@@ -1018,7 +1018,7 @@ export default class GMApi {
           });
           break;
         case "onprogress":
-          respond.done = xhr.DONE;
+          respond.done = xhr.done;
           respond.lengthComputable = xhr.lengthComputable;
           respond.loaded = xhr.loaded;
           respond.total = xhr.total;
