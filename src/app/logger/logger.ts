@@ -38,6 +38,13 @@ export default class Logger {
     if (levelNumber[level] >= levelNumber[this.core.level]) {
       this.core.writer.write(level, message, newLabel);
     }
+    let labelJson;
+    try {
+      labelJson = JSON.stringify(newLabel);
+    } catch (e) {
+      labelJson = newLabel;
+      console.error("Logger label JSON stringify error:", e);
+    }
     if (this.core.consoleLevel !== "none" && levelNumber[level] >= levelNumber[this.core.consoleLevel]) {
       if (typeof message === "object") {
         message = JSON.stringify(message);
@@ -45,16 +52,16 @@ export default class Logger {
       const msg = `${dayFormat(new Date(), "YYYY-MM-DD HH:mm:ss")} [${level}] ${message}`;
       switch (level) {
         case "error":
-          console.error(msg, newLabel);
+          console.error(msg, labelJson);
           break;
         case "warn":
-          console.warn(msg, newLabel);
+          console.warn(msg, labelJson);
           break;
         case "trace":
-          console.info(msg, newLabel);
+          console.info(msg, labelJson);
           break;
         default:
-          console.info(msg, newLabel);
+          console.info(msg, labelJson);
           break;
       }
     }
