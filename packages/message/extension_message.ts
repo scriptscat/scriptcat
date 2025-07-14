@@ -84,7 +84,7 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
 
     if (this.onUserScript) {
       // 监听用户脚本的连接
-      chrome.runtime.onUserScriptConnect?.addListener((port: chrome.runtime.Port | null) => {
+      chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port | null) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptConnect:", lastError);
