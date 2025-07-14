@@ -124,6 +124,22 @@ function parseFaviconsNew(html: string, callback: (href: string) => void) {
   return;
 }
 
+// AbortSignal.timeout 是较新的功能。如果不支持 AbortSignal.timeout，则返回传统以定时器操作 AbortController
+const timeoutAbortSignal =
+  typeof AbortSignal?.timeout === "function"
+    ? (milis: number) => {
+        return AbortSignal.timeout(milis);
+      }
+    : (milis: number) => {
+        let controller: AbortController | null = new AbortController();
+        const signal = controller.signal;
+        setTimeout(() => {
+          controller!.abort(); // 中断请求
+          controller = null;
+        }, milis);
+        return signal;
+      };
+
 /**
  * 从域名获取favicon
  */
@@ -131,21 +147,12 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
   const url = `https://${domain}`;
   const icons: string[] = [];
 
-  // 创建 AbortController 实例
-  const controller = new AbortController();
-  const signal = controller.signal;
-
   // 设置超时时间（例如 5 秒）
   const timeout = 5000; // 单位：毫秒
 
-  // 设置超时计时器
-  const timeoutId = setTimeout(() => {
-    controller.abort(); // 中断请求
-  }, timeout);
   try {
     // 获取页面HTML
-
-    const response = await fetch(url, { signal });
+    const response = await fetch(url, { signal: timeoutAbortSignal(timeout) });
     const html = await response.text();
 
     parseFaviconsNew(html, (href) => icons.push(resolveUrl(href, url)));
@@ -154,7 +161,7 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
     if (icons.length === 0) {
       const faviconUrl = `${url}/favicon.ico`;
       try {
-        const faviconResponse = await fetch(faviconUrl, { method: "HEAD", signal });
+        const faviconResponse = await fetch(faviconUrl, { method: "HEAD", signal: timeoutAbortSignal(timeout) });
         if (faviconResponse.ok) {
           icons.push(faviconUrl);
         }
@@ -164,11 +171,15 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
     }
 
     return icons;
-  } catch (error) {
-    console.error(`Error fetching favicon for ${domain}:`, error);
+  } catch (error: any) {
+    if (error.name === "AbortError") {
+      // 超时
+      console.warn(`Timeout while fetching favicon:`, url);
+    } else {
+      // 其他错误
+      console.error(`Error fetching favicon for ${domain}:`, error);
+    }
     return [];
-  } finally {
-    clearTimeout(timeoutId); // 清除超时计时器
   }
 }
 
