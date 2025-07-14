@@ -409,7 +409,7 @@
   "close_other_tabs": "关闭其他标签页",
   "close_left_tabs": "关闭左侧标签页",
   "close_right_tabs": "关闭右侧标签页",
-  "import_script_placeholder": "支持输入.user.js结尾的脚本绝对链接 或 脚本猫安装页链接\\n可多行填写，每行一条\\n示例：\\nhttps://example.com/test.user.js \\nhttps://scriptcat.org/zh-CN/script-show-page/1234",
+  "import_script_placeholder": "支持输入.user.js结尾的脚本绝对链接 或 脚本猫安装页链接\n可多行填写，每行一条\n示例：\nhttps://example.com/test.user.js \nhttps://scriptcat.org/zh-CN/script-show-page/1234",
   "invalid_script_code": "错误的脚本代码",
   "build_failed": "构建失败",
   "drag_script_here_to_upload": "拖拽脚本到此处上传",
