@@ -101,19 +101,21 @@ function App() {
         if (!isMounted) return;
         // 按照开启状态和更新时间排序
         const list = resp.scriptList;
-        list.sort((a, b) =>
-          //@ts-ignore
-          (b.enable - a.enable) || (
+        list.sort(
+          (a, b) =>
+            //@ts-ignore
+            b.enable - a.enable ||
             // 根据菜单数排序
-            (b.menus.length - a.menus.length) || (b.runNum - a.runNum) || (b.updatetime - a.updatetime)
-          )
+            b.menus.length - a.menus.length ||
+            b.runNum - a.runNum ||
+            b.updatetime - a.updatetime
         );
         setScriptList(list);
         setBackScriptList(resp.backScriptList);
         setIsBlacklist(resp.isBlacklist);
         checkScriptEnableAndUpdate();
       });
-    }
+    };
 
     const checkScriptEnableAndUpdate = async () => {
       const [isEnableScript, checkUpdate] = await Promise.all([
@@ -123,13 +125,13 @@ function App() {
       if (!isMounted) return;
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
-    }
+    };
     const queryTabInfo = () => {
       // 只跑一次 tab 资讯，不绑定在 currentUrl
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (!isMounted || !tabs.length) return;
         const newUrl = tabs[0].url || "";
-        setCurrentUrl(prev => {
+        setCurrentUrl((prev) => {
           if (newUrl !== prev) {
             onCurrentUrlUpdated(tabs);
           }
@@ -140,7 +142,9 @@ function App() {
 
     checkScriptEnableAndUpdate();
     queryTabInfo();
-    return () => { isMounted = false };
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleEnableScriptChange = useCallback((val: boolean) => {
@@ -154,38 +158,41 @@ function App() {
   }, []);
 
   const handleNotificationClick = useCallback(() => {
-    setShowAlert(prev => !prev);
+    setShowAlert((prev) => !prev);
     const updatedCheckUpdate = { ...checkUpdate, isRead: true };
     setCheckUpdate(updatedCheckUpdate);
     systemConfig.setCheckUpdate(updatedCheckUpdate);
   }, [checkUpdate]);
 
-  const handleMenuClick = useCallback(async (key: string) => {
-    switch (key) {
-      case "newScript":
-        await chrome.storage.local.set({
-          activeTabUrl: { url: currentUrl },
-        });
-        window.open("/src/options.html#/script/editor?target=initial", "_blank");
-        break;
-      case "checkUpdate":
-        await scriptClient.requestCheckUpdate("");
-        window.close();
-        break;
-      case "report_issue": {
-        const browserInfo = `${navigator.userAgent}`;
-        const issueUrl =
-          `https://github.com/scriptscat/scriptcat/issues/new?` +
-          `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
-          `browser-version=${encodeURIComponent(browserInfo)}`;
-        window.open(issueUrl, "_blank");
-        break;
+  const handleMenuClick = useCallback(
+    async (key: string) => {
+      switch (key) {
+        case "newScript":
+          await chrome.storage.local.set({
+            activeTabUrl: { url: currentUrl },
+          });
+          window.open("/src/options.html#/script/editor?target=initial", "_blank");
+          break;
+        case "checkUpdate":
+          await scriptClient.requestCheckUpdate("");
+          window.close();
+          break;
+        case "report_issue": {
+          const browserInfo = `${navigator.userAgent}`;
+          const issueUrl =
+            `https://github.com/scriptscat/scriptcat/issues/new?` +
+            `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
+            `browser-version=${encodeURIComponent(browserInfo)}`;
+          window.open(issueUrl, "_blank");
+          break;
+        }
+        default:
+          window.open(key, "_blank");
+          break;
       }
-      default:
-        window.open(key, "_blank");
-        break;
-    }
-  }, [currentUrl]);
+    },
+    [currentUrl]
+  );
 
   const isUserScriptsAvailableFlag = isUserScriptsAvailable();
 
@@ -216,25 +223,10 @@ function App() {
           <div className="flex justify-between">
             <span className="text-xl">ScriptCat</span>
             <div className="flex flex-row items-center">
-              <Switch
-                size="small"
-                className="mr-1"
-                checked={isEnableScript}
-                onChange={handleEnableScriptChange}
-              />
-              <Button
-                type="text"
-                icon={<IconSettings />}
-                iconOnly
-                onClick={handleSettingsClick}
-              />
+              <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
+              <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
               <Badge count={checkUpdate.isRead ? 0 : 1} dot offset={[-8, 6]}>
-                <Button
-                  type="text"
-                  icon={<IconNotification />}
-                  iconOnly
-                  onClick={handleNotificationClick}
-                />
+                <Button type="text" icon={<IconNotification />} iconOnly onClick={handleNotificationClick} />
               </Badge>
               <Dropdown
                 droplist={
