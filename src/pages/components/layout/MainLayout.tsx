@@ -130,10 +130,10 @@ const MainLayout: React.FC<{
   });
 
   const handleImport = async () => {
-            const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
-            importByUrlsLocal(urls);
-            setImportVisible(false);
-          };
+    const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
+    importByUrlsLocal(urls);
+    setImportVisible(false);
+  };
 
   return (
     <ConfigProvider
@@ -150,7 +150,6 @@ const MainLayout: React.FC<{
           }}
           className="flex items-center justify-between px-4"
         >
-          
           <Modal
             title={t("import_link")}
             visible={importVisible}
@@ -164,7 +163,7 @@ const MainLayout: React.FC<{
               rows={8}
               placeholder={t("import_script_placeholder")}
               defaultValue=""
-              onPressEnter={e => {
+              onPressEnter={(e) => {
                 e.preventDefault(); // 防止输入换行
                 handleImport();
               }}
