@@ -279,20 +279,21 @@ function ScriptList() {
             });
           };
           if (item.type === SCRIPT_TYPE_NORMAL) {
+            const favorite = item.favorite;
+            if(!favorite) return <></>;
+            const favorites = favorite.slice(0).sort((a, b) => {
+              if (a.icon && !b.icon) return -1;
+              if (!a.icon && b.icon) return 1;
+              return a.match.localeCompare(b.match);
+            }).slice(0, 4);
             // 处理站点icon
             return (
               <>
                 <Avatar.Group size={20}>
-                  {item.favorite &&
+                  {
                     // 排序并且只显示前4个
                     // 排序将有icon的放在前面
-                    [...item.favorite]
-                      .sort((a, b) => {
-                        if (a.icon && !b.icon) return -1;
-                        if (!a.icon && b.icon) return 1;
-                        return a.match.localeCompare(b.match);
-                      })
-                      .slice(0, 4)
+                    favorites
                       .map((fav) => (
                         <MemoizedAvatar
                           key={fav.match}
@@ -304,7 +305,7 @@ function ScriptList() {
                           }}
                         />
                       ))}
-                  {item.favorite && item.favorite.length > 4 && "..."}
+                  {favorite.length > 4 && "..."}
                 </Avatar.Group>
               </>
             );
@@ -995,6 +996,7 @@ function ScriptList() {
           columns={dealColumns.length ? dealColumns : columns}
           data={scriptList}
           pagination={{
+            disabled: true,
             total: scriptList.length,
             pageSize: scriptList.length,
             hideOnSinglePage: true,
