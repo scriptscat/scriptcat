@@ -27,26 +27,31 @@ export default class GMApi {
     };
     if (xhr.readyState === 4) {
       const responseType = details.responseType?.toLowerCase();
-      if ((responseType === "arraybuffer" || responseType === "blob") && xhr.response) {
-        let blob: Blob;
-        if (xhr.response instanceof ArrayBuffer) {
-          blob = new Blob([xhr.response]);
-          response.response = URL.createObjectURL(blob);
+      if (responseType === "arraybuffer" || responseType === "blob") {
+        const xhrResponse = xhr.response;
+        if (xhrResponse === null) {
+          response.response = null;
         } else {
-          blob = <Blob>xhr.response;
-          response.response = URL.createObjectURL(blob);
-        }
-        try {
-          if (xhr.getResponseHeader("Content-Type")?.includes("text")) {
-            // 如果是文本类型,则尝试转换为文本
-            response.responseText = await blob.text();
+          let blob: Blob;
+          if (xhrResponse instanceof ArrayBuffer) {
+            blob = new Blob([xhrResponse]);
+            response.response = URL.createObjectURL(blob);
+          } else {
+            blob = <Blob>xhrResponse;
+            response.response = URL.createObjectURL(blob);
           }
-        } catch (e) {
-          LoggerCore.logger(Logger.E(e)).error("GM XHR getResponseHeader error");
+          try {
+            if (xhr.getResponseHeader("Content-Type")?.includes("text")) {
+              // 如果是文本类型,则尝试转换为文本
+              response.responseText = await blob.text();
+            }
+          } catch (e) {
+            LoggerCore.logger(Logger.E(e)).error("GM XHR getResponseHeader error");
+          }
+          setTimeout(() => {
+            URL.revokeObjectURL(<string>response.response);
+          }, 60 * 1000);
         }
-        setTimeout(() => {
-          URL.revokeObjectURL(<string>response.response);
-        }, 60 * 1000);
       } else if (response.responseType === "json") {
         try {
           response.response = JSON.parse(xhr.responseText);
