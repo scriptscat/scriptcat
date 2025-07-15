@@ -1,12 +1,10 @@
 import { describe, expect, it, vitest } from "vitest";
-import { initTestEnv, initTestGMApi } from "./utils";
+import { initTestGMApi } from "./utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
-
-initTestEnv();
 
 describe("测试GMApi环境", async () => {
   const msg = initTestGMApi();

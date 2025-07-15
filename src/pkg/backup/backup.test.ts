@@ -4,9 +4,6 @@ import BackupImport from "./import";
 import type { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
-import { initTestEnv } from "@Tests/utils";
-
-initTestEnv();
 
 describe("backup", () => {
   const zipFile = new JSZip();

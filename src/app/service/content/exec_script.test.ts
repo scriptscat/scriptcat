@@ -1,12 +1,9 @@
 import ExecScript from "./exec_script";
 import { compileScript, compileScriptCode } from "./utils";
 import { ExtVersion } from "@App/app/const";
-import { initTestEnv } from "@Tests/utils";
 import { describe, expect, it, vi } from "vitest";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
-
-initTestEnv();
 
 const nilFn: ScriptFunc = () => {};
 

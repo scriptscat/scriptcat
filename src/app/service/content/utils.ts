@@ -52,6 +52,7 @@ ${code}
 export function compileScript(code: string): ScriptFunc {
   return <ScriptFunc>new Function(code);
 }
+
 /**
  * 将脚本函数编译为注入脚本代码
  * @param script

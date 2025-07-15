@@ -1,6 +1,8 @@
 import chromeMock from "@Packages/chrome-extension-mock";
+import { initTestEnv } from "./utils";
 
 chromeMock.init();
+initTestEnv();
 
 const isPrimitive = (x: any) => x !== Object(x);
 

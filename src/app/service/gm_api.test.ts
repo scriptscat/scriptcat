@@ -1,7 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { initTestEnv } from "@Tests/utils";
 
-initTestEnv();
 // serviceWorker环境
 
 beforeAll(() => {});
