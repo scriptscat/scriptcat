@@ -27,7 +27,7 @@ export default class GMApi {
     };
     if (xhr.readyState === 4) {
       const responseType = details.responseType?.toLowerCase();
-      if (responseType === "arraybuffer" || responseType === "blob") {
+      if ((responseType === "arraybuffer" || responseType === "blob") && xhr.response) {
         let blob: Blob;
         if (xhr.response instanceof ArrayBuffer) {
           blob = new Blob([xhr.response]);
