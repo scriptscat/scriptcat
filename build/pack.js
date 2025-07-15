@@ -120,6 +120,7 @@ chrome
     )
   );
 
+const firefoxZipName = `./dist/${package.name}-v${package.version}-firefox.zip`;
 firefox
   .generateNodeStream({
     type: "nodebuffer",
@@ -128,9 +129,19 @@ firefox
   })
   .pipe(
     fs.createWriteStream(
-      `./dist/${package.name}-v${package.version}-firefox.zip`
+      firefoxZipName
     )
-  );
+  )
+  .on("finish", () => {
+    // 将firefox解压到ext-firefox
+    fs.mkdirSync("./dist/ext-firefox", { recursive: true });
+    execSync(
+      `unzip -o ${firefoxZipName} -d ./dist/ext-firefox`,
+      {
+        stdio: "inherit",
+      }
+    );
+  });
 
 // 处理crx
 const crx = new ChromeExtension({
