@@ -284,7 +284,7 @@ function ScriptList() {
               <>
                 <Avatar.Group size={20}>
                   {item.favorite &&
-                    // 排序并且只显示前5个
+                    // 排序并且只显示前4个
                     // 排序将有icon的放在前面
                     [...item.favorite]
                       .sort((a, b) => {
