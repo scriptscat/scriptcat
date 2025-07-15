@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, Component} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Component, useLayoutEffect} from "react";
 import {
   Avatar,
   Button,
@@ -117,9 +117,11 @@ function ScriptList() {
   const { t } = useTranslation();
 
   useEffect(() => {
+    console.log('loadScriptFavicons 01')
     dispatch(fetchScriptList()).then((action) => {
       if (fetchScriptList.fulfilled.match(action)) {
         // 在脚本列表加载完成后，加载favicon
+    console.log('loadScriptFavicons 02')
         loadScriptFavicons(action.payload);
       }
     });
@@ -289,7 +291,7 @@ function ScriptList() {
         width: 70,
         key: "#",
         sorter: (a: ScriptLoading, b: ScriptLoading) => a.sort - b.sort,
-        render(col: number) {
+        render(_col: number) {
           return col < 0 ? "-" : col + 1;
         },
       },
@@ -398,7 +400,7 @@ function ScriptList() {
         key: "version",
         width: 120,
         align: "center",
-        render(col, item: Script) {
+        render(_col, item: Script) {
           return item.metadata.version && item.metadata.version[0];
         },
       },
@@ -407,14 +409,17 @@ function ScriptList() {
         title: t("apply_to_run_status"),
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
-        render: (col, item: ListType) => <RunApplyGroup item={item} />,
+        shouldCellUpdate: (prev: any, next: any) =>
+          prev.favorite !== next.favorite ||
+          prev.runStatus !== next.runStatus,
+        render: (_col, item: ListType) => <RunApplyGroup item={item} />,
       },
       {
         title: t("source"),
         dataIndex: "origin",
         key: "origin",
         width: 100,
-        render(col, item: Script) {
+        render(_col, item: Script) {
           if (item.subscribeUrl) {
             return (
               <Tooltip
@@ -708,11 +713,13 @@ function ScriptList() {
   />
 
   const [customWidthInput, setCustomWidthInput] = useState(0 as string | number | undefined);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const val =
       definedWidths[selectColumn] === undefined ?
         columns[selectColumn].width :
         definedWidths[selectColumn];
+    if (customWidthInput === val) return;
+    console.log(33, val);
     setCustomWidthInput(val);
   }, [definedWidths, selectColumn]);
 
@@ -966,6 +973,21 @@ function ScriptList() {
       </Card>
   ), [showAction]);
 
+  const onRowSelectionChange = useCallback((selectedKeys: string[], selectedRows: any) => {
+    setSelectedRowKeys(selectedKeys as string[]);
+    setSelect(selectedRows);
+    setShowAction(true);
+  }, []);
+
+  const rowSelection = useMemo(
+    () => ({
+      type: 'checkbox' as const,
+      selectedRowKeys,
+      onChange: onRowSelectionChange,
+    }),
+    [selectedRowKeys, onRowSelectionChange]
+  );
+
   return (
     <Card
       id="script-list"
@@ -994,15 +1016,7 @@ function ScriptList() {
           style={{
             minWidth: "1200px",
           }}
-          rowSelection={{
-            type: "checkbox",
-            selectedRowKeys,
-            onChange: (selectedKeys, selectedRows) => {
-              setSelectedRowKeys(selectedKeys as string[]);
-              setSelect(selectedRows);
-              setShowAction(true);
-            },
-          }}
+          rowSelection={rowSelection}
         />
         {userConfig && (
           <UserConfigPanel script={userConfig.script} userConfig={userConfig.userConfig} values={userConfig.values} />
