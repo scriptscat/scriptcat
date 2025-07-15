@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Component} from "react";
 import {
   Avatar,
   Button,
@@ -142,6 +142,8 @@ function ScriptList() {
     <table {...props} />
   ));
 
+
+
   const onSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       if (oldIndex !== newIndex) {
@@ -154,6 +156,12 @@ function ScriptList() {
     },
     [dispatch, scriptList]
   );
+
+  const SortableTable2 = (props: any) => {
+    return <SortableTable {...props} onSortEnd={onSortEnd} />;
+  }
+
+
 
   const FavoriteAvatars = React.memo(
     ({
@@ -663,14 +671,7 @@ function ScriptList() {
 
   useEffect(() => {
     setComponents({
-      table: (props: any) => (
-      <SortableTable
-        useDragHandle
-        helperClass="sortable-helper"
-        onSortEnd={onSortEnd}
-        {...props}
-      />
-    ),
+      table: SortableTable2,
       body: {
         // tbody: SortableWrapper,
         row: SortableRow,
