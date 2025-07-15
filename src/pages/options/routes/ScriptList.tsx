@@ -120,6 +120,7 @@ function ScriptList() {
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
   const [showAction, setShowAction] = useState(false);
   const [action, setAction] = useState("");
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const { t } = useTranslation();
@@ -1018,7 +1019,7 @@ function ScriptList() {
           components={components}
           rowKey="uuid"
           tableLayoutFixed
-          columns={dealColumns.length ? dealColumns : columns}
+          columns={dealColumns}
           data={scriptList}
           pagination={{
             total: scriptList.length,
@@ -1030,9 +1031,11 @@ function ScriptList() {
           }}
           rowSelection={{
             type: "checkbox",
-            onChange: (_, selectedRows) => {
-              setShowAction(true);
+            selectedRowKeys,
+            onChange: (selectedKeys, selectedRows) => {
+              setSelectedRowKeys(selectedKeys as string[])
               setSelect(selectedRows);
+              setShowAction(true);
             },
           }}
         />
