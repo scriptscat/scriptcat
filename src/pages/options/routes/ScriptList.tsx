@@ -678,6 +678,8 @@ function ScriptList() {
 
   const dealColumns = useMemo(() => newColumns.filter((item) => item.width !== -1), [newColumns]);
 
+  const tableColumns = useMemo(()=>dealColumns.length ? dealColumns : columns, [dealColumns, columns]);
+
   useEffect(() => {
     const SortableRow = React.memo(
       (props: any) => {
@@ -728,7 +730,7 @@ function ScriptList() {
         row: SortableRow,
       },
     });
-  }, [dealColumns]);
+  }, [dealColumns, selectedRowKeys]);
 
   return (
     <Card
@@ -1019,7 +1021,7 @@ function ScriptList() {
           components={components}
           rowKey="uuid"
           tableLayoutFixed
-          columns={dealColumns}
+          columns={tableColumns}
           data={scriptList}
           pagination={{
             total: scriptList.length,
@@ -1033,7 +1035,7 @@ function ScriptList() {
             type: "checkbox",
             selectedRowKeys,
             onChange: (selectedKeys, selectedRows) => {
-              setSelectedRowKeys(selectedKeys as string[])
+              setSelectedRowKeys(selectedKeys as string[]);
               setSelect(selectedRows);
               setShowAction(true);
             },
