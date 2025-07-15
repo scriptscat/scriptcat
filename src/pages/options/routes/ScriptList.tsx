@@ -43,6 +43,8 @@ import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -112,7 +114,7 @@ function ScriptList() {
   }>();
   const [cloudScript, setCloudScript] = useState<Script>();
   const dispatch = useAppDispatch();
-  const scriptList = useAppSelector(selectScripts);
+  const scriptList = useAppSelector(selectScripts) as ScriptLoading[];
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
@@ -122,7 +124,6 @@ function ScriptList() {
   const [selectColumn, setSelectColumn] = useState(0);
   const { t } = useTranslation();
   const [components, setComponents] = useState<ComponentsProps | undefined>(undefined);
-  const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
 
   useEffect(() => {
     dispatch(fetchScriptList()).then((action) => {
@@ -242,12 +243,9 @@ function ScriptList() {
         dataIndex: "sort",
         width: 70,
         key: "#",
-        sorter: (a, b) => a.sort - b.sort,
-        render(col) {
-          if (col < 0) {
-            return "-";
-          }
-          return col + 1;
+        sorter: (a: ScriptLoading, b: ScriptLoading) => a.sort - b.sort,
+        render(col: number) {
+          return col < 0 ? "-" : col + 1;
         },
       },
       {
@@ -370,9 +368,7 @@ function ScriptList() {
         title: t("apply_to_run_status"),
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
-        render(col, item: ListType) {
-          return <RunApplyGroup item={item} />;
-        },
+        render: (col, item: ListType) => <RunApplyGroup item={item} />,
       },
       {
         title: t("source"),
@@ -444,9 +440,7 @@ function ScriptList() {
         align: "center",
         key: "home",
         width: 100,
-        render(col, item: Script) {
-          return <ListHomeRender script={item} />;
-        },
+        render: (col, item: Script) => <ListHomeRender script={item} />,
       },
       {
         title: t("sorting"),
@@ -454,15 +448,13 @@ function ScriptList() {
         key: "sort",
         width: 80,
         align: "center",
-        render() {
-          return (
-            <IconMenu
-              style={{
-                cursor: "move",
-              }}
-            />
-          );
-        },
+        render: () => (
+          <IconMenu
+            style={{
+              cursor: "move",
+            }}
+          />
+        ),
       },
       {
         title: t("last_updated"),
@@ -652,89 +644,90 @@ function ScriptList() {
 
   // 处理拖拽排序
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Small movement to start dragging
+        delay: 100, // Slight delay to prevent accidental drags
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
-  const SortableWrapper = (props: any, ref: any) => {
-    return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={(event: DragEndEvent) => {
-          const { active, over } = event;
-          if (!over) {
-            return;
-          }
-          if (active.id !== over.id) {
-            dispatch(sortScript({ active: active.id as string, over: over.id as string }));
-          }
-        }}
-      >
-        <SortableContext
-          items={store.getState().script.scripts.map((s) => ({ ...s, id: s.uuid }))}
-          strategy={verticalListSortingStrategy}
-        >
-          <table ref={ref} {...props} />
-        </SortableContext>
-      </DndContext>
-    );
-  };
+  const SortableWrapper = React.forwardRef<HTMLTableElement, any>((props, ref) => (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis]}
+      onDragEnd={(event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) {
+          return;
+        }
+        dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+      }}
+    >
+      <SortableContext items={scriptList.map((s) => s.uuid)} strategy={verticalListSortingStrategy}>
+        <table ref={ref} {...props} />
+      </SortableContext>
+    </DndContext>
+  ));
+  SortableWrapper.displayName = "SortableWrapper";
 
-  const [sortIndexState, setSortIndexState] = useState(-1);
-
-  const SortableItemComponent = (props: any) => {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-
-    // 替换排序列,使其可以拖拽
-    props.children[sortIndexState + 1] = (
-      <td
-        className="arco-table-td"
-        style={{
-          textAlign: "center",
-        }}
-        key="drag"
-      >
-        <div className="arco-table-cell">
-          <IconMenu
-            style={{
-              cursor: "move",
-            }}
-            {...listeners}
-          />
-        </div>
-      </td>
-    );
-
-    return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
-  };
-  SortableItemComponent.displayName = "SortableItem";
+  const dealColumns = useMemo(() => newColumns.filter((item) => item.width !== -1), [newColumns]);
 
   useEffect(() => {
-    if (!newColumns.length) {
-      return;
-    }
-    const dealColumns: ColumnProps[] = newColumns.filter((item) => item.width !== -1);
+    const SortableRow = React.memo(
+      (props: any) => {
+        const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+          id: props.record.uuid,
+        });
 
-    const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
-    setSortIndexState(sortIndex);
+        const style = {
+          transform: CSS.Transform.toString(transform),
+          transition: transition || "none",
+          opacity: isDragging ? 0.6 : 1,
+          backgroundColor: isDragging ? "rgba(0, 0, 0, 0.05)" : undefined,
+          zIndex: isDragging ? 1 : 0,
+        };
+
+        const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
+        if (sortIndex !== -1 && props.children[sortIndex + 1]) {
+          // 替换排序列,使其可以拖拽
+          props.children[sortIndex + 1] = (
+            <td
+              className="arco-table-td script-sort"
+              style={{ textAlign: "center", cursor: "move" }}
+              key="sort"
+              {...listeners}
+              {...attributes}
+            >
+              <div className="arco-table-cell">
+                <IconMenu />
+              </div>
+            </td>
+          );
+        }
+
+        return <tr ref={setNodeRef} style={style} {...props} />;
+      },
+      (prevProps, nextProps) => {
+        return (
+          prevProps.record.uuid === nextProps.record.uuid && prevProps.children.length === nextProps.children.length
+        );
+      }
+    );
+    SortableRow.displayName = "SortableItem";
 
     setComponents({
-      table: React.forwardRef(SortableWrapper),
+      table: SortableWrapper,
       body: {
         // tbody: SortableWrapper,
-        row: sortIndex !== -1 ? SortableItemComponent : undefined,
+        row: SortableRow,
       },
     });
-    setDealColumns(dealColumns);
-  }, [newColumns]);
+  }, [dealColumns]);
 
   return (
     <Card
@@ -1037,7 +1030,7 @@ function ScriptList() {
           }}
           rowSelection={{
             type: "checkbox",
-            onChange(_, selectedRows) {
+            onChange: (_, selectedRows) => {
               setShowAction(true);
               setSelect(selectedRows);
             },
