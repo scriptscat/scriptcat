@@ -7,6 +7,7 @@ export default defineConfig({
       "@App": path.resolve(__dirname, "./src"),
       "@Packages": path.resolve(__dirname, "./packages"),
       "@Tests": path.resolve(__dirname, "./tests"),
+      "monaco-editor": path.resolve(__dirname, "./tests/mocks/monaco-editor.ts"),
     },
   },
   test: {

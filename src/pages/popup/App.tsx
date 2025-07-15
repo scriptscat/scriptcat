@@ -57,24 +57,41 @@ function App() {
 
     const onCurrentUrlUpdated = (tabs: chrome.tabs.Tab[]) => {
       checkScriptEnableAndUpdate();
-      popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
-        if (!isMounted) return;
-        // 按照开启状态和更新时间排序
-        const list = resp.scriptList;
-        list.sort(
-          (a, b) =>
-            //@ts-ignore
-            b.enable - a.enable ||
-            // 根据菜单数排序
-            b.menus.length - a.menus.length ||
-            b.runNum - a.runNum ||
-            b.updatetime - a.updatetime
-        );
-        setScriptList(list);
-        setBackScriptList(resp.backScriptList);
-        setIsBlacklist(resp.isBlacklist);
-        checkScriptEnableAndUpdate();
-      });
+      popupClient
+        .getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! })
+        .then((resp) => {
+          if (!isMounted) return;
+
+          // 确保响应有效
+          if (!resp || !resp.scriptList) {
+            console.warn("Invalid popup data response:", resp);
+            return;
+          }
+
+          // 按照开启状态和更新时间排序
+          const list = resp.scriptList;
+          list.sort(
+            (a, b) =>
+              //@ts-ignore
+              b.enable - a.enable ||
+              // 根据菜单数排序
+              b.menus.length - a.menus.length ||
+              b.runNum - a.runNum ||
+              b.updatetime - a.updatetime
+          );
+          setScriptList(list);
+          setBackScriptList(resp.backScriptList || []);
+          setIsBlacklist(resp.isBlacklist || false);
+          checkScriptEnableAndUpdate();
+        })
+        .catch((error) => {
+          console.error("Failed to get popup data:", error);
+          if (!isMounted) return;
+          // 设置默认值以防止错误
+          setScriptList([]);
+          setBackScriptList([]);
+          setIsBlacklist(false);
+        });
     };
 
     const checkScriptEnableAndUpdate = async () => {

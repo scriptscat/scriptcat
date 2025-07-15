@@ -1,5 +1,6 @@
 import chromeMock from "@Packages/chrome-extension-mock";
 import { initTestEnv } from "./utils";
+import "@testing-library/jest-dom/vitest";
 
 chromeMock.init();
 initTestEnv();
