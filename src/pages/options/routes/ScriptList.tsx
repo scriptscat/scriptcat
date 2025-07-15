@@ -687,7 +687,13 @@ function ScriptList() {
     },
   };
 
-  const WidthInput = ({ width, selectColumn }: { width: string | number | undefined, selectColumn: number }) => <Input
+  const onWidthInputChanged = (val: string) => {
+    setDefinedWidths((cols) =>
+      cols.map((col, i) => (i === selectColumn ? parseInt(val, 10) : col))
+    );
+  }
+
+  const WidthInput = ({ width }: { width: string | number | undefined }) => <Input
     type={width === 0 || width === -1 ? "" : "number"}
     style={{ width: "80px" }}
     size="mini"
@@ -698,15 +704,18 @@ function ScriptList() {
           ? t("hide")
           : width?.toString()
     }
-    onChange={(val) => {
-      setDefinedWidths((cols) =>
-        cols.map((col, i) => (i === selectColumn ? parseInt(val, 10) : col))
-      );
-    }}
+    onChange={onWidthInputChanged}
   />
 
-  const onConfirmButtonClicked = () => {
+  const widthShown = useMemo(
+    () =>
+      definedWidths[selectColumn] === undefined ?
+        columns[selectColumn].width :
+        definedWidths[selectColumn]
+    , [definedWidths, selectColumn]
+  );
 
+  const onConfirm = () => {
     const enableAction = (enable: boolean) => {
       const uuids = select.map((item) => item.uuid);
       dispatch(enableLoading({ uuids: uuids, loading: true }));
@@ -814,8 +823,147 @@ function ScriptList() {
         Message.error(t("unknown_operation")!);
         break;
     }
-
   };
+
+  const actionCard = useMemo(() => (
+    !showAction ? <></> :
+      <Card>
+        <div
+          className="flex flex-row justify-between items-center"
+          style={{
+            padding: "8px 6px",
+          }}
+        >
+          <Space direction="horizontal">
+            <Typography.Text>{t("batch_operations")}:</Typography.Text>
+            <Select
+              style={{ minWidth: "100px" }}
+              size="mini"
+              value={action}
+              onChange={(value) => {
+                setAction(value);
+              }}
+            >
+              <Select.Option key={"enable"} value="enable">
+                {t("enable")}
+              </Select.Option>
+              <Select.Option key={"disable"} value="disable">
+                {t("disable")}
+              </Select.Option>
+              <Select.Option key={"export"} value="export">
+                {t("export")}
+              </Select.Option>
+              <Select.Option key={"delete"} value="delete">
+                {t("delete")}
+              </Select.Option>
+              <Select.Option key={"pin_to_top"} value="pin_to_top">
+                {t("pin_to_top")}
+              </Select.Option>
+              <Select.Option key={"check_update"} value="check_update">
+                {t("check_update")}
+              </Select.Option>
+            </Select>
+            <Button
+              type="primary"
+              size="mini"
+              onClick={onConfirm}
+            >
+              {t("confirm")}
+            </Button>
+            <Divider type="horizontal" />
+            <Typography.Text>{t("resize_column_width")}:</Typography.Text>
+            <Select
+              style={{ minWidth: "80px" }}
+              size="mini"
+              value={columns[selectColumn].title?.toString()}
+              onChange={(val) => {
+                const index = parseInt(val as string, 10);
+                setSelectColumn(index);
+              }}
+            >
+              {columns.map((column, index) => (
+                <Select.Option key={index} value={index}>
+                  {column.title}
+                </Select.Option>
+              ))}
+            </Select>
+            <Dropdown
+              droplist={
+                <Menu>
+                  <Menu.Item
+                    key="auto"
+                    onClick={() => {
+                      setDefinedWidths((cols) =>
+                        cols.map((col, i) => i === selectColumn ? 0 : col)
+                      );
+                    }}
+                  >
+                    {t("auto")}
+                  </Menu.Item>
+                  <Menu.Item
+                    key="hide"
+                    onClick={() => {
+                      setDefinedWidths((cols) =>
+                        cols.map((col, i) => i === selectColumn ? -1 : col)
+                      );
+                    }}
+                  >
+                    {t("hide")}
+                  </Menu.Item>
+                  <Menu.Item
+                    key="custom"
+                    onClick={() => {
+                      setDefinedWidths((cols) =>
+                        cols.map((col, i) => i === selectColumn ? (
+                          (col as number) > 0 ? col : undefined
+                        ) : col)
+                      );
+                    }}
+                  >
+                    {t("custom")}
+                  </Menu.Item>
+                </Menu>
+              }
+              position="bl"
+            >
+              <WidthInput
+                width={widthShown}
+              />
+            </Dropdown>
+            <Button
+              type="primary"
+              size="mini"
+              onClick={() => {
+                const newWidth: { [key: string]: number } = {};
+                columns.forEach((column, i) => {
+                  newWidth[column.key! as string] = (definedWidths[i] === undefined ? column.width : definedWidths[i]) as number;
+                });
+                systemConfig.setScriptListColumnWidth(newWidth);
+              }}
+            >
+              {t("save")}
+            </Button>
+            <Button
+              size="mini"
+              onClick={() => {
+                setDefinedWidths((cols) => cols.map(_col => undefined));
+              }}
+            >
+              {t("reset")}
+            </Button>
+          </Space>
+          <Button
+            type="primary"
+            size="mini"
+            onClick={() => {
+              setShowAction(false);
+            }}
+          >
+            {t("close")}
+          </Button>
+        </div>
+      </Card>
+  ), [showAction]);
 
   return (
     <Card
@@ -827,151 +975,7 @@ function ScriptList() {
       }}
     >
       <Space direction="vertical">
-        {showAction && (
-          <Card>
-            <div
-              className="flex flex-row justify-between items-center"
-              style={{
-                padding: "8px 6px",
-              }}
-            >
-              <Space direction="horizontal">
-                <Typography.Text>{t("batch_operations")}:</Typography.Text>
-                <Select
-                  style={{ minWidth: "100px" }}
-                  size="mini"
-                  value={action}
-                  onChange={(value) => {
-                    setAction(value);
-                  }}
-                >
-                  <Select.Option key={"enable"} value="enable">
-                    {t("enable")}
-                  </Select.Option>
-                  <Select.Option key={"disable"} value="disable">
-                    {t("disable")}
-                  </Select.Option>
-                  <Select.Option key={"export"} value="export">
-                    {t("export")}
-                  </Select.Option>
-                  <Select.Option key={"delete"} value="delete">
-                    {t("delete")}
-                  </Select.Option>
-                  <Select.Option key={"pin_to_top"} value="pin_to_top">
-                    {t("pin_to_top")}
-                  </Select.Option>
-                  <Select.Option key={"check_update"} value="check_update">
-                    {t("check_update")}
-                  </Select.Option>
-                </Select>
-                <Button
-                  type="primary"
-                  size="mini"
-                  onClick={onConfirmButtonClicked}
-                >
-                  {t("confirm")}
-                </Button>
-                <Divider type="horizontal" />
-                <Typography.Text>{t("resize_column_width")}:</Typography.Text>
-                <Select
-                  style={{ minWidth: "80px" }}
-                  size="mini"
-                  value={columns[selectColumn].title?.toString()}
-                  onChange={(val) => {
-                    const index = parseInt(val as string, 10);
-                    setSelectColumn(index);
-                  }}
-                >
-                  {columns.map((column, index) => (
-                    <Select.Option key={index} value={index}>
-                      {column.title}
-                    </Select.Option>
-                  ))}
-                </Select>
-                <Dropdown
-                  droplist={
-                    <Menu>
-                      <Menu.Item
-                        key="auto"
-                        onClick={() => {
-                          setDefinedWidths((cols) =>
-                            cols.map((col, i) => i === selectColumn ? 0 : col)
-                          );
-                        }}
-                      >
-                        {t("auto")}
-                      </Menu.Item>
-                      <Menu.Item
-                        key="hide"
-                        onClick={() => {
-                          setDefinedWidths((cols) =>
-                            cols.map((col, i) => i === selectColumn ? -1 : col)
-                          );
-                        }}
-                      >
-                        {t("hide")}
-                      </Menu.Item>
-                      <Menu.Item
-                        key="custom"
-                        onClick={() => {
-                          setDefinedWidths((cols) =>
-                            cols.map((col, i) => i === selectColumn ? (
-                              (col as number) > 0 ? col : undefined
-                            ) : col)
-                          );
-                        }}
-                      >
-                        {t("custom")}
-                      </Menu.Item>
-                    </Menu>
-                  }
-                  position="bl"
-                >
-                  <WidthInput
-                    selectColumn={selectColumn}
-                    width={useMemo(
-                      () =>
-                        definedWidths[selectColumn] === undefined ?
-                          columns[selectColumn].width :
-                          definedWidths[selectColumn]
-                      , [definedWidths, selectColumn]
-                    )}
-                  />
-                </Dropdown>
-                <Button
-                  type="primary"
-                  size="mini"
-                  onClick={() => {
-                    const newWidth: { [key: string]: number } = {};
-                    columns.forEach((column, i) => {
-                      newWidth[column.key! as string] = (definedWidths[i] === undefined ? column.width : definedWidths[i]) as number;
-                    });
-                    systemConfig.setScriptListColumnWidth(newWidth);
-                  }}
-                >
-                  {t("save")}
-                </Button>
-                <Button
-                  size="mini"
-                  onClick={() => {
-                    setDefinedWidths((cols) => cols.map(_col => undefined));
-                  }}
-                >
-                  {t("reset")}
-                </Button>
-              </Space>
-              <Button
-                type="primary"
-                size="mini"
-                onClick={() => {
-                  setShowAction(false);
-                }}
-              >
-                {t("close")}
-              </Button>
-            </div>
-          </Card>
-        )}
+        {actionCard}
         <Table
           key="script-list-table"
           className="arco-drag-table-container"
@@ -981,9 +985,10 @@ function ScriptList() {
           columns={tableColumns}
           data={scriptList}
           pagination={{
-            total: scriptList.length,
-            pageSize: scriptList.length,
-            hideOnSinglePage: true,
+            disabled: true,
+            // total: scriptList.length,
+            // pageSize: scriptList.length,
+            // hideOnSinglePage: true,
           }}
           style={{
             minWidth: "1200px",
