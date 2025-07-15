@@ -41,17 +41,8 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
-import type { DragEndEvent } from "@dnd-kit/core";
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { SortableContainer, SortableElement, SortableHandle } from "react-sortable-hoc";
 
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 import { useTranslation } from "react-i18next";
@@ -134,6 +125,35 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
+
+  const DragHandle = SortableHandle(() => (
+    <IconMenu
+      style={{
+        cursor: "move",
+      }}
+    />
+  ));
+
+  const SortableRow = SortableElement((props: any) => (
+    <tr {...props} />
+  ));
+
+  const SortableTable = SortableContainer((props: any) => (
+    <table {...props} />
+  ));
+
+  const onSortEnd = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      if (oldIndex !== newIndex) {
+        const scripts = scriptList;
+        // const scripts = store.getState().script.scripts;
+        const active = scripts[oldIndex].uuid;
+        const over = scripts[newIndex].uuid;
+        dispatch(sortScript({ active, over }));
+      }
+    },
+    [dispatch, scriptList]
+  );
 
   const FavoriteAvatars = React.memo(
     ({
@@ -449,13 +469,7 @@ function ScriptList() {
         key: "sort",
         width: 80,
         align: "center",
-        render: () => (
-          <IconMenu
-            style={{
-              cursor: "move",
-            }}
-          />
-        ),
+        render: () => <DragHandle />,
       },
       {
         title: t("last_updated"),
@@ -643,94 +657,26 @@ function ScriptList() {
     });
   }, []);
 
-  // 处理拖拽排序
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // Small movement to start dragging
-        delay: 100, // Slight delay to prevent accidental drags
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const SortableWrapper = React.forwardRef<HTMLTableElement, any>((props, ref) => (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      onDragEnd={(event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) {
-          return;
-        }
-        dispatch(sortScript({ active: active.id as string, over: over.id as string }));
-      }}
-    >
-      <SortableContext items={scriptList.map((s) => s.uuid)} strategy={verticalListSortingStrategy}>
-        <table ref={ref} {...props} />
-      </SortableContext>
-    </DndContext>
-  ));
-  SortableWrapper.displayName = "SortableWrapper";
-
   const dealColumns = useMemo(() => newColumns.filter((item) => item.width !== -1), [newColumns]);
 
   const tableColumns = useMemo(()=>dealColumns.length ? dealColumns : columns, [dealColumns, columns]);
 
   useEffect(() => {
-    const SortableRow = React.memo(
-      (props: any) => {
-        const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-          id: props.record.uuid,
-        });
-
-        const style = {
-          transform: CSS.Transform.toString(transform),
-          transition: transition || "none",
-          opacity: isDragging ? 0.6 : 1,
-          backgroundColor: isDragging ? "rgba(0, 0, 0, 0.05)" : undefined,
-          zIndex: isDragging ? 1 : 0,
-        };
-
-        const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
-        if (sortIndex !== -1 && props.children[sortIndex + 1]) {
-          // 替换排序列,使其可以拖拽
-          props.children[sortIndex + 1] = (
-            <td
-              className="arco-table-td script-sort"
-              style={{ textAlign: "center", cursor: "move" }}
-              key="sort"
-              {...listeners}
-              {...attributes}
-            >
-              <div className="arco-table-cell">
-                <IconMenu />
-              </div>
-            </td>
-          );
-        }
-
-        return <tr ref={setNodeRef} style={style} {...props} />;
-      },
-      (prevProps, nextProps) => {
-        return (
-          prevProps.record.uuid === nextProps.record.uuid && prevProps.children.length === nextProps.children.length
-        );
-      }
-    );
-    SortableRow.displayName = "SortableItem";
-
     setComponents({
-      table: SortableWrapper,
+      table: (props: any) => (
+      <SortableTable
+        useDragHandle
+        helperClass="sortable-helper"
+        onSortEnd={onSortEnd}
+        {...props}
+      />
+    ),
       body: {
         // tbody: SortableWrapper,
         row: SortableRow,
       },
     });
-  }, [dealColumns, selectedRowKeys]);
+  });
 
   return (
     <Card
