@@ -115,7 +115,6 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const { t } = useTranslation();
-  const [components, setComponents] = useState<ComponentsProps | undefined>(undefined);
 
   useEffect(() => {
     dispatch(fetchScriptList()).then((action) => {
@@ -134,14 +133,37 @@ function ScriptList() {
     />
   ));
 
-  const SortableRow = SortableElement((props: any) => (
-    <tr {...props} />
-  ));
 
-  const SortableTable = SortableContainer((props: any) => (
-    <table {...props} />
-  ));
 
+
+  const SortableWrapper = SortableContainer((props: any) => {
+    return <tbody {...props} />;
+  });
+  const SortableItem = SortableElement((props: any) => {
+    return <tr {...props} />;
+  });
+
+
+  const DraggableContainer = (props: any) => (
+    <SortableWrapper
+      useDragHandle
+      onSortEnd={onSortEnd}
+      helperContainer={() => document.querySelector('.arco-drag-table-container table tbody')}
+      updateBeforeSortStart={({ node }) => {
+        const tds = node.querySelectorAll('td');
+        tds.forEach((td) => {
+          td.style.width = td.clientWidth + 'px';
+        });
+      }}
+      {...props}
+    />
+  );
+
+
+  const DraggableRow = (props: any) => {
+    const { record, index, ...rest } = props;
+    return <SortableItem index={index} {...rest} />;
+  };
 
 
   const onSortEnd = useCallback(
@@ -156,12 +178,6 @@ function ScriptList() {
     },
     [dispatch, scriptList]
   );
-
-  const SortableTable2 = (props: any) => {
-    return <SortableTable {...props} onSortEnd={onSortEnd} />;
-  }
-
-
 
   const FavoriteAvatars = React.memo(
     ({
@@ -669,15 +685,12 @@ function ScriptList() {
 
   const tableColumns = useMemo(()=>dealColumns.length ? dealColumns : columns, [dealColumns, columns]);
 
-  useEffect(() => {
-    setComponents({
-      table: SortableTable2,
-      body: {
-        // tbody: SortableWrapper,
-        row: SortableRow,
-      },
-    });
-  });
+  const components: ComponentsProps = {
+    body: {
+      tbody: DraggableContainer,
+      row: DraggableRow,
+    },
+  };
 
   return (
     <Card
