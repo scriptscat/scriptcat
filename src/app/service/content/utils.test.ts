@@ -20,7 +20,7 @@ describe("utils", () => {
   beforeEach(() => {
     // 重置所有 mock
     vi.clearAllMocks();
-    
+
     // 设置 console mock 来避免测试输出污染
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -30,7 +30,7 @@ describe("utils", () => {
     // 清理 DOM
     document.head.innerHTML = "";
     document.documentElement.innerHTML = "<head></head><body></body>";
-    
+
     vi.restoreAllMocks();
   });
 
@@ -221,9 +221,9 @@ describe("utils", () => {
     it("应该编译并执行简单代码", () => {
       const code = "return arguments[0].value + arguments[1];";
       const func: ScriptFunc = compileScript(code);
-      
+
       const result = func({ value: 10 }, "test-script");
-      
+
       expect(result).toBe("10test-script");
     });
 
@@ -237,10 +237,10 @@ describe("utils", () => {
         return scriptName;
       `;
       const func: ScriptFunc = compileScript(code);
-      
+
       const result1 = func({ value: 5, multiply: 3 }, "test");
       const result2 = func({ value: 5 }, "fallback");
-      
+
       expect(result1).toBe(15);
       expect(result2).toBe("fallback");
     });
@@ -252,16 +252,16 @@ describe("utils", () => {
         });
       `;
       const func: ScriptFunc = compileScript(code);
-      
+
       const result = await func({ value: 5 }, "async-test");
-      
+
       expect(result).toBe(10);
     });
 
     it("应该正确处理错误", () => {
       const code = "throw new Error('Test error');";
       const func: ScriptFunc = compileScript(code);
-      
+
       expect(() => func({}, "error-test")).toThrow("Test error");
     });
   });
@@ -288,18 +288,18 @@ describe("utils", () => {
     it("应该生成基本的注入脚本代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('injected');";
-      
+
       const result = compileInjectScript(script, scriptCode);
-      
+
       expect(result).toBe(`window['inject-test-flag'] = function(){console.log('injected');}`);
     });
 
     it("应该包含自动删除挂载函数的代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('with auto delete');";
-      
+
       const result = compileInjectScript(script, scriptCode, true);
-      
+
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
@@ -310,9 +310,9 @@ describe("utils", () => {
     it("默认情况下不应该包含自动删除代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('without auto delete');";
-      
+
       const result = compileInjectScript(script, scriptCode);
-      
+
       expect(result).not.toContain("try{delete window");
       expect(result).toBe(`window['inject-test-flag'] = function(){console.log('without auto delete');}`);
     });
@@ -324,9 +324,9 @@ describe("utils", () => {
         function test() { return x + 1; }
         console.log(test());
       `;
-      
+
       const result = compileInjectScript(script, scriptCode, true);
-      
+
       expect(result).toContain("window['complex-flag']");
       expect(result).toContain("var x = 1;");
       expect(result).toContain("function test()");
@@ -336,9 +336,9 @@ describe("utils", () => {
     it("应该正确转义脚本标志名称", () => {
       const script = createMockScript({ flag: "flag-with-special-chars_123" });
       const scriptCode = "console.log('test');";
-      
+
       const result = compileInjectScript(script, scriptCode);
-      
+
       expect(result).toContain(`window['flag-with-special-chars_123']`);
     });
   });
@@ -346,9 +346,9 @@ describe("utils", () => {
   describe("addStyle", () => {
     it("应该创建并添加 style 元素到 head", () => {
       const css = "body { background: red; }";
-      
+
       const styleElement = addStyle(css);
-      
+
       expect(styleElement).toBeInstanceOf(HTMLStyleElement);
       expect(styleElement.textContent).toBe(css);
       expect(document.head.contains(styleElement)).toBe(true);
@@ -358,23 +358,23 @@ describe("utils", () => {
       // 移除 head 元素
       const head = document.head;
       head.remove();
-      
+
       const css = ".test { color: blue; }";
       const styleElement = addStyle(css);
-      
+
       expect(styleElement).toBeInstanceOf(HTMLStyleElement);
       expect(styleElement.textContent).toBe(css);
       expect(document.documentElement.contains(styleElement)).toBe(true);
-      
+
       // 恢复 head 元素以便其他测试
       document.documentElement.appendChild(head);
     });
 
     it("应该处理空的 CSS 字符串", () => {
       const css = "";
-      
+
       const styleElement = addStyle(css);
-      
+
       expect(styleElement.textContent).toBe("");
       expect(document.head.contains(styleElement)).toBe(true);
     });
@@ -398,9 +398,9 @@ describe("utils", () => {
           transition: transform 0.3s ease;
         }
       `;
-      
+
       const styleElement = addStyle(css);
-      
+
       expect(styleElement.textContent).toBe(css);
       expect(document.head.contains(styleElement)).toBe(true);
     });
@@ -408,10 +408,10 @@ describe("utils", () => {
     it("应该允许添加多个样式", () => {
       const css1 = ".class1 { color: red; }";
       const css2 = ".class2 { color: blue; }";
-      
+
       const style1 = addStyle(css1);
       const style2 = addStyle(css2);
-      
+
       expect(document.head.contains(style1)).toBe(true);
       expect(document.head.contains(style2)).toBe(true);
       expect(style1.textContent).toBe(css1);
@@ -421,10 +421,10 @@ describe("utils", () => {
 
     it("应该返回添加的 style 元素", () => {
       const css = ".return-test { font-size: 14px; }";
-      
+
       const returnedElement = addStyle(css);
       const queriedElement = document.querySelector("style");
-      
+
       expect(returnedElement).toBe(queriedElement);
       expect(returnedElement?.textContent).toBe(css);
     });
