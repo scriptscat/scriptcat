@@ -687,27 +687,23 @@ function ScriptList() {
     },
   };
 
-  const WidthInput = (props: any) => {
-    const width = useMemo(() => (definedWidths[selectColumn] === undefined ? columns[selectColumn].width : definedWidths[selectColumn]), [definedWidths, selectColumn]);
-    const onChange = useCallback((val: string, e: any) => {
+  const WidthInput = ({ width, selectColumn }: { width: string | number | undefined, selectColumn: number }) => <Input
+    type={width === 0 || width === -1 ? "" : "number"}
+    style={{ width: "80px" }}
+    size="mini"
+    value={
+      width === 0
+        ? t("auto")
+        : width === -1
+          ? t("hide")
+          : width?.toString()
+    }
+    onChange={(val) => {
       setDefinedWidths((cols) =>
         cols.map((col, i) => (i === selectColumn ? parseInt(val, 10) : col))
       );
-    }, [selectColumn]);
-    return <Input
-      type={width === 0 || width === -1 ? "" : "number"}
-      style={{ width: "80px" }}
-      size="mini"
-      value={
-        width === 0
-          ? t("auto")
-          : width === -1
-            ? t("hide")
-            : width?.toString()
-      }
-      onChange={onChange}
-    />
-  }
+    }}
+  />
 
   return (
     <Card
@@ -927,7 +923,16 @@ function ScriptList() {
                   }
                   position="bl"
                 >
-                  <WidthInput />
+                  <WidthInput
+                    selectColumn={selectColumn}
+                    width={useMemo(
+                      () =>
+                        definedWidths[selectColumn] === undefined ?
+                          columns[selectColumn].width :
+                          definedWidths[selectColumn]
+                      , [definedWidths, selectColumn]
+                    )}
+                  />
                 </Dropdown>
                 <Button
                   type="primary"

@@ -16,7 +16,21 @@ import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
-import { arrayMove } from "@dnd-kit/sortable";
+
+const arrayMoveMutate = <T>(array: T[], from: number, to: number): void => {
+  const startIndex = to < 0 ? array.length + to : to;
+
+  if (startIndex >= 0 && startIndex < array.length) {
+    const item = array.splice(from, 1)[0];
+    array.splice(startIndex, 0, item);
+  }
+};
+
+const arrayMove = <T>(array: T[], from: number, to: number): T[] => {
+  array = [...array];
+  arrayMoveMutate(array, from, to);
+  return array;
+};
 
 export class ScriptService {
   logger: Logger;
