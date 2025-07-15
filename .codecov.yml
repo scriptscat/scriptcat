@@ -3,3 +3,5 @@ coverage:
   status:
     # 禁用补丁覆盖率检查
     patch: off
+
+comment: false
