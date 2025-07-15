@@ -658,88 +658,79 @@ function ScriptList() {
     })
   );
 
+  const SortableWrapper = (props: any, ref: any) => {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={(event: DragEndEvent) => {
+          const { active, over } = event;
+          if (!over) {
+            return;
+          }
+          if (active.id !== over.id) {
+            dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+          }
+        }}
+      >
+        <SortableContext
+          items={store.getState().script.scripts.map((s) => ({ ...s, id: s.uuid }))}
+          strategy={verticalListSortingStrategy}
+        >
+          <table ref={ref} {...props} />
+        </SortableContext>
+      </DndContext>
+    );
+  };
+
+  const [sortIndexState, setSortIndexState] = useState(-1);
+
+  const SortableItemComponent = (props: any) => {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    // 替换排序列,使其可以拖拽
+    props.children[sortIndexState + 1] = (
+      <td
+        className="arco-table-td"
+        style={{
+          textAlign: "center",
+        }}
+        key="drag"
+      >
+        <div className="arco-table-cell">
+          <IconMenu
+            style={{
+              cursor: "move",
+            }}
+            {...listeners}
+          />
+        </div>
+      </td>
+    );
+
+    return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
+  };
+  SortableItemComponent.displayName = "SortableItem";
+
   useEffect(() => {
     if (!newColumns.length) {
       return;
     }
-    const SortableWrapper = (props: any, ref: any) => {
-      return (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={(event: DragEndEvent) => {
-            const { active, over } = event;
-            if (!over) {
-              return;
-            }
-            if (active.id !== over.id) {
-              dispatch(sortScript({ active: active.id as string, over: over.id as string }));
-            }
-          }}
-        >
-          <SortableContext
-            items={store.getState().script.scripts.map((s) => ({ ...s, id: s.uuid }))}
-            strategy={verticalListSortingStrategy}
-          >
-            <table ref={ref} {...props} />
-          </SortableContext>
-        </DndContext>
-      );
-    };
-    const dealColumns: ColumnProps[] = [];
-
-    newColumns.forEach((item) => {
-      switch (item.width) {
-        case -1:
-          break;
-        default:
-          dealColumns.push(item);
-          break;
-      }
-    });
+    const dealColumns: ColumnProps[] = newColumns.filter((item) => item.width !== -1);
 
     const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
-    let SortableItem;
-    if (sortIndex !== -1) {
-      const SortableItemComponent = (props: any) => {
-        const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
-
-        const style = {
-          transform: CSS.Transform.toString(transform),
-          transition,
-        };
-
-        // 替换排序列,使其可以拖拽
-        props.children[sortIndex + 1] = (
-          <td
-            className="arco-table-td"
-            style={{
-              textAlign: "center",
-            }}
-            key="drag"
-          >
-            <div className="arco-table-cell">
-              <IconMenu
-                style={{
-                  cursor: "move",
-                }}
-                {...listeners}
-              />
-            </div>
-          </td>
-        );
-
-        return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
-      };
-      SortableItemComponent.displayName = "SortableItem";
-      SortableItem = SortableItemComponent;
-    }
+    setSortIndexState(sortIndex);
 
     setComponents({
       table: React.forwardRef(SortableWrapper),
       body: {
         // tbody: SortableWrapper,
-        row: SortableItem,
+        row: sortIndex !== -1 ? SortableItemComponent : undefined,
       },
     });
     setDealColumns(dealColumns);
