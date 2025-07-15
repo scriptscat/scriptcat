@@ -36,3 +36,5 @@ jobs:
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
+        # pr 不上传覆盖率报告
+        if: github.event_name != 'pull_request'
