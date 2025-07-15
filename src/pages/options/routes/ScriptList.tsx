@@ -281,8 +281,10 @@ function ScriptList() {
   );
   RunApplyGroup.displayName = "RunApplyGroup";
 
-  const columns: ColumnProps[] = useMemo(
-    () => [
+
+  const [definedWidths, setDefinedWidths] = useState([] as Array<number | undefined>);
+
+  const columns: ColumnProps[] = [
       {
         title: "#",
         dataIndex: "sort",
@@ -299,9 +301,7 @@ function ScriptList() {
         width: t("script_list_enable_width"),
         dataIndex: "status",
         className: "script-enable",
-        sorter(a, b) {
-          return a.status - b.status;
-        },
+        sorter: (a, b) => a.status - b.status,
         filters: [
           {
             text: t("enable"),
@@ -313,8 +313,7 @@ function ScriptList() {
           },
         ],
         onFilter: (value, row) => row.status === value,
-        render: (col, item: ScriptLoading) => {
-          return (
+        render: (col, item: ScriptLoading) => (
             <Switch
               checked={item.status === SCRIPT_STATUS_ENABLE}
               loading={item.enableLoading}
@@ -323,8 +322,7 @@ function ScriptList() {
                 dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }));
               }}
             />
-          );
-        },
+          ),
       },
       {
         key: "name",
@@ -372,31 +370,29 @@ function ScriptList() {
           }
         },
         className: "max-w-[240px]",
-        render: (col, item: ListType) => {
-          return (
-            <Tooltip content={col} position="tl">
-              <Link
-                to={`/script/editor/${item.uuid}`}
+        render: (col, item: ListType) => (
+          <Tooltip content={col} position="tl">
+            <Link
+              to={`/script/editor/${item.uuid}`}
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              <Text
                 style={{
-                  textDecoration: "none",
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  lineHeight: "20px",
                 }}
               >
-                <Text
-                  style={{
-                    display: "block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    lineHeight: "20px",
-                  }}
-                >
-                  <ScriptIcons script={item} size={20} />
-                  {i18nName(item)}
-                </Text>
-              </Link>
-            </Tooltip>
-          );
-        },
+                <ScriptIcons script={item} size={20} />
+                {i18nName(item)}
+              </Text>
+            </Link>
+          </Tooltip>
+        ),
       },
       {
         title: t("version"),
@@ -502,158 +498,165 @@ function ScriptList() {
         key: "updatetime",
         width: t("script_list_last_updated_width"),
         sorter: (a, b) => a.updatetime - b.updatetime,
-        render(col, script: Script) {
-          return (
-            <span
-              style={{
-                cursor: "pointer",
-              }}
-              onClick={() => {
-                if (!script.checkUpdateUrl) {
-                  Message.warning(t("update_not_supported")!);
-                  return;
-                }
-                Message.info({
-                  id: "checkupdate",
-                  content: t("checking_for_updates"),
-                });
-                scriptClient
-                  .requestCheckUpdate(script.uuid)
-                  .then((res) => {
-                    console.log("res", res);
-                    if (res) {
-                      Message.warning({
-                        id: "checkupdate",
-                        content: t("new_version_available"),
-                      });
-                    } else {
-                      Message.success({
-                        id: "checkupdate",
-                        content: t("latest_version"),
-                      });
-                    }
-                  })
-                  .catch((e) => {
-                    Message.error({
+        render: (col, script: Script) => (
+          <span
+            style={{
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              if (!script.checkUpdateUrl) {
+                Message.warning(t("update_not_supported")!);
+                return;
+              }
+              Message.info({
+                id: "checkupdate",
+                content: t("checking_for_updates"),
+              });
+              scriptClient
+                .requestCheckUpdate(script.uuid)
+                .then((res) => {
+                  console.log("res", res);
+                  if (res) {
+                    Message.warning({
                       id: "checkupdate",
-                      content: `${t("update_check_failed")}: ${e.message}`,
+                      content: t("new_version_available"),
                     });
+                  } else {
+                    Message.success({
+                      id: "checkupdate",
+                      content: t("latest_version"),
+                    });
+                  }
+                })
+                .catch((e) => {
+                  Message.error({
+                    id: "checkupdate",
+                    content: `${t("update_check_failed")}: ${e.message}`,
                   });
-              }}
-            >
-              {semTime(new Date(col))}
-            </span>
-          );
-        },
+                });
+            }}
+          >
+            {semTime(new Date(col))}
+          </span>
+        ),
       },
       {
         title: t("action"),
         dataIndex: "action",
         key: "action",
         width: 160,
-        render(col, item: ScriptLoading) {
-          return (
-            <Button.Group>
-              <Link to={`/script/editor/${item.uuid}`}>
-                <Button
-                  type="text"
-                  icon={<RiPencilFill />}
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                />
-              </Link>
-              <Popconfirm
-                title={t("confirm_delete_script")}
-                icon={<RiDeleteBin5Fill />}
-                onOk={() => {
-                  dispatch(requestDeleteScript(item.uuid));
+        render: (col, item: ScriptLoading) => (
+          <Button.Group>
+            <Link to={`/script/editor/${item.uuid}`}>
+              <Button
+                type="text"
+                icon={<RiPencilFill />}
+                style={{
+                  color: "var(--color-text-2)",
                 }}
-              >
-                <Button
-                  type="text"
-                  icon={<RiDeleteBin5Fill />}
-                  loading={item.actionLoading}
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                />
-              </Popconfirm>
-              {item.config && (
-                <Button
-                  type="text"
-                  icon={<RiSettings3Fill />}
-                  onClick={() => {
-                    new ValueClient(message).getScriptValue(item).then((newValues) => {
-                      setUserConfig({
-                        userConfig: { ...item.config! },
-                        script: item,
-                        values: newValues,
-                      });
+              />
+            </Link>
+            <Popconfirm
+              title={t("confirm_delete_script")}
+              icon={<RiDeleteBin5Fill />}
+              onOk={() => {
+                dispatch(requestDeleteScript(item.uuid));
+              }}
+            >
+              <Button
+                type="text"
+                icon={<RiDeleteBin5Fill />}
+                loading={item.actionLoading}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            </Popconfirm>
+            {item.config && (
+              <Button
+                type="text"
+                icon={<RiSettings3Fill />}
+                onClick={() => {
+                  new ValueClient(message).getScriptValue(item).then((newValues) => {
+                    setUserConfig({
+                      userConfig: { ...item.config! },
+                      script: item,
+                      values: newValues,
                     });
-                  }}
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                />
-              )}
-              {item.type !== SCRIPT_TYPE_NORMAL && (
-                <Button
-                  type="text"
-                  icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-                  loading={item.actionLoading}
-                  onClick={async () => {
-                    if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-                      // Stop script
-                      Message.loading({
-                        id: "script-stop",
-                        content: t("stopping_script"),
-                      });
-                      await dispatch(requestStopScript(item.uuid));
-                      Message.success({
-                        id: "script-stop",
-                        content: t("script_stopped"),
-                        duration: 3000,
-                      });
-                    } else {
-                      Message.loading({
-                        id: "script-run",
-                        content: t("starting_script"),
-                      });
-                      await dispatch(requestRunScript(item.uuid));
-                      Message.success({
-                        id: "script-run",
-                        content: t("script_started"),
-                        duration: 3000,
-                      });
-                    }
-                  }}
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                />
-              )}
-              {item.metadata.cloudcat && (
-                <Button
-                  type="text"
-                  icon={<RiUploadCloudFill />}
-                  onClick={() => {
-                    setCloudScript(item);
-                  }}
-                  style={{
-                    color: "var(--color-text-2)",
-                  }}
-                />
-              )}
-            </Button.Group>
-          );
-        },
+                  });
+                }}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            )}
+            {item.type !== SCRIPT_TYPE_NORMAL && (
+              <Button
+                type="text"
+                icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
+                loading={item.actionLoading}
+                onClick={async () => {
+                  if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+                    // Stop script
+                    Message.loading({
+                      id: "script-stop",
+                      content: t("stopping_script"),
+                    });
+                    await dispatch(requestStopScript(item.uuid));
+                    Message.success({
+                      id: "script-stop",
+                      content: t("script_stopped"),
+                      duration: 3000,
+                    });
+                  } else {
+                    Message.loading({
+                      id: "script-run",
+                      content: t("starting_script"),
+                    });
+                    await dispatch(requestRunScript(item.uuid));
+                    Message.success({
+                      id: "script-run",
+                      content: t("script_started"),
+                      duration: 3000,
+                    });
+                  }
+                }}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            )}
+            {item.metadata.cloudcat && (
+              <Button
+                type="text"
+                icon={<RiUploadCloudFill />}
+                onClick={() => {
+                  setCloudScript(item);
+                }}
+                style={{
+                  color: "var(--color-text-2)",
+                }}
+              />
+            )}
+          </Button.Group>
+        ),
       },
-    ],
-    [t, dispatch, inputRef, navigate]
-  );
+    ];
 
-  const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
+  const tableColumns = useMemo(() => {
+    
+    const resized = columns.map((col, i) =>
+  ({
+    ...col,
+    width: definedWidths[i] === undefined ? col.width : definedWidths[i]
+  }));
+  const filtered = resized.filter((item) => item.width !== -1);
+    
+    return filtered.length === 0 ? columns : filtered;
+
+}
+
+    , [definedWidths]);
 
   // 设置列和判断是否打开用户配置
   useEffect(() => {
@@ -672,18 +675,10 @@ function ScriptList() {
       });
     }
     systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setNewColumns(
-        columns.map((item) => ({
-          ...item,
-          width: columnWidth[item.key!] ?? item.width,
-        }))
-      );
+      const vals = columns.map((item) => columnWidth[item.key!]);
+      setDefinedWidths((cols) => cols.map((_col, i) => typeof vals[i] === 'number' ? vals[i] : undefined))
     });
   }, []);
-
-  const dealColumns = useMemo(() => newColumns.filter((item) => item.width !== -1), [newColumns]);
-
-  const tableColumns = useMemo(()=>dealColumns.length ? dealColumns : columns, [dealColumns, columns]);
 
   const components: ComponentsProps = {
     body: {
@@ -691,6 +686,28 @@ function ScriptList() {
       row: DraggableRow,
     },
   };
+
+  const WidthInput = (props: any) => {
+    const width = useMemo(() => (definedWidths[selectColumn] === undefined ? columns[selectColumn].width : definedWidths[selectColumn]), [definedWidths, selectColumn]);
+    const onChange = useCallback((val: string, e: any) => {
+      setDefinedWidths((cols) =>
+        cols.map((col, i) => (i === selectColumn ? parseInt(val, 10) : col))
+      );
+    }, [selectColumn]);
+    return <Input
+      type={width === 0 || width === -1 ? "" : "number"}
+      style={{ width: "80px" }}
+      size="mini"
+      value={
+        width === 0
+          ? t("auto")
+          : width === -1
+            ? t("hide")
+            : width?.toString()
+      }
+      onChange={onChange}
+    />
+  }
 
   return (
     <Card
@@ -859,13 +876,13 @@ function ScriptList() {
                 <Select
                   style={{ minWidth: "80px" }}
                   size="mini"
-                  value={newColumns[selectColumn].title?.toString()}
+                  value={columns[selectColumn].title?.toString()}
                   onChange={(val) => {
                     const index = parseInt(val as string, 10);
                     setSelectColumn(index);
                   }}
                 >
-                  {newColumns.map((column, index) => (
+                  {columns.map((column, index) => (
                     <Select.Option key={index} value={index}>
                       {column.title}
                     </Select.Option>
@@ -877,8 +894,8 @@ function ScriptList() {
                       <Menu.Item
                         key="auto"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn ? { ...col, width: 0 } : col))
+                          setDefinedWidths((cols) =>
+                            cols.map((col, i) => i === selectColumn ? 0 : col)
                           );
                         }}
                       >
@@ -887,8 +904,8 @@ function ScriptList() {
                       <Menu.Item
                         key="hide"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn ? { ...col, width: -1 } : col))
+                          setDefinedWidths((cols) =>
+                            cols.map((col, i) => i === selectColumn ? -1 : col)
                           );
                         }}
                       >
@@ -897,18 +914,10 @@ function ScriptList() {
                       <Menu.Item
                         key="custom"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) =>
-                              i === selectColumn
-                                ? {
-                                    ...col,
-                                    width:
-                                      (newColumns[selectColumn].width as number) > 0
-                                        ? newColumns[selectColumn].width
-                                        : columns[selectColumn].width,
-                                  }
-                                : col
-                            )
+                          setDefinedWidths((cols) =>
+                            cols.map((col, i) => i === selectColumn ? (
+                              (col as number) > 0 ? col : undefined
+                            ) : col)
                           );
                         }}
                       >
@@ -918,31 +927,15 @@ function ScriptList() {
                   }
                   position="bl"
                 >
-                  <Input
-                    type={newColumns[selectColumn].width === 0 || newColumns[selectColumn].width === -1 ? "" : "number"}
-                    style={{ width: "80px" }}
-                    size="mini"
-                    value={
-                      newColumns[selectColumn].width === 0
-                        ? t("auto")
-                        : newColumns[selectColumn].width === -1
-                          ? t("hide")
-                          : newColumns[selectColumn].width?.toString()
-                    }
-                    onChange={(val) => {
-                      setNewColumns((cols) =>
-                        cols.map((col, i) => (i === selectColumn ? { ...col, width: parseInt(val, 10) } : col))
-                      );
-                    }}
-                  />
+                  <WidthInput />
                 </Dropdown>
                 <Button
                   type="primary"
                   size="mini"
                   onClick={() => {
                     const newWidth: { [key: string]: number } = {};
-                    newColumns.forEach((column) => {
-                      newWidth[column.key! as string] = column.width as number;
+                    columns.forEach((column, i) => {
+                      newWidth[column.key! as string] = (definedWidths[i] === undefined ? column.width : definedWidths[i]) as number;
                     });
                     systemConfig.setScriptListColumnWidth(newWidth);
                   }}
@@ -952,12 +945,7 @@ function ScriptList() {
                 <Button
                   size="mini"
                   onClick={() => {
-                    setNewColumns((cols) => {
-                      return cols.map((col, index) => {
-                        col.width = columns[index].width;
-                        return col;
-                      });
-                    });
+                    setDefinedWidths((cols) => cols.map(_col => undefined));
                   }}
                 >
                   {t("reset")}
