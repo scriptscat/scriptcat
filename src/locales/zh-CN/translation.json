@@ -415,5 +415,7 @@
   "build_failed": "构建失败",
   "drag_script_here_to_upload": "拖拽脚本到此处上传",
   "sync_status": "同步状态",
-  "search_scripts": "搜索脚本"
+  "search_scripts": "搜索脚本",
+  "ext_update_notification": "脚本猫扩展已更新",
+  "ext_update_notification_desc": "当前版本：{{version}}，详情请查看更新日志"
 }
