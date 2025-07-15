@@ -282,8 +282,6 @@ function ScriptList() {
   RunApplyGroup.displayName = "RunApplyGroup";
 
 
-  const [definedWidths, setDefinedWidths] = useState([] as Array<number | undefined>);
-
   const columns: ColumnProps[] = [
       {
         title: "#",
@@ -643,6 +641,8 @@ function ScriptList() {
       },
     ];
 
+  const [definedWidths, setDefinedWidths] = useState(new Array(columns.length) as Array<number | undefined>);
+
   const tableColumns = useMemo(() => {
     
     const resized = columns.map((col, i) =>
@@ -707,13 +707,14 @@ function ScriptList() {
     onChange={onWidthInputChanged}
   />
 
-  const widthShown = useMemo(
-    () =>
+  const [customWidthInput, setCustomWidthInput] = useState(0 as string | number | undefined);
+  useEffect(() => {
+    const val =
       definedWidths[selectColumn] === undefined ?
         columns[selectColumn].width :
-        definedWidths[selectColumn]
-    , [definedWidths, selectColumn]
-  );
+        definedWidths[selectColumn];
+    setCustomWidthInput(val);
+  }, [definedWidths, selectColumn]);
 
   const onConfirm = () => {
     const enableAction = (enable: boolean) => {
@@ -927,7 +928,7 @@ function ScriptList() {
               position="bl"
             >
               <WidthInput
-                width={widthShown}
+                width={customWidthInput}
               />
             </Dropdown>
             <Button
@@ -986,9 +987,9 @@ function ScriptList() {
           data={scriptList}
           pagination={{
             disabled: true,
-            // total: scriptList.length,
-            // pageSize: scriptList.length,
-            // hideOnSinglePage: true,
+            total: scriptList.length,
+            pageSize: scriptList.length,
+            hideOnSinglePage: true,
           }}
           style={{
             minWidth: "1200px",
