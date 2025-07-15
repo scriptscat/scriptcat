@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "lint-fix": "eslint --fix .",
     "changlog": "node ./scripts/changlog.js",
-    "crowdin": "crowdin"
+    "crowdin": "crowdin",
+    "crowdin:download": "node ./scripts/crowdin-download.js"
   },
   "dependencies": {
     "@arco-design/web-react": "^2.66.1",

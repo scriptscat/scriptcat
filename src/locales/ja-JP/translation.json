@@ -377,7 +377,6 @@
   "export_success": "エクスポートに成功しました",
   "get_backup_dir_url_failed": "バックアップディレクトリアドレスの取得に失敗しました",
   "get_backup_files_failed": "バックアップファイルの取得に失敗しました",
-  "request_permission": "申请权限",
   "develop_mode_guide": "現在開発者モードが有効になっていないことが検出されました。スクリプトが正常に使用できません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉開発者モードを有効にする方法はこちら</a>",
   "allow_user_script_guide": "ユーザースクリプトが現在有効化されていないことが検出されました。スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化方法については、こちらをクリックしてください</a>",
   "lower_version_browser_guide": "現在のブラウザのバージョンが低すぎるため、スクリプトを正常に使用できません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉クリックして詳細をご覧ください</a>",

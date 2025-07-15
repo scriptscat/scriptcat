@@ -275,7 +275,7 @@
   "update_script_no_close": "更新，不关闭窗口",
   "install_script_no_close": "安装，不关闭窗口",
   "update_script_no_more_update": "更新，但不再检查更新",
-  "install_script_no_more_update": "安装，但不再检查更新",
+  "install_script_no_more_update": "更新，但不再检查更新",
   "invalid_link": "錯誤的連結",
   "subscribe_install_label": "此訂閱將會安裝以下的腳本",
   "script_runs_in": "腳本將在以下的網站中執行",

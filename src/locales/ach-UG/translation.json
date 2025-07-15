@@ -415,5 +415,7 @@
   "build_failed": "crwdns7002:0crwdne7002:0",
   "drag_script_here_to_upload": "crwdns7004:0crwdne7004:0",
   "sync_status": "crwdns7006:0crwdne7006:0",
-  "search_scripts": "crwdns7024:0crwdne7024:0"
+  "search_scripts": "crwdns7024:0crwdne7024:0",
+  "ext_update_notification": "crwdns7054:0crwdne7054:0",
+  "ext_update_notification_desc": "crwdns7056:0{{version}}crwdne7056:0"
 }
