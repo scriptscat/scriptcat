@@ -705,6 +705,118 @@ function ScriptList() {
     }}
   />
 
+  const onConfirmButtonClicked = () => {
+
+    const enableAction = (enable: boolean) => {
+      const uuids = select.map((item) => item.uuid);
+      dispatch(enableLoading({ uuids: uuids, loading: true }));
+      Promise.allSettled(uuids.map((uuid) => scriptClient.enable(uuid, enable))).finally(() => {
+        dispatch(updateEnableStatus({ uuids: uuids, enable: enable }));
+        dispatch(enableLoading({ uuids: uuids, loading: false }));
+      });
+    };
+    let l: number | undefined;
+    switch (action) {
+      case "enable":
+        enableAction(true);
+        break;
+      case "disable":
+        enableAction(false);
+        break;
+      case "export": {
+        const uuids: string[] = [];
+        select.forEach((item) => {
+          uuids.push(item.uuid);
+        });
+        Message.loading({
+          id: "export",
+          content: t("exporting"),
+        });
+        synchronizeClient.export(uuids).then(() => {
+          Message.success({
+            id: "export",
+            content: t("export_success"),
+            duration: 3000,
+          });
+        });
+        break;
+      }
+      case "delete":
+        if (confirm(t("list.confirm_delete"))) {
+          const uuids = select.map((item) => item.uuid);
+          dispatch(batchDeleteScript(uuids));
+          Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
+        }
+        break;
+      case "pin_to_top": {
+        // 将选中的脚本置顶
+        l = select.length;
+        if (l > 0) {
+          // 获取当前所有脚本列表
+          const currentScripts = store.getState().script.scripts;
+          // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
+          for (let i = l - 1; i >= 0; i--) {
+            const script = select[i];
+            // 找到脚本当前的位置
+            const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
+            if (scriptIndex > 0) {
+              // 如果不是已经在最顶部
+              // 将脚本置顶（移动到第一个位置）
+              dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
+            }
+          }
+          Message.success({
+            content: t("scripts_pinned_to_top"),
+            duration: 3000,
+          });
+        }
+        break;
+      }
+      // 批量检查更新
+      case "check_update":
+        if (confirm(t("list.confirm_update")!)) {
+          select.forEach((item, index, array) => {
+            if (!item.checkUpdateUrl) {
+              return;
+            }
+            Message.warning({
+              id: "checkupdateStart",
+              content: t("starting_updates"),
+            });
+            scriptClient
+              .requestCheckUpdate(item.uuid)
+              .then((res) => {
+                if (res) {
+                  // 需要更新
+                  Message.warning({
+                    id: "checkupdate",
+                    content: `${i18nName(item)} ${t("new_version_available")}`,
+                  });
+                }
+                if (index === array.length - 1) {
+                  // 当前元素是最后一个
+                  Message.success({
+                    id: "checkupdateEnd",
+                    content: t("checked_for_all_selected"),
+                  });
+                }
+              })
+              .catch((e) => {
+                Message.error({
+                  id: "checkupdate",
+                  content: `${t("update_check_failed")}: ${e.message}`,
+                });
+              });
+          });
+        }
+        break;
+      default:
+        Message.error(t("unknown_operation")!);
+        break;
+    }
+
+  };
+
   return (
     <Card
       id="script-list"
@@ -755,115 +867,7 @@ function ScriptList() {
                 <Button
                   type="primary"
                   size="mini"
-                  onClick={() => {
-                    const enableAction = (enable: boolean) => {
-                      const uuids = select.map((item) => item.uuid);
-                      dispatch(enableLoading({ uuids: uuids, loading: true }));
-                      Promise.allSettled(uuids.map((uuid) => scriptClient.enable(uuid, enable))).finally(() => {
-                        dispatch(updateEnableStatus({ uuids: uuids, enable: enable }));
-                        dispatch(enableLoading({ uuids: uuids, loading: false }));
-                      });
-                    };
-                    let l: number | undefined;
-                    switch (action) {
-                      case "enable":
-                        enableAction(true);
-                        break;
-                      case "disable":
-                        enableAction(false);
-                        break;
-                      case "export": {
-                        const uuids: string[] = [];
-                        select.forEach((item) => {
-                          uuids.push(item.uuid);
-                        });
-                        Message.loading({
-                          id: "export",
-                          content: t("exporting"),
-                        });
-                        synchronizeClient.export(uuids).then(() => {
-                          Message.success({
-                            id: "export",
-                            content: t("export_success"),
-                            duration: 3000,
-                          });
-                        });
-                        break;
-                      }
-                      case "delete":
-                        if (confirm(t("list.confirm_delete"))) {
-                          const uuids = select.map((item) => item.uuid);
-                          dispatch(batchDeleteScript(uuids));
-                          Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
-                        }
-                        break;
-                      case "pin_to_top": {
-                        // 将选中的脚本置顶
-                        l = select.length;
-                        if (l > 0) {
-                          // 获取当前所有脚本列表
-                          const currentScripts = store.getState().script.scripts;
-                          // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
-                          for (let i = l - 1; i >= 0; i--) {
-                            const script = select[i];
-                            // 找到脚本当前的位置
-                            const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
-                            if (scriptIndex > 0) {
-                              // 如果不是已经在最顶部
-                              // 将脚本置顶（移动到第一个位置）
-                              dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
-                            }
-                          }
-                          Message.success({
-                            content: t("scripts_pinned_to_top"),
-                            duration: 3000,
-                          });
-                        }
-                        break;
-                      }
-                      // 批量检查更新
-                      case "check_update":
-                        if (confirm(t("list.confirm_update")!)) {
-                          select.forEach((item, index, array) => {
-                            if (!item.checkUpdateUrl) {
-                              return;
-                            }
-                            Message.warning({
-                              id: "checkupdateStart",
-                              content: t("starting_updates"),
-                            });
-                            scriptClient
-                              .requestCheckUpdate(item.uuid)
-                              .then((res) => {
-                                if (res) {
-                                  // 需要更新
-                                  Message.warning({
-                                    id: "checkupdate",
-                                    content: `${i18nName(item)} ${t("new_version_available")}`,
-                                  });
-                                }
-                                if (index === array.length - 1) {
-                                  // 当前元素是最后一个
-                                  Message.success({
-                                    id: "checkupdateEnd",
-                                    content: t("checked_for_all_selected"),
-                                  });
-                                }
-                              })
-                              .catch((e) => {
-                                Message.error({
-                                  id: "checkupdate",
-                                  content: `${t("update_check_failed")}: ${e.message}`,
-                                });
-                              });
-                          });
-                        }
-                        break;
-                      default:
-                        Message.error(t("unknown_operation")!);
-                        break;
-                    }
-                  }}
+                  onClick={onConfirmButtonClicked}
                 >
                   {t("confirm")}
                 </Button>
