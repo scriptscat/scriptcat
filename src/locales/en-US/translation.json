@@ -282,8 +282,8 @@
   "script_has_full_access_to": "Script will have full access to the following URLs",
   "script_requires": "Script requires the following external resources",
   "cookie_warning": "Please note, this script requests access to Cookie permissions, which is a dangerous permission. Please verify the security of the script.",
-  "scheduled_script_description_1": "This is a scheduled script, which will automatically run at a specific time once enabled and can be manually controlled in the panel.",
-  "scheduled_script_description_2": "Scheduled task expression: {{expression}}, most recent run time: {{time}}",
+  "scheduled_script_description_title": "This is a scheduled script, which will automatically run at a specific time once enabled and can be manually controlled in the panel.",
+  "scheduled_script_description_description": "Scheduled task expression: {{expression}}, most recent run time: {{time}}",
   "background_script_description": "This is a background script, which will automatically run once when the browser opens once enabled, and can be manually controlled in the panel.",
   "install_success": "Install Successful",
   "install": {

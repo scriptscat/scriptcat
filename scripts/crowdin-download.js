@@ -12,9 +12,9 @@ function removeEmptyStringsFromLocaleFiles(dir) {
   const files = readdirSync(dir);
   files.forEach((file) => {
     const filePath = join(dir, file);
-    if (statSync(filePath).isDirectory()) {
+    if (statSync(filePath).isDirectory() && !filePath.includes("zh-CN")) {
       removeEmptyStringsFromLocaleFiles(filePath);
-    } else if (file.endsWith(".json") && !file.includes("zh-CN")) {
+    } else if (file.endsWith(".json")) {
       const content = JSON.parse(readFileSync(filePath, "utf-8"));
       for (const key in content) {
         if (content[key] === "") {

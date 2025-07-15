@@ -268,8 +268,8 @@
   "script_has_full_access_to": "Script Sẽ Có Quyền Truy Cập Đầy Đủ Vào Các Url Sau",
   "script_requires": "Script Cần Các Tài Nguyên Bên Ngoài Sau",
   "cookie_warning": "Xin Lưu Ý, Script Này Yêu Cầu Truy Cập Vào Quyền Cookie, Đây Là Một Quyền Nguy Hiểm. Vui Lòng Xác Minh Sự An Toàn Của Script.",
-  "scheduled_script_description_1": "Đây Là Một Script Theo Lịch Trình, Sẽ Tự Động Chạy Vào Một Thời Gian Cụ Thể Sau Khi Được Bật Và Có Thể Được Điều Khiển Thủ Công Trong Bảng Điều Khiển.",
-  "scheduled_script_description_2": "Biểu Thức Nhiệm Vụ Theo Lịch Trình: {{expression}}, Thời Gian Chạy Gần Nhất: {{time}}",
+  "scheduled_script_description_title": "Đây Là Một Script Theo Lịch Trình, Sẽ Tự Động Chạy Vào Một Thời Gian Cụ Thể Sau Khi Được Bật Và Có Thể Được Điều Khiển Thủ Công Trong Bảng Điều Khiển.",
+  "scheduled_script_description_description": "Biểu Thức Nhiệm Vụ Theo Lịch Trình: {{expression}}, Thời Gian Chạy Gần Nhất: {{time}}",
   "background_script_description": "Đây Là Một Script Nền, Sẽ Tự Động Chạy Một Lần Khi Trình Duyệt Mở Sau Khi Được Bật, Và Có Thể Được Điều Khiển Thủ Công Trong Bảng Điều Khiển.",
   "install_success": "Cài Đặt Thành Công",
   "install": {
