@@ -1021,7 +1021,7 @@ function ScriptList() {
             hideOnSinglePage: true,
           }}
           style={{
-            minWidth: "1100px",
+            minWidth: "1200px",
           }}
           rowSelection={{
             type: "checkbox",
