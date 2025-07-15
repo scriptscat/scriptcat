@@ -82,7 +82,7 @@ type ListType = ScriptLoading;
 
 // Memoized Avatar component to prevent unnecessary re-renders
 const MemoizedAvatar = React.memo(
-  ({ fav, onClick }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
+  ({ fav }: { fav: { match: string; icon?: string; website?: string } }) => (
     <Avatar
       key={fav.match}
       shape="square"
@@ -91,11 +91,17 @@ const MemoizedAvatar = React.memo(
         borderWidth: 1,
       }}
       className={fav.website ? "cursor-pointer" : "cursor-default"}
-      onClick={onClick}
+      onClick={() => {
+        if (fav.website) {
+          window.open(fav.website, "_blank");
+        }
+      }}
     >
       {fav.icon ? <img title={fav.match} src={fav.icon} /> : <TbWorldWww title={fav.match} color="#aaa" size={24} />}
     </Avatar>
-  )
+  ), (prev, next) => {
+    return prev.fav.icon === next.fav.icon && prev.fav.match === next.fav.match && prev.fav.website === next.fav.website;
+  }
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
@@ -298,11 +304,6 @@ function ScriptList() {
                         <MemoizedAvatar
                           key={fav.match}
                           fav={fav}
-                          onClick={() => {
-                            if (fav.website) {
-                              window.open(fav.website, "_blank");
-                            }
-                          }}
                         />
                       ))}
                   {favorite.length > 4 && "..."}
@@ -611,7 +612,12 @@ function ScriptList() {
 
   // 处理拖拽排序
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Small movement to start dragging
+        delay: 100, // Slight delay to prevent accidental drags
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
