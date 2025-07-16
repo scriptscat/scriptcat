@@ -116,8 +116,8 @@ const config: Configuration = {
     new CleanWebpackPlugin(),
     new ProgressBarPlugin({}),
     new MonacoLocalesPlugin({
-      languages: ["es", "zh-cn"],
-      defaultLanguage: "zh-cn",
+      languages: ["en", "zh-cn"],
+      defaultLanguage: "en",
       logUnmatched: false,
     }),
     UnoCSS({
