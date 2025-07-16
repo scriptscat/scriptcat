@@ -913,7 +913,7 @@ function ScriptList() {
                           });
                         }}
                       >
-                        自动
+                        {t("auto")}
                       </Menu.Item>
                       <Menu.Item
                         key="hide"
@@ -924,7 +924,7 @@ function ScriptList() {
                           });
                         }}
                       >
-                        隐藏
+                        {t("hide")}
                       </Menu.Item>
                       <Menu.Item
                         key="custom"
@@ -938,7 +938,7 @@ function ScriptList() {
                           });
                         }}
                       >
-                        自定义
+                        {t("custom")}
                       </Menu.Item>
                     </Menu>
                   }

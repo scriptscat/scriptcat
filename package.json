@@ -1,6 +1,6 @@
 {
   "name": "scriptcat",
-  "version": "0.16.10",
+  "version": "0.16.11-beta",
   "description": "脚本猫,一个可以执行用户脚本的浏览器扩展,万物皆可脚本化,让你的浏览器可以做更多的事情!",
   "author": "CodFrm",
   "license": "GPLv3",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@arco-design/web-react": "^2.51.1",
+    "@crowdin/cli": "^4.9.0",
     "@dnd-kit/core": "^6.0.5",
     "@dnd-kit/sortable": "^7.0.1",
     "@dnd-kit/utilities": "^3.2.0",

@@ -32,6 +32,8 @@ import {
 } from "react-icons/ri";
 import "./index.css";
 import { useTranslation } from "react-i18next";
+import { arcoLocale } from "@App/locales/arco";
+import i18n from "@App/locales/locales";
 
 export function switchLight(mode: string) {
   if (mode === "auto") {
@@ -71,6 +73,7 @@ const MainLayout: React.FC<{
       renderEmpty={() => {
         return <Empty description={t("no_data")} />;
       }}
+      locale={arcoLocale(i18n.language)}
     >
       <Layout>
         <Layout.Header
