@@ -58,7 +58,7 @@ export function initLocales(systemConfig: SystemConfig) {
 
   systemConfig.getLanguage().then((lng) => {
     changeLanguage(lng);
-    if (lng !== "zh-CN") {
+    if (!lng.startsWith("zh-")) {
       localePath = "/en";
     }
   });
@@ -74,6 +74,12 @@ export function i18nDescription(script: { metadata: Metadata }) {
   return script.metadata[`description:${i18n.language.toLowerCase()}`]
     ? script.metadata[`description:${i18n.language.toLowerCase()}`]![0]
     : script.metadata.description;
+}
+
+// 判断是否是中文用户
+export function isChineseUser() {
+  const language = i18n.language.toLowerCase();
+  return language.startsWith("zh-");
 }
 
 // 匹配语言

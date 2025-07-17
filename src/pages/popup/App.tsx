@@ -1,4 +1,4 @@
-import { ExtVersion } from "@App/app/const";
+import { Discord, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
@@ -19,7 +19,7 @@ import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
-import { localePath } from "@App/locales/locales";
+import { isChineseUser, localePath } from "@App/locales/locales";
 import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
@@ -163,7 +163,7 @@ function App() {
           const browserInfo = `${navigator.userAgent}`;
           const issueUrl =
             `https://github.com/scriptscat/scriptcat/issues/new?` +
-            `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
+            `template=bug_report${isChineseUser() ? "" : "_en"}.yaml&scriptcat-version=${ExtVersion}&` +
             `browser-version=${encodeURIComponent(browserInfo)}`;
           window.open(issueUrl, "_blank");
           break;
@@ -310,7 +310,7 @@ function App() {
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
-                    <Menu.Item key="https://bbs.tampermonkey.net.cn/">
+                    <Menu.Item key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}>
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>
