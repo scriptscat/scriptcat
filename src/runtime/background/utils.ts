@@ -175,12 +175,16 @@ export function listenerWebRequest(headerFlag: string) {
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
       if (!isExtensionRequest(details)) {
-        // 判断是否为页面请求
-        if (
-          !(details.type === "main_frame" || details.type === "sub_frame") ||
-          !isFirefox()
-        ) {
+        // 只对firefox进行处理
+        if (!isFirefox()) {
           return {};
+        }
+        // 判断是否为页面请求
+        if (!(details.type === "main_frame" || details.type === "sub_frame")) {
+          // 处理service worker的情况
+          if (!(details.type === "xmlhttprequest" && details.tabId === -1)) {
+            return {};
+          }
         }
         // 判断页面上是否有脚本会运行,如果有判断是否有csp,有则移除csp策略
         const runtime = IoC.instance(Runtime) as Runtime;
@@ -197,16 +201,17 @@ export function listenerWebRequest(headerFlag: string) {
         });
         if (result.length > 0 && details.responseHeaders) {
           // 移除csp
+          const newResponseHeaders: chrome.webRequest.HttpHeader[] = [];
           for (let i = 0; i < details.responseHeaders.length; i += 1) {
             if (
-              details.responseHeaders[i].name.toLowerCase() ===
+              details.responseHeaders[i].name.toLowerCase() !==
               "content-security-policy"
             ) {
-              details.responseHeaders[i].value = "";
+              newResponseHeaders.push(details.responseHeaders[i]);
             }
           }
           return {
-            responseHeaders: details.responseHeaders,
+            responseHeaders: newResponseHeaders,
           };
         }
         return {};
