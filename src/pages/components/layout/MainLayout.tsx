@@ -129,12 +129,6 @@ const MainLayout: React.FC<{
     });
   });
 
-  const handleImport = async () => {
-    const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
-    importByUrlsLocal(urls);
-    setImportVisible(false);
-  };
-
   return (
     <ConfigProvider
       renderEmpty={() => {
@@ -153,21 +147,16 @@ const MainLayout: React.FC<{
           <Modal
             title={t("import_link")}
             visible={importVisible}
-            onOk={handleImport}
+            onOk={async () => {
+              const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
+              importByUrlsLocal(urls);
+              setImportVisible(false);
+            }}
             onCancel={() => {
               setImportVisible(false);
             }}
           >
-            <Input.TextArea
-              ref={importRef}
-              rows={8}
-              placeholder={t("import_script_placeholder")}
-              defaultValue=""
-              onPressEnter={(e) => {
-                e.preventDefault(); // 防止输入换行
-                handleImport();
-              }}
-            />
+            <Input.TextArea ref={importRef} rows={8} placeholder={t("import_script_placeholder")} defaultValue="" />
           </Modal>
           <div className="flex row items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
