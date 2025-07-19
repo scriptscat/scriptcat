@@ -794,6 +794,7 @@ function ScriptList() {
                   <Typography.Text>{t("batch_operations")}:</Typography.Text>
                   <Select
                     style={{ minWidth: "100px" }}
+                    triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                     size="mini"
                     value={action}
                     onChange={(value) => {
@@ -938,6 +939,7 @@ function ScriptList() {
                   <Typography.Text>{t("resize_column_width")}:</Typography.Text>
                   <Select
                     style={{ minWidth: "80px" }}
+                    triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                     size="mini"
                     value={newColumns[selectColumn].title?.toString()}
                     onChange={(val) => {
