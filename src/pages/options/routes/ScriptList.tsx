@@ -82,19 +82,17 @@ type ListType = ScriptLoading;
 
 // Memoized Avatar component to prevent unnecessary re-renders
 const MemoizedAvatar = React.memo(
-  ({ fav, onClick, ...rest }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
+  ({ match, icon, website, ...rest }: {  match: string; icon?: string; website?: string; [key:string]:any }) => (
     <Avatar
-      key={`${fav.match}_${fav.icon}_${fav.website}`}
       shape="square"
       style={{
         backgroundColor: "unset",
         borderWidth: 1,
       }}
-      className={fav.website ? "cursor-pointer" : "cursor-default"}
-      onClick={onClick}
+      className={website ? "cursor-pointer" : "cursor-default"}
       {...rest}
     >
-      {fav.icon ? <img title={fav.match} src={fav.icon} /> : <TbWorldWww title={fav.match} color="#aaa" size={24} />}
+      {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}
     </Avatar>
   )
 );
@@ -128,6 +126,84 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
+
+  const ColVersionRender = React.memo(({ col, item, index }: { col: any, item: ListType, index: number }) => {
+    return <>
+      {item.metadata.version && item.metadata.version[0]}
+    </>
+  });
+
+  const ColRunApplyStatusRender = React.memo(({ col, item, index }: { col: any, item: ListType, index: number }) => {
+    const toLogger = () => {
+      navigate({
+        pathname: "logger",
+        search: `query=${encodeURIComponent(
+          JSON.stringify([
+            { key: "uuid", value: item.uuid },
+            {
+              key: "component",
+              value: "GM_log",
+            },
+          ])
+        )}`,
+      });
+    };
+    if (item.type === SCRIPT_TYPE_NORMAL) {
+      // 处理站点icon
+      return (
+        <>
+          <Avatar.Group size={20}>
+            {item.favorite &&
+              // 排序并且只显示前4个
+              // 排序将有icon的放在前面
+              [...item.favorite]
+                .sort((a, b) => {
+                  if (a.icon && !b.icon) return -1;
+                  if (!a.icon && b.icon) return 1;
+                  return a.match.localeCompare(b.match);
+                })
+                .slice(0, 4)
+                .map((fav) => (
+                  <MemoizedAvatar
+                    key={`${fav.match}_${fav.icon}_${fav.website}`}
+                    {...fav}
+                    onClick={() => {
+                      if (fav.website) {
+                        window.open(fav.website, "_blank");
+                      }
+                    }}
+                  />
+                ))}
+            {item.favorite && item.favorite.length > 4 && "..."}
+          </Avatar.Group>
+        </>
+      );
+    }
+    let tooltip = "";
+    if (item.type === SCRIPT_TYPE_BACKGROUND) {
+      tooltip = t("background_script_tooltip");
+    } else {
+      tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+    }
+    return (
+      <>
+        <Tooltip content={tooltip}>
+          <Tag
+            icon={<IconClockCircle />}
+            color="blue"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+            onClick={toLogger}
+          >
+            {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+          </Tag>
+        </Tooltip>
+      </>
+    );
+
+  });
 
   const columns: ColumnProps[] = useMemo(
     () => [
@@ -255,82 +331,14 @@ function ScriptList() {
         key: "version",
         width: 120,
         align: "center",
-        render(col, item: Script) {
-          return item.metadata.version && item.metadata.version[0];
-        },
+        render: (col: any, item: Script, index: number) => <ColVersionRender col={col} item={item} index={index} />,
       },
       {
         key: "apply_to_run_status",
         title: t("apply_to_run_status"),
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
-        render(col, item: ListType) {
-          const toLogger = () => {
-            navigate({
-              pathname: "logger",
-              search: `query=${encodeURIComponent(
-                JSON.stringify([
-                  { key: "uuid", value: item.uuid },
-                  {
-                    key: "component",
-                    value: "GM_log",
-                  },
-                ])
-              )}`,
-            });
-          };
-          if (item.type === SCRIPT_TYPE_NORMAL) {
-            // 处理站点icon
-            return (
-              <>
-                <Avatar.Group size={20}>
-                  {item.favorite &&
-                    // 排序并且只显示前4个
-                    // 排序将有icon的放在前面
-                    [...item.favorite]
-                      .sort((a, b) => {
-                        if (a.icon && !b.icon) return -1;
-                        if (!a.icon && b.icon) return 1;
-                        return a.match.localeCompare(b.match);
-                      })
-                      .slice(0, 4)
-                      .map((fav) => (
-                        <MemoizedAvatar
-                          fav={fav}
-                          onClick={() => {
-                            if (fav.website) {
-                              window.open(fav.website, "_blank");
-                            }
-                          }}
-                        />
-                      ))}
-                  {item.favorite && item.favorite.length > 4 && "..."}
-                </Avatar.Group>
-              </>
-            );
-          }
-          let tooltip = "";
-          if (item.type === SCRIPT_TYPE_BACKGROUND) {
-            tooltip = t("background_script_tooltip");
-          } else {
-            tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
-          }
-          return (
-            <Tooltip content={tooltip}>
-              <Tag
-                icon={<IconClockCircle />}
-                color="blue"
-                bordered
-                style={{
-                  cursor: "pointer",
-                }}
-                onClick={toLogger}
-              >
-                {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-              </Tag>
-            </Tooltip>
-          );
-        },
+        render: (col: any, item: Script, index: number) => <ColRunApplyStatusRender col={col} item={item} index={index} />,
       },
       {
         title: t("source"),
@@ -599,12 +607,18 @@ function ScriptList() {
       });
     }
     systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setNewColumns(
-        columns.map((item) => ({
-          ...item,
-          width: columnWidth[item.key!] ?? item.width,
-        }))
-      );
+      setNewColumns((nColumns) => {
+        const widths = columns.map(item => columnWidth[item.key!] ?? item.width);
+        const c = nColumns.length === widths.length ? nColumns : columns;
+        return c.map((item, i) => {
+          const width = widths[i];
+          return width === item.width ? item :
+            {
+              ...item,
+              width,
+            }
+        });
+      });
     });
   }, []);
 
@@ -655,6 +669,8 @@ function ScriptList() {
           break;
       }
     });
+
+    if (dealColumns.length === 0) dealColumns.push(...columns);
 
     const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
     let SortableItem;
@@ -889,7 +905,7 @@ function ScriptList() {
                         key="auto"
                         onClick={() => {
                           setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn ? { ...col, width: 0 } : col))
+                            cols.map((col, i) => (i === selectColumn && col.width !== 0 ? { ...col, width: 0 } : col))
                           );
                         }}
                       >
@@ -899,7 +915,7 @@ function ScriptList() {
                         key="hide"
                         onClick={() => {
                           setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn ? { ...col, width: -1 } : col))
+                            cols.map((col, i) => (i === selectColumn && col.width !== -1 ? { ...col, width: -1 } : col))
                           );
                         }}
                       >
@@ -909,16 +925,19 @@ function ScriptList() {
                         key="custom"
                         onClick={() => {
                           setNewColumns((cols) =>
-                            cols.map((col, i) =>
-                              i === selectColumn
+                            cols.map((col, i) => {
+
+                              const width = (newColumns[selectColumn].width as number) > 0
+                                        ? newColumns[selectColumn].width
+                                        : columns[selectColumn].width;
+                              return i === selectColumn && col.width !== width
                                 ? {
                                     ...col,
-                                    width:
-                                      (newColumns[selectColumn].width as number) > 0
-                                        ? newColumns[selectColumn].width
-                                        : columns[selectColumn].width,
+                                    width,
                                   }
                                 : col
+
+                            }
                             )
                           );
                         }}
@@ -992,13 +1011,9 @@ function ScriptList() {
           components={components}
           rowKey="uuid"
           tableLayoutFixed
-          columns={dealColumns.length ? dealColumns : columns}
+          columns={dealColumns}
           data={scriptList}
-          pagination={{
-            total: scriptList.length,
-            pageSize: scriptList.length,
-            hideOnSinglePage: true,
-          }}
+          pagination={false}
           style={{
             minWidth: "1200px",
           }}
