@@ -82,9 +82,9 @@ type ListType = ScriptLoading;
 
 // Memoized Avatar component to prevent unnecessary re-renders
 const MemoizedAvatar = React.memo(
-  ({ fav, onClick }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
+  ({ fav, onClick, ...rest }: { fav: { match: string; icon?: string; website?: string }; onClick: () => void }) => (
     <Avatar
-      key={fav.match}
+      key={`${fav.match}_${fav.icon}_${fav.website}`}
       shape="square"
       style={{
         backgroundColor: "unset",
@@ -92,6 +92,7 @@ const MemoizedAvatar = React.memo(
       }}
       className={fav.website ? "cursor-pointer" : "cursor-default"}
       onClick={onClick}
+      {...rest}
     >
       {fav.icon ? <img title={fav.match} src={fav.icon} /> : <TbWorldWww title={fav.match} color="#aaa" size={24} />}
     </Avatar>
@@ -295,7 +296,6 @@ function ScriptList() {
                       .slice(0, 4)
                       .map((fav) => (
                         <MemoizedAvatar
-                          key={fav.match}
                           fav={fav}
                           onClick={() => {
                             if (fav.website) {
