@@ -1,13 +1,23 @@
 import type { Metadata, Script } from "@App/app/repo/scripts";
 
-export function randomString(e = 32): string {
-  const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
-  const a = t.length;
-  const n = new Array(e);
-  for (let i = 0; i < e; i++) {
-    n[i] = t[(Math.random() * a) | 0];
-  }
-  return n.join("");
+// export function randomString(e = 32): string {
+//   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
+//   const a = t.length;
+//   const n = new Array(e);
+//   for (let i = 0; i < e; i++) {
+//     n[i] = t[(Math.random() * a) | 0];
+//   }
+//   return n.join("");
+// }
+
+function randNum(a: number, b: number) {
+  return Math.floor(Math.random() * (b - a + 1)) + a;
+}
+
+export function randomMessageFlag(): string {
+  // parseInt('a0000000', 36) = 783641640960;
+  // parseInt('zzzzzzzz', 36) = 2821109907455;
+  return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
 export function dealSymbol(source: string): string {

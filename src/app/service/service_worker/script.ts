@@ -5,7 +5,7 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomString } from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomMessageFlag } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
@@ -315,7 +315,7 @@ export class ScriptService {
 
     ret.resource = await this.resourceService.getScriptResources(ret, true);
 
-    ret.flag = randomString(16);
+    ret.flag = randomMessageFlag();
     const code = await this.getCode(ret.uuid);
     if (!code) {
       throw new Error("code is null");

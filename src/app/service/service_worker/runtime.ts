@@ -10,7 +10,7 @@ import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, s
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
-import { isUserScriptsAvailable, randomString } from "@App/pkg/utils/utils";
+import { isUserScriptsAvailable, randomMessageFlag } from "@App/pkg/utils/utils";
 import Cache from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
@@ -309,7 +309,7 @@ export class RuntimeService {
   }
 
   getAndGenMessageFlag() {
-    return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => randomString(16));
+    return Cache.getInstance().getOrSet("scriptInjectMessageFlag", () => randomMessageFlag());
   }
 
   deleteMessageFlag() {
