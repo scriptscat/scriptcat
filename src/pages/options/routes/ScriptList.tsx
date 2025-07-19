@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -29,7 +29,7 @@ import {
   SCRIPT_TYPE_NORMAL,
   ScriptDAO,
 } from "@App/app/repo/scripts";
-import { IconClockCircle, IconEdit, IconLink, IconMenu, IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
+import { IconClockCircle, IconDragDotVertical, IconEdit, IconLink, IconMenu, IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
 import {
   RiDeleteBin5Fill,
   RiPencilFill,
@@ -49,6 +49,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
@@ -82,7 +83,7 @@ type ListType = ScriptLoading;
 
 // Memoized Avatar component to prevent unnecessary re-renders
 const MemoizedAvatar = React.memo(
-  ({ match, icon, website, ...rest }: {  match: string; icon?: string; website?: string; [key:string]:any }) => (
+  ({ match, icon, website, ...rest }: { match: string; icon?: string; website?: string;[key: string]: any }) => (
     <Avatar
       shape="square"
       style={{
@@ -97,6 +98,55 @@ const MemoizedAvatar = React.memo(
   )
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
+
+type RowCtx = ReturnType<typeof useSortable> | null;
+const SortableRowCtx = createContext<RowCtx>(null);
+const DragHandle = () => {
+
+  const sortable = useContext(SortableRowCtx);
+
+  if (!sortable) return <IconDragDotVertical
+    style={{
+      cursor: "move",
+    }}
+  />
+
+  const { listeners, setActivatorNodeRef } = sortable;
+
+  // console.log(4888, sortable)
+  return <IconDragDotVertical
+    {...listeners}
+    ref={setActivatorNodeRef}
+    style={{
+      cursor: "move",
+    }}
+  />
+}
+
+
+const DraggableRow = (props: any) => {
+  const { record, index, ...rest } = props;
+  const sortable = useSortable({ id: record.uuid });
+  const { setNodeRef, transform, transition } = sortable;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return <SortableRowCtx.Provider value={sortable}>
+    <tr ref={setNodeRef} style={style} {...rest} />
+  </SortableRowCtx.Provider>
+
+};
+DraggableRow.displayName = "DraggableRow";
+
+
+let savedWidthsDefault = {};
+
+systemConfig.getScriptListColumnWidth().then((columnWidth) => {
+  savedWidthsDefault = ({ ...columnWidth });
+});
 
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
@@ -114,9 +164,37 @@ function ScriptList() {
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
+  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number }>(savedWidthsDefault);
   const { t } = useTranslation();
-  const [components, setComponents] = useState<ComponentsProps | undefined>(undefined);
-  const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
+  // const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
+
+
+  const DraggableContainer = (props: any) => {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        onDragEnd={(event: DragEndEvent) => {
+          const { active, over } = event;
+          if (!over) {
+            return;
+          }
+          if (active.id !== over.id) {
+            dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+          }
+        }}
+      >
+        <SortableContext
+          items={scriptList.map((s) => ({ ...s, id: s.uuid }))}
+          strategy={verticalListSortingStrategy}
+        >
+          <tbody {...props} />
+        </SortableContext>
+      </DndContext>
+    );
+  };
+  DraggableContainer.displayName = "DraggableContainer";
 
   useEffect(() => {
     dispatch(fetchScriptList()).then((action) => {
@@ -415,22 +493,6 @@ function ScriptList() {
         },
       },
       {
-        title: t("sorting"),
-        className: "script-sort",
-        key: "sort",
-        width: 80,
-        align: "center",
-        render() {
-          return (
-            <IconMenu
-              style={{
-                cursor: "move",
-              }}
-            />
-          );
-        },
-      },
-      {
         title: t("last_updated"),
         dataIndex: "updatetime",
         align: "center",
@@ -607,20 +669,27 @@ function ScriptList() {
       });
     }
     systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-      setNewColumns((nColumns) => {
-        const widths = columns.map(item => columnWidth[item.key!] ?? item.width);
-        const c = nColumns.length === widths.length ? nColumns : columns;
-        return c.map((item, i) => {
-          const width = widths[i];
-          return width === item.width ? item :
-            {
-              ...item,
-              width,
-            }
-        });
-      });
+      setSavedWidths({...columnWidth});
     });
   }, []);
+
+
+  useEffect(()=>{
+
+    setNewColumns((nColumns) => {
+      const widths = columns.map(item => savedWidths[item.key!] ?? item.width);
+      const c = nColumns.length === widths.length ? nColumns : columns;
+      return c.map((item, i) => {
+        const width = widths[i];
+        return width === item.width ? item :
+          {
+            ...item,
+            width,
+          }
+      });
+    });
+
+  }, [savedWidths]);
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -630,94 +699,63 @@ function ScriptList() {
     })
   );
 
-  useEffect(() => {
-    if (!newColumns.length) {
-      return;
-    }
-    const SortableWrapper = (props: any, ref: any) => {
-      return (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={(event: DragEndEvent) => {
-            const { active, over } = event;
-            if (!over) {
-              return;
-            }
-            if (active.id !== over.id) {
-              dispatch(sortScript({ active: active.id as string, over: over.id as string }));
-            }
-          }}
-        >
-          <SortableContext
-            items={store.getState().script.scripts.map((s) => ({ ...s, id: s.uuid }))}
-            strategy={verticalListSortingStrategy}
-          >
-            <table ref={ref} {...props} />
-          </SortableContext>
-        </DndContext>
-      );
-    };
-    const dealColumns: ColumnProps[] = [];
-
-    newColumns.forEach((item) => {
-      switch (item.width) {
-        case -1:
-          break;
-        default:
-          dealColumns.push(item);
-          break;
-      }
-    });
-
-    if (dealColumns.length === 0) dealColumns.push(...columns);
-
-    const sortIndex = dealColumns.findIndex((item) => item.key === "sort");
-    let SortableItem;
-    if (sortIndex !== -1) {
-      const SortableItemComponent = (props: any) => {
-        const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props!.record.uuid });
-
-        const style = {
-          transform: CSS.Transform.toString(transform),
-          transition,
-        };
-
-        // 替换排序列,使其可以拖拽
-        props.children[sortIndex + 1] = (
-          <td
-            className="arco-table-td"
-            style={{
-              textAlign: "center",
-            }}
-            key="drag"
-          >
-            <div className="arco-table-cell">
-              <IconMenu
-                style={{
-                  cursor: "move",
-                }}
-                {...listeners}
-              />
-            </div>
-          </td>
-        );
-
-        return <tr ref={setNodeRef} style={style} {...attributes} {...props} />;
-      };
-      SortableItemComponent.displayName = "SortableItem";
-      SortableItem = SortableItemComponent;
-    }
-
-    setComponents({
-      table: React.forwardRef(SortableWrapper),
-      body: {
-        // tbody: SortableWrapper,
-        row: SortableItem,
-      },
-    });
-    setDealColumns(dealColumns);
+  const dealColumns = useMemo(() => {
+    const filtered = newColumns.filter(item => item.width !== -1);
+    return filtered.length === 0 ? columns : filtered;
   }, [newColumns]);
+
+  const components:ComponentsProps = {
+
+
+    header: {
+      operations: ({ selectionNode, expandNode }) => [
+        {
+          node: <th />,
+          width: 34,
+        },
+        {
+          name: 'expandNode',
+          node: expandNode,
+        },
+        {
+          name: 'selectionNode',
+          node: selectionNode,
+        },
+      ],
+    },
+    body: {
+
+      operations: ({ selectionNode, expandNode }) => [
+        {
+          node: (
+            <td>
+              <div className='arco-table-cell'>
+                <DragHandle />
+              </div>
+            </td>
+          ),
+          width: 34,
+        },
+        {
+          name: 'expandNode',
+          node: expandNode,
+        },
+        {
+          name: 'selectionNode',
+          node: selectionNode,
+        },
+      ],
+      tbody: DraggableContainer,
+      row: DraggableRow,
+
+    },
+  };
+
+  const setWidth = (selectColumn: number, width: any) =>{
+    setNewColumns((cols) =>
+      cols.map((col, i) => (i === selectColumn && col.width !== width ? { ...col, width } : col))
+    );
+  }
 
   return (
     <Card
@@ -904,9 +942,7 @@ function ScriptList() {
                       <Menu.Item
                         key="auto"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn && col.width !== 0 ? { ...col, width: 0 } : col))
-                          );
+                          setWidth(selectColumn, 0);
                         }}
                       >
                         {t("auto")}
@@ -914,9 +950,7 @@ function ScriptList() {
                       <Menu.Item
                         key="hide"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) => (i === selectColumn && col.width !== -1 ? { ...col, width: -1 } : col))
-                          );
+                          setWidth(selectColumn, -1);
                         }}
                       >
                         {t("hide")}
@@ -924,22 +958,10 @@ function ScriptList() {
                       <Menu.Item
                         key="custom"
                         onClick={() => {
-                          setNewColumns((cols) =>
-                            cols.map((col, i) => {
-
-                              const width = (newColumns[selectColumn].width as number) > 0
-                                        ? newColumns[selectColumn].width
-                                        : columns[selectColumn].width;
-                              return i === selectColumn && col.width !== width
-                                ? {
-                                    ...col,
-                                    width,
-                                  }
-                                : col
-
-                            }
-                            )
-                          );
+                          const width = (newColumns[selectColumn].width as number) > 0
+                            ? newColumns[selectColumn].width
+                            : columns[selectColumn].width;
+                          setWidth(selectColumn, width);
                         }}
                       >
                         {t("custom")}
@@ -960,9 +982,8 @@ function ScriptList() {
                           : newColumns[selectColumn].width?.toString()
                     }
                     onChange={(val) => {
-                      setNewColumns((cols) =>
-                        cols.map((col, i) => (i === selectColumn ? { ...col, width: parseInt(val, 10) } : col))
-                      );
+                      const width = parseInt(val, 10);
+                      setWidth(selectColumn, width);
                     }}
                   />
                 </Dropdown>
