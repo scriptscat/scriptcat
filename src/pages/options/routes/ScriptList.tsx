@@ -80,6 +80,17 @@ import { loadScriptFavicons } from "@App/pages/store/utils";
 import { store } from "@App/pages/store/store";
 
 type ListType = ScriptLoading;
+type RowCtx = ReturnType<typeof useSortable> | null;
+const SortableRowCtx = createContext<RowCtx>(null);
+
+
+// Create context for DraggableContainer
+interface DraggableContextType {
+  sensors: ReturnType<typeof useSensors>;
+  scriptList: ScriptLoading[];
+  dispatch: ReturnType<typeof useAppDispatch>;
+}
+const DraggableContext = createContext<DraggableContextType | null>(null);
 
 // Memoized Avatar component to prevent unnecessary re-renders
 const MemoizedAvatar = React.memo(
@@ -99,8 +110,23 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
-type RowCtx = ReturnType<typeof useSortable> | null;
-const SortableRowCtx = createContext<RowCtx>(null);
+const DraggableRow = (props: any) => {
+  const { record, index, ...rest } = props;
+  const sortable = useSortable({ id: record.uuid });
+  const { setNodeRef, transform, transition } = sortable;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return <SortableRowCtx.Provider value={sortable}>
+    <tr ref={setNodeRef} style={style} {...rest} />
+  </SortableRowCtx.Provider>
+
+};
+DraggableRow.displayName = "DraggableRow";
+
 const DragHandle = () => {
 
   const sortable = useContext(SortableRowCtx);
@@ -123,30 +149,33 @@ const DragHandle = () => {
   />
 }
 
-
-const DraggableRow = (props: any) => {
-  const { record, index, ...rest } = props;
-  const sortable = useSortable({ id: record.uuid });
-  const { setNodeRef, transform, transition } = sortable;
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return <SortableRowCtx.Provider value={sortable}>
-    <tr ref={setNodeRef} style={style} {...rest} />
-  </SortableRowCtx.Provider>
-
+const DraggableContainer = (props: any) => {
+  const context = useContext(DraggableContext);
+  if (!context) return <></>;
+  const { sensors, dispatch, scriptList } = context;
+  return (<DndContext
+    sensors={sensors}
+    collisionDetection={closestCenter}
+    modifiers={[restrictToVerticalAxis]}
+    onDragEnd={(event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) {
+        return;
+      }
+      if (active.id !== over.id) {
+        dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+      }
+    }}
+  >
+    <SortableContext
+      items={scriptList.map((s) => ({ ...s, id: s.uuid }))}
+      strategy={verticalListSortingStrategy}
+    >
+      <tbody {...props} />
+    </SortableContext>
+  </DndContext>);
 };
-DraggableRow.displayName = "DraggableRow";
 
-
-let savedWidthsDefault = {};
-
-systemConfig.getScriptListColumnWidth().then((columnWidth) => {
-  savedWidthsDefault = ({ ...columnWidth });
-});
 
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
@@ -164,37 +193,22 @@ function ScriptList() {
   const [action, setAction] = useState("");
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
-  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number }>(savedWidthsDefault);
+  const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
   const { t } = useTranslation();
-  // const [dealColumns, setDealColumns] = useState<ColumnProps[]>([]);
 
-
-  const DraggableContainer = (props: any) => {
-    return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
-        onDragEnd={(event: DragEndEvent) => {
-          const { active, over } = event;
-          if (!over) {
-            return;
-          }
-          if (active.id !== over.id) {
-            dispatch(sortScript({ active: active.id as string, over: over.id as string }));
-          }
-        }}
-      >
-        <SortableContext
-          items={scriptList.map((s) => ({ ...s, id: s.uuid }))}
-          strategy={verticalListSortingStrategy}
-        >
-          <tbody {...props} />
-        </SortableContext>
-      </DndContext>
-    );
-  };
-  DraggableContainer.displayName = "DraggableContainer";
+  // 处理拖拽排序
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+  // Provide context for DraggableContainer
+  const draggableContextValue = useMemo(() => ({
+    sensors,
+    scriptList,
+    dispatch,
+  }), [sensors, scriptList, dispatch]);
 
   useEffect(() => {
     dispatch(fetchScriptList()).then((action) => {
@@ -204,84 +218,6 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
-
-  const ColVersionRender = React.memo(({ col, item, index }: { col: any, item: ListType, index: number }) => {
-    return <>
-      {item.metadata.version && item.metadata.version[0]}
-    </>
-  });
-
-  const ColRunApplyStatusRender = React.memo(({ col, item, index }: { col: any, item: ListType, index: number }) => {
-    const toLogger = () => {
-      navigate({
-        pathname: "logger",
-        search: `query=${encodeURIComponent(
-          JSON.stringify([
-            { key: "uuid", value: item.uuid },
-            {
-              key: "component",
-              value: "GM_log",
-            },
-          ])
-        )}`,
-      });
-    };
-    if (item.type === SCRIPT_TYPE_NORMAL) {
-      // 处理站点icon
-      return (
-        <>
-          <Avatar.Group size={20}>
-            {item.favorite &&
-              // 排序并且只显示前4个
-              // 排序将有icon的放在前面
-              [...item.favorite]
-                .sort((a, b) => {
-                  if (a.icon && !b.icon) return -1;
-                  if (!a.icon && b.icon) return 1;
-                  return a.match.localeCompare(b.match);
-                })
-                .slice(0, 4)
-                .map((fav) => (
-                  <MemoizedAvatar
-                    key={`${fav.match}_${fav.icon}_${fav.website}`}
-                    {...fav}
-                    onClick={() => {
-                      if (fav.website) {
-                        window.open(fav.website, "_blank");
-                      }
-                    }}
-                  />
-                ))}
-            {item.favorite && item.favorite.length > 4 && "..."}
-          </Avatar.Group>
-        </>
-      );
-    }
-    let tooltip = "";
-    if (item.type === SCRIPT_TYPE_BACKGROUND) {
-      tooltip = t("background_script_tooltip");
-    } else {
-      tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
-    }
-    return (
-      <>
-        <Tooltip content={tooltip}>
-          <Tag
-            icon={<IconClockCircle />}
-            color="blue"
-            bordered
-            style={{
-              cursor: "pointer",
-            }}
-            onClick={toLogger}
-          >
-            {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-          </Tag>
-        </Tooltip>
-      </>
-    );
-
-  });
 
   const columns: ColumnProps[] = useMemo(
     () => [
@@ -409,21 +345,92 @@ function ScriptList() {
         key: "version",
         width: 120,
         align: "center",
-        render: (col: any, item: Script, index: number) => <ColVersionRender col={col} item={item} index={index} />,
+        render: (col: any, item: ListType, index: number) => {
+          return item.metadata.version && item.metadata.version[0];
+        },
       },
       {
         key: "apply_to_run_status",
         title: t("apply_to_run_status"),
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
-        render: (col: any, item: Script, index: number) => <ColRunApplyStatusRender col={col} item={item} index={index} />,
+        render: (col: any, item: ListType, index: number) => {
+          const toLogger = () => {
+            navigate({
+              pathname: "logger",
+              search: `query=${encodeURIComponent(
+                JSON.stringify([
+                  { key: "uuid", value: item.uuid },
+                  {
+                    key: "component",
+                    value: "GM_log",
+                  },
+                ])
+              )}`,
+            });
+          };
+          if (item.type === SCRIPT_TYPE_NORMAL) {
+            // 处理站点icon
+            return (
+              <>
+                <Avatar.Group size={20}>
+                  {item.favorite &&
+                    // 排序并且只显示前4个
+                    // 排序将有icon的放在前面
+                    [...item.favorite]
+                      .sort((a, b) => {
+                        if (a.icon && !b.icon) return -1;
+                        if (!a.icon && b.icon) return 1;
+                        return a.match.localeCompare(b.match);
+                      })
+                      .slice(0, 4)
+                      .map((fav) => (
+                        <MemoizedAvatar
+                          key={`${fav.match}_${fav.icon}_${fav.website}`}
+                          {...fav}
+                          onClick={() => {
+                            if (fav.website) {
+                              window.open(fav.website, "_blank");
+                            }
+                          }}
+                        />
+                      ))}
+                  {item.favorite && item.favorite.length > 4 && "..."}
+                </Avatar.Group>
+              </>
+            );
+          }
+          let tooltip = "";
+          if (item.type === SCRIPT_TYPE_BACKGROUND) {
+            tooltip = t("background_script_tooltip");
+          } else {
+            tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+          }
+          return (
+            <>
+              <Tooltip content={tooltip}>
+                <Tag
+                  icon={<IconClockCircle />}
+                  color="blue"
+                  bordered
+                  style={{
+                    cursor: "pointer",
+                  }}
+                  onClick={toLogger}
+                >
+                  {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+                </Tag>
+              </Tooltip>
+            </>
+          );
+        },
       },
       {
         title: t("source"),
         dataIndex: "origin",
         key: "origin",
         width: 100,
-        render(col, item: Script) {
+        render(col, item: ListType) {
           if (item.subscribeUrl) {
             return (
               <Tooltip
@@ -488,7 +495,7 @@ function ScriptList() {
         align: "center",
         key: "home",
         width: 100,
-        render(col, item: Script) {
+        render(col, item: ListType) {
           return <ListHomeRender script={item} />;
         },
       },
@@ -499,7 +506,7 @@ function ScriptList() {
         key: "updatetime",
         width: t("script_list_last_updated_width"),
         sorter: (a, b) => a.updatetime - b.updatetime,
-        render(col, script: Script) {
+        render(col, script: ListType) {
           return (
             <span
               style={{
@@ -673,8 +680,11 @@ function ScriptList() {
     });
   }, []);
 
+  const [canShowList, setCanShowList] = useState(false);
 
   useEffect(()=>{
+
+    if (savedWidths === null) return;
 
     setNewColumns((nColumns) => {
       const widths = columns.map(item => savedWidths[item.key!] ?? item.width);
@@ -688,21 +698,18 @@ function ScriptList() {
           }
       });
     });
+    setCanShowList(true);
 
   }, [savedWidths]);
 
-  // 处理拖拽排序
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
   const dealColumns = useMemo(() => {
-    const filtered = newColumns.filter(item => item.width !== -1);
-    return filtered.length === 0 ? columns : filtered;
-  }, [newColumns]);
+    if (!canShowList) {
+      return [];
+    } else {
+      const filtered = newColumns.filter(item => item.width !== -1);
+      return filtered.length === 0 ? columns : filtered;
+    }
+  }, [newColumns, canShowList]);
 
   const components:ComponentsProps = {
 
@@ -766,6 +773,7 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
+      <DraggableContext.Provider value={draggableContextValue}>
       <Space direction="vertical">
         {showAction && (
           <Card>
@@ -1026,26 +1034,28 @@ function ScriptList() {
             </div>
           </Card>
         )}
-        <Table
-          key="script-list-table"
-          className="arco-drag-table-container"
-          components={components}
-          rowKey="uuid"
-          tableLayoutFixed
-          columns={dealColumns}
-          data={scriptList}
-          pagination={false}
-          style={{
-            minWidth: "1200px",
-          }}
-          rowSelection={{
-            type: "checkbox",
-            onChange(_, selectedRows) {
-              setShowAction(true);
-              setSelect(selectedRows);
-            },
-          }}
-        />
+        {canShowList && (
+          <Table
+            key="script-list-table"
+            className="arco-drag-table-container"
+            components={components}
+            rowKey="uuid"
+            tableLayoutFixed
+            columns={dealColumns}
+            data={scriptList}
+            pagination={false}
+            style={{
+              minWidth: "1200px",
+            }}
+            rowSelection={{
+              type: "checkbox",
+              onChange(_, selectedRows) {
+                setShowAction(true);
+                setSelect(selectedRows);
+              },
+            }}
+          />
+        )}
         {userConfig && (
           <UserConfigPanel script={userConfig.script} userConfig={userConfig.userConfig} values={userConfig.values} />
         )}
@@ -1056,6 +1066,7 @@ function ScriptList() {
           }}
         />
       </Space>
+      </DraggableContext.Provider>
     </Card>
   );
 }
