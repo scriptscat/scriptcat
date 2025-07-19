@@ -116,8 +116,7 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
-const DraggableRow = (props: any) => {
-  const { record, index, ...rest } = props;
+const DraggableRow = ({ record, index, ...rest }: { record: any; index: any; [key: string]: any }) => {
   const sortable = useSortable({ id: record.uuid });
   const { setNodeRef, transform, transition } = sortable;
 
@@ -128,7 +127,7 @@ const DraggableRow = (props: any) => {
 
   return (
     <SortableRowCtx.Provider value={sortable}>
-      <tr ref={setNodeRef} style={style} index={index} {...rest} />
+      <tr ref={setNodeRef} style={style} {...rest} />
     </SortableRowCtx.Provider>
   );
 };
