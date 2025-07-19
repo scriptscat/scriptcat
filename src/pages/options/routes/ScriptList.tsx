@@ -149,7 +149,6 @@ const DragHandle = () => {
 
   const { listeners, setActivatorNodeRef } = sortable;
 
-  // console.log(4888, sortable)
   return (
     <IconDragDotVertical
       {...listeners}
