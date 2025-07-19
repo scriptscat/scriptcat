@@ -113,9 +113,9 @@
     "confirm_update": "Are you sure you want to update? Please note that this is an irreversible operation."
   },
   "enable": "Enable",
-  "script_list_enable_width": 120,
+  "script_list_enable_width": 100,
   "script_list_last_updated_width": 150,
-  "script_list_apply_to_run_status_width": 120,
+  "script_list_apply_to_run_status_width": 110,
   "subscribe_list_enable_width": 120,
   "disable": "Disable",
   "name": "Name",

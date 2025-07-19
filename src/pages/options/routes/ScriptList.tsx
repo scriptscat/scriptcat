@@ -236,7 +236,7 @@ function ScriptList() {
       {
         title: "#",
         dataIndex: "sort",
-        width: 70,
+        width: 60,
         key: "#",
         sorter: (a, b) => a.sort - b.sort,
         render(col) {
@@ -326,10 +326,10 @@ function ScriptList() {
         },
         onFilterDropdownVisibleChange: (visible) => {
           if (visible) {
-            setTimeout(() => inputRef.current!.focus(), 150);
+            setTimeout(() => inputRef.current!.focus(), 1);
           }
         },
-        className: "max-w-[240px]",
+        className: "max-w-[240px] min-w-[100px]",
         render: (col, item: ListType) => {
           return (
             <Tooltip content={col} position="tl">
@@ -679,7 +679,7 @@ function ScriptList() {
           );
         },
       },
-    ],
+    ] as ColumnProps[],
     [t, dispatch, inputRef, navigate]
   );
 
@@ -1080,7 +1080,7 @@ function ScriptList() {
               data={scriptList}
               pagination={false}
               style={{
-                minWidth: "1200px",
+                // minWidth: "1200px",
               }}
               rowSelection={{
                 type: "checkbox",
