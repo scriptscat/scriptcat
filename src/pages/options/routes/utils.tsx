@@ -1,20 +1,8 @@
 import React from "react";
 import type { Metadata, Script } from "@App/app/repo/scripts";
-import { ScriptDAO } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
-
-// 较对脚本排序位置
-export function scriptListSort(result: Script[]) {
-  const dao = new ScriptDAO();
-  for (let i = 0; i < result.length; i += 1) {
-    if (result[i].sort !== i) {
-      dao.update(result[i].uuid, { sort: i });
-      result[i].sort = i;
-    }
-  }
-}
 
 // 安装url转home主页
 export function installUrlToHome(installUrl: string) {

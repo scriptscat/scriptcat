@@ -110,7 +110,7 @@ const ScriptStorage: React.FC<{
       onFilter: (value, row) => !value || row.key.includes(value),
       onFilterDropdownVisibleChange: (v) => {
         if (v) {
-          setTimeout(() => inputRef.current!.focus(), 150);
+          setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
     },
