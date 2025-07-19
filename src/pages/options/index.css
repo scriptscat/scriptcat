@@ -22,29 +22,31 @@ h6.arco-typography {
 }
 
 /* error、wran图标直接用的油猴CodeMirror编辑器图标 待优化*/
-.icon-error{
+.icon-error {
   background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAHlBMVEW7AAC7AACxAAC7AAC7AAAAAAC4AAC5AAD///+7AAAUdclpAAAABnRSTlMXnORSiwCK0ZKSAAAATUlEQVR42mWPOQ7AQAgDuQLx/z8csYRmPRIFIwRGnosRrpamvkKi0FTIiMASR3hhKW+hAN6/tIWhu9PDWiTGNEkTtIOucA5Oyr9ckPgAWm0GPBog6v4AAAAASUVORK5CYII=);
   background-repeat: no-repeat;
   background-position: center;
-  left: 10px!important;
+  left: 10px !important;
 }
 
-.icon-warn{
+.icon-warn {
   background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAANlBMVEX/uwDvrwD/uwD/uwD/uwD/uwD/uwD/uwD/uwD6twD/uwAAAADurwD2tQD7uAD+ugAAAAD/uwDhmeTRAAAADHRSTlMJ8mN1EYcbmiixgACm7WbuAAAAVklEQVR42n3PUQqAIBBFUU1LLc3u/jdbOJoW1P08DA9Gba8+YWJ6gNJoNYIBzAA2chBth5kLmG9YUoG0NHAUwFXwO9LuBQL1giCQb8gC9Oro2vp5rncCIY8L8uEx5ZkAAAAASUVORK5CYII=);
   background-repeat: no-repeat;
   background-position: center;
-  left: 10px!important;
+  left: 10px !important;
 }
 
-.actionList{
+.actionList {
   height: auto !important;
 }
 
 .arco-table-custom-filter {
-   padding: 10px; background-color: var(--color-bg-5); box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  background-color: var(--color-bg-5);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
 }
 
-.arco-table-custom-filter span.arco-input-inner-wrapper, 
+.arco-table-custom-filter span.arco-input-inner-wrapper,
 .arco-table-custom-filter input.arco-input {
   transition: none;
 }
@@ -61,5 +63,5 @@ h6.arco-typography {
 
 #script-list col:not([style]):not([class]) {
   max-width: 240px;
-	min-width: 100px;
+  min-width: 100px;
 }
