@@ -116,6 +116,7 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DraggableRow = ({ record, index, ...rest }: { record: any; index: any; [key: string]: any }) => {
   const sortable = useSortable({ id: record.uuid });
   const { setNodeRef, transform, transition } = sortable;
