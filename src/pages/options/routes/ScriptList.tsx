@@ -1000,6 +1000,7 @@ function ScriptList() {
                             ? t("hide")
                             : newColumns[selectColumn].width?.toString()
                       }
+                      step={5}
                       onChange={(val) => {
                         const width = parseInt(val, 10);
                         setWidth(selectColumn, width);
