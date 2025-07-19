@@ -202,6 +202,7 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
+  const [loading, setLoading] = useState(false);
   const { t } = useTranslation();
 
   // 处理拖拽排序
@@ -272,7 +273,12 @@ function ScriptList() {
               loading={item.enableLoading}
               disabled={item.enableLoading}
               onChange={(checked) => {
-                dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }));
+                setLoading(true);
+                dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }))
+                  .unwrap()
+                  .then(() => {
+                    setLoading(false);
+                  });
               }}
             />
           );
@@ -582,7 +588,12 @@ function ScriptList() {
                 title={t("confirm_delete_script")}
                 icon={<RiDeleteBin5Fill />}
                 onOk={() => {
-                  dispatch(requestDeleteScript(item.uuid));
+                  setLoading(true);
+                  dispatch(requestDeleteScript(item.uuid))
+                    .unwrap()
+                    .then(() => {
+                      setLoading(false);
+                    });
                 }}
               >
                 <Button
@@ -624,7 +635,9 @@ function ScriptList() {
                         id: "script-stop",
                         content: t("stopping_script"),
                       });
-                      await dispatch(requestStopScript(item.uuid));
+                      setLoading(true);
+                      await dispatch(requestStopScript(item.uuid)).unwrap();
+                      setLoading(false);
                       Message.success({
                         id: "script-stop",
                         content: t("script_stopped"),
@@ -635,7 +648,9 @@ function ScriptList() {
                         id: "script-run",
                         content: t("starting_script"),
                       });
-                      await dispatch(requestRunScript(item.uuid));
+                      setLoading(true);
+                      await dispatch(requestRunScript(item.uuid)).unwrap();
+                      setLoading(false);
                       Message.success({
                         id: "script-run",
                         content: t("script_started"),
@@ -825,10 +840,12 @@ function ScriptList() {
                     onClick={() => {
                       const enableAction = (enable: boolean) => {
                         const uuids = select.map((item) => item.uuid);
+                        setLoading(true);
                         dispatch(enableLoading({ uuids: uuids, loading: true }));
                         Promise.allSettled(uuids.map((uuid) => scriptClient.enable(uuid, enable))).finally(() => {
                           dispatch(updateEnableStatus({ uuids: uuids, enable: enable }));
                           dispatch(enableLoading({ uuids: uuids, loading: false }));
+                          setLoading(false);
                         });
                       };
                       let l: number | undefined;
@@ -859,15 +876,19 @@ function ScriptList() {
                         }
                         case "delete":
                           if (confirm(t("list.confirm_delete"))) {
+                            setLoading(true);
                             const uuids = select.map((item) => item.uuid);
                             dispatch(batchDeleteScript(uuids));
-                            Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
+                            Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid))).finally(() => {
+                              setLoading(false);
+                            });
                           }
                           break;
                         case "pin_to_top": {
                           // 将选中的脚本置顶
                           l = select.length;
                           if (l > 0) {
+                            setLoading(true);
                             // 获取当前所有脚本列表
                             const currentScripts = store.getState().script.scripts;
                             // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
@@ -881,6 +902,7 @@ function ScriptList() {
                                 dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
                               }
                             }
+                            setLoading(false);
                             Message.success({
                               content: t("scripts_pinned_to_top"),
                               duration: 3000,
@@ -1053,6 +1075,7 @@ function ScriptList() {
               components={components}
               rowKey="uuid"
               tableLayoutFixed
+              loading={loading}
               columns={dealColumns}
               data={scriptList}
               pagination={false}

@@ -25,14 +25,14 @@ export const valueClient = new ValueClient(message);
 export const resourceClient = new ResourceClient(message);
 export const synchronizeClient = new SynchronizeClient(message);
 
-export const fetchScriptList = createAsyncThunk("script/fetchScriptList", () => {
-  return scriptClient.getAllScripts();
+export const fetchScriptList = createAsyncThunk("script/fetchScriptList", async () => {
+  return await scriptClient.getAllScripts();
 });
 
 export const requestEnableScript = createAsyncThunk(
   "script/enableScript",
-  (param: { uuid: string; enable: boolean }) => {
-    return scriptClient.enable(param.uuid, param.enable);
+  async (param: { uuid: string; enable: boolean }) => {
+    return await scriptClient.enable(param.uuid, param.enable);
   }
 );
 
@@ -45,7 +45,7 @@ export const requestStopScript = createAsyncThunk("script/stopScript", async (uu
 });
 
 export const requestDeleteScript = createAsyncThunk("script/deleteScript", async (uuid: string) => {
-  return scriptClient.delete(uuid);
+  return await scriptClient.delete(uuid);
 });
 
 export type ScriptLoading = Script & {
