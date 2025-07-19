@@ -282,8 +282,8 @@
   "script_has_full_access_to": "腳本將獲得以下網址的完整存取權限",
   "script_requires": "腳本引用了以下外部資源",
   "cookie_warning": "請注意，此腳本會要求 Cookie 的操作權限，這是一項危險的權限，請確認腳本的安全性。",
-  "scheduled_script_description_1": "這是一個排程腳本，啟用後將在特定時間自動執行，並可在控制面板中手動控制。",
-  "scheduled_script_description_2": "排程任務表達式：{{expression}}，最近一次執行時間：{{time}}",
+  "scheduled_script_description_title": "這是一個排程腳本，啟用後將在特定時間自動執行，並可在控制面板中手動控制。",
+  "scheduled_script_description_description": "排程任務表達式：{{expression}}，最近一次執行時間：{{time}}",
   "background_script_description": "這是一個背景腳本，啟用後將在瀏覽器開啟時自動執行一次，並可在控制面板中手動控制。",
   "install_success": "安裝成功",
   "install": {
@@ -415,5 +415,7 @@
   "build_failed": "建置失敗",
   "drag_script_here_to_upload": "拖曳腳本到此處上傳",
   "sync_status": "同步狀態",
-  "search_scripts": "搜索腳本"
+  "search_scripts": "搜索腳本",
+  "ext_update_notification": "脚本猫扩展已更新",
+  "ext_update_notification_desc": "当前版本：{{version}}，详情请查看更新日志"
 }

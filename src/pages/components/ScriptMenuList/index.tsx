@@ -125,9 +125,13 @@ const ScriptMenuList = React.memo(
 
     let url: URL;
     try {
-      url = new URL(currentUrl);
+      // 如果currentUrl为空或无效，使用默认URL
+      const urlToUse = currentUrl?.trim() || "https://example.com";
+      url = new URL(urlToUse);
     } catch (e: any) {
       console.error("Invalid URL:", e);
+      // 提供一个默认的URL，避免后续代码报错
+      url = new URL("https://example.com");
     }
     useEffect(() => {
       setList(script);

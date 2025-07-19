@@ -41,15 +41,14 @@ function SubscribeList() {
   const columns: ColumnProps[] = [
     {
       title: "#",
-      dataIndex: "id",
       width: 70,
       key: "#",
       sorter: (a: Subscribe, b) => a.createtime - b.createtime,
-      render(col) {
+      render(col, item, index) {
         if (col < 0) {
           return "-";
         }
-        return col + 1;
+        return index + 1;
       },
     },
     {
@@ -168,7 +167,7 @@ function SubscribeList() {
         if (item.metadata.connect) {
           return <div />;
         }
-        return (item.metadata.connect as string[]).map((val) => {
+        return ((item.metadata.connect as string[]) || []).map((val) => {
           return <img key={val} src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
         });
       },
@@ -295,7 +294,7 @@ function SubscribeList() {
     >
       <Table
         className="arco-drag-table-container"
-        rowKey="id"
+        rowKey="url"
         tableLayoutFixed
         columns={columns}
         data={list}
@@ -305,7 +304,7 @@ function SubscribeList() {
           hideOnSinglePage: true,
         }}
         style={{
-          minWidth: "1100px",
+          minWidth: "1200px",
         }}
       />
     </Card>

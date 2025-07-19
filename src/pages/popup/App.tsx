@@ -1,4 +1,4 @@
-import { ExtVersion } from "@App/app/const";
+import { Discord, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
@@ -19,7 +19,7 @@ import ScriptMenuList from "../components/ScriptMenuList";
 import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
-import { localePath } from "@App/locales/locales";
+import { isChineseUser, localePath } from "@App/locales/locales";
 import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
@@ -57,24 +57,41 @@ function App() {
 
     const onCurrentUrlUpdated = (tabs: chrome.tabs.Tab[]) => {
       checkScriptEnableAndUpdate();
-      popupClient.getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! }).then((resp) => {
-        if (!isMounted) return;
-        // 按照开启状态和更新时间排序
-        const list = resp.scriptList;
-        list.sort(
-          (a, b) =>
-            //@ts-ignore
-            b.enable - a.enable ||
-            // 根据菜单数排序
-            b.menus.length - a.menus.length ||
-            b.runNum - a.runNum ||
-            b.updatetime - a.updatetime
-        );
-        setScriptList(list);
-        setBackScriptList(resp.backScriptList);
-        setIsBlacklist(resp.isBlacklist);
-        checkScriptEnableAndUpdate();
-      });
+      popupClient
+        .getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! })
+        .then((resp) => {
+          if (!isMounted) return;
+
+          // 确保响应有效
+          if (!resp || !resp.scriptList) {
+            console.warn("Invalid popup data response:", resp);
+            return;
+          }
+
+          // 按照开启状态和更新时间排序
+          const list = resp.scriptList;
+          list.sort(
+            (a, b) =>
+              //@ts-ignore
+              b.enable - a.enable ||
+              // 根据菜单数排序
+              b.menus.length - a.menus.length ||
+              b.runNum - a.runNum ||
+              b.updatetime - a.updatetime
+          );
+          setScriptList(list);
+          setBackScriptList(resp.backScriptList || []);
+          setIsBlacklist(resp.isBlacklist || false);
+          checkScriptEnableAndUpdate();
+        })
+        .catch((error) => {
+          console.error("Failed to get popup data:", error);
+          if (!isMounted) return;
+          // 设置默认值以防止错误
+          setScriptList([]);
+          setBackScriptList([]);
+          setIsBlacklist(false);
+        });
     };
 
     const checkScriptEnableAndUpdate = async () => {
@@ -146,7 +163,7 @@ function App() {
           const browserInfo = `${navigator.userAgent}`;
           const issueUrl =
             `https://github.com/scriptscat/scriptcat/issues/new?` +
-            `template=bug_report${localePath === "/en" ? "_en" : ""}.yaml&scriptcat-version=${ExtVersion}&` +
+            `template=bug_report${isChineseUser() ? "" : "_en"}.yaml&scriptcat-version=${ExtVersion}&` +
             `browser-version=${encodeURIComponent(browserInfo)}`;
           window.open(issueUrl, "_blank");
           break;
@@ -289,11 +306,11 @@ function App() {
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key="https://docs.scriptcat.org/">
+                    <Menu.Item key={`https://docs.scriptcat.org${localePath}`}>
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
-                    <Menu.Item key="https://bbs.tampermonkey.net.cn/">
+                    <Menu.Item key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}>
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>

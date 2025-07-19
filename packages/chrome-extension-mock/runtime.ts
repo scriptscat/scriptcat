@@ -67,4 +67,51 @@ export default class Runtime {
   getURL(path: string) {
     return `${window.location.href}${path}`;
   }
+
+  sendMessage(message: any, callback?: (response: any) => void) {
+    this.messageListener.forEach((listener) => {
+      listener(message);
+    });
+
+    // Mock response based on message action
+    let response: any = { success: true };
+    if (message.action === "serviceWorker/popup/getPopupData") {
+      response = {
+        success: true,
+        scriptList: [
+          {
+            id: 1,
+            name: "Test Script 1",
+            enable: 1,
+            menus: [],
+            runNum: 0,
+            updatetime: Date.now(),
+          },
+          {
+            id: 2,
+            name: "Test Script 2",
+            enable: 0,
+            menus: [],
+            runNum: 5,
+            updatetime: Date.now() - 1000,
+          },
+        ],
+        backScriptList: [],
+        isBlacklist: false,
+      };
+    }
+
+    if (callback) {
+      callback(response);
+    }
+    return Promise.resolve(response);
+  }
+
+  openOptionsPage(callback?: () => void) {
+    // Mock implementation - just call callback
+    if (callback) {
+      callback();
+    }
+    return Promise.resolve();
+  }
 }

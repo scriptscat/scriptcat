@@ -46,12 +46,15 @@ export default class ChromeStorage {
       const ret: { [key: string]: any } = {};
       const prefix = this.buildKey("");
       this.storage.get((items: { [key: string]: any }) => {
+        if (!items) {
+          return resolve(ret);
+        }
         Object.keys(items).forEach((key) => {
           if (key.startsWith(prefix)) {
             ret[key.substring(prefix.length)] = items[key];
           }
         });
-        resolve(ret);
+        return resolve(ret);
       });
     });
   }

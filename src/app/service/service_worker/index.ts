@@ -14,6 +14,8 @@ import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
+import { localePath, t } from "@App/locales/locales";
+import { InfoNotification } from "@App/pkg/utils/utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -154,7 +156,7 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: "https://docs.scriptcat.org/" });
+          chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
         } else if (details.reason === "update") {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const lastError = chrome.runtime.lastError;
@@ -166,9 +168,12 @@ export default class ServiceWorkerManager {
             // 如果当前窗口正在播放 audio, 则在后台打开
             const active = tabs.length === 0 ? false : tabs[0].audible === true ? false : true;
             chrome.tabs.create({
-              url: `https://docs.scriptcat.org/docs/change/#${ExtVersion}`,
+              url: `https://docs.scriptcat.org/docs/change/${
+                ExtVersion.includes("-") ? "beta-changelog/" : ""
+              }#${ExtVersion}`,
               active: active,
             });
+            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
           });
         }
       });

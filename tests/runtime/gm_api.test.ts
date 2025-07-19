@@ -1,11 +1,9 @@
 import { type Script, ScriptDAO, type ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
-import { initTestEnv, initTestGMApi } from "@Tests/utils";
+import { initTestGMApi } from "@Tests/utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
 import { beforeAll, describe, expect, it } from "vitest";
-
-initTestEnv();
 
 const msg = initTestGMApi();
 

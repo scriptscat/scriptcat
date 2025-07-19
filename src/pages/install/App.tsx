@@ -165,10 +165,10 @@ const useScriptDescription = (scriptInfo: ScriptInfo | undefined, metadata: Meta
     }
 
     if (metadata.crontab) {
-      description.push(<Typography.Text key="crontab">{t("scheduled_script_description_1")}</Typography.Text>);
+      description.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
       description.push(
         <Typography.Text key="cronta-nexttime">
-          {t("scheduled_script_description_2", {
+          {t("scheduled_script_description_description", {
             expression: metadata.crontab[0],
             time: nextTime(metadata.crontab[0]),
           })}

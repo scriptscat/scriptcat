@@ -2,6 +2,7 @@ import type { Export, ExportTarget } from "@App/app/repo/export";
 import { ExportDAO } from "@App/app/repo/export";
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptCodeDAO } from "@App/app/repo/scripts";
+import { localePath } from "@App/locales/locales";
 import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import type { ExportParams } from "@Packages/cloudscript/cloudscript";
@@ -76,7 +77,7 @@ const CloudScriptPlan: React.FC<{
                 }}
               />
             }
-            href="https://docs.scriptcat.org/docs/dev/cloudcat/"
+            href={`https://docs.scriptcat.org${localePath}/docs/dev/cloudcat/`}
             target="_blank"
             iconOnly
           />
