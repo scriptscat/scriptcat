@@ -34,7 +34,6 @@ import {
   IconDragDotVertical,
   IconEdit,
   IconLink,
-  IconMenu,
   IconSearch,
   IconUserAdd,
 } from "@arco-design/web-react/icon";
@@ -129,7 +128,7 @@ const DraggableRow = (props: any) => {
 
   return (
     <SortableRowCtx.Provider value={sortable}>
-      <tr ref={setNodeRef} style={style} {...rest} />
+      <tr ref={setNodeRef} style={style} index={index} {...rest} />
     </SortableRowCtx.Provider>
   );
 };
@@ -357,7 +356,7 @@ function ScriptList() {
         key: "version",
         width: 120,
         align: "center",
-        render: (col: any, item: ListType, index: number) => {
+        render: (col: any, item: ListType, _index: number) => {
           return item.metadata.version && item.metadata.version[0];
         },
       },
@@ -366,7 +365,7 @@ function ScriptList() {
         title: t("apply_to_run_status"),
         width: t("script_list_apply_to_run_status_width"),
         className: "apply_to_run_status",
-        render: (col: any, item: ListType, index: number) => {
+        render: (col: any, item: ListType, _index: number) => {
           const toLogger = () => {
             navigate({
               pathname: "logger",
