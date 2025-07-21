@@ -191,7 +191,6 @@ export class ResourceService {
       // 校验hash
       if (u.hash) {
         let flag = true;
-        console.log("check resource hash", u.hash, resource.hash);
         Object.keys(u.hash).forEach((key) => {
           if (isBase64(u.hash![key])) {
             // 对比base64编码的hash
