@@ -28,7 +28,7 @@ export const createContext = (
     GM: { info: GMInfo },
     GM_info: GMInfo,
     window: {
-      onurlchange: null,
+      // onurlchange: null,
     },
     grantSet: new Set(),
   });
