@@ -532,45 +532,47 @@ function ScriptList() {
           sorter: (a, b) => a.updatetime - b.updatetime,
           render(col, script: ListType) {
             return (
-              <span
-                style={{
-                  cursor: "pointer",
-                }}
-                onClick={() => {
-                  if (!script.checkUpdateUrl) {
-                    Message.warning(t("update_not_supported")!);
-                    return;
-                  }
-                  Message.info({
-                    id: "checkupdate",
-                    content: t("checking_for_updates"),
-                  });
-                  scriptClient
-                    .requestCheckUpdate(script.uuid)
-                    .then((res) => {
-                      console.log("res", res);
-                      if (res) {
-                        Message.warning({
-                          id: "checkupdate",
-                          content: t("new_version_available"),
-                        });
-                      } else {
-                        Message.success({
-                          id: "checkupdate",
-                          content: t("latest_version"),
-                        });
-                      }
-                    })
-                    .catch((e) => {
-                      Message.error({
-                        id: "checkupdate",
-                        content: `${t("update_check_failed")}: ${e.message}`,
-                      });
+              <Tooltip content={t("check_update")} position="tl">
+                <Text
+                  style={{
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    if (!script.checkUpdateUrl) {
+                      Message.warning(t("update_not_supported")!);
+                      return;
+                    }
+                    Message.info({
+                      id: "checkupdate",
+                      content: t("checking_for_updates"),
                     });
-                }}
-              >
-                {semTime(new Date(col))}
-              </span>
+                    scriptClient
+                      .requestCheckUpdate(script.uuid)
+                      .then((res) => {
+                        console.log("res", res);
+                        if (res) {
+                          Message.warning({
+                            id: "checkupdate",
+                            content: t("new_version_available"),
+                          });
+                        } else {
+                          Message.success({
+                            id: "checkupdate",
+                            content: t("latest_version"),
+                          });
+                        }
+                      })
+                      .catch((e) => {
+                        Message.error({
+                          id: "checkupdate",
+                          content: `${t("update_check_failed")}: ${e.message}`,
+                        });
+                      });
+                  }}
+                >
+                  {semTime(new Date(col))}
+                </Text>
+              </Tooltip>
             );
           },
         },
