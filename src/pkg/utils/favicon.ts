@@ -172,7 +172,7 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
 
     return icons;
   } catch (error: any) {
-    if (error.name === "AbortError") {
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
       // 超时
       console.warn(`Timeout while fetching favicon:`, url);
     } else {
