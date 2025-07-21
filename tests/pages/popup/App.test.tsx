@@ -97,6 +97,7 @@ vi.mock("@App/locales/locales", () => ({
   i18nName: vi.fn((script) => script.name),
   i18nDescription: vi.fn((script) => script.metadata?.description || ""),
   matchLanguage: vi.fn(),
+  isChineseUser: vi.fn(() => true),
   t: vi.fn((key) => key),
   default: {
     changeLanguage: vi.fn(),
