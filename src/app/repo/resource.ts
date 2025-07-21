@@ -21,6 +21,13 @@ export interface ResourceHash {
   sha256: string;
   sha384: string;
   sha512: string;
+  integrity?: {
+    md5: string;
+    sha1: string;
+    sha256: string;
+    sha384: string;
+    sha512: string;
+  };
 }
 
 const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";

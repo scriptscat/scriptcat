@@ -11,6 +11,7 @@ import { blobToBase64 } from "@App/pkg/utils/utils";
 import { subscribeScriptDelete } from "../queue";
 import Cache from "@App/app/cache";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
+import { isBase64, parseUrlSRI } from "./utils";
 
 export class ResourceService {
   logger: Logger;
@@ -152,7 +153,7 @@ export class ResourceService {
 
   async updateResource(uuid: string, url: string, type: ResourceType) {
     // 重新加载
-    const u = this.parseUrl(url);
+    const u = parseUrlSRI(url);
     let result = await this.getResourceModel(u.url);
     try {
       const resource = await this.loadByUrl(u.url, type);
@@ -184,18 +185,29 @@ export class ResourceService {
   }
 
   async getResourceModel(url: string) {
-    const u = this.parseUrl(url);
+    const u = parseUrlSRI(url);
     const resource = await this.resourceDAO.get(u.url);
     if (resource) {
       // 校验hash
       if (u.hash) {
-        if (
-          (u.hash.md5 && u.hash.md5 !== resource.hash.md5) ||
-          (u.hash.sha1 && u.hash.sha1 !== resource.hash.sha1) ||
-          (u.hash.sha256 && u.hash.sha256 !== resource.hash.sha256) ||
-          (u.hash.sha384 && u.hash.sha384 !== resource.hash.sha384) ||
-          (u.hash.sha512 && u.hash.sha512 !== resource.hash.sha512)
-        ) {
+        let flag = true;
+        console.log("check resource hash", u.hash, resource.hash);
+        Object.keys(u.hash).forEach((key) => {
+          if (isBase64(u.hash![key])) {
+            // 对比base64编码的hash
+            if ((resource.hash as any).integrity && (resource.hash as any).integrity[key] !== u.hash![key]) {
+              flag = false;
+            }
+          } else {
+            // 对比普通的hash
+            if (key in resource.hash) {
+              if (resource.hash[key as keyof ResourceHash] !== u.hash![key].toLowerCase()) {
+                flag = false;
+              }
+            }
+          }
+        });
+        if (!flag) {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
         }
       }
@@ -225,7 +237,7 @@ export class ResourceService {
   }
 
   async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
-    const u = this.parseUrl(url);
+    const u = parseUrlSRI(url);
     const resp = await fetch(u.url);
     if (resp.status !== 200) {
       throw new Error(`resource response status not 200: ${resp.status}`);
@@ -252,26 +264,6 @@ export class ResourceService {
     }
     resource.base64 = base64 || "";
     return resource;
-  }
-
-  parseUrl(url: string): {
-    url: string;
-    hash?: { [key: string]: string };
-  } {
-    const urls = url.split("#");
-    if (urls.length < 2) {
-      return { url: urls[0], hash: undefined };
-    }
-    const hashs = urls[1].split(/[,;]/);
-    const hash: { [key: string]: string } = {};
-    hashs.forEach((val) => {
-      const kv = val.split("=");
-      if (kv.length < 2) {
-        return;
-      }
-      hash[kv[0]] = kv[1].toLocaleLowerCase();
-    });
-    return { url: urls[0], hash };
   }
 
   async deleteResource(url: string) {

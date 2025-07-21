@@ -61,3 +61,35 @@ export function arrayToObject(arr: Array<any>): any[] {
   });
   return obj;
 }
+
+// 检查是不是base64编码
+export function isBase64(str: string): boolean {
+  if (typeof str !== "string") {
+    return false;
+  }
+  // 检查字符串是否符合base64的格式
+  return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && (str.length % 4 === 0 || str.length % 4 === 2);
+}
+
+// 解析URL SRI
+export function parseUrlSRI(url: string): {
+  url: string;
+  hash?: { [key: string]: string };
+} {
+  const urls = url.split("#");
+  if (urls.length < 2) {
+    return { url: urls[0], hash: undefined };
+  }
+  const hashs = urls[1].split(/[&,;]/);
+  const hash: { [key: string]: string } = {};
+  hashs.forEach((val) => {
+    const equalIndex = val.indexOf("=");
+    if (equalIndex === -1) {
+      return;
+    }
+    const key = val.substring(0, equalIndex);
+    const value = val.substring(equalIndex + 1);
+    hash[key] = value;
+  });
+  return { url: urls[0], hash };
+}
