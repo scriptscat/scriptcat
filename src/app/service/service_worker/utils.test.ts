@@ -22,11 +22,11 @@ describe("parseUrlSRI", () => {
     expect(result4.hash).toEqual({ md5: "AbCd" });
   });
   it("多个哈希值", () => {
-    const url1 = "https://example.com/script.js#sha256=abc123==&sha512=def456==";
+    const url1 = "https://example.com/script.js#sha256=abc123==,sha512=def456==";
     const result1 = parseUrlSRI(url1);
     expect(result1.url).toEqual("https://example.com/script.js");
     expect(result1.hash).toEqual({ sha256: "abc123==", sha512: "def456==" });
-    const url2 = "https://example.com/script.js#sha256=abcd123&md5=abcd";
+    const url2 = "https://example.com/script.js#sha256=abcd123;md5=abcd";
     const result2 = parseUrlSRI(url2);
     expect(result2.url).toEqual("https://example.com/script.js");
     expect(result2.hash).toEqual({ sha256: "abcd123", md5: "abcd" });

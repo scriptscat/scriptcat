@@ -80,7 +80,7 @@ export function parseUrlSRI(url: string): {
   if (urls.length < 2) {
     return { url: urls[0], hash: undefined };
   }
-  const hashs = urls[1].split(/[&,;]/);
+  const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
   hashs.forEach((val) => {
     // 首先检查是否是 sha256-abc123== 格式
