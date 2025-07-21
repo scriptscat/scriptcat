@@ -127,7 +127,7 @@ function SubscribeList() {
       onFilter: (value, row) => !value || row.name.includes(value),
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
-          setTimeout(() => inputRef.current!.focus(), 150);
+          setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
       className: "max-w-[240px]",

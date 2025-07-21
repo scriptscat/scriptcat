@@ -113,7 +113,7 @@
     "confirm_update": "確定要更新嗎？請注意此操作不可逆！"
   },
   "enable": "開啟",
-  "script_list_enable_width": 100,
+  "script_list_enable_width": 80,
   "script_list_last_updated_width": 120,
   "script_list_apply_to_run_status_width": 140,
   "subscribe_list_enable_width": 100,
