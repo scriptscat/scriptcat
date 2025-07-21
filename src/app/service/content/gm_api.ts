@@ -730,7 +730,21 @@ export default class GMApi extends GM_Base {
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
-        con.onMessage((data: { action: string; data: any }) => {
+        con.onMessage((data: { code?: number; message?: string; action: string; data: any }) => {
+          if (data.code === -1) {
+            // 处理错误
+            LoggerCore.logger().error("GM_xmlhttpRequest error", {
+              code: data.code,
+              message: data.message,
+            });
+            if (details.onerror) {
+              details.onerror({
+                readyState: 4,
+                error: data.message || "unknown",
+              });
+            }
+            return;
+          }
           // 处理返回
           switch (data.action) {
             case "onload":
@@ -752,7 +766,7 @@ export default class GMApi extends GM_Base {
               details.ontimeout?.();
               break;
             case "onerror":
-              details.onerror?.("");
+              details.onerror?.(data.data);
               break;
             case "onabort":
               details.onabort?.();

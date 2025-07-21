@@ -90,6 +90,7 @@ const config = {
 
 // 调整规则
 config.rules["userscripts/align-attributes"] = ["warn", 2];
+config.rules["userscripts/require-download-url"] = ["warn"];
 
 // 以文本形式导出默认规则
 export const defaultConfig = JSON.stringify(config, null, 2);

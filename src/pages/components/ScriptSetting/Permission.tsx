@@ -33,11 +33,39 @@ const PermissionManager: React.FC<{
       title: t("allow"),
       dataIndex: "allow",
       key: "allow",
-      render(col) {
-        if (col) {
-          return <span style={{ color: "#52c41a" }}>{t("yes")}</span>;
-        }
-        return <span style={{ color: "#f5222d" }}>{t("no")}</span>;
+      render(col, item: Permission) {
+        return (
+          <Select
+            value={col ? "yes" : "no"}
+            onChange={(value) => {
+              const newAllow = value === "yes";
+              const updatedPermission = { ...item, allow: newAllow };
+              permissionClient
+                .updatePermission(updatedPermission)
+                .then(() => {
+                  Message.success(t("update_success")!);
+                  setPermission(
+                    permission.map((p) =>
+                      p.permission === item.permission && p.permissionValue === item.permissionValue
+                        ? { ...p, allow: newAllow }
+                        : p
+                    )
+                  );
+                })
+                .catch(() => {
+                  Message.error(t("save_failed")!);
+                });
+            }}
+            style={{ width: 80 }}
+          >
+            <Select.Option value="yes">
+              <span style={{ color: "#52c41a" }}>{t("yes")}</span>
+            </Select.Option>
+            <Select.Option value="no">
+              <span style={{ color: "#f5222d" }}>{t("no")}</span>
+            </Select.Option>
+          </Select>
+        );
       },
     },
     {

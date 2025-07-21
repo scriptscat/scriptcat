@@ -275,6 +275,10 @@ export class PermissionClient extends Client {
     return this.do("addPermission", permission);
   }
 
+  updatePermission(permission: Permission) {
+    return this.do("updatePermission", permission);
+  }
+
   resetPermission(uuid: string) {
     return this.do("resetPermission", uuid);
   }

@@ -332,6 +332,20 @@ export default class PermissionVerify {
     this.clearCache(permission.uuid);
   }
 
+  // 更新权限
+  async updatePermission(permission: Permission) {
+    const key = this.permissionDAO.key(permission);
+    const result = await this.permissionDAO.update(key, {
+      allow: permission.allow,
+      updatetime: new Date().getTime(),
+    });
+    if (result) {
+      this.clearCache(permission.uuid);
+      return result;
+    }
+    throw new Error("permission not found");
+  }
+
   // 重置权限
   async resetPermission(uuid: string) {
     // 删除所有权限
@@ -361,6 +375,7 @@ export default class PermissionVerify {
     this.group.on("deletePermission", this.deletePermission.bind(this));
     this.group.on("getScriptPermissions", this.getScriptPermissions.bind(this));
     this.group.on("addPermission", this.addPermission.bind(this));
+    this.group.on("updatePermission", this.updatePermission.bind(this));
     this.group.on("resetPermission", this.resetPermission.bind(this));
 
     subscribeScriptDelete(this.mq, (data) => {

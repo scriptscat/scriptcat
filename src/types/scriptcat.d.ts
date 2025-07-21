@@ -432,7 +432,7 @@ declare namespace GMTypes {
     onreadystatechange?: Listener<XHRResponse>;
     ontimeout?: () => void;
     onabort?: () => void;
-    onerror?: (err: string) => void;
+    onerror?: (err: string | (XHRResponse & { error: string })) => void;
   }
 
   interface AbortHandle<RETURN_TYPE> {

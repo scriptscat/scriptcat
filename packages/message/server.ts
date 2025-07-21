@@ -66,7 +66,22 @@ export class Server {
   private connectHandle(msg: string, params: any, con: MessageConnect) {
     const func = this.apiFunctionMap.get(msg);
     if (func) {
-      func(params, new GetSender(con));
+      const ret = func(params, new GetSender(con));
+      if (ret) {
+        if (ret instanceof Promise) {
+          ret
+            .then((data) => {
+              data && con.sendMessage({ code: 0, data });
+            })
+            .catch((e: Error) => {
+              con.sendMessage({ code: -1, message: e.message || e.toString() });
+            });
+          return true;
+        } else {
+          con.sendMessage({ code: 0, data: ret });
+        }
+      }
+      return true;
     }
   }
 

@@ -86,8 +86,6 @@ declare const GM_info: {
   [key: string]: unknown;
 };
 
-
-
 declare function GM_listValues(): string[];
 
 declare function GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number;
@@ -359,7 +357,6 @@ declare namespace GMTypes {
   interface Cookie {
     domain: string;
     name: string;
-    partitionKey: { topLevelSite?: string };
     value: string;
     session: boolean;
     hostOnly: boolean;
@@ -435,7 +432,7 @@ declare namespace GMTypes {
     onreadystatechange?: Listener<XHRResponse>;
     ontimeout?: () => void;
     onabort?: () => void;
-    onerror?: (err: string) => void;
+    onerror?: (err: string | (XHRResponse & { error: string })) => void;
   }
 
   interface AbortHandle<RETURN_TYPE> {
