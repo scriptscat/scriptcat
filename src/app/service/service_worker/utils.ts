@@ -80,16 +80,34 @@ export function parseUrlSRI(url: string): {
   if (urls.length < 2) {
     return { url: urls[0], hash: undefined };
   }
-  const hashs = urls[1].split(/[&,;]/);
+  const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
   hashs.forEach((val) => {
-    const equalIndex = val.indexOf("=");
-    if (equalIndex === -1) {
+    // 首先检查是否是 sha256-abc123== 格式
+    const dashMatch = val.match(/^([a-zA-Z0-9]+)-(.+)$/);
+    if (dashMatch) {
+      const [, key, value] = dashMatch;
+      hash[key] = value;
       return;
     }
-    const key = val.substring(0, equalIndex);
-    const value = val.substring(equalIndex + 1);
-    hash[key] = value;
+
+    // 然后检查是否是 sha256=abc123== 格式
+    const equalIndex = val.indexOf("=");
+    if (equalIndex !== -1) {
+      const key = val.substring(0, equalIndex);
+      const value = val.substring(equalIndex + 1);
+      if (key) {
+        // 确保 key 不为空
+        hash[key] = value;
+      }
+      return;
+    }
   });
+
+  // 如果没有解析到任何哈希值，返回空对象而不是 undefined
+  if (Object.keys(hash).length === 0) {
+    return { url: urls[0], hash: {} };
+  }
+
   return { url: urls[0], hash };
 }
