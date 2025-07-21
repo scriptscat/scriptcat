@@ -51,7 +51,7 @@ describe("parseUrlSRI", () => {
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
     expect(result.hash).toEqual({});
-    const url2 = "https://example.com/script.js#sha256=abc123==&md5";
+    const url2 = "https://example.com/script.js#sha256=abc123==,md5";
     const result2 = parseUrlSRI(url2);
     expect(result2.url).toEqual("https://example.com/script.js");
     expect(result2.hash).toEqual({ sha256: "abc123==" });
