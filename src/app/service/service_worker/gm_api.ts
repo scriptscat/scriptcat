@@ -425,6 +425,8 @@ export default class GMApi {
   // 有一些操作需要同步，就用Map作为缓存
   cache = new Map<string, any>();
 
+  chromeSupportMethod = new Set<string>(["connect", "delete", "get", "head", "options", "patch", "post", "put"]);
+
   // 根据header生成dnr规则
   async buildDNRRule(
     reqeustId: number,
@@ -543,10 +545,14 @@ export default class GMApi {
         excludedTabIds.push(tab.id);
       }
     });
+    let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
+    if (!this.chromeSupportMethod.has(requestMethod)) {
+      requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;
+    }
     rule.condition = {
       resourceTypes: ["xmlhttprequest"],
       urlFilter: params.url,
-      requestMethods: [(params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod],
+      requestMethods: [requestMethod],
       excludedTabIds: excludedTabIds,
     };
     this.cache.set("dnrRule:" + reqeustId.toString(), rule);
