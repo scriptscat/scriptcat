@@ -301,9 +301,11 @@ describe("parseUserConfig", () => {
   test("解析单个YAML配置", () => {
     const code = `
 /* ==UserConfig==
-name: 测试配置
-value: 123
-enabled: true
+group1:
+  config1:
+    title: 测试配置
+    default: 123
+    enabled: true
 ==/UserConfig== */
 
 console.log('Hello World');
@@ -311,21 +313,30 @@ console.log('Hello World');
 
     const result = parseUserConfig(code);
     expect(result).toEqual({
-      name: "测试配置",
-      value: 123,
-      enabled: true,
+      group1: {
+        config1: {
+          title: "测试配置",
+          default: 123,
+          enabled: true,
+          index: 0,
+        },
+      },
     });
   });
 
   test("解析多个YAML配置（用---分隔）", () => {
     const code = `
 /* ==UserConfig==
-name: 配置1
-value: 123
+group1:
+  config1:
+    title: 配置1
+    default: 123
 ---
-name: 配置2
-value: 456
-enabled: true
+group1:
+  config2:
+    title: 配置2
+    default: 456
+    enabled: true
 ==/UserConfig== */
 
 console.log('Hello World');
@@ -333,9 +344,15 @@ console.log('Hello World');
 
     const result = parseUserConfig(code);
     expect(result).toEqual({
-      name: "配置2", // 后面的配置会覆盖前面的同名配置
-      value: 456,
-      enabled: true,
+      group1: {
+        config2: {
+          // 后面的配置会覆盖前面的同名分组
+          title: "配置2",
+          default: 456,
+          enabled: true,
+          index: 0,
+        },
+      },
     });
   });
 
@@ -357,18 +374,30 @@ console.log('Hello World');
     expect(result).toEqual({});
   });
 
-  test("解析格式错误的YAML应该处理异常", () => {
+  test("解析格式错误的YAML应该抛出错误", () => {
     const code = `
 /* ==UserConfig==
 name: 配置
   invalid yaml: [
-==UserConfig== */
+==/UserConfig== */
 
 console.log('Hello World');
 `;
 
-    // 这个测试检查函数是否能够处理YAML解析错误
-    // 具体行为取决于YAML.parse的实现
-    expect(() => parseUserConfig(code)).not.toThrow();
+    expect(() => parseUserConfig(code)).toThrow();
+  });
+
+  test("不符合分组规范的YAML配置应该抛出错误", () => {
+    const code = `
+/* ==UserConfig==
+name: 测试配置
+value: 123
+enabled: true
+==/UserConfig== */
+
+console.log('Hello World');
+`;
+
+    expect(() => parseUserConfig(code)).toThrow('UserConfig group "name" is not a valid object.');
   });
 });
