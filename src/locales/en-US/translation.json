@@ -275,6 +275,7 @@
   "update_script_no_close": "Update Script without closing window",
   "install_script_no_close": "Install Script without closing window",
   "update_script_no_more_update": "Update Script and disable update check",
+  "close_update_script_no_more_update": "Close and do not check for updates",
   "install_script_no_more_update": "Install Script and disable update check",
   "invalid_link": "Invalid Link",
   "subscribe_install_label": "This subscription will install the following scripts",

@@ -224,7 +224,6 @@ const useAntiFeatures = () => {
 };
 
 function App() {
-  const [countdown, setCountdown] = useState<number>(-1);
   const [enable, setEnable] = useState<boolean>(false);
   const [btnText, setBtnText] = useState<string>("");
   const { t } = useTranslation();
@@ -314,13 +313,16 @@ function App() {
     [setUpsertScript]
   );
 
-  const handleClose = useCallback(() => {
-    if (countdown === -1) {
+  const handleClose = useCallback(
+    (options?: { noMoreUpdates: boolean }) => {
+      const { noMoreUpdates = false } = options || {};
+      if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
+        scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+      }
       closeWindow();
-    } else {
-      setCountdown(-1);
-    }
-  }, [countdown]);
+    },
+    [scriptInfo]
+  );
 
   return (
     <div className="h-full">
@@ -389,9 +391,31 @@ function App() {
                       <Button type="primary" size="small" icon={<IconDown />} />
                     </Dropdown>
                   </Button.Group>
-                  <Button type="primary" status="danger" size="small" onClick={handleClose}>
-                    {countdown === -1 ? t("close") : `${t("stop")} (${countdown})`}
-                  </Button>
+                  {isUpdate ? (
+                    <Button.Group>
+                      <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                        {t("close")}
+                      </Button>
+                      <Dropdown
+                        droplist={
+                          <Menu>
+                            {!scriptInfo?.userSubscribe && (
+                              <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
+                                {t("close_update_script_no_more_update")}
+                              </Menu.Item>
+                            )}
+                          </Menu>
+                        }
+                        position="bottom"
+                      >
+                        <Button type="primary" status="danger" size="small" icon={<IconDown />} />
+                      </Dropdown>
+                    </Button.Group>
+                  ) : (
+                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                      {t("close")}
+                    </Button>
+                  )}
                 </Space>
               </div>
             </Space>

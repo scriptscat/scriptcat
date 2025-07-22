@@ -275,6 +275,7 @@
   "update_script_no_close": "crwdns8424:0crwdne8424:0",
   "install_script_no_close": "crwdns8426:0crwdne8426:0",
   "update_script_no_more_update": "crwdns8428:0crwdne8428:0",
+  "close_update_script_no_more_update": "crwdns8850:0crwdne8850:0",
   "install_script_no_more_update": "crwdns8430:0crwdne8430:0",
   "invalid_link": "crwdns8432:0crwdne8432:0",
   "subscribe_install_label": "crwdns8434:0crwdne8434:0",

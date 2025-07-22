@@ -275,6 +275,7 @@
   "update_script_no_close": "ウィンドウを閉じずに更新する",
   "install_script_no_close": "ウィンドウを閉じずにインストールする",
   "update_script_no_more_update": "更新しますが、今後は更新を確認しません",
+  "close_update_script_no_more_update": "閉じて更新をチェックしない",
   "install_script_no_more_update": "インストールするが、今後は更新をチェックしない",
   "invalid_link": "無効なリンク",
   "subscribe_install_label": "この購読は以下のスクリプトをインストールします",
@@ -377,6 +378,7 @@
   "export_success": "エクスポートに成功しました",
   "get_backup_dir_url_failed": "バックアップディレクトリアドレスの取得に失敗しました",
   "get_backup_files_failed": "バックアップファイルの取得に失敗しました",
+  "request_permission": "許可を申請する",
   "develop_mode_guide": "現在開発者モードが有効になっていないことが検出されました。スクリプトが正常に使用できません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉開発者モードを有効にする方法はこちら</a>",
   "allow_user_script_guide": "ユーザースクリプトが現在有効化されていないことが検出されました。スクリプトは正常に動作しません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉有効化方法については、こちらをクリックしてください</a>",
   "lower_version_browser_guide": "現在のブラウザのバージョンが低すぎるため、スクリプトを正常に使用できません。<a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉クリックして詳細をご覧ください</a>",
@@ -414,5 +416,7 @@
   "build_failed": "ビルドに失敗しました",
   "drag_script_here_to_upload": "スクリプトをここにドラッグしてアップロード",
   "sync_status": "同期状態",
-  "search_scripts": "検索スクリプト"
+  "search_scripts": "検索スクリプト",
+  "ext_update_notification": "ScriptCat拡張機能が更新されました",
+  "ext_update_notification_desc": "現在のバージョン: {{version}}、詳細は更新ログをご覧ください"
 }

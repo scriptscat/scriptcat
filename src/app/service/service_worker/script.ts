@@ -588,7 +588,12 @@ export class ScriptService {
     checkUpdate: boolean;
     checkUpdateUrl?: string;
   }) {
-    return this.scriptDAO.update(uuid, { checkUpdate, downloadUrl: checkUpdateUrl, checkUpdateUrl });
+    const update: Partial<Script> = { checkUpdate };
+    if (checkUpdateUrl) {
+      update.downloadUrl = checkUpdateUrl;
+      update.checkUpdateUrl = checkUpdateUrl;
+    }
+    return this.scriptDAO.update(uuid, update);
   }
 
   init() {
