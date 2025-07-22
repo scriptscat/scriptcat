@@ -1,7 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
@@ -59,8 +59,6 @@ const Editor: React.FC<{
       // @ts-ignore
       node.editor.uuid = script.uuid;
     }
-    //@ts-ignore
-    console.log(node.editor.uuid);
     hotKeys.forEach((item) => {
       node.editor.addAction({
         id: item.id,
@@ -181,6 +179,7 @@ function ScriptEditor() {
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
+  const initRef = useRef<boolean>(false);
   const { uuid } = useParams();
   const { t } = useTranslation();
   const template = useSearchParams()[0].get("template") || "";
@@ -404,6 +403,12 @@ function ScriptEditor() {
       });
   });
   useEffect(() => {
+    // 防止开发模式下重复初始化
+    if (initRef.current) {
+      return;
+    }
+    initRef.current = true;
+
     scriptDAO.all().then(async (scripts) => {
       setScriptList(scripts.sort((a, b) => a.sort - b.sort));
       // 如果有id则打开对应的脚本
@@ -1037,20 +1042,16 @@ function ScriptEditor() {
                       );
                     }}
                     onChange={(code) => {
-                      const isChanged = !(item.code === code);
-                      if (isChanged !== item.isChanged) {
-                        const uuid = item.script.uuid;
-                        setEditors((prev) =>
-                          prev.map((v) =>
-                            v.script.uuid === uuid
-                              ? {
-                                  ...v,
-                                  isChanged,
-                                }
-                              : v
-                          )
-                        );
-                      }
+                      setEditors((prev) => {
+                        const script = prev.find((v) => v.script.uuid === item.script.uuid);
+                        if (!script) return prev;
+                        const isChanged = !(script.code === code);
+                        if (isChanged !== script.isChanged) {
+                          script.isChanged = isChanged;
+                          return [...prev];
+                        }
+                        return prev;
+                      });
                     }}
                   />
                 </div>
