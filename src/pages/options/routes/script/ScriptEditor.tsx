@@ -405,7 +405,10 @@ function ScriptEditor() {
   useEffect(() => {
     // 防止开发模式下重复初始化
     if (initRef.current) {
-      return;
+      // 恢复标题
+      return () => {
+        document.title = "Home - ScriptCat";
+      };
     }
     initRef.current = true;
 

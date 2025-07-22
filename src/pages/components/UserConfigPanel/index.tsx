@@ -45,7 +45,6 @@ const UserConfigPanel: React.FC<{
       onOk={() => {
         if (formRefs.current[tab]) {
           const saveValues = formRefs.current[tab].getFieldsValue();
-          console.log("saveValues", saveValues);
           // 更新value
           const valueClient = new ValueClient(message);
           Object.keys(saveValues).forEach((key) => {
@@ -72,6 +71,10 @@ const UserConfigPanel: React.FC<{
       >
         {Object.keys(userConfig).map((itemKey) => {
           const value = userConfig[itemKey];
+          const keys = Object.keys(value).sort((a, b) => {
+            return (value[a].index || 0) - (value[b].index || 0);
+          });
+          console.log("keys", value, keys);
           return (
             <TabPane key={itemKey} title={itemKey}>
               <Form
@@ -86,7 +89,7 @@ const UserConfigPanel: React.FC<{
                   formRefs.current[itemKey] = el;
                 }}
               >
-                {Object.keys(value).map((key) => (
+                {keys.map((key) => (
                   <FormItem key={key} label={value[key].title} field={`${itemKey}.${key}`}>
                     {() => {
                       const item = value[key];

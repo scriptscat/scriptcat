@@ -35,6 +35,7 @@ export interface Config {
   max?: number;
   min?: number;
   rows?: number; // textarea行数
+  index: number; // 配置项排序位置
 }
 
 export type UserConfig = { [key: string]: { [key: string]: Config } };

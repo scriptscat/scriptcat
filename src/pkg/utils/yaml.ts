@@ -13,6 +13,9 @@ export function parseUserConfig(code: string): UserConfig | undefined {
     const obj: UserConfig = parse(val);
     Object.keys(obj || {}).forEach((key) => {
       ret[key] = obj[key];
+      Object.keys(ret[key] || {}).forEach((subKey, subIndex) => {
+        ret[key][subKey].index = ret[key][subKey].index || subIndex; // 确保index存在
+      });
     });
   });
   return ret;
