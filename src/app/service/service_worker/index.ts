@@ -16,6 +16,7 @@ import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
 import { InfoNotification } from "@App/pkg/utils/utils";
+import { isVideoPlayingOrInactive } from "./utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -158,20 +159,12 @@ export default class ServiceWorkerManager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
         } else if (details.reason === "update") {
-          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-              // 查詢 tabs 失敗不进行后续处理
-            }
-            // 如果有激活窗口, 则打开更新文档
-            // 如果当前窗口正在播放 audio, 则在后台打开
-            const active = tabs.length === 0 ? false : tabs[0].audible === true ? false : true;
+          isVideoPlayingOrInactive().then((ok) => {
             chrome.tabs.create({
               url: `https://docs.scriptcat.org/docs/change/${
                 ExtVersion.includes("-") ? "beta-changelog/" : ""
               }#${ExtVersion}`,
-              active: active,
+              active: !ok,
             });
             InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
           });
