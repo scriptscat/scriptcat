@@ -10,6 +10,7 @@ describe("UrlMatch-google", () => {
   url.add("https://example.org/foo/bar.html", "ok4");
   url.add("http://127.0.0.1/*", "ok5");
   url.add("*://mail.google.com/*", "ok6");
+  url.exclude("https://example-2.org/foo/bar.html", "ok1");
   it("match1", () => {
     expect(url.match("https://www.google.com/")).toEqual(["ok1"]);
     expect(url.match("https://example.org/foo/bar.html")).toEqual(["ok1", "ok2", "ok4"]);
@@ -33,6 +34,9 @@ describe("UrlMatch-google", () => {
   it("match6", () => {
     expect(url.match("http://mail.google.com/foo/baz/bar")).toEqual(["ok6"]);
     expect(url.match("https://mail.google.com/foobar")).toEqual(["ok1", "ok2", "ok3", "ok6"]);
+  });
+  it("exclude", () => {
+    expect(url.match("https://example-2.org/foo/bar.html")).toEqual(["ok2"]);
   });
 });
 

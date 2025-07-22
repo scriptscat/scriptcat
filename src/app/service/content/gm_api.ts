@@ -806,10 +806,14 @@ export default class GMApi extends GM_Base {
   public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> {
     let abort: { abort: () => void };
     const ret = new Promise<GMTypes.XHRResponse>((resolve, reject) => {
+      const oldOnload = details.onload;
       details.onloadend = (xhr: GMTypes.XHRResponse) => {
+        oldOnload && oldOnload(xhr);
         resolve(xhr);
       };
+      const oldOnerror = details.onerror;
       details.onerror = (error: any) => {
+        oldOnerror && oldOnerror(error);
         reject(error);
       };
       abort = _GM_xmlhttpRequest(this, details);
