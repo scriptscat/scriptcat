@@ -8,6 +8,7 @@ import Storage from "./storage";
 import I18n from "./i18n";
 import DeclarativeNetRequest from "./declarativ_net_request";
 import Permissions from "./permissions";
+import Extension from "./extension";
 
 const chromeMock = {
   tabs: new MockTab(),
@@ -20,6 +21,7 @@ const chromeMock = {
   i18n: new I18n(),
   declarativeNetRequest: new DeclarativeNetRequest(),
   permissions: new Permissions(),
+  extension: new Extension(),
   init() {},
 };
 // @ts-ignore
