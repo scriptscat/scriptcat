@@ -7,6 +7,11 @@ declare const sandbox: Window;
 
 declare const self: ServiceWorkerGlobalScope;
 
+declare interface Window {
+  localFile: File | undefined;
+  localFileHandle: FileSystemFileHandle | undefined;
+}
+
 declare const MessageFlag: string;
 
 // 可以让content与inject环境交换携带dom的对象

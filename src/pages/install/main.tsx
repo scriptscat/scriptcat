@@ -19,6 +19,19 @@ const loggerCore = new LoggerCore({
 
 loggerCore.logger().debug("install page start");
 
+// 接收FileSystemType
+window.addEventListener(
+  "message",
+  (event) => {
+    if (event.data && event.data.type === "file") {
+      // 将FileSystemType存储到全局变量中
+      window.localFile = event.data.file;
+      window.localFileHandle = event.data.fileHandle;
+    }
+  },
+  false
+);
+
 const Root = (
   <Provider store={store}>
     <MainLayout className="!flex-col !px-4 box-border">

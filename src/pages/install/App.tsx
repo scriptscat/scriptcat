@@ -10,8 +10,10 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Popover,
 } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
+import { v4 as uuidv4 } from "uuid";
 import CodeEditor from "../components/CodeEditor";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Metadata, Script } from "@App/app/repo/scripts";
@@ -20,7 +22,7 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { ScriptInfo } from "@App/pkg/utils/script";
-import { prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
+import { prepareScriptByCode, prepareSubscribeByCode, scriptInfoByCode } from "@App/pkg/utils/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 
@@ -45,20 +47,34 @@ const useScriptInstall = () => {
   const [diffCode, setDiffCode] = useState<string>();
   const [oldScript, setOldScript] = useState<Script | Subscribe>();
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const uuid = url.searchParams.get("uuid");
-    if (!uuid) {
-      return;
-    }
-
-    const loadScriptInfo = async () => {
+    const handle = async () => {
       try {
-        const info: ScriptInfo = await scriptClient.getInstallInfo(uuid);
-        if (!info) {
-          throw new Error("fetch script info failed");
+        const url = new URL(window.location.href);
+        const uuid = url.searchParams.get("uuid");
+        let info: ScriptInfo | undefined;
+        if (!uuid) {
+          // 检查是不是本地文件安装
+          const local = url.searchParams.get("local") === "true";
+          if (!local || !window.localFile) {
+            return;
+          }
+          // 处理本地文件的安装流程
+          // 处理成info对象
+          const file = window.localFile;
+          setLocalFile(file);
+          setLocalFileHandle(window.localFileHandle!);
+          const code = await file.text();
+          info = scriptInfoByCode(code, "file:///*from-local*/" + file.name, "user", false, uuidv4());
+        } else {
+          info = await scriptClient.getInstallInfo(uuid);
+          if (!info) {
+            throw new Error("fetch script info failed");
+          }
         }
 
         let prepare:
@@ -96,8 +112,7 @@ const useScriptInstall = () => {
         Message.error(t("script_info_load_failed") + " " + e.message);
       }
     };
-
-    loadScriptInfo();
+    handle();
   }, [t]);
 
   return {
@@ -108,6 +123,8 @@ const useScriptInstall = () => {
     diffCode,
     oldScript,
     isUpdate,
+    localFile,
+    localFileHandle,
   };
 };
 
@@ -226,9 +243,13 @@ const useAntiFeatures = () => {
 function App() {
   const [enable, setEnable] = useState<boolean>(false);
   const [btnText, setBtnText] = useState<string>("");
+  const [scriptCode, setScriptCode] = useState<string>("");
   const { t } = useTranslation();
 
-  const { scriptInfo, upsertScript, setUpsertScript, code, diffCode, oldScript, isUpdate } = useScriptInstall();
+  const { scriptInfo, upsertScript, setUpsertScript, code, diffCode, oldScript, isUpdate, localFile, localFileHandle } =
+    useScriptInstall();
+
+  const [watchFile, setWatchFile] = useState(false);
 
   const metadata: Metadata = scriptInfo?.metadata || {};
   const permissions = usePermissions(scriptInfo, metadata);
@@ -242,7 +263,7 @@ function App() {
     } else {
       setBtnText(isUpdate ? t("update_script")! : t("install_script"));
     }
-
+    setScriptCode(code || "");
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript)} - ScriptCat`;
     }
@@ -324,12 +345,34 @@ function App() {
     [scriptInfo]
   );
 
+  useEffect(() => {
+    if (!watchFile) {
+      return;
+    }
+    if (!upsertScript) {
+      return;
+    }
+    // @ts-ignore
+    const observer = new FileSystemObserver(async (records) => {
+      // 调用安装
+      const code = await (await records[0].root.getFile()).text();
+      setScriptCode(code);
+      scriptClient.install(upsertScript as Script, code).catch((e) => {
+        Message.error(t("install_failed") + ": " + e);
+      });
+    });
+    observer.observe(localFileHandle);
+    return () => {
+      observer.disconnect();
+    };
+  }, [watchFile]);
+
   return (
     <div className="h-full">
       <div className="h-full">
         <Grid.Row className="mb-2" gutter={8}>
           <Grid.Col flex={1} className="flex-col p-8px">
-            <Space direction="vertical">
+            <Space direction="vertical" className="w-full">
               <div>
                 {upsertScript?.metadata.icon && (
                   <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
@@ -391,6 +434,19 @@ function App() {
                       <Button type="primary" size="small" icon={<IconDown />} />
                     </Dropdown>
                   </Button.Group>
+                  {localFile && (
+                    <Popover content={t("watch_file_description")}>
+                      <Button
+                        type="secondary"
+                        size="small"
+                        onClick={() => {
+                          setWatchFile(!watchFile);
+                        }}
+                      >
+                        {watchFile ? t("stop_watch_file") : t("watch_file")}
+                      </Button>
+                    </Popover>
+                  )}
                   {isUpdate ? (
                     <Button.Group>
                       <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
@@ -498,7 +554,7 @@ function App() {
             </Grid.Row>
           </Grid.Col>
         </Grid.Row>
-        <CodeEditor id="show-code" code={code || undefined} diffCode={diffCode || ""} />
+        <CodeEditor id="show-code" code={scriptCode || undefined} diffCode={diffCode || ""} />
       </div>
     </div>
   );

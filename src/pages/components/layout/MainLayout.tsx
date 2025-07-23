@@ -34,29 +34,8 @@ import { systemConfig } from "@App/pages/store/global";
 import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
-
-const readFile = (file: File): Promise<string> => {
-  return new Promise((resolve) => {
-    // 实例化 FileReader对象
-    const reader = new FileReader();
-    reader.onload = async (processEvent) => {
-      // 创建blob url
-      const blob = new Blob([processEvent.target!.result!], {
-        type: "application/javascript",
-      });
-      const url = URL.createObjectURL(blob);
-      resolve(url);
-    };
-    // 调用readerAsText方法读取文本
-    reader.readAsText(file);
-  });
-};
-
-const uploadFiles = async (files: File[], importByUrlsFunc: (urls: string[]) => Promise<void>) => {
-  // const filterFiles = files.filter((f) => f.name.endsWith(".js"));
-  const urls = await Promise.all(files.map((file) => readFile(file)));
-  importByUrlsFunc(urls);
-};
+import { prepareScriptByCode } from "@App/pkg/utils/script";
+import type { ScriptClient } from "@App/app/service/service_worker/client";
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -70,38 +49,72 @@ const MainLayout: React.FC<{
   const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
+  const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
+    if (!stat) return;
+    Modal.info({
+      title: t("script_import_result"),
+      content: (
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div style={{ textAlign: "center" }}>
+            <Space size="small" style={{ fontSize: 18 }}>
+              <IconCheckCircle style={{ color: "green" }} />
+              {stat.success}
+              {""}
+              <IconCloseCircle style={{ color: "red" }} />
+              {stat.fail}
+            </Space>
+          </div>
+          {stat.msg.length > 0 && (
+            <>
+              <b>{t("failure_info")}:</b>
+              {stat.msg}
+            </>
+          )}
+        </Space>
+      ),
+    });
+  };
+
   const importByUrlsLocal = async (urls: string[]) => {
     const stat = await scriptClient.importByUrls(urls);
-    stat &&
-      Modal.info({
-        title: t("script_import_result"),
-        content: (
-          <Space direction="vertical" style={{ width: "100%" }}>
-            <div style={{ textAlign: "center" }}>
-              <Space size="small" style={{ fontSize: 18 }}>
-                <IconCheckCircle style={{ color: "green" }} />
-                {stat.success}
-                {""}
-                <IconCloseCircle style={{ color: "red" }} />
-                {stat.fail}
-              </Space>
-            </div>
-            {stat.msg.length > 0 && (
-              <>
-                <b>{t("failure_info")}:</b>
-                {stat.msg}
-              </>
-            )}
-          </Space>
-        ),
-      });
+    stat && showImportResult(stat);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "application/javascript": [".js"] },
     onDrop: (acceptedFiles) => {
-      console.log(acceptedFiles);
-      uploadFiles(acceptedFiles, importByUrlsLocal);
+      // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
+      // 实现本地文件的监听
+      const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
+      Promise.all(
+        acceptedFiles.map(async (file) => {
+          // 解析看看是不是一个标准的script文件
+          // 如果是，则打开安装页面
+          const code = await file.text();
+          try {
+            const resp = await prepareScriptByCode(code, "file://-/" + file.name);
+            if (resp) {
+              // 打开安装页面
+              const installWindow = window.open(`/src/install.html?local=true`, "_blank");
+              if (!installWindow) {
+                throw new Error(t("install_page_open_failed"));
+              }
+              installWindow.onload = () =>
+                //@ts-ignore
+                installWindow.postMessage({ type: "file", file, fileHandle: file.handle }, "*");
+              stat.success++;
+            } else {
+              stat.fail++;
+              stat.msg.push(t("script_import_failed"));
+            }
+          } catch (e: any) {
+            stat.fail++;
+            stat.msg.push(e.message);
+          }
+        })
+      ).then(() => {
+        showImportResult(stat);
+      });
     },
   });
 
@@ -164,7 +177,6 @@ const MainLayout: React.FC<{
               placeholder={t("import_script_placeholder")}
               defaultValue=""
               onKeyDown={(e) => {
-                console.log(e);
                 if (e.ctrlKey && e.key === "Enter") {
                   e.preventDefault();
                   handleImport();

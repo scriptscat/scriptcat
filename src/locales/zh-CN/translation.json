@@ -418,5 +418,8 @@
   "sync_status": "同步状态",
   "search_scripts": "搜索脚本",
   "ext_update_notification": "脚本猫扩展已更新",
-  "ext_update_notification_desc": "当前版本：{{version}}，详情请查看更新日志"
+  "ext_update_notification_desc": "当前版本：{{version}}，详情请查看更新日志",
+  "watch_file_description": "监听文件变动，自动更新脚本，使用时请确保脚本文件路径不变且不能关闭页面",
+  "watch_file": "监听文件",
+  "stop_watch_file": "停止监听"
 }

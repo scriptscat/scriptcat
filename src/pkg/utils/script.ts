@@ -85,13 +85,24 @@ export async function fetchScriptInfo(
   }
 
   const body = await resp.text();
-  const parse = parseMetadata(body);
+  return scriptInfoByCode(body, url, source, update, uuid);
+}
+
+// 通过脚本代码处理成脚本info
+export function scriptInfoByCode(
+  code: string,
+  url: string,
+  source: InstallSource,
+  update: boolean,
+  uuid: string
+): ScriptInfo {
+  const parse = parseMetadata(code);
   if (!parse) {
     throw new Error("parse script info failed");
   }
   const ret: ScriptInfo = {
     url,
-    code: body,
+    code,
     source,
     update,
     uuid,
