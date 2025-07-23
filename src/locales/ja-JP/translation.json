@@ -418,5 +418,8 @@
   "sync_status": "同期状態",
   "search_scripts": "検索スクリプト",
   "ext_update_notification": "ScriptCat拡張機能が更新されました",
-  "ext_update_notification_desc": "現在のバージョン: {{version}}、詳細は更新ログをご覧ください"
+  "ext_update_notification_desc": "現在のバージョン: {{version}}、詳細は更新ログをご覧ください",
+  "watch_file_description": "ファイルの変更を監視し、スクリプトを自動更新します。使用する際は、スクリプトファイルのパスが変更されず、ページが閉じられないことを確認してください。",
+  "watch_file": "ファイルの監視",
+  "stop_watch_file": "監視を停止"
 }

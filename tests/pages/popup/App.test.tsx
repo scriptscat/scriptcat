@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { render, setupGlobalMocks } from "@Tests/test-utils";
 import App from "@App/pages/popup/App";
+import { ExtVersion } from "@App/app/const";
 
 // Mock i18next
 vi.mock("react-i18next", () => ({
@@ -205,7 +206,7 @@ describe("Popup App Component", () => {
         expect(screen.getByText("ScriptCat")).toBeInTheDocument();
         expect(screen.getByText("current_page_scripts")).toBeInTheDocument();
         expect(screen.getByText("enabled_background_scripts")).toBeInTheDocument();
-        expect(screen.getByText("v1.0.0-beta.1")).toBeInTheDocument();
+        expect(screen.getByText("v" + ExtVersion)).toBeInTheDocument();
       },
       { timeout: 3000 }
     );

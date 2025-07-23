@@ -418,5 +418,8 @@
   "sync_status": "Sync Status",
   "search_scripts": "Search script",
   "ext_update_notification": "Scriptcat extension updated",
-  "ext_update_notification_desc": "Current version: {{version}}, please see the update log for details"
+  "ext_update_notification_desc": "Current version: {{version}}, please see the update log for details",
+  "watch_file_description": "Monitor file changes and automatically update scripts. When using, please make sure the script file path remains unchanged and the page cannot be closed.",
+  "watch_file": "Watch file",
+  "stop_watch_file": "Stop watch"
 }

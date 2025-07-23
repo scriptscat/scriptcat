@@ -418,5 +418,8 @@
   "sync_status": "crwdns8696:0crwdne8696:0",
   "search_scripts": "crwdns8698:0crwdne8698:0",
   "ext_update_notification": "crwdns8700:0crwdne8700:0",
-  "ext_update_notification_desc": "crwdns8702:0{{version}}crwdne8702:0"
+  "ext_update_notification_desc": "crwdns8702:0{{version}}crwdne8702:0",
+  "watch_file_description": "crwdns8852:0crwdne8852:0",
+  "watch_file": "crwdns8854:0crwdne8854:0",
+  "stop_watch_file": "crwdns8856:0crwdne8856:0"
 }
