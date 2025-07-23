@@ -274,11 +274,22 @@ export class SystemConfig {
   }
 
   setEnableScript(enable: boolean) {
+    if (chrome.extension.inIncognitoContext) {
+      return this.set("enable_script_incognito", enable);
+    }
     this.set("enable_script", enable);
   }
 
-  getEnableScript(): Promise<boolean> {
-    return this.get("enable_script", true);
+  async getEnableScript(): Promise<boolean> {
+    const enableScript = await this.get("enable_script", true);
+    if (chrome.extension.inIncognitoContext) {
+      // 如果是隐身窗口，主窗口设置为false，直接返回false
+      if (enableScript === false) {
+        return false;
+      }
+      return this.get("enable_script_incognito", true);
+    }
+    return enableScript;
   }
 
   setBlacklist(blacklist: string) {

@@ -179,14 +179,21 @@ export class RuntimeService {
       });
     });
 
-    this.systemConfig.addListener("enable_script", (enable) => {
-      this.isEnableUserscribe = enable;
-      if (enable) {
-        this.registerUserscripts();
-      } else {
-        this.unregisterUserscripts();
+    this.systemConfig.addListener(
+      "enable_script" + (chrome.extension.inIncognitoContext ? "_incognito" : ""),
+      async (enable) => {
+        this.isEnableUserscribe = await this.systemConfig.getEnableScript();
+        if (chrome.extension.inIncognitoContext) {
+          // 隐身窗口不对注册了的脚本进行实际操作
+          return;
+        }
+        if (enable) {
+          this.registerUserscripts();
+        } else {
+          this.unregisterUserscripts();
+        }
       }
-    });
+    );
     // 检查是否开启
     this.isEnableUserscribe = await this.systemConfig.getEnableScript();
     if (this.isEnableUserscribe) {
@@ -380,6 +387,9 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
+    if (!this.isEnableUserscribe) {
+      return { flag: "", scripts: [] };
+    }
     // 判断是否黑名单
     const isBlack = this.blackMatch.match(sender.getSender().url!);
     if (isBlack.length > 0) {
