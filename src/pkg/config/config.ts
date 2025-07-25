@@ -299,4 +299,38 @@ export class SystemConfig {
   getBlacklist(): Promise<string> {
     return this.get("blacklist", "");
   }
+
+  // 设置徽标数字类型，不显示，运行次数，脚本个数
+  setBadgeNumberType(type: "none" | "run_count" | "script_count") {
+    this.set("badge_number_type", type);
+  }
+
+  getBadgeNumberType(): Promise<"none" | "run_count" | "script_count"> {
+    return this.get("badge_number_type", "run_count");
+  }
+
+  setBadgeBackgroundColor(color: string) {
+    this.set("badge_background_color", color);
+  }
+
+  getBadgeBackgroundColor(): Promise<string> {
+    return this.get("badge_background_color", "#4e5969");
+  }
+
+  setBadgeTextColor(color: string) {
+    this.set("badge_text_color", color);
+  }
+
+  getBadgeTextColor(): Promise<string> {
+    return this.get("badge_text_color", "#ffffff");
+  }
+
+  // 设置显示脚本注册的菜单，不显示，不在浏览器中显示，全部显示
+  setScriptMenuDisplayType(type: "none" | "no_browser" | "all") {
+    this.set("script_menu_display_type", type);
+  }
+
+  getScriptMenuDisplayType(): Promise<"none" | "no_browser" | "all"> {
+    return this.get("script_menu_display_type", "all");
+  }
 }

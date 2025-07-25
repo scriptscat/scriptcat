@@ -16,6 +16,7 @@ import {
   subscribeScriptRunStatus,
 } from "../queue";
 import { getStorageName } from "@App/pkg/utils/utils";
+import type { SystemConfig } from "@App/pkg/config/config";
 
 // 处理popup页面的数据
 export class PopupService {
@@ -23,7 +24,8 @@ export class PopupService {
     private group: Group,
     private mq: MessageQueue,
     private runtime: RuntimeService,
-    private scriptDAO: ScriptDAO
+    private scriptDAO: ScriptDAO,
+    private systemConfig: SystemConfig
   ) {}
 
   genScriptMenuByTabMap(menu: ScriptMenu[]) {
@@ -58,6 +60,11 @@ export class PopupService {
   async genScriptMenu(tabId: number) {
     // 移除之前所有的菜单
     chrome.contextMenus.removeAll();
+
+    if ((await this.systemConfig.getScriptMenuDisplayType()) !== "all") {
+      return;
+    }
+
     const [menu, backgroundMenu] = await Promise.all([this.getScriptMenu(tabId), this.getScriptMenu(-1)]);
     if (!menu.length && !backgroundMenu.length) {
       return;
@@ -83,6 +90,10 @@ export class PopupService {
   }
 
   async registerMenuCommand(message: ScriptMenuRegisterCallbackValue) {
+    if ((await this.systemConfig.getScriptMenuDisplayType()) === "none") {
+      // 如果不显示脚本菜单则不处理
+      return;
+    }
     // 给脚本添加菜单
     return this.txUpdateScriptMenu(message.tabId, async (data) => {
       const script = data.find((item) => item.uuid === message.uuid);
@@ -228,6 +239,20 @@ export class PopupService {
           data.push(item);
         }
       });
+      if ((await this.systemConfig.getBadgeNumberType()) === "script_count") {
+        chrome.action.setBadgeText({
+          text: data.length.toString(),
+          tabId: tabId,
+        });
+        chrome.action.setBadgeBackgroundColor({
+          color: await this.systemConfig.getBadgeBackgroundColor(),
+          tabId: tabId,
+        });
+        chrome.action.setBadgeTextColor({
+          color: await this.systemConfig.getBadgeTextColor(),
+          tabId: tabId,
+        });
+      }
       return data;
     });
   }
@@ -417,11 +442,14 @@ export class PopupService {
       }) => {
         this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
+        if ((await this.systemConfig.getBadgeNumberType()) !== "run_count") {
+          return;
+        }
         chrome.action.getBadgeText(
           {
             tabId: tabId,
           },
-          (res: string) => {
+          async (res: string) => {
             const lastError = chrome.runtime.lastError;
             if (lastError) {
               console.error("chrome.runtime.lastError in chrome.action.getBadgeText:", lastError);
@@ -434,7 +462,11 @@ export class PopupService {
                 tabId: tabId,
               });
               chrome.action.setBadgeBackgroundColor({
-                color: "#4e5969",
+                color: await this.systemConfig.getBadgeBackgroundColor(),
+                tabId: tabId,
+              });
+              chrome.action.setBadgeTextColor({
+                color: await this.systemConfig.getBadgeTextColor(),
                 tabId: tabId,
               });
             }
