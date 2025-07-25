@@ -97,10 +97,15 @@ export class ResourceService {
 
   // 更新资源
   async checkScriptResource(script: Script) {
+    const require = this.checkResourceByType(script, "require"))
+    const require_css = this.checkResourceByType(script, "require-css"))
+    const resource = this.checkResourceByType(script, "resource"))
+    
+    // wait https://github.com/tc39/proposal-await-dictionary
     return {
-      ...((await this.checkResourceByType(script, "require")) || {}),
-      ...((await this.checkResourceByType(script, "require-css")) || {}),
-      ...((await this.checkResourceByType(script, "resource")) || {}),
+      ...await require,
+      ...await require_css,
+      ...await resource,
     };
   }
 
