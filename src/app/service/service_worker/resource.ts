@@ -50,10 +50,16 @@ export class ResourceService {
   }
 
   public async getScriptResources(script: Script, load: boolean): Promise<{ [key: string]: Resource }> {
+    const [require, require_css, resource] = await Promise.all([
+      this.getResourceByType(script, "require", load),
+      this.getResourceByType(script, "require-css", load),
+      this.getResourceByType(script, "resource", load),
+    ]);
+
     return {
-      ...((await this.getResourceByType(script, "require", load)) || {}),
-      ...((await this.getResourceByType(script, "require-css", load)) || {}),
-      ...((await this.getResourceByType(script, "resource", load)) || {}),
+      ...require,
+      ...require_css,
+      ...resource,
     };
   }
 
@@ -97,15 +103,17 @@ export class ResourceService {
 
   // 更新资源
   async checkScriptResource(script: Script) {
-    const require = this.checkResourceByType(script, "require"))
-    const require_css = this.checkResourceByType(script, "require-css"))
-    const resource = this.checkResourceByType(script, "resource"))
-    
+    const [require, require_css, resource] = await Promise.all([
+      this.checkResourceByType(script, "require"),
+      this.checkResourceByType(script, "require-css"),
+      this.checkResourceByType(script, "resource"),
+    ]);
+
     // wait https://github.com/tc39/proposal-await-dictionary
     return {
-      ...await require,
-      ...await require_css,
-      ...await resource,
+      ...require,
+      ...require_css,
+      ...resource,
     };
   }
 
