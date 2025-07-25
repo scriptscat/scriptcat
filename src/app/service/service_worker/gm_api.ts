@@ -142,7 +142,7 @@ export default class GMApi {
     }
     const req = await this.parseRequest(data);
     try {
-      await this.permissionVerify.verify(req, api);
+      await this.permissionVerify.verify(req, api, sender);
     } catch (e) {
       this.logger.error("verify error", { api: data.api }, Logger.E(e));
       throw e;
@@ -310,10 +310,12 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  CAT_userConfig(request: Request) {
+  CAT_userConfig(request: Request, sender: GetSender): void {
+    const tabId = sender.getExtMessageSender().tabId;
     chrome.tabs.create({
       url: `/src/options.html#/?userConfig=${request.uuid}`,
       active: true,
+      openerTabId: tabId === -1 ? undefined : tabId,
     });
   }
 
@@ -337,12 +339,14 @@ export default class GMApi {
       } as ConfirmParam;
     },
   })
-  async CAT_fileStorage(request: Request): Promise<{ action: string; data: any } | boolean> {
+  async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
+      const tabId = sender.getExtMessageSender().tabId;
       chrome.tabs.create({
         url: `/src/options.html#/setting`,
         active: true,
+        openerTabId: tabId === -1 ? undefined : tabId,
       });
       return true;
     }
@@ -811,7 +815,12 @@ export default class GMApi {
         return false;
       }
     } else {
-      const tab = await chrome.tabs.create({ url, active: options.active });
+      const tabId = sender.getExtMessageSender().tabId;
+      const tab = await chrome.tabs.create({
+        url,
+        active: options.active,
+        openerTabId: tabId === -1 ? undefined : tabId,
+      });
       await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
         uuid: request.uuid,
         sender: sender.getExtMessageSender(),

@@ -309,9 +309,7 @@ export class SynchronizeClient extends Client {
       url: url,
     });
     // 打开导入窗口，用cache实现数据交互
-    chrome.tabs.create({
-      url: `/src/import.html?uuid=${uuid}`,
-    });
+    window.open(chrome.runtime.getURL(`/src/import.html?uuid=${uuid}`), "_blank");
   }
 
   importResources(

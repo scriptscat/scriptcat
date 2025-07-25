@@ -1,6 +1,7 @@
 import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
+import { ExtensionMessageConnect } from "./extension_message";
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
@@ -10,6 +11,14 @@ export class GetSender {
   }
 
   getExtMessageSender(): ExtMessageSender {
+    if (this.sender instanceof ExtensionMessageConnect) {
+      const con = this.sender.getPort();
+      return {
+        tabId: con.sender?.tab?.id || -1, // -1表示后台脚本
+        frameId: con.sender?.frameId,
+        documentId: con.sender?.documentId,
+      };
+    }
     const sender = this.sender as MessageSender;
     return {
       tabId: sender.tab?.id || -1, // -1表示后台脚本

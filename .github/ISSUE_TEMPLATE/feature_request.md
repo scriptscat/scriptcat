@@ -1,7 +1,7 @@
 ---
 name: "新功能请求"
 about: 期望能够增加的功能
-title: "[Feature]"
+title: "[Feature] "
 labels: "enhancement"
 assignees: ""
 ---

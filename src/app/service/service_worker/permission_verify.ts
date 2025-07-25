@@ -1,6 +1,7 @@
 // gm api 权限验证
 import type { Script } from "@App/app/repo/scripts";
 import { type Permission, PermissionDAO } from "@App/app/repo/permission";
+import type { GetSender } from "@Packages/message/server";
 import { type Group } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import type { Api, Request } from "./types";
@@ -97,6 +98,7 @@ export default class PermissionVerify {
     confirm: ConfirmParam | boolean;
     resolve: (value: boolean) => void;
     reject: (reason: any) => void;
+    sender: GetSender;
   }> = new Queue();
 
   private permissionDAO: PermissionDAO = new PermissionDAO();
@@ -109,7 +111,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify(request: Request, api: ApiValue): Promise<boolean> {
+  async verify(request: Request, api: ApiValue, sender: GetSender): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -132,7 +134,7 @@ export default class PermissionVerify {
         // 需要用户确认
         let result = true;
         if (confirm) {
-          result = await this.pushConfirmQueue(request, confirm);
+          result = await this.pushConfirmQueue(request, confirm, sender);
         }
         return result;
       }
@@ -148,7 +150,7 @@ export default class PermissionVerify {
       return;
     }
     try {
-      const ret = await this.confirm(data.request, data.confirm);
+      const ret = await this.confirm(data.request, data.confirm, data.sender);
       data.resolve(ret);
     } catch (e) {
       data.reject(e);
@@ -157,17 +159,17 @@ export default class PermissionVerify {
   }
 
   // 确认队列,为了防止一次性打开过多的窗口
-  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn): Promise<boolean> {
+  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn, sender: GetSender): Promise<boolean> {
     const confirm = await confirmFn(request);
     if (confirm === true) {
       return true;
     }
     return await new Promise((resolve, reject) => {
-      this.confirmQueue.push({ request, confirm, resolve, reject });
+      this.confirmQueue.push({ request, confirm, resolve, reject, sender });
     });
   }
 
-  async confirm(request: Request, confirm: boolean | ConfirmParam): Promise<boolean> {
+  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: GetSender): Promise<boolean> {
     if (typeof confirm === "boolean") {
       return confirm;
     }
@@ -192,7 +194,7 @@ export default class PermissionVerify {
       throw new Error("permission denied");
     }
     // 没有权限,则弹出页面让用户进行确认
-    const userConfirm = await this.confirmWindow(request.script, confirm);
+    const userConfirm = await this.confirmWindow(request.script, confirm, sender);
     // 成功存入数据库
     const model: Permission = {
       uuid: request.uuid,
@@ -248,7 +250,7 @@ export default class PermissionVerify {
   > = new Map();
 
   // 弹出窗口让用户进行确认
-  async confirmWindow(script: Script, confirm: ConfirmParam): Promise<UserConfirm> {
+  async confirmWindow(script: Script, confirm: ConfirmParam, sender: GetSender): Promise<UserConfirm> {
     return new Promise((resolve, reject) => {
       const uuid = uuidv4();
       // 超时处理
@@ -267,8 +269,10 @@ export default class PermissionVerify {
         reject,
       });
       // 打开窗口
+      const tabId = sender.getExtMessageSender().tabId;
       chrome.tabs.create({
         url: chrome.runtime.getURL(`src/confirm.html?uuid=${uuid}`),
+        openerTabId: tabId === -1 ? undefined : tabId, // 如果是后台脚本,则不设置openerTabId
       });
     });
   }

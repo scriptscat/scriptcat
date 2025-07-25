@@ -149,6 +149,10 @@ export class ExtensionMessageConnect implements MessageConnect {
   onDisconnect(callback: () => void) {
     this.con.onDisconnect.addListener(callback);
   }
+
+  getPort(): chrome.runtime.Port {
+    return this.con;
+  }
 }
 
 export class ExtensionContentMessageSend extends ExtensionMessageSend {

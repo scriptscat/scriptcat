@@ -112,6 +112,7 @@ export function openInCurrentTab(url: string) {
       if (tabs.length) {
         chrome.tabs.create({
           url,
+          openerTabId: tabs[0].id,
           index: tabs[0].index + 1,
         });
       } else {

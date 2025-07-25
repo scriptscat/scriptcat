@@ -1,7 +1,7 @@
 ---
 name: "Feature Request"
 about: Features you would like to see added
-title: "[Feature]"
+title: "[Feature] "
 labels: "enhancement"
 assignees: ""
 ---
