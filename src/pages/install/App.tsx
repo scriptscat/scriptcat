@@ -58,13 +58,11 @@ function App() {
   const { t } = useTranslation();
 
   const initAsync = async () => {
-    let isUpdate = false;
     try {
       const url = new URL(window.location.href);
       const uuid = url.searchParams.get("uuid");
       let info: ScriptInfo | undefined;
       if (uuid) {
-        isUpdate = true;
         info = await scriptClient.getInstallInfo(uuid);
       } else {
         // 检查是不是本地文件安装
@@ -89,7 +87,7 @@ function App() {
           return fileHandle!;
         });
         const code = await file.text();
-        info = scriptInfoByCode(code, `file:///*from-local*/${file.name}`, "user", uuidv4());
+        info = scriptInfoByCode(code, `file:///*from-local*/${file.name}`, "user", false, uuidv4());
         if (liveFileHandleCId) clearInterval(liveFileHandleCId);
         liveFileHandleCId = setInterval(
           async () => {
@@ -122,7 +120,7 @@ function App() {
           setIsUpdate(true);
         }
       } else {
-        if (isUpdate) {
+        if (info.update) {
           prepare = await prepareScriptByCode(code, info.url, info.uuid);
         } else {
           prepare = await prepareScriptByCode(code, info.url);

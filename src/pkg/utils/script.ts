@@ -62,10 +62,16 @@ export type ScriptInfo = {
   uuid: string;
   userSubscribe: boolean;
   metadata: Metadata;
+  update: boolean;
   source: InstallSource;
 };
 
-export async function fetchScriptInfo(url: string, source: InstallSource, uuid: string): Promise<ScriptInfo> {
+export async function fetchScriptInfo(
+  url: string,
+  source: InstallSource,
+  update: boolean,
+  uuid: string
+): Promise<ScriptInfo> {
   const resp = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
@@ -79,11 +85,17 @@ export async function fetchScriptInfo(url: string, source: InstallSource, uuid: 
   }
 
   const body = await resp.text();
-  return scriptInfoByCode(body, url, source, uuid);
+  return scriptInfoByCode(body, url, source, update, uuid);
 }
 
 // 通过脚本代码处理成脚本info
-export function scriptInfoByCode(code: string, url: string, source: InstallSource, uuid: string): ScriptInfo {
+export function scriptInfoByCode(
+  code: string,
+  url: string,
+  source: InstallSource,
+  update: boolean,
+  uuid: string
+): ScriptInfo {
   const parse = parseMetadata(code);
   if (!parse) {
     throw new Error("parse script info failed");
@@ -92,6 +104,7 @@ export function scriptInfoByCode(code: string, url: string, source: InstallSourc
     url,
     code,
     source,
+    update,
     uuid,
     userSubscribe: parse.usersubscribe !== undefined,
     metadata: parse,
@@ -131,8 +144,7 @@ export async function prepareScriptByCode(
   override: boolean = false,
   dao: ScriptDAO = new ScriptDAO()
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
-  const metadata: Metadata | null = parseMetadata(code);
-  const config: UserConfig | undefined = parseUserConfig(code);
+  const metadata = parseMetadata(code);
   if (metadata == null) {
     throw new Error("MetaData信息错误");
   }
@@ -178,7 +190,7 @@ export async function prepareScriptByCode(
   } else {
     newUUID = uuidv4();
   }
-
+  const config: UserConfig | undefined = parseUserConfig(code);
   let script: Script = {
     uuid: newUUID,
     name: metadata.name[0],
