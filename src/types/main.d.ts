@@ -7,9 +7,21 @@ declare const sandbox: Window;
 
 declare const self: ServiceWorkerGlobalScope;
 
-declare interface Window {
-  localFile: File | undefined;
-  localFileHandle: FileSystemFileHandle | undefined;
+type FileSystemEventCallback = (records: any[], observer: FileSystemObserverInstance) => void;
+
+declare const FileSystemObserver: {
+  new (callback: FileSystemEventCallback): FileSystemObserverInstance;
+};
+
+interface FileSystemChangeRecord {
+  root: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle;
+  type: string;
+  changedHandle: FileSystemFileHandle;
+}
+
+interface FileSystemObserverInstance {
+  disconnect(): void;
+  observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
 }
 
 declare const MessageFlag: string;

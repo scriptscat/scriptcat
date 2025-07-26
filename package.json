@@ -33,6 +33,7 @@
     "dexie": "^4.0.10",
     "eslint-linter-browserify": "^9.26.0",
     "eventemitter3": "^5.0.1",
+    "file-selector": "^2.1.2",
     "i18next": "^23.16.4",
     "monaco-editor": "^0.52.2",
     "pako": "^2.1.0",

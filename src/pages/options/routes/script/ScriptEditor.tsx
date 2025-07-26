@@ -197,15 +197,17 @@ function ScriptEditor() {
 
   const save = (script: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
-    return prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
+    const code = e.getValue();
+    return prepareScriptByCode(code, script.origin || "", script.uuid)
       .then((prepareScript) => {
         const newScript = prepareScript.script;
         if (!newScript.name) {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
+        newScript.createtime = script.createtime;
         return scriptClient
-          .install(newScript, e.getValue())
+          .install(newScript, code)
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
@@ -236,7 +238,7 @@ function ScriptEditor() {
                 item.script.uuid === uuid
                   ? {
                       ...item,
-                      code: e.getValue(),
+                      code: code,
                       isChanged: false,
                       script: {
                         ...item.script,

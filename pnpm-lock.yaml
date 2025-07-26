@@ -44,6 +44,9 @@ importers:
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1
+      file-selector:
+        specifier: ^2.1.2
+        version: 2.1.2
       i18next:
         specifier: ^23.16.4
         version: 23.16.4
