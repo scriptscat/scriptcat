@@ -145,7 +145,7 @@ export class ScriptService {
 
   public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuid)
+    return fetchScriptInfo(url, source, uuid)
       .then((info) => {
         Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
         setTimeout(() => {
@@ -163,7 +163,7 @@ export class ScriptService {
 
   // 直接通过url静默安装脚本
   async installByUrl(url: string, source: InstallSource, subscribeUrl?: string) {
-    const info = await fetchScriptInfo(url, source, false, uuidv4());
+    const info = await fetchScriptInfo(url, source, uuidv4());
     const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
     prepareScript.script.subscribeUrl = subscribeUrl;
     this.installScript({
@@ -415,7 +415,7 @@ export class ScriptService {
       name: script.name,
     });
     try {
-      const info = await fetchScriptInfo(script.checkUpdateUrl, source, false, script.uuid);
+      const info = await fetchScriptInfo(script.checkUpdateUrl, source, script.uuid);
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
@@ -451,7 +451,7 @@ export class ScriptService {
       downloadUrl: script.downloadUrl,
       checkUpdateUrl: script.checkUpdateUrl,
     });
-    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true, script.uuid)
+    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, script.uuid)
       .then(async (info) => {
         // 是否静默更新
         if (await this.systemConfig.getSilenceUpdateScript()) {

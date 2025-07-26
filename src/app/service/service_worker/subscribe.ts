@@ -171,7 +171,7 @@ export class SubscribeService {
     });
     await this.subscribeDAO.update(url, { checktime: new Date().getTime() });
     try {
-      const info = await fetchScriptInfo(subscribe.url, source, false, subscribe.url);
+      const info = await fetchScriptInfo(subscribe.url, source, subscribe.url);
       const { metadata } = info;
       if (!metadata) {
         logger.error("parse metadata failed");
