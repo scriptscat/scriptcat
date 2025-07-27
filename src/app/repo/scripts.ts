@@ -1,5 +1,7 @@
-import { Repo } from "./repo";
+import { Repo, type ScriptOrSubscribe, type Metadata } from "./repo";
 import type { Resource } from "./resource";
+
+export { Metadata };
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -17,8 +19,6 @@ export type SCRIPT_RUN_STATUS = "running" | "complete" | "error";
 export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = "running";
 export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = "complete";
 export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
-
-export type Metadata = { [key: string]: string[] | undefined };
 
 export type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "switch";
 
@@ -40,7 +40,7 @@ export interface Config {
 
 export type UserConfig = { [key: string]: { [key: string]: Config } };
 
-export interface Script {
+export interface Script extends ScriptOrSubscribe {
   uuid: string; // 脚本uuid,通过脚本uuid识别唯一脚本
   name: string; // 脚本名称
   namespace: string; // 脚本命名空间

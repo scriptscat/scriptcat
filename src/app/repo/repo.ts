@@ -1,3 +1,8 @@
+import { type SCRIPT_STATUS } from "./scripts";
+import { type SUBSCRIBE_STATUS } from "./subscribe";
+
+export type Metadata = { [key: string]: string[] | undefined };
+
 // 加载全局缓存
 
 let loadCachePromise: Promise<any> | undefined = undefined;
@@ -192,4 +197,14 @@ export abstract class Repo<T> {
   all(): Promise<T[]> {
     return this.find();
   }
+}
+
+export interface ScriptOrSubscribe {
+  name: string; // 脚本名称
+  author?: string; // 脚本作者
+  metadata: Metadata; // 脚本的元数据
+  status: SCRIPT_STATUS | SUBSCRIBE_STATUS; // 脚本状态 1:启用 2:禁用 3:错误 4:初始化
+  createtime: number; // 脚本创建时间戳
+  updatetime?: number; // 脚本更新时间戳
+  checktime: number; // 脚本检查更新时间戳
 }

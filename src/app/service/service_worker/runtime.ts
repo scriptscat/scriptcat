@@ -25,6 +25,7 @@ import Logger from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
+import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -303,7 +304,7 @@ export class RuntimeService {
         }
         const batchData: { [key: string]: any } = {};
         registerScripts.forEach((script) => {
-          batchData["registryScript:" + script.id] = true;
+          batchData[`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`] = true;
         });
         Cache.getInstance().batchSet(batchData);
       }
@@ -789,10 +790,11 @@ export class RuntimeService {
   // 如果脚本开启, 则注册脚本
   async loadPageScript(script: Script) {
     const resp = await this.getAndSetUserScriptRegister(script);
+    const { name, uuid } = script;
     if (!resp) {
       this.logger.error("getAndSetUserScriptRegister error", {
-        script: script.name,
-        uuid: script.uuid,
+        script: name,
+        uuid,
       });
       return;
     }
@@ -800,9 +802,9 @@ export class RuntimeService {
 
     // 如果脚本开启, 则注册脚本
     if (this.isEnableDeveloperMode && this.isEnableUserscribe && script.status === SCRIPT_STATUS_ENABLE) {
-      const res = await chrome.userScripts.getScripts({ ids: [script.uuid] });
+      const res = await chrome.userScripts.getScripts({ ids: [uuid] });
       const logger = LoggerCore.logger({
-        name: script.name,
+        name,
         registerMatch: {
           matches: registerScript.matches,
           excludeMatches: registerScript.excludeMatches,
@@ -821,7 +823,7 @@ export class RuntimeService {
           logger.error("registerScript error", Logger.E(e));
         }
       }
-      await Cache.getInstance().set("registryScript:" + script.uuid, true);
+      await Cache.getInstance().set(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`, true);
     }
   }
 
@@ -829,12 +831,12 @@ export class RuntimeService {
     if (
       !this.isEnableDeveloperMode ||
       !this.isEnableUserscribe ||
-      !(await Cache.getInstance().get("registryScript:" + uuid))
+      !(await Cache.getInstance().get(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`))
     ) {
       return;
     }
     // 删除缓存
-    Cache.getInstance().del("registryScript:" + uuid);
+    Cache.getInstance().del(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`);
     // 修改脚本状态为disable
     this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE);
     chrome.userScripts.unregister({ ids: [uuid] });

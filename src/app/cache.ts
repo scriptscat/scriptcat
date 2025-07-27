@@ -1,4 +1,4 @@
-export interface CacheStorage {
+interface CacheStorage {
   get(key: string): Promise<any>;
   set(key: string, value: any): Promise<void>;
   batchSet(data: { [key: string]: any }): Promise<void>;
@@ -8,7 +8,7 @@ export interface CacheStorage {
   list(): Promise<string[]>;
 }
 
-export class ExtCache implements CacheStorage {
+class ExtCache implements CacheStorage {
   get(key: string): Promise<any> {
     return new Promise((resolve) => {
       chrome.storage.session.get(key, (value) => {
@@ -106,68 +106,15 @@ export class ExtCache implements CacheStorage {
   }
 }
 
-export class MapCache {
-  private map: Map<string, any> = new Map();
-
-  get(key: string): Promise<any> {
-    return new Promise((resolve) => {
-      resolve(this.map.get(key));
-    });
-  }
-
-  set(key: string, value: any): Promise<void> {
-    return new Promise((resolve) => {
-      this.map.set(key, value);
-      resolve();
-    });
-  }
-
-  has(key: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      resolve(this.map.has(key));
-    });
-  }
-
-  del(key: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.map.delete(key);
-      resolve();
-    });
-  }
-
-  clear(): Promise<void> {
-    return new Promise((resolve) => {
-      this.map.clear();
-      resolve();
-    });
-  }
-
-  list(): Promise<string[]> {
-    return new Promise((resolve) => {
-      resolve(Array.from(this.map.keys()));
-    });
-  }
-}
-
-export async function incr(cache: Cache, key: string, increase: number): Promise<number> {
-  return cache.tx<number>(key, async (value) => {
-    let num = value || 0;
-    num += increase;
-    return num;
-  });
-}
-
-export default class Cache {
-  static instance: Cache = new Cache(new ExtCache());
+export default class Cache extends ExtCache {
+  static instance: Cache = new Cache();
 
   static getInstance(): Cache {
     return Cache.instance;
   }
 
-  private constructor(private storage: CacheStorage) {}
-
-  public get(key: string): Promise<any> {
-    return this.storage.get(key);
+  private constructor() {
+    super();
   }
 
   public async getOrSet<T>(key: string, set: () => Promise<T> | T): Promise<T> {
@@ -177,30 +124,6 @@ export default class Cache {
       this.set(key, ret);
     }
     return ret;
-  }
-
-  public set(key: string, value: any): Promise<void> {
-    return this.storage.set(key, value);
-  }
-
-  public batchSet(data: { [key: string]: any }): Promise<void> {
-    return this.storage.batchSet(data);
-  }
-
-  public has(key: string): Promise<boolean> {
-    return this.storage.has(key);
-  }
-
-  public del(key: string): Promise<void> {
-    return this.storage.del(key);
-  }
-
-  public clear(): Promise<void> {
-    return this.storage.clear();
-  }
-
-  public list(): Promise<string[]> {
-    return this.storage.list();
   }
 
   private txLock: Map<string, ((unlock: () => void) => void)[]> = new Map();
@@ -247,5 +170,13 @@ export default class Cache {
       });
     unlock();
     return newValue!;
+  }
+
+  public async incr(key: string, increase: number): Promise<number> {
+    return await this.tx<number>(key, async (value) => {
+      let num = value || 0;
+      num += increase;
+      return num;
+    });
   }
 }

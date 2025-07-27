@@ -3,6 +3,7 @@ import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import Cache from "@App/app/cache";
+import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
 
 // 一些系统服务
 export class SystemService {
@@ -34,7 +35,7 @@ export class SystemService {
     this.group.on("loadFavicon", async (url) => {
       // 加载favicon图标
       // 对url做一个缓存
-      return Cache.getInstance().getOrSet(`favicon:${url}`, async () => {
+      return Cache.getInstance().getOrSet(`${CACHE_KEY_FAVICON}${url}`, async () => {
         return fetch(url)
           .then((response) => response.blob())
           .then((blob) => createObjectURL(this.sender, blob, true))

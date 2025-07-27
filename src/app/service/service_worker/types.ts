@@ -88,3 +88,15 @@ export type ScriptMenu = {
   menus: ScriptMenuItem[]; // 脚本菜单
   customExclude: string[]; // 自定义排除
 };
+
+export function createScriptInfo(
+  uuid: string,
+  update: boolean,
+  code: string,
+  url: string,
+  source: InstallSource,
+  metadata: Metadata
+) {
+  const userSubscribe = metadata.usersubscribe !== undefined;
+  return { uuid, update, code, url, source, metadata, userSubscribe };
+}

@@ -22,12 +22,15 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { ScriptInfo } from "@App/pkg/utils/script";
-import { prepareScriptByCode, prepareSubscribeByCode, scriptInfoByCode } from "@App/pkg/utils/script";
+import { prepareScriptByCode, prepareSubscribeByCode, scriptInfoMeta } from "@App/pkg/utils/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/file-tracker";
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
+import { type ScriptOrSubscribe } from "@App/app/repo/repo";
+import { createScriptInfo } from "@App/app/service/service_worker/types";
+import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
 
 // Types
 interface PermissionItem {
@@ -42,35 +45,60 @@ const closeWindow = () => {
   window.close();
 };
 
-let liveFileHandleCId: NodeJS.Timeout | undefined;
-let cleanupFileHandleCId: NodeJS.Timeout | undefined;
+const cidKey = `(cid_${Math.random()})`;
 
 function App() {
   const [enable, setEnable] = useState<boolean>(false);
   const [btnText, setBtnText] = useState<string>("");
   const [scriptCode, setScriptCode] = useState<string>("");
   const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  const [upsertScript, setUpsertScript] = useState<Script | Subscribe>();
+  const [upsertScript, setUpsertScript] = useState<ScriptOrSubscribe>();
   const [diffCode, setDiffCode] = useState<string>();
   const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
   const { t } = useTranslation();
 
+  const installOrUpdateScript = async (newScript: Script, code: string) => {
+    await scriptClient.install(newScript, code);
+    const metadata = newScript.metadata;
+    setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
+    setOldScriptVersion(metadata!.version![0]);
+    setUpsertScript(newScript);
+    setDiffCode(code);
+  };
+
+  const getUpdatedNewScript = async (uuid: string, code: string) => {
+    const script = await scriptClient.info(uuid);
+    if (!script || script.uuid !== uuid) {
+      throw new Error("uuid is mismatched");
+    }
+    const prepareScript = await prepareScriptByCode(code, script.origin || "", uuid);
+    const newScript = prepareScript.script;
+    newScript.createtime = script.createtime;
+    newScript.origin = script.origin || newScript.origin || "";
+    if (!newScript.name) {
+      throw new Error("script_name_cannot_be_set_to_empty");
+    }
+    return newScript;
+  };
+
   const initAsync = async () => {
     try {
-      const url = new URL(window.location.href);
-      const uuid = url.searchParams.get("uuid");
-      let info: ScriptInfo | undefined;
+      const locationUrl = new URL(window.location.href);
+      const uuid = locationUrl.searchParams.get("uuid");
+      let info: (ScriptInfo & { update?: boolean }) | undefined;
+      let scriptInfoIsUpdate: boolean = false;
       if (uuid) {
         info = await scriptClient.getInstallInfo(uuid);
+        scriptInfoIsUpdate = info?.update || false;
       } else {
         // 检查是不是本地文件安装
-        const local = url.searchParams.get("local") === "true";
+        const local = locationUrl.searchParams.get("local") === "true";
         if (!local) {
           throw new Error("url param - not local");
         }
-        const fid = url.searchParams.get("file");
+        const fid = locationUrl.searchParams.get("file");
         if (!fid) return;
         const fileHandle = await loadHandle(fid);
         if (!fileHandle) {
@@ -87,16 +115,12 @@ function App() {
           return fileHandle!;
         });
         const code = await file.text();
-        info = scriptInfoByCode(code, `file:///*from-local*/${file.name}`, "user", false, uuidv4());
-        if (liveFileHandleCId) clearInterval(liveFileHandleCId);
-        liveFileHandleCId = setInterval(
-          async () => {
-            // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
-            await saveHandle(fid, fileHandle); // 刷新 timestamp
-          },
-          5 * 60 * 1000
-        );
-        saveHandle(fid, fileHandle); // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
+        const metadata = scriptInfoMeta(code);
+        info = createScriptInfo(uuidv4(), false, code, `file:///*from-local*/${file.name}`, "user", metadata);
+        scriptInfoIsUpdate = false;
+        // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
+        // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
+        intervalExecution(`${cidKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
       }
       if (!info) {
         throw new Error("fetch script info failed");
@@ -107,34 +131,29 @@ function App() {
         | { subscribe: Subscribe; oldSubscribe?: Subscribe };
       let action: Script | Subscribe;
 
-      const code = info.code;
+      const { code, url } = info;
+      let oldVersion: string | undefined = undefined;
+      let diffCode: string | undefined = undefined;
       if (info.userSubscribe) {
-        prepare = await prepareSubscribeByCode(code, info.url);
+        prepare = await prepareSubscribeByCode(code, url);
         action = prepare.subscribe;
         if (prepare.oldSubscribe) {
-          setOldScriptVersion(prepare.oldSubscribe!.metadata!.version![0]);
+          oldVersion = prepare.oldSubscribe!.metadata!.version![0] || "";
         }
-        setScriptCode(code);
-        setDiffCode(prepare.oldSubscribe?.code);
-        if (prepare.oldSubscribe) {
-          setIsUpdate(true);
-        }
+        diffCode = prepare.oldSubscribe?.code;
       } else {
-        if (info.update) {
-          prepare = await prepareScriptByCode(code, info.url, info.uuid);
-        } else {
-          prepare = await prepareScriptByCode(code, info.url);
-        }
+        const scriptUUID = scriptInfoIsUpdate ? info.uuid : undefined;
+        prepare = await prepareScriptByCode(code, url, scriptUUID);
         action = prepare.script;
         if (prepare.oldScript) {
-          setOldScriptVersion(prepare.oldScript!.metadata!.version![0]);
+          oldVersion = prepare.oldScript!.metadata!.version![0] || "";
         }
-        setScriptCode(code);
-        setDiffCode(prepare.oldScriptCode);
-        if (prepare.oldScript) {
-          setIsUpdate(true);
-        }
+        diffCode = prepare.oldScriptCode;
       }
+      setScriptCode(code);
+      setDiffCode(diffCode);
+      setOldScriptVersion(typeof oldVersion === "string" ? oldVersion : null);
+      setIsUpdate(typeof oldVersion === "string");
       setScriptInfo(info);
       setUpsertScript(action);
     } catch (e: any) {
@@ -145,10 +164,7 @@ function App() {
       // 处理会在所有Tab都载入后（不包含睡眠Tab）进行，因此延迟 10s~15s 让处理有足够时间。
       // 安装页面关掉后15分鐘为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
       const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免瀏览器重啟时大量Tabs同时执行DB清除
-      if (cleanupFileHandleCId) clearTimeout(cleanupFileHandleCId);
-      cleanupFileHandleCId = setTimeout(() => {
-        cleanupOldHandles();
-      }, delay);
+      timeoutExecution(`${cidKey}cleanupFileHandle`, cleanupOldHandles, delay);
     }
   };
 
@@ -295,6 +311,7 @@ function App() {
             (upsertScript as Script).checkUpdate = false;
           }
 
+          // 故意只安装或执行，不改变显示内容
           await scriptClient.install(upsertScript as Script, scriptCode);
           if (isUpdate) {
             Message.success(t("install.update_success")!);
@@ -348,29 +365,14 @@ function App() {
   async function onWatchFileCodeChanged(this: FTInfo, code: string, hideInfo: boolean = false) {
     if (this.uuid !== scriptInfo?.uuid) return;
     if (this.fileName !== localFileHandle?.name) return;
-    setScriptCode(`${code}`);
-    setDiffCode(`${code}`);
+    setScriptCode(code);
     const uuid = (upsertScript as Script)?.uuid;
-    const origin = (upsertScript as Script)?.origin;
-    let newScript: Script | null = null;
-    let metadata: Metadata | null = null;
     if (!uuid) {
       throw new Error("uuid is undefined");
     }
     try {
-      const script = await scriptClient.info(uuid);
-      if (!script || script.uuid !== uuid) {
-        throw new Error("uuid is mismatched");
-      }
-      const prepareScript = await prepareScriptByCode(code, script.origin || origin || "", uuid);
-      newScript = prepareScript.script;
-      metadata = prepareScript.script.metadata;
-      newScript.createtime = script.createtime;
-      setScriptCode(code);
-      if (!newScript.name) {
-        throw new Error("script_name_cannot_be_set_to_empty");
-      }
-      await scriptClient.install(newScript, code);
+      const newScript = await getUpdatedNewScript(uuid, code);
+      await installOrUpdateScript(newScript, code);
     } catch (e) {
       Message.error({
         id: fileWatchMessageId,
@@ -378,9 +380,6 @@ function App() {
       });
       return;
     }
-    setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
-    setOldScriptVersion(metadata!.version![0]);
-    if (newScript) setUpsertScript(newScript);
     if (!hideInfo) {
       Message.info({
         id: fileWatchMessageId,
@@ -400,7 +399,10 @@ function App() {
     try {
       // 如没有安装纪录，将进行安装。
       // 如已经安装，在FileSystemObserver检查更改前，先进行更新。
-      await scriptClient.install(upsertScript as Script, scriptCode);
+      const code = `${scriptCode}`;
+      await installOrUpdateScript(upsertScript as Script, code);
+      // setScriptCode(`${code}`);
+      setDiffCode(`${code}`);
       const ftInfo: FTInfo = {
         uuid,
         fileName,
@@ -412,7 +414,7 @@ function App() {
       const file = await handle.getFile();
       const currentCode = await file.text();
       // 如不一致，先更新
-      if (currentCode !== scriptCode) {
+      if (currentCode !== code) {
         ftInfo.setCode(currentCode, true);
       }
     } catch (e: any) {

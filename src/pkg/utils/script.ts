@@ -10,7 +10,7 @@ import {
   ScriptCodeDAO,
   ScriptDAO,
 } from "@App/app/repo/scripts";
-import type { Subscribe, Metadata as SubMetadata } from "@App/app/repo/subscribe";
+import type { Subscribe, SubMetadata } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
 import type { InstallSource } from "@App/app/service/service_worker/types";
@@ -62,16 +62,10 @@ export type ScriptInfo = {
   uuid: string;
   userSubscribe: boolean;
   metadata: Metadata;
-  update: boolean;
   source: InstallSource;
 };
 
-export async function fetchScriptInfo(
-  url: string,
-  source: InstallSource,
-  update: boolean,
-  uuid: string
-): Promise<ScriptInfo> {
+export async function fetchScriptBody(url: string): Promise<string> {
   const resp = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
@@ -85,31 +79,23 @@ export async function fetchScriptInfo(
   }
 
   const body = await resp.text();
-  return scriptInfoByCode(body, url, source, update, uuid);
+  return body;
 }
 
 // 通过脚本代码处理成脚本info
-export function scriptInfoByCode(
-  code: string,
-  url: string,
-  source: InstallSource,
-  update: boolean,
-  uuid: string
-): ScriptInfo {
+export async function fetchScriptInfo(url: string): Promise<{ code: string; metadata: Metadata }> {
+  const code = await fetchScriptBody(url);
+  const metadata = scriptInfoMeta(code);
+  return { code, metadata };
+}
+
+// 通过脚本代码处理成脚本info
+export function scriptInfoMeta(code: string): Metadata {
   const parse = parseMetadata(code);
   if (!parse) {
     throw new Error("parse script info failed");
   }
-  const ret: ScriptInfo = {
-    url,
-    code,
-    source,
-    update,
-    uuid,
-    userSubscribe: parse.usersubscribe !== undefined,
-    metadata: parse,
-  };
-  return ret;
+  return parse;
 }
 
 export function copyScript(script: Script, old: Script): Script {

@@ -64,3 +64,15 @@ declare namespace GMSend {
     filename?: string;
   }
 }
+
+declare namespace chrome.userScripts {
+  const register: any;
+  const update: any;
+  const unregister: any;
+  const getScripts: any;
+  type RegisteredUserScript = any;
+}
+
+declare namespace chrome.alarms {
+  export function create(name: string, alarmInfo: AlarmCreateInfo, callback: any): void;
+}

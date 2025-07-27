@@ -1,6 +1,6 @@
-import { Repo } from "./repo";
+import { Repo, type ScriptOrSubscribe } from "./repo";
 
-export type Metadata = { [key: string]: string[] };
+export type SubMetadata = { [key: string]: string[] };
 
 export type SUBSCRIBE_STATUS = 1 | 2 | 3 | 4;
 export const SUBSCRIBE_STATUS_ENABLE: SUBSCRIBE_STATUS = 1;
@@ -11,13 +11,13 @@ export interface SubscribeScript {
   url: string;
 }
 
-export interface Subscribe {
+export interface Subscribe extends ScriptOrSubscribe {
   url: string;
   name: string;
   code: string;
   author: string;
   scripts: { [key: string]: SubscribeScript };
-  metadata: Metadata;
+  metadata: SubMetadata;
   status: SUBSCRIBE_STATUS;
   createtime: number;
   updatetime?: number;

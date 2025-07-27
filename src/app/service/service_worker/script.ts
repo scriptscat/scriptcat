@@ -4,19 +4,19 @@ import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
 import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomMessageFlag } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import type { InstallSource } from "./types";
+import { createScriptInfo, type InstallSource } from "./types";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class ScriptService {
   logger: Logger;
@@ -143,32 +143,31 @@ export class ScriptService {
     );
   }
 
-  public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
+  public async openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuid)
-      .then((info) => {
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
-        setTimeout(() => {
-          // 清理缓存
-          Cache.getInstance().del(CacheKey.scriptInstallInfo(uuid));
-        }, 30 * 1000);
-        openInCurrentTab(`/src/install.html?uuid=${uuid}`);
-        return { success: true, msg: "" };
-      })
-      .catch((err) => {
-        console.error(err);
-        return { success: false, msg: err.message };
-      });
+    try {
+      await this.openUpdateOrInstallPage(uuid, url, source, false);
+      setTimeout(() => {
+        // 清理缓存
+        Cache.getInstance().del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
+      }, 30 * 1000);
+      openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      return { success: true, msg: "" };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, msg: err.message };
+    }
   }
 
   // 直接通过url静默安装脚本
   async installByUrl(url: string, source: InstallSource, subscribeUrl?: string) {
-    const info = await fetchScriptInfo(url, source, false, uuidv4());
-    const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
+    const uuid = uuidv4();
+    const { code } = await fetchScriptInfo(url);
+    const prepareScript = await prepareScriptByCode(code, url, uuid);
     prepareScript.script.subscribeUrl = subscribeUrl;
     this.installScript({
       script: prepareScript.script,
-      code: info.code,
+      code: code,
       upsertBy: source,
     });
     return prepareScript.script;
@@ -187,7 +186,7 @@ export class ScriptService {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return Cache.getInstance().get(CacheKey.scriptInstallInfo(uuid));
+    return Cache.getInstance().get(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
   }
 
   // 安装脚本
@@ -400,23 +399,23 @@ export class ScriptService {
       });
   }
 
-  async checkUpdate(uuid: string, source: "user" | "system") {
+  async checkUpdate(uuid_: string, source: "user" | "system") {
     // 检查更新
-    const script = await this.scriptDAO.get(uuid);
+    const script = await this.scriptDAO.get(uuid_);
     if (!script) {
       return false;
     }
-    await this.scriptDAO.update(uuid, { checktime: new Date().getTime() });
-    if (!script.checkUpdateUrl) {
+    await this.scriptDAO.update(uuid_, { checktime: new Date().getTime() });
+    const { uuid, name, checkUpdateUrl } = script;
+    if (!checkUpdateUrl) {
       return false;
     }
     const logger = LoggerCore.logger({
-      uuid: script.uuid,
-      name: script.name,
+      uuid,
+      name,
     });
     try {
-      const info = await fetchScriptInfo(script.checkUpdateUrl, source, false, script.uuid);
-      const { metadata } = info;
+      const { metadata } = await fetchScriptInfo(checkUpdateUrl);
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -434,57 +433,62 @@ export class ScriptService {
       if (ltever(newVersion, oldVersion, logger)) {
         return false;
       }
-      // 进行更新
-      this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
       return false;
     }
+    // 进行更新
+    this.openUpdatePage(script, source);
     return true;
   }
 
-  // 打开更新窗口
-  public openUpdatePage(script: Script, source: "user" | "system") {
-    const logger = this.logger.with({
-      uuid: script.uuid,
-      name: script.name,
-      downloadUrl: script.downloadUrl,
-      checkUpdateUrl: script.checkUpdateUrl,
-    });
-    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true, script.uuid)
-      .then(async (info) => {
-        // 是否静默更新
-        if (await this.systemConfig.getSilenceUpdateScript()) {
-          try {
-            const prepareScript = await prepareScriptByCode(
-              info.code,
-              script.downloadUrl || script.checkUpdateUrl!,
-              script.uuid
-            );
-            if (checkSilenceUpdate(prepareScript.oldScript!.metadata, prepareScript.script.metadata)) {
-              logger.info("silence update script");
-              this.installScript({
-                script: prepareScript.script,
-                code: info.code,
-                upsertBy: source,
-              });
-              return;
-            }
-            // 如果不符合静默更新规则，走后面的流程
-            logger.info("not silence update script, open install page");
-          } catch (e) {
-            logger.error("prepare script failed", Logger.E(e));
-          }
+  async openUpdateOrInstallPage(uuid: string, url: string, source: InstallSource, update: boolean, logger?: Logger) {
+    const { code, metadata } = await fetchScriptInfo(url);
+    if (update && (await this.systemConfig.getSilenceUpdateScript())) {
+      try {
+        const prepareScript = await prepareScriptByCode(code, url, uuid);
+        if (checkSilenceUpdate(prepareScript.oldScript!.metadata, prepareScript.script.metadata)) {
+          logger?.info("silence update script");
+          this.installScript({
+            script: prepareScript.script,
+            code: code,
+            upsertBy: source,
+          });
+          return 2;
         }
-        // 打开安装页面
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
-        chrome.tabs.create({
-          url: `/src/install.html?uuid=${info.uuid}`,
-        });
-      })
-      .catch((e) => {
-        logger.error("fetch script info failed", Logger.E(e));
+        // 如果不符合静默更新规则，走后面的流程
+        logger?.info("not silence update script, open install page");
+      } catch (e) {
+        logger?.error("prepare script failed", Logger.E(e));
+      }
+    }
+    await Cache.getInstance().set(
+      `${CACHE_KEY_SCRIPT_INFO}${uuid}`,
+      createScriptInfo(uuid, update, code, url, source, metadata)
+    );
+    return 1;
+  }
+
+  // 打开更新窗口
+  public async openUpdatePage(script: Script, source: "user" | "system") {
+    const { uuid, name, downloadUrl, checkUpdateUrl } = script;
+    const logger = this.logger.with({
+      uuid,
+      name,
+      downloadUrl,
+      checkUpdateUrl,
+    });
+    const url = downloadUrl || checkUpdateUrl!;
+    try {
+      const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
+      if (ret === 2) return; // slience update
+      // 打开安装页面
+      chrome.tabs.create({
+        url: `/src/install.html?uuid=${uuid}`,
       });
+    } catch (e) {
+      logger.error("fetch script info failed", Logger.E(e));
+    }
   }
 
   async checkScriptUpdate() {

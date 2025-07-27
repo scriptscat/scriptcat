@@ -1,5 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
+import Cache from "@App/app/cache";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import type { Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
@@ -7,14 +8,12 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
-import type { InstallSource } from "./types";
+import { createScriptInfo, type InstallSource } from "./types";
 import { publishSubscribeInstall, subscribeSubscribeInstall } from "../queue";
 import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { ScriptInfo } from "@App/pkg/utils/script";
 import { fetchScriptInfo, prepareSubscribeByCode } from "@App/pkg/utils/script";
-import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class SubscribeService {
   logger: Logger;
@@ -171,8 +170,9 @@ export class SubscribeService {
     });
     await this.subscribeDAO.update(url, { checktime: new Date().getTime() });
     try {
-      const info = await fetchScriptInfo(subscribe.url, source, false, subscribe.url);
-      const { metadata } = info;
+      const { metadata, code } = await fetchScriptInfo(subscribe.url);
+      const url = subscribe.url;
+      const uuid = subscribe.url; // 使用 url 作為 uuid?
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -191,7 +191,17 @@ export class SubscribeService {
         return false;
       }
       // 进行更新
-      this.openUpdatePage(info);
+      if (true === (await this.trySilenceUpdate(code, url))) {
+        // slience update
+      } else {
+        await Cache.getInstance().set(
+          `${CACHE_KEY_SCRIPT_INFO}${uuid}`,
+          createScriptInfo(uuid, false, code, url, source, metadata)
+        );
+        chrome.tabs.create({
+          url: `/src/install.html?uuid=${uuid}`,
+        });
+      }
       return true;
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
@@ -199,30 +209,26 @@ export class SubscribeService {
     }
   }
 
-  async openUpdatePage(info: ScriptInfo) {
+  async trySilenceUpdate(code: string, url: string) {
     const logger = this.logger.with({
-      url: info.url,
+      url,
     });
     // 是否静默更新
     const silenceUpdate = await this.systemConfig.getSilenceUpdateScript();
     if (silenceUpdate) {
       try {
-        const newSubscribe = await prepareSubscribeByCode(info.code, info.url);
+        const newSubscribe = await prepareSubscribeByCode(code, url);
         if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
           logger.info("silence update subscribe");
           this.install({
             subscribe: newSubscribe.subscribe,
           });
-          return;
+          return true;
         }
       } catch (e) {
         logger.error("prepare script failed", Logger.E(e));
       }
     }
-    Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
-    chrome.tabs.create({
-      url: `/src/install.html?uuid=${info.uuid}`,
-    });
   }
 
   async checkSubscribeUpdate() {

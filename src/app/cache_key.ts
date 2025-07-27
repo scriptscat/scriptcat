@@ -1,17 +1,7 @@
-import type { ConfirmParam } from "./service/service_worker/permission_verify";
-
-export default class CacheKey {
-  // 加载脚本信息时的缓存
-  static scriptInstallInfo(uuid: string): string {
-    return `scriptInfo:${uuid}`;
-  }
-
-  static permissionConfirm(scriptUuid: string, confirm: ConfirmParam): string {
-    return `permission:${scriptUuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
-  }
-
-  // importFile 导入文件
-  static importFile(uuid: string): string {
-    return `importFile:${uuid}`;
-  }
-}
+export const CACHE_KEY_IMPORT_FILE = "importFile:";
+export const CACHE_KEY_TAB_SCRIPT = "tabScript:";
+export const CACHE_KEY_SCRIPT_INFO = "scriptInfo:";
+export const CACHE_KEY_FAVICON = "favicon:";
+export const CACHE_KEY_SET_VALUE = "setValue:";
+export const CACHE_KEY_REGISTRY_SCRIPT = "registryScript:";
+export const CACHE_KEY_PERMISSION = "permission:";

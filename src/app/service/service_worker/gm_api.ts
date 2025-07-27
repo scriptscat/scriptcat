@@ -9,7 +9,7 @@ import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
-import Cache, { incr } from "@App/app/cache";
+import Cache from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
 import { getIcon, isFirefox } from "@App/pkg/utils/utils";
@@ -710,7 +710,8 @@ export default class GMApi {
     const params = request.params[0] as GMSend.XHRDetails;
     // 先处理unsafe hearder
     // 关联自己生成的请求id与chrome.webRequest的请求id
-    const requestId = 10000 + (await incr(Cache.getInstance(), "gmXhrRequestId", 1));
+
+    const requestId = 10000 + (await Cache.getInstance().incr("gmXhrRequestId", 1));
     // 添加请求header
     if (!params.headers) {
       params.headers = {};
@@ -925,7 +926,7 @@ export default class GMApi {
           throw e;
         }
       }
-      Cache.getInstance().set(`GM_notification:${notificationId}`, {
+      await Cache.getInstance().set(`GM_notification:${notificationId}`, {
         uuid: request.script.uuid,
         details: details,
         sender: sender.getExtMessageSender(),
