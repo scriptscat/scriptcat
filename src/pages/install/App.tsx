@@ -628,7 +628,11 @@ function App() {
         </Grid.Col>
       </Grid.Row>
       <div id="show-code-container">
-        <CodeEditor id="show-code" code={scriptCode || undefined} diffCode={diffCode || ""} />
+        <CodeEditor
+          id="show-code"
+          code={scriptCode || undefined}
+          diffCode={diffCode === scriptCode ? "" : diffCode || ""}
+        />
       </div>
     </div>
   );
