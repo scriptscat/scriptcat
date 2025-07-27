@@ -846,15 +846,26 @@ function ScriptEditor() {
               size="mini"
               style={{
                 color: "var(--color-text-2)",
+                background: "transparent",
+                cursor: "pointer",
+                borderBottom: "1px solid rgba(127, 127, 127, 0.8)",
+              }}
+              onClick={() => {
+                setShowSearchInput(!showSearchInput);
+                setTimeout(
+                  () =>
+                    showSearchInput &&
+                    (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
+                  1
+                );
               }}
             >
               <div className="flex justify-between items-center">
                 {t("installed_scripts")}
                 <IconSearch
-                  onClick={() => {
-                    setShowSearchInput(!showSearchInput);
+                  style={{
+                    cursor: "inherit",
                   }}
-                  style={{ cursor: "pointer" }}
                 />
               </div>
             </Button>
@@ -866,6 +877,7 @@ function ScriptEditor() {
                   value={searchKeyword}
                   onChange={(value) => setSearchKeyword(value)}
                   size="mini"
+                  id="editor_search_scripts_input"
                 />
               </div>
             )}
