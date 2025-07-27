@@ -76,3 +76,7 @@ declare namespace chrome.userScripts {
 declare namespace chrome.alarms {
   export function create(name: string, alarmInfo: AlarmCreateInfo, callback: any): void;
 }
+
+declare namespace chrome.webRequest {
+  type OnResponseStartedDetails = any;
+}

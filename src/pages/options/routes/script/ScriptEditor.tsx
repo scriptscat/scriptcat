@@ -195,30 +195,36 @@ function ScriptEditor() {
     setVisible({ ...visible });
   };
 
-  const save = (script: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
+  const save = (script_: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
     const code = e.getValue();
-    return prepareScriptByCode(code, script.origin || "", script.uuid)
+    const targetUUID = script_.uuid;
+    return prepareScriptByCode(code, script_.origin || "", targetUUID)
       .then((prepareScript) => {
-        const newScript = prepareScript.script;
-        if (!newScript.name) {
+        const { script, oldScript } = prepareScript;
+        if (targetUUID && script_.createtime > 0) {
+          if (!oldScript || oldScript.uuid !== targetUUID) {
+            Message.warning("The editing script does not exist.");
+            return Promise.reject(new Error("The editing script does not exist."));
+          }
+        }
+        if (!script.name) {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
-        newScript.createtime = script.createtime;
         return scriptClient
-          .install(newScript, code)
+          .install(script, code)
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
               // 保存的时候如何左侧没有脚本即新建
               setScriptList((prev) => {
-                setSelectSciptButtonAndTab(newScript.uuid);
-                return [newScript, ...prev];
+                setSelectSciptButtonAndTab(script.uuid);
+                return [script, ...prev];
               });
             } else {
-              const uuid = newScript.uuid;
-              const name = newScript.name;
+              const uuid = script.uuid;
+              const name = script.name;
               setScriptList((prev) =>
                 prev.map((script: Script) =>
                   script.uuid === uuid
@@ -231,8 +237,8 @@ function ScriptEditor() {
               );
               Message.success(t("save_success"));
             }
-            const uuid = newScript.uuid;
-            const name = newScript.name;
+            const uuid = script.uuid;
+            const name = script.name;
             setEditors((prev) =>
               prev.map((item) =>
                 item.script.uuid === uuid
@@ -248,7 +254,7 @@ function ScriptEditor() {
                   : item
               )
             );
-            return newScript;
+            return script;
           })
           .catch((err: any) => {
             Message.error(`${t("save_failed")}: ${err}`);

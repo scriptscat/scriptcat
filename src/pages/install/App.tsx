@@ -69,15 +69,14 @@ function App() {
   };
 
   const getUpdatedNewScript = async (uuid: string, code: string) => {
-    const script_ = await scriptClient.info(uuid);
-    if (!script_ || script_.uuid !== uuid) {
+    const oldScript = await scriptClient.info(uuid);
+    if (!oldScript || oldScript.uuid !== uuid) {
       throw new Error("uuid is mismatched");
     }
-    const { script } = await prepareScriptByCode(code, script_.origin || "", uuid);
-    script.createtime = script_.createtime;
-    script.origin = script_.origin || script.origin || "";
+    const { script } = await prepareScriptByCode(code, oldScript.origin || "", uuid);
+    script.origin = oldScript.origin || script.origin || "";
     if (!script.name) {
-      throw new Error("script_name_cannot_be_set_to_empty");
+      throw new Error(t("script_name_cannot_be_set_to_empty"));
     }
     return script;
   };
@@ -283,7 +282,7 @@ function App() {
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, upsertScript, t]);
+  }, [isUpdate, scriptInfo, upsertScript]);
 
   // 设置脚本状态
   useEffect(() => {
@@ -334,7 +333,7 @@ function App() {
         Message.error(`${errorMessage}: ${e}`);
       }
     },
-    [upsertScript, scriptInfo, scriptCode, isUpdate, t]
+    [upsertScript, scriptInfo, scriptCode, isUpdate]
   );
 
   const handleStatusChange = useCallback(
