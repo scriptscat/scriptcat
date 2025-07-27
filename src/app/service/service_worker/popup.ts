@@ -15,7 +15,7 @@ import {
   subscribeScriptMenuRegister,
   subscribeScriptRunStatus,
 } from "../queue";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 
@@ -130,13 +130,9 @@ export class PopupService {
 
   async updateScriptMenu() {
     // 获取当前页面并更新菜单
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs.length) {
-      return;
-    }
-    const tab = tabs[0];
+    const tab = await getCurrentTab();
     // 生成菜单
-    if (tab.id) {
+    if (tab?.id) {
       await this.genScriptMenu(tab.id);
     }
   }

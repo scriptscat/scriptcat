@@ -12,7 +12,7 @@ import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import Cache from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
-import { getIcon, isFirefox } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -314,7 +314,6 @@ export default class GMApi {
     const tabId = sender.getExtMessageSender().tabId;
     chrome.tabs.create({
       url: `/src/options.html#/?userConfig=${request.uuid}`,
-      active: true,
       openerTabId: tabId === -1 ? undefined : tabId,
     });
   }
@@ -345,7 +344,6 @@ export default class GMApi {
       const tabId = sender.getExtMessageSender().tabId;
       chrome.tabs.create({
         url: `/src/options.html#/setting`,
-        active: true,
         openerTabId: tabId === -1 ? undefined : tabId,
       });
       return true;
@@ -804,7 +802,7 @@ export default class GMApi {
       const ok = await sendMessage(this.send, "offscreen/gmApi/openInTab", { url });
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
-        const [tab] = await chrome.tabs.query({ active: true });
+        const tab = await getCurrentTab();
         await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
           uuid: request.uuid,
           sender: sender.getExtMessageSender(),

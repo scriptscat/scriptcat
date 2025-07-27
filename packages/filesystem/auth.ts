@@ -1,6 +1,7 @@
 import { ExtServer, ExtServerApi } from "@App/app/const";
 import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { sleep } from "@App/pkg/utils/utils";
 
 type NetDiskType = "baidu" | "onedrive" | "googledrive";
 
@@ -32,49 +33,30 @@ export function RefreshToken(
   }).then((resp) => resp.json());
 }
 
-export function NetDisk(netDiskType: NetDiskType) {
-  return new Promise<void>((resolve) => {
-    if (globalThis.window) {
-      const loginWindow = window.open(`${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`);
-      const t = setInterval(() => {
-        try {
-          if (loginWindow!.closed) {
-            clearInterval(t);
-            resolve();
-          }
-        } catch (_) {
-          clearInterval(t);
-          resolve();
-        }
-      }, 1000);
-    } else {
-      chrome.tabs
-        .create({
-          url: `${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`,
-        })
-        .then(({ id: tabId }) => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.tabs.create:", lastError);
-            // 没有 tabId 无法执行
-            return;
-          }
-          const t = setInterval(async () => {
-            try {
-              const tab = await chrome.tabs.get(tabId!);
-              console.log("query tab", tab);
-              if (!tab) {
-                clearInterval(t);
-                resolve();
-              }
-            } catch (_) {
-              clearInterval(t);
-              resolve();
-            }
-          }, 1000);
-        });
+export async function NetDisk(netDiskType: NetDiskType) {
+  const newPageUrl = `${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`;
+  let isClosed: any;
+  if (typeof chrome !== "undefined" && typeof chrome?.tabs?.create === "function") {
+    const { id: tabId } = await chrome.tabs.create({ url: newPageUrl });
+    isClosed = async () => {
+      if (!tabId) return true;
+      const ret = await chrome.tabs.get(tabId);
+      return ret?.id !== tabId
+    };
+  } else if (typeof window !== "undefined" && typeof window?.open === "function") {
+    const loginWindow = window.open(newPageUrl);
+    isClosed = () => !loginWindow || loginWindow.closed;
+  }
+  while (true) {
+    await sleep(1000);
+    try {
+      if (await isClosed()) {
+        break;
+      }
+    } catch (_e) {
+      break;
     }
-  });
+  }
 }
 
 export type Token = {

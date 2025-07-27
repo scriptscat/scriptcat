@@ -20,7 +20,7 @@ import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
-import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
+import { isUserScriptsAvailable, getBrowserType, BrowserType, getCurrentTab } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -55,10 +55,10 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const onCurrentUrlUpdated = (tabs: chrome.tabs.Tab[]) => {
+    const onCurrentUrlUpdated = (url: string, tabId: number) => {
       checkScriptEnableAndUpdate();
       popupClient
-        .getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! })
+        .getPopupData({ url, tabId })
         .then((resp) => {
           if (!isMounted) return;
 
@@ -103,23 +103,22 @@ function App() {
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
-    const queryTabInfo = () => {
+    const queryTabInfo = async () => {
       // 只跑一次 tab 资讯，不绑定在 currentUrl
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-          return;
-        }
-        if (!isMounted || !tabs.length) return;
-        const newUrl = tabs[0].url || "";
+      try {
+        const tab = await getCurrentTab();
+        if (!isMounted || !tab) return;
+        const newUrl = tab.url || "";
         setCurrentUrl((prev) => {
           if (newUrl !== prev) {
-            onCurrentUrlUpdated(tabs);
+            const { url, id: tabId } = tab;
+            if (url && tabId) onCurrentUrlUpdated(url, tabId);
           }
           return newUrl;
         });
-      });
+      } catch (e) {
+        console.error(e);
+      }
     };
 
     checkScriptEnableAndUpdate();

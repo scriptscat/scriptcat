@@ -151,7 +151,7 @@ export class ScriptService {
         // 清理缓存
         Cache.getInstance().del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
       }, 30 * 1000);
-      openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      await openInCurrentTab(`/src/install.html?uuid=${uuid}`);
       return { success: true, msg: "" };
     } catch (err: any) {
       console.error(err);

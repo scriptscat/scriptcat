@@ -1,3 +1,5 @@
+import { getCurrentTab } from "@App/pkg/utils/utils";
+
 export function isExtensionRequest(
   details: chrome.webRequest.OnBeforeRequestDetails & { originUrl?: string }
 ): boolean {
@@ -113,20 +115,12 @@ export function parseUrlSRI(url: string): {
 }
 
 // 检查是否正在播放视频，或者窗口未激活
-export function isVideoPlayingOrInactive() {
-  return new Promise<boolean>((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-        resolve(false);
-        return;
-      }
-      if (tabs.length === 0 || tabs[0].audible === true || !tabs[0].active) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
+export async function isVideoPlayingOrInactive() {
+  try {
+    const tab = await getCurrentTab();
+    return (!tab || tab.audible === true || !tab.active);
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
 }
