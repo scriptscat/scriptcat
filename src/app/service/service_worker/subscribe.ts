@@ -12,7 +12,7 @@ import { createScriptInfo, type InstallSource } from "./types";
 import { publishSubscribeInstall, subscribeSubscribeInstall } from "../queue";
 import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import { fetchScriptInfo, prepareSubscribeByCode } from "@App/pkg/utils/script";
+import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class SubscribeService {
@@ -170,7 +170,8 @@ export class SubscribeService {
     });
     await this.subscribeDAO.update(url, { checktime: new Date().getTime() });
     try {
-      const { metadata, code } = await fetchScriptInfo(subscribe.url);
+      const code = await fetchScriptBody(subscribe.url);
+      const metadata = parseMetadata(code);
       const url = subscribe.url;
       const uuid = subscribe.url; // 使用 url 作為 uuid?
       if (!metadata) {

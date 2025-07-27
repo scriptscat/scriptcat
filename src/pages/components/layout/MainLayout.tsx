@@ -127,7 +127,7 @@ const MainLayout: React.FC<{
             const fid = checkOk[1].value;
             await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
             // 打开安装页面
-            const installWindow = window.open(`/src/install.html?local=true&file=${fid}`, "_blank");
+            const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
             if (!installWindow) {
               throw new Error(t("install_page_open_failed"));
             }

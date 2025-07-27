@@ -82,46 +82,6 @@ export async function fetchScriptBody(url: string): Promise<string> {
   return body;
 }
 
-// 通过脚本代码处理成脚本info
-export async function fetchScriptInfo(url: string): Promise<{ code: string; metadata: Metadata }> {
-  const code = await fetchScriptBody(url);
-  const metadata = scriptInfoMeta(code);
-  return { code, metadata };
-}
-
-// 通过脚本代码处理成脚本info
-export function scriptInfoMeta(code: string): Metadata {
-  const parse = parseMetadata(code);
-  if (!parse) {
-    throw new Error("parse script info failed");
-  }
-  return parse;
-}
-
-export function copyScript(script: Script, old: Script): Script {
-  const ret = script;
-  ret.uuid = old.uuid;
-  ret.createtime = old.createtime;
-  ret.lastruntime = old.lastruntime;
-  // ret.delayruntime = old.delayruntime;
-  ret.error = old.error;
-  ret.sort = old.sort;
-  ret.selfMetadata = old.selfMetadata || {};
-  ret.subscribeUrl = old.subscribeUrl;
-  ret.checkUpdate = old.checkUpdate;
-  ret.status = old.status;
-  return ret;
-}
-
-export function copySubscribe(sub: Subscribe, old: Subscribe): Subscribe {
-  const ret = sub;
-  ret.url = old.url;
-  ret.scripts = old.scripts;
-  ret.createtime = old.createtime;
-  ret.status = old.status;
-  return ret;
-}
-
 // 通过代码解析出脚本信息
 export async function prepareScriptByCode(
   code: string,
@@ -170,14 +130,9 @@ export async function prepareScriptByCode(
       [, domain] = urlSplit;
     }
   }
-  let newUUID = "";
-  if (uuid) {
-    newUUID = uuid;
-  } else {
-    newUUID = uuidv4();
-  }
+  const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
-  let script: Script = {
+  const script: Script = {
     uuid: newUUID,
     name: metadata.name[0],
     author: metadata.author && metadata.author[0],
@@ -202,10 +157,8 @@ export async function prepareScriptByCode(
   let oldCode: ScriptCode | undefined;
   if (uuid) {
     old = await dao.get(uuid);
-    if (!old && override) {
-      old = await dao.findByNameAndNamespace(script.name, script.namespace);
-    }
-  } else {
+  }
+  if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
   }
   if (old) {
@@ -220,7 +173,18 @@ export async function prepareScriptByCode(
       throw new Error("旧的脚本代码不存在");
     }
     oldCode = scriptCode;
-    script = copyScript(script, old);
+    const { uuid, createtime, lastruntime, error, sort, selfMetadata, subscribeUrl, checkUpdate, status } = old;
+    Object.assign(script, {
+      uuid,
+      createtime,
+      lastruntime,
+      error,
+      sort,
+      selfMetadata: selfMetadata || {},
+      subscribeUrl,
+      checkUpdate,
+      status,
+    });
   } else {
     // 前台脚本默认开启
     if (script.type === SCRIPT_TYPE_NORMAL) {
@@ -243,7 +207,7 @@ export async function prepareSubscribeByCode(
   if (metadata.name === undefined) {
     throw new Error("订阅名不能为空");
   }
-  let subscribe: Subscribe = {
+  const subscribe: Subscribe = {
     url,
     name: metadata.name[0],
     code,
@@ -257,7 +221,8 @@ export async function prepareSubscribeByCode(
   };
   const old = await dao.findByUrl(url);
   if (old) {
-    subscribe = copySubscribe(subscribe, old);
+    const { url, scripts, createtime, status } = old;
+    Object.assign(subscribe, { url, scripts, createtime, status });
   }
   return { subscribe, oldSubscribe: old };
 }

@@ -22,7 +22,7 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { ScriptInfo } from "@App/pkg/utils/script";
-import { prepareScriptByCode, prepareSubscribeByCode, scriptInfoMeta } from "@App/pkg/utils/script";
+import { parseMetadata, prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
 import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/file-tracker";
@@ -69,18 +69,17 @@ function App() {
   };
 
   const getUpdatedNewScript = async (uuid: string, code: string) => {
-    const script = await scriptClient.info(uuid);
-    if (!script || script.uuid !== uuid) {
+    const script_ = await scriptClient.info(uuid);
+    if (!script_ || script_.uuid !== uuid) {
       throw new Error("uuid is mismatched");
     }
-    const prepareScript = await prepareScriptByCode(code, script.origin || "", uuid);
-    const newScript = prepareScript.script;
-    newScript.createtime = script.createtime;
-    newScript.origin = script.origin || newScript.origin || "";
-    if (!newScript.name) {
+    const { script } = await prepareScriptByCode(code, script_.origin || "", uuid);
+    script.createtime = script_.createtime;
+    script.origin = script_.origin || script.origin || "";
+    if (!script.name) {
       throw new Error("script_name_cannot_be_set_to_empty");
     }
-    return newScript;
+    return script;
   };
 
   const initAsync = async () => {
@@ -88,18 +87,16 @@ function App() {
       const locationUrl = new URL(window.location.href);
       const uuid = locationUrl.searchParams.get("uuid");
       let info: (ScriptInfo & { update?: boolean }) | undefined;
-      let scriptInfoIsUpdate: boolean = false;
+      let isKnownUpdate: boolean = false;
       if (uuid) {
         info = await scriptClient.getInstallInfo(uuid);
-        scriptInfoIsUpdate = info?.update || false;
+        isKnownUpdate = info?.update || false;
       } else {
         // 检查是不是本地文件安装
-        const local = locationUrl.searchParams.get("local") === "true";
-        if (!local) {
-          throw new Error("url param - not local");
-        }
         const fid = locationUrl.searchParams.get("file");
-        if (!fid) return;
+        if (!fid) {
+          throw new Error("url param - local file id is not found");
+        }
         const fileHandle = await loadHandle(fid);
         if (!fileHandle) {
           throw new Error("invalid file access - fileHandle is null");
@@ -114,13 +111,18 @@ function App() {
           if (prev instanceof FileSystemFileHandle) unmountFileTrack(prev);
           return fileHandle!;
         });
-        const code = await file.text();
-        const metadata = scriptInfoMeta(code);
-        info = createScriptInfo(uuidv4(), false, code, `file:///*from-local*/${file.name}`, "user", metadata);
-        scriptInfoIsUpdate = false;
+
         // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
         // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
         intervalExecution(`${cidKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
+
+        const code = await file.text();
+        const metadata = parseMetadata(code);
+        if (!metadata) {
+          throw new Error("parse script info failed");
+        }
+        info = createScriptInfo(uuidv4(), false, code, `file:///*from-local*/${file.name}`, "user", metadata);
+        isKnownUpdate = false;
       }
       if (!info) {
         throw new Error("fetch script info failed");
@@ -142,8 +144,8 @@ function App() {
         }
         diffCode = prepare.oldSubscribe?.code;
       } else {
-        const scriptUUID = scriptInfoIsUpdate ? info.uuid : undefined;
-        prepare = await prepareScriptByCode(code, url, scriptUUID);
+        const knownUUID = isKnownUpdate ? info.uuid : undefined;
+        prepare = await prepareScriptByCode(code, url, knownUUID);
         action = prepare.script;
         if (prepare.oldScript) {
           oldVersion = prepare.oldScript!.metadata!.version![0] || "";

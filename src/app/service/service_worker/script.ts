@@ -1,4 +1,4 @@
-import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
+import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
@@ -42,17 +42,17 @@ export class ScriptService {
         if (req.method !== "GET") {
           return undefined;
         }
-        const url = new URL(req.url);
+        const reqUrl = new URL(req.url);
         // 判断是否有hash
-        if (!url.hash) {
+        if (!reqUrl.hash) {
           return undefined;
         }
         // 判断是否有url参数
-        if (!url.hash.includes("url=")) {
+        if (!reqUrl.hash.includes("url=")) {
           return undefined;
         }
         // 获取url参数
-        const targetUrl = url.hash.split("url=")[1];
+        const targetUrl = reqUrl.hash.split("url=")[1];
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
@@ -162,26 +162,27 @@ export class ScriptService {
   // 直接通过url静默安装脚本
   async installByUrl(url: string, source: InstallSource, subscribeUrl?: string) {
     const uuid = uuidv4();
-    const { code } = await fetchScriptInfo(url);
-    const prepareScript = await prepareScriptByCode(code, url, uuid);
-    prepareScript.script.subscribeUrl = subscribeUrl;
+    const code = await fetchScriptBody(url);
+    const { script } = await prepareScriptByCode(code, url, uuid);
+    script.subscribeUrl = subscribeUrl;
     this.installScript({
-      script: prepareScript.script,
-      code: code,
+      script,
+      code,
       upsertBy: source,
     });
-    return prepareScript.script;
+    return script;
   }
 
   // 直接通过code静默安装脚本
   async installByCode(param: { uuid: string; code: string; upsertBy: InstallSource }) {
-    const prepareScript = await prepareScriptByCode(param.code, "", param.uuid, true);
+    const { code, upsertBy, uuid } = param;
+    const { script } = await prepareScriptByCode(code, "", uuid, true);
     this.installScript({
-      script: prepareScript.script,
-      code: param.code,
-      upsertBy: param.upsertBy,
+      script,
+      code,
+      upsertBy,
     });
-    return prepareScript.script;
+    return script;
   }
 
   // 获取安装信息
@@ -415,7 +416,8 @@ export class ScriptService {
       name,
     });
     try {
-      const { metadata } = await fetchScriptInfo(checkUpdateUrl);
+      const code = await fetchScriptBody(checkUpdateUrl);
+      const metadata = parseMetadata(code);
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -442,17 +444,17 @@ export class ScriptService {
     return true;
   }
 
-  async openUpdateOrInstallPage(uuid: string, url: string, source: InstallSource, update: boolean, logger?: Logger) {
-    const { code, metadata } = await fetchScriptInfo(url);
+  async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
+    const code = await fetchScriptBody(url);
     if (update && (await this.systemConfig.getSilenceUpdateScript())) {
       try {
-        const prepareScript = await prepareScriptByCode(code, url, uuid);
-        if (checkSilenceUpdate(prepareScript.oldScript!.metadata, prepareScript.script.metadata)) {
+        const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
+        if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
           logger?.info("silence update script");
           this.installScript({
-            script: prepareScript.script,
-            code: code,
-            upsertBy: source,
+            script,
+            code,
+            upsertBy,
           });
           return 2;
         }
@@ -462,9 +464,13 @@ export class ScriptService {
         logger?.error("prepare script failed", Logger.E(e));
       }
     }
+    const metadata = parseMetadata(code);
+    if (!metadata) {
+      throw new Error("parse script info failed");
+    }
     await Cache.getInstance().set(
       `${CACHE_KEY_SCRIPT_INFO}${uuid}`,
-      createScriptInfo(uuid, update, code, url, source, metadata)
+      createScriptInfo(uuid, update, code, url, upsertBy, metadata)
     );
     return 1;
   }

@@ -568,10 +568,10 @@ export class SynchronizeService {
     return;
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, script?: Script) {
+  async pullScript(fs: FileSystem, file: SyncFiles, script_?: Script) {
     const logger = this.logger.with({
-      uuid: script?.uuid || "",
-      name: script?.name || "",
+      uuid: script_?.uuid || "",
+      name: script_?.name || "",
       file: file.script.name,
     });
     try {
@@ -582,15 +582,15 @@ export class SynchronizeService {
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
-      const prepareScript = await prepareScriptByCode(
+      const { script } = await prepareScriptByCode(
         code,
-        script?.downloadUrl || metaObj.downloadUrl || "",
-        script?.uuid || metaObj.uuid
+        script_?.downloadUrl || metaObj.downloadUrl || "",
+        script_?.uuid || metaObj.uuid
       );
-      prepareScript.script.origin = prepareScript.script.origin || metaObj.origin;
+      script.origin = script.origin || metaObj.origin;
       this.script.installScript({
-        script: prepareScript.script,
-        code: code,
+        script,
+        code,
         upsertBy: "sync",
       });
       logger.info("pull script success");
