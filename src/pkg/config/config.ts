@@ -334,3 +334,19 @@ export class SystemConfig {
     return this.get("script_menu_display_type", "all");
   }
 }
+
+let lazyScriptNamePrefix: string = "";
+let lazyScriptIndex = 0;
+
+// 新腳本自動改名
+export const lazyScriptName = (code: string) => {
+  if (!lazyScriptNamePrefix) {
+    // 使用執行時的亂數種子
+    // prefix 為 A000 ~ ZZZZ
+    lazyScriptNamePrefix = (((Math.random() * (1679615 - 466560 + 1)) | 0) + 466560).toString(36).toUpperCase();
+  }
+  code = code.replace(/@name\s+(New Userscript)[\r\n]/g, (s, name) => {
+    return s.replace(name, `${name} ${lazyScriptNamePrefix}-${++lazyScriptIndex}`);
+  });
+  return code;
+};
