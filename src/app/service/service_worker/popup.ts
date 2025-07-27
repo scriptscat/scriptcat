@@ -114,7 +114,7 @@ export class PopupService {
           menu.options = message.options;
         }
       }
-      this.updateScriptMenu();
+      await this.updateScriptMenu();
       return data;
     });
   }
@@ -126,27 +126,22 @@ export class PopupService {
       if (script) {
         script.menus = script.menus.filter((item) => item.id !== id);
       }
-      this.updateScriptMenu();
+      await this.updateScriptMenu();
       return data;
     });
   }
 
-  updateScriptMenu() {
+  async updateScriptMenu() {
     // 获取当前页面并更新菜单
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-        // 无法获取当前页面
-        return;
-      }
-      if (!tabs.length) {
-        return;
-      }
-      const tab = tabs[0];
-      // 生成菜单
-      tab.id && this.genScriptMenu(tab.id);
-    });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs.length) {
+      return;
+    }
+    const tab = tabs[0];
+    // 生成菜单
+    if (tab.id) {
+      await this.genScriptMenu(tab.id);
+    }
   }
 
   scriptToMenu(script: Script): ScriptMenu {
