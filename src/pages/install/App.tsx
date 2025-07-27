@@ -441,193 +441,193 @@ function App() {
   }, [memoWatchFile]);
 
   return (
-    <div className="h-full">
-      <div className="h-full">
-        <Grid.Row className="mb-2" gutter={8}>
-          <Grid.Col flex={1} className="flex-col p-8px">
-            <Space direction="vertical" className="w-full">
-              <div>
-                {upsertScript?.metadata.icon && (
-                  <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                    <img src={upsertScript.metadata.icon[0]} alt={upsertScript?.name} />
-                  </Avatar>
-                )}
-                <Typography.Text bold className="text-size-lg">
-                  {upsertScript && i18nName(upsertScript)}
-                  <Tooltip
-                    content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
-                  >
-                    <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
-                  </Tooltip>
-                </Typography.Text>
-              </div>
-              <div>
-                <Typography.Text bold>{upsertScript && i18nDescription(upsertScript)}</Typography.Text>
-              </div>
-              <div>
-                <Typography.Text bold>
-                  {t("author")}: {metadataLive.author}
-                </Typography.Text>
-              </div>
-              <div>
-                <Typography.Text
-                  bold
-                  style={{
-                    overflowWrap: "break-word",
-                    wordBreak: "break-all",
-                    maxHeight: "70px",
-                    display: "block",
-                    overflowY: "auto",
-                  }}
+    <div id="install-app-container">
+      <Grid.Row className="mb-2" gutter={8}>
+        <Grid.Col flex={1} className="flex-col p-8px">
+          <Space direction="vertical" className="w-full">
+            <div>
+              {upsertScript?.metadata.icon && (
+                <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
+                  <img src={upsertScript.metadata.icon[0]} alt={upsertScript?.name} />
+                </Avatar>
+              )}
+              <Typography.Text bold className="text-size-lg">
+                {upsertScript && i18nName(upsertScript)}
+                <Tooltip
+                  content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
                 >
-                  {t("source")}: {scriptInfo?.url}
-                </Typography.Text>
-              </div>
-              <div className="text-end">
-                <Space>
+                  <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
+                </Tooltip>
+              </Typography.Text>
+            </div>
+            <div>
+              <Typography.Text bold>{upsertScript && i18nDescription(upsertScript)}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text bold>
+                {t("author")}: {metadataLive.author}
+              </Typography.Text>
+            </div>
+            <div>
+              <Typography.Text
+                bold
+                style={{
+                  overflowWrap: "break-word",
+                  wordBreak: "break-all",
+                  maxHeight: "70px",
+                  display: "block",
+                  overflowY: "auto",
+                }}
+              >
+                {t("source")}: {scriptInfo?.url}
+              </Typography.Text>
+            </div>
+            <div className="text-end">
+              <Space>
+                <Button.Group>
+                  <Button type="primary" size="small" onClick={() => handleInstall()} disabled={watchFile}>
+                    {btnText}
+                  </Button>
+                  <Dropdown
+                    droplist={
+                      <Menu>
+                        <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
+                          {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
+                        </Menu.Item>
+                        {!scriptInfo?.userSubscribe && (
+                          <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
+                            {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                          </Menu.Item>
+                        )}
+                      </Menu>
+                    }
+                    position="bottom"
+                    disabled={watchFile}
+                  >
+                    <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                  </Dropdown>
+                </Button.Group>
+                {localFileHandle && (
+                  <Popover content={t("watch_file_description")}>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() => {
+                        setWatchFile((prev) => !prev);
+                      }}
+                    >
+                      {watchFile ? t("stop_watch_file") : t("watch_file")}
+                    </Button>
+                  </Popover>
+                )}
+                {isUpdate ? (
                   <Button.Group>
-                    <Button type="primary" size="small" onClick={() => handleInstall()} disabled={watchFile}>
-                      {btnText}
+                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                      {t("close")}
                     </Button>
                     <Dropdown
                       droplist={
                         <Menu>
-                          <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
-                            {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
-                          </Menu.Item>
                           {!scriptInfo?.userSubscribe && (
-                            <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
-                              {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                            <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
+                              {t("close_update_script_no_more_update")}
                             </Menu.Item>
                           )}
                         </Menu>
                       }
                       position="bottom"
-                      disabled={watchFile}
                     >
-                      <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                      <Button type="primary" status="danger" size="small" icon={<IconDown />} />
                     </Dropdown>
                   </Button.Group>
-                  {localFileHandle && (
-                    <Popover content={t("watch_file_description")}>
-                      <Button
-                        type="secondary"
-                        size="small"
-                        onClick={() => {
-                          setWatchFile((prev) => !prev);
-                        }}
-                      >
-                        {watchFile ? t("stop_watch_file") : t("watch_file")}
-                      </Button>
-                    </Popover>
-                  )}
-                  {isUpdate ? (
-                    <Button.Group>
-                      <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
-                        {t("close")}
-                      </Button>
-                      <Dropdown
-                        droplist={
-                          <Menu>
-                            {!scriptInfo?.userSubscribe && (
-                              <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
-                                {t("close_update_script_no_more_update")}
-                              </Menu.Item>
-                            )}
-                          </Menu>
-                        }
-                        position="bottom"
-                      >
-                        <Button type="primary" status="danger" size="small" icon={<IconDown />} />
-                      </Dropdown>
-                    </Button.Group>
-                  ) : (
-                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
-                      {t("close")}
-                    </Button>
-                  )}
-                </Space>
-              </div>
-            </Space>
-          </Grid.Col>
-          <Grid.Col flex={1} className="p-8px">
-            <Space direction="vertical">
-              <div>
-                <Space>
-                  {oldScriptVersion && (
-                    <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
-                      <Tag bordered>{oldScriptVersion}</Tag>
-                    </Tooltip>
-                  )}
-                  {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
-                    <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
-                      <Tag bordered color="red">
-                        {metadataLive.version[0]}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {(metadataLive.background || metadataLive.crontab) && (
-                    <Tooltip color="green" content={t("background_script_tag")}>
-                      <Tag bordered color="green">
-                        {t("background_script")}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {metadataLive.crontab && (
-                    <Tooltip color="green" content={t("scheduled_script_tag")}>
-                      <Tag bordered color="green">
-                        {t("scheduled_script")}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {metadataLive.antifeature &&
-                    metadataLive.antifeature.map((antifeature) => {
-                      const item = antifeature.split(" ")[0];
-                      return (
-                        antifeatures[item] && (
-                          <Tooltip color={antifeatures[item].color} content={antifeatures[item].description}>
-                            <Tag bordered color={antifeatures[item].color}>
-                              {antifeatures[item].title}
-                            </Tag>
-                          </Tooltip>
-                        )
-                      );
-                    })}
-                </Space>
-              </div>
-              {description && description}
-              <div>
-                <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
-              </div>
-            </Space>
-          </Grid.Col>
-          <Grid.Col span={24}>
-            <Grid.Row>
-              {permissions.map((item) => (
-                <Grid.Col
-                  key={item.label}
-                  span={8}
-                  style={{
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    overflowX: "auto",
-                    boxSizing: "border-box",
-                  }}
-                  className="p-8px"
-                >
-                  <Typography.Text bold color={item.color}>
-                    {item.label}
-                  </Typography.Text>
-                  {item.value.map((v) => (
-                    <div key={v}>
-                      <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
-                    </div>
-                  ))}
-                </Grid.Col>
-              ))}
-            </Grid.Row>
-          </Grid.Col>
-        </Grid.Row>
+                ) : (
+                  <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                    {t("close")}
+                  </Button>
+                )}
+              </Space>
+            </div>
+          </Space>
+        </Grid.Col>
+        <Grid.Col flex={1} className="p-8px">
+          <Space direction="vertical">
+            <div>
+              <Space>
+                {oldScriptVersion && (
+                  <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
+                    <Tag bordered>{oldScriptVersion}</Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+                  <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
+                    <Tag bordered color="red">
+                      {metadataLive.version[0]}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {(metadataLive.background || metadataLive.crontab) && (
+                  <Tooltip color="green" content={t("background_script_tag")}>
+                    <Tag bordered color="green">
+                      {t("background_script")}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.crontab && (
+                  <Tooltip color="green" content={t("scheduled_script_tag")}>
+                    <Tag bordered color="green">
+                      {t("scheduled_script")}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.antifeature &&
+                  metadataLive.antifeature.map((antifeature) => {
+                    const item = antifeature.split(" ")[0];
+                    return (
+                      antifeatures[item] && (
+                        <Tooltip color={antifeatures[item].color} content={antifeatures[item].description}>
+                          <Tag bordered color={antifeatures[item].color}>
+                            {antifeatures[item].title}
+                          </Tag>
+                        </Tooltip>
+                      )
+                    );
+                  })}
+              </Space>
+            </div>
+            {description && description}
+            <div>
+              <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
+            </div>
+          </Space>
+        </Grid.Col>
+        <Grid.Col span={24}>
+          <Grid.Row>
+            {permissions.map((item) => (
+              <Grid.Col
+                key={item.label}
+                span={8}
+                style={{
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+                className="p-8px"
+              >
+                <Typography.Text bold color={item.color}>
+                  {item.label}
+                </Typography.Text>
+                {item.value.map((v) => (
+                  <div key={v}>
+                    <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
+                  </div>
+                ))}
+              </Grid.Col>
+            ))}
+          </Grid.Row>
+        </Grid.Col>
+      </Grid.Row>
+      <div id="show-code-container">
         <CodeEditor id="show-code" code={scriptCode || undefined} diffCode={diffCode || ""} />
       </div>
     </div>
