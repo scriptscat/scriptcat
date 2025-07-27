@@ -91,10 +91,6 @@ export class PopupService {
   }
 
   async registerMenuCommand(message: ScriptMenuRegisterCallbackValue) {
-    if ((await this.systemConfig.getScriptMenuDisplayType()) === "none") {
-      // 如果不显示脚本菜单则不处理
-      return;
-    }
     // 给脚本添加菜单
     return this.txUpdateScriptMenu(message.tabId, async (data) => {
       const script = data.find((item) => item.uuid === message.uuid);
