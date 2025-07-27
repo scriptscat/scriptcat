@@ -190,7 +190,7 @@ export async function prepareScriptByCode(
     if (script.type === SCRIPT_TYPE_NORMAL) {
       script.status = SCRIPT_STATUS_ENABLE;
     }
-    script.checktime = new Date().getTime();
+    script.checktime = Date.now();
   }
   return { script, oldScript: old, oldScriptCode: oldCode?.code };
 }

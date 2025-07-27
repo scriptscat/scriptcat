@@ -260,7 +260,7 @@ export class ScriptService {
     return this.scriptDAO
       .update(param.uuid, {
         status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-        updatetime: new Date().getTime(),
+        updatetime: Date.now(),
       })
       .then(() => {
         logger.info("enable success");
@@ -285,7 +285,7 @@ export class ScriptService {
     if (
       (await this.scriptDAO.update(params.uuid, {
         runStatus: params.runStatus,
-        lastruntime: new Date().getTime(),
+        lastruntime: Date.now(),
         error: params.error,
         nextruntime: params.nextruntime,
       })) === false
@@ -406,7 +406,7 @@ export class ScriptService {
     if (!script) {
       return false;
     }
-    await this.scriptDAO.update(uuid_, { checktime: new Date().getTime() });
+    await this.scriptDAO.update(uuid_, { checktime: Date.now() });
     const { uuid, name, checkUpdateUrl } = script;
     if (!checkUpdateUrl) {
       return false;
@@ -578,7 +578,7 @@ export class ScriptService {
     const newSort = arrayMove(scripts, oldIndex, newIndex);
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
+        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: Date.now() });
         newSort[i].sort = i;
       }
     }
