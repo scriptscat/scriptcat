@@ -325,12 +325,12 @@ export class SystemConfig {
     return this.get("badge_text_color", "#ffffff");
   }
 
-  // 设置显示脚本注册的菜单，不显示，不在浏览器中显示，全部显示
-  setScriptMenuDisplayType(type: "none" | "no_browser" | "all") {
+  // 设置显示脚本注册的菜单，不在浏览器中显示，全部显示
+  setScriptMenuDisplayType(type: "no_browser" | "all") {
     this.set("script_menu_display_type", type);
   }
 
-  getScriptMenuDisplayType(): Promise<"none" | "no_browser" | "all"> {
+  getScriptMenuDisplayType(): Promise<"no_browser" | "all"> {
     return this.get("script_menu_display_type", "all");
   }
 }

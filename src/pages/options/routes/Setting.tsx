@@ -33,7 +33,7 @@ function Setting() {
   const [badgeNumberType, setBadgeNumberType] = useState<"none" | "run_count" | "script_count">("run_count");
   const [badgeBackgroundColor, setBadgeBackgroundColor] = useState("#4e5969");
   const [badgeTextColor, setBadgeTextColor] = useState("#ffffff");
-  const [scriptMenuDisplayType, setScriptMenuDisplayType] = useState<"none" | "no_browser" | "all">("all");
+  const [scriptMenuDisplayType, setScriptMenuDisplayType] = useState<"no_browser" | "all">("all");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
   Object.keys(i18n.store.data).forEach((key) => {
@@ -203,21 +203,18 @@ function Setting() {
             <Space direction="vertical" size={12} className={"w-full"}>
               <div className="flex items-center justify-between min-h-9">
                 <div className="flex items-center gap-4 flex-1">
-                  <span className="min-w-20">{t("menu_display")}</span>
-                  <Select
-                    value={scriptMenuDisplayType}
-                    className="w-45 max-w-55"
-                    onChange={(value) => {
-                      setScriptMenuDisplayType(value);
-                      systemConfig.setScriptMenuDisplayType(value);
+                  <Checkbox
+                    checked={scriptMenuDisplayType === "all"}
+                    onChange={(e) => {
+                      const checked = e;
+                      setScriptMenuDisplayType(checked ? "all" : "no_browser");
+                      systemConfig.setScriptMenuDisplayType(checked ? "all" : "no_browser");
                     }}
                   >
-                    <Select.Option value="none">{t("menu_display_none")}</Select.Option>
-                    <Select.Option value="no_browser">{t("menu_display_no_browser")}</Select.Option>
-                    <Select.Option value="all">{t("menu_display_all")}</Select.Option>
-                  </Select>
+                    {t("display_right_click_menu")}
+                  </Checkbox>
                 </div>
-                <span className="text-xs ml-6 flex-shrink-0">{t("control_menu_display_position")}</span>
+                <span className="text-xs ml-6 flex-shrink-0">{t("display_right_click_menu_desc")}</span>
               </div>
               <div className="flex items-center justify-between min-h-9">
                 <div className="flex items-center gap-4 flex-1">
