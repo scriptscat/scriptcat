@@ -41,7 +41,8 @@ const Editor: React.FC<{
   hotKeys: HotKey[];
   callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
   onChange: (code: string) => void;
-}> = ({ id, script, code, hotKeys, callbackEditor, onChange }) => {
+  className: string;
+}> = ({ id, script, code, hotKeys, callbackEditor, onChange, className }) => {
   const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
   const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
     (inlineNode) => {
@@ -80,7 +81,7 @@ const Editor: React.FC<{
     };
   }, [node?.editor]);
 
-  return <CodeEditor key={id} id={id} ref={ref} code={code} diffCode="" editable />;
+  return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
 };
 
 const WarpEditor = React.memo(Editor, (prev, next) => {
@@ -1086,6 +1087,7 @@ function ScriptEditor() {
                   }}
                 >
                   <WarpEditor
+                    className="script-code-editor"
                     key={`e_${item.script.uuid}`}
                     id={`e_${item.script.uuid}`}
                     script={item.script}
