@@ -1,5 +1,3 @@
-import { getCurrentTab } from "@App/pkg/utils/utils";
-
 export function isExtensionRequest(
   details: chrome.webRequest.OnBeforeRequestDetails & { originUrl?: string }
 ): boolean {
@@ -112,15 +110,4 @@ export function parseUrlSRI(url: string): {
   }
 
   return { url: urls[0], hash };
-}
-
-// 检查是否正在播放视频，或者窗口未激活
-export async function isVideoPlayingOrInactive() {
-  try {
-    const tab = await getCurrentTab();
-    return (!tab || tab.audible === true || !tab.active);
-  } catch (e) {
-    console.error(e);
-    return false;
-  }
 }

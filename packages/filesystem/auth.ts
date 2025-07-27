@@ -41,7 +41,7 @@ export async function NetDisk(netDiskType: NetDiskType) {
     isClosed = async () => {
       if (!tabId) return true;
       const ret = await chrome.tabs.get(tabId);
-      return ret?.id !== tabId
+      return ret?.id !== tabId;
     };
   } else if (typeof window !== "undefined" && typeof window?.open === "function") {
     const loginWindow = window.open(newPageUrl);

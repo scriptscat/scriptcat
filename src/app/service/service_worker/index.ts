@@ -15,8 +15,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
-import { InfoNotification } from "@App/pkg/utils/utils";
-import { isVideoPlayingOrInactive } from "./utils";
+import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -156,18 +155,28 @@ export default class ServiceWorkerManager {
           console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
+        const host = "https://docs.scriptcat.org";
         if (details.reason === "install") {
-          chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
+          chrome.tabs.create({ url: `${host}${localePath}` });
         } else if (details.reason === "update") {
-          isVideoPlayingOrInactive().then((ok) => {
-            chrome.tabs.create({
-              url: `https://docs.scriptcat.org/docs/change/${
-                ExtVersion.includes("-") ? "beta-changelog/" : ""
-              }#${ExtVersion}`,
-              active: !ok,
+          const url = `${host}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+          getCurrentTab()
+            .then((tab) => {
+              // 检查是否正在播放视频，或者窗口未激活
+              const openInBackground = !tab || tab.audible === true || !tab.active;
+              chrome.tabs.create({
+                url,
+                active: !openInBackground,
+                index: !tab ? undefined : tab.index + 1,
+              });
+              InfoNotification(
+                t("ext_update_notification"),
+                t("ext_update_notification_desc", { version: ExtVersion })
+              );
+            })
+            .catch((e) => {
+              console.error(e);
             });
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
-          });
         }
       });
     }
@@ -178,11 +187,8 @@ export default class ServiceWorkerManager {
       .then((resp) => resp.json())
       .then((resp: { data: { notice: string; version: string } }) => {
         systemConfig.getCheckUpdate().then((items) => {
-          if (items.notice !== resp.data.notice) {
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: false }));
-          } else {
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: items.isRead }));
-          }
+          const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+          systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
         });
       });
   }

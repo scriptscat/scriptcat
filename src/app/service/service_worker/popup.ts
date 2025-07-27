@@ -18,6 +18,12 @@ import {
 import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
+import { timeoutExecution } from "@App/pkg/utils/timer";
+
+const runCountMap = new Map<number, string>();
+const scriptCountMap = new Map<number, string>();
+
+const cIdKey = `(cid_${Math.random()})`;
 
 // 处理popup页面的数据
 export class PopupService {
@@ -31,36 +37,36 @@ export class PopupService {
 
   genScriptMenuByTabMap(menu: ScriptMenu[]) {
     let n = 0;
-    menu.forEach((script) => {
+    for (const { uuid, name, menus } of menu) {
       // 如果是带输入框的菜单则不在页面内注册
-      const nonInputMenus = script.menus.filter((item) => !item.options?.inputType);
+      const nonInputMenus = menus.filter((item) => !item.options?.inputType);
       // 创建脚本菜单
       if (nonInputMenus.length) {
         n += nonInputMenus.length;
         chrome.contextMenus.create({
-          id: `scriptMenu_` + script.uuid,
-          title: script.name,
+          id: `scriptMenu_` + uuid,
+          title: name,
           contexts: ["all"],
           parentId: "scriptMenu",
         });
         nonInputMenus.forEach((menu) => {
           // 创建菜单
           chrome.contextMenus.create({
-            id: `scriptMenu_menu_${script.uuid}_${menu.id}`,
+            id: `scriptMenu_menu_${uuid}_${menu.id}`,
             title: menu.name,
             contexts: ["all"],
-            parentId: `scriptMenu_${script.uuid}`,
+            parentId: `scriptMenu_${uuid}`,
           });
         });
       }
-    });
+    }
     return n;
   }
 
   // 生成chrome菜单
   async genScriptMenu(tabId: number) {
     // 移除之前所有的菜单
-    chrome.contextMenus.removeAll();
+    await chrome.contextMenus.removeAll();
 
     if ((await this.systemConfig.getScriptMenuDisplayType()) !== "all") {
       return;
@@ -86,7 +92,7 @@ export class PopupService {
     }
     if (n === 0) {
       // 如果没有菜单，删除菜单
-      chrome.contextMenus.remove("scriptMenu");
+      await chrome.contextMenus.remove("scriptMenu");
     }
   }
 
@@ -206,7 +212,7 @@ export class PopupService {
     scripts: ScriptMatchInfo[];
   }) {
     // 设置数据
-    return this.txUpdateScriptMenu(tabId, async (data) => {
+    return await this.txUpdateScriptMenu(tabId, async (data) => {
       if (!frameId) {
         data = [];
       }
@@ -227,20 +233,12 @@ export class PopupService {
           data.push(item);
         }
       });
-      if ((await this.systemConfig.getBadgeNumberType()) === "script_count") {
-        chrome.action.setBadgeText({
-          text: data.length.toString(),
-          tabId: tabId,
-        });
-        chrome.action.setBadgeBackgroundColor({
-          color: await this.systemConfig.getBadgeBackgroundColor(),
-          tabId: tabId,
-        });
-        chrome.action.setBadgeTextColor({
-          color: await this.systemConfig.getBadgeTextColor(),
-          tabId: tabId,
-        });
+      let runCount = 0;
+      for (const d of data) {
+        runCount += d.runNum;
       }
+      scriptCountMap.set(tabId, `${data.length}`);
+      runCountMap.set(tabId, `${runCount}`);
       return data;
     });
   }
@@ -314,7 +312,7 @@ export class PopupService {
     });
   }
 
-  menuClick({
+  async menuClick({
     uuid,
     id,
     sender,
@@ -326,13 +324,53 @@ export class PopupService {
     inputValue?: any;
   }) {
     // 菜单点击事件
-    this.runtime.emitEventToTab(sender, {
+    await this.runtime.emitEventToTab(sender, {
       uuid,
       event: "menuClick",
       eventId: id.toString(),
       data: inputValue,
     });
-    return Promise.resolve(true); // 不需要异步
+    return true;
+  }
+
+  async updateBadgeIcon(tabId: number | undefined = -1) {
+    const badgeNumberType: string = await this.systemConfig.getBadgeNumberType();
+    let map: Map<number, string> | undefined;
+    if (badgeNumberType === "script_count") {
+      map = scriptCountMap;
+    } else if (badgeNumberType === "run_count") {
+      map = runCountMap;
+    } else {
+      // 不显示数字
+      return;
+    }
+    if (tabId < 0) {
+      const tab = await getCurrentTab();
+      tabId = tab?.id;
+    }
+    if (typeof tabId !== "number") return;
+    const text = map.get(tabId);
+    if (typeof text !== "string") return;
+    const backgroundColor = await this.systemConfig.getBadgeBackgroundColor();
+    const textColor = await this.systemConfig.getBadgeTextColor();
+    timeoutExecution(
+      `${cIdKey}-tabId#${tabId}`,
+      () => {
+        chrome.action.setBadgeText({
+          text: text || "",
+          tabId: tabId,
+        });
+        chrome.action.setBadgeBackgroundColor({
+          color: backgroundColor,
+          tabId: tabId,
+        });
+        chrome.action.setBadgeTextColor({
+          color: textColor,
+          tabId: tabId,
+        });
+      },
+      50
+    );
   }
 
   init() {
@@ -351,18 +389,20 @@ export class PopupService {
         // 没有 tabId 资讯，无法释放数据
         return;
       }
+      runCountMap.delete(tabId);
+      scriptCountMap.delete(tabId);
       // 清理数据tab关闭需要释放的数据
-      this.txUpdateScriptMenu(tabId, async (script) => {
-        script.forEach((script) => {
+      this.txUpdateScriptMenu(tabId, async (scripts) => {
+        for (const { uuid } of scripts) {
           // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
           // 避免先删除了数据获取不到
-          Cache.getInstance().tx(`GM_getTab:${script.uuid}`, async (tabData: { [key: number]: any }) => {
+          Cache.getInstance().tx(`GM_getTab:${uuid}`, async (tabData: { [key: number]: any }) => {
             if (tabData) {
               delete tabData[tabId];
             }
             return tabData;
           });
-        });
+        }
         return undefined;
       });
     });
@@ -375,6 +415,25 @@ export class PopupService {
         return;
       }
       this.genScriptMenu(activeInfo.tabId);
+      this.updateBadgeIcon(activeInfo.tabId);
+    });
+    chrome.tabs.onUpdated.addListener((tabId, _changeInfo, _tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
+        // 没有 tabId 资讯，无法加载菜单
+        return;
+      }
+      this.updateBadgeIcon(tabId);
+    });
+    chrome.windows.onFocusChanged.addListener((_windowId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.windows.onFocusChanged:", lastError);
+        // 没有 tabId 资讯，无法加载菜单
+        return;
+      }
+      this.updateBadgeIcon(-1);
     });
     // 处理chrome菜单点击
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -384,7 +443,7 @@ export class PopupService {
         // 出现错误不处理chrome菜单点击
         return;
       }
-      const menuIds = (info.menuItemId as string).split("_");
+      const menuIds = `${info.menuItemId}`.split("_");
       if (menuIds.length === 4) {
         const [, , uuid, id] = menuIds;
         // 寻找menu信息
@@ -400,7 +459,7 @@ export class PopupService {
         if (script) {
           const menuItem = script.menus.find((item) => item.id === parseInt(id, 10));
           if (menuItem) {
-            this.menuClick({
+            await this.menuClick({
               uuid: script.uuid,
               id: menuItem.id,
               sender: {
@@ -415,6 +474,9 @@ export class PopupService {
       }
     });
 
+    scriptCountMap.clear();
+    runCountMap.clear();
+
     // 监听运行次数
     this.mq.subscribe(
       "pageLoad",
@@ -428,38 +490,9 @@ export class PopupService {
         document: string;
         scripts: ScriptMatchInfo[];
       }) => {
-        this.addScriptRunNumber({ tabId, frameId, scripts });
+        await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
-        if ((await this.systemConfig.getBadgeNumberType()) !== "run_count") {
-          return;
-        }
-        chrome.action.getBadgeText(
-          {
-            tabId: tabId,
-          },
-          async (res: string) => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.action.getBadgeText:", lastError);
-              // 出现错误不设置角标
-              return;
-            }
-            if (res || scripts.length) {
-              chrome.action.setBadgeText({
-                text: (scripts.length + (parseInt(res, 10) || 0)).toString(),
-                tabId: tabId,
-              });
-              chrome.action.setBadgeBackgroundColor({
-                color: await this.systemConfig.getBadgeBackgroundColor(),
-                tabId: tabId,
-              });
-              chrome.action.setBadgeTextColor({
-                color: await this.systemConfig.getBadgeTextColor(),
-                tabId: tabId,
-              });
-            }
-          }
-        );
+        this.updateBadgeIcon(tabId);
       }
     );
   }
