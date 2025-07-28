@@ -22,6 +22,7 @@ import { timeoutExecution } from "@App/pkg/utils/timer";
 
 const runCountMap = new Map<number, string>();
 const scriptCountMap = new Map<number, string>();
+const badgeShownSet = new Set<number>();
 
 const cIdKey = `(cid_${Math.random()})`;
 
@@ -334,6 +335,11 @@ export class PopupService {
   }
 
   async updateBadgeIcon(tabId: number | undefined = -1) {
+    if (tabId < 0) {
+      const tab = await getCurrentTab();
+      tabId = tab?.id;
+    }
+    if (typeof tabId !== "number") return;
     const badgeNumberType: string = await this.systemConfig.getBadgeNumberType();
     let map: Map<number, string> | undefined;
     if (badgeNumberType === "script_count") {
@@ -342,20 +348,24 @@ export class PopupService {
       map = runCountMap;
     } else {
       // 不显示数字
+      if (badgeShownSet.has(tabId)) {
+        badgeShownSet.delete(tabId);
+        chrome.action.setBadgeText({
+          text: "",
+          tabId: tabId,
+        });
+      }
       return;
     }
-    if (tabId < 0) {
-      const tab = await getCurrentTab();
-      tabId = tab?.id;
-    }
-    if (typeof tabId !== "number") return;
     const text = map.get(tabId);
     if (typeof text !== "string") return;
     const backgroundColor = await this.systemConfig.getBadgeBackgroundColor();
     const textColor = await this.systemConfig.getBadgeTextColor();
+    badgeShownSet.add(tabId);
     timeoutExecution(
       `${cIdKey}-tabId#${tabId}`,
       () => {
+        if (!badgeShownSet.has(tabId)) return;
         chrome.action.setBadgeText({
           text: text || "",
           tabId: tabId,
