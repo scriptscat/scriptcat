@@ -8,7 +8,7 @@ export type Unsubscribe = () => void;
 
 // 消息队列
 export class MessageQueue {
-  private EE: EventEmitter = new EventEmitter();
+  private EE = new EventEmitter<string, any>();
 
   constructor() {
     chrome.runtime.onMessage.addListener((msg) => {

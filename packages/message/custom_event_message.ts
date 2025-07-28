@@ -14,7 +14,7 @@ export class CustomEventPostMessage implements PostMessage {
 
 // 使用CustomEvent来进行通讯, 可以在content与inject中传递一些dom对象
 export class CustomEventMessage implements Message {
-  EE: EventEmitter = new EventEmitter();
+  EE = new EventEmitter<string, any>();
 
   // 关联dom目标
   relatedTarget: Map<number, EventTarget> = new Map();

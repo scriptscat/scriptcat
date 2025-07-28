@@ -1011,7 +1011,7 @@ export default class GMApi {
       return;
     }
     // 使用xhr下载blob,再使用download api创建下载
-    const EE = new EventEmitter();
+    const EE = new EventEmitter<string, any>();
     const mockConnect = new MockMessageConnect(EE);
     EE.addListener("message", (data: any) => {
       const xhr = data.data;
