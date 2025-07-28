@@ -127,10 +127,10 @@ function getFaviconFromDomain(domain: string): Promise<string[]> {
     const error = r.err!;
     if (error.errType === 11) {
       // 網絡錯誤
-      console.warn(`${error.message}`);
+      console.log(`${error.message}`);
     } else if (error.errType === 12) {
       // 超时
-      console.warn(`${error.message}`);
+      console.log(`${error.message}`);
     } else {
       // 其他错误
       console.error(makeError(error));
