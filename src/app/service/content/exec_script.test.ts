@@ -132,12 +132,10 @@ describe("sandbox", () => {
     scriptRes2.code = `
     !function(t, e) {
       "object" == typeof exports ? module.exports = exports = e() : "function" == typeof define && define.amd ? define([], e) : t.CryptoJS = e()
-      // console.log("object" == typeof exports,"function" == typeof define)
   } (this, function () {
       return { test: "ok3" }
   });
-  // console.log(CryptoJS)
-  return ((typeof CryptoJS === "object") ? CryptoJS?.test : undefined);`;
+  return CryptoJS.test;`;
     sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok3");
@@ -567,6 +565,14 @@ describe("沙盒环境测试", async () => {
     _this.test1 = "ok";
     expect(Object.prototype.hasOwnProperty.call(_this, "test1")).toEqual(true);
     expect(Object.prototype.hasOwnProperty.call(_this, "test")).toEqual(false);
+  });
+
+  it("特殊关键字不能穿透沙盒", async () => {
+    expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
+    expect(_this["define"]).toBeUndefined();
+    _this["define"] = "ok";
+    expect(_this["define"]).toEqual("ok");
+    expect(_global["define"]).toEqual("特殊关键字不能穿透沙盒");
   });
 
   it("RegExp", async () => {

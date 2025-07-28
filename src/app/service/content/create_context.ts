@@ -285,6 +285,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     ...unscopables,
   };
 
+  // 处理特殊关键字，不能穿越出沙盒，也不能被外部修改
+  for (const key of ["define", "module", "exports"]) {
+    mySandbox[key] = undefined;
+  }
+
   // 脚本window设置
 
   // 把 GM Api (或其他全域API) 复製到 脚本window
