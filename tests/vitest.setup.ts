@@ -115,3 +115,6 @@ global.sandboxTestValue2 = "sandboxTestValue2";
 global.ttest1 = 1;
 //@ts-ignore
 global.ttest2 = 2;
+
+//@ts-ignore
+global.define = "特殊关键字不能穿透沙盒";
