@@ -29,7 +29,18 @@ const Match: React.FC<{
   const [excludeVisible, setExcludeVisible] = useState<boolean>(false);
   const { t } = useTranslation(); // 使用 react-i18next 的 useTranslation 钩子函数获取翻译函数
 
-  useEffect(() => {
+  // 自定义的状态更新函数，会在更新后自动刷新数据
+  const updateMatchAndRefresh = (newMatch: MatchItem[]) => {
+    setMatch(newMatch);
+    refreshMatch();
+  };
+
+  const updateExcludeAndRefresh = (newExclude: MatchItem[]) => {
+    setExclude(newExclude);
+    refreshMatch();
+  };
+
+  const refreshMatch = () => {
     if (script) {
       // 从数据库中获取是简单处理数据一致性的问题
       scriptDAO.get(script.uuid).then((res) => {
@@ -72,7 +83,11 @@ const Match: React.FC<{
         setExclude(e);
       });
     }
-  }, [script, exclude, match]);
+  };
+
+  useEffect(() => {
+    refreshMatch();
+  }, [script]);
 
   const columns: ColumnProps[] = [
     {
@@ -109,7 +124,7 @@ const Match: React.FC<{
                       exclude.map((m) => m.match)
                     )
                     .then(() => {
-                      setExclude([...exclude]);
+                      updateExcludeAndRefresh([...exclude]);
                       // 如果包含在里面，再加回match
                       if (item.hasMatch) {
                         match.push(item);
@@ -120,7 +135,7 @@ const Match: React.FC<{
                             match.map((m) => m.match)
                           )
                           .then(() => {
-                            setMatch([...match]);
+                            updateMatchAndRefresh([...match]);
                           });
                       }
                     });
@@ -143,7 +158,7 @@ const Match: React.FC<{
                     match.map((m) => m.match)
                   )
                   .then(() => {
-                    setMatch([...match]);
+                    updateMatchAndRefresh([...match]);
                     // 添加到exclue
                     if (!item.byUser) {
                       exclude.push(item);
@@ -153,7 +168,7 @@ const Match: React.FC<{
                           exclude.map((m) => m.match)
                         )
                         .then(() => {
-                          setExclude([...exclude]);
+                          updateExcludeAndRefresh([...exclude]);
                         });
                     }
                   });
@@ -188,7 +203,7 @@ const Match: React.FC<{
                 match.map((m) => m.match)
               )
               .then(() => {
-                setMatch([...match]);
+                updateMatchAndRefresh([...match]);
                 setMatchVisible(false);
               });
           }
@@ -220,7 +235,7 @@ const Match: React.FC<{
                 exclude.map((m) => m.match)
               )
               .then(() => {
-                setExclude([...exclude]);
+                updateExcludeAndRefresh([...exclude]);
                 setExcludeVisible(false);
               });
           }
@@ -250,7 +265,7 @@ const Match: React.FC<{
             title={t("confirm_reset")}
             onOk={() => {
               scriptClient.resetMatch(script.uuid, undefined).then(() => {
-                setMatch([]);
+                updateMatchAndRefresh([]);
               });
             }}
           >
@@ -279,7 +294,7 @@ const Match: React.FC<{
             title={t("confirm_reset")}
             onOk={() => {
               scriptClient.resetExclude(script.uuid, undefined).then(() => {
-                setExclude([]);
+                updateExcludeAndRefresh([]);
               });
             }}
           >
