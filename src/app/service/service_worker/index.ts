@@ -1,4 +1,4 @@
-import { ExtServer, ExtVersion } from "@App/app/const";
+import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
@@ -150,11 +150,10 @@ export default class ServiceWorkerManager {
           console.error("chrome.runtime.lastError in chrome.runtime.onInstalled:", lastError);
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
-        const host = "https://docs.scriptcat.org";
         if (details.reason === "install") {
-          chrome.tabs.create({ url: `${host}${localePath}` });
+          chrome.tabs.create({ url: `${DocumentationSite}${localePath}` });
         } else if (details.reason === "update") {
-          const url = `${host}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
           getCurrentTab()
             .then((tab) => {
               // 检查是否正在播放视频，或者窗口未激活

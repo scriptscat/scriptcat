@@ -1,4 +1,4 @@
-import { Discord, ExtVersion } from "@App/app/const";
+import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
@@ -305,7 +305,7 @@ function App() {
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key={`https://docs.scriptcat.org${localePath}`}>
+                    <Menu.Item key={`${DocumentationSite}${localePath}`}>
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
