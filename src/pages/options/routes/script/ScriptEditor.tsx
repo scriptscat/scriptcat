@@ -24,8 +24,7 @@ import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 
-const { Row } = Grid;
-const { Col } = Grid;
+const { Row, Col } = Grid;
 
 type HotKey = {
   id: string;

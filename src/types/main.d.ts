@@ -1,4 +1,5 @@
 declare module "@App/types/scriptcat.d.ts";
+declare module "@types/chrome/index.d.ts";
 declare module "*.tpl";
 declare module "*.json";
 declare module "*.yaml";
@@ -63,20 +64,4 @@ declare namespace GMSend {
     val: string;
     filename?: string;
   }
-}
-
-declare namespace chrome.userScripts {
-  const register: any;
-  const update: any;
-  const unregister: any;
-  const getScripts: any;
-  type RegisteredUserScript = any;
-}
-
-declare namespace chrome.alarms {
-  export function create(name: string, alarmInfo: AlarmCreateInfo, callback: any): void;
-}
-
-declare namespace chrome.webRequest {
-  type OnResponseStartedDetails = any;
 }
