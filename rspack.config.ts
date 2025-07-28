@@ -43,6 +43,7 @@ export default defineConfig({
     "editor.worker": "monaco-editor/esm/vs/editor/editor.worker.js",
     "ts.worker": "monaco-editor/esm/vs/language/typescript/ts.worker.js",
     "linter.worker": `${src}/linter.worker.ts`,
+    "fetch.worker": `${src}/fetch.worker.ts`,
   },
   output: {
     path: `${dist}/ext/src`,
@@ -213,9 +214,15 @@ export default defineConfig({
     splitChunks: {
       chunks: (chunk) => {
         // 排除这些文件，不进行分离
-        return !["editor.worker", "ts.worker", "linter.worker", "service_worker", "content", "inject"].includes(
-          chunk.name || ""
-        );
+        return ![
+          "editor.worker",
+          "ts.worker",
+          "linter.worker",
+          "fetch.worker",
+          "service_worker",
+          "content",
+          "inject",
+        ].includes(chunk.name || "");
       },
       minSize: 307200,
       maxSize: 4194304,
