@@ -1,4 +1,4 @@
-const fetchWorker = new Worker("/src/fetch.worker.js");
+import { type TMsgResponse } from "@App/app/service/service_worker/utils";
 
 /**
  * 从脚本的@match和@include规则中提取favicon图标
@@ -106,20 +106,37 @@ function extractDomainFromPattern(pattern: string): string | null {
 
 const localFavIconCaches = new Map<string, Promise<string[]>>();
 
-const resolveStore = new Map<string, (res: any) => void>();
-fetchWorker.onmessage = (ev) => {
-  const { domain, res } = ev.data;
-  resolveStore.get(domain)!(res);
-  resolveStore.delete(domain);
+const makeError = (e: any) => {
+  const { name } = e;
+  const o = {
+    [name]: class extends Error {
+      constructor(message: any) {
+        super(message);
+        this.name = name;
+      }
+    },
+  };
+  return new o[name](e.message);
 };
 
 function getFaviconFromDomain(domain: string): Promise<string[]> {
   let ret = localFavIconCaches.get(domain);
   if (ret) return ret;
-  ret = new Promise((resolve) => {
-    resolveStore.set(domain, resolve);
+  ret = chrome.runtime.sendMessage({ message: "fetch-icon-by-domain", domain }).then((r: TMsgResponse) => {
+    if (r.ok) return r.res!;
+    const error = r.err!;
+    if (error.errType === 11) {
+      // 網絡錯誤
+      console.warn(`${error.message}`);
+    } else if (error.errType === 12) {
+      // 超时
+      console.warn(`${error.message}`);
+    } else {
+      // 其他错误
+      console.error(makeError(error));
+    }
+    return [];
   });
-  fetchWorker.postMessage({ domain });
   localFavIconCaches.set(domain, ret);
   return ret;
 }

@@ -111,3 +111,24 @@ export function parseUrlSRI(url: string): {
 
   return { url: urls[0], hash };
 }
+
+export type TMsgResponse =
+  | {
+      ok: true;
+      res: any;
+    }
+  | {
+      ok: false;
+      err: {
+        name?: string;
+        message?: string;
+        errType?: number;
+        [key: string]: any;
+      };
+    };
+
+export const msgResponse = (errType: number, t: Error | any, params?: any): TMsgResponse => {
+  if (!errType) return { ok: true, res: t };
+  const { name, message } = t;
+  return { ok: false, err: { name, message, errType, ...t, ...params } };
+};

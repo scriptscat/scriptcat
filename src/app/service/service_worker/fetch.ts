@@ -1,3 +1,5 @@
+import { msgResponse, type TMsgResponse } from "./utils";
+
 // AbortSignal.timeout 是较新的功能。如果不支持 AbortSignal.timeout，则返回传统以定时器操作 AbortController
 const timeoutAbortSignal =
   typeof AbortSignal?.timeout === "function"
@@ -51,17 +53,18 @@ const checkFileNameEqual = (a: string, b: string) => {
 /**
  * 从域名获取favicon
  */
-async function getFaviconFromDomain_(domain: string): Promise<string[]> {
+export async function getFaviconFromDomain_(domain: string): Promise<TMsgResponse> {
   const url = `https://${domain}`;
   const icons: string[] = [];
 
   // 设置超时时间（例如 5 秒）
   const timeout = 5000; // 单位：毫秒
   let domainOK = false;
+  let fetchingUrl = "";
 
   try {
     // 获取页面HTML
-    const response = await fetch(url, { signal: timeoutAbortSignal(timeout) });
+    const response = await fetch((fetchingUrl = url), { signal: timeoutAbortSignal(timeout) });
     const html = await response.text();
     const resolvedPageUrl = response.url;
     const resolvedUrl = new URL(resolvedPageUrl);
@@ -79,7 +82,7 @@ async function getFaviconFromDomain_(domain: string): Promise<string[]> {
     const urls = await Promise.all(
       icons.map(async (icon) => {
         try {
-          const res = await fetch(icon, { method: "HEAD", signal: timeoutAbortSignal(timeout) });
+          const res = await fetch((fetchingUrl = icon), { method: "HEAD", signal: timeoutAbortSignal(timeout) });
           if (res.ok && checkFileNameEqual(res.url, icon)) {
             return res.url;
           }
@@ -89,19 +92,18 @@ async function getFaviconFromDomain_(domain: string): Promise<string[]> {
       })
     );
 
-    return urls.filter((url) => !!url) as string[];
+    return msgResponse(0, { res: urls.filter((url) => !!url) as string[] });
   } catch (error: any) {
     if (error.name === "TypeError" && error.message === "Failed to fetch" && !domainOK) {
       // 網絡錯誤
-      console.warn(`Unable to fetch ${domain}`);
+      return msgResponse(11, { name: "TypeError", message: `Unable to fetch ${domain}` });
     } else if (error.name === "AbortError" || error.name === "TimeoutError") {
       // 超时
-      console.warn(`Timeout while fetching favicon:`, url);
+      return msgResponse(12, { name: "TimeoutError", message: `Timeout while fetching favicon: ${fetchingUrl}` });
     } else {
       // 其他错误
-      console.error(`Error fetching favicon for ${domain}:`, error);
+      return msgResponse(1, { name: error.name, message: `Error fetching favicon for ${domain}:\n${error.message}` });
     }
-    return [];
   }
 }
 
@@ -115,14 +117,3 @@ function resolveUrl(href: string, base: string): string {
     return href; // 如果解析失败，返回原始href
   }
 }
-
-self.addEventListener("message", async (event) => {
-  const { domain } = event.data;
-  let res: string[];
-  try {
-    res = await getFaviconFromDomain_(domain);
-  } catch (_e) {
-    res = [];
-  }
-  self.postMessage({ domain, res });
-});
