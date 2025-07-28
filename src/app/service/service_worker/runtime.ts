@@ -719,7 +719,8 @@ export class RuntimeService {
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    const matches = scriptRes.metadata["match"] || [];
+    // concat 浅拷贝是为了避免修改原数组
+    const matches = (scriptRes.metadata["match"] || []).concat();
     matches.push(...(scriptRes.metadata["include"] || []));
     if (!matches.length) {
       return undefined;
@@ -744,7 +745,8 @@ export class RuntimeService {
 
     // 排除由loadPage时决定, 不使用userScript的excludeMatches处理
     if (script.metadata["exclude"]) {
-      const excludeMatches = script.metadata["exclude"];
+      // concat 浅拷贝是为了避免修改原数组
+      const excludeMatches = script.metadata["exclude"].concat();
       const result = dealPatternMatches(excludeMatches, {
         exclude: true,
       });
