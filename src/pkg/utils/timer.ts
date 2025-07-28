@@ -13,9 +13,9 @@ export const intervalExecution = (
   executeNow: boolean = false
 ) => {
   if (timerMap[key]) {
-    clearTimeout(timerMap[key]);
+    clearInterval(timerMap[key]);
     timerMap[key] = 0;
   }
-  timerMap[key] = setTimeout(fn, delayMs);
+  timerMap[key] = setInterval(fn, delayMs);
   if (executeNow) fn(true);
 };

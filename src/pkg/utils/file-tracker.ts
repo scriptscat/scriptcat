@@ -1,4 +1,4 @@
-const handleMap = new Set<[FileSystemFileHandle, FTInfo, FileSystemObserverInstance]>();
+const handleRecords = new Set<[FileSystemFileHandle, FTInfo, FileSystemObserverInstance]>();
 
 export type FTInfo = {
   uuid: string;
@@ -11,7 +11,7 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
   for (const record of records) {
     const { root, type } = record;
     if (!(root instanceof FileSystemFileHandle) || type !== "modified") continue;
-    for (const [fileHandle, ftInfo, fileObserver] of handleMap) {
+    for (const [fileHandle, ftInfo, fileObserver] of handleRecords) {
       if (fileObserver !== observer) continue;
       try {
         const isSame = await root.isSameEntry(fileHandle);
@@ -34,16 +34,16 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
 
 export const startFileTrack = (fileHandle: FileSystemFileHandle, ftInfo: FTInfo) => {
   const fileObserver = new FileSystemObserver(callback);
-  handleMap.add([fileHandle, ftInfo, fileObserver]);
+  handleRecords.add([fileHandle, ftInfo, fileObserver]);
   fileObserver!.observe(fileHandle);
 };
 
 export const unmountFileTrack = async (fileHandle: FileSystemFileHandle) => {
   try {
-    for (const entry of handleMap) {
+    for (const entry of handleRecords) {
       const [fileHandleEntry, _ftInfo, fileObserver] = entry;
       if (await fileHandle.isSameEntry(fileHandleEntry)) {
-        handleMap.delete(entry);
+        handleRecords.delete(entry);
         fileObserver.disconnect();
         return true;
       }
