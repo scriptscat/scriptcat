@@ -135,13 +135,8 @@ export default class ServiceWorkerManager {
     });
 
     // 监听配置变化
-    this.mq.subscribe("systemConfigChange", (msg) => {
-      switch (msg.key) {
-        case "cloud_sync": {
-          synchronize.cloudSyncConfigChange(msg.value);
-          break;
-        }
-      }
+    systemConfig.addListener("cloud_sync", (value) => {
+      synchronize.cloudSyncConfigChange(value);
     });
     // 启动一次云同步
     systemConfig.getCloudSync().then((config) => {

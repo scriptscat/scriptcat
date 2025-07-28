@@ -23,9 +23,9 @@ export type CATFileStorage = {
 };
 
 export class SystemConfig {
-  public cache = new Map<string, any>();
+  private cache = new Map<string, any>();
 
-  public storage = new ChromeStorage("system", true);
+  private storage = new ChromeStorage("system", true);
 
   constructor(private mq: MessageQueue) {
     this.mq.subscribe(SystamConfigChange, (msg) => {
@@ -36,49 +36,34 @@ export class SystemConfig {
 
   addListener(key: string, callback: (value: any) => void) {
     this.mq.subscribe(SystamConfigChange, (data: { key: string; value: string }) => {
-      if (data.key !== key) {
-        return;
+      if (data.key === key) {
+        callback(data.value);
       }
-      const { value } = data;
-      callback(value);
     });
-  }
-
-  async getAll(): Promise<{ [key: string]: any }> {
-    const ret: { [key: string]: any } = {};
-    const list = await this.storage.keys();
-    Object.keys(list).forEach((key) => {
-      this.cache.set(key, list[key]);
-      ret[key] = list[key];
-    });
-    return ret;
   }
 
   get<T>(key: string, defaultValue: T): Promise<T> {
     if (this.cache.has(key)) {
-      return Promise.resolve(this.cache.get(key));
+      const val = this.cache.get(key);
+      return Promise.resolve(val === undefined ? defaultValue : val);
     }
     return this.storage.get(key).then((val) => {
-      if (val === undefined) {
-        return defaultValue;
-      }
       this.cache.set(key, val);
-      return val;
+      return val === undefined ? defaultValue : val;
     });
   }
 
-  public set(key: string, val: any) {
-    if (val === undefined) {
-      this.cache.delete(key);
+  public set(key: string, value: any) {
+    this.cache.set(key, value);
+    if (value === undefined) {
       this.storage.remove(key);
     } else {
-      this.cache.set(key, val);
-      this.storage.set(key, val);
+      this.storage.set(key, value);
     }
     // 发送消息通知更新
     this.mq.publish(SystamConfigChange, {
       key,
-      value: val,
+      value,
     });
   }
 
@@ -275,9 +260,10 @@ export class SystemConfig {
 
   setEnableScript(enable: boolean) {
     if (chrome.extension.inIncognitoContext) {
-      return this.set("enable_script_incognito", enable);
+      this.set("enable_script_incognito", enable);
+    } else {
+      this.set("enable_script", enable);
     }
-    this.set("enable_script", enable);
   }
 
   async getEnableScript(): Promise<boolean> {
