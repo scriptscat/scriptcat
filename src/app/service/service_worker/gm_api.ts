@@ -20,6 +20,7 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
+import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -770,7 +771,7 @@ export default class GMApi {
   GM_registerMenuCommand(request: Request, sender: GetSender) {
     const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
-    this.mq.emit("registerMenuCommand", {
+    this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
       uuid: request.script.uuid,
       id,
       name,
@@ -785,7 +786,7 @@ export default class GMApi {
   GM_unregisterMenuCommand(request: Request, sender: GetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
-    this.mq.emit("unregisterMenuCommand", {
+    this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
       id: id,
       tabId: sender.getSender().tab?.id || -1,

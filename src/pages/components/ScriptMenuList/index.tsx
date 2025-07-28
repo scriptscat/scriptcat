@@ -28,7 +28,7 @@ import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { subscribeScriptRunStatus } from "@App/app/service/queue";
+import { type TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
 
@@ -160,7 +160,7 @@ const ScriptMenuList = React.memo(
     useEffect(() => {
       let isMounted = true;
       // 监听脚本运行状态
-      const unsub = subscribeScriptRunStatus(messageQueue, ({ uuid, runStatus }) => {
+      const unsub = messageQueue.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
         if (!isMounted) return;
         setList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
       });

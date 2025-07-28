@@ -9,7 +9,7 @@ import Cache from "@App/app/cache";
 import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
-import { subscribeScriptDelete } from "../queue";
+import { type TDeleteScript } from "../queue";
 
 export interface ConfirmParam {
   // 权限名
@@ -382,7 +382,7 @@ export default class PermissionVerify {
     this.group.on("updatePermission", this.updatePermission.bind(this));
     this.group.on("resetPermission", this.resetPermission.bind(this));
 
-    subscribeScriptDelete(this.mq, (data) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", (data) => {
       // 删除脚本的所有权限
       this.resetPermission(data.script.uuid);
     });

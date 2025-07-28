@@ -8,7 +8,7 @@ import { type PopupService } from "./popup";
 import Cache from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
-import { subscribeScriptDelete } from "../queue";
+import { type TDeleteScript } from "../queue";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 
@@ -213,7 +213,7 @@ export class ValueService {
     this.group.on("setScriptValue", this.setScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));
 
-    subscribeScriptDelete(this.mq, async (data) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", async (data) => {
       const storageName = getStorageName(data.script);
       // 判断还有没有其他同名storageName
       const list = await this.scriptDAO.find((_, script) => {

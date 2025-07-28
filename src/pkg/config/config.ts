@@ -2,7 +2,7 @@ import { Message } from "@arco-design/web-react";
 import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
-import type { MessageQueue } from "@Packages/message/message_queue";
+import type { MessageQueue, TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 
@@ -28,14 +28,14 @@ export class SystemConfig {
   private storage = new ChromeStorage("system", true);
 
   constructor(private mq: MessageQueue) {
-    this.mq.subscribe(SystamConfigChange, (msg) => {
+    this.mq.subscribe<TKeyValue>(SystamConfigChange, (msg) => {
       const { key, value } = msg;
       this.cache.set(key, value);
     });
   }
 
   addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe(SystamConfigChange, (data: { key: string; value: string }) => {
+    this.mq.subscribe<TKeyValue>(SystamConfigChange, (data) => {
       if (data.key === key) {
         callback(data.value);
       }
@@ -61,7 +61,7 @@ export class SystemConfig {
       this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish(SystamConfigChange, {
+    this.mq.publish<TKeyValue>(SystamConfigChange, {
       key,
       value,
     });

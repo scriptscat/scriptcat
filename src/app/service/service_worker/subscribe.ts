@@ -9,7 +9,7 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
 import { createScriptInfo, type InstallSource } from "./types";
-import { publishSubscribeInstall, subscribeSubscribeInstall } from "../queue";
+import { type TInstallSubscribe } from "../queue";
 import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
@@ -37,7 +37,7 @@ export class SubscribeService {
     try {
       await this.subscribeDAO.save(param.subscribe);
       logger.info("upsert subscribe success");
-      publishSubscribeInstall(this.mq, {
+      this.mq.publish<TInstallSubscribe>("installSubscribe", {
         subscribe: param.subscribe,
       });
       return param.subscribe.url;
@@ -277,7 +277,7 @@ export class SubscribeService {
     this.group.on("checkUpdate", this.requestCheckUpdate.bind(this));
     this.group.on("enable", this.enable.bind(this));
 
-    subscribeSubscribeInstall(this.mq, (message) => {
+    this.mq.subscribe<TInstallSubscribe>("installSubscribe", (message) => {
       this.upsertScript(message.subscribe);
     });
 

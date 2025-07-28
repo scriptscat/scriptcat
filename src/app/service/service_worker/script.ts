@@ -17,6 +17,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
+import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 
 export class ScriptService {
   logger: Logger;
@@ -219,7 +220,7 @@ export class ScriptService {
         // 下载资源
         this.resourceService.checkScriptResource(script).then(() => {
           // 广播一下
-          this.mq.publish("installScript", { script, update, upsertBy });
+          this.mq.publish<TInstallScript>("installScript", { script, update, upsertBy });
         });
         return { update };
       })
@@ -241,7 +242,7 @@ export class ScriptService {
       .then(() => {
         this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
-        this.mq.publish("deleteScript", { uuid, script });
+        this.mq.publish<TDeleteScript>("deleteScript", { uuid, script });
         return true;
       })
       .catch((e) => {
@@ -264,7 +265,7 @@ export class ScriptService {
       })
       .then(() => {
         logger.info("enable success");
-        this.mq.publish("enableScript", { uuid: param.uuid, enable: param.enable });
+        this.mq.publish<TEnableScript>("enableScript", { uuid: param.uuid, enable: param.enable });
         return {};
       })
       .catch((e) => {
@@ -292,7 +293,7 @@ export class ScriptService {
     ) {
       throw new Error("update error");
     }
-    this.mq.publish("scriptRunStatus", params);
+    this.mq.publish<TScriptRunStatus>("scriptRunStatus", params);
     return true;
   }
 
@@ -343,7 +344,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -367,7 +368,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -391,7 +392,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -582,7 +583,7 @@ export class ScriptService {
         newSort[i].sort = i;
       }
     }
-    this.mq.publish("sortScript", newSort);
+    this.mq.publish<TSortScript>("sortScript", newSort);
   }
 
   importByUrl(url: string) {

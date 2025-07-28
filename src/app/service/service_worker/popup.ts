@@ -7,13 +7,13 @@ import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import Cache from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
-import type { ScriptMenuRegisterCallbackValue } from "../queue";
-import {
-  subscribeScriptDelete,
-  subscribeScriptEnable,
-  subscribeScriptInstall,
-  subscribeScriptMenuRegister,
-  subscribeScriptRunStatus,
+import type {
+  TDeleteScript,
+  TEnableScript,
+  TInstallScript,
+  TScriptMenuRegister,
+  TScriptMenuUnregister,
+  TScriptRunStatus,
 } from "../queue";
 import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
@@ -97,7 +97,7 @@ export class PopupService {
     }
   }
 
-  async registerMenuCommand(message: ScriptMenuRegisterCallbackValue) {
+  async registerMenuCommand(message: TScriptMenuRegister) {
     // 给脚本添加菜单
     return this.txUpdateScriptMenu(message.tabId, async (data) => {
       const script = data.find((item) => item.uuid === message.uuid);
@@ -123,7 +123,7 @@ export class PopupService {
     });
   }
 
-  async unregisterMenuCommand({ id, uuid, tabId }: { id: number; uuid: string; tabId: number }) {
+  async unregisterMenuCommand({ id, uuid, tabId }: TScriptMenuUnregister) {
     return this.txUpdateScriptMenu(tabId, async (data) => {
       // 删除脚本菜单
       const script = data.find((item) => item.uuid === uuid);
@@ -246,7 +246,7 @@ export class PopupService {
 
   dealBackgroundScriptInstall() {
     // 处理后台脚本
-    subscribeScriptInstall(this.mq, async ({ script }) => {
+    this.mq.subscribe<TInstallScript>("installScript", async ({ script }) => {
       if (script.type === SCRIPT_TYPE_NORMAL) {
         return;
       }
@@ -263,7 +263,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptEnable(this.mq, async ({ uuid }) => {
+    this.mq.subscribe<TEnableScript>("enableScript", async ({ uuid }) => {
       const script = await this.scriptDAO.get(uuid);
       if (!script) {
         return;
@@ -288,7 +288,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptDelete(this.mq, async ({ uuid }) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       return this.txUpdateScriptMenu(-1, async (menu) => {
         const index = menu.findIndex((item) => item.uuid === uuid);
         if (index !== -1) {
@@ -297,7 +297,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptRunStatus(this.mq, async ({ uuid, runStatus }) => {
+    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", async ({ uuid, runStatus }) => {
       return this.txUpdateScriptMenu(-1, async (menu) => {
         const scriptMenu = menu.find((item) => item.uuid === uuid);
         if (scriptMenu) {
@@ -385,8 +385,8 @@ export class PopupService {
 
   init() {
     // 处理脚本菜单数据
-    subscribeScriptMenuRegister(this.mq, this.registerMenuCommand.bind(this));
-    this.mq.subscribe("unregisterMenuCommand", this.unregisterMenuCommand.bind(this));
+    this.mq.subscribe<TScriptMenuRegister>("registerMenuCommand", this.registerMenuCommand.bind(this));
+    this.mq.subscribe<TScriptMenuUnregister>("unregisterMenuCommand", this.unregisterMenuCommand.bind(this));
     this.group.on("getPopupData", this.getPopupData.bind(this));
     this.group.on("menuClick", this.menuClick.bind(this));
     this.dealBackgroundScriptInstall();

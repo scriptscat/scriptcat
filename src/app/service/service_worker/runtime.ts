@@ -6,7 +6,7 @@ import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
-import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall, subscribeScriptSort } from "../queue";
+import type { TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
@@ -119,7 +119,7 @@ export class RuntimeService {
     }
 
     // 监听脚本开启
-    subscribeScriptEnable(this.mq, async (data) => {
+    this.mq.subscribe<TEnableScript>("enableScript", async (data) => {
       const script = await this.scriptDAO.getAndCode(data.uuid);
       if (!script) {
         this.logger.error("script enable failed, script not found", {
@@ -139,7 +139,7 @@ export class RuntimeService {
       }
     });
     // 监听脚本安装
-    subscribeScriptInstall(this.mq, async (data) => {
+    this.mq.subscribe<TInstallScript>("installScript", async (data) => {
       const script = await this.scriptDAO.get(data.script.uuid);
       if (!script) {
         this.logger.error("script install failed, script not found", {
@@ -152,12 +152,12 @@ export class RuntimeService {
       }
     });
     // 监听脚本删除
-    subscribeScriptDelete(this.mq, async ({ uuid }) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       await this.unregistryPageScript(uuid);
       this.deleteScriptMatch(uuid);
     });
     // 监听脚本排序
-    subscribeScriptSort(this.mq, async (scripts) => {
+    this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.sort((a, b) => uuidSort[a] - uuidSort[b]);
       // 更新缓存
@@ -175,7 +175,10 @@ export class RuntimeService {
           if (script.type === SCRIPT_TYPE_NORMAL) {
             return;
           }
-          this.mq.publish("enableScript", { uuid: script.uuid, enable: script.status === SCRIPT_STATUS_ENABLE });
+          this.mq.publish<TEnableScript>("enableScript", {
+            uuid: script.uuid,
+            enable: script.status === SCRIPT_STATUS_ENABLE,
+          });
         });
       });
     });
