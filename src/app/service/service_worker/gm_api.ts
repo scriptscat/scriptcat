@@ -168,8 +168,8 @@ export default class GMApi {
         return true;
       }
       const detail = <GMTypes.CookieDetails>request.params[1];
-      if (!detail.url) {
-        throw new Error("there must be one of url");
+      if (!detail.url && !detail.domain) {
+        throw new Error("there must be one of url or domain");
       }
       let url: URL = <URL>{};
       if (detail.url) {
@@ -215,8 +215,8 @@ export default class GMApi {
     if (detail.domain) {
       detail.domain = detail.domain.trim();
     }
-    if (!detail.url) {
-      throw new Error("there must be one of url");
+    if (!detail.url && !detail.domain) {
+      throw new Error("there must be one of url or domain");
     }
     if (typeof detail.partitionKey !== "object" || detail.partitionKey == null) {
       detail.partitionKey = {};

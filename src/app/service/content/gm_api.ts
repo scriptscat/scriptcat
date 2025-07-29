@@ -343,9 +343,15 @@ export default class GMApi extends GM_Base {
     details: GMTypes.CookieDetails,
     done: (cookie: GMTypes.Cookie[] | any, error: any | undefined) => void
   ) {
-    // 如果没有url，自动填充当前url
-    if (!details.url) {
+    // 如果url和域名都没有，自动填充当前url
+    if (!details.url && !details.domain) {
       details.url = window.location.href;
+    }
+    // 如果是set、delete操作，自动填充当前url
+    if (action === "set" || action === "delete") {
+      if (!details.url) {
+        details.url = window.location.href;
+      }
     }
     a.sendMessage("GM_cookie", [action, details])
       .then((resp: any) => {
