@@ -109,11 +109,26 @@ export async function openInCurrentTab(url: string) {
   const tab = await getCurrentTab();
   const createProperties: chrome.tabs.CreateProperties = { url };
   if (tab) {
-    // 不要添加 openerTabId
-    // 会出现 Error "Tab opener must be in the same window as the updated tab."
+    // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
+    if (tab.id! >= 0) {
+      createProperties.openerTabId = tab.id;
+    }
     createProperties.index = tab.index + 1;
   }
-  await chrome.tabs.create(createProperties);
+  let tryWithNoTabId;
+  try {
+    await chrome.tabs.create(createProperties);
+  } catch (_e) {
+    tryWithNoTabId = true;
+  }
+  if (tryWithNoTabId) {
+    delete createProperties.openerTabId;
+    try {
+      await chrome.tabs.create(createProperties);
+    } catch (_e) {
+      // do nothing
+    }
+  }
 }
 
 export function isDebug() {
