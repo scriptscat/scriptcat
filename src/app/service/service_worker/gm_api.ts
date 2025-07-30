@@ -311,11 +311,11 @@ export default class GMApi {
 
   @PermissionVerify.API()
   CAT_userConfig(request: Request, sender: GetSender): void {
-    const tabId = sender.getExtMessageSender().tabId;
+    const { tabId, windowId } = sender.getExtMessageSender();
     chrome.tabs.create({
       url: `/src/options.html#/?userConfig=${request.uuid}`,
-      active: true,
       openerTabId: tabId === -1 ? undefined : tabId,
+      windowId: windowId === -1 ? undefined : windowId,
     });
   }
 
@@ -342,11 +342,11 @@ export default class GMApi {
   async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
-      const tabId = sender.getExtMessageSender().tabId;
+      const { tabId, windowId } = sender.getExtMessageSender();
       chrome.tabs.create({
         url: `/src/options.html#/setting`,
-        active: true,
         openerTabId: tabId === -1 ? undefined : tabId,
+        windowId: windowId === -1 ? undefined : windowId,
       });
       return true;
     }
@@ -815,11 +815,12 @@ export default class GMApi {
         return false;
       }
     } else {
-      const tabId = sender.getExtMessageSender().tabId;
+      const { tabId, windowId } = sender.getExtMessageSender();
       const tab = await chrome.tabs.create({
         url,
         active: options.active,
         openerTabId: tabId === -1 ? undefined : tabId,
+        windowId: windowId === -1 ? undefined : windowId,
       });
       await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
         uuid: request.uuid,

@@ -14,6 +14,7 @@ export class GetSender {
     if (this.sender instanceof ExtensionMessageConnect) {
       const con = this.sender.getPort();
       return {
+        windowId: con.sender?.tab?.windowId || -1, // -1表示后台脚本
         tabId: con.sender?.tab?.id || -1, // -1表示后台脚本
         frameId: con.sender?.frameId,
         documentId: con.sender?.documentId,
@@ -21,6 +22,7 @@ export class GetSender {
     }
     const sender = this.sender as MessageSender;
     return {
+      windowId: sender.tab?.windowId || -1, // -1表示后台脚本
       tabId: sender.tab?.id || -1, // -1表示后台脚本
       frameId: sender.frameId,
       documentId: sender.documentId,

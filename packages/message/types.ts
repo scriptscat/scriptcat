@@ -21,4 +21,5 @@ export type ExtMessageSender = {
   tabId: number;
   frameId?: number;
   documentId?: string;
+  windowId?: number;
 };

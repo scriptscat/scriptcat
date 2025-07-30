@@ -100,7 +100,7 @@ export function parseStorageValue(str: string): unknown {
 // https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
 export async function getCurrentTab() {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
 
@@ -110,25 +110,11 @@ export async function openInCurrentTab(url: string) {
   const createProperties: chrome.tabs.CreateProperties = { url };
   if (tab) {
     // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
-    if (tab.id! >= 0) {
-      createProperties.openerTabId = tab.id;
-    }
+    createProperties.openerTabId = tab.id;
+    createProperties.windowId = tab.windowId;
     createProperties.index = tab.index + 1;
   }
-  let tryWithNoTabId;
-  try {
-    await chrome.tabs.create(createProperties);
-  } catch (_e) {
-    tryWithNoTabId = true;
-  }
-  if (tryWithNoTabId) {
-    delete createProperties.openerTabId;
-    try {
-      await chrome.tabs.create(createProperties);
-    } catch (_e) {
-      // do nothing
-    }
-  }
+  await chrome.tabs.create(createProperties);
 }
 
 export function isDebug() {

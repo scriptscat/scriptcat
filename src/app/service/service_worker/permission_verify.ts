@@ -269,10 +269,11 @@ export default class PermissionVerify {
         reject,
       });
       // 打开窗口
-      const tabId = sender.getExtMessageSender().tabId;
+      const { tabId, windowId } = sender.getExtMessageSender();
       chrome.tabs.create({
         url: chrome.runtime.getURL(`src/confirm.html?uuid=${uuid}`),
         openerTabId: tabId === -1 ? undefined : tabId, // 如果是后台脚本,则不设置openerTabId
+        windowId: windowId === -1 ? undefined : windowId, // 如果是后台脚本,则不设置windowId
       });
     });
   }
