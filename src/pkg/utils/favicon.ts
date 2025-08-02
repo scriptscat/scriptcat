@@ -1,4 +1,5 @@
 import { type TMsgResponse } from "@App/app/service/service_worker/utils";
+import { systemClient } from "@App/pages/store/global";
 
 /**
  * 从脚本的@match和@include规则中提取favicon图标
@@ -122,7 +123,7 @@ const makeError = (e: any) => {
 function getFaviconFromDomain(domain: string): Promise<string[]> {
   let ret = localFavIconCaches.get(domain);
   if (ret) return ret;
-  ret = chrome.runtime.sendMessage({ message: "fetch-icon-by-domain", domain }).then((r: TMsgResponse) => {
+  ret = systemClient.getFaviconFromDomain(domain).then((r: TMsgResponse<string[]>) => {
     if (r.ok) return r.res!;
     const error = r.err!;
     if (error.errType === 11) {

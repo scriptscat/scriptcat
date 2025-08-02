@@ -4,6 +4,7 @@ import type { MessageSend } from "@Packages/message/types";
 import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
+import { fetchIconByDomain } from "./fetch";
 
 // 一些系统服务
 export class SystemService {
@@ -12,6 +13,10 @@ export class SystemService {
     private group: Group,
     private sender: MessageSend
   ) {}
+
+  getFaviconFromDomain(domain: string) {
+    return fetchIconByDomain(domain);
+  }
 
   async init() {
     const vscodeConnect = new VscodeConnectClient(this.sender);
@@ -45,5 +50,7 @@ export class SystemService {
           });
       });
     });
+
+    this.group.on("getFaviconFromDomain", this.getFaviconFromDomain.bind(this));
   }
 }

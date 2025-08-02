@@ -53,7 +53,7 @@ const checkFileNameEqual = (a: string, b: string) => {
 /**
  * 从域名获取favicon
  */
-export async function fetchIconByDomain(domain: string): Promise<TMsgResponse> {
+export async function fetchIconByDomain(domain: string): Promise<TMsgResponse<string[]>> {
   const url = `https://${domain}`;
   const icons: string[] = [];
 

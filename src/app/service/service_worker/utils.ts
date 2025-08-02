@@ -131,10 +131,10 @@ export function isVideoPlayingOrInactive() {
   });
 }
 
-export type TMsgResponse =
+export type TMsgResponse<T> =
   | {
       ok: true;
-      res: any;
+      res: T;
     }
   | {
       ok: false;
@@ -146,8 +146,8 @@ export type TMsgResponse =
       };
     };
 
-export const msgResponse = (errType: number, t: Error | any, params?: any): TMsgResponse => {
+export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMsgResponse<T> {
   if (!errType) return { ok: true, res: t };
   const { name, message } = t;
   return { ok: false, err: { name, message, errType, ...t, ...params } };
-};
+}
