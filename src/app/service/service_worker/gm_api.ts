@@ -752,7 +752,7 @@ export default class GMApi {
     }
     // 再发送到offscreen, 处理请求
     const offscreenCon = await connect(this.send, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
-    offscreenCon.onMessage((msg: { action: string; data: any }) => {
+    offscreenCon.onMessage((msg) => {
       // 发送到content
       // 替换msg.data.responseHeaders
       msg.data.responseHeaders = resultParam.responseHeader || msg.data.responseHeaders;

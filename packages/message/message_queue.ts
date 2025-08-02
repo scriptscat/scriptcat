@@ -1,8 +1,10 @@
 import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
+import { type TMessage } from "./extension_message";
 
 export type TKeyValue = { key: string; value: string };
 
+export type SubscribeCallback = (message: NonNullable<any>) => void;
 // 释放订阅
 export type Unsubscribe = () => void;
 
@@ -11,7 +13,7 @@ export class MessageQueue {
   private EE = new EventEmitter<string, any>();
 
   constructor() {
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg: TMessage) => {
       const lastError = chrome.runtime.lastError;
       const topic = msg.msgQueue;
       if (typeof topic !== "string") return;
@@ -24,7 +26,7 @@ export class MessageQueue {
     });
   }
 
-  handler(topic: string, { action, message }: { action: string; message: any }) {
+  handler(topic: string, { action, message }: { action: string; message: NonNullable<any> }) {
     LoggerCore.getInstance()
       .logger({ service: "messageQueue" })
       .trace("messageQueueHandler", { action, topic, message });
@@ -44,7 +46,7 @@ export class MessageQueue {
     };
   }
 
-  publish<T>(topic: string, message: T) {
+  publish<T>(topic: string, message: NonNullable<T>) {
     chrome.runtime.sendMessage({
       msgQueue: topic,
       data: { action: "message", message },
@@ -55,7 +57,7 @@ export class MessageQueue {
   }
 
   // 只发布给当前环境
-  emit<T>(topic: string, message: T) {
+  emit<T>(topic: string, message: NonNullable<T>) {
     this.EE.emit(topic, message);
   }
 }

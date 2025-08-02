@@ -1,7 +1,7 @@
 import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
-import { ExtensionMessageConnect } from "./extension_message";
+import { ExtensionMessageConnect, type TMessage } from "./extension_message";
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
@@ -57,7 +57,8 @@ export class Server {
       });
     }
 
-    message.onMessage((msg: { action: string; data: any }, sendResponse, sender) => {
+    message.onMessage((msg: TMessage, sendResponse, sender) => {
+      if (typeof msg.action !== "string") return;
       this.logger.trace("server onMessage", { msg: msg as any });
       if (msg.action.startsWith(prefix)) {
         return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
