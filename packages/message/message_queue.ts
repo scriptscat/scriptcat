@@ -53,10 +53,8 @@ export class MessageQueue {
       data: { action: "message", topic, message },
     });
     this.EE.emit(topic, message);
-    if (process.env.NODE_ENV === "development") {
-      //@ts-ignore
-      LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
-    }
+    //@ts-ignore
+    LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
   }
 
   // 只发布给当前环境
