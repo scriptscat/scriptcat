@@ -6,7 +6,7 @@ import type { MessageQueue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 
-export const SystamConfigChange = "systemConfigChange";
+export const SystemConfigChange = "systemConfigChange";
 
 export type CloudSyncConfig = {
   enable: boolean;
@@ -23,67 +23,53 @@ export type CATFileStorage = {
 };
 
 export class SystemConfig {
-  public cache = new Map<string, any>();
+  private readonly cache = new Map<string, any>();
 
-  public storage = new ChromeStorage("system", true);
+  private readonly storage = new ChromeStorage("system", true);
 
   constructor(private mq: MessageQueue) {
-    this.mq.subscribe(SystamConfigChange, (msg) => {
-      const { key, value } = msg;
+    this.mq.subscribe(SystemConfigChange, ({ key, value }) => {
       this.cache.set(key, value);
     });
   }
 
   addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe(SystamConfigChange, (data: { key: string; value: string }) => {
-      if (data.key !== key) {
-        return;
+    this.mq.subscribe(SystemConfigChange, (data: { key: string; value: string }) => {
+      if (data.key === key) {
+        callback(data.value);
       }
-      const { value } = data;
-      callback(value);
     });
   }
 
-  async getAll(): Promise<{ [key: string]: any }> {
-    const ret: { [key: string]: any } = {};
-    const list = await this.storage.keys();
-    Object.keys(list).forEach((key) => {
-      this.cache.set(key, list[key]);
-      ret[key] = list[key];
-    });
-    return ret;
-  }
-
-  get<T>(key: string, defaultValue: T): Promise<T> {
+  get<T>(key: string, defaultValue: Exclude<T, undefined>): Promise<T> {
     if (this.cache.has(key)) {
-      return Promise.resolve(this.cache.get(key));
+      let val = this.cache.get(key);
+      val = (val === undefined ? defaultValue : val) as T;
+      return Promise.resolve(val);
     }
     return this.storage.get(key).then((val) => {
-      if (val === undefined) {
-        return defaultValue;
-      }
       this.cache.set(key, val);
+      val = (val === undefined ? defaultValue : val) as T;
       return val;
     });
   }
 
-  public set(key: string, val: any) {
-    if (val === undefined) {
-      this.cache.delete(key);
+  public set(key: string, value: any) {
+    this.cache.set(key, value);
+    if (value === undefined) {
       this.storage.remove(key);
     } else {
-      this.cache.set(key, val);
-      this.storage.set(key, val);
+      this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish(SystamConfigChange, {
+    this.mq.publish(SystemConfigChange, {
       key,
-      value: val,
+      value,
     });
   }
 
   public getChangetime() {
-    return this.get("changetime", 0);
+    return this.get<number>("changetime", 0);
   }
 
   public setChangetime(n: number) {
@@ -92,7 +78,7 @@ export class SystemConfig {
 
   // 检查更新周期,单位为秒
   public getCheckScriptUpdateCycle() {
-    return this.get("check_script_update_cycle", 86400);
+    return this.get<number>("check_script_update_cycle", 86400);
   }
 
   public setCheckScriptUpdateCycle(n: number) {
@@ -100,7 +86,7 @@ export class SystemConfig {
   }
 
   public getSilenceUpdateScript() {
-    return this.get("silence_update_script", false);
+    return this.get<boolean>("silence_update_script", false);
   }
 
   public setSilenceUpdateScript(val: boolean) {
@@ -108,7 +94,7 @@ export class SystemConfig {
   }
 
   public getEnableAutoSync() {
-    return this.get("enable_auto_sync", true);
+    return this.get<boolean>("enable_auto_sync", true);
   }
 
   public setEnableAutoSync(enable: boolean) {
@@ -117,7 +103,7 @@ export class SystemConfig {
 
   // 更新已经禁用的脚本
   public getUpdateDisableScript() {
-    return this.get("update_disable_script", true);
+    return this.get<boolean>("update_disable_script", true);
   }
 
   public setUpdateDisableScript(enable: boolean) {
@@ -125,7 +111,7 @@ export class SystemConfig {
   }
 
   public getVscodeUrl() {
-    return this.get("vscode_url", "ws://localhost:8642");
+    return this.get<string>("vscode_url", "ws://localhost:8642");
   }
 
   public setVscodeUrl(val: string) {
@@ -133,18 +119,15 @@ export class SystemConfig {
   }
 
   public getVscodeReconnect() {
-    return this.get("vscode_reconnect", false);
+    return this.get<boolean>("vscode_reconnect", false);
   }
 
   public setVscodeReconnect(val: boolean) {
     this.set("vscode_reconnect", val);
   }
 
-  public getBackup(): Promise<{
-    filesystem: FileSystemType;
-    params: { [key: string]: any };
-  }> {
-    return this.get("backup", {
+  public getBackup() {
+    return this.get<Parameters<typeof this.setBackup>[0]>("backup", {
       filesystem: "webdav",
       params: {},
     });
@@ -154,8 +137,8 @@ export class SystemConfig {
     this.set("backup", data);
   }
 
-  getCloudSync(): Promise<CloudSyncConfig> {
-    return this.get("cloud_sync", {
+  getCloudSync() {
+    return this.get<CloudSyncConfig>("cloud_sync", {
       enable: false,
       syncDelete: true,
       syncStatus: true,
@@ -168,8 +151,8 @@ export class SystemConfig {
     this.set("cloud_sync", data);
   }
 
-  getCatFileStorage(): Promise<CATFileStorage> {
-    return this.get("cat_file_storage", {
+  getCatFileStorage() {
+    return this.get<CATFileStorage>("cat_file_storage", {
       status: "unset",
       filesystem: "webdav",
       params: {},
@@ -181,7 +164,7 @@ export class SystemConfig {
   }
 
   getEnableEslint() {
-    return this.get("enable_eslint", true);
+    return this.get<boolean>("enable_eslint", true);
   }
 
   setEnableEslint(val: boolean) {
@@ -189,7 +172,7 @@ export class SystemConfig {
   }
 
   getEslintConfig() {
-    return this.get("eslint_config", defaultConfig);
+    return this.get<string>("eslint_config", defaultConfig);
   }
 
   setEslintConfig(v: string) {
@@ -209,7 +192,7 @@ export class SystemConfig {
 
   // 日志清理周期
   getLogCleanCycle() {
-    return this.get("log_clean_cycle", 7);
+    return this.get<number>("log_clean_cycle", 7);
   }
 
   setLogCleanCycle(val: number) {
@@ -227,7 +210,7 @@ export class SystemConfig {
 
   // 展开菜单数
   getMenuExpandNum() {
-    return this.get("menu_expand_num", 5);
+    return this.get<number>("menu_expand_num", 5);
   }
 
   setMenuExpandNum(val: number) {
@@ -265,8 +248,8 @@ export class SystemConfig {
     });
   }
 
-  getCheckUpdate(): Promise<Parameters<typeof this.setCheckUpdate>[0]> {
-    return this.get("check_update", {
+  getCheckUpdate() {
+    return this.get<Parameters<typeof this.setCheckUpdate>[0]>("check_update", {
       notice: "",
       isRead: false,
       version: ExtVersion,
@@ -275,13 +258,14 @@ export class SystemConfig {
 
   setEnableScript(enable: boolean) {
     if (chrome.extension.inIncognitoContext) {
-      return this.set("enable_script_incognito", enable);
+      this.set("enable_script_incognito", enable);
+    } else {
+      this.set("enable_script", enable);
     }
-    this.set("enable_script", enable);
   }
 
-  async getEnableScript(): Promise<boolean> {
-    const enableScript = await this.get("enable_script", true);
+  async getEnableScript() {
+    const enableScript = await this.get<boolean>("enable_script", true);
     if (chrome.extension.inIncognitoContext) {
       // 如果是隐身窗口，主窗口设置为false，直接返回false
       if (enableScript === false) {
@@ -296,8 +280,8 @@ export class SystemConfig {
     this.set("blacklist", blacklist);
   }
 
-  getBlacklist(): Promise<string> {
-    return this.get("blacklist", "");
+  getBlacklist() {
+    return this.get<string>("blacklist", "");
   }
 
   // 设置徽标数字类型，不显示，运行次数，脚本个数
@@ -305,24 +289,24 @@ export class SystemConfig {
     this.set("badge_number_type", type);
   }
 
-  getBadgeNumberType(): Promise<"none" | "run_count" | "script_count"> {
-    return this.get("badge_number_type", "run_count");
+  getBadgeNumberType() {
+    return this.get<"none" | "run_count" | "script_count">("badge_number_type", "run_count");
   }
 
   setBadgeBackgroundColor(color: string) {
     this.set("badge_background_color", color);
   }
 
-  getBadgeBackgroundColor(): Promise<string> {
-    return this.get("badge_background_color", "#4e5969");
+  getBadgeBackgroundColor() {
+    return this.get<string>("badge_background_color", "#4e5969");
   }
 
   setBadgeTextColor(color: string) {
     this.set("badge_text_color", color);
   }
 
-  getBadgeTextColor(): Promise<string> {
-    return this.get("badge_text_color", "#ffffff");
+  getBadgeTextColor() {
+    return this.get<string>("badge_text_color", "#ffffff");
   }
 
   // 设置显示脚本注册的菜单，不在浏览器中显示，全部显示
@@ -330,7 +314,7 @@ export class SystemConfig {
     this.set("script_menu_display_type", type);
   }
 
-  getScriptMenuDisplayType(): Promise<"no_browser" | "all"> {
-    return this.get("script_menu_display_type", "all");
+  getScriptMenuDisplayType() {
+    return this.get<"no_browser" | "all">("script_menu_display_type", "all");
   }
 }
