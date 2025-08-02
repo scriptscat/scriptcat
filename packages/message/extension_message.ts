@@ -83,7 +83,7 @@ class RuntimeExtMessengerBase extends RuntimeExtMessageRequester implements IMRe
 
   // 注意chrome.runtime.onMessage.addListener的回调函数需要返回true才能处理异步请求
   onMessage(
-    callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => void
+    callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => boolean | void
   ): void {
     if (this.configFlag & CONFIG_RUNTIME_COMM) {
       chrome.runtime.onMessage?.addListener((msg: TMessage, sender, sendResponse) => {

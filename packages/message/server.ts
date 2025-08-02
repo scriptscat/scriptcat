@@ -66,7 +66,7 @@ export class Server {
       });
     }
 
-    message.onMessage((msg: TMessage, sendResponse, sender) => {
+    message.onMessage((msg: TMessage, sendResponse, sender): boolean | void => {
       if (typeof msg.action !== "string") return;
       this.logger.trace("server onMessage", { msg: msg as any });
       if (msg.action?.startsWith(prefix)) {
