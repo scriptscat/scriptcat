@@ -136,7 +136,7 @@ export class SynchronizeService {
     } as unknown as ScriptBackupData;
     const storage: ValueStorage = {
       data: {},
-      ts: new Date().getTime(),
+      ts: Date.now(),
     };
     const values = await this.value.getScriptValue(script);
     Object.keys(values).forEach((key) => {
@@ -471,7 +471,7 @@ export class SynchronizeService {
           if (status[script.uuid].sort !== script.sort) {
             await this.scriptDAO.update(script.uuid, {
               sort: status[script.uuid].sort,
-              updatetime: new Date().getTime(),
+              updatetime: Date.now(),
             });
           }
           // 脚本状态

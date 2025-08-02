@@ -19,5 +19,5 @@ GM_addValueChangeListener("test_set", function (name, oldval, newval, remote) {
 setInterval(() => {
     console.log("test_set: ", GM_getValue("test_set"));
     console.log("value list:", GM_listValues());
-    GM_setValue("test_set", (new Date()).getTime());
+    GM_setValue("test_set", Date.now());
 }, 2000);

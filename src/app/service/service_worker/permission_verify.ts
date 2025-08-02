@@ -201,7 +201,7 @@ export default class PermissionVerify {
       permission: confirm.permission,
       permissionValue: "",
       allow: userConfirm.allow,
-      createtime: new Date().getTime(),
+      createtime: Date.now(),
       updatetime: 0,
     };
     switch (userConfirm.type) {
@@ -342,7 +342,7 @@ export default class PermissionVerify {
     const key = this.permissionDAO.key(permission);
     const result = await this.permissionDAO.update(key, {
       allow: permission.allow,
-      updatetime: new Date().getTime(),
+      updatetime: Date.now(),
     });
     if (result) {
       this.clearCache(permission.uuid);
