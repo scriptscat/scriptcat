@@ -4,7 +4,7 @@ import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomMessageFlag } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
@@ -148,10 +148,11 @@ export class ScriptService {
     const uuid = uuidv4();
     return fetchScriptInfo(url, source, false, uuid)
       .then((info) => {
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
+        const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${uuid}`;
+        Cache.getInstance().set(cacheKey, info);
         setTimeout(() => {
           // 清理缓存
-          Cache.getInstance().del(CacheKey.scriptInstallInfo(uuid));
+          Cache.getInstance().del(cacheKey);
         }, 30 * 1000);
         openInCurrentTab(`/src/install.html?uuid=${uuid}`);
         return { success: true, msg: "" };
@@ -188,7 +189,8 @@ export class ScriptService {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return Cache.getInstance().get(CacheKey.scriptInstallInfo(uuid));
+    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${uuid}`;
+    return Cache.getInstance().get(cacheKey);
   }
 
   // 安装脚本
@@ -261,7 +263,7 @@ export class ScriptService {
     return this.scriptDAO
       .update(param.uuid, {
         status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-        updatetime: new Date().getTime(),
+        updatetime: Date.now(),
       })
       .then(() => {
         logger.info("enable success");
@@ -286,7 +288,7 @@ export class ScriptService {
     if (
       (await this.scriptDAO.update(params.uuid, {
         runStatus: params.runStatus,
-        lastruntime: new Date().getTime(),
+        lastruntime: Date.now(),
         error: params.error,
         nextruntime: params.nextruntime,
       })) === false
@@ -407,7 +409,7 @@ export class ScriptService {
     if (!script) {
       return false;
     }
-    await this.scriptDAO.update(uuid, { checktime: new Date().getTime() });
+    await this.scriptDAO.update(uuid, { checktime: Date.now() });
     if (!script.checkUpdateUrl) {
       return false;
     }
@@ -478,7 +480,8 @@ export class ScriptService {
           }
         }
         // 打开安装页面
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
+        const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${info.uuid}`;
+        Cache.getInstance().set(cacheKey, info);
         chrome.tabs.create({
           url: `/src/install.html?uuid=${info.uuid}`,
         });
@@ -569,7 +572,7 @@ export class ScriptService {
     const newSort = arrayMove(scripts, oldIndex, newIndex);
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
+        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: Date.now() });
         newSort[i].sort = i;
       }
     }

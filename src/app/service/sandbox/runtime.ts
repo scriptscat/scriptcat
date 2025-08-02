@@ -120,7 +120,7 @@ export class Runtime {
     this.execScripts.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
-    script.lastruntime = new Date().getTime();
+    script.lastruntime = Date.now();
     const ret = exec.exec();
     if (ret instanceof Promise) {
       ret

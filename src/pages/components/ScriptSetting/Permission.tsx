@@ -120,7 +120,7 @@ const PermissionManager: React.FC<{
               permission: permissionValue.permission,
               permissionValue: permissionValue.permissionValue,
               allow: permissionValue.allow,
-              createtime: new Date().getTime(),
+              createtime: Date.now(),
               updatetime: 0,
             });
             permissionClient.addPermission(permissionValue).then(() => {

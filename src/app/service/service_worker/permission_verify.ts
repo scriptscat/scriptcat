@@ -6,7 +6,7 @@ import { type Group } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import type { Api, Request } from "./types";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
 import { subscribeScriptDelete } from "../queue";
@@ -173,7 +173,7 @@ export default class PermissionVerify {
     if (typeof confirm === "boolean") {
       return confirm;
     }
-    const cacheKey = CacheKey.permissionConfirm(request.script.uuid, confirm);
+    const cacheKey = `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
     // 从数据库中查询是否有此权限
     const ret = await Cache.getInstance().getOrSet(cacheKey, async () => {
       let model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
@@ -201,7 +201,7 @@ export default class PermissionVerify {
       permission: confirm.permission,
       permissionValue: "",
       allow: userConfirm.allow,
-      createtime: new Date().getTime(),
+      createtime: Date.now(),
       updatetime: 0,
     };
     switch (userConfirm.type) {
@@ -225,7 +225,7 @@ export default class PermissionVerify {
     }
     // 总是 放入数据库
     if (userConfirm.type >= 4) {
-      const oldConfirm = await this.permissionDAO.findByKey(request.uuid, model.permission, model.permissionValue);
+      const oldConfirm = await this.permissionDAO.findByKey(model.uuid, model.permission, model.permissionValue);
       if (!oldConfirm) {
         await this.permissionDAO.save(model);
       } else {
@@ -342,7 +342,7 @@ export default class PermissionVerify {
     const key = this.permissionDAO.key(permission);
     const result = await this.permissionDAO.update(key, {
       allow: permission.allow,
-      updatetime: new Date().getTime(),
+      updatetime: Date.now(),
     });
     if (result) {
       this.clearCache(permission.uuid);
@@ -366,7 +366,7 @@ export default class PermissionVerify {
     // 删除所有以permission:uuid:开头的缓存
     await Promise.all(
       keys.map((key) => {
-        if (key.startsWith(`permission:${uuid}:`)) {
+        if (key.startsWith(`${CACHE_KEY_PERMISSION}${uuid}:`)) {
           return Cache.getInstance().del(key);
         }
       })

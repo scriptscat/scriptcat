@@ -148,7 +148,7 @@ export class ResourceService {
     let res = await this.getResourceModel(url);
     if (res) {
       // 判断1分钟过期
-      if ((res.updatetime || 0) > new Date().getTime() - 1000 * 60) {
+      if ((res.updatetime || 0) > Date.now() - 1000 * 60) {
         return res;
       }
     }
@@ -170,10 +170,10 @@ export class ResourceService {
     let result = await this.getResourceModel(u.url);
     try {
       const resource = await this.loadByUrl(u.url, type);
-      resource.updatetime = new Date().getTime();
+      resource.updatetime = Date.now();
       if (!result) {
         // 资源不存在,保存
-        resource.createtime = new Date().getTime();
+        resource.createtime = Date.now();
         resource.link = { [uuid]: true };
         await this.resourceDAO.save(resource);
         result = resource;
@@ -268,7 +268,7 @@ export class ResourceService {
       base64: "",
       link: {},
       type,
-      createtime: new Date().getTime(),
+      createtime: Date.now(),
     };
     const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
@@ -292,7 +292,7 @@ export class ResourceService {
     if (!data.source) {
       return undefined;
     }
-    const time = new Date().getTime();
+    const time = Date.now();
     let res = await this.resourceDAO.get(data.meta.url);
     if (!res) {
       // 新增资源
