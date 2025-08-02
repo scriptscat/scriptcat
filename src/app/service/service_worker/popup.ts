@@ -4,7 +4,7 @@ import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
 import type { ScriptMatchInfo, ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
-import Cache from "@App/app/cache";
+import { cacheInstance, type ITxSetD } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type { ScriptMenuRegisterCallbackValue } from "../queue";
@@ -189,17 +189,15 @@ export class PopupService {
     return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
   }
 
-  async getScriptMenu(tabId: number) {
+  async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {
     const cacheKey = `${CACHE_KEY_TAB_SCRIPT}${tabId}`;
-    return ((await Cache.getInstance().get(cacheKey)) || []) as ScriptMenu[];
+    return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
   }
 
   // 事务更新脚本菜单
-  txUpdateScriptMenu(tabId: number, callback: (menu: ScriptMenu[]) => Promise<any>) {
+  txUpdateScriptMenu(tabId: number, callback: ITxSetD<ScriptMenu[]>) {
     const cacheKey = `${CACHE_KEY_TAB_SCRIPT}${tabId}`;
-    return Cache.getInstance().tx<ScriptMenu[]>(cacheKey, async (menu) => {
-      return callback(menu || []);
-    });
+    return cacheInstance.tx<ScriptMenu[]>(cacheKey, (menu) => callback(menu || []));
   }
 
   async addScriptRunNumber({
@@ -260,7 +258,7 @@ export class PopupService {
       if (script.status !== SCRIPT_STATUS_ENABLE) {
         return;
       }
-      return this.txUpdateScriptMenu(-1, async (menu) => {
+      return this.txUpdateScriptMenu(-1, (menu) => {
         const scriptMenu = menu.find((item) => item.uuid === script.uuid);
         // 加入菜单
         if (!scriptMenu) {
@@ -278,7 +276,7 @@ export class PopupService {
       if (script.type === SCRIPT_TYPE_NORMAL) {
         return;
       }
-      return this.txUpdateScriptMenu(-1, async (menu) => {
+      return this.txUpdateScriptMenu(-1, (menu) => {
         const index = menu.findIndex((item) => item.uuid === uuid);
         if (script.status === SCRIPT_STATUS_ENABLE) {
           // 加入菜单
@@ -296,7 +294,7 @@ export class PopupService {
       });
     });
     subscribeScriptDelete(this.mq, async ({ uuid }) => {
-      return this.txUpdateScriptMenu(-1, async (menu) => {
+      return this.txUpdateScriptMenu(-1, (menu) => {
         const index = menu.findIndex((item) => item.uuid === uuid);
         if (index !== -1) {
           menu.splice(index, 1);
@@ -305,7 +303,7 @@ export class PopupService {
       });
     });
     subscribeScriptRunStatus(this.mq, async ({ uuid, runStatus }) => {
-      return this.txUpdateScriptMenu(-1, async (menu) => {
+      return this.txUpdateScriptMenu(-1, (menu) => {
         const scriptMenu = menu.find((item) => item.uuid === uuid);
         if (scriptMenu) {
           scriptMenu.runStatus = runStatus;
@@ -358,11 +356,11 @@ export class PopupService {
         return;
       }
       // 清理数据tab关闭需要释放的数据
-      this.txUpdateScriptMenu(tabId, async (script) => {
+      this.txUpdateScriptMenu(tabId, (script) => {
         script.forEach((script) => {
           // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
           // 避免先删除了数据获取不到
-          Cache.getInstance().tx(`GM_getTab:${script.uuid}`, async (tabData: { [key: number]: any }) => {
+          cacheInstance.tx(`GM_getTab:${script.uuid}`, (tabData?: { [key: number]: any }) => {
             if (tabData) {
               delete tabData[tabId];
             }

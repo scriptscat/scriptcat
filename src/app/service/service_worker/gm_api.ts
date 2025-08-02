@@ -9,7 +9,7 @@ import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
-import Cache, { incr } from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
 import { getIcon, isFirefox } from "@App/pkg/utils/utils";
@@ -710,7 +710,7 @@ export default class GMApi {
     const params = request.params[0] as GMSend.XHRDetails;
     // 先处理unsafe hearder
     // 关联自己生成的请求id与chrome.webRequest的请求id
-    const requestId = 10000 + (await incr(Cache.getInstance(), "gmXhrRequestId", 1));
+    const requestId = 10000 + (await cacheInstance.incr("gmXhrRequestId", 1));
     // 添加请求header
     if (!params.headers) {
       params.headers = {};
@@ -804,7 +804,7 @@ export default class GMApi {
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
         const [tab] = await chrome.tabs.query({ active: true });
-        await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
+        await cacheInstance.set(`GM_openInTab:${tab.id}`, {
           uuid: request.uuid,
           sender: sender.getExtMessageSender(),
         });
@@ -822,7 +822,7 @@ export default class GMApi {
         openerTabId: tabId === -1 ? undefined : tabId,
         windowId: windowId === -1 ? undefined : windowId,
       });
-      await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
+      await cacheInstance.set(`GM_openInTab:${tab.id}`, {
         uuid: request.uuid,
         sender: sender.getExtMessageSender(),
       });
@@ -844,8 +844,8 @@ export default class GMApi {
 
   @PermissionVerify.API({})
   GM_getTab(request: Request, sender: GetSender) {
-    return Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    return cacheInstance
+      .tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
         return tabData || {};
       })
       .then((data) => {
@@ -857,7 +857,7 @@ export default class GMApi {
   async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    await Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    await cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
       tabData = tabData || {};
       tabData[tabId] = data;
       return tabData;
@@ -867,7 +867,7 @@ export default class GMApi {
 
   @PermissionVerify.API()
   GM_getTabs(request: Request) {
-    return Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
       return tabData || {};
     });
   }
@@ -926,7 +926,7 @@ export default class GMApi {
           throw e;
         }
       }
-      Cache.getInstance().set(`GM_notification:${notificationId}`, {
+      cacheInstance.set(`GM_notification:${notificationId}`, {
         uuid: request.script.uuid,
         details: details,
         sender: sender.getExtMessageSender(),
@@ -934,9 +934,7 @@ export default class GMApi {
       if (details.timeout) {
         setTimeout(async () => {
           chrome.notifications.clear(notificationId);
-          const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
-            | NotificationData
-            | undefined;
+          const sender = await cacheInstance.get<NotificationData>(`GM_notification:${notificationId}`);
           if (sender) {
             this.gmExternalDependencies.emitEventToTab(sender.sender, {
               event: "GM_notification",
@@ -950,7 +948,7 @@ export default class GMApi {
               } as NotificationMessageOption,
             });
           }
-          Cache.getInstance().del(`GM_notification:${notificationId}`);
+          cacheInstance.del(`GM_notification:${notificationId}`);
         }, details.timeout);
       }
       return notificationId;
@@ -965,7 +963,7 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [notificationId] = request.params;
-    Cache.getInstance().del(`GM_notification:${notificationId}`);
+    cacheInstance.del(`GM_notification:${notificationId}`);
     chrome.notifications.clear(notificationId);
   }
 
@@ -1103,9 +1101,7 @@ export default class GMApi {
       notificationId: string,
       params: NotificationMessageOption["params"] = {}
     ) => {
-      const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
-        | NotificationData
-        | undefined;
+      const sender = await cacheInstance.get<NotificationData>(`GM_notification:${notificationId}`);
       if (sender) {
         this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_notification",
@@ -1127,7 +1123,7 @@ export default class GMApi {
       send("close", notificationId, {
         byUser,
       });
-      Cache.getInstance().del(`GM_notification:${notificationId}`);
+      cacheInstance.del(`GM_notification:${notificationId}`);
     });
     chrome.notifications.onClicked.addListener((notificationId) => {
       const lastError = chrome.runtime.lastError;
@@ -1253,10 +1249,10 @@ export default class GMApi {
         return undefined;
       }
       // 处理GM_openInTab关闭事件
-      const sender = (await Cache.getInstance().get(`GM_openInTab:${tabId}`)) as {
+      const sender = await cacheInstance.get<{
         uuid: string;
         sender: ExtMessageSender;
-      };
+      }>(`GM_openInTab:${tabId}`);
       if (sender) {
         this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_openInTab",
@@ -1267,7 +1263,7 @@ export default class GMApi {
             tabId: tabId,
           },
         });
-        Cache.getInstance().del(`GM_openInTab:${tabId}`);
+        cacheInstance.del(`GM_openInTab:${tabId}`);
       }
     });
   }

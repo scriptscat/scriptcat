@@ -5,7 +5,7 @@ import { ValueDAO } from "@App/app/repo/value";
 import type { GetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import Cache from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
 import { subscribeScriptDelete } from "../queue";
@@ -70,7 +70,7 @@ export class ValueService {
     let oldValue;
     // 使用事务来保证数据一致性
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const flag = await Cache.getInstance().tx(cacheKey, async () => {
+    const flag = await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
         await this.valueDAO.save(storageName, {
@@ -158,7 +158,7 @@ export class ValueService {
     const storageName = getStorageName(script);
     let oldValue: { [key: string]: any } = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    await Cache.getInstance().tx(cacheKey, async () => {
+    await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
         await this.valueDAO.save(storageName, {

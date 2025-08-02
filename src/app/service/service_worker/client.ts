@@ -9,7 +9,7 @@ import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { v4 as uuidv4 } from "uuid";
-import Cache from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
@@ -305,7 +305,7 @@ export class SynchronizeClient extends Client {
     // }, 60 * 1000);
     const uuid = uuidv4();
     const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
-    await Cache.getInstance().set(cacheKey, {
+    await cacheInstance.set(cacheKey, {
       filename: filename,
       url: url,
     });
