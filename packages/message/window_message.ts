@@ -24,7 +24,7 @@ export type WindowMessageBody = {
 };
 
 export class WindowMessage implements Message {
-  EE: EventEmitter = new EventEmitter();
+  EE = new EventEmitter<string, any>();
 
   // source: Window 消息来源
   // target: Window 消息目标
@@ -123,7 +123,7 @@ export class WindowMessage implements Message {
 export class WindowMessageConnect implements MessageConnect {
   constructor(
     private messageId: string,
-    private EE: EventEmitter,
+    private EE: EventEmitter<string, any>,
     private target: PostMessage
   ) {
     this.onDisconnect(() => {
@@ -164,7 +164,7 @@ export class WindowMessageConnect implements MessageConnect {
 // 不进行监听的话又无法从service_worker主动发送消息
 // 所以service_worker与offscreen使用ServiceWorker的方式进行通信
 export class ServiceWorkerMessageSend implements MessageSend {
-  EE: EventEmitter = new EventEmitter();
+  EE = new EventEmitter<string, any>();
 
   private target: PostMessage | undefined = undefined;
 

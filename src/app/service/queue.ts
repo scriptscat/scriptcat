@@ -1,66 +1,32 @@
 import type { Script, SCRIPT_RUN_STATUS } from "../repo/scripts";
-import { type MessageQueue } from "@Packages/message/message_queue";
 import type { InstallSource, ScriptMenuItem } from "./service_worker/types";
 import type { Subscribe } from "../repo/subscribe";
 
-export function subscribeScriptInstall(
-  messageQueue: MessageQueue,
-  callback: (message: { script: Script; update: boolean; upsertBy: InstallSource }) => void
-) {
-  return messageQueue.subscribe("installScript", callback);
-}
+export type TInstallScript = { script: Script; update: boolean; upsertBy?: InstallSource };
 
-export function subscribeScriptDelete(
-  messageQueue: MessageQueue,
-  callback: (message: { uuid: string; script: Script }) => void
-) {
-  return messageQueue.subscribe("deleteScript", callback);
-}
+export type TDeleteScript = { uuid: string; script: Script };
 
-export function subscribeScriptSort(messageQueue: MessageQueue, callback: (message: Script[]) => void) {
-  return messageQueue.subscribe("sortScript", callback);
-}
+export type TSortScript = Script[];
 
-export function subscribeSubscribeInstall(
-  messageQueue: MessageQueue,
-  callback: (message: { subscribe: Subscribe; update: boolean }) => void
-) {
-  return messageQueue.subscribe("installSubscribe", callback);
-}
+export type TInstallSubscribe = { subscribe: Subscribe };
 
-export function publishSubscribeInstall(messageQueue: MessageQueue, message: { subscribe: Subscribe }) {
-  return messageQueue.publish("installSubscribe", message);
-}
+export type TEnableScript = { uuid: string; enable: boolean };
 
-export type ScriptEnableCallbackValue = { uuid: string; enable: boolean };
+export type TScriptRunStatus = { uuid: string; runStatus: SCRIPT_RUN_STATUS };
 
-export function subscribeScriptEnable(
-  messageQueue: MessageQueue,
-  callback: (message: ScriptEnableCallbackValue) => void
-) {
-  return messageQueue.subscribe("enableScript", callback);
-}
-
-export function subscribeScriptRunStatus(
-  messageQueue: MessageQueue,
-  callback: (message: { uuid: string; runStatus: SCRIPT_RUN_STATUS }) => void
-) {
-  return messageQueue.subscribe("scriptRunStatus", callback);
-}
-
-export type ScriptMenuRegisterCallbackValue = {
+export type TScriptMenuRegister = {
   uuid: string;
   id: number;
   name: string;
   options?: ScriptMenuItem["options"];
   tabId: number;
-  frameId: number;
-  documentId: string;
+  frameId?: number;
+  documentId?: string;
 };
 
-export function subscribeScriptMenuRegister(
-  messageQueue: MessageQueue,
-  callback: (message: ScriptMenuRegisterCallbackValue) => void
-) {
-  return messageQueue.subscribe("registerMenuCommand", callback);
-}
+export type TScriptMenuUnregister = {
+  id: number;
+  uuid: string;
+  tabId: number;
+  frameId?: number;
+};

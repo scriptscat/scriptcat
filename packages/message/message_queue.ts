@@ -1,13 +1,14 @@
 import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
 
-export type SubscribeCallback = (message: any) => void;
+export type TKeyValue = { key: string; value: string };
+
 // 释放订阅
 export type Unsubscribe = () => void;
 
 // 消息队列
 export class MessageQueue {
-  private EE: EventEmitter = new EventEmitter();
+  private EE = new EventEmitter<string, any>();
 
   constructor() {
     chrome.runtime.onMessage.addListener((msg) => {
@@ -39,24 +40,27 @@ export class MessageQueue {
     }
   }
 
-  subscribe(topic: string, handler: SubscribeCallback): Unsubscribe {
+  subscribe<T>(topic: string, handler: (msg: T) => void) {
     this.EE.on(topic, handler);
     return () => {
       this.EE.off(topic, handler);
     };
   }
 
-  publish(topic: string, message: any) {
+  publish<T>(topic: string, message: T) {
     chrome.runtime.sendMessage({
       action: "messageQueue",
       data: { action: "message", topic, message },
     });
     this.EE.emit(topic, message);
-    LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
+    if (process.env.NODE_ENV === "development") {
+      //@ts-ignore
+      LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
+    }
   }
 
   // 只发布给当前环境
-  emit(topic: string, message: any) {
+  emit<T>(topic: string, message: T) {
     this.EE.emit(topic, message);
   }
 }

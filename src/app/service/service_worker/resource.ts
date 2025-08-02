@@ -8,7 +8,7 @@ import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/utils";
-import { subscribeScriptDelete } from "../queue";
+import { type TDeleteScript } from "../queue";
 import { cacheInstance } from "@App/app/cache";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
@@ -324,7 +324,7 @@ export class ResourceService {
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源
-    subscribeScriptDelete(this.mq, (data) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", (data) => {
       // 使用事务当锁，避免并发删除导致数据不一致
       cacheInstance.tx("resource_lock", async (_start) => {
         const resources = await this.resourceDAO.find((key, value) => {

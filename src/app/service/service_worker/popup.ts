@@ -7,15 +7,15 @@ import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
-import type { ScriptMenuRegisterCallbackValue } from "../queue";
-import {
-  subscribeScriptDelete,
-  subscribeScriptEnable,
-  subscribeScriptInstall,
-  subscribeScriptMenuRegister,
-  subscribeScriptRunStatus,
+import type {
+  TDeleteScript,
+  TEnableScript,
+  TInstallScript,
+  TScriptMenuRegister,
+  TScriptMenuUnregister,
+  TScriptRunStatus,
 } from "../queue";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 
@@ -35,36 +35,36 @@ export class PopupService {
 
   genScriptMenuByTabMap(menu: ScriptMenu[]) {
     let n = 0;
-    menu.forEach((script) => {
+    for (const { uuid, name, menus } of menu) {
       // 如果是带输入框的菜单则不在页面内注册
-      const nonInputMenus = script.menus.filter((item) => !item.options?.inputType);
+      const nonInputMenus = menus.filter((item) => !item.options?.inputType);
       // 创建脚本菜单
       if (nonInputMenus.length) {
         n += nonInputMenus.length;
         chrome.contextMenus.create({
-          id: `scriptMenu_` + script.uuid,
-          title: script.name,
+          id: `scriptMenu_` + uuid,
+          title: name,
           contexts: ["all"],
           parentId: "scriptMenu",
         });
         nonInputMenus.forEach((menu) => {
           // 创建菜单
           chrome.contextMenus.create({
-            id: `scriptMenu_menu_${script.uuid}_${menu.id}`,
+            id: `scriptMenu_menu_${uuid}_${menu.id}`,
             title: menu.name,
             contexts: ["all"],
-            parentId: `scriptMenu_${script.uuid}`,
+            parentId: `scriptMenu_${uuid}`,
           });
         });
       }
-    });
+    }
     return n;
   }
 
   // 生成chrome菜单
   async genScriptMenu(tabId: number) {
     // 移除之前所有的菜单
-    chrome.contextMenus.removeAll();
+    await chrome.contextMenus.removeAll();
 
     if ((await this.systemConfig.getScriptMenuDisplayType()) !== "all") {
       return;
@@ -90,11 +90,11 @@ export class PopupService {
     }
     if (n === 0) {
       // 如果没有菜单，删除菜单
-      chrome.contextMenus.remove("scriptMenu");
+      await chrome.contextMenus.remove("scriptMenu");
     }
   }
 
-  async registerMenuCommand(message: ScriptMenuRegisterCallbackValue) {
+  async registerMenuCommand(message: TScriptMenuRegister) {
     // 给脚本添加菜单
     return this.txUpdateScriptMenu(message.tabId, async (data) => {
       const script = data.find((item) => item.uuid === message.uuid);
@@ -120,7 +120,7 @@ export class PopupService {
     });
   }
 
-  async unregisterMenuCommand({ id, uuid, tabId }: { id: number; uuid: string; tabId: number }) {
+  async unregisterMenuCommand({ id, uuid, tabId }: TScriptMenuUnregister) {
     return this.txUpdateScriptMenu(tabId, async (data) => {
       // 删除脚本菜单
       const script = data.find((item) => item.uuid === uuid);
@@ -134,13 +134,9 @@ export class PopupService {
 
   async updateScriptMenu() {
     // 获取当前页面并更新菜单
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs.length) {
-      return;
-    }
-    const tab = tabs[0];
+    const tab = await getCurrentTab();
     // 生成菜单
-    if (tab.id) {
+    if (tab?.id) {
       await this.genScriptMenu(tab.id);
     }
   }
@@ -214,7 +210,7 @@ export class PopupService {
     scripts: ScriptMatchInfo[];
   }) {
     // 设置数据
-    return this.txUpdateScriptMenu(tabId, async (data) => {
+    return await this.txUpdateScriptMenu(tabId, async (data) => {
       if (!frameId) {
         data = [];
       }
@@ -255,7 +251,7 @@ export class PopupService {
 
   dealBackgroundScriptInstall() {
     // 处理后台脚本
-    subscribeScriptInstall(this.mq, async ({ script }) => {
+    this.mq.subscribe<TInstallScript>("installScript", async ({ script }) => {
       if (script.type === SCRIPT_TYPE_NORMAL) {
         return;
       }
@@ -272,7 +268,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptEnable(this.mq, async ({ uuid }) => {
+    this.mq.subscribe<TEnableScript>("enableScript", async ({ uuid }) => {
       const script = await this.scriptDAO.get(uuid);
       if (!script) {
         return;
@@ -297,7 +293,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptDelete(this.mq, async ({ uuid }) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       return this.txUpdateScriptMenu(-1, (menu) => {
         const index = menu.findIndex((item) => item.uuid === uuid);
         if (index !== -1) {
@@ -306,7 +302,7 @@ export class PopupService {
         return menu;
       });
     });
-    subscribeScriptRunStatus(this.mq, async ({ uuid, runStatus }) => {
+    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", async ({ uuid, runStatus }) => {
       return this.txUpdateScriptMenu(-1, (menu) => {
         const scriptMenu = menu.find((item) => item.uuid === uuid);
         if (scriptMenu) {
@@ -322,7 +318,7 @@ export class PopupService {
     });
   }
 
-  menuClick({
+  async menuClick({
     uuid,
     id,
     sender,
@@ -334,7 +330,7 @@ export class PopupService {
     inputValue?: any;
   }) {
     // 菜单点击事件
-    this.runtime.emitEventToTab(sender, {
+    await this.runtime.emitEventToTab(sender, {
       uuid,
       event: "menuClick",
       eventId: id.toString(),
@@ -345,8 +341,8 @@ export class PopupService {
 
   init() {
     // 处理脚本菜单数据
-    subscribeScriptMenuRegister(this.mq, this.registerMenuCommand.bind(this));
-    this.mq.subscribe("unregisterMenuCommand", this.unregisterMenuCommand.bind(this));
+    this.mq.subscribe<TScriptMenuRegister>("registerMenuCommand", this.registerMenuCommand.bind(this));
+    this.mq.subscribe<TScriptMenuUnregister>("unregisterMenuCommand", this.unregisterMenuCommand.bind(this));
     this.group.on("getPopupData", this.getPopupData.bind(this));
     this.group.on("menuClick", this.menuClick.bind(this));
     this.dealBackgroundScriptInstall();
@@ -360,17 +356,17 @@ export class PopupService {
         return;
       }
       // 清理数据tab关闭需要释放的数据
-      this.txUpdateScriptMenu(tabId, (script) => {
-        script.forEach((script) => {
+      this.txUpdateScriptMenu(tabId, async (scripts) => {
+        for (const { uuid } of scripts) {
           // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
           // 避免先删除了数据获取不到
-          cacheInstance.tx(`GM_getTab:${script.uuid}`, (tabData?: { [key: number]: any }) => {
+          cacheInstance.tx(`GM_getTab:${uuid}`, (tabData?: { [key: number]: any }) => {
             if (tabData) {
               delete tabData[tabId];
             }
             return tabData;
           });
-        });
+        }
         return undefined;
       });
     });
@@ -392,7 +388,7 @@ export class PopupService {
         // 出现错误不处理chrome菜单点击
         return;
       }
-      const menuIds = (info.menuItemId as string).split("_");
+      const menuIds = `${info.menuItemId}`.split("_");
       if (menuIds.length === 4) {
         const [, , uuid, id] = menuIds;
         // 寻找menu信息
@@ -408,7 +404,7 @@ export class PopupService {
         if (script) {
           const menuItem = script.menus.find((item) => item.id === parseInt(id, 10));
           if (menuItem) {
-            this.menuClick({
+            await this.menuClick({
               uuid: script.uuid,
               id: menuItem.id,
               sender: {
@@ -436,7 +432,7 @@ export class PopupService {
         document: string;
         scripts: ScriptMatchInfo[];
       }) => {
-        this.addScriptRunNumber({ tabId, frameId, scripts });
+        await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
         if ((await this.systemConfig.getBadgeNumberType()) !== "run_count") {
           return;

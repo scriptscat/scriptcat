@@ -8,7 +8,7 @@ import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts"
 import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import { subscribeScriptDelete, subscribeScriptEnable, subscribeScriptInstall } from "../queue";
+import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
 
 export class ScriptService {
   logger: Logger;
@@ -35,7 +35,7 @@ export class ScriptService {
   }
 
   async init() {
-    subscribeScriptEnable(this.messageQueue, async (data) => {
+    this.messageQueue.subscribe<TEnableScript>("enableScript", async (data) => {
       const script = await this.scriptClient.info(data.uuid);
       if (script.type === SCRIPT_TYPE_NORMAL) {
         return;
@@ -48,7 +48,7 @@ export class ScriptService {
         disableScript(this.windowMessage, script.uuid);
       }
     });
-    subscribeScriptInstall(this.messageQueue, async (data) => {
+    this.messageQueue.subscribe<TInstallScript>("installScript", async (data) => {
       // 普通脚本不处理
       if (data.script.type === SCRIPT_TYPE_NORMAL) {
         return;
@@ -62,7 +62,7 @@ export class ScriptService {
         disableScript(this.windowMessage, data.script.uuid);
       }
     });
-    subscribeScriptDelete(this.messageQueue, async (data) => {
+    this.messageQueue.subscribe<TDeleteScript>("deleteScript", async (data) => {
       disableScript(this.windowMessage, data.uuid);
     });
 
