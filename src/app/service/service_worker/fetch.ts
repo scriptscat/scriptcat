@@ -92,7 +92,7 @@ export async function fetchIconByDomain(domain: string): Promise<TMsgResponse<st
       })
     );
 
-    return msgResponse(0, { res: urls.filter((url) => !!url) as string[] });
+    return msgResponse(0, urls.filter((url) => !!url) as string[]);
   } catch (error: any) {
     if (error.name === "TypeError" && error.message === "Failed to fetch" && !domainOK) {
       // 網絡錯誤
