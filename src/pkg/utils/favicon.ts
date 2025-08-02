@@ -105,7 +105,7 @@ function extractDomainFromPattern(pattern: string): string | null {
   }
 }
 
-const localFavIconCaches = new Map<string, string[]>();
+const localFavIconPromises = new Map<string, Promise<string[]>>();
 
 const makeError = (e: any) => {
   const { name } = e;
@@ -120,10 +120,10 @@ const makeError = (e: any) => {
   return new o[name](e.message);
 };
 
-async function getFaviconFromDomain(domain: string): Promise<string[]> {
-  let ret = localFavIconCaches.get(domain);
-  if (ret) return ret;
-  ret = await systemClient.getFaviconFromDomain(domain).then((r: TMsgResponse<string[]>) => {
+function getFaviconFromDomain(domain: string): Promise<string[]> {
+  let retPromise = localFavIconPromises.get(domain);
+  if (retPromise) return retPromise;
+  retPromise = systemClient.getFaviconFromDomain(domain).then((r: TMsgResponse<string[]>) => {
     if (r.ok) {
       return r.res!;
     }
@@ -140,6 +140,6 @@ async function getFaviconFromDomain(domain: string): Promise<string[]> {
     }
     return [];
   });
-  localFavIconCaches.set(domain, ret!);
-  return ret!;
+  localFavIconPromises.set(domain, retPromise);
+  return retPromise;
 }
