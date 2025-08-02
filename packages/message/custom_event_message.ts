@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
+import { type TMessage } from "./types";
 
 export class CustomEventPostMessage implements PostMessage {
   constructor(private send: CustomEventMessage) {}
@@ -62,15 +63,15 @@ export class CustomEventMessage implements Message {
     }
   }
 
-  onConnect(callback: (data: any, con: MessageConnect) => void): void {
+  onConnect(callback: (data: TMessage, con: MessageConnect) => void): void {
     this.EE.addListener("connect", callback);
   }
 
-  onMessage(callback: (data: any, sendResponse: (data: any) => void) => void): void {
+  onMessage(callback: (data: TMessage, sendResponse: (data: any) => void) => void): void {
     this.EE.addListener("message", callback);
   }
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
       const body: WindowMessageBody = {
         messageId: uuidv4(),
@@ -100,7 +101,7 @@ export class CustomEventMessage implements Message {
     window.dispatchEvent(ev);
   }
 
-  sendMessage(data: any): Promise<any> {
+  sendMessage(data: TMessage): Promise<any> {
     return new Promise((resolve: ((value: any) => void) | null) => {
       const body: WindowMessageBody = {
         messageId: uuidv4(),
