@@ -169,7 +169,7 @@ export class SubscribeService {
       url: subscribe.url,
       name: subscribe.name,
     });
-    await this.subscribeDAO.update(url, { checktime: new Date().getTime() });
+    await this.subscribeDAO.update(url, { checktime: Date.now() });
     try {
       const info = await fetchScriptInfo(subscribe.url, source, false, subscribe.url);
       const { metadata } = info;

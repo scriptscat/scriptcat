@@ -16,7 +16,7 @@ export default class DBWriter implements Writer {
         level,
         message,
         label,
-        createtime: new Date().getTime(),
+        createtime: Date.now(),
       });
     } catch (e) {
       console.error("DBWriter error", e);
