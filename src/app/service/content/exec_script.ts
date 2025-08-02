@@ -3,7 +3,7 @@ import type Logger from "@App/app/logger/logger";
 import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript } from "./utils";
-import type { Message } from "@Packages/message/types";
+import type { IMRequesterReceiver } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ValueUpdateData } from "./types";
 import { evaluateGMInfo } from "./gm_info";
@@ -26,7 +26,7 @@ export default class ExecScript {
   constructor(
     scriptRes: ScriptLoadInfo,
     envPrefix: "content" | "offscreen",
-    message: Message,
+    message: IMRequesterReceiver,
     code: string | ScriptFunc,
     envInfo: GMInfoEnv,
     globalInjection?: { [key: string]: any } // 主要是全域API. @grant none 时无效

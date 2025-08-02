@@ -1,13 +1,13 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import { ExtensionMessage, ExtensionMessageSend } from "@Packages/message/extension_message";
-import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { RuntimeExtMessenger, RuntimeExtMessageRequester } from "@Packages/message/extension_message";
+import { CustomEventMessenger } from "@Packages/message/custom_event_message";
 import { RuntimeClient } from "./app/service/service_worker/client";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
 
 // 建立与service_worker页面的连接
-const send = new ExtensionMessageSend();
+const send = new RuntimeExtMessageRequester();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
@@ -18,8 +18,8 @@ const loggerCore = new LoggerCore({
 const client = new RuntimeClient(send);
 client.pageLoad().then((data) => {
   loggerCore.logger().debug("content start");
-  const extMsg = new ExtensionMessage();
-  const msg = new CustomEventMessage(data.flag, true);
+  const extMsg = new RuntimeExtMessenger();
+  const msg = new CustomEventMessenger(data.flag, true);
   const server = new Server("content", msg);
   // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
   // 所以不需要处理连接，设置为false

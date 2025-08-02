@@ -1,17 +1,25 @@
-import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend, TMessage } from "./types";
+import type {
+  MessageSender,
+  IMConnection,
+  ExtMessageSender,
+  IMRequesterReceiver,
+  IMRequester,
+  TMessage,
+  TMessageCommCode,
+} from "./types";
 import LoggerCore from "@App/app/logger/core";
-import { connect, sendMessage } from "./client";
-import { ExtensionMessageConnect } from "./extension_message";
+import { actionDataConnect, actionDataSend } from "./client";
+import { RuntimeExtConnection } from "./extension_message";
 
 export class GetSender {
-  constructor(private sender: MessageConnect | MessageSender) {}
+  constructor(private sender: IMConnection | MessageSender) {}
 
   getSender(): MessageSender {
     return this.sender as MessageSender;
   }
 
   getExtMessageSender(): ExtMessageSender {
-    if (this.sender instanceof ExtensionMessageConnect) {
+    if (this.sender instanceof RuntimeExtConnection) {
       const con = this.sender.getPort();
       return {
         windowId: con.sender?.tab?.windowId || -1, // -1表示后台脚本
@@ -29,8 +37,8 @@ export class GetSender {
     };
   }
 
-  getConnect(): MessageConnect {
-    return this.sender as MessageConnect;
+  getConnect(): IMConnection {
+    return this.sender as IMConnection;
   }
 }
 
@@ -44,11 +52,11 @@ export class Server {
 
   constructor(
     prefix: string,
-    message: Message,
+    message: IMRequesterReceiver,
     private enableConnect: boolean = true
   ) {
     if (this.enableConnect) {
-      message.onConnect((msg: TMessage, con: MessageConnect) => {
+      message.onConnect((msg: TMessage, con: IMConnection) => {
         if (typeof msg.action !== "string") return;
         this.logger.trace("server onConnect", { msg });
         if (msg.action?.startsWith(prefix)) {
@@ -76,7 +84,7 @@ export class Server {
     this.apiFunctionMap.set(name, func);
   }
 
-  private connectHandle(msg: string, params: any, con: MessageConnect) {
+  private connectHandle(msg: string, params: any, con: IMConnection) {
     const func = this.apiFunctionMap.get(msg);
     if (func) {
       const ret = func(params, new GetSender(con));
@@ -98,7 +106,12 @@ export class Server {
     }
   }
 
-  private messageHandle(action: string, params: any, sendResponse: (response: any) => void, sender?: MessageSender) {
+  private messageHandle(
+    action: string,
+    params: any,
+    sendResponse: (msgResp: TMessageCommCode) => void,
+    sender?: MessageSender
+  ) {
     const func = this.apiFunctionMap.get(action);
     if (func) {
       try {
@@ -149,13 +162,13 @@ export function forwardMessage(
   prefix: string,
   path: string,
   from: Server,
-  to: MessageSend,
+  to: IMRequester,
   middleware?: ApiFunctionSync
 ) {
   const handler = (params: any, fromCon: GetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
-      connect(to, prefix + "/" + path, params).then((toCon: MessageConnect) => {
+      actionDataConnect(to, `${prefix}/${path}`, params).then((toCon: IMConnection) => {
         fromConnect.onMessage((data) => {
           toCon.sendMessage(data);
         });
@@ -170,7 +183,7 @@ export function forwardMessage(
         });
       });
     } else {
-      return sendMessage(to, prefix + "/" + path, params);
+      return actionDataSend(to, `${prefix}/${path}`, params);
     }
   };
   from.on(path, (params, sender) => {

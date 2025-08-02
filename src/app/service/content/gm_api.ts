@@ -1,5 +1,5 @@
-import type { Message, MessageConnect } from "@Packages/message/types";
-import type { CustomEventMessage } from "@Packages/message/custom_event_message";
+import type { IMRequesterReceiver, IMConnection, TMessage } from "@Packages/message/types";
+import type { CustomEventMessenger } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
 import { base64ToBlob } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -8,7 +8,7 @@ import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateData } from "./types";
 import type { MessageRequest } from "../service_worker/types";
-import { connect, sendMessage } from "@Packages/message/client";
+import { actionDataConnect, actionDataSend } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 
 // 内部函数呼叫定义
@@ -31,7 +31,7 @@ class GM_Base implements IGM_Base {
   protected prefix!: string;
 
   @GMContext.protected()
-  protected message!: Message;
+  protected message!: IMRequesterReceiver;
 
   @GMContext.protected()
   protected scriptRes!: ScriptRunResource;
@@ -64,7 +64,7 @@ class GM_Base implements IGM_Base {
   // 单次回调使用
   @GMContext.protected()
   public sendMessage(api: string, params: any[]) {
-    return sendMessage(this.message, this.prefix + "/runtime/gmApi", {
+    return actionDataSend(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -75,7 +75,7 @@ class GM_Base implements IGM_Base {
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public connect(api: string, params: any[]) {
-    return connect(this.message, this.prefix + "/runtime/gmApi", {
+    return actionDataConnect(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -117,7 +117,7 @@ export default class GMApi extends GM_Base {
 
   constructor(
     public prefix: string,
-    public message: Message,
+    public message: IMRequesterReceiver,
     public scriptRes: ScriptRunResource
   ) {
     // testing only 仅供测试用
@@ -334,7 +334,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
     const data = await this.sendMessage("CAT_fetchDocument", [url]);
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
+    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
   }
 
   static _GM_cookie(
@@ -484,8 +484,8 @@ export default class GMApi extends GM_Base {
   GM_addStyle(css: string) {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
-    const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+    const resp = (<CustomEventMessenger>this.message).syncSendMessage({
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -501,7 +501,7 @@ export default class GMApi extends GM_Base {
     if (resp.code !== 0) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
+    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(resp.data);
   }
 
   @GMContext.API({ alias: "GM.addElement" })
@@ -510,13 +510,13 @@ export default class GMApi extends GM_Base {
     // 这里直接使用同步的方式去处理, 不要有promise
     let parentNodeId: any = parentNode;
     if (typeof parentNodeId !== "string") {
-      const id = (<CustomEventMessage>this.message).sendRelatedTarget(parentNodeId);
+      const id = (<CustomEventMessenger>this.message).sendRelatedTarget(parentNodeId);
       parentNodeId = id;
     } else {
       parentNodeId = null;
     }
-    const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+    const resp = (<CustomEventMessenger>this.message).syncSendMessage({
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -530,7 +530,7 @@ export default class GMApi extends GM_Base {
     if (resp.code !== 0) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
+    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(resp.data);
   }
 
   @GMContext.API({ alias: "GM.unregisterMenuCommand" })
@@ -627,7 +627,7 @@ export default class GMApi extends GM_Base {
     if (details.nocache) {
       param.headers["Cache-Control"] = "no-cache";
     }
-    let connect: MessageConnect;
+    let connect: IMConnection;
     const handler = async () => {
       // 处理数据
       if (details.data instanceof FormData) {
@@ -736,7 +736,7 @@ export default class GMApi extends GM_Base {
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
-        con.onMessage((data: { code?: number; message?: string; action: string; data: any }) => {
+        con.onMessage((data: TMessage) => {
           if (data.code === -1) {
             // 处理错误
             LoggerCore.logger().error("GM_xmlhttpRequest error", {
@@ -842,7 +842,7 @@ export default class GMApi extends GM_Base {
     } else {
       details = url;
     }
-    let connect: MessageConnect;
+    let connect: IMConnection;
     this.connect("GM_download", [
       {
         method: details.method,
@@ -857,7 +857,7 @@ export default class GMApi extends GM_Base {
       },
     ]).then((con) => {
       connect = con;
-      connect.onMessage((data: { action: string; data: any }) => {
+      connect.onMessage((data: TMessage) => {
         switch (data.action) {
           case "onload":
             details.onload && details.onload(data.data);

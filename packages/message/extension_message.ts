@@ -1,13 +1,20 @@
-import type { Message, MessageConnect, MessageSend, MessageSender, TMessage, TMessageCommAction } from "./types";
+import type {
+  IMConnection,
+  IMRequester,
+  IMRequesterReceiver,
+  MessageSender,
+  TMessage,
+  TMessageCommAction,
+} from "./types";
 
-export class ExtensionMessageSend implements MessageSend {
+export class RuntimeExtMessageRequester implements IMRequester {
   constructor() {}
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: any): Promise<IMConnection> {
     return new Promise((resolve) => {
       const con = chrome.runtime.connect();
       con.postMessage(data);
-      resolve(new ExtensionMessageConnect(con));
+      resolve(new RuntimeExtConnection(con));
     });
   }
 
@@ -29,60 +36,35 @@ export class ExtensionMessageSend implements MessageSend {
   }
 }
 
-// 由于service worker的限制，特殊处理chrome.runtime.onConnect/Message
-export class ServiceWorkerMessage extends ExtensionMessageSend implements Message {
-  onConnect(callback: (data: TMessage, con: MessageConnect) => void): void {
-    chrome.runtime.onConnect.addListener((port) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
-        // 消息API发生错误因此不继续执行
-      }
-      const handler = (msg: TMessage) => {
-        port.onMessage.removeListener(handler);
-        callback(msg, new ExtensionMessageConnect(port));
-      };
-      port.onMessage.addListener(handler);
-    });
-  }
+export const CONFIG_SERVICE_WORKER = 1;
 
-  onMessage(
-    callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => boolean | void
-  ): void {
-    chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
-      const lastError = chrome.runtime.lastError;
-      if (!msg.action) return;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
-        // 消息API发生错误因此不继续执行
-        return false;
-      }
-      return callback(msg, sendResponse, sender);
-    });
-  }
-}
+export const CONFIG_ON_USERSCRIPT = 2;
 
-export class ExtensionMessage extends ExtensionMessageSend implements Message {
-  constructor(private onUserScript = false) {
+export const CONFIG_RUNTIME_COMM = 4;
+
+class RuntimeExtMessengerBase extends RuntimeExtMessageRequester implements IMRequesterReceiver {
+  constructor(private readonly configFlag = 0) {
     super();
   }
 
-  onConnect(callback: (data: TMessage, con: MessageConnect) => void) {
-    chrome.runtime.onConnect.addListener((port: chrome.runtime.Port | null) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
-        // 消息API发生错误因此不继续执行
-      }
-      const handler = (msg: TMessage) => {
-        port!.onMessage.removeListener(handler);
-        callback(msg, new ExtensionMessageConnect(port!));
-        port = null;
-      };
-      port!.onMessage.addListener(handler);
-    });
+  onConnect(callback: (data: TMessage, con: IMConnection) => void) {
+    if (this.configFlag & CONFIG_RUNTIME_COMM) {
+      chrome.runtime.onConnect.addListener((port: chrome.runtime.Port | null) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
+          // 消息API发生错误因此不继续执行
+        }
+        const handler = (msg: TMessage) => {
+          port!.onMessage.removeListener(handler);
+          callback(msg, new RuntimeExtConnection(port!));
+          port = null;
+        };
+        port!.onMessage.addListener(handler);
+      });
+    }
 
-    if (this.onUserScript) {
+    if (this.configFlag & CONFIG_ON_USERSCRIPT) {
       // 监听用户脚本的连接
       chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port | null) => {
         const lastError = chrome.runtime.lastError;
@@ -91,7 +73,7 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
         }
         const handler = (msg: any) => {
           port!.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port!));
+          callback(msg, new RuntimeExtConnection(port!));
           port = null;
         };
         port!.onMessage.addListener(handler);
@@ -103,17 +85,19 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
   onMessage(
     callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => void
   ): void {
-    chrome.runtime.onMessage?.addListener((msg: TMessage, sender, sendResponse) => {
-      const lastError = chrome.runtime.lastError;
-      if (typeof msg.action !== "string") return;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
-        // 消息API发生错误因此不继续执行
-        return false;
-      }
-      return callback(msg, sendResponse, sender);
-    });
-    if (this.onUserScript) {
+    if (this.configFlag & CONFIG_RUNTIME_COMM) {
+      chrome.runtime.onMessage?.addListener((msg: TMessage, sender, sendResponse) => {
+        const lastError = chrome.runtime.lastError;
+        if (typeof msg.action !== "string") return;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
+          // 消息API发生错误因此不继续执行
+          return false;
+        }
+        return callback(msg, sendResponse, sender);
+      });
+    }
+    if (this.configFlag & CONFIG_ON_USERSCRIPT) {
       // 监听用户脚本的消息
       chrome.runtime.onUserScriptMessage?.addListener((msg, sender, sendResponse) => {
         const lastError = chrome.runtime.lastError;
@@ -129,7 +113,13 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
   }
 }
 
-export class ExtensionMessageConnect implements MessageConnect {
+export class RuntimeExtMessenger extends RuntimeExtMessengerBase {
+  constructor(readonly onUserScript = false) {
+    super((onUserScript ? CONFIG_ON_USERSCRIPT : 0) | CONFIG_RUNTIME_COMM);
+  }
+}
+
+export class RuntimeExtConnection implements IMConnection {
   constructor(private con: chrome.runtime.Port) {}
 
   sendMessage(data: TMessage) {
@@ -153,16 +143,14 @@ export class ExtensionMessageConnect implements MessageConnect {
   }
 }
 
-export class ExtensionContentMessageSend extends ExtensionMessageSend {
+export class ExtTabMessageRequester implements IMRequester {
   constructor(
     private tabId: number,
     private options?: {
       frameId?: number;
       documentId?: string;
     }
-  ) {
-    super();
-  }
+  ) {}
 
   sendMessage(data: TMessage): Promise<any> {
     return new Promise((resolve) => {
@@ -189,11 +177,11 @@ export class ExtensionContentMessageSend extends ExtensionMessageSend {
     });
   }
 
-  connect(data: TMessage): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<IMConnection> {
     return new Promise((resolve) => {
       const con = chrome.tabs.connect(this.tabId, this.options);
       con.postMessage(data);
-      resolve(new ExtensionMessageConnect(con));
+      resolve(new RuntimeExtConnection(con));
     });
   }
 }

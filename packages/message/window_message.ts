@@ -1,14 +1,14 @@
-import type { Message, MessageConnect, MessageSend } from "./types";
+import type { IMRequesterReceiver, IMConnection, IMRequester, TMessageCommCode, TMessage } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import EventEmitter from "eventemitter3";
 
 // 通过 window.postMessage/onmessage 实现通信
 
-export interface PostMessage {
+export interface MessageDispatcher {
   postMessage(message: any): void;
 }
 
-class WindowPostMessage implements PostMessage {
+class WindowMessageDispatcher implements MessageDispatcher {
   constructor(private target: Window) {}
 
   postMessage(message: any) {
@@ -17,13 +17,13 @@ class WindowPostMessage implements PostMessage {
 }
 
 // 消息体
-export type WindowMessageBody = {
+export type WindowMessageBody<T = any> = {
   messageId: string; // 消息id
   type: "sendMessage" | "respMessage" | "connect" | "disconnect" | "connectMessage"; // 消息类型
-  data: any; // 消息数据
+  data: T; // 消息数据
 };
 
-export class WindowMessage implements Message {
+export class WindowMessenger implements IMRequesterReceiver {
   EE = new EventEmitter<string, any>();
 
   // source: Window 消息来源
@@ -36,7 +36,7 @@ export class WindowMessage implements Message {
     // 监听消息
     this.source.addEventListener("message", (e) => {
       if (e.source === this.target || e.source === this.source) {
-        this.messageHandle(e.data, new WindowPostMessage(this.target));
+        this.messageHandle(e.data, new WindowMessageDispatcher(this.target));
       }
     });
     // 是否监听serviceWorker消息
@@ -49,7 +49,7 @@ export class WindowMessage implements Message {
     }
   }
 
-  messageHandle(data: WindowMessageBody, target: PostMessage) {
+  messageHandle(data: WindowMessageBody, target: MessageDispatcher) {
     // 处理消息
     if (data.type === "sendMessage") {
       // 接收到消息
@@ -68,73 +68,74 @@ export class WindowMessage implements Message {
       });
     } else if (data.type === "respMessage") {
       // 接收到响应消息
-      this.EE.emit("response:" + data.messageId, data);
+      this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "connect") {
-      this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, target));
+      this.EE.emit("connect", data.data, new WindowMessageConnection(data.messageId, this.EE, target));
     } else if (data.type === "disconnect") {
-      this.EE.emit("disconnect:" + data.messageId);
+      this.EE.emit(`disconnect:${data.messageId}`);
     } else if (data.type === "connectMessage") {
-      this.EE.emit("connectMessage:" + data.messageId, data.data);
+      this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
   }
 
-  onConnect(callback: (data: any, con: MessageConnect) => void) {
+  onConnect(callback: (data: TMessage, con: IMConnection) => void) {
     this.EE.addListener("connect", callback);
   }
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<IMConnection> {
     return new Promise((resolve) => {
-      const body: WindowMessageBody = {
+      const body: WindowMessageBody<TMessage> = {
         messageId: uuidv4(),
         type: "connect",
         data,
       };
       this.target.postMessage(body, "*");
-      resolve(new WindowMessageConnect(body.messageId, this.EE, this.target));
+      resolve(new WindowMessageConnection(body.messageId, this.EE, this.target));
     });
   }
 
-  onMessage(callback: (data: any, sendResponse: (data: any) => void) => void) {
+  onMessage(callback: (data: any, sendResponse: (data: TMessageCommCode) => void) => void) {
     this.EE.addListener("message", callback);
   }
 
   // 发送消息 注意不进行回调的内存泄漏
-  sendMessage(data: any): Promise<any> {
+  sendMessage<T = TMessage>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: any) => void) | null) => {
-      const body: WindowMessageBody = {
+      const body: WindowMessageBody<TMessage> = {
         messageId: uuidv4(),
         type: "sendMessage",
         data,
       };
-      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+      const eventId = `response:${body.messageId}`;
+      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody<TMessage>) => {
         if (callback !== null) {
-          this.EE.removeListener("response:" + body.messageId, callback!);
+          this.EE.removeListener(eventId, callback!);
           resolve!(body.data);
           callback = null; // 设为 null 提醒JS引擎可以GC
           resolve = null;
         }
       };
-      this.EE.addListener("response:" + body.messageId, callback);
+      this.EE.addListener(eventId, callback);
       this.target.postMessage(body, "*");
     });
   }
 }
 
-export class WindowMessageConnect implements MessageConnect {
+export class WindowMessageConnection implements IMConnection {
   constructor(
     private messageId: string,
     private EE: EventEmitter<string, any>,
-    private target: PostMessage
+    private target: MessageDispatcher
   ) {
     this.onDisconnect(() => {
       // 移除所有监听
-      this.EE.removeAllListeners("connectMessage:" + this.messageId);
-      this.EE.removeAllListeners("disconnect:" + this.messageId);
+      this.EE.removeAllListeners(`connectMessage:${this.messageId}`);
+      this.EE.removeAllListeners(`disconnect:${this.messageId}`);
     });
   }
 
-  sendMessage(data: any) {
-    const body: WindowMessageBody = {
+  sendMessage(data: TMessage) {
+    const body: WindowMessageBody<TMessage> = {
       messageId: this.messageId,
       type: "connectMessage",
       data,
@@ -143,7 +144,7 @@ export class WindowMessageConnect implements MessageConnect {
   }
 
   onMessage(callback: (data: any) => void) {
-    this.EE.addListener("connectMessage:" + this.messageId, callback);
+    this.EE.addListener(`connectMessage:${this.messageId}`, callback);
   }
 
   disconnect() {
@@ -156,17 +157,17 @@ export class WindowMessageConnect implements MessageConnect {
   }
 
   onDisconnect(callback: () => void) {
-    this.EE.addListener("disconnect:" + this.messageId, callback);
+    this.EE.addListener(`disconnect:${this.messageId}`, callback);
   }
 }
 
 // service_worker和offscreen同时监听消息,会导致消息被两边同时接收,但是返回结果时会产生问题,导致报错
 // 不进行监听的话又无法从service_worker主动发送消息
 // 所以service_worker与offscreen使用ServiceWorker的方式进行通信
-export class ServiceWorkerMessageSend implements MessageSend {
+export class SWMessageRequester implements IMRequester {
   EE = new EventEmitter<string, any>();
 
-  private target: PostMessage | undefined = undefined;
+  private target: MessageDispatcher | undefined = undefined;
 
   constructor() {}
 
@@ -182,7 +183,7 @@ export class ServiceWorkerMessageSend implements MessageSend {
       }
       const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
       // 找到offscreen.html窗口
-      this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html")) as PostMessage;
+      this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html"));
     }
   }
 
@@ -190,42 +191,44 @@ export class ServiceWorkerMessageSend implements MessageSend {
     // 处理消息
     if (data.type === "respMessage") {
       // 接收到响应消息
-      this.EE.emit("response:" + data.messageId, data);
+      this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "disconnect") {
-      this.EE.emit("disconnect:" + data.messageId);
+      this.EE.emit(`disconnect:${data.messageId}`);
     } else if (data.type === "connectMessage") {
-      this.EE.emit("connectMessage:" + data.messageId, data.data);
+      this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
   }
 
-  async connect(data: any): Promise<MessageConnect> {
+  async connect(data: TMessage): Promise<IMConnection> {
     await this.init();
-    const body: WindowMessageBody = {
+    const body: WindowMessageBody<TMessage> = {
       messageId: uuidv4(),
       type: "connect",
       data,
     };
     this.target!.postMessage(body);
-    return new WindowMessageConnect(body.messageId, this.EE, this.target!);
+    return new WindowMessageConnection(body.messageId, this.EE, this.target!);
   }
 
   // 发送消息 注意不进行回调的内存泄漏
-  async sendMessage(data: any): Promise<any> {
+  async sendMessage<T = TMessage>(data: TMessage): Promise<T> {
     await this.init();
-    return new Promise((resolve) => {
-      const body: WindowMessageBody = {
+    return new Promise((resolve: ((value: any) => void) | null) => {
+      const body: WindowMessageBody<TMessage> = {
         messageId: uuidv4(),
         type: "sendMessage",
         data,
       };
-      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+      const eventId = `response:${body.messageId}`;
+      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody<TMessage>) => {
         if (callback !== null) {
-          this.EE.removeListener("response:" + body.messageId, callback);
-          resolve(body.data);
+          this.EE.removeListener(eventId, callback);
+          resolve!(body.data);
           callback = null; // 设为 null 提醒JS引擎可以GC
+          resolve = null;
         }
       };
-      this.EE.addListener("response:" + body.messageId, callback);
+      this.EE.addListener(eventId, callback);
       this.target!.postMessage(body);
     });
   }

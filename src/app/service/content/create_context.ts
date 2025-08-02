@@ -1,6 +1,6 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { v4 as uuidv4 } from "uuid";
-import type { Message } from "@Packages/message/types";
+import type { IMRequesterReceiver } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
 import { createGMBase } from "./gm_api";
@@ -11,7 +11,7 @@ export const createContext = (
   scriptRes: ScriptRunResource,
   GMInfo: any,
   envPrefix: string,
-  message: Message,
+  message: IMRequesterReceiver,
   scriptGrants: Set<string>
 ) => {
   // 按照GMApi构建

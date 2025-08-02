@@ -1,19 +1,19 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import { sendMessage } from "@Packages/message/client";
-import { type WindowMessage } from "@Packages/message/window_message";
+import { actionDataSend } from "@Packages/message/client";
+import { type WindowMessenger } from "@Packages/message/window_message";
 
-export function enableScript(msg: WindowMessage, data: ScriptRunResource) {
-  return sendMessage(msg, "sandbox/enableScript", data);
+export function enableScript(msg: WindowMessenger, data: ScriptRunResource) {
+  return actionDataSend(msg, "sandbox/enableScript", data);
 }
 
-export function disableScript(msg: WindowMessage, uuid: string) {
-  return sendMessage(msg, "sandbox/disableScript", uuid);
+export function disableScript(msg: WindowMessenger, uuid: string) {
+  return actionDataSend(msg, "sandbox/disableScript", uuid);
 }
 
-export function runScript(msg: WindowMessage, data: ScriptRunResource) {
-  return sendMessage(msg, "sandbox/runScript", data);
+export function runScript(msg: WindowMessenger, data: ScriptRunResource) {
+  return actionDataSend(msg, "sandbox/runScript", data);
 }
 
-export function stopScript(msg: WindowMessage, uuid: string) {
-  return sendMessage(msg, "sandbox/stopScript", uuid);
+export function stopScript(msg: WindowMessenger, uuid: string) {
+  return actionDataSend(msg, "sandbox/stopScript", uuid);
 }

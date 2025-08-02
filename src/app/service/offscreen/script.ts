@@ -1,13 +1,13 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import { type WindowMessage } from "@Packages/message/window_message";
+import { type WindowMessenger } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
 
 export class ScriptService {
@@ -19,8 +19,8 @@ export class ScriptService {
 
   constructor(
     private group: Group,
-    private extensionMessage: MessageSend,
-    private windowMessage: WindowMessage,
+    private extensionMessage: IMRequester,
+    private windowMessage: WindowMessenger,
     private messageQueue: MessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });

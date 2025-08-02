@@ -2,10 +2,10 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { GetSender, type Group } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import { connect, sendMessage } from "@Packages/message/client";
+import type { ExtMessageSender, IMRequester } from "@Packages/message/types";
+import { actionDataConnect, actionDataSend } from "@Packages/message/client";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import { MockMessageConnect } from "@Packages/message/mock_message";
+import { MockMessageConnection } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
@@ -127,7 +127,7 @@ export default class GMApi {
     private systemConfig: SystemConfig,
     private permissionVerify: PermissionVerify,
     private group: Group,
-    private send: MessageSend,
+    private send: IMRequester,
     private mq: MessageQueue,
     private value: ValueService,
     private gmExternalDependencies: IGMExternalDependencies
@@ -751,7 +751,7 @@ export default class GMApi {
       return this.CAT_fetch(params, sender, resultParam);
     }
     // 再发送到offscreen, 处理请求
-    const offscreenCon = await connect(this.send, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
+    const offscreenCon = await actionDataConnect(this.send, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
     offscreenCon.onMessage((msg) => {
       // 发送到content
       // 替换msg.data.responseHeaders
@@ -801,7 +801,7 @@ export default class GMApi {
     const options = request.params[1] || {};
     if (options.useOpen === true) {
       // 发送给offscreen页面处理
-      const ok = await sendMessage(this.send, "offscreen/gmApi/openInTab", { url });
+      const ok = await actionDataSend(this.send, "offscreen/gmApi/openInTab", { url });
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
         const [tab] = await chrome.tabs.query({ active: true });
@@ -1012,7 +1012,7 @@ export default class GMApi {
     }
     // 使用xhr下载blob,再使用download api创建下载
     const EE = new EventEmitter<string, any>();
-    const mockConnect = new MockMessageConnect(EE);
+    const mockConnect = new MockMessageConnection(EE);
     EE.addListener("message", (data: any) => {
       const xhr = data.data;
       const respond: any = {
@@ -1075,7 +1075,7 @@ export default class GMApi {
   async GM_setClipboard(request: Request) {
     const [data, type] = request.params;
     const clipboardType = type || "text/plain";
-    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+    await actionDataSend(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
   @PermissionVerify.API()

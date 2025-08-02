@@ -1,13 +1,13 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { Server, GetSender } from "./server";
-import { CustomEventMessage } from "./custom_event_message";
-import type { MessageConnect, MessageSender } from "./types";
+import { CustomEventMessenger } from "./custom_event_message";
+import type { IMConnection, MessageSender } from "./types";
 
 describe("Server", () => {
-  let contentMessage: CustomEventMessage;
-  let injectMessage: CustomEventMessage;
+  let contentMessage: CustomEventMessenger;
+  let injectMessage: CustomEventMessenger;
   let server: Server;
-  let client: CustomEventMessage;
+  let client: CustomEventMessenger;
 
   beforeEach(() => {
     // 清理 DOM 事件监听器
@@ -22,8 +22,8 @@ describe("Server", () => {
     });
 
     // 创建 content 和 inject 之间的消息通道
-    contentMessage = new CustomEventMessage("test", true); // content 端
-    injectMessage = new CustomEventMessage("test", false); // inject 端
+    contentMessage = new CustomEventMessenger("test", true); // content 端
+    injectMessage = new CustomEventMessenger("test", false); // inject 端
 
     // 服务端使用 content 消息
     server = new Server("api", contentMessage);
@@ -300,7 +300,7 @@ describe("Server", () => {
   describe("Connect 功能测试", () => {
     it("应该能够处理连接消息", async () => {
       const mockHandler = vi.fn();
-      let capturedConnection: MessageConnect;
+      let capturedConnection: IMConnection;
 
       server.on("connect", (params, sender) => {
         capturedConnection = sender.getConnect();
@@ -313,7 +313,7 @@ describe("Server", () => {
         sendMessage: vi.fn(),
         disconnect: vi.fn(),
         onDisconnect: vi.fn(),
-      } as MessageConnect;
+      } as IMConnection;
 
       // 直接调用 connectHandle
       (server as any).connectHandle("connect", { param: "connect data" }, mockConnect);
@@ -323,7 +323,7 @@ describe("Server", () => {
     });
 
     it("应该能够通过连接发送消息", async () => {
-      let serverConnection: MessageConnect;
+      let serverConnection: IMConnection;
       const serverMessageHandler = vi.fn();
 
       server.on("connect", (params, sender) => {
@@ -337,7 +337,7 @@ describe("Server", () => {
       });
 
       // 客户端向服务端发送消息
-      clientConnection.sendMessage({ msg: "hello from client" });
+      clientConnection.sendMessage({ action: "test123", data: "hello from client" });
 
       // 等待消息处理
       await new Promise((resolve) => setTimeout(resolve, 10));

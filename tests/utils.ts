@@ -1,7 +1,7 @@
 import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
-import { MockMessage } from "@Packages/message/mock_message";
+import { MockMessenger } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
-import type { Message } from "@Packages/message/types";
+import type { IMRequesterReceiver } from "@Packages/message/types";
 import { ValueService } from "@App/app/service/service_worker/value";
 import GMApi, { MockGMExternalDependencies } from "@App/app/service/service_worker/gm_api";
 import OffscreenGMApi from "@App/app/service/offscreen/gm_api";
@@ -47,11 +47,11 @@ export function initTestEnv() {
   logger.logger().debug("test start");
 }
 
-export function initTestGMApi(): Message {
+export function initTestGMApi(): IMRequesterReceiver {
   const wsEE = new EventEmitter<string, any>();
-  const wsMessage = new MockMessage(wsEE);
+  const wsMessage = new MockMessenger(wsEE);
   const osEE = new EventEmitter<string, any>();
-  const osMessage = new MockMessage(osEE);
+  const osMessage = new MockMessenger(osEE);
   const messageQueue = new MessageQueue();
   const systemConfig = new SystemConfig(messageQueue);
 

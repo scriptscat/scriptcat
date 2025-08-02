@@ -5,7 +5,7 @@ import { ScriptService } from "./script";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
-import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
+import { type SWMessageRequester } from "@Packages/message/window_message";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
 import { systemConfig } from "@App/pages/store/global";
@@ -23,7 +23,7 @@ export default class ServiceWorkerManager {
   constructor(
     private api: Server,
     private mq: MessageQueue,
-    private sender: ServiceWorkerMessageSend
+    private sender: SWMessageRequester
   ) {}
 
   logger(data: Logger) {

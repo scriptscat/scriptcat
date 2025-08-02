@@ -1,7 +1,7 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
 import type { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
+import type { ExtMessageSender, MessageSender, IMRequester } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
@@ -13,8 +13,8 @@ import { getRunAt } from "./utils";
 import { isUserScriptsAvailable, randomMessageFlag } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
-import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
-import { sendMessage } from "@Packages/message/client";
+import { ExtTabMessageRequester } from "@Packages/message/extension_message";
+import { actionDataSend } from "@Packages/message/client";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
@@ -43,7 +43,7 @@ export class RuntimeService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private sender: MessageSend,
+    private sender: IMRequester,
     private mq: MessageQueue,
     private value: ValueService,
     private script: ScriptService,
@@ -340,10 +340,10 @@ export class RuntimeService {
   sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
     if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/" + action, data);
+      return actionDataSend(this.sender, "offscreen/runtime/" + action, data);
     }
-    return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
+    return actionDataSend(
+      new ExtTabMessageRequester(to.tabId, {
         documentId: to.documentId,
         frameId: to.frameId,
       }),
@@ -356,10 +356,10 @@ export class RuntimeService {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
     if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/emitEvent", req);
+      return actionDataSend(this.sender, "offscreen/runtime/emitEvent", req);
     }
-    return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
+    return actionDataSend(
+      new ExtTabMessageRequester(to.tabId, {
         documentId: to.documentId,
         frameId: to.frameId,
       }),

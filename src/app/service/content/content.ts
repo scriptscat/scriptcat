@@ -1,8 +1,8 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import { Client, sendMessage } from "@Packages/message/client";
-import { type CustomEventMessage } from "@Packages/message/custom_event_message";
+import { Client, actionDataSend } from "@Packages/message/client";
+import { type CustomEventMessenger } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
-import type { Message, MessageSend } from "@Packages/message/types";
+import type { IMRequesterReceiver, IMRequester } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
 
 // content页的处理
@@ -10,18 +10,18 @@ export default class ContentRuntime {
   constructor(
     private extServer: Server,
     private server: Server,
-    private extSend: MessageSend,
-    private msg: Message
+    private extSend: IMRequester,
+    private msg: IMRequesterReceiver
   ) {}
 
   start(scripts: ScriptRunResource[], envInfo: GMInfoEnv) {
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject
-      return sendMessage(this.msg, "inject/runtime/emitEvent", data);
+      return actionDataSend(this.msg, "inject/runtime/emitEvent", data);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
       // 转发给inject
-      return sendMessage(this.msg, "inject/runtime/valueUpdate", data);
+      return actionDataSend(this.msg, "inject/runtime/valueUpdate", data);
     });
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.extSend);
     forwardMessage(
@@ -61,7 +61,7 @@ export default class ContentRuntime {
             let attr = tmpAttr;
             let parentNode: EventTarget | undefined;
             if (parentNodeId) {
-              parentNode = (this.msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);
+              parentNode = (this.msg as CustomEventMessenger).getAndDelRelatedTarget(parentNodeId);
             }
             const el = <Element>document.createElement(tagName);
 
@@ -81,7 +81,7 @@ export default class ContentRuntime {
               el.textContent = textContent;
             }
             (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
-            const nodeId = (this.msg as CustomEventMessage).sendRelatedTarget(el);
+            const nodeId = (this.msg as CustomEventMessenger).sendRelatedTarget(el);
             return nodeId;
           }
           case "GM_log":

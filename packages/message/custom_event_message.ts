@@ -1,12 +1,12 @@
-import type { Message, MessageConnect } from "./types";
+import type { IMRequesterReceiver, IMConnection } from "./types";
 import { v4 as uuidv4 } from "uuid";
-import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
+import { type MessageDispatcher, type WindowMessageBody, WindowMessageConnection } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import { type TMessage } from "./types";
 
-export class CustomEventPostMessage implements PostMessage {
-  constructor(private send: CustomEventMessage) {}
+export class CEMessageDispatcher implements MessageDispatcher {
+  constructor(private send: CustomEventMessenger) {}
 
   postMessage(message: any): void {
     this.send.nativeSend(message);
@@ -14,7 +14,7 @@ export class CustomEventPostMessage implements PostMessage {
 }
 
 // 使用CustomEvent来进行通讯, 可以在content与inject中传递一些dom对象
-export class CustomEventMessage implements Message {
+export class CustomEventMessenger implements IMRequesterReceiver {
   EE = new EventEmitter<string, any>();
 
   // 关联dom目标
@@ -29,12 +29,12 @@ export class CustomEventMessage implements Message {
         this.relatedTarget.set(event.movementX, event.relatedTarget!);
         return;
       } else if (event instanceof CustomEvent) {
-        this.messageHandle(event.detail, new CustomEventPostMessage(this));
+        this.messageHandle(event.detail, new CEMessageDispatcher(this));
       }
     });
   }
 
-  messageHandle(data: WindowMessageBody, target: PostMessage) {
+  messageHandle(data: WindowMessageBody, target: MessageDispatcher) {
     // 处理消息
     if (data.type === "sendMessage") {
       // 接收到消息
@@ -55,7 +55,7 @@ export class CustomEventMessage implements Message {
       // 接收到响应消息
       this.EE.emit("response:" + data.messageId, data);
     } else if (data.type === "connect") {
-      this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, target));
+      this.EE.emit("connect", data.data, new WindowMessageConnection(data.messageId, this.EE, target));
     } else if (data.type === "disconnect") {
       this.EE.emit("disconnect:" + data.messageId);
     } else if (data.type === "connectMessage") {
@@ -63,7 +63,7 @@ export class CustomEventMessage implements Message {
     }
   }
 
-  onConnect(callback: (data: TMessage, con: MessageConnect) => void): void {
+  onConnect(callback: (data: TMessage, con: IMConnection) => void): void {
     this.EE.addListener("connect", callback);
   }
 
@@ -71,7 +71,7 @@ export class CustomEventMessage implements Message {
     this.EE.addListener("message", callback);
   }
 
-  connect(data: TMessage): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<IMConnection> {
     return new Promise((resolve) => {
       const body: WindowMessageBody = {
         messageId: uuidv4(),
@@ -80,7 +80,7 @@ export class CustomEventMessage implements Message {
       };
       this.nativeSend(body);
       // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
-      resolve(new WindowMessageConnect(body.messageId, this.EE, new CustomEventPostMessage(this)));
+      resolve(new WindowMessageConnection(body.messageId, this.EE, new CEMessageDispatcher(this)));
     });
   }
 

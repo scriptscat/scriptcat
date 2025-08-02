@@ -1,5 +1,5 @@
 import ExecScript from "./exec_script";
-import type { Message } from "@Packages/message/types";
+import type { IMRequesterReceiver } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv } from "./types";
 
@@ -23,7 +23,7 @@ export class BgExecScriptWarp extends ExecScript {
 
   setInterval: Map<number, boolean>;
 
-  constructor(scriptRes: ScriptLoadInfo, message: Message) {
+  constructor(scriptRes: ScriptLoadInfo, message: IMRequesterReceiver) {
     const thisContext: { [key: string]: any } = {};
     const setTimeout = new Map<number, any>();
     const setInterval = new Map<number, any>();

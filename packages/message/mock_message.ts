@@ -1,17 +1,17 @@
-import type { Message, MessageConnect, MessageSend } from "./types";
+import type { IMRequesterReceiver, IMConnection, IMRequester, TMessage } from "./types";
 import EventEmitter from "eventemitter3";
 import { sleep } from "@App/pkg/utils/utils";
 
-export class MockMessageConnect implements MessageConnect {
+export class MockMessageConnection implements IMConnection {
   constructor(protected EE: EventEmitter<string, any>) {}
 
-  onMessage(callback: (data: any) => void): void {
+  onMessage(callback: (data: TMessage) => void): void {
     this.EE.on("message", (data: any) => {
       callback(data);
     });
   }
 
-  sendMessage(data: any): void {
+  sendMessage(data: TMessage): void {
     this.EE.emit("message", data);
   }
 
@@ -24,13 +24,13 @@ export class MockMessageConnect implements MessageConnect {
   }
 }
 
-export class MockMessageSend implements MessageSend {
+class MockMessageRequester implements IMRequester {
   constructor(protected EE: EventEmitter<string, any>) {}
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<IMConnection> {
     return new Promise((resolve) => {
       const EE = new EventEmitter<string, any>();
-      const con = new MockMessageConnect(EE);
+      const con = new MockMessageConnection(EE);
       resolve(con);
       sleep(1).then(() => {
         this.EE.emit("connect", data, con);
@@ -38,7 +38,7 @@ export class MockMessageSend implements MessageSend {
     });
   }
 
-  sendMessage(data: any): Promise<any> {
+  sendMessage(data: TMessage): Promise<any> {
     return new Promise((resolve) => {
       this.EE.emit("message", data, (resp: any) => {
         resolve(resp);
@@ -47,14 +47,14 @@ export class MockMessageSend implements MessageSend {
   }
 }
 
-export class MockMessage extends MockMessageSend implements Message {
-  onConnect(callback: (data: any, con: MessageConnect) => void): void {
-    this.EE.on("connect", (data: any, con: MessageConnect) => {
+export class MockMessenger extends MockMessageRequester implements IMRequesterReceiver {
+  onConnect(callback: (data: TMessage, con: IMConnection) => void): void {
+    this.EE.on("connect", (data: any, con: IMConnection) => {
       callback(data, con);
     });
   }
 
-  onMessage(callback: (data: any, sendResponse: (data: any) => void) => void): void {
+  onMessage(callback: (data: TMessage, sendResponse: (data: any) => void) => void): void {
     this.EE.on("message", (data: any, sendResponse: (data: any) => void) => {
       callback(data, sendResponse);
     });
