@@ -1,6 +1,6 @@
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type Group } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
@@ -11,7 +11,7 @@ export class SystemService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private sender: MessageSend
+    private sender: IMRequester
   ) {}
 
   getFaviconFromDomain(domain: string) {

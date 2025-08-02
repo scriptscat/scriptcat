@@ -8,7 +8,7 @@ import {
   SCRIPT_TYPE_BACKGROUND,
 } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
-import type { WindowMessage } from "@Packages/message/window_message";
+import type { WindowMessenger } from "@Packages/message/window_message";
 import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
@@ -32,7 +32,7 @@ export class Runtime {
   }[] = [];
 
   constructor(
-    private windowMessage: WindowMessage,
+    private windowMessage: WindowMessenger,
     private api: Server
   ) {
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });

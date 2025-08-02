@@ -1,19 +1,19 @@
 import { type Server } from "@Packages/message/server";
-import type { Message } from "@Packages/message/types";
+import type { IMRequesterReceiver } from "@Packages/message/types";
 import ExecScript from "./exec_script";
 import type { ValueUpdateData, GMInfoEnv, ScriptFunc } from "./types";
 import { addStyle } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { ExternalWhitelist } from "@App/app/const";
-import { sendMessage } from "@Packages/message/client";
+import { actionDataSend } from "@Packages/message/client";
 
 export class InjectRuntime {
   execList: ExecScript[] = [];
 
   constructor(
     private server: Server,
-    private msg: Message,
+    private msg: IMRequesterReceiver,
     private scripts: ScriptLoadInfo[],
     private envInfo: GMInfoEnv
   ) {}
@@ -69,7 +69,7 @@ export class InjectRuntime {
           }
         >(<unknown>window)).external.Scriptcat = {
           async isInstalled(name: string, namespace: string, callback: any) {
-            const resp = await sendMessage(msg, "content/script/isInstalled", {
+            const resp = await actionDataSend(msg, "content/script/isInstalled", {
               name,
               namespace,
             });

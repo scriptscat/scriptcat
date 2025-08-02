@@ -10,7 +10,7 @@ import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import JSZip from "jszip";
 import { type ValueService } from "./value";
@@ -62,7 +62,7 @@ export class SynchronizeService {
   storage: ChromeStorage = new ChromeStorage("sync", true);
 
   constructor(
-    private send: MessageSend,
+    private send: IMRequester,
     private group: Group,
     private script: ScriptService,
     private value: ValueService,

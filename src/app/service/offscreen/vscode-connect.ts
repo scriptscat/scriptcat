@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { type Group } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import { ScriptClient } from "../service_worker/client";
 import { v5 as uuidv5 } from "uuid";
 
@@ -20,7 +20,7 @@ export class VSCodeConnect {
 
   constructor(
     private group: Group,
-    private send: MessageSend
+    private send: IMRequester
   ) {
     this.scriptClient = new ScriptClient(this.send);
   }

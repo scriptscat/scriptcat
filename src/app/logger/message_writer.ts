@@ -1,12 +1,12 @@
 import type { LogLabel, LogLevel, Writer } from "./core";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 
 // 通过通讯机制写入日志
 export default class MessageWriter implements Writer {
-  send: MessageSend;
+  send: IMRequester;
 
   constructor(
-    send: MessageSend,
+    send: IMRequester,
     private action: string = "logger"
   ) {
     this.send = send;

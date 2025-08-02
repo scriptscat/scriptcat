@@ -1,17 +1,17 @@
 import { forwardMessage, Server } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import { ScriptService } from "./script";
 import { type Logger } from "@App/app/repo/logger";
-import { WindowMessage } from "@Packages/message/window_message";
+import { WindowMessenger } from "@Packages/message/window_message";
 import { ServiceWorkerClient } from "../service_worker/client";
-import { sendMessage } from "@Packages/message/client";
+import { actionDataSend } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
 
 // offscreen环境的管理器
 export class OffscreenManager {
-  private windowMessage = new WindowMessage(window, sandbox, true);
+  private windowMessage = new WindowMessenger(window, sandbox, true);
 
   private windowServer: Server = new Server("offscreen", this.windowMessage);
 
@@ -19,7 +19,7 @@ export class OffscreenManager {
 
   private serviceWorker = new ServiceWorkerClient(this.extensionMessage);
 
-  constructor(private extensionMessage: MessageSend) {}
+  constructor(private extensionMessage: IMRequester) {}
 
   logger(data: Logger) {
     // 发送日志消息
@@ -35,7 +35,7 @@ export class OffscreenManager {
   }
 
   sendMessageToServiceWorker(data: { action: string; data: any }) {
-    return sendMessage(this.extensionMessage, "serviceWorker/" + data.action, data.data);
+    return actionDataSend(this.extensionMessage, `serviceWorker/${data.action}`, data.data);
   }
 
   async initManager() {

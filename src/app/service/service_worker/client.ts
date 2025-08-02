@@ -4,7 +4,7 @@ import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
 import type { InstallSource, ScriptMenu, ScriptMenuItem } from "./types";
 import { Client } from "@Packages/message/client";
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
@@ -17,7 +17,7 @@ import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 
 export class ServiceWorkerClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker");
   }
 
@@ -27,13 +27,13 @@ export class ServiceWorkerClient extends Client {
 }
 
 export class ScriptClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/script");
   }
 
   // 脚本数据量大的时候，options页要读取全部的数据，可能会导致options页卡顿，直接调用serviceWorker的接口从内存中读取数据
   getAllScripts(): Promise<Script[]> {
-    return this.do("getAllScripts");
+    return this.doThrow("getAllScripts");
   }
 
   // 获取安装信息
@@ -42,7 +42,7 @@ export class ScriptClient extends Client {
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
-    return this.do("install", { script, code, upsertBy });
+    return this.doThrow("install", { script, code, upsertBy });
   }
 
   delete(uuid: string) {
@@ -54,7 +54,7 @@ export class ScriptClient extends Client {
   }
 
   info(uuid: string): Promise<Script> {
-    return this.do("fetchInfo", uuid);
+    return this.doThrow("fetchInfo", uuid);
   }
 
   getCode(uuid: string): Promise<ScriptCode | undefined> {
@@ -62,7 +62,7 @@ export class ScriptClient extends Client {
   }
 
   getScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    return this.do("getScriptRunResource", script);
+    return this.doThrow("getScriptRunResource", script);
   }
 
   excludeUrl(uuid: string, url: string, remove: boolean) {
@@ -163,12 +163,12 @@ export class ScriptClient extends Client {
 }
 
 export class ResourceClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/resource");
   }
 
   getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.do("getScriptResources", script);
+    return this.doThrow("getScriptResources", script);
   }
 
   deleteResource(url: string) {
@@ -177,12 +177,12 @@ export class ResourceClient extends Client {
 }
 
 export class ValueClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/value");
   }
 
-  getScriptValue(script: Script): Promise<{ [key: string]: any }> {
-    return this.do("getScriptValue", script);
+  async getScriptValue(script: Script): Promise<{ [key: string]: any }> {
+    return this.doThrow("getScriptValue", script);
   }
 
   setScriptValue(uuid: string, key: string, value: any) {
@@ -195,7 +195,7 @@ export class ValueClient extends Client {
 }
 
 export class RuntimeClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/runtime");
   }
 
@@ -208,7 +208,7 @@ export class RuntimeClient extends Client {
   }
 
   pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
-    return this.do("pageLoad");
+    return this.doThrow("pageLoad");
   }
 
   scriptLoad(flag: string, uuid: string) {
@@ -229,12 +229,12 @@ export type GetPopupDataRes = {
 };
 
 export class PopupClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/popup");
   }
 
   getPopupData(data: GetPopupDataReq): Promise<GetPopupDataRes> {
-    return this.do("getPopupData", data);
+    return this.doThrow("getPopupData", data);
   }
 
   menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
@@ -252,7 +252,7 @@ export class PopupClient extends Client {
 }
 
 export class PermissionClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/runtime/permission");
   }
 
@@ -261,7 +261,7 @@ export class PermissionClient extends Client {
   }
 
   getPermissionInfo(uuid: string): ReturnType<PermissionVerify["getInfo"]> {
-    return this.do("getInfo", uuid);
+    return this.doThrow("getInfo", uuid);
   }
 
   deletePermission(uuid: string, permission: string, permissionValue: string) {
@@ -269,7 +269,7 @@ export class PermissionClient extends Client {
   }
 
   getScriptPermissions(uuid: string): ReturnType<PermissionVerify["getScriptPermissions"]> {
-    return this.do("getScriptPermissions", uuid);
+    return this.doThrow("getScriptPermissions", uuid);
   }
 
   addPermission(permission: Permission) {
@@ -286,7 +286,7 @@ export class PermissionClient extends Client {
 }
 
 export class SynchronizeClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/synchronize");
   }
 
@@ -325,7 +325,7 @@ export class SynchronizeClient extends Client {
 }
 
 export class SubscribeClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/subscribe");
   }
 
@@ -347,7 +347,7 @@ export class SubscribeClient extends Client {
 }
 
 export class SystemClient extends Client {
-  constructor(msg: MessageSend) {
+  constructor(msg: IMRequester) {
     super(msg, "serviceWorker/system");
   }
 
@@ -356,10 +356,10 @@ export class SystemClient extends Client {
   }
 
   loadFavicon(icon: string): Promise<string> {
-    return this.do("loadFavicon", icon);
+    return this.doThrow("loadFavicon", icon);
   }
 
   getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
-    return this.do("getFaviconFromDomain", domain);
+    return this.doThrow("getFaviconFromDomain", domain);
   }
 }

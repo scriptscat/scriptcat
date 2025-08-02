@@ -1,12 +1,12 @@
-import type { MessageSend } from "@Packages/message/types";
+import type { IMRequester } from "@Packages/message/types";
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { OffscreenManager } from "./app/service/offscreen";
-import { ExtensionMessageSend } from "@Packages/message/extension_message";
+import { RuntimeExtMessageRequester } from "@Packages/message/extension_message";
 
 function main() {
   // 初始化日志组件
-  const extensionMessage: MessageSend = new ExtensionMessageSend();
+  const extensionMessage: IMRequester = new RuntimeExtMessageRequester();
   const loggerCore = new LoggerCore({
     writer: new MessageWriter(extensionMessage, "serviceWorker/logger"),
     labels: { env: "offscreen" },

@@ -1,5 +1,5 @@
 import { Server } from "@Packages/message/server";
-import { type WindowMessage } from "@Packages/message/window_message";
+import { type WindowMessenger } from "@Packages/message/window_message";
 import { preparationSandbox } from "../offscreen/client";
 import { Runtime } from "./runtime";
 
@@ -7,7 +7,7 @@ import { Runtime } from "./runtime";
 export class SandboxManager {
   api: Server = new Server("sandbox", this.windowMessage);
 
-  constructor(private windowMessage: WindowMessage) {}
+  constructor(private windowMessage: WindowMessenger) {}
 
   initManager() {
     const runtime = new Runtime(this.windowMessage, this.api);

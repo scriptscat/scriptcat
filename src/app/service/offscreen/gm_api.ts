@@ -1,20 +1,14 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { GetSender, Group } from "@Packages/message/server";
-import type { MessageConnect } from "@Packages/message/types";
+import type { IMConnection } from "@Packages/message/types";
 
 export default class GMApi {
   logger: Logger = LoggerCore.logger().with({ service: "gmApi" });
 
   constructor(private group: Group) {}
 
-  async dealXhrResponse(
-    con: MessageConnect,
-    details: GMSend.XHRDetails,
-    event: string,
-    xhr: XMLHttpRequest,
-    data?: any
-  ) {
+  async dealXhrResponse(con: IMConnection, details: GMSend.XHRDetails, event: string, xhr: XMLHttpRequest, data?: any) {
     const finalUrl = xhr.responseURL || details.url;
     let response: GMTypes.XHRResponse = {
       finalUrl,

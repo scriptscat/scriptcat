@@ -2,10 +2,10 @@ import ServiceWorkerManager from "./app/service/service_worker";
 import LoggerCore from "./app/logger/core";
 import DBWriter from "./app/logger/db_writer";
 import { LoggerDAO } from "./app/repo/logger";
-import { ExtensionMessage } from "@Packages/message/extension_message";
+import { RuntimeExtMessenger } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
-import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
+import { SWMessageRequester } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
 import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
@@ -51,7 +51,7 @@ async function setupOffscreenDocument() {
 
 async function main() {
   // 初始化管理器
-  const message = new ExtensionMessage(true);
+  const message = new RuntimeExtMessenger(true);
   // 初始化日志组件
   const loggerCore = new LoggerCore({
     writer: new DBWriter(new LoggerDAO()),
@@ -60,7 +60,7 @@ async function main() {
   loggerCore.logger().debug("service worker start");
   const server = new Server("serviceWorker", message);
   const messageQueue = new MessageQueue();
-  const manager = new ServiceWorkerManager(server, messageQueue, new ServiceWorkerMessageSend());
+  const manager = new ServiceWorkerManager(server, messageQueue, new SWMessageRequester());
   manager.initManager();
   // 初始化沙盒环境
   await setupOffscreenDocument();
