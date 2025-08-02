@@ -12,15 +12,14 @@ export class MessageQueue {
   constructor() {
     chrome.runtime.onMessage.addListener((msg) => {
       const lastError = chrome.runtime.lastError;
+      const topic = msg.msgQueue;
+      if (typeof topic !== "string") return;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
         // 消息API发生错误因此不继续执行
         return false;
       }
-      const topic = msg.msgQueue;
-      if (typeof topic === "string") {
-        this.handler(topic, msg.data);
-      }
+      this.handler(topic, msg.data);
     });
   }
 
