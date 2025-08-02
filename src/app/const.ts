@@ -2,7 +2,7 @@ import { version } from "../../package.json";
 
 export const ExtVersion = version;
 export const Discord = "https://discord.gg/JF76nHCCM7";
-export const Documentation = "https://docs.scriptcat.org";
+export const DocumentationSite = "https://docs.scriptcat.org";
 
 export const ExtServer = "https://ext.scriptcat.org/";
 export const ExtServerApi = ExtServer + "api/v1/";

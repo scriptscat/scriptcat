@@ -1,4 +1,4 @@
-import { ExtServer, ExtVersion } from "@App/app/const";
+import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
@@ -157,11 +157,11 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
+          chrome.tabs.create({ url: `${DocumentationSite}${localePath}` });
         } else if (details.reason === "update") {
           isVideoPlayingOrInactive().then((ok) => {
             chrome.tabs.create({
-              url: `https://docs.scriptcat.org/docs/change/${
+              url: `${DocumentationSite}/docs/change/${
                 ExtVersion.includes("-") ? "beta-changelog/" : ""
               }#${ExtVersion}`,
               active: !ok,

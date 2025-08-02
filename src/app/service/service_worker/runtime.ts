@@ -25,6 +25,7 @@ import Logger from "@App/app/logger/logger";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
+import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 
 export class RuntimeService {
@@ -103,7 +104,7 @@ export class RuntimeService {
           });
           // 打开页面
           chrome.tabs.create({
-            url: `https://docs.scriptcat.org${localePath}/docs/use/open-dev/`,
+            url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
           });
         }
       });

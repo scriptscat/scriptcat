@@ -24,6 +24,7 @@ import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
 import SiderGuide from "./SiderGuide";
 import CustomLink from "../CustomLink";
 import { localePath } from "@App/locales/locales";
+import { DocumentationSite } from "@App/app/const";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -102,7 +103,7 @@ const Sider: React.FC = () => {
                 }
               >
                 <Menu.Item key="scriptcat/docs/dev/">
-                  <a href={`https://docs.scriptcat.org${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
+                  <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
                     <RiFileCodeLine /> {t("api_docs")}
                   </a>
                 </Menu.Item>
@@ -136,7 +137,7 @@ const Sider: React.FC = () => {
                 <RiGuideLine /> {t("guide")}
               </Menu.Item>
               <Menu.Item key="scriptcat/docs/use/">
-                <a href={`https://docs.scriptcat.org${localePath}/docs/use/`} target="_blank" rel="noreferrer">
+                <a href={`${DocumentationSite}${localePath}/docs/use/`} target="_blank" rel="noreferrer">
                   <RiFileCodeLine /> {t("user_guide")}
                 </a>
               </Menu.Item>
