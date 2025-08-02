@@ -17,6 +17,7 @@ import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
+import { DocumentationSite } from "@App/app/const";
 
 export class ScriptService {
   logger: Logger;
@@ -100,8 +101,8 @@ export class ScriptService {
       },
       {
         urls: [
-          "https://docs.scriptcat.org/docs/script_installation/*",
-          "https://docs.scriptcat.org/en/docs/script_installation/*",
+          `${DocumentationSite}/docs/script_installation/*`,
+          `${DocumentationSite}/en/docs/script_installation/*`,
           "https://www.tampermonkey.net/script_installation.php*",
         ],
         types: ["main_frame"],
@@ -119,7 +120,7 @@ export class ScriptService {
             action: {
               type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
               redirect: {
-                regexSubstitution: `https://docs.scriptcat.org${localePath}/docs/script_installation/#url=\\0`,
+                regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\0`,
               },
             },
             condition: {

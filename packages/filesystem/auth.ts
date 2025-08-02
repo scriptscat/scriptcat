@@ -1,6 +1,7 @@
 import { ExtServer, ExtServerApi } from "@App/app/const";
 import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { sleep } from "@App/pkg/utils/utils";
 
 type NetDiskType = "baidu" | "onedrive" | "googledrive";
 
@@ -32,49 +33,29 @@ export function RefreshToken(
   }).then((resp) => resp.json());
 }
 
-export function NetDisk(netDiskType: NetDiskType) {
-  return new Promise<void>((resolve) => {
-    if (globalThis.window) {
-      const loginWindow = window.open(`${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`);
-      const t = setInterval(() => {
-        try {
-          if (loginWindow!.closed) {
-            clearInterval(t);
-            resolve();
-          }
-        } catch (_) {
-          clearInterval(t);
-          resolve();
-        }
-      }, 1000);
+export async function NetDisk(netDiskType: NetDiskType) {
+  try {
+    let isWindowClosed: any;
+    const url = `${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`;
+    if (typeof chrome !== "undefined" && typeof chrome?.tabs?.create === "function") {
+      const t = await chrome.tabs.create({
+        url,
+      });
+      isWindowClosed = async () => {
+        const tab = await chrome.tabs.get(t.id!);
+        return !tab || tab.id !== t.id || tab.windowId !== t.windowId;
+      };
     } else {
-      chrome.tabs
-        .create({
-          url: `${ExtServer}api/v1/auth/net-disk?netDiskType=${netDiskType}`,
-        })
-        .then(({ id: tabId }) => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.tabs.create:", lastError);
-            // 没有 tabId 无法执行
-            return;
-          }
-          const t = setInterval(async () => {
-            try {
-              const tab = await chrome.tabs.get(tabId!);
-              console.log("query tab", tab);
-              if (!tab) {
-                clearInterval(t);
-                resolve();
-              }
-            } catch (_) {
-              clearInterval(t);
-              resolve();
-            }
-          }, 1000);
-        });
+      const loginWindow = window.open(url);
+      isWindowClosed = () => loginWindow!.closed === true;
     }
-  });
+    while (true) {
+      await sleep(1000);
+      if (await isWindowClosed()) break;
+    }
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 export type Token = {

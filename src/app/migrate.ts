@@ -8,6 +8,7 @@ import type { Value } from "./repo/value";
 import { ValueDAO } from "./repo/value";
 import type { Permission } from "./repo/permission";
 import { PermissionDAO } from "./repo/permission";
+import { DocumentationSite } from "./const";
 
 // 迁移数据到chrome.storage
 export function migrateToChromeStorage() {
@@ -188,7 +189,7 @@ export function migrateToChromeStorage() {
         console.log("脚本数据迁移完成", scripts.length);
         if (scripts.length > 0) {
           chrome.tabs.create({
-            url: "https://docs.scriptcat.org/docs/change/v0.17/",
+            url: `${DocumentationSite}/docs/change/v0.17/`,
           });
           setTimeout(() => {
             chrome.runtime.reload();
