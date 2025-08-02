@@ -14,6 +14,7 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
+import { type SystemService } from "./system";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -356,5 +357,9 @@ export class SystemClient extends Client {
 
   loadFavicon(icon: string): Promise<string> {
     return this.do("loadFavicon", icon);
+  }
+
+  getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
+    return this.do("getFaviconFromDomain", domain);
   }
 }

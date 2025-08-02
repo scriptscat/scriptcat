@@ -7,6 +7,8 @@ import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
+import { fetchIconByDomain } from "./app/service/service_worker/fetch";
+import { msgResponse } from "./app/service/service_worker/utils";
 
 migrate();
 
@@ -63,5 +65,36 @@ async function main() {
   // 初始化沙盒环境
   await setupOffscreenDocument();
 }
+
+const apiActions: {
+  [key: string]: (message: any, _sender: chrome.runtime.MessageSender) => Promise<any> | any;
+} = {
+  async "fetch-icon-by-domain"(message: any, _sender: chrome.runtime.MessageSender) {
+    const { domain } = message;
+    return await fetchIconByDomain(domain);
+  },
+};
+
+chrome.runtime.onMessage.addListener((req, sender, sendReseponse) => {
+  const f = apiActions[req.message ?? ""];
+  if (f) {
+    let res;
+    try {
+      res = f(req, sender);
+    } catch (e: any) {
+      sendReseponse(msgResponse(1, e));
+      return false;
+    }
+    if (typeof res?.then === "function") {
+      res.then(sendReseponse).catch((e: Error) => {
+        sendReseponse(msgResponse(1, e));
+      });
+      return true;
+    } else {
+      sendReseponse(msgResponse(0, res));
+      return false;
+    }
+  }
+});
 
 main();
