@@ -4,7 +4,7 @@ import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
 import type { ScriptMatchInfo, ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
-import { cacheInstance, type ITxSetD } from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type { ScriptMenuRegisterCallbackValue } from "../queue";
@@ -18,6 +18,10 @@ import {
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
+
+type TxUpdateScriptMenuCallback = (
+  result: ScriptMenu[]
+) => Promise<ScriptMenu[] | undefined> | ScriptMenu[] | undefined;
 
 // 处理popup页面的数据
 export class PopupService {
@@ -195,7 +199,7 @@ export class PopupService {
   }
 
   // 事务更新脚本菜单
-  txUpdateScriptMenu(tabId: number, callback: ITxSetD<ScriptMenu[]>) {
+  txUpdateScriptMenu(tabId: number, callback: TxUpdateScriptMenuCallback) {
     const cacheKey = `${CACHE_KEY_TAB_SCRIPT}${tabId}`;
     return cacheInstance.tx<ScriptMenu[]>(cacheKey, (menu) => callback(menu || []));
   }

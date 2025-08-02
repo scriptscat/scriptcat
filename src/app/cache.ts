@@ -145,7 +145,7 @@ class Cache extends ExtCache {
   }
 
   // 事务处理,如果有事务正在进行,则等待
-  public async tx<T>(key: string, set: ITxSetU<T>): Promise<T> {
+  public async tx<T>(key: string, set: ICacheSet<T>): Promise<T> {
     const unlock = await this.lock(key);
     let newValue: T;
     await this.get<T>(key)
@@ -167,7 +167,6 @@ class Cache extends ExtCache {
   }
 }
 
-export type ITxSetU<T> = (result: T | undefined) => Promise<T | undefined> | T | undefined;
-export type ITxSetD<T> = (result: T) => Promise<T | undefined> | T | undefined;
+export type ICacheSet<T> = (result: T | undefined) => Promise<T | undefined> | T | undefined;
 
 export const cacheInstance = new Cache();
