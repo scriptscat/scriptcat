@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
-import { type TMessage } from "./extension_message";
+import { type TMessage } from "./types";
 
 export class CustomEventPostMessage implements PostMessage {
   constructor(private send: CustomEventMessage) {}

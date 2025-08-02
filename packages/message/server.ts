@@ -1,7 +1,7 @@
-import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend } from "./types";
+import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend, TMessage } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
-import { ExtensionMessageConnect, type TMessage } from "./extension_message";
+import { ExtensionMessageConnect } from "./extension_message";
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}

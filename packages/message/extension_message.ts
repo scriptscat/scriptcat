@@ -1,31 +1,4 @@
-import type { Message, MessageConnect, MessageSend, MessageSender } from "./types";
-
-export type TMessageQueue = {
-  msgQueue: string;
-  data: {
-    action: string;
-    message: NonNullable<any>;
-  };
-  action?: never;
-  code?: never;
-};
-
-export type TMessageCommAction = {
-  action: string;
-  data?: NonNullable<any>;
-  msgQueue?: never;
-  code?: never;
-};
-
-export type TMessageCommCode = {
-  code: number;
-  msgQueue?: never;
-  action?: never;
-  data?: NonNullable<any>;
-  message?: NonNullable<any>;
-};
-
-export type TMessage = TMessageQueue | TMessageCommAction | TMessageCommCode;
+import type { Message, MessageConnect, MessageSend, MessageSender, TMessage, TMessageCommAction } from "./types";
 
 export class ExtensionMessageSend implements MessageSend {
   constructor() {}

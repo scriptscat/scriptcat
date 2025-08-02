@@ -1,6 +1,6 @@
 import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
-import { type TMessage } from "./extension_message";
+import { type TMessage } from "./types";
 
 export type TKeyValue = { key: string; value: string };
 
