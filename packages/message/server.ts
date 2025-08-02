@@ -48,7 +48,8 @@ export class Server {
     private enableConnect: boolean = true
   ) {
     if (this.enableConnect) {
-      message.onConnect((msg: any, con: MessageConnect) => {
+      message.onConnect((msg: TMessage, con: MessageConnect) => {
+        if (typeof msg.action !== "string") return;
         this.logger.trace("server onConnect", { msg });
         if (msg.action.startsWith(prefix)) {
           return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
