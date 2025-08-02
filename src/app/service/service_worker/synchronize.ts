@@ -17,13 +17,12 @@ import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
-import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
+import type { TDeleteScript, TInstallScript } from "../queue";
 import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { type InstallSource } from "./types";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 
@@ -568,10 +567,10 @@ export class SynchronizeService {
     return;
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, script?: Script) {
+  async pullScript(fs: FileSystem, file: SyncFiles, existingScript?: Script) {
     const logger = this.logger.with({
-      uuid: script?.uuid || "",
-      name: script?.name || "",
+      uuid: existingScript?.uuid || "",
+      name: existingScript?.name || "",
       file: file.script.name,
     });
     try {
@@ -582,15 +581,15 @@ export class SynchronizeService {
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
-      const prepareScript = await prepareScriptByCode(
+      const { script } = await prepareScriptByCode(
         code,
-        script?.downloadUrl || metaObj.downloadUrl || "",
-        script?.uuid || metaObj.uuid
+        existingScript?.downloadUrl || metaObj.downloadUrl || "",
+        existingScript?.uuid || metaObj.uuid
       );
-      prepareScript.script.origin = prepareScript.script.origin || metaObj.origin;
+      script.origin = script.origin || metaObj.origin;
       this.script.installScript({
-        script: prepareScript.script,
-        code: code,
+        script,
+        code,
         upsertBy: "sync",
       });
       logger.info("pull script success");
@@ -636,7 +635,7 @@ export class SynchronizeService {
     }
   }
 
-  async scriptInstall(params: { script: Script; update: boolean; upsertBy: InstallSource }) {
+  async scriptInstall(params: TInstallScript) {
     if (params.upsertBy === "sync") {
       return;
     }
@@ -666,7 +665,7 @@ export class SynchronizeService {
     this.group.on("importResources", this.importResources.bind(this));
     // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
-    subscribeScriptInstall(this.mq, this.scriptInstall.bind(this));
-    subscribeScriptDelete(this.mq, this.scriptDelete.bind(this));
+    this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
+    this.mq.subscribe<TDeleteScript>("deleteScript", this.scriptDelete.bind(this));
   }
 }

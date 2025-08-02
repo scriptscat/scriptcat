@@ -122,7 +122,7 @@ export default class GMApi extends GM_Base {
   ) {
     // testing only 仅供测试用
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
-    const EE: EventEmitter = new EventEmitter();
+    const EE = new EventEmitter<string, any>();
     super(
       {
         prefix,

@@ -3,7 +3,7 @@ import EventEmitter from "eventemitter3";
 import { sleep } from "@App/pkg/utils/utils";
 
 export class MockMessageConnect implements MessageConnect {
-  constructor(protected EE: EventEmitter) {}
+  constructor(protected EE: EventEmitter<string, any>) {}
 
   onMessage(callback: (data: any) => void): void {
     this.EE.on("message", (data: any) => {
@@ -25,11 +25,11 @@ export class MockMessageConnect implements MessageConnect {
 }
 
 export class MockMessageSend implements MessageSend {
-  constructor(protected EE: EventEmitter) {}
+  constructor(protected EE: EventEmitter<string, any>) {}
 
   connect(data: any): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      const EE = new EventEmitter();
+      const EE = new EventEmitter<string, any>();
       const con = new MockMessageConnect(EE);
       resolve(con);
       sleep(1).then(() => {

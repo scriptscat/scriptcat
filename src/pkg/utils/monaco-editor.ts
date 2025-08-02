@@ -122,7 +122,7 @@ export default function registerEditor() {
 }
 
 export class LinterWorker {
-  static hook = new EventEmitter();
+  static hook = new EventEmitter<string, any>();
 
   static sendLinterMessage(data: unknown) {
     linterWorker.postMessage(data);

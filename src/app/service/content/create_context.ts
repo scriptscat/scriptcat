@@ -16,7 +16,7 @@ export const createContext = (
 ) => {
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
-  const EE: EventEmitter = new EventEmitter();
+  const EE = new EventEmitter<string, any>();
   const context = createGMBase({
     prefix: envPrefix,
     message,

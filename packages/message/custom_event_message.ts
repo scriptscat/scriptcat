@@ -14,7 +14,7 @@ export class CustomEventPostMessage implements PostMessage {
 
 // 使用CustomEvent来进行通讯, 可以在content与inject中传递一些dom对象
 export class CustomEventMessage implements Message {
-  EE: EventEmitter = new EventEmitter();
+  EE = new EventEmitter<string, any>();
 
   // 关联dom目标
   relatedTarget: Map<number, EventTarget> = new Map();
@@ -107,7 +107,7 @@ export class CustomEventMessage implements Message {
         type: "sendMessage",
         data,
       };
-      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+      let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody) => {
         if (callback !== null) {
           this.EE.removeListener("response:" + body.messageId, callback);
           resolve!(body.data);
@@ -130,7 +130,7 @@ export class CustomEventMessage implements Message {
       data,
     };
     let ret: any;
-    let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody) => {
+    let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody) => {
       if (callback !== null) {
         this.EE.removeListener("response:" + body.messageId, callback);
         ret = body.data;
