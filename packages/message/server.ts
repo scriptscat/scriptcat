@@ -12,7 +12,7 @@ import { actionDataConnect, actionDataSend } from "./client";
 import { RuntimeExtConnection } from "./extension_message";
 
 export class GetSender {
-  constructor(private sender: IMConnection | MessageSender) {}
+  constructor(private readonly sender: IMConnection | MessageSender) {}
 
   getSender(): MessageSender {
     return this.sender as MessageSender;
@@ -46,14 +46,14 @@ type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
 type ApiFunctionSync = (params: any, con: GetSender) => any;
 
 export class Server {
-  private apiFunctionMap: Map<string, ApiFunction> = new Map();
+  private readonly apiFunctionMap: Map<string, ApiFunction> = new Map();
 
-  private logger = LoggerCore.getInstance().logger({ service: "messageServer" });
+  private readonly logger = LoggerCore.getInstance().logger({ service: "messageServer" });
 
   constructor(
-    prefix: string,
-    message: IMRequesterReceiver,
-    private enableConnect: boolean = true
+    readonly prefix: string,
+    readonly message: IMRequesterReceiver,
+    private readonly enableConnect: boolean = true
   ) {
     if (this.enableConnect) {
       message.onConnect((msg: TMessage, con: IMConnection) => {
