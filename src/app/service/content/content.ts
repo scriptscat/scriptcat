@@ -1,6 +1,6 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, actionDataSend } from "@Packages/message/client";
-import { type CustomEventMessenger } from "@Packages/message/custom_event_message";
+import { type CEMessenger } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { IMRequesterReceiver, IMRequester } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
@@ -61,7 +61,7 @@ export default class ContentRuntime {
             let attr = tmpAttr;
             let parentNode: EventTarget | undefined;
             if (parentNodeId) {
-              parentNode = (this.msg as CustomEventMessenger).getAndDelRelatedTarget(parentNodeId);
+              parentNode = (this.msg as CEMessenger).getAndDelRelatedTarget(parentNodeId);
             }
             const el = <Element>document.createElement(tagName);
 
@@ -81,7 +81,7 @@ export default class ContentRuntime {
               el.textContent = textContent;
             }
             (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
-            const nodeId = (this.msg as CustomEventMessenger).sendRelatedTarget(el);
+            const nodeId = (this.msg as CEMessenger).sendRelatedTarget(el);
             return nodeId;
           }
           case "GM_log":

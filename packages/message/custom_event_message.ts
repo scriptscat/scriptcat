@@ -6,7 +6,7 @@ import EventEmitter from "eventemitter3";
 import { type TMessage } from "./types";
 
 export class CEMessageDispatcher implements MessageDispatcher {
-  constructor(private send: CustomEventMessenger) {}
+  constructor(private send: CEMessenger) {}
 
   postMessage(message: any): void {
     this.send.nativeSend(message);
@@ -14,7 +14,7 @@ export class CEMessageDispatcher implements MessageDispatcher {
 }
 
 // 使用CustomEvent来进行通讯, 可以在content与inject中传递一些dom对象
-export class CustomEventMessenger implements IMRequesterReceiver {
+export class CEMessenger implements IMRequesterReceiver {
   EE = new EventEmitter<string, any>();
 
   // 关联dom目标

@@ -1,5 +1,5 @@
 import type { IMRequesterReceiver, IMConnection, TMessage } from "@Packages/message/types";
-import type { CustomEventMessenger } from "@Packages/message/custom_event_message";
+import type { CEMessenger } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
 import { base64ToBlob } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -334,7 +334,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
     const data = await this.sendMessage("CAT_fetchDocument", [url]);
-    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
+    return (<CEMessenger>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
   }
 
   static _GM_cookie(
@@ -484,7 +484,7 @@ export default class GMApi extends GM_Base {
   GM_addStyle(css: string) {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
-    const resp = (<CustomEventMessenger>this.message).syncSendMessage({
+    const resp = (<CEMessenger>this.message).syncSendMessage({
       action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
@@ -501,7 +501,7 @@ export default class GMApi extends GM_Base {
     if (resp.code !== 0) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(resp.data);
+    return (<CEMessenger>this.message).getAndDelRelatedTarget(resp.data);
   }
 
   @GMContext.API({ alias: "GM.addElement" })
@@ -510,12 +510,12 @@ export default class GMApi extends GM_Base {
     // 这里直接使用同步的方式去处理, 不要有promise
     let parentNodeId: any = parentNode;
     if (typeof parentNodeId !== "string") {
-      const id = (<CustomEventMessenger>this.message).sendRelatedTarget(parentNodeId);
+      const id = (<CEMessenger>this.message).sendRelatedTarget(parentNodeId);
       parentNodeId = id;
     } else {
       parentNodeId = null;
     }
-    const resp = (<CustomEventMessenger>this.message).syncSendMessage({
+    const resp = (<CEMessenger>this.message).syncSendMessage({
       action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
@@ -530,7 +530,7 @@ export default class GMApi extends GM_Base {
     if (resp.code !== 0) {
       throw new Error(resp.message);
     }
-    return (<CustomEventMessenger>this.message).getAndDelRelatedTarget(resp.data);
+    return (<CEMessenger>this.message).getAndDelRelatedTarget(resp.data);
   }
 
   @GMContext.API({ alias: "GM.unregisterMenuCommand" })

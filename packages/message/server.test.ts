@@ -1,13 +1,13 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { Server, GetSender } from "./server";
-import { CustomEventMessenger } from "./custom_event_message";
+import { CEMessenger } from "./custom_event_message";
 import type { IMConnection, MessageSender } from "./types";
 
 describe("Server", () => {
-  let contentMessage: CustomEventMessenger;
-  let injectMessage: CustomEventMessenger;
+  let contentMessage: CEMessenger;
+  let injectMessage: CEMessenger;
   let server: Server;
-  let client: CustomEventMessenger;
+  let client: CEMessenger;
 
   beforeEach(() => {
     // 清理 DOM 事件监听器
@@ -22,8 +22,8 @@ describe("Server", () => {
     });
 
     // 创建 content 和 inject 之间的消息通道
-    contentMessage = new CustomEventMessenger("test", true); // content 端
-    injectMessage = new CustomEventMessenger("test", false); // inject 端
+    contentMessage = new CEMessenger("test", true); // content 端
+    injectMessage = new CEMessenger("test", false); // inject 端
 
     // 服务端使用 content 消息
     server = new Server("api", contentMessage);

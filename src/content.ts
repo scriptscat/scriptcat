@@ -1,7 +1,7 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { RuntimeExtMessenger, RuntimeExtMessageRequester } from "@Packages/message/extension_message";
-import { CustomEventMessenger } from "@Packages/message/custom_event_message";
+import { CEMessenger } from "@Packages/message/custom_event_message";
 import { RuntimeClient } from "./app/service/service_worker/client";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
@@ -19,7 +19,7 @@ const client = new RuntimeClient(send);
 client.pageLoad().then((data) => {
   loggerCore.logger().debug("content start");
   const extMsg = new RuntimeExtMessenger();
-  const msg = new CustomEventMessenger(data.flag, true);
+  const msg = new CEMessenger(data.flag, true);
   const server = new Server("content", msg);
   // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
   // 所以不需要处理连接，设置为false
