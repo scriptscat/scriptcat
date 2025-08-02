@@ -2,7 +2,7 @@ import type { Script } from "@App/app/repo/scripts";
 import { extractFavicons } from "@App/pkg/utils/favicon";
 import { store } from "./store";
 import { scriptSlice } from "./features/script";
-import Cache from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
@@ -12,7 +12,7 @@ const processScriptFavicon = async (script: Script) => {
   const cacheKey = `${CACHE_KEY_FAVICON}${script.uuid}`;
   return {
     uuid: script.uuid,
-    fav: await Cache.getInstance().getOrSet(cacheKey, async () => {
+    fav: await cacheInstance.getOrSet(cacheKey, async () => {
       const icons = await extractFavicons(script.metadata!.match || [], script.metadata!.include || []);
       if (icons.length === 0) return [];
 

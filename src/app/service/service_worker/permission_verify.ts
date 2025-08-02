@@ -5,7 +5,7 @@ import type { GetSender } from "@Packages/message/server";
 import { type Group } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import type { Api, Request } from "./types";
-import Cache from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
@@ -175,7 +175,7 @@ export default class PermissionVerify {
     }
     const cacheKey = `${CACHE_KEY_PERMISSION}${request.script.uuid}:${confirm.permission}:${confirm.permissionValue || ""}`;
     // 从数据库中查询是否有此权限
-    const ret = await Cache.getInstance().getOrSet(cacheKey, async () => {
+    const ret = await cacheInstance.getOrSet(cacheKey, async () => {
       let model = await this.permissionDAO.findByKey(request.uuid, confirm.permission, confirm.permissionValue || "");
       if (!model) {
         // 允许通配
@@ -221,7 +221,7 @@ export default class PermissionVerify {
     }
     // 临时 放入缓存
     if (userConfirm.type >= 2) {
-      Cache.getInstance().set(cacheKey, model);
+      cacheInstance.set(cacheKey, model);
     }
     // 总是 放入数据库
     if (userConfirm.type >= 4) {
@@ -362,12 +362,12 @@ export default class PermissionVerify {
   }
 
   async clearCache(uuid: string) {
-    const keys = await Cache.getInstance().list();
+    const keys = await cacheInstance.list();
     // 删除所有以permission:uuid:开头的缓存
     await Promise.all(
       keys.map((key) => {
         if (key.startsWith(`${CACHE_KEY_PERMISSION}${uuid}:`)) {
-          return Cache.getInstance().del(key);
+          return cacheInstance.del(key);
         }
       })
     );
