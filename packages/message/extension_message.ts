@@ -49,12 +49,10 @@ export class ServiceWorkerMessage extends ExtensionMessageSend implements Messag
   onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const lastError = chrome.runtime.lastError;
+      if (typeof msg.action !== "string") return;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
         // 消息API发生错误因此不继续执行
-        return false;
-      }
-      if (msg.action === "messageQueue") {
         return false;
       }
       return callback(msg, sendResponse, sender);
@@ -103,12 +101,10 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
   onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
     chrome.runtime.onMessage?.addListener((msg, sender, sendResponse) => {
       const lastError = chrome.runtime.lastError;
+      if (typeof msg.action !== "string") return;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
         // 消息API发生错误因此不继续执行
-        return false;
-      }
-      if (msg.action === "messageQueue") {
         return false;
       }
       return callback(msg, sendResponse, sender);
@@ -117,12 +113,10 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
       // 监听用户脚本的消息
       chrome.runtime.onUserScriptMessage?.addListener((msg, sender, sendResponse) => {
         const lastError = chrome.runtime.lastError;
+        if (typeof msg.action !== "string") return;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptMessage:", lastError);
           // 消息API发生错误因此不继续执行
-          return false;
-        }
-        if (msg.action === "messageQueue") {
           return false;
         }
         return callback(msg, sendResponse, sender);

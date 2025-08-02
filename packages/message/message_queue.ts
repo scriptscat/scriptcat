@@ -13,24 +13,21 @@ export class MessageQueue {
   constructor() {
     chrome.runtime.onMessage.addListener((msg) => {
       const lastError = chrome.runtime.lastError;
+      const topic = msg.msgQueue;
+      if (typeof topic !== "string") return;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
         // 消息API发生错误因此不继续执行
         return false;
       }
-      if (msg.action === "messageQueue") {
-        this.handler(msg.data);
-      }
+      this.handler(topic, msg.data);
     });
   }
 
-  handler({ action, topic, message }: { action: string; topic: string; message: any }) {
+  handler(topic: string, { action, message }: { action: string; message: any }) {
     LoggerCore.getInstance()
       .logger({ service: "messageQueue" })
       .trace("messageQueueHandler", { action, topic, message });
-    if (!topic) {
-      throw new Error("topic is required");
-    }
     switch (action) {
       case "message":
         this.EE.emit(topic, message);
@@ -49,8 +46,8 @@ export class MessageQueue {
 
   publish<T>(topic: string, message: T) {
     chrome.runtime.sendMessage({
-      action: "messageQueue",
-      data: { action: "message", topic, message },
+      msgQueue: topic,
+      data: { action: "message", message },
     });
     this.EE.emit(topic, message);
     //@ts-ignore
