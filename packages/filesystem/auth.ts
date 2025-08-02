@@ -47,7 +47,8 @@ export async function NetDisk(netDiskType: NetDiskType) {
       };
     } else {
       const loginWindow = window.open(url);
-      isWindowClosed = () => loginWindow!.closed === true;
+      if (!loginWindow) throw new Error("The window cannot be opened.");
+      isWindowClosed = () => loginWindow.closed === true;
     }
     while (true) {
       await sleep(1000);
