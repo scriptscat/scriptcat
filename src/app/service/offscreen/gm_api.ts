@@ -8,13 +8,7 @@ export default class GMApi {
 
   constructor(private group: Group) {}
 
-  async dealXhrResponse(
-    con: IMConnection,
-    details: GMSend.XHRDetails,
-    event: string,
-    xhr: XMLHttpRequest,
-    data?: any
-  ) {
+  async dealXhrResponse(con: IMConnection, details: GMSend.XHRDetails, event: string, xhr: XMLHttpRequest, data?: any) {
     const finalUrl = xhr.responseURL || details.url;
     let response: GMTypes.XHRResponse = {
       finalUrl,
