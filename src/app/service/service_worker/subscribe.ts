@@ -14,7 +14,7 @@ import { ltever } from "@App/pkg/utils/semver";
 import type { ScriptInfo } from "@App/pkg/utils/script";
 import { fetchScriptInfo, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class SubscribeService {
   logger: Logger;
@@ -219,7 +219,8 @@ export class SubscribeService {
         logger.error("prepare script failed", Logger.E(e));
       }
     }
-    Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
+    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${info.uuid}`;
+    Cache.getInstance().set(cacheKey, info);
     chrome.tabs.create({
       url: `/src/install.html?uuid=${info.uuid}`,
     });
