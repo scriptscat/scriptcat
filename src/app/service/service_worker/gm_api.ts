@@ -20,6 +20,7 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
+import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -567,7 +568,7 @@ export default class GMApi {
     return headers;
   }
 
-  gmXhrHeadersReceived: EventEmitter = new EventEmitter();
+  gmXhrHeadersReceived = new EventEmitter<string, any>();
 
   dealFetch(
     config: GMSend.XHRDetails,
@@ -771,7 +772,7 @@ export default class GMApi {
   GM_registerMenuCommand(request: Request, sender: GetSender) {
     const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
-    this.mq.emit("registerMenuCommand", {
+    this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
       uuid: request.script.uuid,
       id,
       name,
@@ -786,7 +787,7 @@ export default class GMApi {
   GM_unregisterMenuCommand(request: Request, sender: GetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
-    this.mq.emit("unregisterMenuCommand", {
+    this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
       id: id,
       tabId: sender.getSender().tab?.id || -1,
@@ -926,7 +927,7 @@ export default class GMApi {
           throw e;
         }
       }
-      cacheInstance.set(`GM_notification:${notificationId}`, {
+      await cacheInstance.set(`GM_notification:${notificationId}`, {
         uuid: request.script.uuid,
         details: details,
         sender: sender.getExtMessageSender(),
@@ -1010,7 +1011,7 @@ export default class GMApi {
       return;
     }
     // 使用xhr下载blob,再使用download api创建下载
-    const EE = new EventEmitter();
+    const EE = new EventEmitter<string, any>();
     const mockConnect = new MockMessageConnect(EE);
     EE.addListener("message", (data: any) => {
       const xhr = data.data;

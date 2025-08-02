@@ -2,11 +2,11 @@ import { Message } from "@arco-design/web-react";
 import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
-import type { MessageQueue } from "@Packages/message/message_queue";
+import type { MessageQueue, TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 
-export const SystamConfigChange = "systemConfigChange";
+export const SystemConfigChange = "systemConfigChange";
 
 export type CloudSyncConfig = {
   enable: boolean;
@@ -28,19 +28,16 @@ export class SystemConfig {
   public storage = new ChromeStorage("system", true);
 
   constructor(private mq: MessageQueue) {
-    this.mq.subscribe(SystamConfigChange, (msg) => {
-      const { key, value } = msg;
+    this.mq.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
       this.cache.set(key, value);
     });
   }
 
   addListener(key: string, callback: (value: any) => void) {
-    this.mq.subscribe(SystamConfigChange, (data: { key: string; value: string }) => {
-      if (data.key !== key) {
-        return;
+    this.mq.subscribe<TKeyValue>(SystemConfigChange, (data) => {
+      if (data.key === key) {
+        callback(data.value);
       }
-      const { value } = data;
-      callback(value);
     });
   }
 
@@ -67,18 +64,18 @@ export class SystemConfig {
     });
   }
 
-  public set(key: string, val: any) {
-    if (val === undefined) {
+  public set(key: string, value: any) {
+    if (value === undefined) {
       this.cache.delete(key);
       this.storage.remove(key);
     } else {
-      this.cache.set(key, val);
-      this.storage.set(key, val);
+      this.cache.set(key, value);
+      this.storage.set(key, value);
     }
     // 发送消息通知更新
-    this.mq.publish(SystamConfigChange, {
+    this.mq.publish<TKeyValue>(SystemConfigChange, {
       key,
-      value: val,
+      value,
     });
   }
 
