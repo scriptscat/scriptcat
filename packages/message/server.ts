@@ -50,7 +50,7 @@ export class Server {
     if (this.enableConnect) {
       message.onConnect((msg: any, con: MessageConnect) => {
         this.logger.trace("server onConnect", { msg });
-        if (msg.action.startsWith(prefix)) {
+        if (msg.action?.startsWith(prefix)) {
           return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
         }
         return false;
@@ -59,7 +59,7 @@ export class Server {
 
     message.onMessage((msg: { action: string; data: any }, sendResponse, sender) => {
       this.logger.trace("server onMessage", { msg: msg as any });
-      if (msg.action.startsWith(prefix)) {
+      if (msg.action?.startsWith(prefix)) {
         return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
       }
       return false;
