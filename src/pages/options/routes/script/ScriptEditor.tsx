@@ -1,7 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
@@ -22,6 +22,7 @@ import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
+import { lazyScriptName } from "@App/pkg/config/config";
 
 const { Row, Col } = Grid;
 
@@ -105,9 +106,11 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   switch (template) {
     case "background":
       code = backgroundTpl;
+      code = lazyScriptName(code);
       break;
     case "crontab":
       code = crontabTpl;
+      code = lazyScriptName(code);
       break;
     default:
       code = normalTpl;
@@ -129,7 +132,11 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
             }
           });
         });
+        code = lazyScriptName(code);
         code = code.replace("{{match}}", url);
+      } else if (target === "blank") {
+        code = lazyScriptName(code);
+        code = code.replace("{{match}}", "https://*/*");
       }
       break;
   }
@@ -179,11 +186,13 @@ function ScriptEditor() {
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
-  const initRef = useRef<boolean>(false);
-  const { uuid } = useParams();
+  const [pageInit, setPageInit] = useState<boolean>(false);
+  const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
+
+  const pageUrlParams = useParams();
+  const [pageUrlSearchParams, setPageUrlSearchParams] = useSearchParams();
+
   const { t } = useTranslation();
-  const template = useSearchParams()[0].get("template") || "";
-  const target = useSearchParams()[0].get("target") || "";
   const scriptDAO = new ScriptDAO();
   const scriptCodeDAO = new ScriptCodeDAO();
 
@@ -195,28 +204,36 @@ function ScriptEditor() {
     setVisible({ ...visible });
   };
 
-  const save = (script: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
+  const save = (existingScript: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
     // 解析code生成新的script并更新
-    return prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
+    const code = e.getValue();
+    const targetUUID = existingScript.uuid;
+    return prepareScriptByCode(code, existingScript.origin || "", targetUUID)
       .then((prepareScript) => {
-        const newScript = prepareScript.script;
-        if (!newScript.name) {
+        const { script, oldScript } = prepareScript;
+        if (targetUUID && existingScript.createtime > 0) {
+          if (!oldScript || oldScript.uuid !== targetUUID) {
+            Message.warning("The editing script does not exist.");
+            return Promise.reject(new Error("The editing script does not exist."));
+          }
+        }
+        if (!script.name) {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
         return scriptClient
-          .install(newScript, e.getValue())
+          .install(script, code)
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
               // 保存的时候如何左侧没有脚本即新建
               setScriptList((prev) => {
-                setSelectSciptButtonAndTab(newScript.uuid);
-                return [newScript, ...prev];
+                setSelectSciptButtonAndTab(script.uuid);
+                return [script, ...prev];
               });
             } else {
-              const uuid = newScript.uuid;
-              const name = newScript.name;
+              const uuid = script.uuid;
+              const name = script.name;
               setScriptList((prev) =>
                 prev.map((script: Script) =>
                   script.uuid === uuid
@@ -229,14 +246,14 @@ function ScriptEditor() {
               );
               Message.success(t("save_success"));
             }
-            const uuid = newScript.uuid;
-            const name = newScript.name;
+            const uuid = script.uuid;
+            const name = script.name;
             setEditors((prev) =>
               prev.map((item) =>
                 item.script.uuid === uuid
                   ? {
                       ...item,
-                      code: e.getValue(),
+                      code: code,
                       isChanged: false,
                       script: {
                         ...item.script,
@@ -246,7 +263,7 @@ function ScriptEditor() {
                   : item
               )
             );
-            return newScript;
+            return script;
           })
           .catch((err: any) => {
             Message.error(`${t("save_failed")}: ${err}`);
@@ -403,65 +420,95 @@ function ScriptEditor() {
       });
   });
   useEffect(() => {
-    // 防止开发模式下重复初始化
-    if (initRef.current) {
-      // 恢复标题
-      return () => {
-        document.title = "Home - ScriptCat";
-      };
-    }
-    initRef.current = true;
+    const [alreadyInit] = [pageInit];
+    if (!alreadyInit) {
+      setPageInit(true); // 防止开发模式下重复初始化
 
-    scriptDAO.all().then(async (scripts) => {
-      setScriptList(scripts.sort((a, b) => a.sort - b.sort));
-      // 如果有id则打开对应的脚本
-      if (uuid) {
-        for (let i = 0; i < scripts.length; i += 1) {
-          if (scripts[i].uuid === uuid) {
-            // 如果已经打开则激活
-            scriptCodeDAO.findByUUID(uuid).then((code) => {
-              const uuid = scripts[i].uuid;
-              setEditors((prev) => {
-                const flag = prev.some((item) => item.script.uuid === uuid);
-                if (flag) {
-                  return prev.map((item) =>
-                    item.script.uuid === uuid
-                      ? {
-                          ...item,
-                          active: true,
-                        }
-                      : {
-                          ...item,
-                          active: false,
-                        }
-                  );
-                } else {
-                  const newEditor = {
-                    script: scripts[i],
-                    code: code?.code || "",
-                    active: true,
-                    hotKeys,
-                    isChanged: false,
-                  };
-                  return [...prev, newEditor];
-                }
-              });
-              setSelectSciptButtonAndTab(uuid);
-            });
-            break;
-          }
-        }
-      } else {
-        emptyScript(template || "", hotKeys, target).then((e) => {
-          setEditors((prev) => [...prev, e]);
-        });
+      const newParams = new URLSearchParams(pageUrlSearchParams);
+      if (newParams.get("d")) {
+        newParams.delete("d");
+        setPageUrlSearchParams(newParams, { replace: true });
       }
-    });
+
+      scriptDAO.all().then((scripts) => {
+        setScriptList(scripts.sort((a, b) => a.sort - b.sort));
+        setCanLoadScript(true);
+      });
+    }
     // 恢复标题
     return () => {
       document.title = "Home - ScriptCat";
     };
   }, []);
+
+  const memoUrlQueryString = useMemo(() => {
+    return `${pageUrlParams.uuid || ""}|${pageUrlSearchParams.get("template") || ""}|${pageUrlSearchParams.get("target") || ""}|${pageUrlSearchParams.get("d") || ""}`;
+  }, [pageUrlParams, pageUrlSearchParams]);
+
+  useEffect(() => {
+    if (!canLoadScript) return;
+
+    const [uuid, template, target, d] = memoUrlQueryString.split("|");
+    if (d) return;
+    const newParams = new URLSearchParams(pageUrlSearchParams);
+    newParams.set("d", `${Date.now()}`);
+    setPageUrlSearchParams(newParams, { replace: true });
+
+    // 如果有id则打开对应的脚本
+    if (uuid) {
+      const [scripts] = [scriptList];
+      for (let i = 0; i < scripts.length; i += 1) {
+        if (scripts[i].uuid === uuid) {
+          // 如果已经打开则激活
+          scriptCodeDAO.findByUUID(uuid).then((code) => {
+            const uuid = scripts[i].uuid;
+            setEditors((prev) => {
+              const flag = prev.some((item) => item.script.uuid === uuid);
+              if (flag) {
+                return prev.map((item) =>
+                  item.script.uuid === uuid
+                    ? {
+                        ...item,
+                        active: true,
+                      }
+                    : {
+                        ...item,
+                        active: false,
+                      }
+                );
+              } else {
+                const newEditor = {
+                  script: scripts[i],
+                  code: code?.code || "",
+                  active: true,
+                  hotKeys,
+                  isChanged: false,
+                };
+                return [...prev, newEditor];
+              }
+            });
+            setSelectSciptButtonAndTab(uuid);
+          });
+          break;
+        }
+      }
+    } else {
+      emptyScript(template || "", hotKeys, target || "blank").then((e) => {
+        setEditors((prev) => {
+          prev.forEach((item) => {
+            if (item) {
+              item.active = false;
+            }
+          });
+          const uuid = e?.script?.uuid;
+          if (uuid) {
+            setSelectSciptButtonAndTab(uuid);
+          }
+          return [...prev, e];
+        });
+      });
+    }
+  }, [canLoadScript, memoUrlQueryString]);
 
   // 控制onbeforeunload
   useEffect(() => {
@@ -576,7 +623,8 @@ function ScriptEditor() {
 
       // 如果只剩一个编辑器，打开空白脚本
       if (prev.length === 1) {
-        emptyScript(template || "", hotKeys).then((e) => {
+        const template = pageUrlSearchParams.get("template") || "";
+        emptyScript(template || "", hotKeys, "blank").then((e) => {
           setEditors([e]);
           setSelectSciptButtonAndTab(e.script.uuid);
         });
@@ -961,7 +1009,8 @@ function ScriptEditor() {
               );
             }}
             onAddTab={() => {
-              emptyScript(template || "", hotKeys).then((e) => {
+              const template = pageUrlSearchParams.get("template") || "";
+              emptyScript(template || "", hotKeys, "blank").then((e) => {
                 setEditors((prev) => {
                   prev.forEach((item) => {
                     item.active = false;
