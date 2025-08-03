@@ -49,7 +49,7 @@ export class PopupService {
       if (nonInputMenus.length) {
         n += nonInputMenus.length;
         chrome.contextMenus.create({
-          id: `scriptMenu_` + uuid,
+          id: `scriptMenu_${uuid}`,
           title: name,
           contexts: ["all"],
           parentId: "scriptMenu",
@@ -513,7 +513,7 @@ export class PopupService {
       }) => {
         await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
-        this.updateBadgeIcon(tabId);
+        await this.updateBadgeIcon(tabId);
       }
     );
   }
