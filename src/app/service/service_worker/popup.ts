@@ -167,11 +167,14 @@ export class PopupService {
 
   // 获取popup页面数据
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
-    // 获取当前tabId
-    const scripts = await this.runtime.getPageScriptByUrl(req.url, true);
+    const [scripts, runScripts, backScriptList] = await Promise.all([
+      this.runtime.getPageScriptByUrl(req.url, true),
+      this.getScriptMenu(req.tabId),
+      this.getScriptMenu(-1),
+    ]);
     // 与运行时脚本进行合并
-    const runScripts = await this.getScriptMenu(req.tabId);
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
+    // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
     for (const script of scripts) {
@@ -186,6 +189,7 @@ export class PopupService {
       }
       scriptMenuMap.set(script.uuid, run);
     }
+    // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
     for (const script of runScripts) {
       // 把运行了但是不在匹配中的脚本加入菜单
       if (!scriptMenuMap.has(script.uuid)) {
@@ -196,7 +200,7 @@ export class PopupService {
     // 检查是否在黑名单中
     const isBlack = this.runtime.blackMatch.match(req.url).length > 0;
     // 后台脚本只显示开启或者运行中的脚本
-    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
+    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList };
   }
 
   async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {
