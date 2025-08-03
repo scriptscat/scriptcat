@@ -185,10 +185,15 @@ export default class ServiceWorkerManager {
     fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
       .then((resp) => resp.json())
       .then((resp: { data: { notice: string; version: string } }) => {
-        systemConfig.getCheckUpdate().then((items) => {
-          const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-          systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
-        });
+        systemConfig
+          .getCheckUpdate()
+          .then((items) => {
+            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
+          })
+          .catch((e) => {
+            console.error(e);
+          });
       });
   }
 }
