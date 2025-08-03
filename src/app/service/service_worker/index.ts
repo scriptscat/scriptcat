@@ -15,8 +15,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
-import { InfoNotification } from "@App/pkg/utils/utils";
-import { isVideoPlayingOrInactive } from "./utils";
+import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -154,15 +153,24 @@ export default class ServiceWorkerManager {
         if (details.reason === "install") {
           chrome.tabs.create({ url: `${DocumentationSite}${localePath}` });
         } else if (details.reason === "update") {
-          isVideoPlayingOrInactive().then((ok) => {
-            chrome.tabs.create({
-              url: `${DocumentationSite}/docs/change/${
-                ExtVersion.includes("-") ? "beta-changelog/" : ""
-              }#${ExtVersion}`,
-              active: !ok,
+          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+          getCurrentTab()
+            .then((tab) => {
+              // 检查是否正在播放视频，或者窗口未激活
+              const openInBackground = !tab || tab.audible === true || !tab.active;
+              chrome.tabs.create({
+                url,
+                active: !openInBackground,
+                index: !tab ? undefined : tab.index + 1,
+              });
+              InfoNotification(
+                t("ext_update_notification"),
+                t("ext_update_notification_desc", { version: ExtVersion })
+              );
+            })
+            .catch((e) => {
+              console.error(e);
             });
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
-          });
         }
       });
     }

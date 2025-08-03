@@ -112,25 +112,6 @@ export function parseUrlSRI(url: string): {
   return { url: urls[0], hash };
 }
 
-// 检查是否正在播放视频，或者窗口未激活
-export function isVideoPlayingOrInactive() {
-  return new Promise<boolean>((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-        resolve(false);
-        return;
-      }
-      if (tabs.length === 0 || tabs[0].audible === true || !tabs[0].active) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-}
-
 export type TMsgResponse<T> =
   | {
       ok: true;
