@@ -18,10 +18,17 @@ import type {
 import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
+import { timeoutExecution } from "@App/pkg/utils/timer";
 
 type TxUpdateScriptMenuCallback = (
   result: ScriptMenu[]
 ) => Promise<ScriptMenu[] | undefined> | ScriptMenu[] | undefined;
+
+const runCountMap = new Map<number, string>();
+const scriptCountMap = new Map<number, string>();
+const badgeShownSet = new Set<number>();
+
+const cIdKey = `(cid_${Math.random()})`;
 
 // 处理popup页面的数据
 export class PopupService {
@@ -231,20 +238,12 @@ export class PopupService {
           data.push(item);
         }
       });
-      if ((await this.systemConfig.getBadgeNumberType()) === "script_count") {
-        chrome.action.setBadgeText({
-          text: data.length.toString(),
-          tabId: tabId,
-        });
-        chrome.action.setBadgeBackgroundColor({
-          color: await this.systemConfig.getBadgeBackgroundColor(),
-          tabId: tabId,
-        });
-        chrome.action.setBadgeTextColor({
-          color: await this.systemConfig.getBadgeTextColor(),
-          tabId: tabId,
-        });
+      let runCount = 0;
+      for (const d of data) {
+        runCount += d.runNum;
       }
+      scriptCountMap.set(tabId, `${data.length}`);
+      runCountMap.set(tabId, `${runCount}`);
       return data;
     });
   }
@@ -336,7 +335,56 @@ export class PopupService {
       eventId: id.toString(),
       data: inputValue,
     });
-    return Promise.resolve(true); // 不需要异步
+    return true;
+  }
+
+  async updateBadgeIcon(tabId: number | undefined = -1) {
+    if (tabId < 0) {
+      const tab = await getCurrentTab();
+      tabId = tab?.id;
+    }
+    if (typeof tabId !== "number") return;
+    const badgeNumberType: string = await this.systemConfig.getBadgeNumberType();
+    let map: Map<number, string> | undefined;
+    if (badgeNumberType === "script_count") {
+      map = scriptCountMap;
+    } else if (badgeNumberType === "run_count") {
+      map = runCountMap;
+    } else {
+      // 不显示数字
+      if (badgeShownSet.has(tabId)) {
+        badgeShownSet.delete(tabId);
+        chrome.action.setBadgeText({
+          text: "",
+          tabId: tabId,
+        });
+      }
+      return;
+    }
+    const text = map.get(tabId);
+    if (typeof text !== "string") return;
+    const backgroundColor = await this.systemConfig.getBadgeBackgroundColor();
+    const textColor = await this.systemConfig.getBadgeTextColor();
+    badgeShownSet.add(tabId);
+    timeoutExecution(
+      `${cIdKey}-tabId#${tabId}`,
+      () => {
+        if (!badgeShownSet.has(tabId)) return;
+        chrome.action.setBadgeText({
+          text: text || "",
+          tabId: tabId,
+        });
+        chrome.action.setBadgeBackgroundColor({
+          color: backgroundColor,
+          tabId: tabId,
+        });
+        chrome.action.setBadgeTextColor({
+          color: textColor,
+          tabId: tabId,
+        });
+      },
+      50
+    );
   }
 
   init() {
@@ -355,6 +403,8 @@ export class PopupService {
         // 没有 tabId 资讯，无法释放数据
         return;
       }
+      runCountMap.delete(tabId);
+      scriptCountMap.delete(tabId);
       // 清理数据tab关闭需要释放的数据
       this.txUpdateScriptMenu(tabId, async (scripts) => {
         for (const { uuid } of scripts) {
@@ -379,7 +429,26 @@ export class PopupService {
         return;
       }
       this.genScriptMenu(activeInfo.tabId);
+      this.updateBadgeIcon(activeInfo.tabId);
     });
+    // chrome.tabs.onUpdated.addListener((tabId, _changeInfo, _tab) => {
+    //   const lastError = chrome.runtime.lastError;
+    //   if (lastError) {
+    //     console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
+    //     // 没有 tabId 资讯，无法加载菜单
+    //     return;
+    //   }
+    //   this.updateBadgeIcon(tabId);
+    // });
+    // chrome.windows.onFocusChanged.addListener((_windowId) => {
+    //   const lastError = chrome.runtime.lastError;
+    //   if (lastError) {
+    //     console.error("chrome.runtime.lastError in chrome.windows.onFocusChanged:", lastError);
+    //     // 没有 tabId 资讯，无法加载菜单
+    //     return;
+    //   }
+    //   this.updateBadgeIcon(-1);
+    // });
     // 处理chrome菜单点击
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const lastError = chrome.runtime.lastError;
@@ -419,6 +488,9 @@ export class PopupService {
       }
     });
 
+    // scriptCountMap.clear();
+    // runCountMap.clear();
+
     // 监听运行次数
     this.mq.subscribe(
       "pageLoad",
@@ -434,36 +506,7 @@ export class PopupService {
       }) => {
         await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
-        if ((await this.systemConfig.getBadgeNumberType()) !== "run_count") {
-          return;
-        }
-        chrome.action.getBadgeText(
-          {
-            tabId: tabId,
-          },
-          async (res: string) => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.action.getBadgeText:", lastError);
-              // 出现错误不设置角标
-              return;
-            }
-            if (res || scripts.length) {
-              chrome.action.setBadgeText({
-                text: (scripts.length + (parseInt(res, 10) || 0)).toString(),
-                tabId: tabId,
-              });
-              chrome.action.setBadgeBackgroundColor({
-                color: await this.systemConfig.getBadgeBackgroundColor(),
-                tabId: tabId,
-              });
-              chrome.action.setBadgeTextColor({
-                color: await this.systemConfig.getBadgeTextColor(),
-                tabId: tabId,
-              });
-            }
-          }
-        );
+        this.updateBadgeIcon(tabId);
       }
     );
   }
