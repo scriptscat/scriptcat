@@ -1,5 +1,5 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import type { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
+import type { MessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
@@ -239,8 +239,6 @@ export class RuntimeService {
       this.blackMatch.add(match, true);
     });
   }
-
-  unsubscribe: Unsubscribe[] = [];
 
   // 取消脚本注册
   async unregisterUserscripts() {

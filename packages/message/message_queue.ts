@@ -4,10 +4,6 @@ import { type TMessage } from "./types";
 
 export type TKeyValue = { key: string; value: string };
 
-export type SubscribeCallback = (message: NonNullable<any>) => void;
-// 释放订阅
-export type Unsubscribe = () => void;
-
 // 消息队列
 export class MessageQueue {
   private EE = new EventEmitter<string, any>();
@@ -26,7 +22,7 @@ export class MessageQueue {
     });
   }
 
-  handler(topic: string, { action, message }: { action: string; message: NonNullable<any> }) {
+  handler(topic: string, { action, message }: { action: string; message: any }) {
     LoggerCore.getInstance()
       .logger({ service: "messageQueue" })
       .trace("messageQueueHandler", { action, topic, message });

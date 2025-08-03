@@ -64,7 +64,7 @@ class GM_Base implements IGM_Base {
   // 单次回调使用
   @GMContext.protected()
   public sendMessage(api: string, params: any[]) {
-    return sendMessage(this.message, this.prefix + "/runtime/gmApi", {
+    return sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -75,7 +75,7 @@ class GM_Base implements IGM_Base {
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public connect(api: string, params: any[]) {
-    return connect(this.message, this.prefix + "/runtime/gmApi", {
+    return connect(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -104,7 +104,7 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
-    this.EE.emit(event + ":" + eventId, data);
+    this.EE.emit(`${event}:${eventId}`, data);
   }
 }
 
@@ -485,7 +485,7 @@ export default class GMApi extends GM_Base {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -498,7 +498,7 @@ export default class GMApi extends GM_Base {
         ],
       },
     });
-    if (resp.code !== 0) {
+    if (resp.code) {
       throw new Error(resp.message);
     }
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
@@ -516,7 +516,7 @@ export default class GMApi extends GM_Base {
       parentNodeId = null;
     }
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -527,7 +527,7 @@ export default class GMApi extends GM_Base {
         ],
       },
     });
-    if (resp.code !== 0) {
+    if (resp.code) {
       throw new Error(resp.message);
     }
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
@@ -736,7 +736,7 @@ export default class GMApi extends GM_Base {
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
-        con.onMessage((data: { code?: number; message?: string; action: string; data: any }) => {
+        con.onMessage((data) => {
           if (data.code === -1) {
             // 处理错误
             LoggerCore.logger().error("GM_xmlhttpRequest error", {
@@ -857,7 +857,7 @@ export default class GMApi extends GM_Base {
       },
     ]).then((con) => {
       connect = con;
-      connect.onMessage((data: { action: string; data: any }) => {
+      connect.onMessage((data) => {
         switch (data.action) {
           case "onload":
             details.onload && details.onload(data.data);

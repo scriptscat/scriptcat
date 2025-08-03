@@ -126,14 +126,12 @@ export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolea
   // 判断connect是否改变
   const oldConnect: { [key: string]: boolean } = {};
   const newConnect: { [key: string]: boolean } = {};
-  oldMeta.connect &&
-    oldMeta.connect.forEach((val) => {
-      oldConnect[val] = true;
-    });
-  newMeta.connect &&
-    newMeta.connect.forEach((val) => {
-      newConnect[val] = true;
-    });
+  oldMeta.connect?.forEach((val) => {
+    oldConnect[val] = true;
+  });
+  newMeta.connect?.forEach((val) => {
+    newConnect[val] = true;
+  });
   // 老的里面没有新的就需要用户确认了
   const keys = Object.keys(newConnect);
   for (let i = 0; i < keys.length; i++) {

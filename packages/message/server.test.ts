@@ -337,12 +337,12 @@ describe("Server", () => {
       });
 
       // 客户端向服务端发送消息
-      clientConnection.sendMessage({ msg: "hello from client" });
+      clientConnection.sendMessage({ action: "test123", data: "hello from client" });
 
       // 等待消息处理
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(serverMessageHandler).toHaveBeenCalledWith({ msg: "hello from client" });
+      expect(serverMessageHandler).toHaveBeenCalledWith({ action: "test123", data: "hello from client" });
     });
 
     it("应该在 enableConnect 为 false 时不处理连接", async () => {
