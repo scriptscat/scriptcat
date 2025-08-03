@@ -158,12 +158,16 @@ export default class ServiceWorkerManager {
             .then((tab) => {
               // 检查是否正在播放视频，或者窗口未激活
               const openInBackground = !tab || tab.audible === true || !tab.active;
-              chrome.tabs.create({
+              // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+              return chrome.tabs.create({
                 url,
                 active: !openInBackground,
                 index: !tab ? undefined : tab.index + 1,
                 windowId: !tab ? undefined : tab.windowId,
               });
+            })
+            .then((_createdTab) => {
+              // 当新 Tab 成功建立时才执行
               InfoNotification(
                 t("ext_update_notification"),
                 t("ext_update_notification_desc", { version: ExtVersion })
