@@ -162,6 +162,7 @@ export default class ServiceWorkerManager {
                 url,
                 active: !openInBackground,
                 index: !tab ? undefined : tab.index + 1,
+                windowId: !tab ? undefined : tab.windowId,
               });
               InfoNotification(
                 t("ext_update_notification"),
