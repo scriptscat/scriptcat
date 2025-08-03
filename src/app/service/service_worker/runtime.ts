@@ -1,5 +1,5 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import type { MessageQueue, Unsubscribe } from "@Packages/message/message_queue";
+import type { MessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
@@ -240,8 +240,6 @@ export class RuntimeService {
     });
   }
 
-  unsubscribe: Unsubscribe[] = [];
-
   // 取消脚本注册
   async unregisterUserscripts() {
     await chrome.userScripts.unregister();
@@ -249,12 +247,12 @@ export class RuntimeService {
   }
 
   async registerUserscripts() {
-    // 将开启的脚本发送一次enable消息
-    const list = await this.scriptDAO.all();
-    // 按照脚本顺序位置排序
-    list.sort((a, b) => a.sort - b.sort);
     const messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
+      // 将开启的脚本发送一次enable消息
+      const list = await this.scriptDAO.all();
+      // 按照脚本顺序位置排序
+      list.sort((a, b) => a.sort - b.sort);
       // 根据messageFlag来判断是否已经注册过了
       const registerScripts = await Promise.all(
         list.map((script) => {
@@ -338,34 +336,28 @@ export class RuntimeService {
 
   // 给指定tab发送消息
   sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
-    if (to.tabId === -1) {
+    const sender: MessageSend =
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/" + action, data);
-    }
-    return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
-        documentId: to.documentId,
-        frameId: to.frameId,
-      }),
-      "content/runtime/" + action,
-      data
-    );
+      to.tabId === -1
+        ? this.sender
+        : new ExtensionContentMessageSend(to.tabId, {
+            documentId: to.documentId,
+            frameId: to.frameId,
+          });
+    return sendMessage(sender, `offscreen/runtime/${action}`, data);
   }
 
   // 给指定脚本触发事件
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
-    if (to.tabId === -1) {
+    const sender: MessageSend =
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/emitEvent", req);
-    }
-    return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
-        documentId: to.documentId,
-        frameId: to.frameId,
-      }),
-      "content/runtime/emitEvent",
-      req
-    );
+      to.tabId === -1
+        ? this.sender
+        : new ExtensionContentMessageSend(to.tabId, {
+            documentId: to.documentId,
+            frameId: to.frameId,
+          });
+    return sendMessage(sender, "offscreen/runtime/emitEvent", req);
   }
 
   async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
@@ -383,16 +375,15 @@ export class RuntimeService {
         match.add(uuid);
       });
       // 转化为数组
-      return Array.from(match);
+      return [...match];
     }
     return matchScriptUuid;
   }
 
   async getPageScriptByUrl(url: string, includeCustomize?: boolean) {
     const matchScriptUuid = await this.getPageScriptUuidByUrl(url, includeCustomize);
-    return matchScriptUuid.map((uuid) => {
-      return Object.assign({}, this.scriptMatchCache?.get(uuid));
-    });
+    const cache = this.scriptMatchCache;
+    return (cache ? matchScriptUuid.map((uuid) => ({ ...cache.get(uuid) })) : []) as ScriptMatchInfo[];
   }
 
   async pageLoad(_: any, sender: GetSender) {
