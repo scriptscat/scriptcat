@@ -23,8 +23,7 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 
-const { Row } = Grid;
-const { Col } = Grid;
+const { Row, Col } = Grid;
 
 type HotKey = {
   id: string;
@@ -40,7 +39,8 @@ const Editor: React.FC<{
   hotKeys: HotKey[];
   callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
   onChange: (code: string) => void;
-}> = ({ id, script, code, hotKeys, callbackEditor, onChange }) => {
+  className: string;
+}> = ({ id, script, code, hotKeys, callbackEditor, onChange, className }) => {
   const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
   const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
     (inlineNode) => {
@@ -79,7 +79,7 @@ const Editor: React.FC<{
     };
   }, [node?.editor]);
 
-  return <CodeEditor key={id} id={id} ref={ref} code={code} diffCode="" editable />;
+  return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
 };
 
 const WarpEditor = React.memo(Editor, (prev, next) => {
@@ -798,15 +798,26 @@ function ScriptEditor() {
               size="mini"
               style={{
                 color: "var(--color-text-2)",
+                background: "transparent",
+                cursor: "pointer",
+                borderBottom: "1px solid rgba(127, 127, 127, 0.8)",
+              }}
+              onClick={() => {
+                setShowSearchInput(!showSearchInput);
+                setTimeout(
+                  () =>
+                    showSearchInput &&
+                    (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
+                  1
+                );
               }}
             >
               <div className="flex justify-between items-center">
                 {t("installed_scripts")}
                 <IconSearch
-                  onClick={() => {
-                    setShowSearchInput(!showSearchInput);
+                  style={{
+                    cursor: "inherit",
                   }}
-                  style={{ cursor: "pointer" }}
                 />
               </div>
             </Button>
@@ -818,6 +829,7 @@ function ScriptEditor() {
                   value={searchKeyword}
                   onChange={(value) => setSearchKeyword(value)}
                   size="mini"
+                  id="editor_search_scripts_input"
                 />
               </div>
             )}
@@ -1025,6 +1037,7 @@ function ScriptEditor() {
                   }}
                 >
                   <WarpEditor
+                    className="script-code-editor"
                     key={`e_${item.script.uuid}`}
                     id={`e_${item.script.uuid}`}
                     script={item.script}
