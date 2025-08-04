@@ -1,14 +1,13 @@
-import type { Message, MessageConnect } from "./types";
+import type { Message, MessageConnect, TMessage } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
-import { type TMessage } from "./types";
 
 export class CustomEventPostMessage implements PostMessage {
   constructor(private send: CustomEventMessage) {}
 
-  postMessage(message: any): void {
+  postMessage<T = any>(message: T): void {
     this.send.nativeSend(message);
   }
 }
@@ -53,13 +52,13 @@ export class CustomEventMessage implements Message {
       });
     } else if (data.type === "respMessage") {
       // 接收到响应消息
-      this.EE.emit("response:" + data.messageId, data);
+      this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "connect") {
       this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, target));
     } else if (data.type === "disconnect") {
-      this.EE.emit("disconnect:" + data.messageId);
+      this.EE.emit(`disconnect:${data.messageId}`);
     } else if (data.type === "connectMessage") {
-      this.EE.emit("connectMessage:" + data.messageId, data.data);
+      this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
   }
 
@@ -73,7 +72,7 @@ export class CustomEventMessage implements Message {
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      const body: WindowMessageBody = {
+      const body: WindowMessageBody<TMessage> = {
         messageId: uuidv4(),
         type: "connect",
         data,
@@ -101,22 +100,23 @@ export class CustomEventMessage implements Message {
     window.dispatchEvent(ev);
   }
 
-  sendMessage(data: TMessage): Promise<any> {
-    return new Promise((resolve: ((value: any) => void) | null) => {
-      const body: WindowMessageBody = {
+  sendMessage<T = any>(data: TMessage): Promise<T> {
+    return new Promise((resolve: ((value: T) => void) | null) => {
+      const body: WindowMessageBody<TMessage> = {
         messageId: uuidv4(),
         type: "sendMessage",
         data,
       };
-      let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody) => {
+      const eventId = `response:${body.messageId}`;
+      let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody<TMessage>) => {
         if (callback !== null) {
-          this.EE.removeListener("response:" + body.messageId, callback);
-          resolve!(body.data);
+          this.EE.removeListener(eventId, callback);
+          resolve!(body.data as T);
           callback = null; // 设为 null 提醒JS引擎可以GC
           resolve = null;
         }
       };
-      this.EE.addListener("response:" + body.messageId, callback);
+      this.EE.addListener(eventId, callback);
       this.nativeSend(body);
     });
   }
@@ -124,23 +124,24 @@ export class CustomEventMessage implements Message {
   // 同步发送消息
   // 与content页的消息通讯实际是同步,此方法不需要经过background
   // 但是请注意中间不要有promise
-  syncSendMessage(data: any): any {
-    const body: WindowMessageBody = {
+  syncSendMessage(data: TMessage): TMessage {
+    const body: WindowMessageBody<TMessage> = {
       messageId: uuidv4(),
       type: "sendMessage",
       data,
     };
-    let ret: any;
-    let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody) => {
+    let ret: TMessage;
+    const eventId = `response:${body.messageId}`;
+    let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody<TMessage>) => {
       if (callback !== null) {
-        this.EE.removeListener("response:" + body.messageId, callback);
-        ret = body.data;
+        this.EE.removeListener(eventId, callback);
+        ret = body.data!;
         callback = null; // 设为 null 提醒JS引擎可以GC
       }
     };
-    this.EE.addListener("response:" + body.messageId, callback);
+    this.EE.addListener(eventId, callback);
     this.nativeSend(body);
-    return ret;
+    return ret!;
   }
 
   relateId = 0;

@@ -1,29 +1,29 @@
-export type TMessageQueue = {
+export type TMessageQueue<T = any> = {
   msgQueue: string;
   data: {
     action: string;
-    message: NonNullable<any>;
+    message: NonNullable<T>;
   };
   action?: never;
   code?: never;
 };
 
-export type TMessageCommAction = {
+export type TMessageCommAction<T = any> = {
   action: string;
-  data?: NonNullable<any>;
+  data?: NonNullable<T>;
   msgQueue?: never;
   code?: never;
 };
 
-export type TMessageCommCode = {
+export type TMessageCommCode<T = any> = {
   code: number;
   msgQueue?: never;
   action?: never;
-  data?: NonNullable<any>;
-  message?: NonNullable<any>;
+  data?: NonNullable<T>;
+  message?: NonNullable<string>;
 };
 
-export type TMessage = TMessageQueue | TMessageCommAction | TMessageCommCode;
+export type TMessage<T = any> = TMessageQueue<T> | TMessageCommAction<T> | TMessageCommCode<T>;
 
 export type MessageSender = chrome.runtime.MessageSender;
 
@@ -36,7 +36,7 @@ export interface Message extends MessageSend {
 
 export interface MessageSend {
   connect(data: TMessage): Promise<MessageConnect>;
-  sendMessage(data: TMessage): Promise<any>;
+  sendMessage<T = any>(data: TMessage): Promise<T>;
 }
 
 export interface MessageConnect {

@@ -33,7 +33,7 @@ export class ScriptClient extends Client {
 
   // 脚本数据量大的时候，options页要读取全部的数据，可能会导致options页卡顿，直接调用serviceWorker的接口从内存中读取数据
   getAllScripts(): Promise<Script[]> {
-    return this.do("getAllScripts");
+    return this.doThrow("getAllScripts");
   }
 
   // 获取安装信息
@@ -42,7 +42,7 @@ export class ScriptClient extends Client {
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
-    return this.do("install", { script, code, upsertBy });
+    return this.doThrow("install", { script, code, upsertBy });
   }
 
   delete(uuid: string) {
@@ -54,7 +54,7 @@ export class ScriptClient extends Client {
   }
 
   info(uuid: string): Promise<Script> {
-    return this.do("fetchInfo", uuid);
+    return this.doThrow("fetchInfo", uuid);
   }
 
   getCode(uuid: string): Promise<ScriptCode | undefined> {
@@ -62,7 +62,7 @@ export class ScriptClient extends Client {
   }
 
   getScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    return this.do("getScriptRunResource", script);
+    return this.doThrow("getScriptRunResource", script);
   }
 
   excludeUrl(uuid: string, url: string, remove: boolean) {
@@ -168,7 +168,7 @@ export class ResourceClient extends Client {
   }
 
   getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.do("getScriptResources", script);
+    return this.doThrow("getScriptResources", script);
   }
 
   deleteResource(url: string) {
@@ -182,7 +182,7 @@ export class ValueClient extends Client {
   }
 
   getScriptValue(script: Script): Promise<{ [key: string]: any }> {
-    return this.do("getScriptValue", script);
+    return this.doThrow("getScriptValue", script);
   }
 
   setScriptValue(uuid: string, key: string, value: any) {
@@ -208,7 +208,7 @@ export class RuntimeClient extends Client {
   }
 
   pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
-    return this.do("pageLoad");
+    return this.doThrow("pageLoad");
   }
 
   scriptLoad(flag: string, uuid: string) {
@@ -234,7 +234,7 @@ export class PopupClient extends Client {
   }
 
   getPopupData(data: GetPopupDataReq): Promise<GetPopupDataRes> {
-    return this.do("getPopupData", data);
+    return this.doThrow("getPopupData", data);
   }
 
   menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
@@ -261,7 +261,7 @@ export class PermissionClient extends Client {
   }
 
   getPermissionInfo(uuid: string): ReturnType<PermissionVerify["getInfo"]> {
-    return this.do("getInfo", uuid);
+    return this.doThrow("getInfo", uuid);
   }
 
   deletePermission(uuid: string, permission: string, permissionValue: string) {
@@ -269,7 +269,7 @@ export class PermissionClient extends Client {
   }
 
   getScriptPermissions(uuid: string): ReturnType<PermissionVerify["getScriptPermissions"]> {
-    return this.do("getScriptPermissions", uuid);
+    return this.doThrow("getScriptPermissions", uuid);
   }
 
   addPermission(permission: Permission) {
@@ -356,10 +356,10 @@ export class SystemClient extends Client {
   }
 
   loadFavicon(icon: string): Promise<string> {
-    return this.do("loadFavicon", icon);
+    return this.doThrow("loadFavicon", icon);
   }
 
   getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
-    return this.do("getFaviconFromDomain", domain);
+    return this.doThrow("getFaviconFromDomain", domain);
   }
 }

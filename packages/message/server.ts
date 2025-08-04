@@ -155,7 +155,7 @@ export function forwardMessage(
   const handler = (params: any, fromCon: GetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
-      connect(to, prefix + "/" + path, params).then((toCon: MessageConnect) => {
+      connect(to, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
         fromConnect.onMessage((data) => {
           toCon.sendMessage(data);
         });

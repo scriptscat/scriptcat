@@ -35,7 +35,7 @@ export class OffscreenManager {
   }
 
   sendMessageToServiceWorker(data: { action: string; data: any }) {
-    return sendMessage(this.extensionMessage, "serviceWorker/" + data.action, data.data);
+    return sendMessage(this.extensionMessage, `serviceWorker/${data.action}`, data.data);
   }
 
   async initManager() {
