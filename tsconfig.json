@@ -29,8 +29,7 @@
       "@Tests/*": [
         "tests/*"
       ]
-    },
-    "types": ["@types/chrome"]
+    }
   },
   "include": [
     "src",
