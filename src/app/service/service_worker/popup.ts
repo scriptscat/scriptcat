@@ -49,7 +49,7 @@ export class PopupService {
       if (nonInputMenus.length) {
         n += nonInputMenus.length;
         chrome.contextMenus.create({
-          id: `scriptMenu_` + uuid,
+          id: `scriptMenu_${uuid}`,
           title: name,
           contexts: ["all"],
           parentId: "scriptMenu",
@@ -167,33 +167,40 @@ export class PopupService {
 
   // 获取popup页面数据
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
-    // 获取当前tabId
-    const script = await this.runtime.getPageScriptByUrl(req.url, true);
+    const [scripts, runScripts, backScriptList] = await Promise.all([
+      this.runtime.getPageScriptByUrl(req.url, true),
+      this.getScriptMenu(req.tabId),
+      this.getScriptMenu(-1),
+    ]);
     // 与运行时脚本进行合并
-    const runScript = await this.getScriptMenu(req.tabId);
+    const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
+    // 合并后结果
+    const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
-    const scriptMenu = script.map((script) => {
-      const run = runScript.find((item) => item.uuid === script.uuid);
+    for (const script of scripts) {
+      let run = runMap.get(script.uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
         run.customExclude = script.customizeExcludeMatches || run.customExclude;
         run.hasUserConfig = !!script.config;
-        return run;
+      } else {
+        run = this.scriptToMenu(script);
       }
-      return this.scriptToMenu(script);
-    });
-    runScript.forEach((script) => {
-      const index = scriptMenu.findIndex((item) => item.uuid === script.uuid);
+      scriptMenuMap.set(script.uuid, run);
+    }
+    // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
+    for (const script of runScripts) {
       // 把运行了但是不在匹配中的脚本加入菜单
-      if (index === -1) {
-        scriptMenu.push(script);
+      if (!scriptMenuMap.has(script.uuid)) {
+        scriptMenuMap.set(script.uuid, script);
       }
-    });
+    }
+    const scriptMenu = [...scriptMenuMap.values()];
     // 检查是否在黑名单中
     const isBlack = this.runtime.blackMatch.match(req.url).length > 0;
     // 后台脚本只显示开启或者运行中的脚本
-    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList: await this.getScriptMenu(-1) };
+    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList };
   }
 
   async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {
@@ -506,7 +513,7 @@ export class PopupService {
       }) => {
         await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
-        this.updateBadgeIcon(tabId);
+        await this.updateBadgeIcon(tabId);
       }
     );
   }
