@@ -20,16 +20,6 @@ export function randomMessageFlag(): string {
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
 }
 
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
-
-export function dealScript(source: string): string {
-  return dealSymbol(source);
-}
-
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";
@@ -61,9 +51,9 @@ export function toStorageValueStr(val: unknown): string {
     case "string":
       return `s${val}`;
     case "number":
-      return `n${val.toString()}`;
+      return `n${val}`;
     case "boolean":
-      return `b${val ? "true" : "false"}`;
+      return `b${val}`;
     default:
       try {
         return `o${JSON.stringify(val)}`;
@@ -117,26 +107,14 @@ export async function openInCurrentTab(url: string) {
   await chrome.tabs.create(createProperties);
 }
 
-export function isDebug() {
-  return process.env.NODE_ENV === "development";
-}
-
 // 检查订阅规则是否改变,是否能够静默更新
 export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolean {
   // 判断connect是否改变
-  const oldConnect: { [key: string]: boolean } = {};
-  const newConnect: { [key: string]: boolean } = {};
-  oldMeta.connect?.forEach((val) => {
-    oldConnect[val] = true;
-  });
-  newMeta.connect?.forEach((val) => {
-    newConnect[val] = true;
-  });
+  const oldConnect = new Set<string>(oldMeta.connect || []);
+  const newConnect = new Set<string>(newMeta.connect || []);
   // 老的里面没有新的就需要用户确认了
-  const keys = Object.keys(newConnect);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    if (!oldConnect[key]) {
+  for (const key of newConnect) {
+    if (!oldConnect.has(key)) {
       return false;
     }
   }
@@ -150,19 +128,17 @@ export function sleep(millis: number) {
 }
 
 export function getStorageName(script: Script): string {
-  if (script.metadata && script.metadata.storagename) {
-    return script.metadata.storagename[0];
-  }
-  return script.uuid;
+  const storagename = script.metadata?.storagename;
+  return storagename ? storagename[0] : script.uuid;
 }
 
 export function getIcon(script: Script): string | undefined {
   return (
-    (script.metadata.icon && script.metadata.icon[0]) ||
-    (script.metadata.iconurl && script.metadata.iconurl[0]) ||
-    (script.metadata.defaulticon && script.metadata.defaulticon[0]) ||
-    (script.metadata.icon64 && script.metadata.icon64[0]) ||
-    (script.metadata.icon64url && script.metadata.icon64url[0])
+    script.metadata.icon?.[0] ??
+    script.metadata.iconurl?.[0] ??
+    script.metadata.defaulticon?.[0] ??
+    script.metadata.icon64?.[0] ??
+    script.metadata.icon64url?.[0]
   );
 }
 
