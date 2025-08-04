@@ -1,12 +1,12 @@
-import type { MessageConnect, MessageSend, TMessageCommCode } from "./types";
+import type { MessageConnect, MessageSend, TMessageCommAction, TMessageCommCode } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 
 export async function sendMessage<T = any>(msg: MessageSend, action: string, data?: any): Promise<T | undefined> {
-  const res = await msg.sendMessage<TMessageCommCode<T>>({ action, data });
+  const res = await msg.sendMessage<TMessageCommCode<T> | TMessageCommAction<T>>({ action, data });
   const logger = LoggerCore.getInstance().logger().with({ action, data, response: res });
   logger.trace("sendMessage");
-  if (res && res.code) {
+  if (res?.code) {
     console.error(res);
     throw res.message;
   } else {
