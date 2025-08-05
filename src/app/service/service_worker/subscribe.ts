@@ -13,6 +13,7 @@ import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { cacheInstance } from "@App/app/cache";
+import { v4 as uuidv4 } from "uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class SubscribeService {
@@ -173,7 +174,7 @@ export class SubscribeService {
       const code = await fetchScriptBody(subscribe.url);
       const metadata = parseMetadata(code);
       const url = subscribe.url;
-      const uuid = subscribe.url; // 使用 url 作為 uuid?
+      const uuid = uuidv4();
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
