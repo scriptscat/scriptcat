@@ -326,7 +326,7 @@ function App() {
         if (shouldClose) {
           setTimeout(() => {
             closeWindow();
-          }, 100);
+          }, 500);
         }
       } catch (e) {
         const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
