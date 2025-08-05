@@ -164,12 +164,13 @@ function SubscribeList() {
       align: "center",
       key: "permission",
       render(_, item: Subscribe) {
-        if (item.metadata.connect) {
-          return <div />;
-        }
-        return ((item.metadata.connect as string[]) || []).map((val) => {
-          return <img key={val} src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
-        });
+        return (
+          <div>
+            {(item.metadata.connect || []).map((val) => {
+              return <img key={val} src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
+            })}
+          </div>
+        );
       },
     },
     {

@@ -1,4 +1,4 @@
-import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, Metadata } from "@App/app/repo/scripts";
+import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata } from "@App/app/repo/scripts";
 import { type GetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
@@ -81,7 +81,7 @@ export type ScriptMenu = {
   enable: boolean; // 脚本是否启用
   updatetime: number; // 脚本更新时间
   hasUserConfig: boolean; // 是否有用户配置
-  metadata: Metadata; // 脚本元数据
+  metadata: SCMetadata; // 脚本元数据
   runStatus?: SCRIPT_RUN_STATUS; // 脚本运行状态
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数
