@@ -4,7 +4,7 @@ import i18n, { t } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import type { Metadata } from "@App/app/repo/scripts";
+import type { SCMetadata } from "@App/app/repo/scripts";
 import enUS from "./en-US/translation.json";
 import viVN from "./vi-VN/translation.json";
 import zhCN from "./zh-CN/translation.json";
@@ -64,12 +64,12 @@ export function initLocales(systemConfig: SystemConfig) {
   });
 }
 
-export function i18nName(script: { name: string; metadata: Metadata }) {
+export function i18nName(script: { name: string; metadata: SCMetadata }) {
   const m = script.metadata[`name:${i18n.language.toLowerCase()}`];
   return m ? m[0] : script.name;
 }
 
-export function i18nDescription(script: { metadata: Metadata }) {
+export function i18nDescription(script: { metadata: SCMetadata }) {
   const m = script.metadata[`description:${i18n.language.toLowerCase()}`];
   return m ? m[0] : script.metadata.description;
 }
