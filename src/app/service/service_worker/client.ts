@@ -15,6 +15,7 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
+import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -38,7 +39,7 @@ export class ScriptClient extends Client {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo]>("getInstallInfo", uuid);
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {

@@ -29,13 +29,14 @@ import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
 import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileWithPath } from "react-dropzone";
 import { systemConfig } from "@App/pages/store/global";
 import i18n, { matchLanguage } from "@App/locales/locales";
 import "./index.css";
 import { arcoLocale } from "@App/locales/arco";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import type { ScriptClient } from "@App/app/service/service_worker/client";
+import { saveHandle } from "@App/pkg/utils/filehandle-db";
 
 const MainLayout: React.FC<{
   children: ReactNode;
@@ -80,33 +81,56 @@ const MainLayout: React.FC<{
     stat && showImportResult(stat);
   };
 
+  // 提供一个简单的字串封装（非加密用)
+  function simpleDigestMessage(message: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    return crypto.subtle.digest("SHA-1", data).then((hashBuffer) => {
+      const hashArray = new Uint8Array(hashBuffer);
+      let hex = "";
+      for (let i = 0; i < hashArray.length; i++) {
+        const byte = hashArray[i];
+        hex += `${byte < 16 ? "0" : ""}${byte.toString(16)}`;
+      }
+      return hex;
+    });
+  }
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "application/javascript": [".js"] },
-    onDrop: (acceptedFiles) => {
+    onDrop: (acceptedFiles: FileWithPath[]) => {
       // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
       // 实现本地文件的监听
       const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
       Promise.all(
-        acceptedFiles.map(async (file) => {
-          // 解析看看是不是一个标准的script文件
-          // 如果是，则打开安装页面
-          const code = await file.text();
+        acceptedFiles.map(async (aFile) => {
           try {
-            const resp = await prepareScriptByCode(code, "file://-/" + file.name);
-            if (resp) {
-              // 打开安装页面
-              const installWindow = window.open(`/src/install.html?local=true`, "_blank");
-              if (!installWindow) {
-                throw new Error(t("install_page_open_failed"));
-              }
-              installWindow.onload = () =>
-                //@ts-ignore
-                installWindow.postMessage({ type: "file", file, fileHandle: file.handle }, "*");
-              stat.success++;
-            } else {
-              stat.fail++;
-              stat.msg.push(t("script_import_failed"));
+            // 解析看看是不是一个标准的script文件
+            // 如果是，则打开安装页面
+            const fileHandle = aFile.handle;
+            if (!fileHandle) {
+              throw new Error("Invalid Local File Access");
             }
+            const file = await fileHandle.getFile();
+            if (!file.name || !file.size) {
+              throw new Error("No Read Access Right for File");
+            }
+            // 先检查内容，后弹出安装页面
+            const checkOk = await Promise.allSettled([
+              file.text().then((code) => prepareScriptByCode(code, `file://*resp-check*/${file.name}`)),
+              simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
+            ]);
+            if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {
+              throw new Error(t("script_import_failed"));
+            }
+            const fid = checkOk[1].value;
+            await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
+            // 打开安装页面
+            const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
+            if (!installWindow) {
+              throw new Error(t("install_page_open_failed"));
+            }
+            stat.success++;
           } catch (e: any) {
             stat.fail++;
             stat.msg.push(e.message);

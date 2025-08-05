@@ -7,13 +7,13 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
-import type { InstallSource } from "./types";
+import { createScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type TInstallSubscribe } from "../queue";
 import { checkSilenceUpdate, InfoNotification } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { ScriptInfo } from "@App/pkg/utils/script";
-import { fetchScriptInfo, prepareSubscribeByCode } from "@App/pkg/utils/script";
+import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { cacheInstance } from "@App/app/cache";
+import { v4 as uuidv4 } from "uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 
 export class SubscribeService {
@@ -171,8 +171,10 @@ export class SubscribeService {
     });
     await this.subscribeDAO.update(url, { checktime: Date.now() });
     try {
-      const info = await fetchScriptInfo(subscribe.url, source, false, subscribe.url);
-      const { metadata } = info;
+      const code = await fetchScriptBody(subscribe.url);
+      const metadata = parseMetadata(code);
+      const url = subscribe.url;
+      const uuid = uuidv4();
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -191,7 +193,15 @@ export class SubscribeService {
         return false;
       }
       // 进行更新
-      this.openUpdatePage(info);
+      if (true === (await this.trySilenceUpdate(code, url))) {
+        // slience update
+      } else {
+        const si = [false, createScriptInfo(uuid, code, url, source, metadata)];
+        await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+        chrome.tabs.create({
+          url: `/src/install.html?uuid=${uuid}`,
+        });
+      }
       return true;
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
@@ -199,31 +209,26 @@ export class SubscribeService {
     }
   }
 
-  async openUpdatePage(info: ScriptInfo) {
+  async trySilenceUpdate(code: string, url: string) {
     const logger = this.logger.with({
-      url: info.url,
+      url,
     });
     // 是否静默更新
     const silenceUpdate = await this.systemConfig.getSilenceUpdateScript();
     if (silenceUpdate) {
       try {
-        const newSubscribe = await prepareSubscribeByCode(info.code, info.url);
+        const newSubscribe = await prepareSubscribeByCode(code, url);
         if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
           logger.info("silence update subscribe");
           this.install({
             subscribe: newSubscribe.subscribe,
           });
-          return;
+          return true;
         }
       } catch (e) {
         logger.error("prepare script failed", Logger.E(e));
       }
     }
-    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${info.uuid}`;
-    cacheInstance.set(cacheKey, info);
-    chrome.tabs.create({
-      url: `/src/install.html?uuid=${info.uuid}`,
-    });
   }
 
   async checkSubscribeUpdate() {
