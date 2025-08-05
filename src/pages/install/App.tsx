@@ -437,7 +437,9 @@ function App() {
       return;
     }
     setupWatchFile(uuid, fileName, handle);
-    return () => (unmountFileTrack(handle), void 0);
+    return () => {
+      unmountFileTrack(handle);
+    };
   }, [memoWatchFile]);
 
   return (

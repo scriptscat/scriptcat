@@ -35,7 +35,7 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
 export const startFileTrack = (fileHandle: FileSystemFileHandle, ftInfo: FTInfo) => {
   const fileObserver = new FileSystemObserver(callback);
   handleRecords.add([fileHandle, ftInfo, fileObserver]);
-  fileObserver!.observe(fileHandle);
+  fileObserver.observe(fileHandle);
 };
 
 export const unmountFileTrack = async (fileHandle: FileSystemFileHandle) => {

@@ -80,8 +80,9 @@ export async function prepareScriptByCode(
   origin: string,
   uuid?: string,
   override: boolean = false,
-  dao: ScriptDAO = new ScriptDAO()
+  dao?: ScriptDAO
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
+  dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
   if (metadata == null) {
     throw new Error("MetaData信息错误");
