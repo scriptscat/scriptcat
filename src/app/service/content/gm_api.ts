@@ -1,7 +1,7 @@
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
-import { base64ToBlob } from "@App/pkg/utils/utils";
+import { base64ToBlob, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -1147,10 +1147,15 @@ export default class GMApi extends GM_Base {
     }
     const r = this.scriptRes.resource[name];
     if (r) {
-      if (isBlobUrl) {
-        return URL.createObjectURL(base64ToBlob(r.base64));
+      let base64 = r.base64;
+      if (!base64) {
+        // 没有base64的话,则使用content转化
+        base64 = `data:${r.contentType};base64,${strToBase64(r.content)}`;
       }
-      return r.base64;
+      if (isBlobUrl) {
+        return URL.createObjectURL(base64ToBlob(base64));
+      }
+      return base64;
     }
     return undefined;
   }

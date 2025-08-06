@@ -2,11 +2,15 @@ import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageS
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
+import Logger from "@App/app/logger/logger";
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
 
   getSender(): MessageSender {
+    if (this.sender instanceof ExtensionMessageConnect) {
+      return this.sender.getPort().sender as MessageSender;
+    }
     return this.sender as MessageSender;
   }
 
@@ -106,7 +110,11 @@ export class Server {
         if (ret instanceof Promise) {
           ret
             .then((data) => {
-              sendResponse({ code: 0, data });
+              try {
+                sendResponse({ code: 0, data });
+              } catch (e: any) {
+                this.logger.error("sendResponse error", Logger.E(e));
+              }
             })
             .catch((e: Error) => {
               sendResponse({ code: -1, message: e.message || e.toString() });

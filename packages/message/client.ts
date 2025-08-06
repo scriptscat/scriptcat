@@ -25,8 +25,8 @@ export function connect(msg: MessageSend, action: string, data?: any): Promise<M
 
 export class Client {
   constructor(
-    private msg: MessageSend,
-    private prefix?: string
+    protected msg: MessageSend,
+    protected prefix?: string
   ) {
     if (this.prefix && !this.prefix.endsWith("/")) {
       this.prefix += "/";

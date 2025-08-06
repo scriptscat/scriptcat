@@ -147,8 +147,8 @@ export class ResourceService {
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
     if (res) {
-      // 判断1分钟过期
-      if ((res.updatetime || 0) > Date.now() - 1000 * 60) {
+      // 判断1天过期
+      if ((res.updatetime || 0) > Date.now() - 1000 * 86400) {
         return res;
       }
     }

@@ -14,7 +14,7 @@ export default class ContentRuntime {
     private msg: Message
   ) {}
 
-  start(scripts: ScriptRunResource[], envInfo: GMInfoEnv) {
+  init() {
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject
       return sendMessage(this.msg, "inject/runtime/emitEvent", data);
@@ -103,6 +103,10 @@ export default class ContentRuntime {
         return false;
       }
     );
+  }
+
+  start(scripts: ScriptRunResource[], envInfo: GMInfoEnv) {
+    // 启动脚本
     const client = new Client(this.msg, "inject");
     client.do("pageLoad", { scripts, envInfo });
   }

@@ -255,7 +255,6 @@ export function base64ToBlob(dataURI: string) {
   return new Blob([intArray], { type: mimeString });
 }
 
-/*
 export function strToBase64(str: string): string {
   return btoa(
     encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
@@ -263,7 +262,6 @@ export function strToBase64(str: string): string {
     })
   );
 }
-*/
 
 export function getMetadataStr(code: string): string | null {
   const start = code.indexOf("==UserScript==");

@@ -336,28 +336,34 @@ export class RuntimeService {
 
   // 给指定tab发送消息
   sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
-    const sender: MessageSend =
+    if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      to.tabId === -1
-        ? this.sender
-        : new ExtensionContentMessageSend(to.tabId, {
-            documentId: to.documentId,
-            frameId: to.frameId,
-          });
-    return sendMessage(sender, `offscreen/runtime/${action}`, data);
+      return sendMessage(this.sender, "offscreen/runtime/" + action, data);
+    }
+    return sendMessage(
+      new ExtensionContentMessageSend(to.tabId, {
+        documentId: to.documentId,
+        frameId: to.frameId,
+      }),
+      "content/runtime/" + action,
+      data
+    );
   }
 
   // 给指定脚本触发事件
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
-    const sender: MessageSend =
+    if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      to.tabId === -1
-        ? this.sender
-        : new ExtensionContentMessageSend(to.tabId, {
-            documentId: to.documentId,
-            frameId: to.frameId,
-          });
-    return sendMessage(sender, "offscreen/runtime/emitEvent", req);
+      return sendMessage(this.sender, "offscreen/runtime/emitEvent", req);
+    }
+    return sendMessage(
+      new ExtensionContentMessageSend(to.tabId, {
+        documentId: to.documentId,
+        frameId: to.frameId,
+      }),
+      "content/runtime/emitEvent",
+      req
+    );
   }
 
   async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
@@ -437,6 +443,14 @@ export class RuntimeService {
       ...enableScript.map(async (script) => {
         const resource = await this.resource.getScriptResources(script, false);
         script.resource = resource;
+        Object.keys(script.resource).forEach((name) => {
+          const res = script.resource[name];
+          // 删除base64以节省资源
+          // 如果有content就删除base64
+          if (res.content) {
+            res.base64 = undefined;
+          }
+        });
       }),
       // 加载code相关的信息
       ...enableScript.map(async (script) => {

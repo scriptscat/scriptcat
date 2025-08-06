@@ -80,7 +80,7 @@ export interface ScriptRunResource extends Script {
   code: string;
   value: { [key: string]: any };
   flag: string;
-  resource: { [key: string]: Resource };
+  resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
 }
 
 export class ScriptDAO extends Repo<Script> {

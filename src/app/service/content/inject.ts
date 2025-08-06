@@ -14,26 +14,10 @@ export class InjectRuntime {
   constructor(
     private server: Server,
     private msg: Message,
-    private scripts: ScriptLoadInfo[],
     private envInfo: GMInfoEnv
   ) {}
 
-  start() {
-    this.scripts.forEach((script) => {
-      // @ts-ignore
-      const scriptFunc = window[script.flag];
-      if (scriptFunc) {
-        this.execScript(script, scriptFunc);
-      } else {
-        // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, script.flag, {
-          configurable: true,
-          set: (val: ScriptFunc) => {
-            this.execScript(script, val);
-          },
-        });
-      }
-    });
+  init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本
       const exec = this.execList.find((val) => val.scriptRes.uuid === data.uuid);
@@ -50,6 +34,24 @@ export class InjectRuntime {
     });
     // 注入允许外部调用
     this.externalMessage();
+  }
+
+  start(scripts: ScriptLoadInfo[]) {
+    scripts.forEach((script) => {
+      // @ts-ignore
+      const scriptFunc = window[script.flag];
+      if (scriptFunc) {
+        this.execScript(script, scriptFunc);
+      } else {
+        // 监听脚本加载,和屏蔽读取
+        Object.defineProperty(window, script.flag, {
+          configurable: true,
+          set: (val: ScriptFunc) => {
+            this.execScript(script, val);
+          },
+        });
+      }
+    });
   }
 
   externalMessage() {
