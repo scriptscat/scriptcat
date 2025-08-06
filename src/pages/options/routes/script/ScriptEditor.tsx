@@ -142,6 +142,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   }
   const prepareScript = await prepareScriptByCode(code, "", uuidv4());
   const { script } = prepareScript;
+  script.createtime = 0;
 
   return {
     script,
@@ -211,11 +212,15 @@ function ScriptEditor() {
     return prepareScriptByCode(code, existingScript.origin || "", targetUUID)
       .then((prepareScript) => {
         const { script, oldScript } = prepareScript;
-        if (targetUUID && existingScript.createtime > 0) {
-          if (!oldScript || oldScript.uuid !== targetUUID) {
-            Message.warning("The editing script does not exist.");
-            return Promise.reject(new Error("The editing script does not exist."));
+        if (targetUUID) {
+          if (existingScript.createtime !== 0) {
+            if (!oldScript || oldScript.uuid !== targetUUID) {
+              Message.warning("The editing script does not exist.");
+              return Promise.reject(new Error("The editing script does not exist."));
+            }
           }
+          existingScript.createtime = Date.now();
+          script.createtime = existingScript.createtime;
         }
         if (!script.name) {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
