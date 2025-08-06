@@ -131,8 +131,12 @@ export class ScriptService {
               regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
               resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
               requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-              // 排除常见的符合上述条件的域名
-              excludedRequestDomains: ["github.com"],
+              excludedResponseHeaders: [
+                {
+                  header: "Content-Type",
+                  values: ["text/html"],
+                },
+              ],
             },
           },
         ],
