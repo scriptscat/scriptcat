@@ -3,7 +3,7 @@
 /* eslint-disable default-case */
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { Metadata } from "@App/app/repo/scripts";
+import type { SCMetadata } from "@App/app/repo/scripts";
 import type MessageInternal from "@App/app/message/internal";
 
 export function randomString(e: number) {
@@ -52,18 +52,18 @@ export function valueType(val: any) {
   }
 }
 
-export function toStorageValueStr(val: any): string {
+export function toStorageValueStr(val: unknown): string {
   switch (typeof val) {
     case "string":
       return `s${val}`;
     case "number":
-      return `n${val.toString()}`;
+      return `n${val}`;
     case "boolean":
-      return `b${val ? "true" : "false"}`;
+      return `b${val}`;
     default:
       try {
         return `o${JSON.stringify(val)}`;
-      } catch (e) {
+      } catch {
         return "";
       }
   }
@@ -136,8 +136,8 @@ export function tryConnect(
 
 // 检查订阅规则是否改变,是否能够静默更新
 export function checkSilenceUpdate(
-  oldMeta: Metadata,
-  newMeta: Metadata
+  oldMeta: SCMetadata,
+  newMeta: SCMetadata
 ): boolean {
   // 判断connect是否改变
   const oldConnect: { [key: string]: boolean } = {};
@@ -161,26 +161,33 @@ export function checkSilenceUpdate(
   return true;
 }
 
-// 在当前页后打开一个新页面
-export function openInCurrentTab(url: string) {
-  chrome.tabs.query(
-    {
-      active: true,
-    },
-    (tabs) => {
-      if (tabs.length) {
-        chrome.tabs.create({
-          url,
-          index: tabs[0].index + 1,
-          openerTabId: tabs[0].id,
-        });
-      } else {
-        chrome.tabs.create({
-          url,
-        });
+// https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
+export async function getCurrentTab() {
+  // `tab` will either be a `tabs.Tab` instance or `undefined`.
+  const [tab] = await new Promise<chrome.tabs.Tab[]>((resolve, reject) => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (results) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message));
+        return;
       }
-    }
-  );
+      resolve(results);
+    });
+  });
+  return tab as chrome.tabs.Tab | undefined;
+}
+
+// 在当前页后打开一个新页面
+export async function openInCurrentTab(url: string) {
+  const tab = await getCurrentTab();
+  const createProperties: chrome.tabs.CreateProperties = { url };
+  if (tab) {
+    // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
+    createProperties.openerTabId = tab.id;
+    createProperties.windowId = tab.windowId;
+    createProperties.index = tab.index + 1;
+  }
+  return chrome.tabs.create(createProperties);
 }
 
 export function errorMsg(e: any): string {

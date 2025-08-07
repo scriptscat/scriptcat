@@ -1,6 +1,6 @@
 import { DAO, db } from "./dao";
 
-export type Metadata = { [key: string]: string[] };
+export type SCMetadata = Partial<Record<string, string[]>>;
 
 export type SUBSCRIBE_STATUS = 1 | 2 | 3 | 4;
 export const SUBSCRIBE_STATUS_ENABLE: SUBSCRIBE_STATUS = 1;
@@ -18,7 +18,7 @@ export interface Subscribe {
   code: string;
   author: string;
   scripts: { [key: string]: SubscribeScript };
-  metadata: Metadata;
+  metadata: SCMetadata;
   status: SUBSCRIBE_STATUS;
   createtime: number;
   updatetime?: number;

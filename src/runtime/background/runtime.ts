@@ -11,7 +11,7 @@ import {
   ScriptDAO,
   ScriptRunResource,
   SCRIPT_RUN_STATUS_RUNNING,
-  Metadata,
+  SCMetadata,
 } from "@App/app/repo/scripts";
 import ResourceManager from "@App/app/service/resource/manager";
 import ValueManager from "@App/app/service/value/manager";
@@ -48,7 +48,7 @@ export type ScriptMenu = {
   enable: boolean;
   updatetime: number;
   hasUserConfig: boolean;
-  metadata: Metadata;
+  metadata: SCMetadata;
   runStatus?: SCRIPT_RUN_STATUS;
   runNum: number;
   runNumByIframe: number;
