@@ -8,7 +8,7 @@ import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import { base64ToBlob, isFirefox } from "@App/pkg/utils/utils";
+import { base64ToBlob, getCurrentTab, isFirefox } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
@@ -476,7 +476,10 @@ export default class GMApi {
       if (newWindow) {
         // 由于不符合同源策略无法直接监听newWindow关闭事件，因此改用CDP方法监听
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
-        chrome.tabs.query({ active: true }, ([tab]) => {
+        getCurrentTab().then((tab) => {
+          if (!tab) {
+            throw new Error("tab cannot be undefined");
+          }
           Cache.getInstance().set(`GM_openInTab:${tab.id}`, channel);
           channel.send({ event: "oncreate", tabId: tab.id });
         });

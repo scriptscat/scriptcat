@@ -28,6 +28,7 @@ import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
+import { getCurrentTab } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -69,13 +70,13 @@ function App() {
     systemManage.getVersion().then((res) => {
       res && setVersion(res);
     });
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs.length) {
+    getCurrentTab().then((tab) => {
+      if (!tab) {
         return;
       }
-      setCurrentUrl(tabs[0].url || "");
+      setCurrentUrl(tab.url || "");
       message
-        .syncSend("queryPageScript", { url: tabs[0].url, tabId: tabs[0].id })
+        .syncSend("queryPageScript", { url: tab.url, tabId: tab.id })
         .then(
           (resp: {
             scriptList: ScriptMenu[];

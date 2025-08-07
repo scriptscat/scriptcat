@@ -134,7 +134,7 @@ export default class SubscribeManager extends Manager {
         subscribe.url,
         source,
         false,
-        subscribe.url
+        subscribe.url // 应为 uuid
       );
       const { metadata } = info;
       if (!metadata) {
@@ -143,7 +143,7 @@ export default class SubscribeManager extends Manager {
       }
       const newVersion = metadata.version && metadata.version[0];
       if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version[0] });
+        logger.error("parse version failed", { version: metadata.version });
         return Promise.resolve(false);
       }
       let oldVersion =

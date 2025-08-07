@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
+import { fetchScriptBody, fetchScriptInfo, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { MessageHander } from "@App/app/message/message";
@@ -132,32 +132,27 @@ export class ScriptManager extends Manager {
     // 检查更新
     const script = await this.scriptDAO.findById(id);
     if (!script) {
-      return Promise.resolve(false);
+      return false;
     }
     this.scriptDAO.update(id, { checktime: new Date().getTime() });
     if (!script.checkUpdateUrl) {
-      return Promise.resolve(false);
+      return false;
     }
     const logger = LoggerCore.getLogger({
       scriptId: id,
       name: script.name,
     });
     try {
-      const info = await fetchScriptInfo(
-        script.checkUpdateUrl,
-        source,
-        false,
-        script.uuid
-      );
-      const { metadata } = info;
+      const code = await fetchScriptBody(script.checkUpdateUrl);
+      const metadata = parseMetadata(code);
       if (!metadata) {
         logger.error("parse metadata failed");
-        return Promise.resolve(false);
+        return false;
       }
       const newVersion = metadata.version && metadata.version[0];
       if (!newVersion) {
-        logger.error("parse version failed", { version: metadata.version[0] });
-        return Promise.resolve(false);
+        logger.error("parse version failed", { version: metadata.version });
+        return false;
       }
       let oldVersion = script.metadata.version && script.metadata.version[0];
       if (!oldVersion) {
@@ -165,15 +160,15 @@ export class ScriptManager extends Manager {
       }
       // 对比版本大小
       if (ltever(newVersion, oldVersion, logger)) {
-        return Promise.resolve(false);
+        return false;
       }
       // 进行更新
       this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
-      return Promise.resolve(false);
+      return false;
     }
-    return Promise.resolve(true);
+    return true;
   }
 
   // 打开更新窗口
@@ -229,11 +224,12 @@ export class ScriptManager extends Manager {
     source: InstallSource,
     subscribeUrl?: string
   ) {
-    const info = await fetchScriptInfo(url, source, false, uuidv4());
-    const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
-    prepareScript.script.subscribeUrl = subscribeUrl;
-    await this.event.upsertHandler(prepareScript.script, source);
-    return Promise.resolve(prepareScript.script);
+    const uuid = uuidv4();
+    const code = await fetchScriptBody(url);
+    const { script } = await prepareScriptByCode(code, url, uuid);
+    script.subscribeUrl = subscribeUrl;
+    await this.event.upsertHandler(script, source);
+    return Promise.resolve(script);
   }
 }
 

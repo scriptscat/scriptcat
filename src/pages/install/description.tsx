@@ -17,7 +17,7 @@ import {
   type ScriptInfo,
 } from "@App/pkg/utils/script";
 import {
-  Metadata,
+  SCMetadata,
   Script,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -38,7 +38,7 @@ const closeWindow = () => {
 
 export default function Description() {
   const [permission, setPermission] = useState<Permission>([]);
-  const [metadata, setMetadata] = useState<Metadata>({});
+  const [metadata, setMetadata] = useState<SCMetadata>({});
   // 脚本信息包括脚本代码、下载url，但是不包括解析代码后得到的metadata，通过background的缓存获取
   const [info, setInfo] = useState<ScriptInfo>();
   // 对脚本详细的描述

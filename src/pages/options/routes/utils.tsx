@@ -1,7 +1,7 @@
 /* eslint-disable import/prefer-default-export */
 import React from "react";
 import IoC from "@App/app/ioc";
-import { Metadata, Script, ScriptDAO } from "@App/app/repo/scripts";
+import { SCMetadata, Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import {
@@ -192,7 +192,7 @@ export function getValues(script: Script) {
 }
 
 export type ScriptIconsProps = {
-  script: { name: string; metadata: Metadata };
+  script: { name: string; metadata: SCMetadata };
   size?: number;
   style?: React.CSSProperties;
 };

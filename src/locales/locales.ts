@@ -2,7 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { Metadata } from "@App/app/repo/scripts";
+import { SCMetadata } from "@App/app/repo/scripts";
 import enUS from "./en-US/translation.json";
 import viVN from "./vi-VN/translation.json";
 import zhCN from "./zh-CN/translation.json";
@@ -51,13 +51,13 @@ if (!localStorage.language) {
 }
 dayjs.extend(relativeTime);
 
-export function i18nName(script: { name: string; metadata: Metadata }) {
+export function i18nName(script: { name: string; metadata: SCMetadata }) {
   return script.metadata[`name:${i18n.language.toLowerCase()}`]
     ? script.metadata[`name:${i18n.language.toLowerCase()}`][0]
     : script.name;
 }
 
-export function i18nDescription(script: { metadata: Metadata }) {
+export function i18nDescription(script: { metadata: SCMetadata }) {
   return script.metadata[`description:${i18n.language.toLowerCase()}`]
     ? script.metadata[`description:${i18n.language.toLowerCase()}`][0]
     : script.metadata.description;

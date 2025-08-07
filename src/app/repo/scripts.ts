@@ -24,7 +24,7 @@ export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
 // 弃用
 export const SCRIPT_RUN_STATUS_RETRY: SCRIPT_RUN_STATUS = "retry";
 
-export type Metadata = { [key: string]: string[] };
+export type SCMetadata = Partial<Record<string, string[]>>;
 
 export type ConfigType =
   | "text"
@@ -63,8 +63,8 @@ export interface Script {
   origin?: string; // 脚本来源
   checkUpdateUrl?: string; // 检查更新URL
   downloadUrl?: string; // 脚本下载URL
-  metadata: Metadata; // 脚本的元数据
-  selfMetadata?: Metadata; // 自定义脚本元数据
+  metadata: SCMetadata; // 脚本的元数据
+  selfMetadata?: SCMetadata; // 自定义脚本元数据
   subscribeUrl?: string; // 如果是通过订阅脚本安装的话,会有订阅地址
   config?: UserConfig; // 通过UserConfig定义的用户配置
   type: SCRIPT_TYPE; // 脚本类型 1:普通脚本 2:定时脚本 3:后台脚本
