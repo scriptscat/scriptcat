@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dealPatternMatches, parsePatternMatchesURL, UrlMatch } from "./match";
+import { v4 as uuidv4 } from "uuid";
 
 // https://developer.chrome.com/docs/extensions/mv3/match_patterns/
 describe("UrlMatch-google", () => {
@@ -297,5 +298,66 @@ describe("parsePatternMatchesURL", () => {
       host: "*",
       path: "*",
     });
+  });
+});
+
+const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList: string[]) => {
+  const patternMatches = dealPatternMatches(matchesList);
+  const matchesResult = patternMatches.result;
+  const matches = patternMatches.patternResult;
+  const result = dealPatternMatches(excludeMatchesList, {
+    exclude: true,
+  });
+  const excludeMatchesResult = result.result;
+  const excludeMatches = result.patternResult;
+
+  const urlMatcher = new UrlMatch<string>();
+  for (const match of matchesResult) {
+    urlMatcher.add(match, uuid);
+  }
+  for (const exclude of excludeMatchesResult) {
+    urlMatcher.exclude(exclude, uuid);
+  }
+
+  return { urlMatcher, matches, excludeMatches };
+};
+
+describe("UrlMatch-exclusion", () => {
+  it("exclusion-1", () => {
+    const matchesList: string[] = ["*://**/*"];
+    const excludeMatchesList: string[] = [
+      "*://steamcommunity.com/*",
+      "*.jd.com/*",
+      "*docs.google.com/*",
+      "*://*.amazon.tld/*",
+      "*shop*",
+      "/.*(?<!jav)store.*/",
+      "*/releases",
+      "*/releases/*",
+    ];
+    const uuid = uuidv4();
+    const { urlMatcher, excludeMatches } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
+    expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
+    expect(excludeMatches.includes("*://*/*")).toEqual(false);
+    // expect(excludeMatches.includes("*://*:5244*/*")).toEqual(false);
+  });
+  it("exclusion-2", () => {
+    const matchesList: string[] = ["*://**/*"];
+    const excludeMatchesList: string[] = [
+      "*://steamcommunity.com/*",
+      "*.jd.com/*",
+      "*docs.google.com/*",
+      "*://*.amazon.tld/*",
+      "*shop*",
+      "/.*(?<!jav)store.*/",
+      "*/releases",
+      "*/releases/*",
+      "*:5244*",
+    ];
+    const uuid = uuidv4();
+    const { urlMatcher, excludeMatches } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
+    expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
+    expect(excludeMatches.includes("*://*/*")).toEqual(false);
+    // expect(excludeMatches.includes("*://*:5244*/*")).toEqual(true);
   });
 });
