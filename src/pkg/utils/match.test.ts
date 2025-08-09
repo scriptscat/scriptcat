@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dealPatternMatches, parsePatternMatchesURL, UrlMatch } from "./match";
+import { v4 as uuidv4 } from "uuid";
 
 // https://developer.chrome.com/docs/extensions/mv3/match_patterns/
 describe("UrlMatch-google", () => {
@@ -129,6 +130,16 @@ describe("UrlMatch-port2", () => {
   it("case2", () => {
     expect(url.match("http://localhost:3000/")).toEqual(["ok4"]);
     expect(url.match("http://localhost:8000/")).toEqual([]);
+  });
+});
+
+describe("UrlMatch-exclude", () => {
+  it("exclue-port", () => {
+    const url = new UrlMatch<string>();
+    url.add("*://*/*", "ok3");
+    url.exclude("*:5244*", "ok3");
+    expect(url.match("http://test.list.ggnb.top:5244/search")).toEqual([]);
+    expect(url.match("http://test.list.ggnb.top:80/search")).toEqual(["ok3"]);
   });
 });
 
@@ -297,5 +308,52 @@ describe("parsePatternMatchesURL", () => {
       host: "*",
       path: "*",
     });
+  });
+});
+
+const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList: string[]) => {
+  const patternMatches = dealPatternMatches(matchesList);
+  const matchesResult = patternMatches.result;
+  const matches = patternMatches.patternResult;
+  const result = dealPatternMatches(excludeMatchesList, {
+    exclude: true,
+  });
+  const excludeMatchesResult = result.result;
+  const excludeMatches = result.patternResult;
+
+  const urlMatcher = new UrlMatch<string>();
+  for (const match of matchesResult) {
+    urlMatcher.add(match, uuid);
+  }
+  for (const exclude of excludeMatchesResult) {
+    urlMatcher.exclude(exclude, uuid);
+  }
+
+  return { urlMatcher, matches, excludeMatches };
+};
+
+describe("UrlMatch-exclusion", () => {
+  it("exclusion-1", () => {
+    const matchesList: string[] = ["*://**/*"];
+    const excludeMatchesList: string[] = [
+      "*://steamcommunity.com/*",
+      "*.jd.com/*",
+      "*docs.google.com/*",
+      "*://*.amazon.tld/*",
+      "*shop*",
+      "/.*(?<!test)store.*/",
+      "*/releases",
+      "*/releases/*",
+      "*:5244*",
+    ];
+    const uuid = uuidv4();
+    const { urlMatcher } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
+    expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
+    expect(urlMatcher.match("https://steamcommunity.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://jd.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://docs.google.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://amazon.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://test.store.com/aaa")).toEqual([]);
+    expect(urlMatcher.match("https://foo.api.bar:5244/baz")).toEqual([]);
   });
 });
