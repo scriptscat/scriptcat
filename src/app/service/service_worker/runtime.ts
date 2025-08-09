@@ -409,29 +409,30 @@ export class RuntimeService {
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
 
-    const enableScript = matchScriptUuid.reduce((arr, uuid) => {
+    const enableScript = [] as ScriptLoadInfo[];
+
+    for (const uuid of matchScriptUuid) {
       const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid));
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
-        return arr;
+        continue;
       }
       // 判断注入页面类型
       if (scriptRes.metadata["run-in"]) {
         // 判断插件运行环境
         const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
         if (!scriptRes.metadata["run-in"].includes(contextType)) {
-          return arr;
+          continue;
         }
       }
       // 如果是iframe,判断是否允许在iframe里运行
       if (chromeSender.frameId) {
         if (scriptRes.metadata.noframes) {
-          return arr;
+          continue;
         }
       }
-      arr.push(scriptRes as ScriptLoadInfo);
-      return arr;
-    }, [] as ScriptLoadInfo[]);
+      enableScript.push(scriptRes as ScriptLoadInfo);
+    }
 
     await Promise.all([
       // 加载value
