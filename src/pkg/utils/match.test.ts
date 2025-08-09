@@ -133,6 +133,16 @@ describe("UrlMatch-port2", () => {
   });
 });
 
+describe("UrlMatch-exclude", () => {
+  it("exclue-port", () => {
+    const url = new UrlMatch<string>();
+    url.add("*://*/*", "ok3");
+    url.exclude("*:5244*", "ok3");
+    expect(url.match("http://test.list.ggnb.top:5244/search")).toEqual([]);
+    expect(url.match("http://test.list.ggnb.top:80/search")).toEqual(["ok3"]);
+  });
+});
+
 // https://developer.chrome.com/docs/extensions/mv3/match_patterns/
 describe("dealPatternMatches", () => {
   it("https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns?hl=zh-cn#examples", () => {
@@ -312,6 +322,7 @@ const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList:
   const excludeMatches = result.patternResult;
 
   const urlMatcher = new UrlMatch<string>();
+  console.log(matchesResult, excludeMatchesResult, excludeMatches);
   for (const match of matchesResult) {
     urlMatcher.add(match, uuid);
   }
@@ -337,6 +348,7 @@ describe("UrlMatch-exclusion", () => {
     ];
     const uuid = uuidv4();
     const { urlMatcher, excludeMatches } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
+    console.log(excludeMatches);
     expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
     expect(excludeMatches.includes("*://*/*")).toEqual(false);
     // expect(excludeMatches.includes("*://*:5244*/*")).toEqual(false);
