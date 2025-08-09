@@ -91,17 +91,14 @@ export async function matchLanguage() {
     }
   }
   // 根据前缀去匹配
-  const prefixMap = i18n.languages.reduce(
-    (acc, lng) => {
-      const prefix = lng.split("-")[0];
-      if (!acc[prefix]) {
-        acc[prefix] = [];
-      }
-      acc[prefix].push(lng);
-      return acc;
-    },
-    {} as Record<string, string[]>
-  );
+  const prefixMap = {} as Partial<Record<string, string[]>>;
+  for (const lng of i18n.languages) {
+    const prefix = lng.split("-")[0];
+    if (!prefixMap[prefix]) {
+      prefixMap[prefix] = [];
+    }
+    prefixMap[prefix].push(lng);
+  }
   for (let i = 0; i < acceptLanguages.length; i += 1) {
     const lng = acceptLanguages[i];
     const prefix = lng.split("-")[0];

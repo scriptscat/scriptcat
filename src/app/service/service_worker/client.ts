@@ -143,18 +143,15 @@ export class ScriptClient extends Client {
       })
       // this.do 只会resolve 不会reject
     )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
-    const stat = results.reduce(
-      (obj, result, index) => {
-        if (result.value.success) {
-          obj.success++;
-        } else {
-          obj.fail++;
-          obj.msg.push(`#${index + 1}: ${result.value.msg}`);
-        }
-        return obj;
-      },
-      { success: 0, fail: 0, msg: [] as string[] }
-    );
+    const stat = { success: 0, fail: 0, msg: [] as string[] };
+    results.forEach(({ value }, index) => {
+      if (value.success) {
+        stat.success++;
+      } else {
+        stat.fail++;
+        stat.msg.push(`#${index + 1}: ${value.msg}`);
+      }
+    });
     return stat;
   }
 
