@@ -202,7 +202,6 @@ export class UrlMatch<T> extends Match<T> {
       includeMap.set(Match.getId(val), val);
     });
     const exclude = this.excludeMatch.match(url);
-    console.log(url, exclude);
     const excludeMap = new Map();
     exclude.forEach((val) => {
       excludeMap.set(Match.getId(val), 1);

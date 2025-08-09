@@ -322,7 +322,6 @@ const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList:
   const excludeMatches = result.patternResult;
 
   const urlMatcher = new UrlMatch<string>();
-  console.log(matchesResult, excludeMatchesResult, excludeMatches);
   for (const match of matchesResult) {
     urlMatcher.add(match, uuid);
   }
@@ -342,25 +341,7 @@ describe("UrlMatch-exclusion", () => {
       "*docs.google.com/*",
       "*://*.amazon.tld/*",
       "*shop*",
-      "/.*(?<!jav)store.*/",
-      "*/releases",
-      "*/releases/*",
-    ];
-    const uuid = uuidv4();
-    const { urlMatcher } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
-    expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
-    // expect(excludeMatches.includes("*://*/*")).toEqual(false);
-    // expect(excludeMatches.includes("*://*:5244*/*")).toEqual(false);
-  });
-  it("exclusion-2", () => {
-    const matchesList: string[] = ["*://**/*"];
-    const excludeMatchesList: string[] = [
-      "*://steamcommunity.com/*",
-      "*.jd.com/*",
-      "*docs.google.com/*",
-      "*://*.amazon.tld/*",
-      "*shop*",
-      "/.*(?<!jav)store.*/",
+      "/.*(?<!test)store.*/",
       "*/releases",
       "*/releases/*",
       "*:5244*",
@@ -368,7 +349,11 @@ describe("UrlMatch-exclusion", () => {
     const uuid = uuidv4();
     const { urlMatcher } = makeUrlMatcher(uuid, matchesList, excludeMatchesList);
     expect(urlMatcher.match("https://foo.api.bar/baz")).toEqual([uuid]);
-    // expect(excludeMatches.includes("*://*/*")).toEqual(false);
-    // expect(excludeMatches.includes("*://*:5244*/*")).toEqual(true);
+    expect(urlMatcher.match("https://steamcommunity.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://jd.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://docs.google.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://amazon.com/foo")).toEqual([]);
+    expect(urlMatcher.match("https://test.store.com/aaa")).toEqual([]);
+    expect(urlMatcher.match("https://foo.api.bar:5244/baz")).toEqual([]);
   });
 });
