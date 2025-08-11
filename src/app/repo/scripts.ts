@@ -78,6 +78,7 @@ export type ScriptAndCode = Script & ScriptCode;
 // 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
 export interface ScriptRunResource extends Script {
   code: string;
+  preCode: string;
   value: { [key: string]: any };
   flag: string;
   resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
