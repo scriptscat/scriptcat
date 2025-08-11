@@ -33,38 +33,14 @@ export default class Match<T> {
         search: match[5],
       };
     }
-    // 处理一些特殊情况
-    switch (url) {
-      case "*":
-      case "http*":
-        return {
-          scheme: "*",
-          host: "*",
-          path: "*",
-          search: "*",
-        };
-      default:
-        // 无*://的情况
-        if (!url.includes("://")) {
-          // 直接转为通配符
-          const match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
-          if (match) {
-            return {
-              scheme: "*",
-              host: match[1],
-              path: match[3] || (url[url.length - 1] === "*" ? "*" : "/"),
-              search: match[4],
-            };
-          }
-        }
-    }
     return undefined;
   }
 
   protected compileRe(url: string): string {
     const u = this.parseURL(url);
     if (!u) {
-      return "";
+      // 直接将*替换为正则
+      return url.replace(/\*/g, ".*");
     }
     switch (u.scheme) {
       case "*":
@@ -82,7 +58,7 @@ export default class Match<T> {
     }
     // 处理顶域
     if (u.host.endsWith("tld")) {
-      u.host = `${u.host.substr(0, u.host.length - 3)}.*?`;
+      u.host = `${u.host.substring(0, u.host.length - 3)}.*?`;
     }
     // 处理端口
     const pos2 = u.host.indexOf(":");
