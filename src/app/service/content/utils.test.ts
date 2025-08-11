@@ -59,7 +59,7 @@ describe("utils", () => {
         code: "console.log('hello world');",
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toContain("console.log('hello world');");
       expect(result).toContain("//# sourceURL=");
@@ -121,7 +121,7 @@ describe("utils", () => {
         },
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toContain("// Library 1 content");
       expect(result).toContain("// Library 2 content");
@@ -152,7 +152,7 @@ describe("utils", () => {
         },
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toContain("// Existing content");
       expect(result).not.toContain("missing.js");
@@ -163,7 +163,7 @@ describe("utils", () => {
         name: "Test Script with 中文 & Special!@#$%^&*() Characters",
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toContain("sourceURL=");
       // 验证 encodeURI 被正确应用
@@ -177,7 +177,7 @@ describe("utils", () => {
         name: "Error Test Script",
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toContain("catch (e)");
       expect(result).toContain("console.error");
@@ -190,7 +190,7 @@ describe("utils", () => {
         metadata: {},
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toBeDefined();
       expect(result).toContain("try {");
@@ -203,7 +203,7 @@ describe("utils", () => {
         },
       });
 
-      const result = compileScriptCode(scriptRes);
+      const result = compileScriptCode(scriptRes, scriptRes.code);
 
       expect(result).toBeDefined();
       expect(result).toContain("try {");

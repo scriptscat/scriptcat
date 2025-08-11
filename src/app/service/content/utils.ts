@@ -73,7 +73,7 @@ export function compileInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${scriptRes.flag}']}catch(e){}` : "";
-  return `${scriptRes.preCode}\nwindow['${scriptRes.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return `${scriptRes.preCode ? scriptRes.preCode + "\n" : ""}window['${scriptRes.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
 export function addStyle(css: string): HTMLStyleElement {
