@@ -682,7 +682,7 @@ export default class GMApi {
       if (request.script.metadata.connect) {
         const { connect } = request.script.metadata;
         for (let i = 0; i < connect.length; i += 1) {
-          if (url.hostname.endsWith(connect[i])) {
+          if (connect[i] === "*" || url.hostname.endsWith(connect[i])) {
             return true;
           }
         }
