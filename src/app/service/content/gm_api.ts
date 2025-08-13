@@ -1179,6 +1179,24 @@ export default class GMApi extends GM_Base {
   ["window.focus"]() {
     return this.sendMessage("window.focus", []);
   }
+
+  @GMContext.protected()
+  apiLoadPromise: Promise<void> | undefined;
+
+  @GMContext.protected()
+  apiLoadResolve: (() => void) | undefined;
+
+  @GMContext.API()
+  CAT_APILoaded() {
+    // 等待触发
+    if (this.apiLoadPromise) {
+      return this.apiLoadPromise;
+    }
+    this.apiLoadPromise = new Promise((resolve) => {
+      this.apiLoadResolve = resolve;
+    });
+    return this.apiLoadPromise;
+  }
 }
 
 // 從 GM_Base 對象中解構出 createGMBase 函数並導出（可供其他模塊使用）

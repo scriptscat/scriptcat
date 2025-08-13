@@ -586,7 +586,7 @@ export class RuntimeService {
       messageFlag = await this.getAndGenMessageFlag();
       const injectJs = await fetch("/src/inject.js").then((res) => res.text());
       // 替换ScriptFlag
-      const code = `(function (MessageFlag) {\n${injectJs}\n})('${messageFlag}')`;
+      const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ['testPreInjectScriptFlag'])`;
       chrome.userScripts.configureWorld({
         csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
         messaging: true,
@@ -732,6 +732,11 @@ export class RuntimeService {
     matches.push(...(scriptRes.metadata["include"] || []));
     if (!matches.length) {
       return undefined;
+    }
+
+    if (scriptRes.metadata["run-at"] && scriptRes.metadata["run-at"][0] === "pre-document-start") {
+      // 特殊处理pre-document-start
+      scriptRes.flag = "testPreInjectScriptFlag";
     }
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);

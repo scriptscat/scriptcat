@@ -68,6 +68,8 @@ export default class ExecScript {
     this.sandboxContext?.valueUpdate(data);
   }
 
+  execContext: any;
+
   /**
    * @see {@link compileScriptCode}
    * @returns
@@ -75,8 +77,19 @@ export default class ExecScript {
   exec() {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
-    const context = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc.call(context, this.named, this.scriptRes.name);
+    this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
+    return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
+  }
+
+  // 处理GM API
+  preDocumentStart(_scriptRes: ScriptLoadInfo, _envInfo: GMInfoEnv) {
+    console.log("触发apiLoadResolve", this.sandboxContext);
+    // 给沙盒window附加GM API
+    this.execContext!["GM_getValue"] = () => {
+      return "233";
+    };
+    // 触发apiLoadResolve
+    this.sandboxContext!["apiLoadResolve"]?.();
   }
 
   stop() {

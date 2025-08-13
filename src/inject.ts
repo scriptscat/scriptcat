@@ -15,11 +15,15 @@ const logger = new LoggerCore({
 });
 
 const server = new Server("inject", msg);
+const runtime = new InjectRuntime(server, msg);
+// 检查pre-document-start的脚本
+runtime.checkPreDocumentStart();
+
+console.log(PreInjectScriptFlag);
 
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
   // 监听事件
-  const runtime = new InjectRuntime(server, msg, data.envInfo);
-  runtime.init();
+  runtime.init(data.envInfo);
   runtime.start(data.scripts);
 });

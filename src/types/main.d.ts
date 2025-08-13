@@ -25,6 +25,7 @@ interface FileSystemObserverInstance {
 }
 
 declare const MessageFlag: string;
+declare const PreInjectScriptFlag: string[];
 
 // 可以让content与inject环境交换携带dom的对象
 declare let cloneInto: ((detail: any, view: any) => any) | undefined;
