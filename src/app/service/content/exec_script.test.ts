@@ -50,7 +50,7 @@ describe("GM_info", () => {
     expect(noneExec.sandboxContext).toBeUndefined();
     expect(noneExec.named).not.toBeUndefined();
     scriptRes.code = "return {_this:this,GM_info};";
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes));
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes, scriptRes.code));
     const ret = await noneExec.exec();
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
@@ -60,7 +60,7 @@ describe("GM_info", () => {
     expect(sandboxExec.sandboxContext).not.toBeUndefined();
     expect(sandboxExec.named).toBeUndefined();
     scriptRes2.code = "return {_this:this,GM_info};";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
@@ -73,11 +73,11 @@ describe("unsafeWindow", () => {
     const ret0 = sandboxExec.sandboxContext?.unsafeWindow === global;
     expect(ret0).toEqual(true);
     scriptRes2.code = `return unsafeWindow`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(global);
     scriptRes2.code = `return window`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret3 = await sandboxExec.exec();
     expect(ret3).not.toEqual(global);
   });
@@ -88,11 +88,11 @@ describe("unsafeWindow", () => {
     // @ts-ignore
     global.testUnsafeWindow = "ok";
     scriptRes2.code = `return unsafeWindow.testUnsafeWindow`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok");
     scriptRes2.code = "return window.testUnsafeWindow";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret2 = await sandboxExec.exec();
     expect(ret2).toEqual(undefined);
   });
@@ -101,11 +101,11 @@ describe("unsafeWindow", () => {
     const nodeFilter = global.NodeFilter;
     expect(nodeFilter).toEqual(expect.any(Function));
     scriptRes2.code = `return unsafeWindow.NodeFilter`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(nodeFilter);
     scriptRes2.code = "return window.NodeFilter";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret2 = await sandboxExec.exec();
     expect(ret2).toEqual(nodeFilter);
   });
@@ -114,17 +114,17 @@ describe("unsafeWindow", () => {
 describe("sandbox", () => {
   it("global", async () => {
     scriptRes2.code = "window.testObj = 'ok';return window.testObj";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     let ret = await sandboxExec.exec();
     expect(ret).toEqual("ok");
     scriptRes2.code = "window.testObj = 'ok2';return testObj";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     ret = await sandboxExec.exec();
     expect(ret).toEqual("ok2");
   });
   it("this", async () => {
     scriptRes2.code = "this.testObj='ok2';return testObj;";
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok2");
   });
@@ -136,7 +136,7 @@ describe("sandbox", () => {
       return { test: "ok3" }
   });
   return CryptoJS.test;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("ok3");
   });
@@ -144,7 +144,7 @@ describe("sandbox", () => {
   // 沉浸式翻译, 常量值被改变
   it("NodeFilter #214", async () => {
     scriptRes2.code = `return NodeFilter.FILTER_REJECT;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(2);
   });
@@ -152,7 +152,7 @@ describe("sandbox", () => {
   // RegExp.$x 内容被覆盖 https://github.com/scriptscat/scriptcat/issues/293
   it("RegExp", async () => {
     scriptRes2.code = `let ok = /12(3)/.test('123');return RegExp.$1;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("3");
   });
@@ -165,7 +165,7 @@ describe("this", () => {
     expect(global.onload).toBeNull();
     // onload 改变，global.onload不改变
     scriptRes2.code = `onload = ()=>{};return onload;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
@@ -177,7 +177,7 @@ describe("this", () => {
     expect(global.onload).toBeNull();
     // this.onload 改变，global.onload不改变
     scriptRes2.code = `this.onload = () => "ok"; return this.onload;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
@@ -185,13 +185,13 @@ describe("this", () => {
   });
   it("undefined variable", async () => {
     scriptRes2.code = `return typeof testVar;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await sandboxExec.exec();
     expect(ret).toEqual("undefined");
   });
   it("undefined variable in global", async () => {
     scriptRes2.code = `return testVar;`;
-    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     // 在沙盒中访问未定义的变量会抛出错误
     try {
       await sandboxExec.exec();
@@ -206,7 +206,7 @@ describe("this", () => {
 describe("none this", () => {
   it("onload", async () => {
     scriptRes2.code = `onload = ()=>{};return onload;`;
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await noneExec.exec();
     expect(ret).toEqual(expect.any(Function));
     // global.onload
@@ -215,7 +215,7 @@ describe("none this", () => {
   });
   it("this.test", async () => {
     scriptRes2.code = `this.test = "ok";return this.test;`;
-    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    noneExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
     const ret = await noneExec.exec();
     expect(ret).toEqual("ok");
   });
@@ -238,7 +238,7 @@ describe("@grant GM", () => {
       ["GM_cookie.list"]: this.GM_cookie.list,
       ["GM.cookie"]: this.GM.cookie,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret["GM.getValue"]).toBeUndefined();
     expect(ret["GM.getTab"]).toBeUndefined();
@@ -265,7 +265,7 @@ describe("@grant GM", () => {
       GM_cookie: this.GM_cookie,
       ["GM.cookie"]: this.GM.cookie,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret["GM.getValue"].name).toEqual("bound GM.getValue");
     expect(ret["GM.getTab"].name).toEqual("bound GM_getTab");
@@ -286,7 +286,7 @@ describe("window.*", () => {
     script.code = `return window.close;`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
   });
@@ -300,7 +300,7 @@ describe("GM Api", () => {
     script.code = `return GM_getValue("test");`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
   });
@@ -311,7 +311,7 @@ describe("GM Api", () => {
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
   });
@@ -323,7 +323,7 @@ describe("GM Api", () => {
     script.code = `return GM_listValues().join("-");`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -335,7 +335,7 @@ describe("GM Api", () => {
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -347,7 +347,7 @@ describe("GM Api", () => {
     script.code = `return GM_getValues(["test2", "test3", "test1"]);`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
@@ -361,7 +361,7 @@ describe("GM Api", () => {
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
@@ -383,7 +383,7 @@ describe("沙盒环境测试", async () => {
   const _global = <any>global;
 
   scriptRes2.code = `return [this, window];`;
-  sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+  sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2, scriptRes2.code));
   const [_win, _this] = await sandboxExec.exec();
   expect(_win).toEqual(expect.any(Object));
   expect(_win.setTimeout).toEqual(expect.any(Function));
@@ -582,7 +582,7 @@ describe("沙盒环境测试", async () => {
     script.code = `const str = "12345";
 const reg = /(123)/;
 str.match(reg);`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script, script.code));
     await exec.exec();
     expect(RegExp.$1).toEqual("123");
   });
@@ -591,7 +591,7 @@ str.match(reg);`;
     script.code = `this.testVar = "ok"; ttest1 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
     // @ts-ignore
     const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec1.scriptFunc = compileScript(compileScriptCode(script));
+    exec1.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testVar: "ok", testVar2: undefined, ttest1: "string", ttest2: "number" });
 
@@ -599,7 +599,7 @@ str.match(reg);`;
     script2.code = `this.testVar2 = "ok"; ttest2 = "ok"; return {testVar: this.testVar, testVar2: this.testVar2, ttest1: typeof ttest1, ttest2: typeof ttest2};`;
     // @ts-ignore
     const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    exec2.scriptFunc = compileScript(compileScriptCode(script2, script2.code));
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testVar: undefined, testVar2: "ok", ttest1: "number", ttest2: "string" });
 
@@ -607,7 +607,7 @@ str.match(reg);`;
     script3.code = `onload = function (){return 123}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
     // @ts-ignore
     const exec3 = new ExecScript(script3, undefined, undefined, nilFn, envInfo);
-    exec3.scriptFunc = compileScript(compileScriptCode(script3));
+    exec3.scriptFunc = compileScript(compileScriptCode(script3, script3.code));
     const ret3 = await exec3.exec();
     expect(ret3.onload).toEqual(expect.any(Function));
     expect(ret3.thisOnload).toEqual(expect.any(Function));
@@ -620,7 +620,7 @@ str.match(reg);`;
     script4.code = `onload = function (){return 456}; return {onload, thisOnload: this.onload, winOnload: window.onload};`;
     // @ts-ignore
     const exec4 = new ExecScript(script4, undefined, undefined, nilFn, envInfo);
-    exec4.scriptFunc = compileScript(compileScriptCode(script4));
+    exec4.scriptFunc = compileScript(compileScriptCode(script4, script4.code));
     const ret4 = await exec4.exec();
     expect(ret4.onload).toEqual(expect.any(Function));
     expect(ret4.thisOnload).toEqual(expect.any(Function));
@@ -639,7 +639,7 @@ str.match(reg);`;
     script.code = `unsafeWindow.testSVar1 = "shareA"; ggaa1 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
     // @ts-ignore
     const exec1 = new ExecScript(script, undefined, undefined, nilFn, envInfo);
-    exec1.scriptFunc = compileScript(compileScriptCode(script));
+    exec1.scriptFunc = compileScript(compileScriptCode(script, script.code));
     const ret1 = await exec1.exec();
     expect(ret1).toEqual({ testSVar1: "shareA", testSVar2: undefined, ggaa1: "string", ggaa2: "undefined" });
 
@@ -647,7 +647,7 @@ str.match(reg);`;
     script2.code = `unsafeWindow.testSVar2 = "shareB"; ggaa2 = "ok"; return {testSVar1: unsafeWindow.testSVar1, testSVar2: unsafeWindow.testSVar2, ggaa1: typeof ggaa1, ggaa2: typeof ggaa2};`;
     // @ts-ignore
     const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    exec2.scriptFunc = compileScript(compileScriptCode(script2, script2.code));
     const ret2 = await exec2.exec();
     expect(ret2).toEqual({ testSVar1: "shareA", testSVar2: "shareB", ggaa1: "string", ggaa2: "string" });
   });
@@ -657,7 +657,7 @@ str.match(reg);`;
     script1.code = `onfocus = function(){}; onresize = 123; onblur = "123"; const ret = {onfocus, onresize, onblur}; onfocus = null; onresize = null; onblur = null; return ret;`;
     // @ts-ignore
     const exec1 = new ExecScript(script1, undefined, undefined, nilFn, envInfo);
-    exec1.scriptFunc = compileScript(compileScriptCode(script1));
+    exec1.scriptFunc = compileScript(compileScriptCode(script1, script1.code));
     const ret1 = await exec1.exec();
     expect(ret1.onfocus).toEqual(expect.any(Function));
     expect(ret1.onresize).toBeNull();
@@ -667,7 +667,7 @@ str.match(reg);`;
     script2.code = `window.onfocus = function(){}; window.onresize = 123; window.onblur = "123"; const {onfocus, onresize, onblur} = window; const ret = {onfocus, onresize, onblur}; window.onfocus = null; window.onresize = null; window.onblur = null; return ret;`;
     // @ts-ignore
     const exec2 = new ExecScript(script2, undefined, undefined, nilFn, envInfo);
-    exec2.scriptFunc = compileScript(compileScriptCode(script2));
+    exec2.scriptFunc = compileScript(compileScriptCode(script2, script2.code));
     const ret2 = await exec2.exec();
     expect(ret2.onfocus).toEqual(expect.any(Function));
     expect(ret2.onresize).toBeNull();

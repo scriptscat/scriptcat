@@ -334,8 +334,7 @@ export class ScriptService {
     if (!code) {
       throw new Error("code is null");
     }
-    ret.code = code.code;
-    ret.code = compileScriptCode(ret);
+    ret.code = compileScriptCode(ret, code.code);
 
     return ret;
   }
