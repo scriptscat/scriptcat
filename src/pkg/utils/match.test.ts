@@ -166,7 +166,7 @@ describe("dealPatternMatches", () => {
       "*://*/*",
       "*://*.example.com/*",
       "*://*.example.com/*",
-      "*://example.com/*",
+      "*://*.example.com/*",
       "*://*.example.com/path/*",
       "*://*/*", // http*
       "*://*/*", // 正则
