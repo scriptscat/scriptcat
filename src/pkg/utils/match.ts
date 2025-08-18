@@ -108,8 +108,8 @@ export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
     });
     if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
       // 生成的字串不能被匹對
-      return {ok: false, line};
+      return { ok: false, line };
     }
   }
-  return {ok: true};
-}
+  return { ok: true };
+};

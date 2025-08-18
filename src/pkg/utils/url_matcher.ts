@@ -66,7 +66,7 @@ export const extractMUP = (lines: string[]): URLRuleEntry[] => {
   for (const line of lines) {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
     if (!mt) continue;
-    let [_, tag0, content0] = mt;
+    const [_, tag0, content0] = mt;
     let tag = tag0;
     let content = content0;
     if (content.charAt(0) !== "/") {
@@ -74,16 +74,16 @@ export const extractMUP = (lines: string[]): URLRuleEntry[] => {
         let m: any;
         if (content === "*") {
           // 特殊處理 @match *
-          content = "*://*/*"
+          content = "*://*/*";
         } else if (/^(\*|[-a-z]+):\/\/\*?[^*/]*$/.test(content)) {
           // 特殊處理 @match https://www.google.com
           try {
-            let url = new URL(content);
-            content = `${url.protocol}//${url.hostname}${url.pathname}`
+            const url = new URL(content);
+            content = `${url.protocol}//${url.hostname}${url.pathname}`;
           } catch {
             // do nothing
           }
-        } else if (m = /^((\*|[-a-z]+):\/\/\*?[^*/:]*):(\*+|\*?[^*/:]+\*?)/.exec(content)) {
+        } else if ((m = /^((\*|[-a-z]+):\/\/\*?[^*/:]*):(\*+|\*?[^*/:]+\*?)/.exec(content))) {
           // 特殊處理 @match https://www.google.com:12345
           // 特殊處理 @match https://www.google.com:12345/
           // 特殊處理 @match https://www.google.com:12345/*
@@ -126,7 +126,6 @@ export const extractMUP = (lines: string[]): URLRuleEntry[] => {
     }
 
     if (tag === "include") {
-
       if (content.includes("*.")) {
         // 與TM一致，不轉換至 match
       } else {
@@ -380,7 +379,7 @@ const enum MatchType {
   NONE = 0,
   WWW = 1,
   ALL = 2,
-};
+}
 
 export const getApiMatchesAndGlobs = (scriptMUP: URLRuleEntry[]) => {
   const urlMatching = scriptMUP.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);

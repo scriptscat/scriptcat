@@ -143,10 +143,7 @@ describe("UrlMatch-globs2", () => {
   });
 
   const url2 = new UrlMatch<string>();
-  url2.addRules(
-    "ok1",
-    extractMUP(["@include *.example.com/*", "@exclude *://*/*business*", "@exclude *science*"])
-  );
+  url2.addRules("ok1", extractMUP(["@include *.example.com/*", "@exclude *://*/*business*", "@exclude *science*"]));
   it("globs-2d", () => {
     expect(url2.urlMatch("https://abc.com/")).toEqual([]);
     expect(url2.urlMatch("https://example.com/")).toEqual([]);
@@ -371,11 +368,7 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 
   it("match3", () => {
-    const scriptMUP = extractMUP([
-      "@match http://google.com/*",
-      "@match https://google.com/*",
-      "@include *hello*",
-    ]);
+    const scriptMUP = extractMUP(["@match http://google.com/*", "@match https://google.com/*", "@include *hello*"]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["*://*/*"]);
