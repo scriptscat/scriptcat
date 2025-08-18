@@ -186,11 +186,11 @@ export class RuntimeService {
       }
       const keys = Object.keys(scriptMatchCache);
       for (const uuid of keys) {
-        if (uuid in uuidSort) {
-          scriptMatchCache[uuid].sort = uuidSort[uuid];
-        } else {
-          scriptMatchCache[uuid].sort = 0;
-        }
+        // if (uuid in uuidSort) {
+        scriptMatchCache[uuid].sort = uuidSort[uuid];
+        // } else {
+        //   scriptMatchCache[uuid].sort = 0;
+        // }
       }
       cacheInstance.set("scriptMatch", scriptMatchCache);
     });
