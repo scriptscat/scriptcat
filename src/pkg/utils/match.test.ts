@@ -52,8 +52,8 @@ describe("checkUrlMatch-1", () => {
 
 describe("UrlMatch-internal1", () => {
   const url = new UrlMatch<string>();
-  url.add("*://**/*", "ok1");
-  url.add("*://*/*", "ok2");
+  url.addMatch("*://**/*", "ok1");
+  url.addMatch("*://*/*", "ok2");
   url.add("*gro?.com*", "ok3");
   it("match1", () => {
     expect(url.urlMatch("https://www.google.com/")).toEqual(["ok1", "ok2"]);
@@ -272,7 +272,7 @@ describe("UrlMatch-special", () => {
 
 describe("UrlMatch-match1", () => {
   const url = new UrlMatch<string>();
-  url.add("http://test.list.ggnb.top/search", "ok1"); // @match
+  url.addMatch("http://test.list.ggnb.top/search", "ok1"); // @match
   it("match1", () => {
     expect(url.urlMatch("http://test.list.ggnb.top/search")).toEqual(["ok1"]);
     expect(url.urlMatch("http://test.list.ggnb.top/search?")).toEqual(["ok1"]); // 跟随TM
@@ -288,7 +288,7 @@ describe("UrlMatch-match1", () => {
 
 describe("UrlMatch-match2", () => {
   const url = new UrlMatch<string>();
-  url.add("https://blank.page/index.html", "ok1"); // @match
+  url.addMatch("https://blank.page/index.html", "ok1"); // @match
   it("match2", () => {
     expect(url.urlMatch("https://blank.page/index.html")).toEqual(["ok1"]);
     expect(url.urlMatch("https://blank.page/index.html?")).toEqual(["ok1"]);
@@ -298,7 +298,7 @@ describe("UrlMatch-match2", () => {
 
 describe("UrlMatch-match3", () => {
   const url = new UrlMatch<string>();
-  url.add("https://blank.page/index.html?", "ok1"); // @match
+  url.addMatch("https://blank.page/index.html?", "ok1"); // @match
   it("match2", () => {
     expect(url.urlMatch("https://blank.page/index.html")).toEqual(["ok1"]);
     expect(url.urlMatch("https://blank.page/index.html?")).toEqual(["ok1"]); // 不跟随TM
