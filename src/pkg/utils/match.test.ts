@@ -578,8 +578,8 @@ describe("UrlMatch-port2", () => {
   url.addMatch("http://localhost:3000/", "ok4");
   it("match1", () => {
     expect(url.urlMatch("https://scriptcat.org:443/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
-    expect(url.urlMatch("http://test.list.ggnb.top:446/zh-CN/search")).toEqual(["ok2", "ok3"]);
-    expect(url.urlMatch("http://test.list.ggnb.top/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
+    expect(url.urlMatch("https://scriptcat.org:446/zh-CN/search")).toEqual(["ok2", "ok3"]);
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
   });
   it("case2", () => {
     expect(url.urlMatch("http://localhost:3000/")).toEqual(["ok4"]);
