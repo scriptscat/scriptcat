@@ -344,6 +344,7 @@
   "password": "密码",
   "skip": "跳过",
   "next": "下一步",
+  "next_with_progress": "下一步（第 {step} 步 / 共 {steps} 步）",
   "back": "上一步",
   "last": "完成",
   "start_guide_title": "欢迎使用脚本猫扩展",

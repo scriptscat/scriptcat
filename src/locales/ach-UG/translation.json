@@ -344,6 +344,7 @@
   "password": "crwdns8548:0crwdne8548:0",
   "skip": "crwdns8550:0crwdne8550:0",
   "next": "crwdns8552:0crwdne8552:0",
+  "next_with_progress": "crwdns8920:0{step}crwdnd8920:0{steps}crwdne8920:0",
   "back": "crwdns8554:0crwdne8554:0",
   "last": "crwdns8556:0crwdne8556:0",
   "start_guide_title": "crwdns8558:0crwdne8558:0",
