@@ -473,6 +473,7 @@ describe("getApiMatchesAndGlobs-2", () => {
       "*docs.google.com/*",
       "*baike.baidu.com/*",
       "*.wikipedia.org/*",
+      "*://*.amazon.??*/*",
       "*.flightradar24.com/*",
       "*.obsidian.md/*",
       "*.runoob.com/*",
@@ -496,8 +497,8 @@ describe("getApiMatchesAndGlobs-2", () => {
       "http*://bilibili.com/*",
       "http*://www.douyin.com/*",
       "http*://weibo.com/*",
-      "http*://amazon.tld/*",
-      "http*://*.amazon.tld/*",
+      // "http*://amazon.tld/*",
+      // "http*://*.amazon.tld/*",
       "https://www.baidu.com/s?*",
       "https://www.google.com/search*",
       "https://www.bing.com/search*",
@@ -519,7 +520,7 @@ describe("UrlMatch-exclusion", () => {
       "*://steamcommunity.com/*", // @match
       "*.jd.com/*", // @include glob *
       "*docs.google.com/*", // @include glob *
-      "*://*.amazon.tld/*", // @match
+      "*://*.amazon.tld/*", // @include glob * (*://*.amazon.??*/*)
       "*shop*", // @include glob *
       "/.*(?<!test)store.*/", // @include regex
       "*/releases", // @include glob *
@@ -534,7 +535,9 @@ describe("UrlMatch-exclusion", () => {
     expect(urlMatcher.urlMatch("https://www.jd.com/foo")).toEqual([]);
     expect(urlMatcher.urlMatch("https://docs.google.com/foo")).toEqual([]);
     expect(urlMatcher.urlMatch("https://amazon.com/foo")).toEqual([uuid]);
-    expect(urlMatcher.urlMatch("https://amazon.tld/foo")).toEqual([]);
+    expect(urlMatcher.urlMatch("https://amazon.tld/foo")).toEqual([uuid]);
+    expect(urlMatcher.urlMatch("https://www.amazon.co.uk/foo")).toEqual([]);
+    expect(urlMatcher.urlMatch("https://www.amazon.com/foo")).toEqual([]);
     expect(urlMatcher.urlMatch("https://www.amazon.tld/foo")).toEqual([]);
     expect(urlMatcher.urlMatch("https://test.store.com/aaa")).toEqual([]);
     expect(urlMatcher.urlMatch("https://foo.api.bar:5244/baz")).toEqual([]);

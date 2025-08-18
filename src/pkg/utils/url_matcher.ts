@@ -23,7 +23,7 @@ export function checkUrlMatch(s: string) {
       let host = s.substring(idx1 + 3, idx2);
       if (host.length === 0 && scheme !== "file") {
         // host is optional only if the scheme is "file".
-      } else if (!host.includes(":") && !host.startsWith(".") && !host.includes("?")) {
+      } else if (!host.includes(":") && host.charAt(0) !== "."  && !host.includes("?")) {
         // *.<host>
         if (/^(\*|\*\..+)$/.test(host)) {
           host = host.substring(1);
@@ -38,8 +38,8 @@ export function checkUrlMatch(s: string) {
 }
 
 const globSplit = (text: string) => {
-  text = text.replace(/\*{2,}/g, "*"); // api定義的 glob * 是等價於 glob **
-  text = text.replace(/\*\?+/g, "*"); // 暫不支持 "*?" (需要backward處理)
+  text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价於 glob **
+  text = text.replace(/\*\?+/g, "*"); // 暂不支持 "*?" (需要backward处理)
   return text.split(/([*?])/g);
 };
 
@@ -48,7 +48,18 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
   for (const line of lines) {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
     if (!mt) continue;
-    const [_, tag, content] = mt;
+    const [_, tag, content0] = mt;
+    let content = content0;
+    if (content.charAt(0) !== "/") {
+      if (content.includes("**")) {
+        content = content.replace("**", "*"); // glob * 修正
+      }
+      if (tag !== "match" && content.includes(".tld/")) {
+        // 处理 GM 的 .tld 问题
+        // 转化为 glob pattern .??*/
+        content = content.replace(".tld/", ".??*/");
+      }
+    }
 
     if (tag === "match") {
       // match pattern
@@ -180,7 +191,7 @@ function isUrlMatchPattern(s: string, m: string[]) {
   }
   if (m[0] !== "*" && url.protocol !== `${m[0]}:`) return false;
   if (m[1]) {
-    if (m[1].startsWith(".")) {
+    if (m[1].charAt(0) === ".") {
       if (!`.${url.hostname}`.endsWith(`${m[1]}`)) return false;
     } else {
       if (`${url.hostname}` !== `${m[1]}`) return false;
@@ -221,18 +232,18 @@ function isUrlMatchGlob(s: string, gs: string[]) {
       try {
         const url = new URL(s);
         if (!s.endsWith(url.hash)) {
-          return false; // URL錯誤，無法匹對
+          return false; // URL错误，无法匹对
         }
         s = s.substring(0, s.length - url.hash.length);
       } catch {
-        return false; // URL錯誤，無法匹對
+        return false; // URL错误，无法匹对
       }
     } else {
       s = s.substring(0, idx1);
     }
   }
   if (!s.length) {
-    // URL錯誤，無法匹對
+    // URL错误，无法匹对
     return false;
   }
   const path = s;
@@ -285,7 +296,7 @@ export const addMatchesToGlobs = (matches: URLRuleEntry[], globs: string[]) => {
     if (rule.ruleType !== 1) continue;
     const [scheme0, host, path] = rule.ruleContent as string[];
     const scheme = scheme0 === "*" ? "http*" : scheme0;
-    if (!host.startsWith(".")) {
+    if (host.charAt(0) !== ".") {
       globs.push(`${scheme}://${host}/${path}`);
     } else {
       const h = host.substring(1);
