@@ -716,8 +716,8 @@ export class RuntimeService {
     this.scriptCustomizeMatch.clearRules(item.uuid);
     // 添加新的数据
     this.scriptMatch.addRules(item.uuid, item.urlCovering);
-    if (item.customUrlCovering?.length) {
-      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlCovering!);
+    if (item.customMUP?.length) {
+      this.scriptCustomizeMatch.addRules(item.uuid, item.customMUP!);
     }
   }
 
@@ -763,12 +763,12 @@ export class RuntimeService {
       ...(blacklist || []).map((e) => `@exclude ${e}`),
     ]);
 
-    let customUrlCovering: URLRuleEntry[] | null = null;
+    let customMUP: URLRuleEntry[] | null = null;
 
     // 自定义排除
     if (script.selfMetadata && script.selfMetadata.exclude) {
-      customUrlCovering = metaUMatchAnalyze([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
-      if (customUrlCovering.length === 0) customUrlCovering = null;
+      customMUP = metaUMatchAnalyze([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
+      if (customMUP.length === 0) customMUP = null;
     }
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
@@ -796,7 +796,7 @@ export class RuntimeService {
     const scriptMatchInfo = Object.assign(
       {
         urlCovering: urlCovering,
-        customUrlCovering: customUrlCovering,
+        customMUP: customMUP,
       },
       scriptRes
     ) as ScriptMatchInfo;

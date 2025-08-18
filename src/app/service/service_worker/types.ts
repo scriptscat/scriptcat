@@ -7,7 +7,7 @@ export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResource {
   urlCovering: URLRuleEntry[];
-  customUrlCovering: URLRuleEntry[] | null;
+  customMUP: URLRuleEntry[] | null;
 }
 
 export interface ScriptLoadInfo extends ScriptMatchInfo {
@@ -86,5 +86,5 @@ export type ScriptMenu = {
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
-  customUrlCovering: URLRuleEntry[] | null; // 自定义排除
+  customMUP: URLRuleEntry[] | null; // 自定义排除
 };
