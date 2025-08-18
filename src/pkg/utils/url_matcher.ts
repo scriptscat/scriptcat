@@ -5,10 +5,7 @@ export type URLRuleEntry = {
   patternString: string;
 };
 
-// 嚴格定義下，checkUrlMatch要檢查 scheme 的有效性。
-// 但即使用戶輸入了錯誤的 scheme, 腳本只會無法匹配，因此可不理會有效性問題。
-// const allowedSchemes = ["http", "https", "ws", "wss", "ftp", "data", "file", "chrome-extension", "extension"];
-
+// 检查@match @include @exclude 是否按照MV3的 match pattern
 export function checkUrlMatch(s: string) {
   s = s.trim();
 
@@ -18,14 +15,19 @@ export function checkUrlMatch(s: string) {
     idx2 = s.indexOf("/", idx1 + 3);
   }
   let extMatch: string[] | null = null;
+  // 存在://和/才进行处理
   if (idx1 > 0 && idx2 > 0) {
     const scheme = s.substring(0, idx1);
+    // 检查scheme
     if (/^(\*|[-a-z]+)$/.test(scheme)) {
       let host = s.substring(idx1 + 3, idx2);
       if (host.length === 0 && scheme !== "file") {
         // host is optional only if the scheme is "file".
       } else if (!host.includes(":") && !host.startsWith(".") && !host.includes("?")) {
-        if (/^(\*|\*\..+)$/.test(host)) host = host.substring(1);
+        // *.<host>
+        if (/^(\*|\*\..+)$/.test(host)) {
+          host = host.substring(1);
+        }
         if (!host.includes("*")) {
           extMatch = [scheme, host, s.substring(idx2 + 1)];
         }

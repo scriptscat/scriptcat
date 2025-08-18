@@ -5,14 +5,14 @@ import { metaUMatchAnalyze, checkUrlMatch, getApiMatchesAndGlobs } from "./url_m
 
 describe("checkUrlMatch-1", () => {
   it("match1", () => {
-    expect(checkUrlMatch("https://www.google.com/")).not.toBeNull();
-    expect(checkUrlMatch("https://www.google.com/*")).not.toBeNull();
-    expect(checkUrlMatch("https://www.google.com/*/")).not.toBeNull();
-    expect(checkUrlMatch("https://www.google.com/*/a")).not.toBeNull();
-    expect(checkUrlMatch("https://*.google.com/")).not.toBeNull();
-    expect(checkUrlMatch("https://*.google.com/*")).not.toBeNull();
-    expect(checkUrlMatch("https://*.google.com/*/")).not.toBeNull();
-    expect(checkUrlMatch("https://*.google.com/*/a")).not.toBeNull();
+    expect(checkUrlMatch("https://www.google.com/")).toEqual(["https", "www.google.com", ""]);
+    expect(checkUrlMatch("https://www.google.com/*")).toEqual(["https", "www.google.com", "*"]);
+    expect(checkUrlMatch("https://www.google.com/*/")).toEqual(["https", "www.google.com", "*/"]);
+    expect(checkUrlMatch("https://www.google.com/*/a")).toEqual(["https", "www.google.com", "*/a"]);
+    expect(checkUrlMatch("https://*.google.com/")).toEqual(["https", ".google.com", ""]);
+    expect(checkUrlMatch("https://*.google.com/*")).toEqual(["https", ".google.com", "*"]);
+    expect(checkUrlMatch("https://*.google.com/*/")).toEqual(["https", ".google.com", "*/"]);
+    expect(checkUrlMatch("https://*.google.com/*/a")).toEqual(["https", ".google.com", "*/a"]);
     expect(checkUrlMatch("*.google.com/")).toBeNull();
     expect(checkUrlMatch("*.google.com/*")).toBeNull();
     expect(checkUrlMatch("*.google.com/*/")).toBeNull();
@@ -22,7 +22,7 @@ describe("checkUrlMatch-1", () => {
     expect(checkUrlMatch("*:")).toBeNull();
     expect(checkUrlMatch("*://")).toBeNull();
     expect(checkUrlMatch("*://*")).toBeNull();
-    expect(checkUrlMatch("*://*/")).not.toBeNull();
+    expect(checkUrlMatch("*://*/")).toEqual(["*", "", ""]);
     expect(checkUrlMatch("*://*/*")).not.toBeNull();
     expect(checkUrlMatch("*google.com/")).toBeNull();
     expect(checkUrlMatch("*google.com/*")).toBeNull();
@@ -33,7 +33,10 @@ describe("checkUrlMatch-1", () => {
     expect(checkUrlMatch("https://*google.com/*/")).toBeNull();
     expect(checkUrlMatch("https://*google.com/*/a")).toBeNull();
     expect(checkUrlMatch("https:///*")).toBeNull();
-    expect(checkUrlMatch("file:///*")).not.toBeNull();
+    expect(checkUrlMatch("file:///*")).toEqual(["file", "", "*"]);
+    expect(checkUrlMatch("*")).toBeNull();
+    expect(checkUrlMatch("*://*.example.com/*/**")).toEqual(["*", ".example.com", "*/**"]);
+    expect(checkUrlMatch("*://*/query?a=*")).toEqual(["*", "", "query?a=*"]);
   });
 
   it("ignore-port", () => {
