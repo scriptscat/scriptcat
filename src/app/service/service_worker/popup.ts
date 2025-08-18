@@ -161,7 +161,7 @@ export class PopupService {
       runNum: script.type === SCRIPT_TYPE_NORMAL ? 0 : script.runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0,
       runNumByIframe: 0,
       menus: [],
-      customExclude: (script as ScriptMatchInfo).customizeExcludeMatches || [],
+      customUrlCovering: (script as ScriptMatchInfo).customUrlCovering || null,
     };
   }
 
@@ -182,7 +182,7 @@ export class PopupService {
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
-        run.customExclude = script.customizeExcludeMatches || run.customExclude;
+        run.customUrlCovering = script.customUrlCovering || run.customUrlCovering;
         run.hasUserConfig = !!script.config;
       } else {
         run = this.scriptToMenu(script);
@@ -198,9 +198,9 @@ export class PopupService {
     }
     const scriptMenu = [...scriptMenuMap.values()];
     // 检查是否在黑名单中
-    const isBlack = this.runtime.blackMatch.match(req.url).length > 0;
+    const isBlacklist = this.runtime.isUrlBlacklist(req.url);
     // 后台脚本只显示开启或者运行中的脚本
-    return { isBlacklist: isBlack, scriptList: scriptMenu, backScriptList };
+    return { isBlacklist, scriptList: scriptMenu, backScriptList };
   }
 
   async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {

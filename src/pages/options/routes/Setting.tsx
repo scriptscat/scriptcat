@@ -12,7 +12,9 @@ import Logger from "@App/app/logger/logger";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
-import { parsePatternMatchesURL } from "@App/pkg/utils/match";
+import { UrlMatch } from "@App/pkg/utils/match";
+import { randNum } from "@App/pkg/utils/utils";
+import { metaUMatchAnalyze } from "@App/pkg/utils/url_matcher";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -383,12 +385,25 @@ function Setting() {
             }}
             onBlur={(v) => {
               // 校验黑名单格式
-              const lines = v.target.value
+              const blacklist = v.target.value
                 .split("\n")
                 .map((line) => line.trim())
                 .filter((line) => line);
-              for (const line of lines) {
-                if (line && !parsePatternMatchesURL(line)) {
+
+              const urlCovering = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+              const blackMatch = new UrlMatch<string>();
+              blackMatch.addRules("BK", urlCovering);
+
+              for (const line of blacklist) {
+                const templateLine = line.replace(/[*?]/g, (a) => {
+                  if (a === "?") return String.fromCharCode(randNum(97, 122));
+                  const s = [];
+                  for (let i = randNum(3, 5); i > 0; i--) {
+                    s.push(randNum(97, 122));
+                  }
+                  return String.fromCharCode(...s);
+                });
+                if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
                   Message.error(`${t("expression_format_error")}: ${line}`);
                   return;
                 }

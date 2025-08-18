@@ -12,7 +12,7 @@ import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
 import { isUserScriptsAvailable, randomMessageFlag } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
-import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
+import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import { compileInjectScript, compileScriptCode } from "../content/utils";
@@ -27,11 +27,27 @@ import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
+import {
+  getApiMatchesAndGlobs,
+  metaUMatchAnalyze,
+  toUniquePatternStrings,
+  type URLRuleEntry,
+} from "@App/pkg/utils/url_matcher";
+
+const obtainBlackList = (blacklistStr: string | null | undefined) => {
+  const blacklist = blacklistStr
+    ? blacklistStr
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item)
+    : [];
+  return blacklist;
+};
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
-  blackMatch: UrlMatch<boolean> = new UrlMatch<boolean>();
+  blackMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
 
   logger: Logger;
@@ -155,21 +171,26 @@ export class RuntimeService {
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       await this.unregistryPageScript(uuid);
-      this.deleteScriptMatch(uuid);
+      await this.deleteScriptMatch(uuid);
     });
     // 监听脚本排序
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
-      this.scriptMatch.sort((a, b) => uuidSort[a] - uuidSort[b]);
+      this.scriptMatch.setupSorter(uuidSort);
       // 更新缓存
       const scriptMatchCache = await cacheInstance.get<{ [key: string]: ScriptMatchInfo }>("scriptMatch");
       if (!scriptMatchCache) {
         console.warn("scriptMatchCache is undefined.");
         return;
       }
-      Object.keys(scriptMatchCache).forEach((uuid) => {
-        scriptMatchCache[uuid].sort = uuidSort[uuid];
-      });
+      const keys = Object.keys(scriptMatchCache);
+      for (const uuid of keys) {
+        if (uuid in uuidSort) {
+          scriptMatchCache[uuid].sort = uuidSort[uuid];
+        } else {
+          scriptMatchCache[uuid].sort = 0;
+        }
+      }
       cacheInstance.set("scriptMatch", scriptMatchCache);
     });
 
@@ -223,21 +244,17 @@ export class RuntimeService {
     this.initUserAgentData();
   }
 
-  private loadBlacklist(blacklist: string) {
+  private loadBlacklist(blacklistString: string) {
     // 设置黑名单match
-    const list = blacklist
-      .split("\n")
-      .map((item) => item.trim())
-      .filter((item) => item);
-    const result = dealPatternMatches(list, {
-      exclude: true,
-    });
-    this.blackMatch.forEach((uuid) => {
-      this.blackMatch.del(uuid);
-    });
-    result.result.forEach((match) => {
-      this.blackMatch.add(match, true);
-    });
+    const blacklist = obtainBlackList(blacklistString);
+
+    const urlCovering = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+    this.blackMatch.del("BK");
+    this.blackMatch.addRules("BK", urlCovering);
+  }
+
+  public isUrlBlacklist(url: string) {
+    return this.blackMatch.urlMatch(url)[0] === "BK";
   }
 
   // 取消脚本注册
@@ -369,10 +386,12 @@ export class RuntimeService {
   async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
     const match = await this.loadScriptMatchInfo();
     // 匹配当前页面的脚本
-    const matchScriptUuid = match.match(url!);
+    const matchScriptUuid = match.urlMatch(url!);
+    console.log(388001, url);
+    console.log(388002, matchScriptUuid);
     // 包含自定义排除的脚本
     if (includeCustomize) {
-      const excludeScriptUuid = this.scriptCustomizeMatch.match(url!);
+      const excludeScriptUuid = this.scriptCustomizeMatch.urlMatch(url!);
       const match = new Set<string>();
       excludeScriptUuid.forEach((uuid) => {
         match.add(uuid);
@@ -397,8 +416,7 @@ export class RuntimeService {
       return { flag: "", scripts: [] };
     }
     // 判断是否黑名单
-    const isBlack = this.blackMatch.match(sender.getSender().url!);
-    if (isBlack.length > 0) {
+    if (this.isUrlBlacklist(sender.getSender().url!)) {
       // 如果在黑名单中, 则不加载脚本
       return { flag: "", scripts: [] };
     }
@@ -570,17 +588,21 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 黑名单排除
-      const blacklist = await this.systemConfig.getBlacklist();
+      const blacklistStr = await this.systemConfig.getBlacklist();
       const excludeMatches = [];
-      if (blacklist) {
-        const list = blacklist
-          .split("\n")
-          .map((item) => item.trim())
-          .filter((item) => item);
-        const result = dealPatternMatches(list, {
-          exclude: true,
-        });
-        excludeMatches.push(...result.patternResult);
+      const excludeGlobs = [];
+      if (blacklistStr) {
+        const blacklist = obtainBlackList(blacklistStr);
+        const rules = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+        for (const rule of rules) {
+          if (rule.ruleType === 1) {
+            // matches -> excludeMatches
+            excludeMatches.push(rule.patternString);
+          } else if (rule.ruleType === 3) {
+            // includeGlobs -> excludeGlobs
+            excludeGlobs.push(rule.patternString);
+          }
+        }
       }
 
       messageFlag = await this.getAndGenMessageFlag();
@@ -600,6 +622,7 @@ export class RuntimeService {
           world: "MAIN",
           runAt: "document_start",
           excludeMatches,
+          excludeGlobs,
         },
         // 注册content
         {
@@ -610,6 +633,7 @@ export class RuntimeService {
           runAt: "document_start",
           world: "USER_SCRIPT",
           excludeMatches,
+          excludeGlobs,
         },
       ];
       try {
@@ -692,15 +716,12 @@ export class RuntimeService {
     this.scriptMatch.del(item.uuid);
     this.scriptCustomizeMatch.del(item.uuid);
     // 添加新的数据
-    item.matches.forEach((match) => {
-      this.scriptMatch.add(match, item.uuid);
-    });
-    item.excludeMatches.forEach((match) => {
-      this.scriptMatch.exclude(match, item.uuid);
-    });
-    item.customizeExcludeMatches.forEach((match) => {
-      this.scriptCustomizeMatch.add(match, item.uuid);
-    });
+    this.scriptMatch.addRules(item.uuid, item.urlCovering);
+    if (item.customUrlCovering && item.customUrlCovering.length > 0) {
+      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlCovering);
+    } else {
+      this.scriptCustomizeMatch.clearRules(item.uuid);
+    }
   }
 
   async updateScriptStatus(uuid: string, status: SCRIPT_STATUS) {
@@ -727,72 +748,61 @@ export class RuntimeService {
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    // concat 浅拷贝是为了避免修改原数组
-    const matches = (scriptRes.metadata["match"] || []).concat();
-    matches.push(...(scriptRes.metadata["include"] || []));
-    if (!matches.length) {
+    if ([...(scriptRes.metadata["match"] || []), ...(scriptRes.metadata["include"] || [])].length === 0) {
       return undefined;
+    }
+
+    // 黑名单排除
+    const blacklistString = (await this.systemConfig.getBlacklist()) as string | undefined;
+    const blacklist = obtainBlackList(blacklistString);
+
+    const urlCovering = metaUMatchAnalyze([
+      ...(scriptRes.metadata["match"] || []).map((e) => `@match ${e}`),
+      ...(scriptRes.metadata["include"] || []).map((e) => `@include ${e}`),
+      ...(scriptRes.metadata["exclude"] || []).map((e) => `@exclude ${e}`),
+      ...(blacklist || []).map((e) => `@exclude ${e}`),
+    ]);
+
+    let customUrlCovering: URLRuleEntry[] | null = null;
+
+    // 自定义排除
+    if (script.selfMetadata && script.selfMetadata.exclude) {
+      customUrlCovering = metaUMatchAnalyze([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
+      if (customUrlCovering.length === 0) customUrlCovering = null;
     }
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
-    const patternMatches = dealPatternMatches(matches);
-    const scriptMatchInfo: ScriptMatchInfo = Object.assign(
-      { matches: patternMatches.result, excludeMatches: [], customizeExcludeMatches: [] },
-      scriptRes
-    );
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+
+    const excludeMatches = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === 2));
+    const excludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === 4));
 
     const registerScript: chrome.userScripts.RegisteredUserScript = {
       id: scriptRes.uuid,
       js: [{ code: scriptRes.code }],
-      matches: patternMatches.patternResult,
+      matches: matches, // primary
+      includeGlobs: includeGlobs, // includeGlobs applied after matches
+      excludeMatches: excludeMatches,
+      excludeGlobs: excludeGlobs,
       allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
-      excludeMatches: [],
     };
-
-    // 排除由loadPage时决定, 不使用userScript的excludeMatches处理
-    if (script.metadata["exclude"]) {
-      // concat 浅拷贝是为了避免修改原数组
-      const excludeMatches = script.metadata["exclude"].concat();
-      const result = dealPatternMatches(excludeMatches, {
-        exclude: true,
-      });
-
-      // registerScript.excludeMatches = result.patternResult;
-      scriptMatchInfo.excludeMatches = result.result;
-    }
-    // 自定义排除
-    if (script.selfMetadata && script.selfMetadata.exclude) {
-      const excludeMatches = script.selfMetadata.exclude;
-      const result = dealPatternMatches(excludeMatches, {
-        exclude: true,
-      });
-
-      // registerScript.excludeMatches.push(...result.patternResult);
-      scriptMatchInfo.customizeExcludeMatches = result.result;
-    }
-
-    // 黑名单排除
-    const blacklist = await this.systemConfig.getBlacklist();
-    if (blacklist) {
-      const list = blacklist
-        .split("\n")
-        .map((item) => item.trim())
-        .filter((item) => item);
-      const result = dealPatternMatches(list, {
-        exclude: true,
-      });
-      // scriptMatchInfo.excludeMatches.push(...result.result);
-      registerScript.excludeMatches!.push(...result.patternResult);
-    }
-
-    // 将脚本match信息放入缓存中
-    this.addScriptMatch(scriptMatchInfo);
 
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }
+
+    const scriptMatchInfo = Object.assign(
+      {
+        urlCovering: urlCovering,
+        customUrlCovering: customUrlCovering,
+      },
+      scriptRes
+    ) as ScriptMatchInfo;
+
+    // 将脚本match信息放入缓存中
+    this.addScriptMatch(scriptMatchInfo);
 
     return {
       scriptMatchInfo,

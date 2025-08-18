@@ -10,7 +10,7 @@ import type { SCMetadata, Script } from "@App/app/repo/scripts";
 //   return n.join("");
 // }
 
-function randNum(a: number, b: number) {
+export function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
 

@@ -29,16 +29,22 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
+import { isUrlMatch } from "@App/pkg/utils/url_matcher";
 
 const CollapseItem = Collapse.Item;
 
-function isExclude(script: ScriptMenu, host: string) {
-  if (!script.customExclude) {
+function isExclude(script: ScriptMenu, url: URL) {
+  const rules = script.customUrlCovering;
+  const href = url.href;
+  if (!rules) {
     return false;
   }
-  for (let i = 0; i < script.customExclude.length; i += 1) {
-    if (script.customExclude[i] === `*://${host}/*`) {
-      return true;
+  for (const rule of rules) {
+    if ((rule.ruleType & 1) === 0) {
+      // exclude
+      if (!isUrlMatch(href, rule)) {
+        return true;
+      }
     }
   }
   return false;
@@ -199,8 +205,8 @@ const ScriptMenuList = React.memo(
       window.close();
     }, []);
 
-    const handleExcludeUrl = useCallback((item: ScriptMenu, urlHost: string) => {
-      scriptClient.excludeUrl(item.uuid, `*://${urlHost}/*`, isExclude(item, urlHost)).finally(() => {
+    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, currentUrl: URL) => {
+      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude(item, currentUrl)).finally(() => {
         window.close();
       });
     }, []);
@@ -313,9 +319,9 @@ const ScriptMenuList = React.memo(
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, url.host)}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, url)}
                 >
-                  {isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")}
+                  {isExclude(item, url) ? t("exclude_on") : t("exclude_off")}
                   {` ${url.host} ${t("exclude_execution")}`}
                 </Button>
               )}
