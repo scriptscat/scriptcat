@@ -66,9 +66,41 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
   for (const line of lines) {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
     if (!mt) continue;
-    const [_, tag, content0] = mt;
+    let [_, tag0, content0] = mt;
+    let tag = tag0;
     let content = content0;
     if (content.charAt(0) !== "/") {
+      if (tag === "match") {
+        let m: any;
+        if (content === "*") {
+          // 特殊處理 @match *
+          content = "*://*/*"
+        } else if (/^(\*|[-a-z]+):\/\/\*?[^*/]*$/.test(content)) {
+          // 特殊處理 @match https://www.google.com
+          try {
+            let url = new URL(content);
+            content = `${url.protocol}//${url.hostname}${url.pathname}`
+          } catch {
+            // do nothing
+          }
+        } else if (m = /^((\*|[-a-z]+):\/\/\*?[^*/:]*):(\*+|\*?[^*/:]+\*?)/.exec(content)) {
+          // 特殊處理 @match https://www.google.com:12345
+          // 特殊處理 @match https://www.google.com:12345/
+          // 特殊處理 @match https://www.google.com:12345/*
+          // 特殊處理 @match https://scriptcat.org:*/zh-CN/search
+          content = `${content.substring(0, m[1].length)}${content.substring(m[0].length)}`;
+        }
+        if (/^(\*|[-a-z]+):\/\/\*?[^*/]+\*/.test(content)) {
+          // 特殊處理 @match https://www.google.*/*
+          // 特殊處理 @match https://www.google*.*/*
+          // 特殊處理 @match https://www.google*/*
+          tag = "include";
+        }
+        if (tag === "match" && content.startsWith("http*://")) {
+          // 特殊處理 https http
+          content = `*://${content.substring(8)}`;
+        }
+      }
       // glob pattern & match pattern
       if (content.includes("**")) {
         content = content.replace("**", "*"); // glob * 修正
@@ -94,16 +126,21 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
     }
 
     if (tag === "include") {
-      const mch = checkUrlMatch(content);
-      if (mch) {
-        // match pattern
-        rules.push({
-          ruleType: RuleType.MATCH_INCLUDE,
-          ruleContent: mch,
-          ruleTag: tag,
-          patternString: content,
-        });
-        continue;
+
+      if (content.includes("*.")) {
+        // 與TM一致，不轉換至 match
+      } else {
+        const mch = checkUrlMatch(content);
+        if (mch) {
+          // match pattern
+          rules.push({
+            ruleType: RuleType.MATCH_INCLUDE,
+            ruleContent: mch,
+            ruleTag: tag,
+            patternString: content,
+          });
+          continue;
+        }
       }
 
       const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
@@ -128,16 +165,20 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
     }
 
     if (tag === "exclude") {
-      const mch = checkUrlMatch(content);
-      if (mch) {
-        // match pattern
-        rules.push({
-          ruleType: RuleType.MATCH_EXCLUDE,
-          ruleContent: mch,
-          ruleTag: tag,
-          patternString: content,
-        });
-        continue;
+      if (content.includes("*.")) {
+        // 與TM一致，不轉換至 match
+      } else {
+        const mch = checkUrlMatch(content);
+        if (mch) {
+          // match pattern
+          rules.push({
+            ruleType: RuleType.MATCH_EXCLUDE,
+            ruleContent: mch,
+            ruleTag: tag,
+            patternString: content,
+          });
+          continue;
+        }
       }
 
       const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
