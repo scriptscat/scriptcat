@@ -81,7 +81,7 @@ async function addDir(zip, localDir, toDir, filters) {
       const toPath = `${toDir}${file}`;
       const stats = await fs.stat(localPath);
       if (stats.isDirectory()) {
-        sub(localPath, `${toPath}/`);
+        await sub(localPath, `${toPath}/`);
       } else {
         zip.file(toPath, await fs.readFile(localPath));
       }

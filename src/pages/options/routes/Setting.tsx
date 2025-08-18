@@ -137,6 +137,82 @@ function Setting() {
         </div>
       </Card>
 
+      {/* 脚本同步 */}
+      <Card className="sync" title={t("script_sync")} bordered={false}>
+        <Space direction="vertical" className={"w-full"}>
+          <Space direction="horizontal" className={"w-full"}>
+            <Checkbox
+              checked={syncDelete}
+              onChange={(checked) => {
+                setSyncDelete(checked);
+              }}
+            >
+              {t("sync_delete")}
+            </Checkbox>
+            <Checkbox
+              checked={syncScriptStatus}
+              onChange={(checked) => {
+                setSyncScriptStatus(checked);
+              }}
+            >
+              {t("sync_status")}
+            </Checkbox>
+          </Space>
+          <FileSystemParams
+            preNode={
+              <Checkbox
+                checked={enableCloudSync}
+                onChange={(checked) => {
+                  setEnableCloudSync(checked);
+                }}
+              >
+                {t("enable_script_sync_to")}
+              </Checkbox>
+            }
+            actionButton={[
+              <Button
+                key="save"
+                type="primary"
+                onClick={async () => {
+                  // Save to the configuration
+                  // Perform validation if enabled
+                  if (enableCloudSync) {
+                    Message.info(t("cloud_sync_account_verification")!);
+                    try {
+                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                    } catch (e) {
+                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
+                      return;
+                    }
+                  }
+                  const cloudSync = await systemConfig.getCloudSync();
+                  const params = { ...cloudSync.params };
+                  params[fileSystemType] = fileSystemParams;
+                  systemConfig.setCloudSync({
+                    enable: enableCloudSync || false,
+                    syncDelete: syncDelete || false,
+                    syncStatus: syncScriptStatus || false,
+                    filesystem: fileSystemType,
+                    params,
+                  });
+                  Message.success(t("save_success")!);
+                }}
+              >
+                {t("save")}
+              </Button>,
+            ]}
+            fileSystemType={fileSystemType}
+            fileSystemParams={fileSystemParams}
+            onChangeFileSystemType={(type) => {
+              setFilesystemType(type);
+            }}
+            onChangeFileSystemParams={(params) => {
+              setFilesystemParam(params);
+            }}
+          />
+        </Space>
+      </Card>
+
       {/* 界面外观 */}
       <Card title={t("interface_settings")} bordered={false}>
         <Space direction="vertical" size={16} className="w-full">
@@ -238,80 +314,7 @@ function Setting() {
           </div>
         </Space>
       </Card>
-      <Card className="sync" title={t("script_sync")} bordered={false}>
-        <Space direction="vertical" className={"w-full"}>
-          <Space direction="horizontal" className={"w-full"}>
-            <Checkbox
-              checked={syncDelete}
-              onChange={(checked) => {
-                setSyncDelete(checked);
-              }}
-            >
-              {t("sync_delete")}
-            </Checkbox>
-            <Checkbox
-              checked={syncScriptStatus}
-              onChange={(checked) => {
-                setSyncScriptStatus(checked);
-              }}
-            >
-              {t("sync_status")}
-            </Checkbox>
-          </Space>
-          <FileSystemParams
-            preNode={
-              <Checkbox
-                checked={enableCloudSync}
-                onChange={(checked) => {
-                  setEnableCloudSync(checked);
-                }}
-              >
-                {t("enable_script_sync_to")}
-              </Checkbox>
-            }
-            actionButton={[
-              <Button
-                key="save"
-                type="primary"
-                onClick={async () => {
-                  // Save to the configuration
-                  // Perform validation if enabled
-                  if (enableCloudSync) {
-                    Message.info(t("cloud_sync_account_verification")!);
-                    try {
-                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
-                    } catch (e) {
-                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
-                      return;
-                    }
-                  }
-                  const cloudSync = await systemConfig.getCloudSync();
-                  const params = { ...cloudSync.params };
-                  params[fileSystemType] = fileSystemParams;
-                  systemConfig.setCloudSync({
-                    enable: enableCloudSync || false,
-                    syncDelete: syncDelete || false,
-                    syncStatus: syncScriptStatus || false,
-                    filesystem: fileSystemType,
-                    params,
-                  });
-                  Message.success(t("save_success")!);
-                }}
-              >
-                {t("save")}
-              </Button>,
-            ]}
-            fileSystemType={fileSystemType}
-            fileSystemParams={fileSystemParams}
-            onChangeFileSystemType={(type) => {
-              setFilesystemType(type);
-            }}
-            onChangeFileSystemParams={(params) => {
-              setFilesystemParam(params);
-            }}
-          />
-        </Space>
-      </Card>
+
       {/* 脚本更新设置 */}
       <Card title={t("update")} bordered={false}>
         <Space direction="vertical" size={20} className="w-full">
