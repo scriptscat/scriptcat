@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { UrlMatch } from "./match";
 import { v4 as uuidv4 } from "uuid";
-import { metaUMatchAnalyze, checkUrlMatch, getApiMatchesAndGlobs } from "./url_matcher";
+import { extractMUP, checkUrlMatch, getApiMatchesAndGlobs } from "./url_matcher";
 
 describe("checkUrlMatch-1", () => {
   it("match1", () => {
@@ -64,7 +64,7 @@ describe("UrlMatch-internal1", () => {
   const url2 = new UrlMatch<string>();
   url2.addRules(
     "ok1",
-    metaUMatchAnalyze([
+    extractMUP([
       "@match *://greasyfork.org/*",
       "@match *://sleazyfork.org/*",
       "@match *://cn-greasyfork.org/*",
@@ -72,8 +72,8 @@ describe("UrlMatch-internal1", () => {
       "@match *://api.cn-greasyfork.org/*",
     ])
   );
-  url2.addRules("ok2", metaUMatchAnalyze(["@include *docs.scriptcat.org/docs/change/*/"]));
-  url2.addRules("ok3", metaUMatchAnalyze(["@match https://docs.scriptcat.org/docs/change/*/"]));
+  url2.addRules("ok2", extractMUP(["@include *docs.scriptcat.org/docs/change/*/"]));
+  url2.addRules("ok3", extractMUP(["@match https://docs.scriptcat.org/docs/change/*/"]));
   it("match2", () => {
     expect(url2.urlMatch("https://docs.scriptcat.org/docs/change/beta-changelog/#1.0.0-beta.2")).toEqual([
       "ok2",
@@ -90,7 +90,7 @@ describe("UrlMatch-internal1", () => {
 // https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts?hl=en#incl-globs
 describe("UrlMatch-globs1", () => {
   const url = new UrlMatch<string>();
-  url.addRules("ok1", metaUMatchAnalyze(["@include https://???.example.com/foo/*"]));
+  url.addRules("ok1", extractMUP(["@include https://???.example.com/foo/*"]));
   it("match1", () => {
     expect(url.urlMatch("https://www.example.com/foo/bar")).toEqual(["ok1"]);
     expect(url.urlMatch("https://the.example.com/foo/")).toEqual(["ok1"]);
@@ -104,7 +104,7 @@ describe("UrlMatch-globs1", () => {
 // https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts?hl=en#all-custom
 describe("UrlMatch-globs2", () => {
   const url1 = new UrlMatch<string>();
-  url1.addRules("ok1", metaUMatchAnalyze(["@match https://*.example.com/*", "@exclude *science*"]));
+  url1.addRules("ok1", extractMUP(["@match https://*.example.com/*", "@exclude *science*"]));
   it("globs-2a", () => {
     expect(url1.urlMatch("https://abc.com/")).toEqual([]);
     expect(url1.urlMatch("https://example.com/")).toEqual(["ok1"]);
@@ -117,7 +117,7 @@ describe("UrlMatch-globs2", () => {
   const url2 = new UrlMatch<string>();
   url2.addRules(
     "ok1",
-    metaUMatchAnalyze(["@match https://*.example.com/*", "@exclude *://*/*business*", "@exclude *science*"])
+    extractMUP(["@match https://*.example.com/*", "@exclude *://*/*business*", "@exclude *science*"])
   );
   it("globs-2b", () => {
     expect(url2.urlMatch("https://abc.com")).toEqual([]);
@@ -132,7 +132,7 @@ describe("UrlMatch-globs2", () => {
 
 describe("UrlMatch-globs2", () => {
   const url1 = new UrlMatch<string>();
-  url1.addRules("ok1", metaUMatchAnalyze(["@include *.example.com/*", "@exclude *science*"]));
+  url1.addRules("ok1", extractMUP(["@include *.example.com/*", "@exclude *science*"]));
   it("globs-2c", () => {
     expect(url1.urlMatch("https://abc.com/")).toEqual([]);
     expect(url1.urlMatch("https://example.com/")).toEqual([]);
@@ -145,7 +145,7 @@ describe("UrlMatch-globs2", () => {
   const url2 = new UrlMatch<string>();
   url2.addRules(
     "ok1",
-    metaUMatchAnalyze(["@include *.example.com/*", "@exclude *://*/*business*", "@exclude *science*"])
+    extractMUP(["@include *.example.com/*", "@exclude *://*/*business*", "@exclude *science*"])
   );
   it("globs-2d", () => {
     expect(url2.urlMatch("https://abc.com/")).toEqual([]);
@@ -158,7 +158,7 @@ describe("UrlMatch-globs2", () => {
   });
 
   const url3 = new UrlMatch<string>();
-  url3.addRules("ok1", metaUMatchAnalyze(["@include *.example.com/*", "@include *def.com/*", "@exclude *science*"]));
+  url3.addRules("ok1", extractMUP(["@include *.example.com/*", "@include *def.com/*", "@exclude *science*"]));
   console.log(url3.rulesMap.get("ok1"));
   it("globs-2d", () => {
     expect(url3.urlMatch("https://abc.com/")).toEqual([]);
@@ -345,14 +345,14 @@ const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList:
   const urlMatcher = new UrlMatch<string>();
   urlMatcher.addRules(
     uuid,
-    metaUMatchAnalyze([...matchesList.map((e) => `@include ${e}`), ...excludeMatchesList.map((e) => `@exclude ${e}`)])
+    extractMUP([...matchesList.map((e) => `@include ${e}`), ...excludeMatchesList.map((e) => `@exclude ${e}`)])
   );
   return { urlMatcher };
 };
 
 describe("getApiMatchesAndGlobs-1", () => {
   it("match1", () => {
-    const scriptMUP = metaUMatchAnalyze([
+    const scriptMUP = extractMUP([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@match file:///mydir/myfile/001/*",
@@ -363,7 +363,7 @@ describe("getApiMatchesAndGlobs-1", () => {
     expect(includeGlobs).toEqual([]);
   });
   it("match2", () => {
-    const scriptMUP = metaUMatchAnalyze(["@include *hello*"]);
+    const scriptMUP = extractMUP(["@include *hello*"]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["*://*/*"]);
@@ -371,7 +371,7 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 
   it("match3", () => {
-    const scriptMUP = metaUMatchAnalyze([
+    const scriptMUP = extractMUP([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@include *hello*",
@@ -383,7 +383,7 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 
   it("match4", () => {
-    const scriptMUP = metaUMatchAnalyze([
+    const scriptMUP = extractMUP([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@match file:///mydir/myfile/001/*",
@@ -403,7 +403,7 @@ describe("getApiMatchesAndGlobs-1", () => {
 
 describe("getApiMatchesAndGlobs-2", () => {
   it("match1", () => {
-    const scriptMUP = metaUMatchAnalyze(
+    const scriptMUP = extractMUP(
       `
 // @include	    *://steamcommunity.com/*
 // @include	    *://meta.appinn.net/*
@@ -549,7 +549,7 @@ describe("UrlMatch-exclusion", () => {
 
 describe("UrlMatch-Issue629", () => {
   it("match-1", () => {
-    const scriptMUP = metaUMatchAnalyze(["@include     http*://*example.com/*"]);
+    const scriptMUP = extractMUP(["@include     http*://*example.com/*"]);
     const um = new UrlMatch<string>();
     um.addRules("ok1", scriptMUP);
     expect(um.urlMatch("https://www.example.com/cn/?v=example")).toEqual(["ok1"]);

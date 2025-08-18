@@ -14,7 +14,7 @@ import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { randNum } from "@App/pkg/utils/utils";
-import { metaUMatchAnalyze } from "@App/pkg/utils/url_matcher";
+import { extractMUP } from "@App/pkg/utils/url_matcher";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -393,7 +393,7 @@ function Setting() {
                 .map((line) => line.trim())
                 .filter((line) => line);
 
-              const scriptMUP = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+              const scriptMUP = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
               const blackMatch = new UrlMatch<string>();
               blackMatch.addRules("BK", scriptMUP);
 

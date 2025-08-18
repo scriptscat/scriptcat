@@ -61,7 +61,7 @@ const globSplit = (text: string) => {
   return text.split(/([*?])/g);
 };
 
-export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
+export const extractMUP = (lines: string[]): URLRuleEntry[] => {
   const rules = [];
   for (const line of lines) {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);

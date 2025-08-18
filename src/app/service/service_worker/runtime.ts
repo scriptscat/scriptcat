@@ -29,7 +29,7 @@ import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import {
   getApiMatchesAndGlobs,
-  metaUMatchAnalyze,
+  extractMUP,
   RuleType,
   toUniquePatternStrings,
   type URLRuleEntry,
@@ -249,7 +249,7 @@ export class RuntimeService {
     // 设置黑名单match
     const blacklist = obtainBlackList(blacklistString);
 
-    const scriptMUP = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+    const scriptMUP = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
     this.blackMatch.clearRules("BK");
     this.blackMatch.addRules("BK", scriptMUP);
   }
@@ -592,7 +592,7 @@ export class RuntimeService {
       const excludeGlobs = [];
       if (blacklistStr) {
         const blacklist = obtainBlackList(blacklistStr);
-        const rules = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+        const rules = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
         for (const rule of rules) {
           if (rule.ruleType === RuleType.MATCH_INCLUDE) {
             // matches -> excludeMatches
@@ -756,7 +756,7 @@ export class RuntimeService {
     const blacklistString = (await this.systemConfig.getBlacklist()) as string | undefined;
     const blacklist = obtainBlackList(blacklistString);
 
-    const scriptMUP = metaUMatchAnalyze([
+    const scriptMUP = extractMUP([
       ...(metaMatch || []).map((e) => `@match ${e}`),
       ...(metaInclude || []).map((e) => `@include ${e}`),
       ...(metaExclude || []).map((e) => `@exclude ${e}`),
@@ -767,7 +767,7 @@ export class RuntimeService {
 
     // 自定义排除
     if (script.selfMetadata && script.selfMetadata.exclude) {
-      customMUP = metaUMatchAnalyze([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
+      customMUP = extractMUP([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
       if (customMUP.length === 0) customMUP = null;
     }
 
