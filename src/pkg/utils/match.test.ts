@@ -113,6 +113,25 @@ describe("UrlMatch-internal2", () => {
     expect(url.urlMatch("https://www.hello1.eomx")).toEqual(["ok2"]);
     expect(url.urlMatch("https://www.helo1.eomx")).toEqual([]);
   });
+
+  url.addInclude("*gel*?.?*om*", "ok3");
+  it("glob-test-3", () => {
+    expect(url.urlMatch("https://www.gello.com")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gello1.com")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gello12.com")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gelxlo1.com")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gello1.ccom")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gello1.eomx")).toEqual(["ok3"]);
+    // gelo1
+    expect(url.urlMatch("https://www.gelo1.eomx")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gelo.eomx")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gel.eomx")).toEqual([]);
+    // eomx
+    expect(url.urlMatch("https://www.gelo1.aeomx")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gelo1.eomx")).toEqual(["ok3"]);
+    expect(url.urlMatch("https://www.gelo1.omx")).toEqual([]);
+    expect(url.urlMatch("https://www.gelo1.mx")).toEqual([]);
+  });
 });
 
 // https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts?hl=en#incl-globs
