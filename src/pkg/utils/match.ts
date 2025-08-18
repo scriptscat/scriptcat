@@ -71,6 +71,12 @@ export class UrlMatch<T> {
     this.addRules(uuid, rules);
   }
 
+  public addMatch(rulePattern: string, uuid: T) {
+    // @match xxxxx
+    const rules = metaUMatchAnalyze([rulePattern].map((e) => `@match ${e}`));
+    this.addRules(uuid, rules);
+  }
+
   public exclude(rulePattern: string, uuid: T) {
     // @exclude xxxxx
     const rules = metaUMatchAnalyze([rulePattern].map((e) => `@exclude ${e}`));
