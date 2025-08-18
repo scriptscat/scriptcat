@@ -59,6 +59,8 @@ describe("UrlMatch-internal1", () => {
     expect(url.urlMatch("https://www.google.com/")).toEqual(["ok1", "ok2"]);
     expect(url.urlMatch("https://example.org/foo/bar.html")).toEqual(["ok1", "ok2"]);
     expect(url.urlMatch("https://grok.com/")).toEqual(["ok1", "ok2", "ok3"]);
+    expect(url.urlMatch("https://grok1.com/")).toEqual(["ok1", "ok2"]);
+    expect(url.urlMatch("https://gro.com/")).toEqual(["ok1", "ok2"]);
   });
 
   const url2 = new UrlMatch<string>();
