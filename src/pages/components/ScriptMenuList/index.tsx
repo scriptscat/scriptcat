@@ -29,7 +29,7 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
-import { isUrlMatch } from "@App/pkg/utils/url_matcher";
+import { isUrlMatch, RuleTypeBit } from "@App/pkg/utils/url_matcher";
 
 const CollapseItem = Collapse.Item;
 
@@ -40,7 +40,7 @@ function isExclude(script: ScriptMenu, url: URL) {
     return false;
   }
   for (const rule of rules) {
-    if ((rule.ruleType & 1) === 0) {
+    if (!(rule.ruleType & RuleTypeBit.INCLUSION)) {
       // exclude
       if (!isUrlMatch(href, rule)) {
         return true;
