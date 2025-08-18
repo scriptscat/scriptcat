@@ -203,8 +203,7 @@ describe("UrlMatch-globs2", () => {
 
   const url3 = new UrlMatch<string>();
   url3.addRules("ok1", extractMUP(["@include *.example.com/*", "@include *def.com/*", "@exclude *science*"]));
-  console.log(url3.rulesMap.get("ok1"));
-  it("globs-2d", () => {
+  it("globs-2e", () => {
     expect(url3.urlMatch("https://abc.com/")).toEqual([]);
     expect(url3.urlMatch("https://def.com/")).toEqual(["ok1"]);
     expect(url3.urlMatch("https://example.com/")).toEqual([]);
@@ -298,15 +297,26 @@ describe("UrlMatch-special", () => {
     expect(url.urlMatch("https://www.example.com/path/foo/bar/baz")).toEqual(["ok1"]);
     expect(url.urlMatch("https://www.example.com/path2/foo")).toEqual([]);
   });
+  // 与 TM, VM 一致
   it("http*", () => {
     const url = new UrlMatch<string>();
     url.addInclude("http*", "ok1"); // @include (glob *)
     expect(url.urlMatch("http://www.example.com/")).toEqual(["ok1"]);
     expect(url.urlMatch("https://www.example.com/")).toEqual(["ok1"]);
   });
+  // 与 GM, TM, VM 一致
   it("/^.*?://.*?.example.com.*?$/", () => {
     const url = new UrlMatch<string>();
     url.addInclude("/^.*?://.*?.example.com.*?$/", "ok1"); // @include (regex)
+    expect(url.urlMatch("https://www.example.com/")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://www.example.com/")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://api.example.com/foo/bar")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://api.foo.example.com/foo/bar")).toEqual(["ok1"]);
+  });
+  // 与 GM, TM, VM 一致
+  it("/^.*?://.*?.example.com.*?$/ case-insensitive", () => {
+    const url = new UrlMatch<string>();
+    url.addInclude("/^.*?://.*?.EXAMPLE.com.*?$/", "ok1"); // @include (regex)
     expect(url.urlMatch("https://www.example.com/")).toEqual(["ok1"]);
     expect(url.urlMatch("http://www.example.com/")).toEqual(["ok1"]);
     expect(url.urlMatch("https://api.example.com/foo/bar")).toEqual(["ok1"]);

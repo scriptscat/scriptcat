@@ -58,7 +58,7 @@ export function checkUrlMatch(s: string) {
 const globSplit = (text: string) => {
   text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价於 glob **
   // text = text.replace(/\*\?+/g, "*"); // 暂不支持 "*?" (需要backward处理)
-  text = text.replace(/\*(\?+)/g, "$1*");
+  text = text.replace(/\*(\?+)/g, "$1*"); // "*????" 改成 "????*"
   return text.split(/([*?])/g);
 };
 
@@ -126,82 +126,51 @@ export const extractMUP = (lines: string[]): URLRuleEntry[] => {
       continue;
     }
 
+    let isExclusion = false;
+
     if (tag === "include") {
-      if (content.includes("*.")) {
-        // 与TM一致，不转换至 match
-      } else {
-        const mch = checkUrlMatch(content);
-        if (mch) {
-          // match pattern
-          rules.push({
-            ruleType: RuleType.MATCH_INCLUDE,
-            ruleContent: mch,
-            ruleTag: tag,
-            patternString: content,
-          });
-          continue;
-        }
-      }
+      // do nothing
+    } else if (tag === "exclude") {
+      isExclusion = true;
+    } else {
+      continue;
+    }
 
-      const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
-      if (rch) {
-        // re pattern
+    if (content.includes("*.")) {
+      // 与TM一致，不转换至 match
+    } else {
+      const mch = checkUrlMatch(content);
+      if (mch) {
+        // match pattern
         rules.push({
-          ruleType: RuleType.REGEX_INCLUDE,
-          ruleContent: new RegExp(rch[1], rch[2] || ""),
+          ruleType: isExclusion ? RuleType.MATCH_EXCLUDE : RuleType.MATCH_INCLUDE,
+          ruleContent: mch,
           ruleTag: tag,
           patternString: content,
         });
         continue;
       }
-      // glob pattern (* and ?)
+    }
+
+    const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
+    if (rch) {
+      // re pattern
       rules.push({
-        ruleType: RuleType.GLOB_INCLUDE,
-        ruleContent: globSplit(content),
+        ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
+        ruleContent: new RegExp(rch[1], rch[2] || "i"), // case-insensitive
+        // details refer to https://github.com/violentmonkey/violentmonkey/issues/1044#issuecomment-674652499
         ruleTag: tag,
         patternString: content,
       });
       continue;
     }
-
-    if (tag === "exclude") {
-      if (content.includes("*.")) {
-        // 与TM一致，不转换至 match
-      } else {
-        const mch = checkUrlMatch(content);
-        if (mch) {
-          // match pattern
-          rules.push({
-            ruleType: RuleType.MATCH_EXCLUDE,
-            ruleContent: mch,
-            ruleTag: tag,
-            patternString: content,
-          });
-          continue;
-        }
-      }
-
-      const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
-      if (rch) {
-        // re pattern
-        rules.push({
-          ruleType: RuleType.REGEX_EXCLUDE,
-          ruleContent: new RegExp(rch[1], rch[2] || ""),
-          ruleTag: tag,
-          patternString: content,
-        });
-        continue;
-      }
-
-      // glob pattern (* and ?)
-      rules.push({
-        ruleType: RuleType.GLOB_EXCLUDE,
-        ruleContent: globSplit(content),
-        ruleTag: tag,
-        patternString: content,
-      });
-      continue;
-    }
+    // glob pattern (* and ?)
+    rules.push({
+      ruleType: isExclusion ? RuleType.GLOB_EXCLUDE : RuleType.GLOB_INCLUDE,
+      ruleContent: globSplit(content),
+      ruleTag: tag,
+      patternString: content,
+    });
   }
   return rules;
 };
