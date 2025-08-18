@@ -558,28 +558,28 @@ describe("UrlMatch-Issue629", () => {
 
 describe("UrlMatch-port1", () => {
   const url = new UrlMatch<string>();
-  url.addMatch("http://test.list.ggnb.top/search", "ok1");
+  url.addMatch("https://scriptcat.org/zh-CN/search", "ok1");
   it("match1", () => {
-    expect(url.urlMatch("http://test.list.ggnb.top/search")).toEqual(["ok1"]);
-    expect(url.urlMatch("http://test.list.ggnb.top/search?")).toEqual([]);
-    expect(url.urlMatch("http://test.list.ggnb.top/search?foo=bar")).toEqual([]);
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?")).toEqual([]);
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?foo=bar")).toEqual([]);
   });
 
   it("port", () => {
-    expect(url.urlMatch("http://test.list.ggnb.top:80/search")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://scriptcat.org:80/zh-CN/search")).toEqual(["ok1"]);
   });
 });
 
 describe("UrlMatch-port2", () => {
   const url = new UrlMatch<string>();
-  url.addMatch("http://test.list.ggnb.top:80/search", "ok1");
-  url.addMatch("http://test.list.ggnb.top*/search", "ok2");
-  url.addMatch("http://test.list.ggnb.top:*/search", "ok3");
+  url.addMatch("https://scriptcat.org:443/zh-CN/search", "ok1");
+  url.addMatch("https://scriptcat.org*/zh-CN/search", "ok2");
+  url.addMatch("https://scriptcat.org:*/zh-CN/search", "ok3");
   url.addMatch("http://localhost:3000/", "ok4");
   it("match1", () => {
-    expect(url.urlMatch("http://test.list.ggnb.top:80/search")).toEqual(["ok1", "ok2", "ok3"]);
-    expect(url.urlMatch("http://test.list.ggnb.top:81/search")).toEqual(["ok2", "ok3"]);
-    expect(url.urlMatch("http://test.list.ggnb.top/search")).toEqual(["ok1", "ok2", "ok3"]);
+    expect(url.urlMatch("https://scriptcat.org:443/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
+    expect(url.urlMatch("http://test.list.ggnb.top:446/zh-CN/search")).toEqual(["ok2", "ok3"]);
+    expect(url.urlMatch("http://test.list.ggnb.top/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
   });
   it("case2", () => {
     expect(url.urlMatch("http://localhost:3000/")).toEqual(["ok4"]);
