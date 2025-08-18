@@ -315,8 +315,7 @@ const ScriptMenuList = React.memo(
                   icon={<IconMinus />}
                   onClick={() => handleExcludeUrl(item, url.host)}
                 >
-                  {isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")}
-                  {` ${url.host} ${t("exclude_execution")}`}
+                  {(isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
               <Popconfirm
