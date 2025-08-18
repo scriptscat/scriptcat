@@ -23,13 +23,17 @@ export function checkUrlMatch(s: string) {
       let host = s.substring(idx1 + 3, idx2);
       if (host.length === 0 && scheme !== "file") {
         // host is optional only if the scheme is "file".
-      } else if (!host.includes(":") && host.charAt(0) !== "."  && !host.includes("?")) {
+      } else if (!host.includes(":") && host.charAt(0) !== "." && !host.includes("?")) {
         // *.<host>
         if (/^(\*|\*\..+)$/.test(host)) {
           host = host.substring(1);
         }
         if (!host.includes("*")) {
-          extMatch = [scheme, host, s.substring(idx2 + 1)];
+          let pathPattern = s.substring(idx2 + 1);
+          if (pathPattern.includes("**")) {
+            pathPattern = pathPattern.replace(/\*{2,}/g, "*");
+          }
+          extMatch = [scheme, host, pathPattern];
         }
       }
     }

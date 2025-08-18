@@ -35,7 +35,7 @@ describe("checkUrlMatch-1", () => {
     expect(checkUrlMatch("https:///*")).toBeNull();
     expect(checkUrlMatch("file:///*")).toEqual(["file", "", "*"]);
     expect(checkUrlMatch("*")).toBeNull();
-    expect(checkUrlMatch("*://*.example.com/*/**")).toEqual(["*", ".example.com", "*/**"]);
+    expect(checkUrlMatch("*://*.example.com/*/**")).toEqual(["*", ".example.com", "*/*"]);
     expect(checkUrlMatch("*://*/query?a=*")).toEqual(["*", "", "query?a=*"]);
   });
 
