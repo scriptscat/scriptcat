@@ -117,7 +117,7 @@ const MainLayout: React.FC<{
             }
             // 先检查内容，后弹出安装页面
             const checkOk = await Promise.allSettled([
-              file.text().then((code) => prepareScriptByCode(code, `file://*resp-check*/${file.name}`)),
+              file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
               simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
             ]);
             if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {

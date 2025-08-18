@@ -386,7 +386,7 @@ describe("getApiMatchesAndGlobs-1", () => {
     const urlCovering = metaUMatchAnalyze([
       "@match http://google.com/*",
       "@match https://google.com/*",
-      "@match file://mydir/myfile/001/*",
+      "@match file:///mydir/myfile/001/*",
       "@include *hello*",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
@@ -396,7 +396,7 @@ describe("getApiMatchesAndGlobs-1", () => {
       "*hello*",
       "http://google.com/*",
       "https://google.com/*",
-      "file://mydir/myfile/001/*",
+      "file:///mydir/myfile/001/*",
     ]);
   });
 });

@@ -716,7 +716,7 @@ export class RuntimeService {
     this.scriptCustomizeMatch.clearRules(item.uuid);
     // 添加新的数据
     this.scriptMatch.addRules(item.uuid, item.urlCovering);
-    if ((item.customUrlCovering?.length ?? 0) > 0) {
+    if (item.customUrlCovering?.length) {
       this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlCovering!);
     }
   }
