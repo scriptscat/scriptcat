@@ -555,7 +555,7 @@ describe("UrlMatch-port1 (match)", () => {
   url.addMatch("https://scriptcat.org/zh-CN/search", "ok1");
   it("match1", () => {
     expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok1"]);
-    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?")).toEqual(["ok1"]); // 與TM一致
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?")).toEqual(["ok1"]); // 与TM一致
     expect(url.urlMatch("https://scriptcat.org/zh-CN/search?foo=bar")).toEqual([]);
   });
 
@@ -566,18 +566,18 @@ describe("UrlMatch-port1 (match)", () => {
 
 describe("UrlMatch-port2 (match)", () => {
   const url = new UrlMatch<string>();
-  url.addMatch("https://scriptcat.org:443/zh-CN/search", "ok1"); // 自動修正為 @match https://scriptcat.org/zh-CN/search
-  url.addMatch("https://scriptcat.org*/zh-CN/search", "ok2"); // 自動修正為 @include https://scriptcat.org*/zh-CN/search
-  url.addMatch("https://scriptcat.org:*/zh-CN/search", "ok3"); // 自動修正為 @match https://scriptcat.org/zh-CN/search
-  url.addMatch("http://localhost:3000/", "ok4"); // 自動修正為 @match http://localhost/
+  url.addMatch("https://scriptcat.org:443/zh-CN/search", "ok1"); // 自动修正为 @match https://scriptcat.org/zh-CN/search
+  url.addMatch("https://scriptcat.org*/zh-CN/search", "ok2"); // 自动修正为 @include https://scriptcat.org*/zh-CN/search
+  url.addMatch("https://scriptcat.org:*/zh-CN/search", "ok3"); // 自动修正为 @match https://scriptcat.org/zh-CN/search
+  url.addMatch("http://localhost:3000/", "ok4"); // 自动修正为 @match http://localhost/
   it("match1", () => {
     expect(url.urlMatch("https://scriptcat.org:443/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
-    expect(url.urlMatch("https://scriptcat.org:446/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]); // 與TM一致
+    expect(url.urlMatch("https://scriptcat.org:446/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]); // 与TM一致
     expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
   });
   it("case2", () => {
     expect(url.urlMatch("http://localhost:3000/")).toEqual(["ok4"]);
-    expect(url.urlMatch("http://localhost:8000/")).toEqual(["ok4"]); // 與TM一致
+    expect(url.urlMatch("http://localhost:8000/")).toEqual(["ok4"]); // 与TM一致
   });
 });
 
@@ -586,7 +586,7 @@ describe("UrlMatch-port1 (include)", () => {
   url.addInclude("https://scriptcat.org/zh-CN/search", "ok1");
   it("match1", () => {
     expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok1"]);
-    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?")).toEqual(["ok1"]); // 與TM一致
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search?")).toEqual(["ok1"]); // 与TM一致
     expect(url.urlMatch("https://scriptcat.org/zh-CN/search?foo=bar")).toEqual([]);
   });
 
@@ -603,31 +603,31 @@ describe("UrlMatch-port2 (include)", () => {
   url.addInclude("http://localhost:3000/", "ok4");
   it("match1", () => {
     expect(url.urlMatch("https://scriptcat.org:443/zh-CN/search")).toEqual(["ok1", "ok2", "ok3"]);
-    expect(url.urlMatch("https://scriptcat.org:446/zh-CN/search")).toEqual(["ok2", "ok3"]); // 與TM一致
-    expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok2"]); // 與TM一致
+    expect(url.urlMatch("https://scriptcat.org:446/zh-CN/search")).toEqual(["ok2", "ok3"]); // 与TM一致
+    expect(url.urlMatch("https://scriptcat.org/zh-CN/search")).toEqual(["ok2"]); // 与TM一致
   });
   it("case2", () => {
     expect(url.urlMatch("http://localhost:3000/")).toEqual(["ok4"]);
-    expect(url.urlMatch("http://localhost:8000/")).toEqual([]); // 與TM一致
+    expect(url.urlMatch("http://localhost:8000/")).toEqual([]); // 与TM一致
   });
 });
 
 describe("特殊情况", () => {
   it("** (match)", () => {
     const url = new UrlMatch<string>();
-    url.addMatch("*://**/*", "ok1"); // 自動修正為 @match *://*/*
+    url.addMatch("*://**/*", "ok1"); // 自动修正为 @match *://*/*
     expect(url.urlMatch("http://www.example.com/")).toEqual(["ok1"]);
   });
 
   it("** (include)", () => {
     const url = new UrlMatch<string>();
-    url.addInclude("*://**/*", "ok1"); // 自動修正為 @match *://*/*
+    url.addInclude("*://**/*", "ok1"); // 自动修正为 @match *://*/*
     expect(url.urlMatch("http://www.example.com/")).toEqual(["ok1"]);
   });
 
   it("http* (match)", () => {
     const url = new UrlMatch<string>();
-    url.addMatch("http*://example.com/*", "ok1"); // 自動修正為 @match *://example.com/*
+    url.addMatch("http*://example.com/*", "ok1"); // 自动修正为 @match *://example.com/*
     expect(url.urlMatch("https://example.com/")).toEqual(["ok1"]);
     expect(url.urlMatch("http://example.com/")).toEqual(["ok1"]);
   });
@@ -650,13 +650,13 @@ describe("UrlInclude-1", () => {
   url.addInclude("https://bbs.tampermonkey.net.cn/*", "ok6");
   url.addInclude("https://bbs.tampermonkey.net.cn/test/*", "ok66");
   url.addInclude("*://*/test/param?*", "ok7");
-  url.addInclude("i.tampermonkey.net.cn/*", "ok8"); // @include i.tampermonkey.net.cn/* 在TM無效
+  url.addInclude("i.tampermonkey.net.cn/*", "ok8"); // @include i.tampermonkey.net.cn/* 在TM无效
   url.addInclude("*i.tampermonkey.net.cn/*", "ok9");
   url.addInclude("http://bbs.tampermonkey.net.cn/test?id=*", "ok10");
   it("match", () => {
-    expect(url.urlMatch("https://www.baidu.com/")).toEqual(["ok"]); // url參數永遠有/
-    expect(url.urlMatch("https://m.baidu.com/")).toEqual(["ok"]); // url參數永遠有/
-    expect(url.urlMatch("https://www.m.baidu.com/")).toEqual(["ok"]); // url參數永遠有/
+    expect(url.urlMatch("https://www.baidu.com/")).toEqual(["ok"]); // url参数永远有/
+    expect(url.urlMatch("https://m.baidu.com/")).toEqual(["ok"]); // url参数永远有/
+    expect(url.urlMatch("https://www.m.baidu.com/")).toEqual(["ok"]); // url参数永远有/
     expect(url.urlMatch("https://www.m.baidu.com/undefined")).toEqual([]);
     expect(url.urlMatch("http://test.m.baidu.com/test")).toEqual(["ok2"]);
     expect(url.urlMatch("http://test.m.baidu.com/test/233")).toEqual(["ok2"]);
@@ -674,7 +674,7 @@ describe("UrlInclude-1", () => {
     expect(url.urlMatch("https://bbs.tampermonkey.net.cn/")).toEqual(["ok6"]);
     expect(url.urlMatch("https://bbs.tampermonkey.net.cn/test/param?a=1&b=2")).toEqual(["ok6", "ok66", "ok7"]);
     expect(url.urlMatch("https://www.baidu.com/test/param?id=123")).toEqual(["ok7"]);
-    expect(url.urlMatch("https://i.tampermonkey.net.cn/aa")).toEqual(["ok9"]); // 與TM一致
+    expect(url.urlMatch("https://i.tampermonkey.net.cn/aa")).toEqual(["ok9"]); // 与TM一致
     expect(url.urlMatch("https://wwi.tampermonkey.net.cn/aa")).toEqual(["ok9"]);
     expect(url.urlMatch("http://bbs.tampermonkey.net.cn/test?id=1234124")).toEqual(["ok10"]);
   });
@@ -693,36 +693,36 @@ describe("UrlInclude-1", () => {
     url.clearRules("ok9");
     url.clearRules("ok9x");
     url.addInclude("*://*.test-tld.tld/", "ok9");
-    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url參數永遠有/
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
   });
 
   it("tld 顶域测试 (match invalid)", () => {
     url.clearRules("ok9");
     url.clearRules("ok9x");
     url.addMatch("*://*.test-tld.tld/", "ok9x");
-    expect(url.urlMatch("https://www.test-tld.com/")).toEqual([]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual([]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual([]); // url參數永遠有/
-    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual([]); // url參數永遠有/
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual([]); // url参数永远有/
   });
 
   it("trump", () => {
     url.addInclude("*://*.x.com/*", "ok10"); // @include *://*.x.com/*
-    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual([]); // 與TM一致
+    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual([]); // 与TM一致
     url.clearRules("ok10");
     url.addMatch("*://*.x.com/*", "ok10"); // @match *://*.x.com/*
-    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 與TM一致
+    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 与TM一致
     url.exclude("*://*.x.com/*", "ok10"); // @exclude *://*.x.com/*
-    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 與TM一致
+    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual(["ok10"]); // 与TM一致
     url.exclude("*://*x.com/*", "ok10"); // @exclude *://*x.com/*
-    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual([]); // 與TM一致
+    expect(url.urlMatch("https://x.com/trump_chinese")).toEqual([]); // 与TM一致
   });
 
   it("多*", () => {
-    url.addInclude("*://*.google*/search*", "ok11"); // 自動修正為 @include *://*.google*/search*
+    url.addInclude("*://*.google*/search*", "ok11"); // 自动修正为 @include *://*.google*/search*
     expect(
       url.urlMatch(
         "https://www.google.com.hk/search?q=%E6%88%91&oq=%E6%88%91&aqs=edge.0.69i59j0i512l5j69i61l3.1416j0j4&sourceid=chrome&ie=UTF-8"
@@ -736,7 +736,7 @@ describe("UrlInclude-2", () => {
     const url = new UrlMatch<string>();
     url.addInclude("http*", "ok1");
     url.addInclude("*://*", "ok2");
-    expect(url.urlMatch("http://www.http.com/")).toEqual(["ok1", "ok2"]); // url參數永遠有/
+    expect(url.urlMatch("http://www.http.com/")).toEqual(["ok1", "ok2"]); // url参数永远有/
     expect(
       url.urlMatch("https://pan.baidu.com/disk/home?from=newversion&stayAtHome=true#/all?path=%2F&vmode=list")
     ).toEqual(["ok1", "ok2"]);
@@ -747,21 +747,21 @@ describe("UrlInclude-2", () => {
   });
   it("port (match)", () => {
     const url = new UrlMatch<string>();
-    url.addMatch("http://domain:8080", "ok2"); // 自動修正為 @match http://domain:8080/
-    expect(url.urlMatch("http://domain:8080/")).toEqual(["ok2"]); // 與TM一致
+    url.addMatch("http://domain:8080", "ok2"); // 自动修正为 @match http://domain:8080/
+    expect(url.urlMatch("http://domain:8080/")).toEqual(["ok2"]); // 与TM一致
     expect(url.urlMatch("http://domain:8080/123")).toEqual([]);
   });
   it("port (include)", () => {
     const url = new UrlMatch<string>();
     url.addInclude("http://domain:8080", "ok2"); // @include http://domain:8080
-    expect(url.urlMatch("http://domain:8080/")).toEqual([]); // 與TM一致
+    expect(url.urlMatch("http://domain:8080/")).toEqual([]); // 与TM一致
     expect(url.urlMatch("http://domain:8080/123")).toEqual([]);
   });
   it("无/ (match)", () => {
     const url = new UrlMatch<string>();
     url.addMatch("http://domain2", "ok3"); // @match http://domain2
     url.addMatch("http://domain2*", "ok4"); // @match http://domain2*
-    expect(url.urlMatch("http://domain2/")).toEqual(["ok3", "ok4"]); // 與TM一致
+    expect(url.urlMatch("http://domain2/")).toEqual(["ok3", "ok4"]); // 与TM一致
     expect(url.urlMatch("http://domain2.com/")).toEqual(["ok4"]);
     expect(url.urlMatch("http://domain2/123")).toEqual(["ok4"]);
   });
@@ -769,7 +769,7 @@ describe("UrlInclude-2", () => {
     const url = new UrlMatch<string>();
     url.addInclude("http://domain2", "ok3"); // @include http://domain2
     url.addInclude("http://domain2*", "ok4"); // @include http://domain2*
-    expect(url.urlMatch("http://domain2/")).toEqual(["ok4"]); // 與TM一致
+    expect(url.urlMatch("http://domain2/")).toEqual(["ok4"]); // 与TM一致
     expect(url.urlMatch("http://domain2.com/")).toEqual(["ok4"]);
     expect(url.urlMatch("http://domain2/123")).toEqual(["ok4"]);
   });
@@ -785,10 +785,10 @@ describe("UrlInclude-2", () => {
   });
 });
 
-describe("match *", () => {
+describe("(SC独自) match *", () => {
   const url = new UrlMatch<string>();
   url.addMatch("*", "ok1");
   it("ok1", () => {
-    expect(url.urlMatch("http://www.baidu.com/")).toEqual(["ok1"]); // url參數永遠有/
+    expect(url.urlMatch("http://www.baidu.com/")).toEqual(["ok1"]); // url参数永远有/
   });
 });
