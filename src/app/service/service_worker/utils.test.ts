@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseUrlSRI } from "./utils";
+import { isBase64, parseUrlSRI } from "./utils";
 
 describe("parseUrlSRI", () => {
   it("should parse URL SRI", () => {
@@ -65,5 +65,33 @@ describe("parseUrlSRI", () => {
     const result3 = parseUrlSRI(url3);
     expect(result3.url).toEqual("https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.min.js");
     expect(result3.hash).toEqual({ sha256: sha256b64 });
+  });
+});
+
+describe("isBase64", () => {
+  it("should return true for valid base64 strings", () => {
+    expect(isBase64("dGVzdA==")).toBe(true);
+    expect(isBase64("7qAoOXltbVP82dhxHAUje59V5r2YsVfBafyUDxEdApLPmcdhBPg1DKg1ERo0BZlK")).toBe(true);
+    expect(isBase64("zKeerWHHuP3ar7kX2WKBSENzb+GJytFSBL6HrR2nPSR1kOX1qjm+oHooQtbDpDBSITgyl7QXZApvDfDWvKjkUw==")).toBe(
+      true
+    );
+  });
+
+  it("should return false for invalid base64 strings", () => {
+    expect(isBase64("invalid_base64")).toBe(false);
+    expect(isBase64("12345")).toBe(false);
+    expect(isBase64("c4ca4238a0b923820dcc509a6f75849b")).toBe(false);
+    expect(isBase64("356a192b7913b04c54574d18c28d46e6395428ab")).toBe(false);
+    expect(isBase64("DaC17f958d2ee523a2206206994597c13D831eC7")).toBe(false);
+    expect(isBase64("6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b")).toBe(false);
+    expect(
+      isBase64("47f05d367b0c32e438fb63e6cf4a5f35c2aa2f90dc7543f8a41a0f95ce8a40a313ab5cf36134a2068c4c969cb50db776")
+    ).toBe(false);
+    expect(
+      isBase64(
+        "4dff4ea340f0a823f15d3f4f01ab62eae0e5da579ccb851f8db9dfe84c58b2b37b89903a740e1ee172da793a6e79d560e5f7f9bd058a12a280433ed6fa46510a"
+      )
+    ).toBe(false);
+    expect(isBase64("")).toBe(false);
   });
 });

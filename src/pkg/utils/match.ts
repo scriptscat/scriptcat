@@ -281,8 +281,8 @@ export function parsePatternMatchesURL(
       // *开头但是不是*.的情况
       if (result.host.startsWith("*")) {
         if (!result.host.startsWith("*.")) {
-          // 删除开头的*号
-          result.host = result.host.slice(1);
+          // 替换为*.
+          result.host = `*.${result.host.slice(1)}`;
         }
       }
       // 结尾是*的情况
