@@ -1,5 +1,18 @@
+export const enum RuleType {
+  MATCH_INCLUDE = 1,
+  MATCH_EXCLUDE = 2,
+  GLOB_INCLUDE = 3,
+  GLOB_EXCLUDE = 4,
+  REGEX_INCLUDE = 5,
+  REGEX_EXCLUDE = 6,
+}
+
+export const enum RuleTypeBit {
+  INCLUSION = 1,
+}
+
 export type URLRuleEntry = {
-  ruleType: number;
+  ruleType: RuleType;
   ruleContent: string | string[] | RegExp;
   ruleTag: string;
   patternString: string;
@@ -30,7 +43,7 @@ export function checkUrlMatch(s: string) {
           host = host.substring(1);
         }
         if (!host.includes("*")) {
-          let pathPattern = s.substring(idx2 + 1);
+          const pathPattern = s.substring(idx2 + 1);
           // if (pathPattern.includes("**")) {
           //   pathPattern = pathPattern.replace(/\*{2,}/g, "*");
           // }
@@ -72,7 +85,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       const mch = checkUrlMatch(content);
       if (!mch) continue;
       rules.push({
-        ruleType: 1,
+        ruleType: RuleType.MATCH_INCLUDE,
         ruleContent: mch,
         ruleTag: tag,
         patternString: content,
@@ -85,7 +98,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       if (mch) {
         // match pattern
         rules.push({
-          ruleType: 1,
+          ruleType: RuleType.MATCH_INCLUDE,
           ruleContent: mch,
           ruleTag: tag,
           patternString: content,
@@ -97,7 +110,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       if (rch) {
         // re pattern
         rules.push({
-          ruleType: 5,
+          ruleType: RuleType.REGEX_INCLUDE,
           ruleContent: new RegExp(rch[1], rch[2] || ""),
           ruleTag: tag,
           patternString: content,
@@ -106,7 +119,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       }
       // glob pattern (* and ?)
       rules.push({
-        ruleType: 3,
+        ruleType: RuleType.GLOB_INCLUDE,
         ruleContent: globSplit(content),
         ruleTag: tag,
         patternString: content,
@@ -119,7 +132,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       if (mch) {
         // match pattern
         rules.push({
-          ruleType: 2,
+          ruleType: RuleType.MATCH_EXCLUDE,
           ruleContent: mch,
           ruleTag: tag,
           patternString: content,
@@ -131,7 +144,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
       if (rch) {
         // re pattern
         rules.push({
-          ruleType: 6,
+          ruleType: RuleType.REGEX_EXCLUDE,
           ruleContent: new RegExp(rch[1], rch[2] || ""),
           ruleTag: tag,
           patternString: content,
@@ -141,7 +154,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
 
       // glob pattern (* and ?)
       rules.push({
-        ruleType: 4,
+        ruleType: RuleType.GLOB_EXCLUDE,
         ruleContent: globSplit(content),
         ruleTag: tag,
         patternString: content,
@@ -322,19 +335,25 @@ export const isAllUrlsRequired = (globs: string[]) => {
   return false;
 };
 
+const enum MatchType {
+  NONE = 0,
+  WWW = 1,
+  ALL = 2,
+};
+
 export const getApiMatchesAndGlobs = (urlCovering: URLRuleEntry[]) => {
-  const urlMatching = urlCovering.filter((e) => e.ruleType === 1);
+  const urlMatching = urlCovering.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
-  let matchAll = 0;
+  let matchAll: MatchType = MatchType.NONE;
   if (
     urlSpecificMatching.length === 0 ||
     urlSpecificMatching.length !== urlMatching.length ||
-    urlCovering.some((e) => e.ruleType === 5)
+    urlCovering.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
   ) {
-    matchAll = 1;
+    matchAll = MatchType.WWW;
   }
 
-  const apiIncludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === 3));
+  const apiIncludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   if (apiIncludeGlobs.length > 0) matchAll = 1;
 
   if (matchAll && urlSpecificMatching.length > 0) {
@@ -343,12 +362,12 @@ export const getApiMatchesAndGlobs = (urlCovering: URLRuleEntry[]) => {
 
   if (apiIncludeGlobs.length > 0) {
     if (isAllUrlsRequired(apiIncludeGlobs)) {
-      matchAll = 2;
+      matchAll = MatchType.ALL;
     }
   }
 
   const apiMatches = matchAll
-    ? matchAll === 2
+    ? matchAll === MatchType.ALL
       ? ["<all_urls>"]
       : ["*://*/*"]
     : toUniquePatternStrings(urlSpecificMatching);

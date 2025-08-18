@@ -1,4 +1,4 @@
-import { isUrlMatch, metaUMatchAnalyze, type URLRuleEntry } from "./url_matcher";
+import { isUrlMatch, metaUMatchAnalyze, RuleTypeBit, type URLRuleEntry } from "./url_matcher";
 
 export class UrlMatch<T> {
   public readonly rulesMap = new Map<T, URLRuleEntry[]>();
@@ -12,11 +12,6 @@ export class UrlMatch<T> {
     map.push(...rules);
   }
 
-  public clearRules(uuid: T) {
-    this.cacheMap.clear();
-    this.rulesMap.delete(uuid);
-  }
-
   public urlMatch(url: string): T[] {
     const cacheMap = this.cacheMap;
     if (cacheMap.has(url)) return cacheMap.get(url) as T[];
@@ -25,7 +20,7 @@ export class UrlMatch<T> {
       let ruleIncluded = false;
       let ruleExcluded = false;
       for (const rule of rules) {
-        if (rule.ruleType & 1) {
+        if (rule.ruleType & RuleTypeBit.INCLUSION) {
           // include
           if (!ruleIncluded && isUrlMatch(url, rule)) {
             ruleIncluded = true;
@@ -60,23 +55,26 @@ export class UrlMatch<T> {
     return res;
   }
 
-  public del(uuid: T) {
+  public clearRules(uuid: T) {
     this.cacheMap.clear();
     this.rulesMap.delete(uuid);
   }
 
+  // 測試用
   public add(rulePattern: string, uuid: T) {
     // @include xxxxx
     const rules = metaUMatchAnalyze([rulePattern].map((e) => `@include ${e}`));
     this.addRules(uuid, rules);
   }
 
+  // 測試用
   public addMatch(rulePattern: string, uuid: T) {
     // @match xxxxx
     const rules = metaUMatchAnalyze([rulePattern].map((e) => `@match ${e}`));
     this.addRules(uuid, rules);
   }
 
+  // 測試用
   public exclude(rulePattern: string, uuid: T) {
     // @exclude xxxxx
     const rules = metaUMatchAnalyze([rulePattern].map((e) => `@exclude ${e}`));

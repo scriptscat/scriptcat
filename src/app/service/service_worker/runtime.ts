@@ -30,6 +30,7 @@ import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import {
   getApiMatchesAndGlobs,
   metaUMatchAnalyze,
+  RuleType,
   toUniquePatternStrings,
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
@@ -249,7 +250,7 @@ export class RuntimeService {
     const blacklist = obtainBlackList(blacklistString);
 
     const urlCovering = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
-    this.blackMatch.del("BK");
+    this.blackMatch.clearRules("BK");
     this.blackMatch.addRules("BK", urlCovering);
   }
 
@@ -387,8 +388,6 @@ export class RuntimeService {
     const match = await this.loadScriptMatchInfo();
     // 匹配当前页面的脚本
     const matchScriptUuid = match.urlMatch(url!);
-    console.log(388001, url);
-    console.log(388002, matchScriptUuid);
     // 包含自定义排除的脚本
     if (includeCustomize) {
       const excludeScriptUuid = this.scriptCustomizeMatch.urlMatch(url!);
@@ -595,10 +594,10 @@ export class RuntimeService {
         const blacklist = obtainBlackList(blacklistStr);
         const rules = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
         for (const rule of rules) {
-          if (rule.ruleType === 1) {
+          if (rule.ruleType === RuleType.MATCH_INCLUDE) {
             // matches -> excludeMatches
             excludeMatches.push(rule.patternString);
-          } else if (rule.ruleType === 3) {
+          } else if (rule.ruleType === RuleType.GLOB_INCLUDE) {
             // includeGlobs -> excludeGlobs
             excludeGlobs.push(rule.patternString);
           }
@@ -713,14 +712,12 @@ export class RuntimeService {
 
   syncAddScriptMatch(item: ScriptMatchInfo) {
     // 清理一下老数据
-    this.scriptMatch.del(item.uuid);
-    this.scriptCustomizeMatch.del(item.uuid);
+    this.scriptMatch.clearRules(item.uuid);
+    this.scriptCustomizeMatch.clearRules(item.uuid);
     // 添加新的数据
     this.scriptMatch.addRules(item.uuid, item.urlCovering);
-    if (item.customUrlCovering && item.customUrlCovering.length > 0) {
-      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlCovering);
-    } else {
-      this.scriptCustomizeMatch.clearRules(item.uuid);
+    if ((item.customUrlCovering?.length ?? 0) > 0) {
+      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlCovering!);
     }
   }
 
@@ -740,15 +737,18 @@ export class RuntimeService {
       await this.loadScriptMatchInfo();
     }
     this.scriptMatchCache!.delete(uuid);
-    this.scriptMatch.del(uuid);
-    this.scriptCustomizeMatch.del(uuid);
+    this.scriptMatch.clearRules(uuid);
+    this.scriptCustomizeMatch.clearRules(uuid);
     this.saveScriptMatchInfo();
   }
 
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    if ([...(scriptRes.metadata["match"] || []), ...(scriptRes.metadata["include"] || [])].length === 0) {
+    const metaMatch = scriptRes.metadata["match"];
+    const metaInclude = scriptRes.metadata["include"];
+    const metaExclude = scriptRes.metadata["exclude"];
+    if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
       return undefined;
     }
 
@@ -757,9 +757,9 @@ export class RuntimeService {
     const blacklist = obtainBlackList(blacklistString);
 
     const urlCovering = metaUMatchAnalyze([
-      ...(scriptRes.metadata["match"] || []).map((e) => `@match ${e}`),
-      ...(scriptRes.metadata["include"] || []).map((e) => `@include ${e}`),
-      ...(scriptRes.metadata["exclude"] || []).map((e) => `@exclude ${e}`),
+      ...(metaMatch || []).map((e) => `@match ${e}`),
+      ...(metaInclude || []).map((e) => `@include ${e}`),
+      ...(metaExclude || []).map((e) => `@exclude ${e}`),
       ...(blacklist || []).map((e) => `@exclude ${e}`),
     ]);
 
@@ -775,8 +775,8 @@ export class RuntimeService {
 
     const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
 
-    const excludeMatches = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === 2));
-    const excludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === 4));
+    const excludeMatches = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE));
+    const excludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
 
     const registerScript: chrome.userScripts.RegisteredUserScript = {
       id: scriptRes.uuid,

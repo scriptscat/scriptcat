@@ -641,13 +641,13 @@ describe("UrlInclude-1", () => {
     expect(url.urlMatch("http://bbs.tampermonkey.net.cn/test?id=1234124")).toEqual(["ok10"]);
   });
   it("delete", () => {
-    url.del("ok5");
+    url.clearRules("ok5");
     expect(url.urlMatch("http://example.org/foo/bar.html")).toEqual([]);
     url.add("http://example.org/foo/bar.html", "ok4");
     expect(url.urlMatch("http://example.org/foo/bar.html")).toEqual(["ok4"]);
-    url.del("ok5");
+    url.clearRules("ok5");
     expect(url.urlMatch("http://example.org/foo/bar.html")).toEqual(["ok4"]);
-    url.del("ok4");
+    url.clearRules("ok4");
     expect(url.urlMatch("http://example.org/foo/bar.html")).toEqual([]);
     expect(url.urlMatch("http://test.baidu.com/")).toEqual(["ok"]);
   });
