@@ -1,4 +1,5 @@
 import { isUrlMatch, extractMUP, RuleTypeBit, type URLRuleEntry } from "./url_matcher";
+import { randNum } from "./utils";
 
 export class UrlMatch<T> {
   public readonly rulesMap = new Map<T, URLRuleEntry[]>();
@@ -85,4 +86,30 @@ export class UrlMatch<T> {
     this.cacheMap.clear();
     this.sorter = sorter;
   }
+}
+
+export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
+  blacklist = blacklist || [];
+
+  const scriptMUP = extractMUP([...blacklist.map((e) => `@include ${e}`)]);
+  const blackMatch = new UrlMatch<string>();
+  blackMatch.addRules("BK", scriptMUP);
+
+  for (const line of blacklist) {
+    const templateLine = line.replace(/[*?]/g, (a) => {
+      // ?: 置換成一個英文字母
+      if (a === "?") return String.fromCharCode(randNum(97, 122));
+      // *: 置換成三～五個英文字母
+      const s = [];
+      for (let i = randNum(3, 5); i > 0; i--) {
+        s.push(randNum(97, 122));
+      }
+      return String.fromCharCode(...s);
+    });
+    if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
+      // 生成的字串不能被匹對
+      return {ok: false, line};
+    }
+  }
+  return {ok: true};
 }

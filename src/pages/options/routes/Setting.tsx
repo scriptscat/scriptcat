@@ -12,7 +12,7 @@ import Logger from "@App/app/logger/logger";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
-import { UrlMatch } from "@App/pkg/utils/match";
+import { blackListSelfCheck, UrlMatch } from "@App/pkg/utils/match";
 import { randNum } from "@App/pkg/utils/utils";
 import { extractMUP } from "@App/pkg/utils/url_matcher";
 
@@ -388,30 +388,17 @@ function Setting() {
             }}
             onBlur={(v) => {
               // 校验黑名单格式
-              const blacklist = v.target.value
+              const val = v.target.value
+              const blacklist = val
                 .split("\n")
                 .map((line) => line.trim())
                 .filter((line) => line);
-
-              const scriptMUP = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
-              const blackMatch = new UrlMatch<string>();
-              blackMatch.addRules("BK", scriptMUP);
-
-              for (const line of blacklist) {
-                const templateLine = line.replace(/[*?]/g, (a) => {
-                  if (a === "?") return String.fromCharCode(randNum(97, 122));
-                  const s = [];
-                  for (let i = randNum(3, 5); i > 0; i--) {
-                    s.push(randNum(97, 122));
-                  }
-                  return String.fromCharCode(...s);
-                });
-                if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
-                  Message.error(`${t("expression_format_error")}: ${line}`);
-                  return;
-                }
+              const ret = blackListSelfCheck(blacklist);
+              if (!ret.ok) {
+                Message.error(`${t("expression_format_error")}: ${ret.line}`);
+                return;
               }
-              systemConfig.setBlacklist(v.target.value);
+              systemConfig.setBlacklist(val);
             }}
           />
         </div>
