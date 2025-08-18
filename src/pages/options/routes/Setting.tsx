@@ -393,9 +393,9 @@ function Setting() {
                 .map((line) => line.trim())
                 .filter((line) => line);
 
-              const urlCovering = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+              const scriptMUP = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
               const blackMatch = new UrlMatch<string>();
-              blackMatch.addRules("BK", urlCovering);
+              blackMatch.addRules("BK", scriptMUP);
 
               for (const line of blacklist) {
                 const templateLine = line.replace(/[*?]/g, (a) => {

@@ -249,9 +249,9 @@ export class RuntimeService {
     // 设置黑名单match
     const blacklist = obtainBlackList(blacklistString);
 
-    const urlCovering = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
+    const scriptMUP = metaUMatchAnalyze([...(blacklist || []).map((e) => `@include ${e}`)]);
     this.blackMatch.clearRules("BK");
-    this.blackMatch.addRules("BK", urlCovering);
+    this.blackMatch.addRules("BK", scriptMUP);
   }
 
   public isUrlBlacklist(url: string) {
@@ -715,7 +715,7 @@ export class RuntimeService {
     this.scriptMatch.clearRules(item.uuid);
     this.scriptCustomizeMatch.clearRules(item.uuid);
     // 添加新的数据
-    this.scriptMatch.addRules(item.uuid, item.urlCovering);
+    this.scriptMatch.addRules(item.uuid, item.scriptMUP);
     if (item.customMUP?.length) {
       this.scriptCustomizeMatch.addRules(item.uuid, item.customMUP!);
     }
@@ -756,7 +756,7 @@ export class RuntimeService {
     const blacklistString = (await this.systemConfig.getBlacklist()) as string | undefined;
     const blacklist = obtainBlackList(blacklistString);
 
-    const urlCovering = metaUMatchAnalyze([
+    const scriptMUP = metaUMatchAnalyze([
       ...(metaMatch || []).map((e) => `@match ${e}`),
       ...(metaInclude || []).map((e) => `@include ${e}`),
       ...(metaExclude || []).map((e) => `@exclude ${e}`),
@@ -773,10 +773,10 @@ export class RuntimeService {
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
-    const excludeMatches = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE));
-    const excludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
+    const excludeMatches = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE));
+    const excludeGlobs = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
 
     const registerScript: chrome.userScripts.RegisteredUserScript = {
       id: scriptRes.uuid,
@@ -795,7 +795,7 @@ export class RuntimeService {
 
     const scriptMatchInfo = Object.assign(
       {
-        urlCovering: urlCovering,
+        scriptMUP: scriptMUP,
         customMUP: customMUP,
       },
       scriptRes

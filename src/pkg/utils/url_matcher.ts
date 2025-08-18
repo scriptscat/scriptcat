@@ -382,19 +382,19 @@ const enum MatchType {
   ALL = 2,
 };
 
-export const getApiMatchesAndGlobs = (urlCovering: URLRuleEntry[]) => {
-  const urlMatching = urlCovering.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
+export const getApiMatchesAndGlobs = (scriptMUP: URLRuleEntry[]) => {
+  const urlMatching = scriptMUP.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
   let matchAll: MatchType = MatchType.NONE;
   if (
     urlSpecificMatching.length === 0 ||
     urlSpecificMatching.length !== urlMatching.length ||
-    urlCovering.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
+    scriptMUP.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
   ) {
     matchAll = MatchType.WWW;
   }
 
-  const apiIncludeGlobs = toUniquePatternStrings(urlCovering.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
+  const apiIncludeGlobs = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   if (apiIncludeGlobs.length > 0) matchAll = 1;
 
   if (matchAll && urlSpecificMatching.length > 0) {

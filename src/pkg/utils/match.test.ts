@@ -352,44 +352,44 @@ const makeUrlMatcher = (uuid: string, matchesList: string[], excludeMatchesList:
 
 describe("getApiMatchesAndGlobs-1", () => {
   it("match1", () => {
-    const urlCovering = metaUMatchAnalyze([
+    const scriptMUP = metaUMatchAnalyze([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@match file:///mydir/myfile/001/*",
     ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["http://google.com/*", "https://google.com/*", "file:///mydir/myfile/001/*"]);
     expect(includeGlobs).toEqual([]);
   });
   it("match2", () => {
-    const urlCovering = metaUMatchAnalyze(["@include *hello*"]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const scriptMUP = metaUMatchAnalyze(["@include *hello*"]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["*://*/*"]);
     expect(includeGlobs).toEqual(["*hello*"]);
   });
 
   it("match3", () => {
-    const urlCovering = metaUMatchAnalyze([
+    const scriptMUP = metaUMatchAnalyze([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@include *hello*",
     ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["*://*/*"]);
     expect(includeGlobs).toEqual(["*hello*", "http://google.com/*", "https://google.com/*"]);
   });
 
   it("match4", () => {
-    const urlCovering = metaUMatchAnalyze([
+    const scriptMUP = metaUMatchAnalyze([
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@match file:///mydir/myfile/001/*",
       "@include *hello*",
     ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["<all_urls>"]);
     expect(includeGlobs).toEqual([
@@ -403,7 +403,7 @@ describe("getApiMatchesAndGlobs-1", () => {
 
 describe("getApiMatchesAndGlobs-2", () => {
   it("match1", () => {
-    const urlCovering = metaUMatchAnalyze(
+    const scriptMUP = metaUMatchAnalyze(
       `
 // @include	    *://steamcommunity.com/*
 // @include	    *://meta.appinn.net/*
@@ -457,7 +457,7 @@ describe("getApiMatchesAndGlobs-2", () => {
         .trim()
         .split(/[\r\n]+/)
     );
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
 
     expect(matches).toEqual(["*://*/*"]);
     expect(includeGlobs).toEqual([
@@ -549,9 +549,9 @@ describe("UrlMatch-exclusion", () => {
 
 describe("UrlMatch-Issue629", () => {
   it("match-1", () => {
-    const urlCovering = metaUMatchAnalyze(["@include     http*://*example.com/*"]);
+    const scriptMUP = metaUMatchAnalyze(["@include     http*://*example.com/*"]);
     const um = new UrlMatch<string>();
-    um.addRules("ok1", urlCovering);
+    um.addRules("ok1", scriptMUP);
     expect(um.urlMatch("https://www.example.com/cn/?v=example")).toEqual(["ok1"]);
     expect(um.urlMatch("https://example.com/")).toEqual(["ok1"]);
   });

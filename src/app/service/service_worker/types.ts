@@ -6,7 +6,7 @@ export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResource {
-  urlCovering: URLRuleEntry[];
+  scriptMUP: URLRuleEntry[];
   customMUP: URLRuleEntry[] | null;
 }
 
