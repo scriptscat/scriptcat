@@ -55,7 +55,7 @@ describe("UrlMatch-internal1", () => {
   url.addMatch("*://**/*", "ok1");
   url.addMatch("*://*/*", "ok2");
   url.addInclude("*gro?.com*", "ok3");
-  it("match1", () => {
+  it("match & glob", () => {
     expect(url.urlMatch("https://www.google.com/")).toEqual(["ok1", "ok2"]);
     expect(url.urlMatch("https://example.org/foo/bar.html")).toEqual(["ok1", "ok2"]);
     expect(url.urlMatch("https://grok.com/")).toEqual(["ok1", "ok2", "ok3"]);
@@ -86,6 +86,32 @@ describe("UrlMatch-internal1", () => {
         "https://www.google.com/recaptcha/api2/anchor?ar=2&k=abc&co=def&hl=en&v=ghj&size=invisible&anchor-ms=20000&execute-ms=15000&cb=we3"
       )
     ).toEqual([]);
+  });
+});
+
+describe("UrlMatch-internal2", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*gro???***???.com*", "ok1");
+  it("glob-test-1", () => {
+    expect(url.urlMatch("https://www.google.com/31grokrr000abc.com")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.google.com/31grokrr0abc.com")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.google.com/31grokrrabc.com")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.google.com/31grokrabc.com")).toEqual([]);
+    expect(url.urlMatch("https://www.31grokrr000abc.com/")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.31grokrr0abc.com/")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.31grokrrabc.com/")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.31grokrabc.com/")).toEqual([]);
+  });
+
+  url.addInclude("*hel?o?.?om*", "ok2");
+  it("glob-test-2", () => {
+    expect(url.urlMatch("https://www.hello.com")).toEqual([]);
+    expect(url.urlMatch("https://www.hello1.com")).toEqual(["ok2"]);
+    expect(url.urlMatch("https://www.hello12.com")).toEqual([]);
+    expect(url.urlMatch("https://www.helxlo1.com")).toEqual([]);
+    expect(url.urlMatch("https://www.hello1.ccom")).toEqual([]);
+    expect(url.urlMatch("https://www.hello1.eomx")).toEqual(["ok2"]);
+    expect(url.urlMatch("https://www.helo1.eomx")).toEqual([]);
   });
 });
 

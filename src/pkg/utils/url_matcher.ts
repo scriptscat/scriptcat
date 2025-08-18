@@ -57,7 +57,8 @@ export function checkUrlMatch(s: string) {
 
 const globSplit = (text: string) => {
   text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价於 glob **
-  text = text.replace(/\*\?+/g, "*"); // 暂不支持 "*?" (需要backward处理)
+  // text = text.replace(/\*\?+/g, "*"); // 暂不支持 "*?" (需要backward处理)
+  text = text.replace(/\*(\?+)/g, "$1*");
   return text.split(/([*?])/g);
 };
 
