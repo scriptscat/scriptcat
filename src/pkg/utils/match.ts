@@ -61,7 +61,7 @@ export class UrlMatch<T> {
   }
 
   // 測試用
-  public add(rulePattern: string, uuid: T) {
+  public addInclude(rulePattern: string, uuid: T) {
     // @include xxxxx
     const rules = metaUMatchAnalyze([rulePattern].map((e) => `@include ${e}`));
     this.addRules(uuid, rules);
