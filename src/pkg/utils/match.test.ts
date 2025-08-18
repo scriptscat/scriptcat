@@ -355,11 +355,11 @@ describe("getApiMatchesAndGlobs-1", () => {
     const urlCovering = metaUMatchAnalyze([
       "@match http://google.com/*",
       "@match https://google.com/*",
-      "@match file://mydir/myfile/001/*",
+      "@match file:///mydir/myfile/001/*",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(urlCovering);
 
-    expect(matches).toEqual(["http://google.com/*", "https://google.com/*", "file://mydir/myfile/001/*"]);
+    expect(matches).toEqual(["http://google.com/*", "https://google.com/*", "file:///mydir/myfile/001/*"]);
     expect(includeGlobs).toEqual([]);
   });
   it("match2", () => {
