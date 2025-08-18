@@ -6,6 +6,7 @@ export type URLRuleEntry = {
 };
 
 // 检查@match @include @exclude 是否按照MV3的 match pattern
+// export 只用於测试，不要在外部直接引用 checkUrlMatch
 export function checkUrlMatch(s: string) {
   s = s.trim();
 
@@ -30,9 +31,9 @@ export function checkUrlMatch(s: string) {
         }
         if (!host.includes("*")) {
           let pathPattern = s.substring(idx2 + 1);
-          if (pathPattern.includes("**")) {
-            pathPattern = pathPattern.replace(/\*{2,}/g, "*");
-          }
+          // if (pathPattern.includes("**")) {
+          //   pathPattern = pathPattern.replace(/\*{2,}/g, "*");
+          // }
           extMatch = [scheme, host, pathPattern];
         }
       }
@@ -55,6 +56,7 @@ export const metaUMatchAnalyze = (lines: string[]): URLRuleEntry[] => {
     const [_, tag, content0] = mt;
     let content = content0;
     if (content.charAt(0) !== "/") {
+      // glob pattern & match pattern
       if (content.includes("**")) {
         content = content.replace("**", "*"); // glob * 修正
       }

@@ -35,7 +35,9 @@ describe("checkUrlMatch-1", () => {
     expect(checkUrlMatch("https:///*")).toBeNull();
     expect(checkUrlMatch("file:///*")).toEqual(["file", "", "*"]);
     expect(checkUrlMatch("*")).toBeNull();
-    expect(checkUrlMatch("*://*.example.com/*/**")).toEqual(["*", ".example.com", "*/*"]);
+    expect(checkUrlMatch("*://*.example.com/*/*")).toEqual(["*", ".example.com", "*/*"]);
+    expect(checkUrlMatch("*://*.example.com/*/*/*")).toEqual(["*", ".example.com", "*/*/*"]);
+    // expect(checkUrlMatch("*://*.example.com/*/**")).toEqual(["*", ".example.com", "*/*"]); // 实际操作pattern已被修正，不会有 **
     expect(checkUrlMatch("*://*/query?a=*")).toEqual(["*", "", "query?a=*"]);
   });
 
@@ -224,11 +226,11 @@ describe("UrlMatch-special", () => {
   });
 
   // 不符合TM
-  url.add("https://bbs.tampermonkey.net.cn", "ok2"); // 不會匹配任何網址 (@include glob *)
+  url.add("https://bbs.tampermonkey.net.cn", "ok2"); // 不会匹配任何网址 (@include glob *)
   it("match2", () => {
-    // expect(url.match("https://bbs.tampermonkey.net.cn")).toEqual(["ok2"]); // 不跟隨TM // 不適用。href必定包含/
-    expect(url.urlMatch("https://bbs.tampermonkey.net.cn/")).toEqual([]); // 跟隨TM
-    expect(url.urlMatch("https://bbs.tampermonkey.net.cn/foo/bar.html")).toEqual([]); // 跟隨TM
+    // expect(url.match("https://bbs.tampermonkey.net.cn")).toEqual(["ok2"]); // 不跟随TM // 不适用。href必定包含/
+    expect(url.urlMatch("https://bbs.tampermonkey.net.cn/")).toEqual([]); // 跟随TM
+    expect(url.urlMatch("https://bbs.tampermonkey.net.cn/foo/bar.html")).toEqual([]); // 跟随TM
   });
   it("http://api.*.example.com/*", () => {
     const url = new UrlMatch<string>();
@@ -273,7 +275,7 @@ describe("UrlMatch-match1", () => {
   url.add("http://test.list.ggnb.top/search", "ok1"); // @match
   it("match1", () => {
     expect(url.urlMatch("http://test.list.ggnb.top/search")).toEqual(["ok1"]);
-    expect(url.urlMatch("http://test.list.ggnb.top/search?")).toEqual(["ok1"]); // 跟隨TM
+    expect(url.urlMatch("http://test.list.ggnb.top/search?")).toEqual(["ok1"]); // 跟随TM
     expect(url.urlMatch("http://test.list.ggnb.top/search?foo=bar")).toEqual([]);
   });
 
@@ -299,7 +301,7 @@ describe("UrlMatch-match3", () => {
   url.add("https://blank.page/index.html?", "ok1"); // @match
   it("match2", () => {
     expect(url.urlMatch("https://blank.page/index.html")).toEqual(["ok1"]);
-    expect(url.urlMatch("https://blank.page/index.html?")).toEqual(["ok1"]); // 不跟隨TM
+    expect(url.urlMatch("https://blank.page/index.html?")).toEqual(["ok1"]); // 不跟随TM
     expect(url.urlMatch("https://blank.page/index.html?a")).toEqual([]);
   });
 });
@@ -309,7 +311,7 @@ describe("UrlMatch-match4", () => {
   // match pattern 不接受port
   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns
   // https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns?hl=en
-  // 改為 glob * 處理
+  // 改为 glob * 处理
   url.add("http://test.list.ggnb.top:80/search", "ok1"); // @include (glob *)
   url.add("http://test.list.ggnb.top*/search", "ok2"); // @include (glob *)
   url.add("http://test.list.ggnb.top:*/search", "ok3"); // @include (glob *)
