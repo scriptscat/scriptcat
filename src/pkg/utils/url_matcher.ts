@@ -68,7 +68,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
     if (!mt) continue;
     const [_, tag0, content0] = mt;
-    let tag = tag0;
+    const tag = tag0;
     let content = content0;
     if (content.charAt(0) !== "/") {
       if (tag === "match") {
@@ -81,11 +81,9 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
           // * 会对应成 *://*/
           content = "*://*/";
         } else {
-
           m = /^(\*|[-a-z]+|http\*)(:\/\/\*?[^*/:]*)(:[^*/]*)?/.exec(content);
           // 若无法匹对，则表示该表达式应为错误match pattern格式，忽略处理。
           if (m) {
-
             // 特殊处理：自动除去 port (TM的行为是以下完全等价)
             // https://www.google.com/*
             // https://www.google.com:/*
@@ -111,14 +109,14 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
             content = `${m[1]}${m[2]}${path}`;
           }
         }
-
       } else {
         // @include, @exclude
         // 处理 GM 的 .tld 问题 (Magic TLD)
         // 转化为 glob pattern .??*/
         // 见 GM 的 magic tld 说明 - https://wiki.greasespot.net/Magic_TLD
         const tldIdx = content.indexOf(".tld/");
-        if (tldIdx > 0) {// 最短匹配*.tld/
+        if (tldIdx > 0) {
+          // 最短匹配*.tld/
           const left = content.substring(0, tldIdx);
           // 斜线不能多於2个, 例如 https://www.hello.com/abc.tld/123
           if (left.split("/").length <= 3) {
