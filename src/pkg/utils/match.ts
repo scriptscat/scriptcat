@@ -81,8 +81,10 @@ export class UrlMatch<T> {
   }
 
   public setupSorter(sorter: Partial<Record<string, number>> | null) {
-    this.cacheMap.clear();
-    this.sorter = sorter;
+    if (this.sorter !== sorter) {
+      this.cacheMap.clear();
+      this.sorter = sorter;
+    }
   }
 }
 

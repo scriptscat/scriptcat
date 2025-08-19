@@ -178,6 +178,7 @@ export class RuntimeService {
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
+      this.scriptCustomizeMatch.setupSorter(uuidSort);
       // 更新缓存
       const scriptMatchCache = await cacheInstance.get<{ [key: string]: ScriptMatchInfo }>("scriptMatch");
       if (!scriptMatchCache) {
@@ -186,11 +187,7 @@ export class RuntimeService {
       }
       const keys = Object.keys(scriptMatchCache);
       for (const uuid of keys) {
-        // if (uuid in uuidSort) {
         scriptMatchCache[uuid].sort = uuidSort[uuid];
-        // } else {
-        //   scriptMatchCache[uuid].sort = 0;
-        // }
       }
       cacheInstance.set("scriptMatch", scriptMatchCache);
     });
