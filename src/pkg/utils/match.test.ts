@@ -849,10 +849,61 @@ describe("UrlInclude-2", () => {
   });
 });
 
-describe("(SC独自) match *", () => {
+// 与 TM 一致
+describe("@match * (root only)", () => {
   const url = new UrlMatch<string>();
   url.addMatch("*", "ok1");
   it("ok1", () => {
     expect(url.urlMatch("http://www.baidu.com/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("http://www.baidu.com/search")).toEqual([]);
+    expect(url.urlMatch("http://my.apple.com.cn/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("http://my.apple.com.cn/home?page=1")).toEqual([]);
+    expect(url.urlMatch("https://www.baidu.com/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://www.baidu.com/search")).toEqual([]);
+    expect(url.urlMatch("https://my.apple.com.cn/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://my.apple.com.cn/home?page=1")).toEqual([]);
+    expect(url.urlMatch("https://www.baidu.com:123/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://www.baidu.com:456/search")).toEqual([]);
+    expect(url.urlMatch("https://my.apple.com.cn:7890/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://my.apple.com.cn:36901/home?page=1")).toEqual([]);
+    expect(url.urlMatch("http://109.70.80.1/")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/?")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?a")).toEqual([]);
+    expect(url.urlMatch("http://109.70.80.1:40/?a")).toEqual([]);
+    expect(url.urlMatch("http://109.70.80.1/#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/?#page")).toEqual(["ok1"]);
+  });
+});
+
+describe("@include * (all)", () => {
+  const url = new UrlMatch<string>();
+  url.addInclude("*", "ok1");
+  it("ok1", () => {
+    expect(url.urlMatch("http://www.baidu.com/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("http://www.baidu.com/search")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://my.apple.com.cn/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("http://my.apple.com.cn/home?page=1")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.baidu.com/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://www.baidu.com/search")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://my.apple.com.cn/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://my.apple.com.cn/home?page=1")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://www.baidu.com:123/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://www.baidu.com:456/search")).toEqual(["ok1"]);
+    expect(url.urlMatch("https://my.apple.com.cn:7890/")).toEqual(["ok1"]); // url参数永远有/
+    expect(url.urlMatch("https://my.apple.com.cn:36901/home?page=1")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/?")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?a")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/?a")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1/?#page")).toEqual(["ok1"]);
+    expect(url.urlMatch("http://109.70.80.1:40/?#page")).toEqual(["ok1"]);
   });
 });

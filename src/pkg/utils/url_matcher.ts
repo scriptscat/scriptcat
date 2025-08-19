@@ -75,7 +75,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
         let m: any;
         if (content === "*") {
           // 特殊处理 @match *
-          content = "*://*/*";
+          content = "*://*/";
         } else if (/^(\*|[-a-z]+):\/\/\*?[^*/]*$/.test(content)) {
           // 特殊处理 @match https://www.google.com
           try {
