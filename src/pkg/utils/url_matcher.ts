@@ -109,6 +109,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       if (tag !== "match" && content.includes(".tld/")) {
         // 处理 GM 的 .tld 问题
         // 转化为 glob pattern .??*/
+        // 见 GM 的 magic tld 说明 - https://wiki.greasespot.net/Magic_TLD
         content = content.replace(".tld/", ".??*/");
       }
     }
