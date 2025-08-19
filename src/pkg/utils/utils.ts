@@ -120,12 +120,8 @@ export async function openInCurrentTab(url: string) {
   // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
   delete createProperties.openerTabId;
   delete createProperties.windowId;
-  try {
-    await chrome.tabs.create(createProperties);
-    return;
-  } catch {
-    // do nothing
-  }
+  await chrome.tabs.create(createProperties);
+  return;
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
