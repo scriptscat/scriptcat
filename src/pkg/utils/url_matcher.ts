@@ -18,7 +18,9 @@ export type URLRuleEntry = {
   patternString: string;
 };
 
-// 检查@match @include @exclude 是否按照MV3的 match pattern
+const URL_MATCH_CACHE_MAX_SIZE = 512; // 用来做简单缓存，512 算是足够大小应付需要。
+
+// 检查 @match @include @exclude 是否按照MV3的 match pattern
 // export 只用於测试，不要在外部直接引用 checkUrlMatch
 export function checkUrlMatch(s: string) {
   s = s.trim();
@@ -44,9 +46,6 @@ export function checkUrlMatch(s: string) {
         }
         if (!host.includes("*")) {
           const pathPattern = s.substring(idx2 + 1);
-          // if (pathPattern.includes("**")) {
-          //   pathPattern = pathPattern.replace(/\*{2,}/g, "*");
-          // }
           extMatch = [scheme, host, pathPattern];
         }
       }
@@ -57,8 +56,7 @@ export function checkUrlMatch(s: string) {
 
 const globSplit = (text: string) => {
   text = text.replace(/\*{2,}/g, "*"); // api定义的 glob * 是等价於 glob **
-  // text = text.replace(/\*\?+/g, "*"); // 暂不支持 "*?" (需要backward处理)
-  text = text.replace(/\*(\?+)/g, "$1*"); // "*????" 改成 "????*"
+  text = text.replace(/\*(\?+)/g, "$1*"); // "*????" 改成 "????*"，避免 backward 处理
   return text.split(/([*?])/g);
 };
 
@@ -75,7 +73,6 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
         // @match
         let m: any;
 
-        // 第一层处理
         if (content === "*") {
           // 特殊处理 @match *
           // * 会对应成 *://*/
@@ -93,8 +90,9 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
             // 因此SC的处理只需要去除 :80 的部份，即可使用原生 match pattern
 
             // 特殊处理 https http
-            if (m[1] === "http*") {
-              m[1] = "*";
+            let scheme = m[1];
+            if (scheme === "http*") {
+              scheme = "*";
             }
 
             let path = content.substring(m[0].length);
@@ -106,7 +104,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
               path = path.substring(1);
             }
 
-            content = `${m[1]}${m[2]}${path}`;
+            content = `${scheme}${m[2]}${path}`;
           }
         }
       } else {
@@ -174,11 +172,13 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
 
     const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
     if (rch) {
-      // re pattern
+      // re pattern 正则表达式
       rules.push({
         ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
-        ruleContent: new RegExp(rch[1], rch[2] || "i"), // case-insensitive
-        // details refer to https://github.com/violentmonkey/violentmonkey/issues/1044#issuecomment-674652499
+        ruleContent: new RegExp(rch[1], rch[2] || "i"), // case-insensitive 不区分大小写
+        // 默认加上 "i"（不区分大小写），除非用户提供标志
+        // 这样做是为了与其他脚本管理器（如 Tampermonkey）保持一致，符合常见的 URL 匹配预期
+        // 参考: https://github.com/violentmonkey/violentmonkey/issues/1044#issuecomment-674652499
         ruleTag: tag,
         patternString: content,
       });
@@ -226,7 +226,7 @@ export const isUrlMatch = (url: string, rule: URLRuleEntry) => {
     default:
       throw new Error("invalid ruleType");
   }
-  if (urlMatchCache.size > 512) urlMatchCache.clear();
+  if (urlMatchCache.size > URL_MATCH_CACHE_MAX_SIZE) urlMatchCache.clear();
   urlMatchCache.set(cacheKey, ret);
   return ret;
 };
@@ -246,8 +246,8 @@ function isUrlMatchPattern(s: string, m: string[]) {
       if (`${url.hostname}` !== `${m[1]}`) return false;
     }
   }
-  const path = `${url.pathname}${url.search || "?"}`.substring(1);
-  const arr = m[2].split("*");
+  const path = `${url.pathname}${url.search || "?"}`;
+  const arr = `/${m[2]}`.split("*");
   let idx = 0;
   let k = 0;
   const l = arr.length;
@@ -270,26 +270,28 @@ function isUrlMatchPattern(s: string, m: string[]) {
     idx = jdx + arr[k].length;
     k++;
   }
-  return idx === path.length || (path.endsWith("?") && idx === path.length - 1);
+  // 当路径以单独的 "?" 结尾时也算匹配（即空查询字符串）。
+  // 用于处理类似 "http://example.com/path?" 这样的 URL，
+  // 确保在其余部分匹配时，这类 URL 也会被认为是匹配。
+  return idx === path.length || (idx === path.length - 1 && path[idx] === "?");
 }
 
 function isUrlMatchGlob(s: string, gs: string[]) {
-  const idx1 = s.indexOf("#");
-  if (idx1 >= 0) {
-    const idx2 = s.indexOf("#", idx1 + 1);
-    if (idx2 > 0) {
+  let hashPos = s.indexOf("#");
+  if (hashPos >= 0) {
+    const hashPos2 = s.indexOf("#", hashPos + 1);
+    if (hashPos2 > 0) {
       try {
         const url = new URL(s);
         if (!s.endsWith(url.hash)) {
           return false; // URL错误，无法匹对
         }
-        s = s.substring(0, s.length - url.hash.length);
+        hashPos = s.length - url.hash.length;
       } catch {
         return false; // URL错误，无法匹对
       }
-    } else {
-      s = s.substring(0, idx1);
     }
+    s = s.substring(0, hashPos);
   }
   if (!s.length) {
     // URL错误，无法匹对
@@ -318,7 +320,7 @@ function isUrlMatchGlob(s: string, gs: string[]) {
         idx = path.length;
         break;
       }
-      if (!next) throw new Error("invalid glob");
+      if (!next) throw new Error("invalid or unsupported glob"); // 不支持 ** 及 *? (已事先处理，故不会报错)
       const jdx = path.indexOf(next, idx);
       if (jdx < 0) return false;
       matches[k] = path.substring(idx, jdx);
@@ -333,7 +335,10 @@ function isUrlMatchGlob(s: string, gs: string[]) {
     k++;
     j += 2;
   }
-  return idx === path.length || (path.endsWith("?") && idx === path.length - 1);
+  // 当路径以单独的 "?" 结尾时也算匹配（即空查询字符串）。
+  // 用于处理类似 "http://example.com/path?" 这样的 URL，
+  // 确保在其余部分匹配时，这类 URL 也会被认为是匹配。
+  return idx === path.length || (idx === path.length - 1 && path[idx] === "?");
 }
 
 function isUrlMatchRegEx(s: string, re: RegExp) {

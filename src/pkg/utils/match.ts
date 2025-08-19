@@ -40,17 +40,15 @@ export class UrlMatch<T> {
     }
     const res = [...s];
     const sorter = this.sorter;
-    if (sorter) {
-      if (sorter !== null && typeof sorter === "object" && typeof res[0] === "string") {
-        (res as string[]).sort((a, b) => {
-          const p = sorter[a];
-          const q = sorter[b];
-          if (p! > -1 && q! > -1) {
-            return p! - q!;
-          }
-          return a.localeCompare(b);
-        });
-      }
+    if (sorter !== null && typeof sorter === "object" && typeof res[0] === "string") {
+      (res as string[]).sort((a, b) => {
+        const p = sorter[a];
+        const q = sorter[b];
+        if (p! > -1 && q! > -1) {
+          return p! - q!;
+        }
+        return a.localeCompare(b);
+      });
     }
     cacheMap.set(url, res);
     return res;
@@ -61,28 +59,28 @@ export class UrlMatch<T> {
     this.rulesMap.delete(uuid);
   }
 
-  // 測試用
+  // 测试用
   public addInclude(rulePattern: string, uuid: T) {
     // @include xxxxx
     const rules = extractUrlPatterns([rulePattern].map((e) => `@include ${e}`));
     this.addRules(uuid, rules);
   }
 
-  // 測試用
+  // 测试用
   public addMatch(rulePattern: string, uuid: T) {
     // @match xxxxx
     const rules = extractUrlPatterns([rulePattern].map((e) => `@match ${e}`));
     this.addRules(uuid, rules);
   }
 
-  // 測試用
+  // 测试用
   public exclude(rulePattern: string, uuid: T) {
     // @exclude xxxxx
     const rules = extractUrlPatterns([rulePattern].map((e) => `@exclude ${e}`));
     this.addRules(uuid, rules);
   }
 
-  public setupSorter(sorter: Partial<Record<string, number>>) {
+  public setupSorter(sorter: Partial<Record<string, number>> | null) {
     this.cacheMap.clear();
     this.sorter = sorter;
   }
@@ -97,9 +95,9 @@ export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
 
   for (const line of blacklist) {
     const templateLine = line.replace(/[*?]/g, (a) => {
-      // ?: 置換成一個英文字母
+      // ?: 置换成１个英文字母
       if (a === "?") return String.fromCharCode(randNum(97, 122));
-      // *: 置換成三～五個英文字母
+      // *: 置换成３～５个英文字母
       const s = [];
       for (let i = randNum(3, 5); i > 0; i--) {
         s.push(randNum(97, 122));
@@ -107,9 +105,12 @@ export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
       return String.fromCharCode(...s);
     });
     if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
-      // 生成的字串不能被匹對
+      // 无效的复合规则
+      // 生成的字串不能被匹对、例如正则表达式
       return { ok: false, line };
     }
   }
+  // 有效的复合规则 
+  // 只包含 match pattern 及 glob pattern
   return { ok: true };
 };
