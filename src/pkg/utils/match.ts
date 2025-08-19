@@ -1,4 +1,4 @@
-import { isUrlMatch, extractMUP, RuleTypeBit, type URLRuleEntry } from "./url_matcher";
+import { isUrlMatch, extractUrlPatterns, RuleTypeBit, type URLRuleEntry } from "./url_matcher";
 import { randNum } from "./utils";
 
 export class UrlMatch<T> {
@@ -64,21 +64,21 @@ export class UrlMatch<T> {
   // 測試用
   public addInclude(rulePattern: string, uuid: T) {
     // @include xxxxx
-    const rules = extractMUP([rulePattern].map((e) => `@include ${e}`));
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@include ${e}`));
     this.addRules(uuid, rules);
   }
 
   // 測試用
   public addMatch(rulePattern: string, uuid: T) {
     // @match xxxxx
-    const rules = extractMUP([rulePattern].map((e) => `@match ${e}`));
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@match ${e}`));
     this.addRules(uuid, rules);
   }
 
   // 測試用
   public exclude(rulePattern: string, uuid: T) {
     // @exclude xxxxx
-    const rules = extractMUP([rulePattern].map((e) => `@exclude ${e}`));
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@exclude ${e}`));
     this.addRules(uuid, rules);
   }
 
@@ -91,9 +91,9 @@ export class UrlMatch<T> {
 export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
   blacklist = blacklist || [];
 
-  const scriptMUP = extractMUP([...blacklist.map((e) => `@include ${e}`)]);
+  const scriptUrlPatterns = extractUrlPatterns([...blacklist.map((e) => `@include ${e}`)]);
   const blackMatch = new UrlMatch<string>();
-  blackMatch.addRules("BK", scriptMUP);
+  blackMatch.addRules("BK", scriptUrlPatterns);
 
   for (const line of blacklist) {
     const templateLine = line.replace(/[*?]/g, (a) => {

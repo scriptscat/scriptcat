@@ -62,7 +62,7 @@ const globSplit = (text: string) => {
   return text.split(/([*?])/g);
 };
 
-export const extractMUP = (lines: string[]): URLRuleEntry[] => {
+export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
   const rules = [];
   for (const line of lines) {
     const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
@@ -351,19 +351,19 @@ const enum MatchType {
   ALL = 2,
 }
 
-export const getApiMatchesAndGlobs = (scriptMUP: URLRuleEntry[]) => {
-  const urlMatching = scriptMUP.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
+export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
+  const urlMatching = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
   let matchAll: MatchType = MatchType.NONE;
   if (
     urlSpecificMatching.length === 0 ||
     urlSpecificMatching.length !== urlMatching.length ||
-    scriptMUP.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
+    scriptUrlPatterns.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
   ) {
     matchAll = MatchType.WWW;
   }
 
-  const apiIncludeGlobs = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
+  const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   if (apiIncludeGlobs.length > 0) matchAll = 1;
 
   if (matchAll && urlSpecificMatching.length > 0) {

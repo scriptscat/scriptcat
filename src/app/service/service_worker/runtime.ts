@@ -29,7 +29,7 @@ import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import {
   getApiMatchesAndGlobs,
-  extractMUP,
+  extractUrlPatterns,
   RuleType,
   toUniquePatternStrings,
   type URLRuleEntry,
@@ -249,9 +249,9 @@ export class RuntimeService {
     // 设置黑名单match
     const blacklist = obtainBlackList(blacklistString);
 
-    const scriptMUP = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
+    const scriptUrlPatterns = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
     this.blackMatch.clearRules("BK");
-    this.blackMatch.addRules("BK", scriptMUP);
+    this.blackMatch.addRules("BK", scriptUrlPatterns);
   }
 
   public isUrlBlacklist(url: string) {
@@ -592,7 +592,7 @@ export class RuntimeService {
       const excludeGlobs = [];
       if (blacklistStr) {
         const blacklist = obtainBlackList(blacklistStr);
-        const rules = extractMUP([...(blacklist || []).map((e) => `@include ${e}`)]);
+        const rules = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
         for (const rule of rules) {
           if (rule.ruleType === RuleType.MATCH_INCLUDE) {
             // matches -> excludeMatches
@@ -715,9 +715,9 @@ export class RuntimeService {
     this.scriptMatch.clearRules(item.uuid);
     this.scriptCustomizeMatch.clearRules(item.uuid);
     // 添加新的数据
-    this.scriptMatch.addRules(item.uuid, item.scriptMUP);
-    if (item.customMUP?.length) {
-      this.scriptCustomizeMatch.addRules(item.uuid, item.customMUP!);
+    this.scriptMatch.addRules(item.uuid, item.scriptUrlPatterns);
+    if (item.customUrlPatterns?.length) {
+      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlPatterns!);
     }
   }
 
@@ -756,27 +756,29 @@ export class RuntimeService {
     const blacklistString = (await this.systemConfig.getBlacklist()) as string | undefined;
     const blacklist = obtainBlackList(blacklistString);
 
-    const scriptMUP = extractMUP([
+    const scriptUrlPatterns = extractUrlPatterns([
       ...(metaMatch || []).map((e) => `@match ${e}`),
       ...(metaInclude || []).map((e) => `@include ${e}`),
       ...(metaExclude || []).map((e) => `@exclude ${e}`),
       ...(blacklist || []).map((e) => `@exclude ${e}`),
     ]);
 
-    let customMUP: URLRuleEntry[] | null = null;
+    let customUrlPatterns: URLRuleEntry[] | null = null;
 
     // 自定义排除
     if (script.selfMetadata && script.selfMetadata.exclude) {
-      customMUP = extractMUP([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
-      if (customMUP.length === 0) customMUP = null;
+      customUrlPatterns = extractUrlPatterns([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
+      if (customUrlPatterns.length === 0) customUrlPatterns = null;
     }
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMUP);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
 
-    const excludeMatches = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE));
-    const excludeGlobs = toUniquePatternStrings(scriptMUP.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
+    const excludeMatches = toUniquePatternStrings(
+      scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
+    );
+    const excludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
 
     const registerScript: chrome.userScripts.RegisteredUserScript = {
       id: scriptRes.uuid,
@@ -795,8 +797,8 @@ export class RuntimeService {
 
     const scriptMatchInfo = Object.assign(
       {
-        scriptMUP: scriptMUP,
-        customMUP: customMUP,
+        scriptUrlPatterns: scriptUrlPatterns,
+        customUrlPatterns: customUrlPatterns,
       },
       scriptRes
     ) as ScriptMatchInfo;

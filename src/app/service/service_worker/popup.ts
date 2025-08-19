@@ -161,7 +161,7 @@ export class PopupService {
       runNum: script.type === SCRIPT_TYPE_NORMAL ? 0 : script.runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0,
       runNumByIframe: 0,
       menus: [],
-      customMUP: (script as ScriptMatchInfo).customMUP || null,
+      customUrlPatterns: (script as ScriptMatchInfo).customUrlPatterns || null,
     };
   }
 
@@ -182,7 +182,7 @@ export class PopupService {
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
-        run.customMUP = script.customMUP || run.customMUP;
+        run.customUrlPatterns = script.customUrlPatterns || run.customUrlPatterns;
         run.hasUserConfig = !!script.config;
       } else {
         run = this.scriptToMenu(script);

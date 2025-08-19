@@ -34,7 +34,7 @@ import { isUrlMatch, RuleTypeBit } from "@App/pkg/utils/url_matcher";
 const CollapseItem = Collapse.Item;
 
 function isExclude(script: ScriptMenu, url: URL) {
-  const rules = script.customMUP;
+  const rules = script.customUrlPatterns;
   const href = url.href;
   if (!rules) {
     return false;
