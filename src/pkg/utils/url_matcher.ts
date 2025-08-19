@@ -80,39 +80,38 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
           // 特殊处理 @match *
           // * 会对应成 *://*/
           content = "*://*/";
-        } else if (/^(\*|[-a-z]+):\/\/\*?[^*/]*$/.test(content)) {
-          // 特殊处理 @match https://www.google.com
-          // 网域的星号以外，没有其他星号的话，会进行URL分析
-          // root网址无斜线自动补上，同时去除port
-          try {
-            const url = new URL(content);
-            content = `${url.protocol}//${url.hostname}${url.pathname}`;
-          } catch {
-            // do nothing
+        } else {
+
+          m = /^(\*|[-a-z]+|http\*)(:\/\/\*?[^*/:]*)(:[^*/]*)?/.exec(content);
+          // 若无法匹对，则表示该表达式应为错误match pattern格式，忽略处理。
+          if (m) {
+
+            // 特殊处理：自动除去 port (TM的行为是以下完全等价)
+            // https://www.google.com/*
+            // https://www.google.com:/*
+            // https://www.google.com:80/*
+            // https://www.google.com:*/*
+            // 所有port都会被视作匹配 (80, 443, ...)
+            // 因此SC的处理只需要去除 :80 的部份，即可使用原生 match pattern
+
+            // 特殊处理 https http
+            if (m[1] === "http*") {
+              m[1] = "*";
+            }
+
+            let path = content.substring(m[0].length);
+            // 特殊处理: 没有path的话，自动补斜线，即可使用原生 match pattern
+            // 特殊处理: path的斜线前有*，TM视之为port的一部份，会自动去除
+            if (!path || path === "*") {
+              path = "/";
+            } else if (path.startsWith("*/")) {
+              path = path.substring(1);
+            }
+
+            content = `${m[1]}${m[2]}${path}`;
           }
-        } else if ((m = /^((\*|[-a-z]+):\/\/\*?[^*/:]*):(\*+|\*?[^*/:]+\*?)/.exec(content))) {
-          // 特殊处理 @match https://www.google.com:12345 （注：上一个If条件已处理）
-          // 特殊处理 @match https://www.google.com:12345/
-          // 特殊处理 @match https://www.google.com:12345/*
-          // 特殊处理 @match https://scriptcat.org:*/zh-CN/search
-          // 去除port
-          content = `${content.substring(0, m[1].length)}${content.substring(m[0].length)}`;
         }
 
-        // 第二层处理
-        if (/^(\*|[-a-z]+):\/\/\*?[^*/]+\*/.test(content)) {
-          // 特殊处理 @match https://www.google.*/*
-          // 特殊处理 @match https://www.google*.*/*
-          // 特殊处理 @match https://www.google*/*
-          // 特殊处理 @match https://www.google*.com/*
-          // 油猴的设计？ 只在VM有？
-          tag = "include";
-        }
-        if (tag === "match" && content.startsWith("http*://")) {
-          // 特殊处理 https http
-          // 若最终还是以 @match 处理，则把 http*:// 改成 *://
-          content = `*://${content.substring(8)}`;
-        }
       } else {
         // @include, @exclude
         // 处理 GM 的 .tld 问题 (Magic TLD)

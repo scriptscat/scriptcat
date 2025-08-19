@@ -631,7 +631,7 @@ describe("UrlMatch-port1 (match)", () => {
 describe("UrlMatch-port2 (match)", () => {
   const url = new UrlMatch<string>();
   url.addMatch("https://scriptcat.org:443/zh-CN/search", "ok1"); // 自动修正为 @match https://scriptcat.org/zh-CN/search
-  url.addMatch("https://scriptcat.org*/zh-CN/search", "ok2"); // 自动修正为 @include https://scriptcat.org*/zh-CN/search
+  url.addMatch("https://scriptcat.org*/zh-CN/search", "ok2"); // 自动修正为 @match https://scriptcat.org/zh-CN/search
   url.addMatch("https://scriptcat.org:*/zh-CN/search", "ok3"); // 自动修正为 @match https://scriptcat.org/zh-CN/search
   url.addMatch("http://localhost:3000/", "ok4"); // 自动修正为 @match http://localhost/
   it("match1", () => {
@@ -783,7 +783,6 @@ describe("UrlInclude-1", () => {
     expect(url.urlMatch("https://www.sub.test-tld.dk/")).toEqual([]); // url参数永远有/
   });
 
-
   it("tld 顶域测试 (include only - 2)", () => {
     url.clearRules("ok9");
     url.clearRules("ok9x");
@@ -907,8 +906,8 @@ describe("UrlInclude-2", () => {
     url.addMatch("http://domain2", "ok3"); // @match http://domain2
     url.addMatch("http://domain2*", "ok4"); // @match http://domain2*
     expect(url.urlMatch("http://domain2/")).toEqual(["ok3", "ok4"]); // 与TM一致
-    expect(url.urlMatch("http://domain2.com/")).toEqual(["ok4"]);
-    expect(url.urlMatch("http://domain2/123")).toEqual(["ok4"]);
+    expect(url.urlMatch("http://domain2.com/")).toEqual([]); // 与TM一致
+    expect(url.urlMatch("http://domain2/123")).toEqual([]);
   });
   it("无/ (include)", () => {
     const url = new UrlMatch<string>();
