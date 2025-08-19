@@ -110,7 +110,7 @@ export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
       return { ok: false, line };
     }
   }
-  // 有效的复合规则 
+  // 有效的复合规则
   // 只包含 match pattern 及 glob pattern
   return { ok: true };
 };
