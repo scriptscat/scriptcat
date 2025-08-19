@@ -104,7 +104,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       }
       // glob pattern & match pattern
       if (content.includes("**")) {
-        content = content.replace("**", "*"); // glob * 修正
+        content = content.replace(/\*{2,}/g, "*"); // glob * 修正
       }
       if (tag !== "match" && content.includes(".tld/")) {
         // 处理 GM 的 .tld 问题
