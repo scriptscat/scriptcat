@@ -35,9 +35,9 @@ import {
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
 
-const obtainBlackList = (blacklistStr: string | null | undefined) => {
-  const blacklist = blacklistStr
-    ? blacklistStr
+const obtainBlackList = (strBlacklist: string | null | undefined) => {
+  const blacklist = strBlacklist
+    ? strBlacklist
         .split("\n")
         .map((item) => item.trim())
         .filter((item) => item)
@@ -242,9 +242,9 @@ export class RuntimeService {
     this.initUserAgentData();
   }
 
-  private loadBlacklist(blacklistString: string) {
+  private loadBlacklist(strBlacklist: string) {
     // 设置黑名单match
-    const blacklist = obtainBlackList(blacklistString);
+    const blacklist = obtainBlackList(strBlacklist);
 
     const scriptUrlPatterns = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
     this.blackMatch.clearRules("BK");
@@ -584,11 +584,11 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 黑名单排除
-      const blacklistStr = await this.systemConfig.getBlacklist();
+      const strBlacklist = await this.systemConfig.getBlacklist();
       const excludeMatches = [];
       const excludeGlobs = [];
-      if (blacklistStr) {
-        const blacklist = obtainBlackList(blacklistStr);
+      if (strBlacklist) {
+        const blacklist = obtainBlackList(strBlacklist);
         const rules = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
         for (const rule of rules) {
           if (rule.ruleType === RuleType.MATCH_INCLUDE) {
@@ -750,8 +750,8 @@ export class RuntimeService {
     }
 
     // 黑名单排除
-    const blacklistString = (await this.systemConfig.getBlacklist()) as string | undefined;
-    const blacklist = obtainBlackList(blacklistString);
+    const strBlacklist = (await this.systemConfig.getBlacklist()) as string | undefined;
+    const blacklist = obtainBlackList(strBlacklist);
 
     const scriptUrlPatterns = extractUrlPatterns([
       ...(metaMatch || []).map((e) => `@match ${e}`),
