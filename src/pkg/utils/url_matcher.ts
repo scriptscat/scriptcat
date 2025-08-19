@@ -72,12 +72,18 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
     let content = content0;
     if (content.charAt(0) !== "/") {
       if (tag === "match") {
+        // @match
         let m: any;
+
+        // 第一层处理
         if (content === "*") {
           // 特殊处理 @match *
+          // * 会对应成 *://*/
           content = "*://*/";
         } else if (/^(\*|[-a-z]+):\/\/\*?[^*/]*$/.test(content)) {
           // 特殊处理 @match https://www.google.com
+          // 网域的星号以外，没有其他星号的话，会进行URL分析
+          // root网址无斜线自动补上，同时去除port
           try {
             const url = new URL(content);
             content = `${url.protocol}//${url.hostname}${url.pathname}`;
@@ -85,32 +91,48 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
             // do nothing
           }
         } else if ((m = /^((\*|[-a-z]+):\/\/\*?[^*/:]*):(\*+|\*?[^*/:]+\*?)/.exec(content))) {
-          // 特殊处理 @match https://www.google.com:12345
+          // 特殊处理 @match https://www.google.com:12345 （注：上一个If条件已处理）
           // 特殊处理 @match https://www.google.com:12345/
           // 特殊处理 @match https://www.google.com:12345/*
           // 特殊处理 @match https://scriptcat.org:*/zh-CN/search
+          // 去除port
           content = `${content.substring(0, m[1].length)}${content.substring(m[0].length)}`;
         }
+
+        // 第二层处理
         if (/^(\*|[-a-z]+):\/\/\*?[^*/]+\*/.test(content)) {
           // 特殊处理 @match https://www.google.*/*
           // 特殊处理 @match https://www.google*.*/*
           // 特殊处理 @match https://www.google*/*
+          // 特殊处理 @match https://www.google*.com/*
+          // 油猴的设计？ 只在VM有？
           tag = "include";
         }
         if (tag === "match" && content.startsWith("http*://")) {
           // 特殊处理 https http
+          // 若最终还是以 @match 处理，则把 http*:// 改成 *://
           content = `*://${content.substring(8)}`;
         }
-      }
-      // glob pattern & match pattern
-      if (content.includes("**")) {
-        content = content.replace(/\*{2,}/g, "*"); // glob * 修正
-      }
-      if (tag !== "match" && content.includes(".tld/")) {
-        // 处理 GM 的 .tld 问题
+      } else {
+        // @include, @exclude
+        // 处理 GM 的 .tld 问题 (Magic TLD)
         // 转化为 glob pattern .??*/
         // 见 GM 的 magic tld 说明 - https://wiki.greasespot.net/Magic_TLD
-        content = content.replace(".tld/", ".??*/");
+        const tldIdx = content.indexOf(".tld/");
+        if (tldIdx > 0) {// 最短匹配*.tld/
+          const left = content.substring(0, tldIdx);
+          // 斜线不能多於2个, 例如 https://www.hello.com/abc.tld/123
+          if (left.split("/").length <= 3) {
+            const right = content.substring(tldIdx + 5);
+            content = `${left}.??*/${right}`;
+          }
+        }
+      }
+      // 内部处理用
+      // 适用於 glob pattern 及 match pattern
+      if (content.includes("**")) {
+        // SC内部处理不能处理多过一个以上连续星号
+        content = content.replace(/\*{2,}/g, "*"); // glob * 修正
       }
     }
 

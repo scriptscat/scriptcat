@@ -753,7 +753,7 @@ describe("UrlInclude-1", () => {
     expect(url.urlMatch("http://example.org/foo/bar.html")).toEqual([]);
     expect(url.urlMatch("http://test.baidu.com/")).toEqual(["ok"]);
   });
-  it("tld 顶域测试 (include only)", () => {
+  it("tld 顶域测试 (include only - 1)", () => {
     url.clearRules("ok9");
     url.clearRules("ok9x");
     url.addInclude("*://*.test-tld.tld/", "ok9");
@@ -761,12 +761,93 @@ describe("UrlInclude-1", () => {
     expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
     expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
     expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+
+    expect(url.urlMatch("https://www.sub.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
   });
 
-  it("tld 顶域测试 (match invalid)", () => {
+  it("tld 顶域测试 (match invalid - 1)", () => {
     url.clearRules("ok9");
     url.clearRules("ok9x");
     url.addMatch("*://*.test-tld.tld/", "ok9x");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual([]); // url参数永远有/
+
+    expect(url.urlMatch("https://www.sub.test-tld.com/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.org.cn/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.co.uk/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.dk/")).toEqual([]); // url参数永远有/
+  });
+
+
+  it("tld 顶域测试 (include only - 2)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addInclude("*://*.test-tld.tld/*", "ok9");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+
+    expect(url.urlMatch("https://www.sub.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+  });
+
+  it("tld 顶域测试 (match invalid - 2)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addMatch("*://*.test-tld.tld/*", "ok9x");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual([]); // url参数永远有/
+
+    expect(url.urlMatch("https://www.sub.test-tld.com/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.org.cn/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.co.uk/")).toEqual([]); // url参数永远有/
+    expect(url.urlMatch("https://www.sub.test-tld.dk/")).toEqual([]); // url参数永远有/
+  });
+
+  it("tld 顶域测试 (include-k1)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addInclude("*.test-tld.tld/", "ok9");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+  });
+
+  it("tld 顶域测试 (include-k2)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addInclude("*test-tld.tld/", "ok9");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+  });
+
+  it("tld 顶域测试 (include-k3)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addInclude("*.tld/", "ok9");
+    expect(url.urlMatch("https://www.test-tld.com/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual(["ok9"]); // url参数永远有/
+    expect(url.urlMatch("https://www.test-tld.dk/")).toEqual(["ok9"]); // url参数永远有/
+  });
+
+  it("tld 顶域测试 (include-k4)", () => {
+    url.clearRules("ok9");
+    url.clearRules("ok9x");
+    url.addInclude("*.tld*", "ok9");
     expect(url.urlMatch("https://www.test-tld.com/")).toEqual([]); // url参数永远有/
     expect(url.urlMatch("https://www.test-tld.org.cn/")).toEqual([]); // url参数永远有/
     expect(url.urlMatch("https://www.test-tld.co.uk/")).toEqual([]); // url参数永远有/
