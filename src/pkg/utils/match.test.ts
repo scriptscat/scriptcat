@@ -642,6 +642,12 @@ describe("UrlMatch-port2 (match)", () => {
   it("case2", () => {
     expect(url.urlMatch("http://localhost:3000/")).toEqual(["ok4"]);
     expect(url.urlMatch("http://localhost:8000/")).toEqual(["ok4"]); // 与TM一致
+    expect(url.urlMatch("http://localhost:3000/a")).toEqual([]);
+    expect(url.urlMatch("http://localhost:8000/a")).toEqual([]);
+    expect(url.urlMatch("http://localhost:3000/?x")).toEqual([]);
+    expect(url.urlMatch("http://localhost:8000/?x")).toEqual([]);
+    expect(url.urlMatch("http://localhost:3000/#x")).toEqual(["ok4"]);
+    expect(url.urlMatch("http://localhost:8000/#x")).toEqual(["ok4"]);
   });
 });
 
