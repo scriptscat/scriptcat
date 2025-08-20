@@ -210,21 +210,22 @@ export class RuntimeService {
       });
     });
 
-    this.systemConfig.addListener(
-      `enable_script${chrome.extension.inIncognitoContext ? "_incognito" : ""}`,
-      async (enable) => {
-        this.isLoadScripts = await this.systemConfig.getEnableScript();
-        if (chrome.extension.inIncognitoContext) {
-          // 隐身窗口不对注册了的脚本进行实际操作
-          return;
-        }
-        if (enable) {
-          this.registerUserscripts();
-        } else {
-          this.unregisterUserscripts();
-        }
-      }
-    );
+    if (chrome.extension.inIncognitoContext) {
+      this.systemConfig.addListener("enable_script_incognito", async (enable) => {
+        // 隐身窗口不对注册了的脚本进行实际操作
+        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptNormal());
+      });
+      this.systemConfig.addListener("enable_script", async (enable) => {
+        // 隐身窗口不对注册了的脚本进行实际操作
+        // 当主窗口的enable改为false时，isLoadScripts也会更改为false
+        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptIncognite());
+      });
+    } else {
+      this.systemConfig.addListener("enable_script", async (enable) => {
+        this.isLoadScripts = enable;
+        enable ? this.registerUserscripts() : this.unregisterUserscripts();
+      });
+    }
 
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);

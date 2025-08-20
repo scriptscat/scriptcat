@@ -266,15 +266,25 @@ export class SystemConfig {
   }
 
   async getEnableScript() {
-    const enableScript = await this.get<boolean>("enable_script", true);
     if (chrome.extension.inIncognitoContext) {
       // 如果是隐身窗口，主窗口设置为false，直接返回false
-      if (enableScript === false) {
-        return false;
-      }
-      return this.get("enable_script_incognito", true);
+      // 主窗口和隐身窗口都是true的情况下才会返回true
+      const [enableNormal, enableIncognite] = await Promise.all([
+        this.get<boolean>("enable_script", true),
+        this.get<boolean>("enable_script_incognito", true),
+      ]);
+      return enableNormal && enableIncognite;
+    } else {
+      return this.get<boolean>("enable_script", true);
     }
-    return enableScript;
+  }
+
+  async getEnableScriptNormal() {
+    return this.get<boolean>("enable_script", true);
+  }
+
+  async getEnableScriptIncognite() {
+    return this.get<boolean>("enable_script_incognito", true);
   }
 
   setBlacklist(blacklist: string) {
