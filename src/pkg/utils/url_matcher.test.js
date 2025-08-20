@@ -339,7 +339,7 @@ describe("getApiMatchesAndGlobs-3", () => {
         "http*://www.bilibili.com/medialist/play/watchlater",
         "http*://www.bilibili.com/medialist/play/watchlater/*",
         "http*://www.bilibili.com/medialist/play/ml*",
-        "http*://live.bilibili.com/?*",
+        "http*://live.bilibili.com/*",
       ].sort()
     );
   });
@@ -366,7 +366,7 @@ describe("getApiMatchesAndGlobs-3", () => {
         "http*://www.bilibili.com/medialist/play/watchlater",
         "http*://www.bilibili.com/medialist/play/watchlater/*",
         "http*://www.bilibili.com/medialist/play/ml*",
-        "*live.bilibili.com/?*",
+        "*://*/*",
       ].sort()
     );
   });
@@ -393,7 +393,357 @@ describe("getApiMatchesAndGlobs-3", () => {
         "http*://www.bilibili.com/medialist/play/watchlater",
         "http*://www.bilibili.com/medialist/play/watchlater/*",
         "http*://www.bilibili.com/medialist/play/ml*",
-        "*live.bilibili.com*",
+        "live.bilibili.com",
+      ].sort()
+    );
+  });
+
+  it("test-b1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /.*://live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://live.bilibili.com/*", "*://www.bilibili.com/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://live.bilibili.com/*",
+      ].sort()
+    );
+  });
+
+  it("test-b2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /https?://live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://live.bilibili.com/*", "*://www.bilibili.com/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "http*://live.bilibili.com/*",
+      ].sort()
+    );
+  });
+
+  it("test-b3", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://*/*",
+      ].sort()
+    );
+  });
+
+  it("test-c1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /.*://live\\.bilibili\\.(com|net)\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://live.bilibili.???/*",
+      ].sort()
+    );
+  });
+
+  it("test-c2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /https?://.*\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "http*://*.bilibili.com/*",
+      ].sort()
+    );
+  });
+
+  it("test-c3", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /https?://www\\.bil?ibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "http*://www.bi*ibili.com/*",
+      ].sort()
+    );
+  });
+
+  it("test-d1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /://www\\.bil?ibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://*/*",
+      ].sort()
+    );
+  });
+
+  it("test-d2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /https?://www(AS).com/www#11?11/2.*/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://*/*",
+      ].sort()
+    );
+  });
+
+  it("test-e1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.google.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://live.bilibili.com/medialist/play/watchlater",
+      "// @include         /https?://www(AS).com/www#11?11/2.*/",
+      "// @include         /https?://www.google.com/search?q=\\w+&page=\\d+/",
+      "// @exclude         /https?://www.google.com/search?q=\\w+&page=[123]/",
+      "// @include         /http://www.bilibili.com/\\w+/",
+      "// @include         /http://www.apple.com/abc/",
+      "// @include         /www.myapple.com/def/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.google.com/video/*",
+        "http*://www?google?com/*",
+        "http://www?bilibili?com/*",
+        "http*://live.bilibili.com/medialist/play/watchlater",
+        "*://*/*",
+        "http://www?apple?com/*",
+      ].sort()
+    );
+  });
+
+  it("test-e2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.google.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://live.bilibili.com/medialist/play/watchlater",
+      "// @include         /https?://www\\.google\\.com/search?q=\\w+&page=\\d+/",
+      "// @exclude         /https?://www\\.google\\.com/search?q=\\w+&page=[123]/",
+      "// @include         /http://www\\.bilibili\\.com/\\w+/",
+      "// @include         /http://www\\.apple\\.com/abc/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual([
+      "*://www.google.com/*",
+      "http://www.bilibili.com/*",
+      "http://www.apple.com/*",
+      "*://www.bilibili.com/*",
+      "*://live.bilibili.com/*",
+    ]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.google.com/video/*",
+        "http*://www.google.com/*",
+        "http://www.bilibili.com/*",
+        "http*://live.bilibili.com/medialist/play/watchlater",
+        "http://www.apple.com/*",
+      ].sort()
+    );
+  });
+
+  it("test-f1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.google.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://live.bilibili.com/medialist/play/watchlater",
+      "// @include         /https?://www(AS).com/www#11?11/2.*/",
+      "// @include         /https?://www.google.com/search?q=\\w+&page=\\d+/",
+      "// @exclude         /https?://www.google.com/search?q=\\w+&page=[123]/",
+      "// @include         /http://www.bilibili.com/\\w+/",
+      "// @include         /http://www.apple.com/abc/",
+      "// @include         file:///myfile/*",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["<all_urls>"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.google.com/video/*",
+        "http*://www?google?com/*",
+        "http://www?bilibili?com/*",
+        "http*://live.bilibili.com/medialist/play/watchlater",
+        "*://*/*",
+        "http://www?apple?com/*",
+        "file:///myfile/*",
+      ].sort()
+    );
+  });
+
+  it("test-f2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.google.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://live.bilibili.com/medialist/play/watchlater",
+      "// @include         /https?://www\\.google\\.com/search?q=\\w+&page=\\d+/",
+      "// @exclude         /https?://www\\.google\\.com/search?q=\\w+&page=[123]/",
+      "// @include         /http://www\\.bilibili\\.com/\\w+/",
+      "// @include         /http://www\\.apple\\.com/abc/",
+      "// @include         file:///myfile/*",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual([
+      "*://www.google.com/*",
+      "http://www.bilibili.com/*",
+      "http://www.apple.com/*",
+      "*://www.bilibili.com/*",
+      "*://live.bilibili.com/*",
+      "file:///*",
+    ]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.google.com/video/*",
+        "http*://www.google.com/*",
+        "http://www.bilibili.com/*",
+        "http*://live.bilibili.com/medialist/play/watchlater",
+        "http://www.apple.com/*",
+        "file:///myfile/*",
       ].sort()
     );
   });

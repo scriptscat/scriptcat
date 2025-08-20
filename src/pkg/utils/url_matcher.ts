@@ -408,32 +408,41 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
     matchAll = MatchType.WWW;
   }
 
-  let convertedDueToRegEx = false;
+  let regConvFallback = false;
+  let regConvTryExtractDomain = false;
   const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
       const ps = rule.patternString;
+      // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
       let globPattern = regexToGlob(ps.substring(1, ps.length - 1));
-      if (globPattern === null) {
-        // 保留 regex pattern 但不会在 MV3 API 进行匹配，只在 JS代码 进行匹配 (urlMatch)
-        // 因为很大程度是不正确的regex pattern，所以urlMatch的匹配应该不会成功
-        console.error(`invalid/unrecongized regex pattern "${ps}", ignore conversion to glob.`);
-        continue;
+      let m: any = null;
+      if (globPattern !== null) {
+        if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
+          // 非网域的简单 globPattern (*apple*, *apple.com*)
+          globPattern = globPattern;
+          regConvFallback = true;
+        } else if ((m = /^([-a-z*?]+)\:\/\/([-_a-z0-9.:*?]+)(\/|$)/.exec(globPattern))) {
+          // 简单 globPattern, 提取网域 ( *://www.google.com/search?q=*, https://www.apple.com/page=?1&g= )
+          globPattern = `${m[1]}://${m[2]}/*`;
+          regConvTryExtractDomain = true;// 会尝试转化成 match pattern
+        } else {
+          // 其他 globPattern, 不转换成 glob pattern
+          globPattern = "*://*/*";
+          regConvFallback = true;
+        }
+      } else {
+        // regex pattern 转至 glob pattern
+        globPattern = "*://*/*";
+        regConvFallback = true;
       }
 
-      // 不是http开头的，如没有「*」，则添加 （最大匹配）
-      const prefixWildcard = !globPattern.startsWith("http") && !globPattern.startsWith("*") ? "*" : "";
-      const suffixWildcard = !globPattern.endsWith("*") ? "*" : "";
-      globPattern = `${prefixWildcard}${globPattern}${suffixWildcard}`;
-
-      // regex pattern 能被解析成 glob pattern, 可在 MV3 API 进行匹配
       if (apiIncludeGlobs.includes(globPattern)) {
         // 已存在，不重覆添加
         continue;
       }
       apiIncludeGlobs.push(globPattern);
-      convertedDueToRegEx = true;
     }
   }
   if (apiIncludeGlobs.length > 0) matchAll = MatchType.WWW;
@@ -444,10 +453,19 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
 
   let apiMatches = null;
   if (apiIncludeGlobs.length > 0) {
-    const matches = convertedDueToRegEx ? new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs)) : null;
-    if (matches !== null && !matches.has(null)) {
-      apiMatches = [...matches];
+    let matches = null;
+    // 有 regex pattern 换成 glob pattern 的情况下，进一步分析 match pattern 的网域
+    if (regConvTryExtractDomain && !regConvFallback) {
+      // 有由 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern 
+      matches = new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs));
+      // 如果有部份glob无法抽出网域资料，维持 matchAll
+      if (matches.has(null) || matches.size === 0) matches = null;
+    }
+    if (matches !== null) {
+      // globs 能转化成 matches, 不用 *://*/*
+      apiMatches = [...matches] as string[];
     } else if (isAllUrlsRequired(apiIncludeGlobs)) {
+      // 有 file:///* 之类，需转化 *://*/* 至 <all_urls>
       matchAll = MatchType.ALL;
     }
   }
