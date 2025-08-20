@@ -12,7 +12,7 @@ import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
-import { getIcon, isFirefox, getCurrentTab } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -311,13 +311,8 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  CAT_userConfig(request: Request, sender: GetSender): void {
-    const { tabId, windowId } = sender.getExtMessageSender();
-    chrome.tabs.create({
-      url: `/src/options.html#/?userConfig=${request.uuid}`,
-      openerTabId: tabId === -1 ? undefined : tabId,
-      windowId: windowId === -1 ? undefined : windowId,
-    });
+  CAT_userConfig(request: Request): void {
+    openInCurrentTab(`/src/options.html#/?userConfig=${request.uuid}`);
   }
 
   @PermissionVerify.API({
