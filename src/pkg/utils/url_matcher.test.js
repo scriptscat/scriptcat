@@ -127,8 +127,9 @@ describe("checkUrlMatch-1", () => {
   });
 });
 
-describe("getApiMatchesAndGlobs-1", () => {
+describe("getApiMatchesAndGlobs-1 （基础测试）", () => {
   it("match1", () => {
+    // 只有有效的match pattern，不需要glob pattern
     const scriptUrlPatterns = extractUrlPatterns([
       "@match http://google.com/*",
       "@match https://google.com/*",
@@ -140,6 +141,7 @@ describe("getApiMatchesAndGlobs-1", () => {
     expect(includeGlobs).toEqual([]);
   });
   it("match2", () => {
+    // 由於 *hello* ，故要 match 全部页面
     const scriptUrlPatterns = extractUrlPatterns(["@include *hello*"]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
 
@@ -148,6 +150,7 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 
   it("match3", () => {
+    // 由於 *hello* ，故要 match 全部页面
     const scriptUrlPatterns = extractUrlPatterns([
       "@match http://google.com/*",
       "@match https://google.com/*",
@@ -160,6 +163,8 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 
   it("match4", () => {
+    // 由於 *hello* ，故要 match 全部页面
+    // @match 有 file:/// ，故追加 file:///* 至match
     const scriptUrlPatterns = extractUrlPatterns([
       "@match http://google.com/*",
       "@match https://google.com/*",
@@ -168,7 +173,7 @@ describe("getApiMatchesAndGlobs-1", () => {
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
 
-    expect(matches).toEqual(["<all_urls>"]);
+    expect(matches).toEqual(["*://*/*", "file:///*"]);
     expect(includeGlobs).toEqual([
       "*hello*",
       "http://google.com/*",
@@ -178,8 +183,9 @@ describe("getApiMatchesAndGlobs-1", () => {
   });
 });
 
-describe("getApiMatchesAndGlobs-2", () => {
+describe("getApiMatchesAndGlobs-2 （实际例子测试）", () => {
   it("match1", () => {
+    // 测试真实例子，验证解析结果
     const scriptUrlPatterns = extractUrlPatterns(
       `
 // @include	    *://steamcommunity.com/*
@@ -294,8 +300,8 @@ describe("getApiMatchesAndGlobs-2", () => {
   });
 });
 
-describe("getApiMatchesAndGlobs-3", () => {
-  it("test-0", () => {
+describe("getApiMatchesAndGlobs-3 （全面性测试）", () => {
+  it("标準match格式", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -316,7 +322,7 @@ describe("getApiMatchesAndGlobs-3", () => {
     expect(includeGlobs).toEqual([]);
   });
 
-  it("test-1", () => {
+  it("[A1] regex格式可抽出match网域 (https?:\\/\\/)", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -344,88 +350,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-2", () => {
-    const scriptUrlPatterns = extractUrlPatterns([
-      "// @include         *://www.bilibili.com/video/*",
-      "// @include         *://www.bilibili.com/list/*",
-      "// @include         *://www.bilibili.com/bangumi/play/*",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
-      "// @include         *://www.bilibili.com/medialist/play/ml*",
-      "// @include         /live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
-    ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*"
-    expect(matches).toEqual(["*://*/*"]);
-    // 忽略次序
-    expect(includeGlobs.sort()).toEqual(
-      [
-        "http*://www.bilibili.com/video/*",
-        "http*://www.bilibili.com/list/*",
-        "http*://www.bilibili.com/bangumi/play/*",
-        "http*://www.bilibili.com/medialist/play/watchlater",
-        "http*://www.bilibili.com/medialist/play/watchlater/*",
-        "http*://www.bilibili.com/medialist/play/ml*",
-        "*://*/*",
-      ].sort()
-    );
-  });
-
-  it("test-3", () => {
-    const scriptUrlPatterns = extractUrlPatterns([
-      "// @include         *://www.bilibili.com/video/*",
-      "// @include         *://www.bilibili.com/list/*",
-      "// @include         *://www.bilibili.com/bangumi/play/*",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
-      "// @include         *://www.bilibili.com/medialist/play/ml*",
-      "// @include         /live\\.bilibili\\.com/",
-    ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*"
-    expect(matches).toEqual(["*://*/*"]);
-    // 忽略次序
-    expect(includeGlobs.sort()).toEqual(
-      [
-        "http*://www.bilibili.com/video/*",
-        "http*://www.bilibili.com/list/*",
-        "http*://www.bilibili.com/bangumi/play/*",
-        "http*://www.bilibili.com/medialist/play/watchlater",
-        "http*://www.bilibili.com/medialist/play/watchlater/*",
-        "http*://www.bilibili.com/medialist/play/ml*",
-        "live.bilibili.com",
-      ].sort()
-    );
-  });
-
-  it("test-b1", () => {
-    const scriptUrlPatterns = extractUrlPatterns([
-      "// @include         *://www.bilibili.com/video/*",
-      "// @include         *://www.bilibili.com/list/*",
-      "// @include         *://www.bilibili.com/bangumi/play/*",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater",
-      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
-      "// @include         *://www.bilibili.com/medialist/play/ml*",
-      "// @include         /.*://live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
-    ]);
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*"
-    expect(matches).toEqual(["*://live.bilibili.com/*", "*://www.bilibili.com/*"]);
-    // 忽略次序
-    expect(includeGlobs.sort()).toEqual(
-      [
-        "http*://www.bilibili.com/video/*",
-        "http*://www.bilibili.com/list/*",
-        "http*://www.bilibili.com/bangumi/play/*",
-        "http*://www.bilibili.com/medialist/play/watchlater",
-        "http*://www.bilibili.com/medialist/play/watchlater/*",
-        "http*://www.bilibili.com/medialist/play/ml*",
-        "*://live.bilibili.com/*",
-      ].sort()
-    );
-  });
-
-  it("test-b2", () => {
+  it("[A2] regex格式可抽出match网域 (https?://)", () => {
+    // 斜线没有反斜线不影响结果
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -452,7 +378,35 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-b3", () => {
+  it("[A3] regex格式可抽出match网域 (*://)", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /.*://live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://live.bilibili.com/*", "*://www.bilibili.com/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*://live.bilibili.com/*",
+      ].sort()
+    );
+  });
+
+  it("[B1] regex转换成*://*/* (match & glob)", () => {
+    // /live\\.bilibili\\.com/ 可匹配 123live.bilibili.com, www.live.bilibili.com, myhome.com/live.bilibili.com
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -479,7 +433,36 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-c1", () => {
+  it("[B2] regex转换成*://*/* (match only)", () => {
+    // /live\\.bilibili\\.com/ 可匹配 123live.bilibili.com, www.live.bilibili.com, myhome.com/live.bilibili.com
+    // 相对於 (1) ，regex为较简单，glob部份不需转换
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /live\\.bilibili\\.com/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*"
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "live.bilibili.com",
+      ].sort()
+    );
+  });
+
+  it("[C1] 无法从regex抽出match网域, 全域match配合glob (live.bilibili.???)", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -506,7 +489,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-c2", () => {
+  it("[C2] 无法从regex抽出match网域, 全域match配合glob (*.bilibili.com)", () => {
+    // glob/regex 的 *.bilibili.com 可以匹配 google.com/my.bilibili.com, 因此无法转换成match网域
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -533,7 +517,7 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-c3", () => {
+  it("[C3] 无法从regex抽出match网域, 全域match配合glob (www.bil?bili.com)", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -560,7 +544,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-d1", () => {
+  it("[D1] 无法从regex抽出match网域, 全域match配合glob (fallback glob to *://*/*)", () => {
+    // 减低依赖 regexToGlob 所带来的问题，regex 转成 glob后，出现罕见 glob pattern 会fallback至 *://*/*
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -587,7 +572,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-d2", () => {
+  it("[D2] 无法从regex抽出match网域, 全域match配合glob (fallback glob to *://*/*)", () => {
+    // 减低依赖 regexToGlob 所带来的问题，regex 转成 glob后，出现罕见 glob pattern 会fallback至 *://*/*
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -614,7 +600,7 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-e1", () => {
+  it("[E1] 混合 regex/glob pattern 测试解析正确性", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.google.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -645,7 +631,7 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-e2", () => {
+  it("[E2] 混合 regex/glob pattern 测试解析正确性", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.google.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -679,7 +665,9 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-f1", () => {
+  it("[F1] 混合 regex/glob pattern & file scheme 测试解析正确性", () => {
+    // 由於regex pattern 而fallback至全部页面
+    // 含有 file:///，追加 "file:///*"
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.google.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -693,8 +681,7 @@ describe("getApiMatchesAndGlobs-3", () => {
       "// @include         file:///myfile/*",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*"
-    expect(matches).toEqual(["<all_urls>"]);
+    expect(matches).toEqual(["*://*/*", "file:///*"]);
     // 忽略次序
     expect(includeGlobs.sort()).toEqual(
       [
@@ -711,7 +698,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     );
   });
 
-  it("test-f2", () => {
+  it("[F2] 混合 regex/glob pattern & file scheme 测试解析正确性", () => {
+    // regex pattern 不用 fallback 至全部页面
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.google.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -724,7 +712,6 @@ describe("getApiMatchesAndGlobs-3", () => {
       "// @include         file:///myfile/*",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*"
     expect(matches).toEqual([
       "*://www.google.com/*",
       "http://www.bilibili.com/*",

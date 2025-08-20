@@ -377,35 +377,37 @@ export const extractMatchPatternsFromGlobs = (globs: string[]) => {
     const extMatch = checkUrlMatch(glob);
     if (!extMatch) return null;
     const [scheme, host] = extMatch;
-    // glob 的 *.google.com 可以匹配 www.google.com 跟 www.my.google.com
+    // glob 的 *.google.com 可以匹配 www.google.com 跟 my-website.com/abc.google.com
     if (host.charAt(0) === ".") return null;
     return `${scheme}://${host}/*`;
   });
 };
 
-export const isAllUrlsRequired = (globs: string[]) => {
+export const extractSchemesOfGlobs = (globs: string[]) => {
+  const set = new Set(["*://*/*"]);
   for (const glob of globs) {
-    const m = /(\w+):\/\//.exec(glob);
+    const m = /([-\w]+):\/\//.exec(glob);
     if (m && m[1]) {
-      if (!m[1].startsWith("http")) return true;
+      if (!m[1].startsWith("http")) {
+        if (m[1] === "file") {
+          // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns#invalid_match_patterns
+          set.add(`${m[1]}:///*`);
+        } else {
+          set.add(`${m[1]}://*/*`);
+        }
+      }
     }
   }
-  return false;
+  return [...set]
 };
-
-const enum MatchType {
-  NONE = 0,
-  WWW = 1,
-  ALL = 2,
-}
 
 export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   const urlMatching = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
-  let matchAll: MatchType = MatchType.NONE;
+  let matchAll: string[] | null = null;
 
   if (urlSpecificMatching.length === 0 || urlSpecificMatching.length !== urlMatching.length) {
-    matchAll = MatchType.WWW;
+    matchAll = ["*://*/*"]; // 包含 https 和 http
   }
 
   let regConvFallback = false;
@@ -445,7 +447,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       apiIncludeGlobs.push(globPattern);
     }
   }
-  if (apiIncludeGlobs.length > 0) matchAll = MatchType.WWW;
+  if (apiIncludeGlobs.length > 0 && !matchAll) matchAll = ["*://*/*"];
 
   if (matchAll && urlSpecificMatching.length > 0) {
     addMatchesToGlobs(urlSpecificMatching, apiIncludeGlobs);
@@ -462,20 +464,18 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       if (matches.has(null) || matches.size === 0) matches = null;
     }
     if (matches !== null) {
-      // globs 能转化成 matches, 不用 *://*/*
+      // 所有 globs 能提取成 match 网域, 不用匹配所有网域
       apiMatches = [...matches] as string[];
-    } else if (isAllUrlsRequired(apiIncludeGlobs)) {
-      // 有 file:///* 之类，需转化 *://*/* 至 <all_urls>
-      matchAll = MatchType.ALL;
+    } else {
+      // match 需要匹配所有网域
+      // 如有 file:///* 之类，追加至 *://*/*
+      matchAll = extractSchemesOfGlobs(apiIncludeGlobs);
     }
   }
 
   if (apiMatches === null) {
-    apiMatches = matchAll
-      ? matchAll === MatchType.ALL
-        ? ["<all_urls>"]
-        : ["*://*/*"]
-      : toUniquePatternStrings(urlSpecificMatching);
+    // 如没有特定要求（ apiMatches 及 matchAll 皆为 null ），则探用原有的match
+    apiMatches = matchAll || toUniquePatternStrings(urlSpecificMatching);
   }
 
   return {
