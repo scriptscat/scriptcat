@@ -416,7 +416,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   let regConvTryExtractDomain = false;
   const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
-  
+
   // 含有 regex 时，先转化成 glob pattern 再决定如何配合 UserScript API 的 match/glob pattern 注入
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
