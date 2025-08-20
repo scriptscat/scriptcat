@@ -214,22 +214,22 @@ export const isUrlMatch = (url: string, rule: URLRuleEntry) => {
   let ret = urlMatchCache.get(cacheKey);
   if (typeof ret === "boolean") return ret;
   switch (rule.ruleType) {
-    case 1:
+    case RuleType.MATCH_INCLUDE:
       ret = isUrlMatchPattern(url, rule.ruleContent as string[]);
       break;
-    case 2:
+    case RuleType.MATCH_EXCLUDE:
       ret = !isUrlMatchPattern(url, rule.ruleContent as string[]);
       break;
-    case 3:
+    case RuleType.GLOB_INCLUDE:
       ret = isUrlMatchGlob(url, rule.ruleContent as string[]);
       break;
-    case 4:
+    case RuleType.GLOB_EXCLUDE:
       ret = !isUrlMatchGlob(url, rule.ruleContent as string[]);
       break;
-    case 5:
+    case RuleType.REGEX_INCLUDE:
       ret = isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
       break;
-    case 6:
+    case RuleType.REGEX_EXCLUDE:
       ret = !isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
       break;
     default:
