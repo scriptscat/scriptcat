@@ -10,6 +10,7 @@ import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
 import { type TDeleteScript } from "../queue";
+import { openInCurrentTab } from "@App/pkg/utils/utils";
 
 export interface ConfirmParam {
   // 权限名
@@ -150,7 +151,7 @@ export default class PermissionVerify {
       return;
     }
     try {
-      const ret = await this.confirm(data.request, data.confirm, data.sender);
+      const ret = await this.confirm(data.request, data.confirm);
       data.resolve(ret);
     } catch (e) {
       data.reject(e);
@@ -169,7 +170,7 @@ export default class PermissionVerify {
     });
   }
 
-  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: GetSender): Promise<boolean> {
+  async confirm(request: Request, confirm: boolean | ConfirmParam): Promise<boolean> {
     if (typeof confirm === "boolean") {
       return confirm;
     }
@@ -194,7 +195,7 @@ export default class PermissionVerify {
       throw new Error("permission denied");
     }
     // 没有权限,则弹出页面让用户进行确认
-    const userConfirm = await this.confirmWindow(request.script, confirm, sender);
+    const userConfirm = await this.confirmWindow(request.script, confirm);
     // 成功存入数据库
     const model: Permission = {
       uuid: request.uuid,
@@ -250,7 +251,7 @@ export default class PermissionVerify {
   > = new Map();
 
   // 弹出窗口让用户进行确认
-  async confirmWindow(script: Script, confirm: ConfirmParam, sender: GetSender): Promise<UserConfirm> {
+  async confirmWindow(script: Script, confirm: ConfirmParam): Promise<UserConfirm> {
     return new Promise((resolve, reject) => {
       const uuid = uuidv4();
       // 超时处理
@@ -269,12 +270,7 @@ export default class PermissionVerify {
         reject,
       });
       // 打开窗口
-      const { tabId, windowId } = sender.getExtMessageSender();
-      chrome.tabs.create({
-        url: chrome.runtime.getURL(`src/confirm.html?uuid=${uuid}`),
-        openerTabId: tabId === -1 ? undefined : tabId, // 如果是后台脚本,则不设置openerTabId
-        windowId: windowId === -1 ? undefined : windowId, // 如果是后台脚本,则不设置windowId
-      });
+      openInCurrentTab(`src/confirm.html?uuid=${uuid}`);
     });
   }
 
