@@ -421,12 +421,12 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       if (globPattern !== null) {
         if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
           // 非网域的简单 globPattern (*apple*, *apple.com*)
-          globPattern = globPattern;
+          // globPattern = globPattern;
           regConvFallback = true;
-        } else if ((m = /^([-a-z*?]+)\:\/\/([-_a-z0-9.:*?]+)(\/|$)/.exec(globPattern))) {
+        } else if ((m = /^([-a-z*?]+):\/\/([-_a-z0-9.:*?]+)(\/|$)/.exec(globPattern))) {
           // 简单 globPattern, 提取网域 ( *://www.google.com/search?q=*, https://www.apple.com/page=?1&g= )
           globPattern = `${m[1]}://${m[2]}/*`;
-          regConvTryExtractDomain = true;// 会尝试转化成 match pattern
+          regConvTryExtractDomain = true; // 会尝试转化成 match pattern
         } else {
           // 其他 globPattern, 不转换成 glob pattern
           globPattern = "*://*/*";
@@ -456,7 +456,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
     let matches = null;
     // 有 regex pattern 换成 glob pattern 的情况下，进一步分析 match pattern 的网域
     if (regConvTryExtractDomain && !regConvFallback) {
-      // 有由 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern 
+      // 有由 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern
       matches = new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs));
       // 如果有部份glob无法抽出网域资料，维持 matchAll
       if (matches.has(null) || matches.size === 0) matches = null;
