@@ -458,7 +458,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
     let matches = null;
     // 有 regex pattern 换成 glob pattern 的情况下，进一步分析 match pattern 的网域
     if (regConvTryExtractDomain && !regConvFallback) {
-      // 有由 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern
+      // 有 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern
       matches = new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs));
       // 如果有部份glob无法抽出网域资料，维持 matchAll
       if (matches.has(null) || matches.size === 0) matches = null;
