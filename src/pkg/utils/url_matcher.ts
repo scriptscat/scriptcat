@@ -15,7 +15,7 @@ export const enum RuleTypeBit {
 
 export type URLRuleEntry = {
   ruleType: RuleType;
-  ruleContent: string | string[] | RegExp;
+  ruleContent: string | string[] | [RegExp, string, string];
   ruleTag: string;
   patternString: string;
 };
@@ -187,7 +187,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       if (re === null) continue; // 忽略不正确的 regex pattern
       rules.push({
         ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
-        ruleContent: re,
+        ruleContent: [re, rch[1], rch[2]] as [RegExp, string, string],
         ruleTag: tag,
         patternString: content,
       });
@@ -227,10 +227,10 @@ export const isUrlMatch = (url: string, rule: URLRuleEntry) => {
       ret = !isUrlMatchGlob(url, rule.ruleContent as string[]);
       break;
     case 5:
-      ret = isUrlMatchRegEx(url, rule.ruleContent as RegExp);
+      ret = isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
       break;
     case 6:
-      ret = !isUrlMatchRegEx(url, rule.ruleContent as RegExp);
+      ret = !isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
       break;
     default:
       throw new Error("invalid ruleType");
@@ -420,9 +420,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   // 含有 regex 时，先转化成 glob pattern 再决定如何配合 UserScript API 的 match/glob pattern 注入
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
-      const ps = rule.patternString;
       // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
-      let globPattern = regexToGlob(ps.substring(1, ps.length - 1));
+      let globPattern = regexToGlob(rule.ruleContent[1]);
       let m: any = null;
       if (globPattern !== null) {
         if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
