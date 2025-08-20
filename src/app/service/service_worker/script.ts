@@ -552,12 +552,15 @@ export class ScriptService {
     }
   }
 
-  isInstalled({ name, namespace }: { name: string; namespace: string }) {
+  isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
-        return { installed: true, version: script.metadata.version && script.metadata.version[0] };
+        return {
+          installed: true,
+          version: script.metadata.version && script.metadata.version[0],
+        } as App.IsInstalledResponse;
       }
-      return { installed: false };
+      return { installed: false } as App.IsInstalledResponse;
     });
   }
 

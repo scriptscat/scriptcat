@@ -2,6 +2,7 @@ declare module "@App/types/scriptcat.d.ts";
 declare module "*.tpl";
 declare module "*.json";
 declare module "*.yaml";
+declare module "@App/app/types.d.ts";
 
 declare const sandbox: Window;
 
@@ -62,5 +63,17 @@ declare namespace GMSend {
     key: string;
     val: string;
     filename?: string;
+  }
+}
+
+declare namespace globalThis {
+  interface Window {
+    external?: External;
+  }
+  interface External {
+    Tampermonkey?: App.ExternalTampermonkey;
+    Violentmonkey?: App.ExternalViolentmonkey;
+    FireMonkey?: App.ExternalFireMonkey;
+    Scriptcat?: App.ExternalScriptCat;
   }
 }
