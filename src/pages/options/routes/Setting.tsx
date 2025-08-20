@@ -13,6 +13,7 @@ import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
+import { obtainBlackList } from "@App/pkg/utils/script";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -387,10 +388,7 @@ function Setting() {
             onBlur={(v) => {
               // 校验黑名单格式
               const val = v.target.value;
-              const blacklist = val
-                .split("\n")
-                .map((line) => line.trim())
-                .filter((line) => line);
+              const blacklist = obtainBlackList(val);
               const ret = blackListSelfCheck(blacklist);
               if (!ret.ok) {
                 Message.error(`${t("expression_format_error")}: ${ret.line}`);

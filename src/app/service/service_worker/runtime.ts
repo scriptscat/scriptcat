@@ -34,16 +34,7 @@ import {
   toUniquePatternStrings,
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
-
-const obtainBlackList = (strBlacklist: string | null | undefined) => {
-  const blacklist = strBlacklist
-    ? strBlacklist
-        .split("\n")
-        .map((item) => item.trim())
-        .filter((item) => item)
-    : [];
-  return blacklist;
-};
+import { obtainBlackList } from "@App/pkg/utils/script";
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -587,17 +578,15 @@ export class RuntimeService {
       const strBlacklist = await this.systemConfig.getBlacklist();
       const excludeMatches = [];
       const excludeGlobs = [];
-      if (strBlacklist) {
-        const blacklist = obtainBlackList(strBlacklist);
-        const rules = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
-        for (const rule of rules) {
-          if (rule.ruleType === RuleType.MATCH_INCLUDE) {
-            // matches -> excludeMatches
-            excludeMatches.push(rule.patternString);
-          } else if (rule.ruleType === RuleType.GLOB_INCLUDE) {
-            // includeGlobs -> excludeGlobs
-            excludeGlobs.push(rule.patternString);
-          }
+      const blacklist = obtainBlackList(strBlacklist);
+      const rules = extractUrlPatterns([...(blacklist || []).map((e) => `@include ${e}`)]);
+      for (const rule of rules) {
+        if (rule.ruleType === RuleType.MATCH_INCLUDE) {
+          // matches -> excludeMatches
+          excludeMatches.push(rule.patternString);
+        } else if (rule.ruleType === RuleType.GLOB_INCLUDE) {
+          // includeGlobs -> excludeGlobs
+          excludeGlobs.push(rule.patternString);
         }
       }
 

@@ -68,9 +68,9 @@ describe("UrlMatch-internal1", () => {
     "ok1",
     extractUrlPatterns([
       "@match *://greasyfork.org/*",
-      "@match *://sleazyfork.org/*",
+      "@match *://example.org/*",
       "@match *://cn-greasyfork.org/*",
-      "@match *://api.sleazyfork.org/*",
+      "@match *://api.example.org/*",
       "@match *://api.cn-greasyfork.org/*",
     ])
   );
@@ -255,10 +255,26 @@ describe("UrlMatch-google", () => {
 });
 
 describe("UrlMatch-google-error", () => {
-  const url = new UrlMatch<string>();
   it("error-1", () => {
+    const url = new UrlMatch<string>();
+    url.addInclude("https://*bar/baz", "ok1"); // @include glob *
+    expect(url.urlMatch("https://foo.api.bar/baz")).toEqual(["ok1"]);
+    url.addMatch("https://*api/bar", "ok2");
+    expect(url.urlMatch("https://foo.api.bar/baz")).toEqual(["ok1"]); // @match 无效
+  });
+  it("error-2", () => {
+    const url = new UrlMatch<string>();
     url.addInclude("https://foo.*.bar/baz", "ok1"); // @include glob *
     expect(url.urlMatch("https://foo.api.bar/baz")).toEqual(["ok1"]);
+    url.addMatch("https://foo.*.bar/baz", "ok2");
+    expect(url.urlMatch("https://foo.api.bar/baz")).toEqual(["ok1"]); // @match 无效
+  });
+  it("error-3", () => {
+    const url = new UrlMatch<string>();
+    url.addInclude("http:/bar", "ok1");
+    expect(url.urlMatch("http://foo.api.bar/baz")).toEqual([]);
+    url.addMatch("http:/bar", "ok2");
+    expect(url.urlMatch("https://foo.api.bar/baz")).toEqual([]);
   });
 });
 
