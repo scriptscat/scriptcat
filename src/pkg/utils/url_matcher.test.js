@@ -1,5 +1,121 @@
 import { describe, expect, it } from "vitest";
-import { checkUrlMatch, getApiMatchesAndGlobs, extractUrlPatterns, RuleType } from "./url_matcher";
+import {
+  checkUrlMatch,
+  getApiMatchesAndGlobs,
+  extractUrlPatterns,
+  RuleType,
+  extractMatchPatternsFromGlobs,
+  extractSchemesOfGlobs,
+} from "./url_matcher";
+
+describe("extractMatchPatternsFromGlobs", () => {
+  it("test1", () => {
+    expect(extractMatchPatternsFromGlobs(["https://www.google.com/*"])).toEqual(["https://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["http://www.google.com/*"])).toEqual(["http://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["http*://www.google.com/*"])).toEqual(["*://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["*://www.google.com/*"])).toEqual(["*://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["*://www.g*le.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*://*.gle.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*://*ww.gle.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*://www.gle.cm*/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*://www.gll?e.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*://www.google.com/a?b*c*"])).toEqual(["*://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["http*://www.google.com/a?b*c*"])).toEqual(["*://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["https://www.google.com/a?b*c*"])).toEqual(["https://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["http://www.google.com/a?b*c*"])).toEqual(["http://www.google.com/*"]);
+    expect(extractMatchPatternsFromGlobs(["file:///mydrive/t*.html"])).toEqual(["file:///*"]);
+    expect(extractMatchPatternsFromGlobs(["file:///my?ive/t*.html"])).toEqual(["file:///*"]);
+    expect(extractMatchPatternsFromGlobs(["www.g*le.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["www.google.com"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*www.g*le.com/*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*ww.google.com*"])).toEqual([null]);
+    expect(extractMatchPatternsFromGlobs(["*www.google.com/hello/*"])).toEqual([null]);
+  });
+});
+
+describe("extractSchemesOfGlobs", () => {
+  it("test1", () => {
+    expect(extractSchemesOfGlobs(["https://www.google.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["http://www.google.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["http*://www.google.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://www.google.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://www.g*le.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://*.gle.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://*ww.gle.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://www.gle.cm*/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://www.gll?e.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["http*://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["https://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["http://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
+    // 預設包含 *://*/*
+    expect(extractSchemesOfGlobs(["file:///mydrive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
+    expect(extractSchemesOfGlobs(["file:///my?ive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
+    // 其他scheme
+    expect(extractSchemesOfGlobs(["my-protocol://hello/world/t_?*.html"])).toEqual(["*://*/*", "my-protocol://*/*"]);
+    expect(extractSchemesOfGlobs(["tcp://hello/world/t_?*.html"])).toEqual(["*://*/*", "tcp://*/*"]);
+    expect(extractSchemesOfGlobs(["ab://hello/world/t_?*.html"])).toEqual(["*://*/*", "ab://*/*"]);
+    // 無視無效scheme
+    expect(extractSchemesOfGlobs(["myl*://hello/world/t_?*.html"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["my?l//hello/world/t_?*.html"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["*m?yl//hello/world/t_?*.html"])).toEqual(["*://*/*"]);
+  });
+
+  it("test2", () => {
+    // https scheme
+    expect(extractSchemesOfGlobs(["https://www.abc.com/*", "http://www.abc.com/*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["https://www.abc.com/*", "www.abc.com/*"])).toEqual(["*://*/*"]);
+    // file scheme
+    expect(extractSchemesOfGlobs(["file:///mydrive/*", "http://www.abc.com/*"]).sort()).toEqual(
+      ["file:///*", "*://*/*"].sort()
+    );
+    expect(extractSchemesOfGlobs(["file:///mydrive/*", "www.abc.com/*"]).sort()).toEqual(
+      ["file:///*", "*://*/*"].sort()
+    );
+    // 其他scheme
+    expect(extractSchemesOfGlobs(["my-place://mydrive/*", "http://www.abc.com/*"]).sort()).toEqual(
+      ["my-place://*/*", "*://*/*"].sort()
+    );
+    expect(extractSchemesOfGlobs(["my-place://mydrive/*", "www.abc.com/*"]).sort()).toEqual(
+      ["my-place://*/*", "*://*/*"].sort()
+    );
+    // 3個不重覆 (file:///)
+    expect(
+      extractSchemesOfGlobs(["https://www.abc.com/*", "file:///mydrive/*", "http://www.def.com/*"]).sort()
+    ).toEqual(["file:///*", "*://*/*"].sort());
+    expect(extractSchemesOfGlobs(["http://www.abc.com/*", "file:///mydrive/*", "http://www.def.com/*"]).sort()).toEqual(
+      ["file:///*", "*://*/*"].sort()
+    );
+    expect(
+      extractSchemesOfGlobs([
+        "http://www.abc.com/p/*",
+        "file://mydrive/14/*",
+        "http://www.def.com/g/*",
+        "http://www.abc.com/q/*",
+        "file://mydrive/13/*",
+        "http://www.def.com/h/*",
+      ]).sort()
+    ).toEqual(["file:///*", "*://*/*"].sort());
+
+    // 3個不重覆 (my-path://)
+    expect(
+      extractSchemesOfGlobs(["https://www.abc.com/*", "my-path://mydrive/*", "http://www.def.com/*"]).sort()
+    ).toEqual(["my-path://*/*", "*://*/*"].sort());
+    expect(
+      extractSchemesOfGlobs(["http://www.abc.com/*", "my-path://mydrive/*", "http://www.def.com/*"]).sort()
+    ).toEqual(["my-path://*/*", "*://*/*"].sort());
+    expect(
+      extractSchemesOfGlobs([
+        "http://www.abc.com/p/*",
+        "my-path://mydrive/14/*",
+        "http://www.def.com/g/*",
+        "http://www.abc.com/q/*",
+        "my-path://mydrive/13/*",
+        "http://www.def.com/h/*",
+      ]).sort()
+    ).toEqual(["my-path://*/*", "*://*/*"].sort());
+  });
+});
 
 describe("extractUrlPatterns", () => {
   it("test1", () => {

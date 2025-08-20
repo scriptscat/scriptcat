@@ -386,7 +386,7 @@ export const extractMatchPatternsFromGlobs = (globs: string[]) => {
 export const extractSchemesOfGlobs = (globs: string[]) => {
   const set = new Set(["*://*/*"]);
   for (const glob of globs) {
-    const m = /([-\w]+):\/\//.exec(glob);
+    const m = /^([-\w]+):\/\//.exec(glob);
     if (m && m[1]) {
       if (!m[1].startsWith("http")) {
         if (m[1] === "file") {
