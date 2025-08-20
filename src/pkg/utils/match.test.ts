@@ -608,7 +608,8 @@ describe("getApiMatchesAndGlobs-3", () => {
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
     // 可以是 "*://*/*" 或者 *://*.bilibili.com/* 或 (*://www.bilibili.com/* 及 *://live.bilibili.com/*)
-    expect(matches).toEqual(["*://*/*"]);
+    // expect(matches).toEqual(["*://*/*"]);
+    expect(matches.sort()).toEqual(["*://www.bilibili.com/*", "*://live.bilibili.com/*"].sort());
     // 忽略次序
     expect(includeGlobs.sort()).toEqual(
       [
