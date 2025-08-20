@@ -363,13 +363,13 @@ export const addMatchesToGlobs = (matches: URLRuleEntry[], globs: string[]) => {
 };
 
 export const extractMatchPatternsFromGlobs = (globs: string[]) => {
-  return globs.map(glob => {
+  return globs.map((glob) => {
     if (glob.startsWith("http*://")) {
       glob = `*://${glob.substring(8)}`;
     }
     const extMatch = checkUrlMatch(glob);
     if (!extMatch) return null;
-    const [scheme, host,] = extMatch;
+    const [scheme, host] = extMatch;
     // glob 的 *.google.com 可以匹配 www.google.com 跟 www.my.google.com
     if (host.charAt(0) === ".") return null;
     return `${scheme}://${host}/*`;
@@ -401,6 +401,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
     matchAll = MatchType.WWW;
   }
 
+  let convertedDueToRegEx = false;
   const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
   if (rulesForRegexInclude.length > 0) {
@@ -425,6 +426,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
         continue;
       }
       apiIncludeGlobs.push(globPattern);
+      convertedDueToRegEx = true;
     }
   }
   if (apiIncludeGlobs.length > 0) matchAll = MatchType.WWW;
@@ -435,8 +437,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
 
   let apiMatches = null;
   if (apiIncludeGlobs.length > 0) {
-    const matches = new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs));
-    if (!matches.has(null)) {
+    const matches = convertedDueToRegEx ? new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs)) : null;
+    if (matches !== null && !matches.has(null)) {
       apiMatches = [...matches];
     } else if (isAllUrlsRequired(apiIncludeGlobs)) {
       matchAll = MatchType.ALL;
