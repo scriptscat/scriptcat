@@ -406,6 +406,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
   let matchAll: string[] | null = null;
 
+  // 原始的UrlPatterns中，match pattern 为空，或包括至少一个 *://*/* match pattern 时，先预设 match 为 *://*/*
+  // 之后会再判断，例如追加 file:///*
   if (urlSpecificMatching.length === 0 || urlSpecificMatching.length !== urlMatching.length) {
     matchAll = ["*://*/*"]; // 包含 https 和 http
   }
@@ -414,6 +416,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   let regConvTryExtractDomain = false;
   const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
   const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
+  
+  // 含有 regex 时，先转化成 glob pattern 再决定如何配合 UserScript API 的 match/glob pattern 注入
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
       const ps = rule.patternString;
@@ -447,12 +451,18 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       apiIncludeGlobs.push(globPattern);
     }
   }
+
+  // 由於有 glob pattern, 会先假设需要全域匹配，确保 UserScript API 的注入有效
   if (apiIncludeGlobs.length > 0 && !matchAll) matchAll = ["*://*/*"];
 
+  // 为了改变现有的 match pattern, 现有的 match pattern 全部转换至 glob pattern, 并添加在目前的 globs
   if (matchAll && urlSpecificMatching.length > 0) {
     addMatchesToGlobs(urlSpecificMatching, apiIncludeGlobs);
   }
 
+  // 有 globs 的情况下，需要进一步解析 globs 的规则，来决定
+  // 1) globs 能充分转换成 match 网域 -> 缩小match范围
+  // 2) globs 包含 http/https 以外的 scheme -> 增加match范围
   let apiMatches = null;
   if (apiIncludeGlobs.length > 0) {
     let matches = null;
