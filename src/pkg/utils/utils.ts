@@ -87,35 +87,15 @@ export function parseStorageValue(str: string): unknown {
   }
 }
 
-// 在当前页后打开一个新页面
-export function openInCurrentTab(url: string) {
-  chrome.tabs.query(
-    {
-      active: true,
-    },
-    (tabs) => {
-      if (chrome.runtime.lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", chrome.runtime.lastError);
-        // 因为API报错，我们不应无视并尝试强行打开新页面
-        return;
-      }
-      if (tabs.length) {
-        chrome.tabs.create({
-          url,
-          openerTabId: tabs[0].id,
-          index: tabs[0].index + 1,
-        });
-      } else {
-        chrome.tabs.create({
-          url,
-        });
-      }
-    }
-  );
-}
-
 export function isDebug() {
   return process.env.NODE_ENV === "development";
+}
+
+// https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
+export async function getCurrentTab() {
+  // `tab` will either be a `tabs.Tab` instance or `undefined`.
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab;
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
@@ -163,6 +143,40 @@ export function getIcon(script: Script): string | undefined {
     (script.metadata.icon64 && script.metadata.icon64[0]) ||
     (script.metadata.icon64url && script.metadata.icon64url[0])
   );
+}
+
+// 在当前页后打开一个新页面
+export async function openInCurrentTab(url: string) {
+  const tab = await getCurrentTab();
+  const createProperties: chrome.tabs.CreateProperties = { url };
+  if (tab) {
+    // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
+    if (tab.id! >= 0) {
+      // 如 Tab API 有提供 tab.id, 則指定 tab.id
+      createProperties.openerTabId = tab.id;
+      if (tab.windowId! >= 0) {
+        // 如 Tab API 有提供 tab.windowId, 則指定 tab.windowId
+        createProperties.windowId = tab.windowId;
+      }
+    }
+    createProperties.index = tab.index + 1;
+  }
+  // 先嘗試以 openerTabId 和 windowId 打開
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch {
+    // do nothing
+  }
+  // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
+  delete createProperties.openerTabId;
+  delete createProperties.windowId;
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch {
+    // do nothing
+  }
 }
 
 export function errorMsg(e: any): string {
