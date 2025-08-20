@@ -575,6 +575,27 @@ describe("getApiMatchesAndGlobs-2", () => {
 });
 
 describe("getApiMatchesAndGlobs-3", () => {
+  it("test-0", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    expect(matches).toEqual([
+      "*://www.bilibili.com/video/*",
+      "*://www.bilibili.com/list/*",
+      "*://www.bilibili.com/bangumi/play/*",
+      "*://www.bilibili.com/medialist/play/watchlater",
+      "*://www.bilibili.com/medialist/play/watchlater/*",
+      "*://www.bilibili.com/medialist/play/ml*",
+    ]);
+    expect(includeGlobs).toEqual([]);
+  });
+
   it("test-1", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
@@ -586,7 +607,7 @@ describe("getApiMatchesAndGlobs-3", () => {
       "// @include         /https?:\\/\\/live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    // 可以是 "*://*/*" 或者 *://*.bilibili.com/* 或 (*://www.bilibili.com/* 及 *://live.bilibili.com/*)
     expect(matches).toEqual(["*://*/*"]);
     // 忽略次序
     expect(includeGlobs.sort()).toEqual(
@@ -613,7 +634,7 @@ describe("getApiMatchesAndGlobs-3", () => {
       "// @include         /live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    // 可以是 "*://*/*"
     expect(matches).toEqual(["*://*/*"]);
     // 忽略次序
     expect(includeGlobs.sort()).toEqual(
@@ -640,7 +661,7 @@ describe("getApiMatchesAndGlobs-3", () => {
       "// @include         /live\\.bilibili\\.com/",
     ]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    // 可以是 "*://*/*"
     expect(matches).toEqual(["*://*/*"]);
     // 忽略次序
     expect(includeGlobs.sort()).toEqual(
