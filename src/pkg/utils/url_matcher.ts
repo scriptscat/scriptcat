@@ -383,10 +383,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
   let matchAll: MatchType = MatchType.NONE;
 
-  if (
-    urlSpecificMatching.length === 0 ||
-    urlSpecificMatching.length !== urlMatching.length
-  ) {
+  if (urlSpecificMatching.length === 0 || urlSpecificMatching.length !== urlMatching.length) {
     matchAll = MatchType.WWW;
   }
 
@@ -404,8 +401,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
       }
 
       // 不是http开头的，如没有「*」，则添加 （最大匹配）
-      let prefixWildcard = !globPattern.startsWith("http") && !globPattern.startsWith("*") ? "*" : "";
-      let suffixWildcard = !globPattern.endsWith("*") ? "*" : "";
+      const prefixWildcard = !globPattern.startsWith("http") && !globPattern.startsWith("*") ? "*" : "";
+      const suffixWildcard = !globPattern.endsWith("*") ? "*" : "";
       globPattern = `${prefixWildcard}${globPattern}${suffixWildcard}`;
 
       // regex pattern 能被解析成 glob pattern, 可在 MV3 API 进行匹配
