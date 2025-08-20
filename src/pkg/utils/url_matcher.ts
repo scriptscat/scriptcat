@@ -398,7 +398,7 @@ export const extractSchemesOfGlobs = (globs: string[]) => {
       }
     }
   }
-  return [...set]
+  return [...set];
 };
 
 export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
