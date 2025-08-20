@@ -1,3 +1,5 @@
+import { regexToGlob } from "./regex_to_glob";
+
 export const enum RuleType {
   MATCH_INCLUDE = 1,
   MATCH_EXCLUDE = 2,
@@ -380,16 +382,35 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   const urlMatching = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
   let matchAll: MatchType = MatchType.NONE;
+
   if (
     urlSpecificMatching.length === 0 ||
-    urlSpecificMatching.length !== urlMatching.length ||
-    scriptUrlPatterns.some((e) => e.ruleType === RuleType.REGEX_INCLUDE)
+    urlSpecificMatching.length !== urlMatching.length
   ) {
     matchAll = MatchType.WWW;
   }
 
   const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
-  if (apiIncludeGlobs.length > 0) matchAll = 1;
+  const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
+  if (rulesForRegexInclude.length > 0) {
+    for (const rule of rulesForRegexInclude) {
+      const ps = rule.patternString;
+      const globPattern = regexToGlob(ps.substring(1, ps.length - 1));
+      if (globPattern === null) {
+        // 保留 regex pattern 但不會在 MV3 API 進行匹配，只在 JS代碼 進行匹配 (urlMatch)
+        // 因為很大程度是不正確的regex pattern，所以urlMatch的匹配應該不會成功
+        console.error(`invalid/unrecongized regex pattern "${ps}", ignore conversion to glob.`);
+        continue;
+      }
+      // regex pattern 能被解析成 glob pattern, 可在 MV3 API 進行匹配
+      if (apiIncludeGlobs.includes(globPattern)) {
+        // 已存在，不重覆添加
+        continue;
+      }
+      apiIncludeGlobs.push(globPattern);
+    }
+  }
+  if (apiIncludeGlobs.length > 0) matchAll = MatchType.WWW;
 
   if (matchAll && urlSpecificMatching.length > 0) {
     addMatchesToGlobs(urlSpecificMatching, apiIncludeGlobs);

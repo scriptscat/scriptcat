@@ -549,6 +549,7 @@ describe("getApiMatchesAndGlobs-2", () => {
       "*:5244*",
       "*:8080*",
       "https://*.test.com/*",
+      "*ple*",
       "http*://steamcommunity.com/*",
       "http*://meta.appinn.net/*",
       "http*://v2ex.com/*",
@@ -570,6 +571,35 @@ describe("getApiMatchesAndGlobs-2", () => {
       // "https://test.com/*",
       // "https://*.test.com/*",
     ]);
+  });
+});
+
+describe("getApiMatchesAndGlobs-3", () => {
+  it("test-1", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /https?:\\/\\/live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "http*://live.bilibili.com/?*",
+      ].sort()
+    );
   });
 });
 
