@@ -601,6 +601,60 @@ describe("getApiMatchesAndGlobs-3", () => {
       ].sort()
     );
   });
+
+  it("test-2", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /live\\.bilibili\\.com\\/(blanc\\/)?\\d+([/?]|$)/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*live.bilibili.com/?*",
+      ].sort()
+    );
+  });
+
+  it("test-3", () => {
+    const scriptUrlPatterns = extractUrlPatterns([
+      "// @include         *://www.bilibili.com/video/*",
+      "// @include         *://www.bilibili.com/list/*",
+      "// @include         *://www.bilibili.com/bangumi/play/*",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater",
+      "// @include         *://www.bilibili.com/medialist/play/watchlater/*",
+      "// @include         *://www.bilibili.com/medialist/play/ml*",
+      "// @include         /live\\.bilibili\\.com/",
+    ]);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    // 可以是 "*://*/*" 或者 *://*.bilibili.com/*
+    expect(matches).toEqual(["*://*/*"]);
+    // 忽略次序
+    expect(includeGlobs.sort()).toEqual(
+      [
+        "http*://www.bilibili.com/video/*",
+        "http*://www.bilibili.com/list/*",
+        "http*://www.bilibili.com/bangumi/play/*",
+        "http*://www.bilibili.com/medialist/play/watchlater",
+        "http*://www.bilibili.com/medialist/play/watchlater/*",
+        "http*://www.bilibili.com/medialist/play/ml*",
+        "*live.bilibili.com*",
+      ].sort()
+    );
+  });
 });
 
 describe("UrlMatch-exclusion", () => {

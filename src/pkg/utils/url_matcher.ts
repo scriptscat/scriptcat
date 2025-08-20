@@ -395,14 +395,20 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
       const ps = rule.patternString;
-      const globPattern = regexToGlob(ps.substring(1, ps.length - 1));
+      let globPattern = regexToGlob(ps.substring(1, ps.length - 1));
       if (globPattern === null) {
-        // 保留 regex pattern 但不會在 MV3 API 進行匹配，只在 JS代碼 進行匹配 (urlMatch)
-        // 因為很大程度是不正確的regex pattern，所以urlMatch的匹配應該不會成功
+        // 保留 regex pattern 但不会在 MV3 API 进行匹配，只在 JS代码 进行匹配 (urlMatch)
+        // 因为很大程度是不正确的regex pattern，所以urlMatch的匹配应该不会成功
         console.error(`invalid/unrecongized regex pattern "${ps}", ignore conversion to glob.`);
         continue;
       }
-      // regex pattern 能被解析成 glob pattern, 可在 MV3 API 進行匹配
+
+      // 不是http开头的，如没有「*」，则添加 （最大匹配）
+      let prefixWildcard = !globPattern.startsWith("http") && !globPattern.startsWith("*") ? "*" : "";
+      let suffixWildcard = !globPattern.endsWith("*") ? "*" : "";
+      globPattern = `${prefixWildcard}${globPattern}${suffixWildcard}`;
+
+      // regex pattern 能被解析成 glob pattern, 可在 MV3 API 进行匹配
       if (apiIncludeGlobs.includes(globPattern)) {
         // 已存在，不重覆添加
         continue;
