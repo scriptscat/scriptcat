@@ -280,3 +280,13 @@ export function getUserConfigStr(code: string): string | null {
   }
   return `/* ${code.substring(start, end + 15)} */`;
 }
+
+export const obtainBlackList = (strBlacklist: string | null | undefined) => {
+  const blacklist = strBlacklist
+    ? strBlacklist
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item)
+    : [];
+  return blacklist;
+};

@@ -175,12 +175,19 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
     const rch = /^\/(.+)\/([a-z]*)$/.exec(content);
     if (rch) {
       // re pattern 正则表达式
-      rules.push({
-        ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
-        ruleContent: new RegExp(rch[1], rch[2] || "i"), // case-insensitive 不区分大小写
+      let re = null;
+      try {
+        re = new RegExp(rch[1], rch[2] || "i"); // case-insensitive 不区分大小写
         // 默认加上 "i"（不区分大小写），除非用户提供标志
         // 这样做是为了与其他脚本管理器（如 Tampermonkey）保持一致，符合常见的 URL 匹配预期
         // 参考: https://github.com/violentmonkey/violentmonkey/issues/1044#issuecomment-674652499
+      } catch {
+        // 忽略不正确的 regex pattern
+      }
+      if (re === null) continue; // 忽略不正确的 regex pattern
+      rules.push({
+        ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
+        ruleContent: re,
         ruleTag: tag,
         patternString: content,
       });

@@ -13,7 +13,7 @@ import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
-import { obtainBlackList } from "@App/pkg/utils/script";
+import { obtainBlackList } from "@App/pkg/utils/utils";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();

@@ -220,13 +220,3 @@ export async function prepareSubscribeByCode(
   }
   return { subscribe, oldSubscribe: old };
 }
-
-export const obtainBlackList = (strBlacklist: string | null | undefined) => {
-  const blacklist = strBlacklist
-    ? strBlacklist
-        .split("\n")
-        .map((item) => item.trim())
-        .filter((item) => item)
-    : [];
-  return blacklist;
-};
