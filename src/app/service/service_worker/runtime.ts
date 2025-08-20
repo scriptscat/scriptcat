@@ -56,11 +56,13 @@ export class RuntimeService {
 
   // 当前扩充的userAgentData
   // 在未初始化前，预设 {}。一般情况初始化值会很快被替换
+  // 注意：即使没有使用 Object.freeze, 也不应该直接修改物件内容 (immutable)
   userAgentData: typeof GM_info.userAgentData = {};
 
   // 当前扩充的blacklist
-  // 在未初始化前，预设 ""。一般情况初始化值会很快被替换
-  strBlacklist: string = "";
+  // 在未初始化前，预设 []。一般情况初始化值会很快被替换
+  // 注意：即使没有使用 Object.freeze, 也不应该直接修改阵列内容 (immutable)
+  blacklist: string[] = [];
 
   constructor(
     private systemConfig: SystemConfig,
@@ -225,11 +227,11 @@ export class RuntimeService {
     );
 
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
-      this.strBlacklist = blacklist;
+      this.blacklist = obtainBlackList(blacklist);
       // 重新注册用户脚本
       await this.unregisterUserscripts();
       await this.registerUserscripts();
-      this.loadBlacklist(blacklist);
+      this.loadBlacklist();
       this.logger.info("blacklist updated", {
         blacklist,
       });
@@ -247,7 +249,7 @@ export class RuntimeService {
     // 保存初始值
     this.isEnableDeveloperMode = isEnableDeveloperMode;
     this.isLoadScripts = isLoadScripts;
-    this.strBlacklist = strBlacklist;
+    this.blacklist = obtainBlackList(strBlacklist);
 
     // 检查是否开启了开发者模式
     if (!this.isEnableDeveloperMode) {
@@ -256,7 +258,7 @@ export class RuntimeService {
     }
 
     // 初始化：加载黑名单
-    this.loadBlacklist(strBlacklist);
+    this.loadBlacklist();
     // 初始化：userAgentData
     await this.initUserAgentData();
 
@@ -266,9 +268,9 @@ export class RuntimeService {
     }
   }
 
-  private loadBlacklist(strBlacklist: string) {
+  private loadBlacklist() {
     // 设置黑名单match
-    const blacklist = obtainBlackList(strBlacklist);
+    const blacklist = this.blacklist; // 重用cache的blacklist阵列 (immutable)
     const result = dealPatternMatches(blacklist, {
       exclude: true,
     });
@@ -409,17 +411,14 @@ export class RuntimeService {
   async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
     await this.loadScriptMatchInfo();
     // 匹配当前页面的脚本
-    const matchScriptUuid = this.scriptMatch.match(url!);
+    let matchScriptUuid = this.scriptMatch.match(url!);
     // 包含自定义排除的脚本
     if (includeCustomize) {
       const excludeScriptUuid = this.scriptCustomizeMatch.match(url!);
       // 自定义排除的脚本优化显示
-      const match = new Set<string>([...excludeScriptUuid, ...matchScriptUuid]);
-      // 转化为数组
-      return [...match];
-    } else {
-      return matchScriptUuid;
+      matchScriptUuid = [...new Set<string>([...excludeScriptUuid, ...matchScriptUuid])];
     }
+    return matchScriptUuid;
   }
 
   async getPageScriptByUrl(url: string, includeCustomize?: boolean) {
@@ -608,10 +607,9 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 黑名单排除
-      const strBlacklist = this.strBlacklist;
+      const blacklist = this.blacklist;
       const excludeMatches = [];
-      if (strBlacklist) {
-        const blacklist = obtainBlackList(strBlacklist);
+      if (blacklist.length) {
         const result = dealPatternMatches(blacklist, {
           exclude: true,
         });
@@ -808,9 +806,8 @@ export class RuntimeService {
     }
 
     // 黑名单排除
-    const strBlacklist = this.strBlacklist;
-    if (strBlacklist) {
-      const blacklist = obtainBlackList(strBlacklist);
+    const blacklist = this.blacklist;
+    if (blacklist.length) {
       const result = dealPatternMatches(blacklist, {
         exclude: true,
       });
