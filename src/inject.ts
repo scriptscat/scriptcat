@@ -19,8 +19,6 @@ const runtime = new InjectRuntime(server, msg);
 // 检查pre-document-start的脚本
 runtime.checkPreDocumentStart();
 
-console.log(PreInjectScriptFlag);
-
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
   // 监听事件

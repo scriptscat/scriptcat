@@ -65,7 +65,7 @@ export function compileInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `console.log('test1');window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
 /**
@@ -77,7 +77,7 @@ export function compilePreInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `console.log('test');window['${script.flag}'] = {
+  return `window['${script.flag}'] = {
   scriptInfo: ${JSON.stringify(script)},
   func: function(){${autoDeleteMountCode}${scriptCode}}
   }`;
