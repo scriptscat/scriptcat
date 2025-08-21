@@ -5,7 +5,13 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
-import { checkSilenceUpdate, InfoNotification, openInCurrentTab, randomMessageFlag } from "@App/pkg/utils/utils";
+import {
+  checkSilenceUpdate,
+  getBrowserType,
+  InfoNotification,
+  openInCurrentTab,
+  randomMessageFlag,
+} from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
@@ -107,7 +113,23 @@ export class ScriptService {
         types: ["main_frame"],
       }
     );
-    // 获取i18n
+    // 兼容 chrome 内核 < 128 处理
+    const condition: chrome.declarativeNetRequest.RuleCondition = {
+      regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
+      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+      requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+    };
+    const browserType = getBrowserType();
+    if (browserType.chrome && browserType.chromeVersion >= 128) {
+      condition.excludedResponseHeaders = [
+        {
+          header: "Content-Type",
+          values: ["text/html"],
+        },
+      ];
+    } else {
+      condition.excludedRequestDomains = ["github.com"];
+    }
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
@@ -122,17 +144,7 @@ export class ScriptService {
                 regexSubstitution: `https://docs.scriptcat.org${localePath}/docs/script_installation/#url=\\0`,
               },
             },
-            condition: {
-              regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
-              resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-              requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-              excludedResponseHeaders: [
-                {
-                  header: "Content-Type",
-                  values: ["text/html"],
-                },
-              ],
-            },
+            condition: condition,
           },
         ],
       },
