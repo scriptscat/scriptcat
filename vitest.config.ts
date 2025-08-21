@@ -1,6 +1,5 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
-import CustomSequencer from "./tests/vitest.CustomSequencer.ts";
 
 export default defineConfig({
   resolve: {
@@ -17,9 +16,6 @@ export default defineConfig({
     setupFiles: ["./tests/vitest.setup.ts"],
     env: {
       VI_TESTING: "true",
-    },
-    sequence: {
-      sequencer: CustomSequencer,
     },
   },
 });
