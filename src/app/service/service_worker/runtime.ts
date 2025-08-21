@@ -28,6 +28,16 @@ import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 
+const obtainBlackList = (strBlacklist: string | null | undefined) => {
+  const blacklist = strBlacklist
+    ? strBlacklist
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item)
+    : [];
+  return blacklist;
+};
+
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -36,9 +46,23 @@ export class RuntimeService {
 
   logger: Logger;
 
+  // 当前扩充是否在开发者模式打开时执行
+  // 在未初始化前，预设 false。一般情况初始化值会很快被替换
   isEnableDeveloperMode = false;
-  isEnableUserscribe = true;
+
+  // 当前扩充是否开啟了啟用脚本
+  // 在未初始化前，预设 true。一般情况初始化值会很快被替换
+  isLoadScripts = true;
+
+  // 当前扩充的userAgentData
+  // 在未初始化前，预设 {}。一般情况初始化值会很快被替换
+  // 注意：即使没有使用 Object.freeze, 也不应该直接修改物件内容 (immutable)
   userAgentData: typeof GM_info.userAgentData = {};
+
+  // 当前扩充的blacklist
+  // 在未初始化前，预设 []。一般情况初始化值会很快被替换
+  // 注意：即使没有使用 Object.freeze, 也不应该直接修改阵列内容 (immutable)
+  blacklist: string[] = [];
 
   constructor(
     private systemConfig: SystemConfig,
@@ -71,6 +95,32 @@ export class RuntimeService {
     }
   }
 
+  showNoDeveloperModeWarning() {
+    // 判断是否首次
+    const localStorage = new LocalStorageDAO();
+    localStorage.get("firstShowDeveloperMode").then((res) => {
+      if (!res) {
+        localStorage.save({
+          key: "firstShowDeveloperMode",
+          value: true,
+        });
+        // 打开页面
+        chrome.tabs.create({
+          url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
+        });
+      }
+    });
+    chrome.action.setBadgeBackgroundColor({
+      color: "#ff8c00",
+    });
+    chrome.action.setBadgeTextColor({
+      color: "#ffffff",
+    });
+    chrome.action.setBadgeText({
+      text: "!",
+    });
+  }
+
   async init() {
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
@@ -89,35 +139,6 @@ export class RuntimeService {
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
-
-    // 检查是否开启了开发者模式
-    this.isEnableDeveloperMode = await isUserScriptsAvailable();
-    if (!this.isEnableDeveloperMode) {
-      // 未开启加上警告引导
-      // 判断是否首次
-      const localStorage = new LocalStorageDAO();
-      localStorage.get("firstShowDeveloperMode").then((res) => {
-        if (!res) {
-          localStorage.save({
-            key: "firstShowDeveloperMode",
-            value: true,
-          });
-          // 打开页面
-          chrome.tabs.create({
-            url: `${DocumentationSite}${localePath}/docs/use/open-dev/`,
-          });
-        }
-      });
-      chrome.action.setBadgeBackgroundColor({
-        color: "#ff8c00",
-      });
-      chrome.action.setBadgeTextColor({
-        color: "#ffffff",
-      });
-      chrome.action.setBadgeText({
-        text: "!",
-      });
-    }
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript>("enableScript", async (data) => {
@@ -155,7 +176,7 @@ export class RuntimeService {
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       await this.unregistryPageScript(uuid);
-      this.deleteScriptMatch(uuid);
+      await this.deleteScriptMatch(uuid);
     });
     // 监听脚本排序
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
@@ -167,9 +188,10 @@ export class RuntimeService {
         console.warn("scriptMatchCache is undefined.");
         return;
       }
-      Object.keys(scriptMatchCache).forEach((uuid) => {
+      const keys = Object.keys(scriptMatchCache);
+      for (const uuid of keys) {
         scriptMatchCache[uuid].sort = uuidSort[uuid];
-      });
+      }
       cacheInstance.set("scriptMatch", scriptMatchCache);
     });
 
@@ -188,48 +210,69 @@ export class RuntimeService {
       });
     });
 
-    this.systemConfig.addListener(
-      "enable_script" + (chrome.extension.inIncognitoContext ? "_incognito" : ""),
-      async (enable) => {
-        this.isEnableUserscribe = await this.systemConfig.getEnableScript();
-        if (chrome.extension.inIncognitoContext) {
-          // 隐身窗口不对注册了的脚本进行实际操作
-          return;
-        }
-        if (enable) {
-          this.registerUserscripts();
-        } else {
-          this.unregisterUserscripts();
-        }
-      }
-    );
-    // 检查是否开启
-    this.isEnableUserscribe = await this.systemConfig.getEnableScript();
-    if (this.isEnableUserscribe) {
-      this.registerUserscripts();
+    if (chrome.extension.inIncognitoContext) {
+      this.systemConfig.addListener("enable_script_incognito", async (enable) => {
+        // 隐身窗口不对注册了的脚本进行实际操作
+        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptNormal());
+      });
+      this.systemConfig.addListener("enable_script", async (enable) => {
+        // 隐身窗口不对注册了的脚本进行实际操作
+        // 当主窗口的enable改为false时，isLoadScripts也会更改为false
+        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptIncognite());
+      });
+    } else {
+      this.systemConfig.addListener("enable_script", async (enable) => {
+        this.isLoadScripts = enable;
+        enable ? this.registerUserscripts() : this.unregisterUserscripts();
+      });
     }
+
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
+      this.blacklist = obtainBlackList(blacklist);
       // 重新注册用户脚本
       await this.unregisterUserscripts();
-      this.registerUserscripts();
-      this.loadBlacklist(blacklist);
+      await this.registerUserscripts();
+      this.loadBlacklist();
       this.logger.info("blacklist updated", {
         blacklist,
       });
     });
-    // 加载黑名单
-    this.loadBlacklist(await this.systemConfig.getBlacklist());
-    // 初始化一下userAgentData
-    this.initUserAgentData();
+
+    // ======== 以下初始化是异步处理，因此扩充载入时可能会优先跑其他同步初始化 ========
+
+    // 取得初始值
+    const [isEnableDeveloperMode, isLoadScripts, strBlacklist] = await Promise.all([
+      isUserScriptsAvailable(),
+      this.systemConfig.getEnableScript(),
+      this.systemConfig.getBlacklist(),
+    ]);
+
+    // 保存初始值
+    this.isEnableDeveloperMode = isEnableDeveloperMode;
+    this.isLoadScripts = isLoadScripts;
+    this.blacklist = obtainBlackList(strBlacklist);
+
+    // 检查是否开启了开发者模式
+    if (!this.isEnableDeveloperMode) {
+      // 未开启加上警告引导
+      this.showNoDeveloperModeWarning();
+    }
+
+    // 初始化：加载黑名单
+    this.loadBlacklist();
+    // 初始化：userAgentData
+    await this.initUserAgentData();
+
+    // 如果初始化时开啟了啟用脚本，则注册脚本
+    if (this.isLoadScripts) {
+      await this.registerUserscripts();
+    }
   }
 
-  private loadBlacklist(blacklist: string) {
+  private loadBlacklist() {
     // 设置黑名单match
-    const list = blacklist
-      .split("\n")
-      .map((item) => item.trim())
-      .filter((item) => item);
-    const result = dealPatternMatches(list, {
+    const blacklist = this.blacklist; // 重用cache的blacklist阵列 (immutable)
+    const result = dealPatternMatches(blacklist, {
       exclude: true,
     });
     this.blackMatch.forEach((uuid) => {
@@ -286,7 +329,7 @@ export class RuntimeService {
       });
 
       // 如果脚本开启, 则注册脚本
-      if (this.isEnableDeveloperMode && this.isEnableUserscribe) {
+      if (this.isEnableDeveloperMode && this.isLoadScripts) {
         // 批量注册
         // 先删除所有脚本
         await chrome.userScripts.unregister();
@@ -317,9 +360,9 @@ export class RuntimeService {
     }
 
     // 读取inject.js注入页面
-    this.registerInjectScript();
+    await this.registerInjectScript();
 
-    this.loadScriptMatchInfo();
+    await this.loadScriptMatchInfo();
   }
 
   getAndGenMessageFlag() {
@@ -367,21 +410,14 @@ export class RuntimeService {
   }
 
   async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
-    const match = await this.loadScriptMatchInfo();
+    await this.loadScriptMatchInfo();
     // 匹配当前页面的脚本
-    const matchScriptUuid = match.match(url!);
+    let matchScriptUuid = this.scriptMatch.match(url!);
     // 包含自定义排除的脚本
     if (includeCustomize) {
       const excludeScriptUuid = this.scriptCustomizeMatch.match(url!);
-      const match = new Set<string>();
-      excludeScriptUuid.forEach((uuid) => {
-        match.add(uuid);
-      });
-      matchScriptUuid.forEach((uuid) => {
-        match.add(uuid);
-      });
-      // 转化为数组
-      return [...match];
+      // 自定义排除的脚本优化显示
+      matchScriptUuid = [...new Set<string>([...excludeScriptUuid, ...matchScriptUuid])];
     }
     return matchScriptUuid;
   }
@@ -393,18 +429,20 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
-    if (!this.isEnableUserscribe) {
+    if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
-    // 判断是否黑名单
-    const isBlack = this.blackMatch.match(sender.getSender().url!);
+
+    const chromeSender = sender.getSender() as MessageSender;
+
+    // 判断是否黑名单（针对网址，与个别脚本设定无关）
+    const isBlack = this.blackMatch.match(chromeSender.url!);
     if (isBlack.length > 0) {
       // 如果在黑名单中, 则不加载脚本
       return { flag: "", scripts: [] };
     }
 
-    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // 只执行 loadScriptMatchInfo 但不获取结果
-    const chromeSender = sender.getSender() as MessageSender;
+    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // loadScriptMatchInfo 不產生结果
 
     // 匹配当前页面的脚本
     const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
@@ -570,14 +608,10 @@ export class RuntimeService {
     let messageFlag = await this.getMessageFlag();
     if (!messageFlag) {
       // 黑名单排除
-      const blacklist = await this.systemConfig.getBlacklist();
+      const blacklist = this.blacklist;
       const excludeMatches = [];
-      if (blacklist) {
-        const list = blacklist
-          .split("\n")
-          .map((item) => item.trim())
-          .filter((item) => item);
-        const result = dealPatternMatches(list, {
+      if (blacklist.length) {
+        const result = dealPatternMatches(blacklist, {
           exclude: true,
         });
         excludeMatches.push(...result.patternResult);
@@ -636,7 +670,7 @@ export class RuntimeService {
   // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量使用此方法获取
   async loadScriptMatchInfo() {
     if (this.scriptMatchCache) {
-      return this.scriptMatch;
+      return;
     }
     if (this.loadingScript) {
       await this.loadingScript;
@@ -658,7 +692,6 @@ export class RuntimeService {
       this.loadingScript = null;
       this.scriptMatchCache = cache;
     }
-    return this.scriptMatch;
   }
 
   // 保存脚本匹配信息
@@ -684,7 +717,7 @@ export class RuntimeService {
     }
     this.scriptMatchCache!.set(item.uuid, item);
     this.syncAddScriptMatch(item);
-    this.saveScriptMatchInfo();
+    await this.saveScriptMatchInfo();
   }
 
   syncAddScriptMatch(item: ScriptMatchInfo) {
@@ -707,7 +740,7 @@ export class RuntimeService {
     if (!this.scriptMatchCache) {
       await this.loadScriptMatchInfo();
     }
-    const script = await this.scriptMatchCache!.get(uuid);
+    const script = this.scriptMatchCache!.get(uuid);
     if (script) {
       script.status = status;
       this.saveScriptMatchInfo();
@@ -779,13 +812,9 @@ export class RuntimeService {
     }
 
     // 黑名单排除
-    const blacklist = await this.systemConfig.getBlacklist();
-    if (blacklist) {
-      const list = blacklist
-        .split("\n")
-        .map((item) => item.trim())
-        .filter((item) => item);
-      const result = dealPatternMatches(list, {
+    const blacklist = this.blacklist;
+    if (blacklist.length) {
+      const result = dealPatternMatches(blacklist, {
         exclude: true,
       });
       // scriptMatchInfo.excludeMatches.push(...result.result);
@@ -793,7 +822,7 @@ export class RuntimeService {
     }
 
     // 将脚本match信息放入缓存中
-    this.addScriptMatch(scriptMatchInfo);
+    await this.addScriptMatch(scriptMatchInfo);
 
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
@@ -820,7 +849,7 @@ export class RuntimeService {
     const { registerScript } = resp;
 
     // 如果脚本开启, 则注册脚本
-    if (this.isEnableDeveloperMode && this.isEnableUserscribe && script.status === SCRIPT_STATUS_ENABLE) {
+    if (this.isEnableDeveloperMode && this.isLoadScripts && script.status === SCRIPT_STATUS_ENABLE) {
       const res = await chrome.userScripts.getScripts({ ids: [uuid] });
       const logger = LoggerCore.logger({
         name,
@@ -848,13 +877,15 @@ export class RuntimeService {
 
   async unregistryPageScript(uuid: string) {
     const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.isEnableDeveloperMode || !this.isEnableUserscribe || !(await cacheInstance.get(cacheKey))) {
+    if (!this.isEnableDeveloperMode || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
       return;
     }
     // 删除缓存
-    cacheInstance.del(cacheKey);
-    // 修改脚本状态为disable
-    this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE);
-    chrome.userScripts.unregister({ ids: [uuid] });
+    await cacheInstance.del(cacheKey);
+    // 修改脚本状态为disable，瀏览器取消注册该脚本
+    await Promise.all([
+      this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
+      chrome.userScripts.unregister({ ids: [uuid] }),
+    ]);
   }
 }

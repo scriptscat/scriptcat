@@ -42,8 +42,16 @@ export async function NetDisk(netDiskType: NetDiskType) {
         url,
       });
       isWindowClosed = async () => {
-        const tab = await chrome.tabs.get(t.id!);
-        return !tab || tab.id !== t.id;
+        try {
+          const tab = await chrome.tabs.get(t.id!);
+          // 如果到了callback页面，调用关闭
+          if (tab && tab.url?.includes("/auth/net-disk/callback")) {
+            chrome.tabs.remove(t.id!);
+          }
+          return !tab || tab.id !== t.id;
+        } catch {
+          return true;
+        }
       };
     } else {
       const loginWindow = window.open(url);

@@ -1,15 +1,5 @@
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 
-// export function randomString(e = 32): string {
-//   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
-//   const a = t.length;
-//   const n = new Array(e);
-//   for (let i = 0; i < e; i++) {
-//     n[i] = t[(Math.random() * a) | 0];
-//   }
-//   return n.join("");
-// }
-
 function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
@@ -100,11 +90,28 @@ export async function openInCurrentTab(url: string) {
   const createProperties: chrome.tabs.CreateProperties = { url };
   if (tab) {
     // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
-    createProperties.openerTabId = tab.id;
-    createProperties.windowId = tab.windowId;
+    if (tab.id! >= 0) {
+      // 如 Tab API 有提供 tab.id, 則指定 tab.id
+      createProperties.openerTabId = tab.id;
+      if (tab.windowId! >= 0) {
+        // 如 Tab API 有提供 tab.windowId, 則指定 tab.windowId
+        createProperties.windowId = tab.windowId;
+      }
+    }
     createProperties.index = tab.index + 1;
   }
+  // 先嘗試以 openerTabId 和 windowId 打開
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch {
+    // do nothing
+  }
+  // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
+  delete createProperties.openerTabId;
+  delete createProperties.windowId;
   await chrome.tabs.create(createProperties);
+  return;
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
@@ -202,6 +209,7 @@ export function getBrowserType() {
     webkit: 0, // Safari, Orion
     chrome: 0, // Chrome, Chromium, Brave, Edge
     unknown: 0,
+    chromeVersion: 0,
   };
   if (isFirefox()) {
     o.firefox = 1;
@@ -217,6 +225,7 @@ export function getBrowserType() {
         const isEdgeBrowser = isEdge();
         const chromeVersion = getBrowserVersion();
         o.chrome = (isEdgeBrowser ? 2 : 1) | (chromeVersion < 120 ? 4 : chromeVersion < 138 ? 8 : 16);
+        o.chromeVersion = chromeVersion;
       } else {
         o.unknown = 1;
       }

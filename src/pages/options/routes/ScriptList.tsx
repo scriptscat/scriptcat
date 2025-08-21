@@ -740,7 +740,7 @@ function ScriptList() {
     header: {
       operations: ({ selectionNode, expandNode }) => [
         {
-          node: <th />,
+          node: <th className="script-sort" />,
           width: 34,
         },
         {

@@ -62,7 +62,6 @@ npm start
 [Crowdin](https://crowdin.com/project/scriptcat) is an online multilingual translation platform. If you are interested in helping us translate ScriptCat-related content, you can find the ScriptCat project on Crowdin and start translation work.
 
 - `src/locales` is the translation file directory for the [extension](https://github.com/scriptscat/scriptcat)
-- `public/locales` is the translation file directory for the [script site](https://github.com/scriptscat/scriptlist-frontend)
 
 #### Enable WYSIWYG Mode for Extension
 
