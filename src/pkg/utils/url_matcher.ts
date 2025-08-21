@@ -73,7 +73,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
     if (content.charAt(0) !== "/") {
       if (tag === "match") {
         // @match
-        let m: any;
+        let m: RegExpExecArray | null;
 
         if (content === "*") {
           // 特殊处理 @match *
@@ -422,8 +422,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
     for (const rule of rulesForRegexInclude) {
       // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
       let globPattern = regexToGlob(rule.ruleContent[1]);
-      let m: any = null;
       if (globPattern !== null) {
+        let m: RegExpExecArray | null = null;
         if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
           // 非网域的简单 globPattern (*apple*, *apple.com*)
           // globPattern = globPattern;

@@ -6,9 +6,26 @@ describe("regexToGlob examples", () => {
     ["(a|b|c)", "?"], // union of single chars
     ["a(b|c)d", "a?d"],
     ["a.b.c", "a?b?c"],
+
+    ["\\!", "!"],
+    ["\\$", "$"],
+    ["\\+", "+"],
+    ["\\.", "."],
+    ["\\/", "/"],
+    ["\\-", "-"],
+    ["\\?", "?"], // special case
+    ["\\*", "?"], // special case
+    ["[abc]", "?"],
+    ["[^abc]", "?"],
+    ["[-!$+.?*]", "?"],
+    ["[^-!$+.?*]", "?"],
+
+    ["^(http|https):\\/\\/www\\.google\\.com", "http*://www.google.com"],
+    ["^(http|https?):\\/\\/www\\.google\\.com", "http*://www.google.com"],
+
     ["\\w*", "*"],
     ["\\w+", "?*"],
-    ["file\\.(js|ts)", "file.??"],
+    ["file\\.(js|ts)", "file.?s"],
     ["file\\.(js|tsx)", "file.??*"],
     ["file\\.(js|tsx|\\w+)", "file.?*"],
     ["\\d{3}-\\d{2}-\\d{4}", "???-??-????"],
@@ -17,7 +34,7 @@ describe("regexToGlob examples", () => {
     [".*", "*"],
     ["\\w?", "*"], // optional single char -> '*'
     ["(abc|def)", "???"], // union of 3-char literals -> '???'
-    ["(ab|abc)", "??*"], // min length 2 -> '??*'
+    ["(ab|abc)", "ab*"], // min length 2 -> 'ab*'
     ["\\S", "?"], // non-space single
     ["\\S+", "?*"],
     ["\\S+?", "?*"], // lazy+? still -> '?*'
@@ -27,6 +44,14 @@ describe("regexToGlob examples", () => {
 
     // ignore ^ and $
     ["^test$", "test"],
+
+    // longer, with escape chars
+    ["https?://www.google.com/search\\?q=\\w+&page=\\d+", "http*://www?google?com/search?q=?*&page=?*"],
+    ["https?://www.google.com/search?q=\\w+&page=\\d+", "http*://www?google?com/searc*q=?*&page=?*"],
+    [
+      "https?://www.go\\$og\\@l\\!e\\.co\\#m/sea\\*r\\(c\\)h?q=\\w+&page=\\d+",
+      "http*://www?go$og@l!e.co#m/sea?r(c)*q=?*&page=?*",
+    ],
 
     // invalid regex -> null
     ["[abc", null],
@@ -52,10 +77,10 @@ describe("regexToGlob examples", () => {
     [".*(?<!exam)ple.*", "*ple*"],
 
     // complex structures -> approximate
-    ["p(abc-\\w+-x|(uuid-\\d+|id-\\d+)-y){8,}q", "p*q"],
+    ["p(abc-\\w+-x|(uuid-\\d+|id-\\d+)-y){8,}q", "p*q"], // alternative: 48 ? then *
 
     // simple structures -> exact
-    ["\\b(?:public|private|protected)\\s+(?!void|string|int|bool)(\\w+)\\s+", "?????????*"],
+    ["\\b(?:public|private|protected)\\s+(?!void|string|int|bool)(\\w+)\\s+", "p????????*"],
 
     // URLs
     ["https?://live\\.bilibili\\.com/", "http*://live.bilibili.com/"],

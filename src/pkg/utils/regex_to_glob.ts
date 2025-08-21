@@ -20,7 +20,7 @@
  * - 'a.b.c' → 'a?b?c'
  * - '\\w*' → '*'
  * - '\\w+' → '?*'
- * - 'file\\.(js|ts)' → 'file.??'
+ * - 'file\\.(js|ts)' → 'file.?s'
  * - 'file\\.(js|ts|tsx)' → 'file.??*'
  * - 'file\\.(js|ts|tsx|\\w+)' → 'file.?*'
  * - 'file\\.(js|ts|tsx|\\w*)' → 'file.*'
@@ -29,23 +29,27 @@
  * - 'user_\\d{2,}' → 'user_??*'
  * - '.*' → '*'
  * - '(abc|def)' → '???'
- * - 'https?://www\\.google\\.com\\/' → 'http?://www.google.com/'
- * - 'https?:\\/\\/www\\.google\\.com\\/' → 'http?://www.google.com/'
+ * - '^(http|https?):\\/\\/www\\.google\\.com' → 'http*://www.google.com'
+ * - 'https?://www.google.com/search\\?q=\\w+&page=\\d+' → 'http*://www?google?com/search?q=?*&page=?*'
+ * - 'te(st){5,}' → 'teststststst*'
+ * - 'te(st){5,8}' → 'teststststst*'
+ * - '\\?' → '?'   // literal '?' approximated as single-char match
+ * - '\\*' → '?'   // literal '*' approximated as single-char match
  * - '[abc' → null
  * - '(ab' → null
  * - 'test\\' → null
  *
  * Notes / 注意：
- * - Output uses only '*' (zero or more chars, including empty) and '?' (exactly one char).
- *   输出仅使用 '*'（匹配零个或多个字符，包括空字符串）与 '?'（精确匹配一个字符）。
+ * - Output uses only '*'（>=0 chars）and '?'（exactly 1 char）.
+ *   输出仅使用 '*'（≥0 个字符）与 '?'（恰 1 个字符）。
  * - Character classes (e.g., [abc], [^abc]) are approximated as '?'.
- *   字符类（如 [abc], [^abc]）近似处理为 '?'。
- * - Escaped characters (e.g., \\., \\/) are treated as literals (., /).
- *   转义字符（如 \\., \\/）被视为字面量（., /）。
- * - Complex regex features (e.g., lookaheads, nested groups) are approximated as '*' or '?' based on minimum length.
- *   复杂正则特性（如前瞻、嵌套分组）根据最小匹配长度近似为 '*' 或 '?'。
- * - Invalid regex syntax (e.g., unclosed groups, unclosed brackets, unterminated escapes) returns null.
- *   无效的正则语法（如未闭合的分组、未闭合的括号、转义符未结束）将返回 null。
+ *   字符类近似处理为 '?'。
+ * - Escaped specials (e.g., \\., \\/) are treated as literals (., /).
+ *   转义特殊符号（如 \\., \\/）按字面量输出（.、/）。
+ * - Escaped glob-reserved chars (\\?, \\*) are mapped to '?' (single-char) since literal '?'/'*' cannot be represented in a pure '*'/'?' glob.
+ *   对于 glob 保留字符（\\?, \\*），输出统一为 '?'（单字符近似），因纯 '*'/'?' 的 glob 无法表达其字面量。
+ * - Alternations extract common prefix/suffix; nested groups are summarized recursively.
+ *   交替分支提取公共前/后缀；嵌套分组递归汇总。
  */
 
 export function regexToGlob(reStr: string): string | null {
@@ -57,10 +61,13 @@ export function regexToGlob(reStr: string): string | null {
   // 正则特殊字符集合，用于区分字面量与操作符
   const REGEX_SPECIAL: Set<string> = new Set([".", "^", "$", "|", "(", ")", "[", "]", "{", "}", "?", "+", "*", "\\"]);
 
-  // Escape '*' and '?' when they should be literal in the output glob.
-  // 如果输出中需要字面量 '*' 或 '?'，这里加反斜杠转义。
+  // Map escaped chars into safe glob literal output.
+  // 将转义字符映射为可安全输出到 glob 的字面量：
+  // - '\\*' / '\\?' → '?'（单字符近似）
+  // - others → 原字符（如 '.'、'/'）
   function escapeGlobLiteral(ch: string): string {
-    return ch === "*" || ch === "?" ? "\\" + ch : ch;
+    if (ch === "*" || ch === "?") return "?"; // cannot be literal in pure glob; approximate as one char
+    return ch;
   }
 
   // Look ahead / 取当前字符（不前进）
@@ -91,90 +98,179 @@ export function regexToGlob(reStr: string): string | null {
     varLen: boolean;
   }
 
-  // ----- Character class ----- 字符类解析 -----
-  // Parses things like [abc], [^0-9]. Always approximated to '?' (one char).
-  // 解析形如 [abc] / [^0-9]，在 glob 中统一近似为 '?'（匹配一个字符）
-  function parseCharClass(): Unit | null {
-    eatIf("^"); // Optional leading ^ for negation / 可选的取反标记
-    let closed: boolean = false;
-    while (i < n) {
-      const ch: string = next();
+  // ----- Helpers for common prefix/suffix on literal arms -----
+  function lcp(strs: string[]): string {
+    if (strs.length === 0) return "";
+    let p = strs[0];
+    for (const s of strs.slice(1)) {
+      let k = 0;
+      const m = Math.min(p.length, s.length);
+      while (k < m && p[k] === s[k]) k++;
+      p = p.slice(0, k);
+      if (!p) break;
+    }
+    return p;
+  }
+  function lcs(strs: string[]): string {
+    if (strs.length === 0) return "";
+    const rev = strs.map((s) => [...s].reverse().join(""));
+    const r = lcp(rev);
+    return [...r].reverse().join("");
+  }
+  function isEscaped(s: string, idx: number): boolean {
+    let k = idx - 1,
+      cnt = 0;
+    while (k >= 0 && s[k] === "\\") {
+      cnt++;
+      k--;
+    }
+    return cnt % 2 === 1;
+  }
+  function literalHeadInfo(s: string): { lit: string; srcLen: number } {
+    let idx = 0,
+      outL = "";
+    while (idx < s.length) {
+      const ch = s[idx];
       if (ch === "\\") {
-        // Escaped char inside class / 类内转义
-        if (!next()) return null; // Unterminated escape / 转义不完整
-      } else if (ch === "]") {
-        // End of class / 字符类结束
+        if (idx + 1 >= s.length) break;
+        outL += escapeGlobLiteral(s[idx + 1]);
+        idx += 2;
+      } else if (REGEX_SPECIAL.has(ch)) {
+        break;
+      } else {
+        outL += escapeGlobLiteral(ch);
+        idx++;
+      }
+    }
+    return { lit: outL, srcLen: idx };
+  }
+  function literalTailInfo(s: string): { lit: string; srcLen: number } {
+    let idx = s.length - 1,
+      outL = "",
+      src = 0;
+    while (idx >= 0) {
+      const ch = s[idx];
+      if (isEscaped(s, idx)) {
+        outL = escapeGlobLiteral(ch) + outL;
+        src += 2;
+        idx -= 2;
+      } else if (REGEX_SPECIAL.has(ch)) {
+        break;
+      } else {
+        outL = escapeGlobLiteral(ch) + outL;
+        src += 1;
+        idx -= 1;
+      }
+    }
+    return { lit: outL, srcLen: src };
+  }
+  function headSrcLenFor(s: string, need: string): number {
+    if (!need) return 0;
+    let idx = 0,
+      got = "";
+    while (idx < s.length && got.length < need.length) {
+      const ch = s[idx];
+      if (ch === "\\") {
+        if (idx + 1 >= s.length) break;
+        got += escapeGlobLiteral(s[idx + 1]);
+        idx += 2;
+      } else if (REGEX_SPECIAL.has(ch)) {
+        break;
+      } else {
+        got += escapeGlobLiteral(ch);
+        idx += 1;
+      }
+    }
+    return got.startsWith(need) ? idx : 0;
+  }
+  function tailSrcLenFor(s: string, need: string): number {
+    if (!need) return 0;
+    let idx = s.length - 1,
+      got = "";
+    while (idx >= 0 && got.length < need.length) {
+      const ch = s[idx];
+      if (isEscaped(s, idx)) {
+        got = escapeGlobLiteral(ch) + got;
+        idx -= 2;
+      } else if (REGEX_SPECIAL.has(ch)) {
+        break;
+      } else {
+        got = escapeGlobLiteral(ch) + got;
+        idx -= 1;
+      }
+    }
+    return got.endsWith(need) ? s.length - 1 - idx : 0;
+  }
+
+  // ----- Character class ----- 字符类解析 -----
+  function parseCharClass(): Unit | null {
+    if (peek() === "^") next(); // 可选取反
+    let closed = false,
+      first = true;
+    while (i < n) {
+      const ch = next();
+      if (ch === "\\" && i < n) {
+        if (!next()) return null;
+      } else if (ch === "]" && !first) {
         closed = true;
         break;
       }
+      first = false;
     }
-    if (!closed) return null; // Unclosed class / 未闭合
-    // Return a normalized unit description for downstream handling
-    // 返回标准化的“单元”描述，方便后续统一处理
+    if (!closed) return null;
     return { glob: "?", baseGlob: "?", canRepeat: true, min: 1, isLiteral: false, varLen: false };
   }
 
   // ----- Literal utils ----- 字面量辅助 -----
-
-  // If s is a pure literal (with valid escapes), return its fixed length; else -1.
-  // 判断 s 是否为纯字面量（且转义合法），若是返回固定长度，否则返回 -1
   function fixedLiteralLength(s: string): number {
-    let len: number = 0;
+    let len = 0;
     for (let k = 0; k < s.length; k++) {
       if (s[k] === "\\") {
         k++;
-        if (k >= s.length) return -1; // Bad escape / 非法转义
+        if (k >= s.length) return -1;
         len += 1;
       } else if (REGEX_SPECIAL.has(s[k])) {
-        return -1; // Contains special / 含有特殊字符
+        return -1;
       } else {
         len += 1;
       }
     }
     return len;
   }
-
-  // Unescape a literal-only regex fragment into a glob-safe literal.
-  // 将仅含字面量的正则片段解转义，并确保在 glob 中安全（转义 * 和 ?）
   function unescapeRegexLiteral(s: string): string | null {
-    let out: string = "";
+    let outS = "";
     for (let k = 0; k < s.length; k++) {
-      let ch: string = s[k];
+      let ch = s[k];
       if (ch === "\\") {
         k++;
-        if (k >= s.length) return null; // Bad escape / 非法转义
+        if (k >= s.length) return null;
         ch = s[k];
       } else if (REGEX_SPECIAL.has(ch)) {
-        return null; // 非纯字面量
+        return null;
       }
-      out += escapeGlobLiteral(ch);
+      outS += escapeGlobLiteral(ch);
     }
-    return out;
+    return outS;
   }
 
   // ----- Simple sequence analysis ----- 简单序列分析
-  // The helpers below conservatively compute minimum matched length and variability.
-  // 下列函数保守估算一个片段的最小匹配长度及是否可变长。
-
-  // Parse a [...] inside a string (no full parser; just to skip correctly).
-  // 在字符串中识别并跳过一个字符类 [...]，用于最小长度分析
   function parseClassInString(s: string, idx: number): number {
     idx++;
     if (idx < s.length && s[idx] === "^") idx++;
+    let first = true;
     while (idx < s.length) {
-      const ch: string = s[idx++];
+      const ch = s[idx++];
       if (ch === "\\") {
-        if (idx >= s.length) return -1; // Bad escape / 非法转义
+        if (idx >= s.length) return -1;
         idx++;
-      } else if (ch === "]") {
-        return idx; // End of class / 类结束
+      } else if (ch === "]" && !first) {
+        return idx;
       }
+      first = false;
     }
-    return -1; // Unclosed / 未闭合
+    return -1;
   }
 
-  // Parse a {m}, {m,}, {m,n} quantifier in a string.
-  // 在字符串中解析 {m}、{m,}、{m,n} 数量词
   interface QuantifierResult {
     ok: boolean;
     next: number;
@@ -182,115 +278,91 @@ export function regexToGlob(reStr: string): string | null {
     m?: number;
     nmax?: number;
   }
-
   function parseBracesQuant(s: string, idx: number): QuantifierResult {
-    const start: number = idx;
+    const start = idx;
     idx++;
-    let num: string = "";
+    let num = "";
     while (idx < s.length && /[0-9]/.test(s[idx])) num += s[idx++];
     if (num === "" || idx >= s.length) return { ok: false, next: start };
-    const m: number = parseInt(num, 10);
-
+    const m = parseInt(num, 10);
     if (s[idx] === "}") {
       idx++;
-      if (idx < s.length && s[idx] === "?") idx++; // Ignore laziness
+      if (idx < s.length && s[idx] === "?") idx++;
       return { ok: true, next: idx, type: "exact", m };
     }
     if (s[idx] === ",") {
       idx++;
-      let num2: string = "";
+      let num2 = "";
       while (idx < s.length && /[0-9]/.test(s[idx])) num2 += s[idx++];
       if (idx >= s.length || s[idx] !== "}") return { ok: false, next: start };
       idx++;
       if (idx < s.length && s[idx] === "?") idx++;
-      if (num2 === "") return { ok: true, next: idx, type: "open", m }; // {m,}
-      const nmax: number = parseInt(num2, 10);
-      return { ok: true, next: idx, type: "range", m, nmax }; // {m,n}
+      if (num2 === "") return { ok: true, next: idx, type: "open", m };
+      const nmax = parseInt(num2, 10);
+      return { ok: true, next: idx, type: "range", m, nmax };
     }
     return { ok: false, next: start };
   }
 
-  // Analyze a sequence without nested groups/alternations; compute min length & variable flag.
-  // 分析“不含嵌套分组/交替”的简单序列；计算最小长度与是否可变长
   interface SequenceAnalysis {
     base: string;
     min: number;
     varLen: boolean;
   }
-
   function analyzeSimpleSequence(s: string): SequenceAnalysis | null {
-    let idx: number = 0,
-      minTotal: number = 0,
-      variable: boolean = false;
-
+    let idx = 0,
+      minTotal = 0,
+      variable = false;
     while (idx < s.length) {
-      let unitMin: number = 0,
-        unitVar: boolean = false;
-      const ch: string = s[idx];
-
-      if (ch === "(") return null; // Nested group detected -> not simple
-      // 发现嵌套分组，视为复杂，放弃简单分析
+      let unitMin = 0,
+        unitVar = false;
+      const ch = s[idx];
+      if (ch === "(") return null;
       if (ch === "\\") {
         idx++;
         if (idx >= s.length) return null;
-        const esc: string = s[idx++];
-        // \b, \B are zero-width boundaries => min 0
-        // \b 和 \B 为零宽断言 => 最小长度 0
+        const esc = s[idx++];
         if (esc === "b" || esc === "B") {
           unitMin = 0;
-          unitVar = false;
-        }
-        // \w, \d, \s (and uppercase variants) match one char
-        // \w, \d, \s 及其大写变体匹配单字符
-        else if ("wdsWDS".includes(esc)) {
+        } else if ("wdsWDS".includes(esc)) {
           unitMin = 1;
-          unitVar = false;
         } else {
           unitMin = 1;
-          unitVar = false;
-        } // Other escapes treated as literal 其他转义按字面量处理
+        }
       } else if (ch === ".") {
         idx++;
         unitMin = 1;
-        unitVar = false; // Dot = any single char / 点匹配单字符
       } else if (ch === "[") {
-        const ni: number = parseClassInString(s, idx);
-        if (ni < 0) return null; // Invalid class / 非法字符类
+        const ni = parseClassInString(s, idx);
+        if (ni < 0) return null;
         idx = ni;
         unitMin = 1;
-        unitVar = false;
       } else if (REGEX_SPECIAL.has(ch)) {
-        return null; // Special op => bail 出现运算符，放弃简单分析
+        return null;
       } else {
         idx++;
         unitMin = 1;
-        unitVar = false; // Plain literal 字面量
       }
 
-      // Quantifier handling / 处理数量词
       if (idx < s.length) {
-        const q: string = s[idx];
+        const q = s[idx];
         if (q === "*") {
-          // * => min 0, variable
           idx++;
           if (idx < s.length && s[idx] === "?") idx++;
           unitMin = 0;
           unitVar = true;
         } else if (q === "+") {
-          // + => at least one
           idx++;
           if (idx < s.length && s[idx] === "?") idx++;
           unitMin = Math.max(1, unitMin);
           unitVar = true;
         } else if (q === "?") {
-          // ? => optional
           idx++;
           if (idx < s.length && s[idx] === "?") idx++;
           unitMin = 0;
           unitVar = true;
         } else if (q === "{") {
-          // {m}, {m,}, {m,n}
-          const br: QuantifierResult = parseBracesQuant(s, idx);
+          const br = parseBracesQuant(s, idx);
           if (!br.ok) return null;
           idx = br.next;
           if (br.type === "exact") unitMin = unitMin * (br.m || 0);
@@ -303,49 +375,59 @@ export function regexToGlob(reStr: string): string | null {
           }
         }
       }
-
       minTotal += unitMin;
       variable = variable || unitVar;
     }
-
-    // base: minimum number of '?' required by this sequence
-    // base：该序列最少需要的 '?' 数量
     return { base: "?".repeat(minTotal), min: minTotal, varLen: variable };
   }
 
+  // ----- Recursive summarizer for nested patterns -----
+  function summarizePattern(sub: string): Unit | null {
+    const g = regexToGlob(sub);
+    if (g == null) return null;
+    let min = 0,
+      varStar = false;
+    for (let k = 0; k < g.length; k++) {
+      const ch = g[k];
+      if (ch === "\\") {
+        k++;
+        if (k < g.length) min += 1;
+      } else if (ch === "*") {
+        varStar = true;
+      } else if (ch === "?") {
+        min += 1;
+      } else {
+        min += 1;
+      }
+    }
+    return { glob: g, baseGlob: "?".repeat(min), canRepeat: true, min, isLiteral: false, varLen: varStar };
+  }
+
   // ----- Group parsing (alternations, lookaheads, etc.) -----
-  // 分组解析（交替 |、前瞻等）
   function parseGroup(): Unit | null {
     const parts: string[] = [];
-    let depth: number = 1,
-      buf: string = "",
-      isAlt: boolean = false;
+    let depth = 1,
+      buf = "",
+      isAlt = false;
 
-    // Group prefix like (?:...), (?=...), (?!...)
-    // 分组前缀处理：非捕获、前瞻等
     if (peek() === "?") {
       next();
-      const kind: string = next(); // could be ':', '=', '!', '<', etc.
+      const kind: string = next();
       if (kind === ":") {
-        // Non-capturing group: proceed normally
-        // 非捕获分组：正常继续解析
+        // Non-capturing
       } else if (kind === "=" || kind === "!") {
-        // LOOKAHEAD (?=...) or (?!...) — zero-width: consume and emit nothing
-        // Lookahead: zero-width => contributes no chars to glob
-        // 前瞻为零宽断言，对 glob 不贡献字符，只需跳过内容
-        let laDepth: number = 1;
+        let laDepth = 1;
         while (i < n && laDepth > 0) {
-          const ch2: string = next();
+          const ch2 = next();
           if (ch2 === "\\") {
             if (!next()) return null;
           } else if (ch2 === "(") laDepth++;
           else if (ch2 === ")") laDepth--;
         }
-        if (laDepth !== 0) return null; // Unclosed group / 未闭合
+        if (laDepth !== 0) return null;
         return { glob: "", baseGlob: "", canRepeat: false, min: 0, isLiteral: false, varLen: false };
       } else if (kind === "<") {
-        // LOOKBEHIND (?<=...) or (?<!...) — zero-width: consume and emit nothing
-        const lb = next(); // '=' or '!' expected
+        const lb = next();
         if (lb === "=" || lb === "!") {
           let lbDepth = 1;
           while (i < n && lbDepth > 0) {
@@ -355,31 +437,22 @@ export function regexToGlob(reStr: string): string | null {
             } else if (ch2 === "(") lbDepth++;
             else if (ch2 === ")") lbDepth--;
           }
-          if (lbDepth !== 0) return null; // unclosed
+          if (lbDepth !== 0) return null;
           return { glob: "", baseGlob: "", canRepeat: false, min: 0, isLiteral: false, varLen: false };
         } else {
-          // unknown (?<x...) extension: treat best-effort (put chars back into buffer)
-          // We already consumed '<' and one char; keep them in buf so the parser
-          // can fall back appropriately.
-          buf += "<" + lb;
+          buf += "<?" + lb;
         }
       } else {
-        // Unknown (?x) — treat 'x' as literal content of group head (include the char back)
-        // 未知前缀（?x），保守地将其加入缓冲
-        buf += kind;
+        buf += "?" + kind;
       }
     }
 
-    // Parse until the matching ')', tracking alternations at depth 1
-    // 解析到匹配的 ')'，在最外层深度跟踪 '|' 以拆分交替分支
     while (i < n && depth > 0) {
       const ch: string = next();
       if (ch === "\\") {
-        const esc: string = next();
+        const esc = next();
         if (!esc) return null;
-        // Keep escapes as-is unless they are known specials
-        // 保留转义（若非特殊字符则继续作为转义）
-        buf += REGEX_SPECIAL.has(esc) ? esc : "\\" + esc;
+        buf += "\\" + esc; // preserve escape while scanning
       } else if (ch === "(") {
         depth++;
         buf += ch;
@@ -395,17 +468,50 @@ export function regexToGlob(reStr: string): string | null {
         buf += ch;
       }
     }
-    if (depth > 0) return null; // Unclosed group / 分组未闭合
+    if (depth > 0) return null;
     if (buf) parts.push(buf);
 
     if (isAlt) {
-      // Case 1: all arms are pure literals => base length = min, add '*' if lengths differ
-      // 情况1：所有分支均为纯字面量 => 取最小长度为基，若长度不同则追加 '*'
+      const heads = parts.map((p) => literalHeadInfo(p).lit);
+      const tails = parts.map((p) => literalTailInfo(p).lit);
+      const pref = lcp(heads);
+      const suff = lcs(tails);
+
+      if (pref || suff) {
+        const mids: Unit[] = [];
+        for (const arm of parts) {
+          const s1 = headSrcLenFor(arm, pref);
+          const s2 = tailSrcLenFor(arm, suff);
+          const mid = arm.slice(s1, arm.length - s2);
+          const su = summarizePattern(mid) || {
+            glob: "*",
+            baseGlob: "",
+            canRepeat: true,
+            min: 0,
+            isLiteral: false,
+            varLen: true,
+          };
+          mids.push(su);
+        }
+        const minLen = Math.min(...mids.map((u) => u.min));
+        const variable = mids.some((u) => u.varLen) || new Set(mids.map((u) => u.min)).size > 1;
+        const baseCore = "?".repeat(minLen);
+        const glob = pref + baseCore + (variable ? "*" : "") + suff;
+        return {
+          glob,
+          baseGlob: pref + baseCore + suff,
+          canRepeat: true,
+          min: pref.length + minLen + suff.length,
+          isLiteral: false,
+          varLen: variable,
+        };
+      }
+
       const lens: number[] = parts.map(fixedLiteralLength);
       if (lens.every((x) => x >= 0)) {
-        const minLen: number = Math.min(...lens);
-        const maxLen: number = Math.max(...lens);
-        const base: string = "?".repeat(minLen);
+        const minLen = Math.min(...lens);
+        const maxLen = Math.max(...lens);
+        const base = "?".repeat(minLen);
         return {
           glob: base + (maxLen > minLen ? "*" : ""),
           baseGlob: base,
@@ -415,14 +521,12 @@ export function regexToGlob(reStr: string): string | null {
           varLen: maxLen > minLen,
         };
       }
-      // Case 2: analyze each arm as a simple sequence (e.g., 'uuid-\\d+')
-      // 情况2：对每个分支做简单序列分析（如 'uuid-\\d+'）
-      const analyzed: (SequenceAnalysis | null)[] = parts.map(analyzeSimpleSequence);
+      const analyzed = parts.map(analyzeSimpleSequence);
       if (analyzed.every((x) => x)) {
-        const mins: number[] = analyzed.map((x) => x!.min);
-        const minLen: number = Math.min(...mins);
-        const variable: boolean = analyzed.some((x) => x!.varLen) || new Set(mins).size > 1;
-        const base: string = "?".repeat(minLen);
+        const mins = analyzed.map((x) => x!.min);
+        const minLen = Math.min(...mins);
+        const variable = analyzed.some((x) => x!.varLen) || new Set(mins).size > 1;
+        const base = "?".repeat(minLen);
         return {
           glob: base + (variable ? "*" : ""),
           baseGlob: base,
@@ -432,18 +536,18 @@ export function regexToGlob(reStr: string): string | null {
           varLen: variable,
         };
       }
-      // Fallback: unknown/complex alternation => '*'
-      // 兜底：复杂交替无法分析 => 使用 '*'
       return { glob: "*", baseGlob: "*", canRepeat: true, min: 0, isLiteral: false, varLen: true };
     }
 
-    // Non-alternation group: try literal first, then simple sequence; else fallback '*'
-    // 非交替分组：先尝试纯字面量，再尝试简单序列；否则回退 '*'
-    const literal: string | null = unescapeRegexLiteral(parts[0] ?? "");
+    // Non-alternation group: prefer literal, then summarize, then simple analysis
+    const inner = parts[0] ?? "";
+    const literal: string | null = unescapeRegexLiteral(inner);
     if (literal != null) {
       return { glob: literal, baseGlob: literal, canRepeat: true, min: literal.length, isLiteral: true, varLen: false };
     }
-    const seq: SequenceAnalysis | null = analyzeSimpleSequence(parts[0] ?? "");
+    const sum = summarizePattern(inner);
+    if (sum) return sum;
+    const seq = analyzeSimpleSequence(inner);
     if (seq) {
       return {
         glob: seq.base + (seq.varLen ? "*" : ""),
@@ -458,19 +562,17 @@ export function regexToGlob(reStr: string): string | null {
   }
 
   // ----- Unit parsing ----- 单元解析
-  // One unit may be: escaped token, '.', class, group, anchors, or literal char.
-  // 单元可为：转义、点、字符类、分组、锚点、或普通字面量。
   function parseUnit(): Unit | null {
     const ch: string = next();
 
     if (ch === "\\") {
       const esc: string = next();
-      if (!esc) return null; // Unterminated escape / 转义不完整
+      if (!esc) return null; // Unterminated escape
       if (esc === "b" || esc === "B")
         return { glob: "", baseGlob: "", canRepeat: false, min: 0, isLiteral: false, varLen: false }; // word boundary
       if ("wdsWDS".includes(esc))
         return { glob: "?", baseGlob: "?", canRepeat: true, min: 1, isLiteral: false, varLen: false }; // class-like escapes
-      const lit: string = escapeGlobLiteral(esc); // other escapes => literal char
+      const lit: string = escapeGlobLiteral(esc); // includes '*'/'?' → '?'
       return { glob: lit, baseGlob: lit, canRepeat: true, min: 1, isLiteral: true, varLen: false };
     }
 
@@ -478,92 +580,77 @@ export function regexToGlob(reStr: string): string | null {
     if (ch === "[") return parseCharClass();
     if (ch === "(") return parseGroup();
     if (ch === "^" || ch === "$")
-      return { glob: "", baseGlob: "", canRepeat: false, min: 0, isLiteral: false, varLen: false }; // anchors are zero-width / 锚点零宽
+      return { glob: "", baseGlob: "", canRepeat: false, min: 0, isLiteral: false, varLen: false }; // anchors
 
     // Plain literal character
-    // 普通字面量字符
     const lit: string = escapeGlobLiteral(ch);
     return { glob: lit, baseGlob: lit, canRepeat: true, min: 1, isLiteral: true, varLen: false };
   }
 
   // ----- Quantifiers ----- 数量词应用
-  // Map regex quantifiers (* + ? {m,n}) to glob pieces using the unit's base info.
-  // 将正则数量词（* + ? {m,n}）映射到 glob 片段，使用单元的基信息（baseGlob、min、varLen）
   function applyQuantifier(unit: Unit | null): string | null {
     if (unit === null) return null;
 
-    // '*' or '*?' => any length (including empty)
-    // '*' 或 '*?' => 任意长度（含空）
     if (peek() === "*") {
       next();
       if (peek() === "?") next();
       return "*";
     }
-
-    // '+' or '+?' => at least one occurrence; translate to base + '*'
-    // '+' 或 '+?' => 至少一次；转换为 base + '*'
     if (peek() === "+") {
       next();
       if (peek() === "?") next();
       return (unit.baseGlob || unit.glob) + "*";
     }
-
-    // '?' or '??' => optional one unit; if unit is exactly one char, keep '?', else '*'
-    // '?' 或 '??' => 可选；若单元为恰一字符则用 '?'，否则用 '*' 近似
     if (peek() === "?") {
       next();
       if (peek() === "?") next();
       return "*";
     }
 
-    // '{m}', '{m,}', '{m,n}'
-    // 精确/范围数量词
     if (peek() === "{") {
-      const save: number = i;
+      const save = i;
       next();
-      let num: string = "";
+      let num = "";
       while (/[0-9]/.test(peek())) num += next();
       if (num === "" || (peek() !== "}" && peek() !== ",")) {
         i = save;
         return unit.glob;
       }
-      const m: number = parseInt(num, 10);
+      const m = parseInt(num, 10);
+      const baseForRepeat = unit.isLiteral ? unit.glob : unit.baseGlob || unit.glob;
 
       if (eatIf("}")) {
         if (peek() === "?") next();
-        return (unit.baseGlob || unit.glob).repeat(m);
+        return baseForRepeat.repeat(m);
       }
       if (eatIf(",")) {
-        let num2: string = "";
+        let num2 = "";
         while (/[0-9]/.test(peek())) num2 += next();
         if (!eatIf("}")) {
           i = save;
           return unit.glob;
         }
-        const core: string = (unit.baseGlob || unit.glob).repeat(m);
+        const core = baseForRepeat.repeat(m);
         if (peek() === "?") next();
         if (num2 === "") return core + "*"; // {m,}
-        const nmax: number = parseInt(num2, 10);
-        return core + (Number.isNaN(nmax) || nmax > m ? "*" : ""); // {m,n}（若 n>m 则可变长）
+        const nmax = parseInt(num2, 10);
+        return core + (Number.isNaN(nmax) || nmax > m ? "*" : "");
       }
     }
-
-    // No quantifier: return original glob of the unit
-    // 无数量词：返回单元原始 glob
     return unit.glob;
   }
 
   // ----- Main ----- 主流程
   while (i < n) {
     const unit: Unit | null = parseUnit();
-    if (unit === null) return null; // Syntax error / 语法错误
+    if (unit === null) return null; // 语法错误
     const piece: string | null = applyQuantifier(unit);
-    if (piece === null) return null; // Quantifier error / 数量词错误
+    if (piece === null) return null; // 数量词错误
     out.push(piece);
   }
 
   // Canonicalize runs of '*' and '?' (e.g., "*?*" -> "?*")
-  // 规范化连续的 '*' 与 '?'（如 "*?*" 归一为 "?*"），避免冗余
+  // 规范化连续的 '*' 与 '?'（如 "*?*" 归一为 "?*"）
   let glob: string = out.join("");
   glob = glob.replace(/(?<!\\)(?:\*|\?)+/g, (m: string): string => {
     const q: number = (m.match(/\?/g) || []).length;
