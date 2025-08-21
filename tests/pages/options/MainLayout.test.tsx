@@ -14,7 +14,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
   useLocation: () => ({ pathname: "/" }),
-  Outlet: () => <div data-testid="outlet">Options Content</div>,
+  Outlet: () => <div data-testid="outlet">{"Options Content"}</div>,
 }));
 
 vi.mock("@App/pages/store/hooks", () => ({

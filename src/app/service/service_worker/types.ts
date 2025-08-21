@@ -10,7 +10,7 @@ export interface ScriptMatchInfo extends ScriptRunResource {
   customizeExcludeMatches: string[];
 }
 
-export interface ScriptLoadInfo extends ScriptMatchInfo {
+export interface ScriptLoadInfo extends ScriptRunResource {
   metadataStr: string; // 脚本元数据字符串
   userConfigStr: string; // 用户配置字符串
 }

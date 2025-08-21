@@ -1,17 +1,19 @@
 // ==UserScript==
-// @name         CAT_APILoaded Example
+// @name         Pre Document Start
 // @namespace    https://bbs.tampermonkey.net.cn/
 // @version      0.1.0
-// @description  实现document-superStart
+// @description  使用 pre-document-start 可以比网页更快的加载脚本进行执行，但是会存在一些性能问题与GM API使用限制
 // @author       You
 // @run-at       pre-document-start
-// @grant        CAT_APILoaded
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        CAT_ScriptLoaded
 // @match        http://test-case.ggnb.top/is_trusted/is_trusted.html
 // ==/UserScript==
 
-console.log("await CAT_APILoaded() 前为网页环境 用于执行注入时机敏感代码");
+console.log("pre-document-start 获取值", GM_getValue("test"));
+
+console.log("pre-document-start 设置值", GM_setValue("test", Math.random()));
 
 const realAdd = document.addEventListener;
 document.addEventListener = function (type, fuc) {
@@ -26,13 +28,10 @@ document.addEventListener = function (type, fuc) {
   realAdd.call(this, type, fuc);
 };
 
-await CAT_APILoaded();
-
-console.log("await CAT_APILoaded() 后为沙盒环境");
-
 unsafeWindow.onload = () => {
   document.querySelector("#btn").click();
 };
 
-console.log(GM_getValue("test"));
-GM_setValue("test", Math.random());
+CAT_ScriptLoaded().then(() => {
+  console.log("脚本完全加载完成");
+});

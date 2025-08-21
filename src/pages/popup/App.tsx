@@ -274,7 +274,7 @@ function App() {
         size="small"
         title={
           <div className="flex justify-between">
-            <span className="text-xl">ScriptCat</span>
+            <span className="text-xl">{"ScriptCat"}</span>
             <div className="flex flex-row items-center">
               <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />

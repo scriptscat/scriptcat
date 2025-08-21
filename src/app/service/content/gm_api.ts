@@ -51,6 +51,12 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   public eventId!: number;
 
+  @GMContext.protected()
+  protected loadScriptResolve: (() => void) | undefined;
+
+  @GMContext.protected()
+  protected loadScriptPromise: Promise<void> | undefined;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
@@ -63,7 +69,10 @@ class GM_Base implements IGM_Base {
 
   // 单次回调使用
   @GMContext.protected()
-  public sendMessage(api: string, params: any[]) {
+  public async sendMessage(api: string, params: any[]) {
+    if (this.loadScriptPromise) {
+      await this.loadScriptPromise;
+    }
     return sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
@@ -1183,19 +1192,9 @@ export default class GMApi extends GM_Base {
   @GMContext.protected()
   apiLoadPromise: Promise<void> | undefined;
 
-  @GMContext.protected()
-  apiLoadResolve: (() => void) | undefined;
-
   @GMContext.API()
-  CAT_APILoaded() {
-    // 等待触发
-    if (this.apiLoadPromise) {
-      return this.apiLoadPromise;
-    }
-    this.apiLoadPromise = new Promise((resolve) => {
-      this.apiLoadResolve = resolve;
-    });
-    return this.apiLoadPromise;
+  CAT_ScriptLoaded() {
+    return this.loadScriptPromise;
   }
 }
 

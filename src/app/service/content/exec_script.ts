@@ -82,14 +82,18 @@ export default class ExecScript {
   }
 
   // 处理GM API
-  preDocumentStart(_scriptRes: ScriptLoadInfo, _envInfo: GMInfoEnv) {
-    console.log("触发apiLoadResolve", this.sandboxContext);
-    // 给沙盒window附加GM API
-    this.execContext!["GM_getValue"] = () => {
-      return "233";
-    };
-    // 触发apiLoadResolve
-    this.sandboxContext!["apiLoadResolve"]?.();
+  preDocumentStart(envInfo: GMInfoEnv) {
+    let GM_info;
+    if (this.sandboxContext) {
+      // 触发loadScriptResolve
+      this.sandboxContext["loadScriptResolve"]?.();
+      GM_info = this.execContext["GM_info"];
+    } else {
+      GM_info = this.named?.GM_info;
+    }
+    GM_info.isIncognito = envInfo.isIncognito;
+    GM_info.sandboxMode = envInfo.sandboxMode;
+    GM_info.userAgentData = envInfo.userAgentData;
   }
 
   stop() {

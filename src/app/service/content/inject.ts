@@ -1,7 +1,7 @@
 import { type Server } from "@Packages/message/server";
 import type { Message } from "@Packages/message/types";
 import ExecScript from "./exec_script";
-import type { ValueUpdateData, GMInfoEnv, ScriptFunc } from "./types";
+import type { ValueUpdateData, GMInfoEnv, ScriptFunc, PreScriptFunc } from "./types";
 import { addStyle } from "./utils";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
@@ -42,12 +42,11 @@ export class InjectRuntime {
   start(scripts: ScriptLoadInfo[]) {
     scripts.forEach((script) => {
       // 如果是PreInjectScriptFlag，处理沙盒环境
-      console.log(script, PreInjectScriptFlag.includes(script.flag), this.execList);
       if (PreInjectScriptFlag.includes(script.flag)) {
         this.execList.forEach((val) => {
           if (val.scriptRes.flag === script.flag) {
             // 处理沙盒环境
-            val.preDocumentStart(script, this.envInfo!);
+            val.preDocumentStart(this.envInfo!);
           }
         });
       }
@@ -70,32 +69,19 @@ export class InjectRuntime {
   checkPreDocumentStart() {
     PreInjectScriptFlag.forEach((flag) => {
       // @ts-ignore
-      const scriptFunc = window[flag];
+      const scriptFunc = window[flag] as PreScriptFunc;
       if (scriptFunc) {
-        const exec = new ExecScript(
-          // @ts-ignore
-          { metadata: { runAt: ["pre-document-start"], grant: ["CAT_APILoaded"] }, flag },
-          "content",
-          this.msg,
-          scriptFunc,
-          {}
-        );
+        // @ts-ignore
+        const exec = new ExecScript(scriptFunc.scriptInfo, "content", this.msg, scriptFunc.func, {});
         this.execList.push(exec);
         exec.exec();
       } else {
         // 监听脚本加载,和屏蔽读取
         Object.defineProperty(window, flag, {
           configurable: true,
-          set: (val: ScriptFunc) => {
+          set: (val: PreScriptFunc) => {
             // @ts-ignore
-            const exec = new ExecScript(
-              // @ts-ignore
-              { metadata: { runAt: ["pre-document-start"], grant: ["CAT_APILoaded"] }, flag },
-              "content",
-              this.msg,
-              val,
-              {}
-            );
+            const exec = new ExecScript(val.scriptInfo, "content", this.msg, val.func, {});
             this.execList.push(exec);
             exec.exec();
           },

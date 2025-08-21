@@ -2,11 +2,11 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types"
 import type { MessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
-import type { TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
+import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
@@ -15,7 +15,12 @@ import { cacheInstance } from "@App/app/cache";
 import { dealPatternMatches, UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compileScriptCode } from "../content/utils";
+import {
+  compileInjectScript,
+  compilePreInjectScript,
+  compileScriptCode,
+  isPreDocumentStartScript,
+} from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -121,6 +126,14 @@ export class RuntimeService {
     });
   }
 
+  valueUpdate(data: TScriptValueUpdate) {
+    if (!isPreDocumentStartScript(data.script)) {
+      return;
+    }
+    // 如果是预加载脚本，需要更新脚本代码重新注册
+    this.loadPageScript(data.script);
+  }
+
   async init() {
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
@@ -160,6 +173,7 @@ export class RuntimeService {
         }
       }
     });
+
     // 监听脚本安装
     this.mq.subscribe<TInstallScript>("installScript", async (data) => {
       const script = await this.scriptDAO.get(data.script.uuid);
@@ -171,13 +185,19 @@ export class RuntimeService {
       }
       if (script.type === SCRIPT_TYPE_NORMAL) {
         await this.loadPageScript(script);
+        // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+        await this.reRegisterInjectScript();
       }
     });
+
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
       await this.unregistryPageScript(uuid);
       await this.deleteScriptMatch(uuid);
+      // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+      await this.reRegisterInjectScript();
     });
+
     // 监听脚本排序
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
@@ -209,6 +229,9 @@ export class RuntimeService {
         });
       });
     });
+
+    // 监听脚本值变更
+    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", this.valueUpdate.bind(this));
 
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
@@ -360,7 +383,7 @@ export class RuntimeService {
     }
 
     // 读取inject.js注入页面
-    await this.registerInjectScript();
+    await this.registerContentScript();
 
     await this.loadScriptMatchInfo();
   }
@@ -450,7 +473,7 @@ export class RuntimeService {
     const enableScript = [] as ScriptLoadInfo[];
 
     for (const uuid of matchScriptUuid) {
-      const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid));
+      const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid)) as ScriptRunResource;
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
         continue;
@@ -602,10 +625,10 @@ export class RuntimeService {
     return runScript(this.sender, res);
   }
 
-  // 注册inject.js
-  async registerInjectScript() {
+  // 注册content.js
+  async registerContentScript() {
     // 如果没设置过, 则更新messageFlag
-    let messageFlag = await this.getMessageFlag();
+    let messageFlag = (await this.getMessageFlag()) as string;
     if (!messageFlag) {
       // 黑名单排除
       const blacklist = this.blacklist;
@@ -618,49 +641,112 @@ export class RuntimeService {
       }
 
       messageFlag = await this.getAndGenMessageFlag();
-      const injectJs = await fetch("/src/inject.js").then((res) => res.text());
-      // 替换ScriptFlag
-      const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ['testPreInjectScriptFlag'])`;
+      // 配置脚本运行环境
       chrome.userScripts.configureWorld({
         csp: "script-src 'self' 'unsafe-inline' 'unsafe-eval' *",
         messaging: true,
       });
-      const scripts: chrome.userScripts.RegisteredUserScript[] = [
-        {
-          id: "scriptcat-inject",
-          js: [{ code }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          world: "MAIN",
-          runAt: "document_start",
-          excludeMatches,
-        },
-        // 注册content
-        {
-          id: "scriptcat-content",
-          js: [{ file: "src/content.js" }],
-          matches: ["<all_urls>"],
-          allFrames: true,
-          runAt: "document_start",
-          world: "USER_SCRIPT",
-          excludeMatches,
-        },
-      ];
+      // 注册content
+      const script: chrome.userScripts.RegisteredUserScript = {
+        id: "scriptcat-content",
+        js: [{ file: "src/content.js" }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        runAt: "document_start",
+        world: "USER_SCRIPT",
+        excludeMatches,
+      };
       try {
         // 如果使用getScripts来判断, 会出现找不到的问题
         // 另外如果使用
-        await chrome.userScripts.register(scripts);
+        await chrome.userScripts.register([script]);
       } catch (e: any) {
         this.logger.error("register inject.js error", Logger.E(e));
         if (e.message?.includes("Duplicate script ID")) {
           // 如果是重复注册, 则更新
           try {
-            await chrome.userScripts.update(scripts);
+            await chrome.userScripts.update([script]);
           } catch (e) {
             this.logger.error("update inject.js error", Logger.E(e));
           }
         }
       }
+      await this.registerInjectScript(messageFlag, excludeMatches);
+    }
+  }
+
+  // 注册inject.js
+  async registerInjectScript(messageFlag: string, excludeMatches: string[]) {
+    const injectJs = await fetch("/src/inject.js").then((res) => res.text());
+    // 替换ScriptFlag
+    const preScriptFlag: string[] = [];
+    // 遍历pre-document-start的脚本
+    this.scriptMatchCache?.forEach((script) => {
+      if (isPreDocumentStartScript(script)) {
+        preScriptFlag.push(script.flag);
+      }
+    });
+    this.script.getAllScripts();
+    const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(preScriptFlag)})`;
+    const script: chrome.userScripts.RegisteredUserScript = {
+      id: "scriptcat-inject",
+      js: [{ code }],
+      matches: ["<all_urls>"],
+      allFrames: true,
+      world: "MAIN",
+      runAt: "document_start",
+      excludeMatches,
+    };
+    try {
+      await chrome.userScripts.register([script]);
+    } catch (e: any) {
+      this.logger.error("register inject.js error", Logger.E(e));
+      if (e.message?.includes("Duplicate script ID")) {
+        // 如果是重复注册, 则更新
+        try {
+          await chrome.userScripts.update([script]);
+        } catch (e) {
+          this.logger.error("update inject.js error", Logger.E(e));
+        }
+      }
+    }
+  }
+
+  // 重新注册inject.js，主要是为了更新pre-document-start的脚本flag
+  async reRegisterInjectScript() {
+    const messageFlag = (await this.getMessageFlag()) as string;
+    if (!messageFlag) {
+      return;
+    }
+    const scripts = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
+    if (!scripts) {
+      return;
+    }
+    const injectJs = await fetch("/src/inject.js").then((res) => res.text());
+    // 替换ScriptFlag
+    const preScriptFlag: string[] = [];
+    // 遍历pre-document-start的脚本
+    this.scriptMatchCache?.forEach((script) => {
+      if (isPreDocumentStartScript(script)) {
+        preScriptFlag.push(script.flag);
+      }
+    });
+    this.script.getAllScripts();
+
+    const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(preScriptFlag)})`;
+    const script: chrome.userScripts.RegisteredUserScript = {
+      id: "scriptcat-inject",
+      js: [{ code }],
+      matches: ["<all_urls>"],
+      allFrames: true,
+      world: "MAIN",
+      runAt: "document_start",
+      excludeMatches: scripts[0].excludeMatches,
+    };
+    try {
+      await chrome.userScripts.update([script]);
+    } catch (e: any) {
+      this.logger.error("register inject.js error", Logger.E(e));
     }
   }
 
@@ -757,9 +843,25 @@ export class RuntimeService {
     this.saveScriptMatchInfo();
   }
 
+  parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
+    const metadataStr = getMetadataStr(script.code) || "";
+    const userConfigStr = getUserConfigStr(script.code) || "";
+    return {
+      ...script,
+      metadataStr,
+      userConfigStr,
+    };
+  }
+
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
-    const scriptRes = await this.script.buildScriptRunResource(script);
+    const preDocumentStartScript = isPreDocumentStartScript(script);
+    let scriptFlag: string | undefined;
+    if (preDocumentStartScript) {
+      //preDocumentStart脚本使用uuid作为flag
+      scriptFlag = script.uuid;
+    }
+    const scriptRes = await this.script.buildScriptRunResource(script, scriptFlag);
     // concat 浅拷贝是为了避免修改原数组
     const matches = (scriptRes.metadata["match"] || []).concat();
     matches.push(...(scriptRes.metadata["include"] || []));
@@ -767,12 +869,11 @@ export class RuntimeService {
       return undefined;
     }
 
-    if (scriptRes.metadata["run-at"] && scriptRes.metadata["run-at"][0] === "pre-document-start") {
-      // 特殊处理pre-document-start
-      scriptRes.flag = "testPreInjectScriptFlag";
+    if (preDocumentStartScript) {
+      scriptRes.code = compilePreInjectScript(this.parseScriptLoadInfo(scriptRes), scriptRes.code, true);
+    } else {
+      scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
     }
-
-    scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
     const patternMatches = dealPatternMatches(matches);
     const scriptMatchInfo: ScriptMatchInfo = Object.assign(
