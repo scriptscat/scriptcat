@@ -1,15 +1,5 @@
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 
-// export function randomString(e = 32): string {
-//   const t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz";
-//   const a = t.length;
-//   const n = new Array(e);
-//   for (let i = 0; i < e; i++) {
-//     n[i] = t[(Math.random() * a) | 0];
-//   }
-//   return n.join("");
-// }
-
 export function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
@@ -219,6 +209,7 @@ export function getBrowserType() {
     webkit: 0, // Safari, Orion
     chrome: 0, // Chrome, Chromium, Brave, Edge
     unknown: 0,
+    chromeVersion: 0,
   };
   if (isFirefox()) {
     o.firefox = 1;
@@ -234,6 +225,7 @@ export function getBrowserType() {
         const isEdgeBrowser = isEdge();
         const chromeVersion = getBrowserVersion();
         o.chrome = (isEdgeBrowser ? 2 : 1) | (chromeVersion < 120 ? 4 : chromeVersion < 138 ? 8 : 16);
+        o.chromeVersion = chromeVersion;
       } else {
         o.unknown = 1;
       }

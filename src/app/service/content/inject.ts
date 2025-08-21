@@ -56,32 +56,33 @@ export class InjectRuntime {
 
   externalMessage() {
     // 对外接口白名单
-    const msg = this.msg;
-    for (let i = 0; i < ExternalWhitelist.length; i += 1) {
-      if (window.location.host.endsWith(ExternalWhitelist[i])) {
-        // 注入
-        (<{ external: any }>(<unknown>window)).external = window.external || {};
-        (<
-          {
-            external: {
-              Scriptcat: {
-                isInstalled: (name: string, namespace: string, callback: any) => void;
-              };
-            };
-          }
-        >(<unknown>window)).external.Scriptcat = {
-          async isInstalled(name: string, namespace: string, callback: any) {
-            const resp = await sendMessage(msg, "content/script/isInstalled", {
-              name,
-              namespace,
-            });
-            callback(resp);
-          },
-        };
-        (<{ external: { Tampermonkey: any } }>(<unknown>window)).external.Tampermonkey = (<
-          { external: { Scriptcat: any } }
-        >(<unknown>window)).external.Scriptcat;
-        break;
+    const hostname = window.location.hostname;
+    if (
+      ExternalWhitelist.some(
+        // 如果当前页面的 hostname 是白名单的网域或其子网域
+        (t) => hostname.endsWith(t) && (hostname.length === t.length || hostname.endsWith(`.${t}`))
+      )
+    ) {
+      const msg = this.msg;
+      // 注入
+      const external: External = window.external || (window.external = {} as External);
+      const scriptExpose: App.ExternalScriptCat = {
+        isInstalled(name: string, namespace: string, callback: (res: App.IsInstalledResponse | undefined) => unknown) {
+          sendMessage<App.IsInstalledResponse>(msg, "content/script/isInstalled", {
+            name,
+            namespace,
+          }).then(callback);
+        },
+      };
+      try {
+        external.Scriptcat = scriptExpose;
+      } catch {
+        // 无法注入到 external，忽略
+      }
+      try {
+        external.Tampermonkey = scriptExpose;
+      } catch {
+        // 无法注入到 external，忽略
       }
     }
   }
