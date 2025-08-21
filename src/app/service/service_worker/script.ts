@@ -125,15 +125,15 @@ export class ScriptService {
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
     };
     const browserType = getBrowserType();
-    if (browserType.chrome && browserType.chromeVersion < 128) {
-      condition.excludedRequestDomains = ["github.com"];
-    } else {
+    if (browserType.chrome && browserType.chromeVersion >= 128) {
       condition.excludedResponseHeaders = [
         {
           header: "Content-Type",
           values: ["text/html"],
         },
       ];
+    } else {
+      condition.excludedRequestDomains = ["github.com"];
     }
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
