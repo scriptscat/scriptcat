@@ -755,7 +755,7 @@ export function regexToGlob(reStr: string): string | null {
   // Canonicalize runs of '*' and '?' (e.g., "*?*" -> "?*")
   // 规范化连续的 '*' 与 '?'（如 "*?*" 归一为 "?*"）
   let glob: string = out.join("");
-  glob = glob.replace(/(?<!\\)(?:\*|\?)+/g, (m: string): string => {
+  glob = glob.replace(/[*?]+/g, (m: string): string => {
     const q: number = (m.match(/\?/g) || []).length;
     const hasStar: boolean = m.indexOf("*") !== -1;
     if (!hasStar) return "?".repeat(q);
