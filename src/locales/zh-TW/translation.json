@@ -447,5 +447,9 @@
   "blacklist_pages_desc": "禁止腳本在指定頁面執行，支援萬用字元",
   "development_tools": "開發工具",
   "check_script_code_quality": "檢查腳本程式碼品質和錯誤",
-  "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）"
+  "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）",
+  "light": "淺色模式",
+  "dark": "暗色模式",
+  "individual_edit": "单独编辑",
+  "batch_edit": "批量編輯"
 }

@@ -305,7 +305,7 @@ const ScriptStorage: React.FC<{
               setIsEdit(!isEdit);
             }}
           >
-            {isEdit ? "单独编辑" : "批量编辑"}
+            {isEdit ? t("individual_edit") : t("batch_edit")}
           </Button>
         </Space>
         {isEdit ? (
