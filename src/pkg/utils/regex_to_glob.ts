@@ -684,7 +684,6 @@ export function regexToGlob(reStr: string): string | null {
     // '*' / '*?' / '*+' —— 任意长度
     if (peek() === "*") {
       next();
-      // if (peek() === "?") next();
       eatQuantMod();
       return "*";
     }
@@ -692,7 +691,6 @@ export function regexToGlob(reStr: string): string | null {
     // '+' / '+?' / '++' —— 至少一次：base + '*'
     if (peek() === "+") {
       next();
-      // if (peek() === "?") next();
       eatQuantMod();
       return (unit.baseGlob || unit.glob) + "*";
     }
@@ -700,7 +698,6 @@ export function regexToGlob(reStr: string): string | null {
     // '?' / '??' / '?+' —— 可选：统一为 '*'
     if (peek() === "?") {
       next();
-      // if (peek() === "?") next();
       eatQuantMod();
       return "*";
     }
@@ -719,7 +716,6 @@ export function regexToGlob(reStr: string): string | null {
       const baseForRepeat = unit.isLiteral ? unit.glob : unit.baseGlob || unit.glob;
 
       if (eatIf("}")) {
-        // if (peek() === "?") next();
         eatQuantMod();
         return baseForRepeat.repeat(m);
       }
@@ -731,7 +727,6 @@ export function regexToGlob(reStr: string): string | null {
           return unit.glob;
         }
         const core = baseForRepeat.repeat(m);
-        // if (peek() === "?") next();
         eatQuantMod();
         if (num2 === "") return core + "*"; // {m,}
         const nmax = parseInt(num2, 10);
