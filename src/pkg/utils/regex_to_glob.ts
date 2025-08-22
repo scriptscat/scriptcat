@@ -7,6 +7,8 @@
  *     '*' 匹配任意长度（可为 0）的任意字符串
  *   - '?' matches exactly one character
  *     '?' 精确匹配单个字符
+ *   - In the resulting glob, every character other than '*' and '?' is a literal; there is no escape mechanism.
+ *     在生成的 glob 模式中，除 '*' 与 '?' 之外的所有字符均作为字面量处理；不支持转义字符。
  *
  * Returns null if the regex syntax is invalid (e.g., unclosed groups, unclosed character classes, unterminated escapes).
  * 如果正则语法无效（如未闭合的括号/字符类、转义不完整），返回 null。
