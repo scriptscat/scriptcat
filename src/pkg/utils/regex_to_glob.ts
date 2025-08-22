@@ -305,7 +305,6 @@ export function regexToGlob(reStr: string): string | null {
     const m = parseInt(num, 10);
     if (s[idx] === "}") {
       idx++;
-      // if (idx < s.length && s[idx] === "?") idx++;
       eatQuantMod();
       return { ok: true, next: idx, type: "exact", m };
     }
@@ -315,7 +314,6 @@ export function regexToGlob(reStr: string): string | null {
       while (idx < s.length && /[0-9]/.test(s[idx])) num2 += s[idx++];
       if (idx >= s.length || s[idx] !== "}") return { ok: false, next: start };
       idx++;
-      // if (idx < s.length && s[idx] === "?") idx++;
       eatQuantMod();
       if (num2 === "") return { ok: true, next: idx, type: "open", m }; // {m,}
       const nmax = parseInt(num2, 10);
@@ -368,19 +366,16 @@ export function regexToGlob(reStr: string): string | null {
         const q = s[idx];
         if (q === "*") {
           idx++;
-          // if (idx < s.length && s[idx] === "?") idx++;
           eatQuantMod();
           unitMin = 0;
           unitVar = true;
         } else if (q === "+") {
           idx++;
-          // if (idx < s.length && s[idx] === "?") idx++;
           eatQuantMod();
           unitMin = Math.max(1, unitMin);
           unitVar = true;
         } else if (q === "?") {
           idx++;
-          // if (idx < s.length && s[idx] === "?") idx++;
           eatQuantMod();
           unitMin = 0;
           unitVar = true;
