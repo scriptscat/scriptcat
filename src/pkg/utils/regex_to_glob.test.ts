@@ -294,9 +294,13 @@ describe("regexToGlob - comprehensive test suite (regrouped & commented)", () =>
       ok(".*.+", "?*");
       ok("a.*.?b", "a*b");
       ok(".*.?+", "*");
+      ok("a.*.+b", "a?*b");
+      ok(".*.++", "?*");
       ok("\\\\*\\\\+", "*\\*");
       ok("a\\\\*\\\\?b", "a*b");
       ok("\\\\*\\\\?+", "*");
+      ok("a\\\\*\\\\+b", "a*\\*b");
+      ok("\\\\*\\\\++", "*\\*");
     });
   });
 
