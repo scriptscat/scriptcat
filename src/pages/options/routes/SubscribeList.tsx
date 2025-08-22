@@ -183,7 +183,7 @@ function SubscribeList() {
           <Tooltip
             content={
               <p style={{ margin: 0, padding: 0 }}>
-                {t("subscribe_url")}: {decodeURIComponent(item.url)}
+                {t("subscribe_url") + ":"} {decodeURIComponent(item.url)}
               </p>
             }
           >

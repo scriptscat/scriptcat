@@ -40,17 +40,15 @@ const ScriptListItem = React.memo(
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
             {item.script?.script?.name || item.error || t("unknown")}
           </Typography.Title>
+          <span className="text-sm color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
           <span className="text-sm color-gray-5">
-            {t("author")}: {item.script?.script?.metadata.author?.[0]}
+            {`${t("description")}: ${item.script?.script?.metadata.description?.[0]}`}
           </span>
           <span className="text-sm color-gray-5">
-            {t("description")}: {item.script?.script?.metadata.description?.[0]}
+            {`${t("source")}: ${item.options?.meta.file_url || t("local_creation")}`}
           </span>
           <span className="text-sm color-gray-5">
-            {t("source")}: {item.options?.meta.file_url || t("local_creation")}
-          </span>
-          <span className="text-sm color-gray-5">
-            {t("operation")}:{" "}
+            {`${t("operation")}: `}
             {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
               (item.error
                 ? `${t("error")}: ${item.options?.meta.name} - ${item.options?.meta.uuid}`
@@ -281,20 +279,20 @@ function App() {
             </Button>
           </Space>
           <Typography.Text>
-            {t("select_scripts_to_import")}:{" "}
+            {`${t("select_scripts_to_import")}: `}
             <Checkbox checked={selectAll[0]} onChange={handleSelectAllScripts}>
               {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            {t("script_import_progress")}: {installNum[0]}/{scripts.length}
+            {`${t("script_import_progress")}: ${installNum[0]}/${scripts.length}`}
           </Typography.Text>
           <Typography.Text>
-            {t("select_subscribes_to_import")}:{" "}
+            {`${t("select_subscribes_to_import")}: `}
             <Checkbox checked={selectAll[1]} onChange={handleSelectAllSubscribes}>
               {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            {t("subscribe_import_progress")}: {installNum[1]}/{subscribes.length}
+            {`${t("subscribe_import_progress")}: ${installNum[1]}/${subscribes.length}`}
           </Typography.Text>
           {scripts.length > 0 && (
             <List

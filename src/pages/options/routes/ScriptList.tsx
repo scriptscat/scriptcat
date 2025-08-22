@@ -459,9 +459,7 @@ function ScriptList() {
               return (
                 <Tooltip
                   content={
-                    <p style={{ margin: 0 }}>
-                      {t("subscription_link")}: {decodeURIComponent(item.subscribeUrl)}
-                    </p>
+                    <p style={{ margin: 0 }}>{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
                   }
                 >
                   <Tag
@@ -494,9 +492,7 @@ function ScriptList() {
             return (
               <Tooltip
                 content={
-                  <p style={{ margin: 0, padding: 0 }}>
-                    {t("script_link")}: {decodeURIComponent(item.origin)}
-                  </p>
+                  <p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>
                 }
               >
                 <Tag
@@ -805,7 +801,7 @@ function ScriptList() {
                 }}
               >
                 <Space direction="horizontal">
-                  <Typography.Text>{t("batch_operations")}:</Typography.Text>
+                  <Typography.Text>{t("batch_operations") + ":"}</Typography.Text>
                   <Select
                     style={{ minWidth: "100px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
@@ -950,7 +946,7 @@ function ScriptList() {
                     {t("confirm")}
                   </Button>
                   <Divider type="horizontal" />
-                  <Typography.Text>{t("resize_column_width")}:</Typography.Text>
+                  <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
                   <Select
                     style={{ minWidth: "80px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
