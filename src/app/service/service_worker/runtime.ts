@@ -474,35 +474,33 @@ export class RuntimeService {
 
     const { value, resource, scriptDAO } = this;
     await Promise.all(
-      enableScript.map((script) =>
-        Promise.all([
-          // 加载value
-          value.getScriptValue(script!).then((value) => {
-            script.value = value;
-          }),
-          // 加载resource
-          resource.getScriptResources(script, false).then((resource) => {
-            for (const name of Object.keys(resource)) {
-              const res = script.resource[name];
-              // 删除base64以节省资源
-              // 如果有content就删除base64
-              if (res.content) {
-                res.base64 = undefined;
-              }
+      enableScript.flatMap((script) => [
+        // 加载value
+        value.getScriptValue(script!).then((value) => {
+          script.value = value;
+        }),
+        // 加载resource
+        resource.getScriptResources(script, false).then((resource) => {
+          for (const name of Object.keys(resource)) {
+            const res = script.resource[name];
+            // 删除base64以节省资源
+            // 如果有content就删除base64
+            if (res.content) {
+              res.base64 = undefined;
             }
-            script.resource = resource;
-          }),
-          // 加载code相关的信息
-          scriptDAO.scriptCodeDAO.get(script.uuid).then((code) => {
-            if (code) {
-              const metadataStr = getMetadataStr(code.code) || "";
-              const userConfigStr = getUserConfigStr(code.code) || "";
-              script.metadataStr = metadataStr;
-              script.userConfigStr = userConfigStr;
-            }
-          }),
-        ])
-      )
+          }
+          script.resource = resource;
+        }),
+        // 加载code相关的信息
+        scriptDAO.scriptCodeDAO.get(script.uuid).then((code) => {
+          if (code) {
+            const metadataStr = getMetadataStr(code.code) || "";
+            const userConfigStr = getUserConfigStr(code.code) || "";
+            script.metadataStr = metadataStr;
+            script.userConfigStr = userConfigStr;
+          }
+        }),
+      ])
     );
 
     // 更新资源使用了file协议的脚本
