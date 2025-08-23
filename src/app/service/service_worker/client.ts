@@ -66,8 +66,8 @@ export class ScriptClient extends Client {
     return this.doThrow("getScriptRunResource", script);
   }
 
-  excludeUrl(uuid: string, url: string, remove: boolean) {
-    return this.do("excludeUrl", { uuid, url, remove });
+  excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
+    return this.do("excludeUrl", { uuid, excludePattern, remove });
   }
 
   // 重置匹配项
