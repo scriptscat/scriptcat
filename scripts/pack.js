@@ -8,6 +8,14 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 
+// ============================================================================
+
+// 目前 ScriptCat MV3 未正式支持 Firefox，
+// 测试人员可修改 PACK_FIREFOX 为 true 作个人测试用途
+const PACK_FIREFOX = false;
+
+// ============================================================================
+
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
 if (version.prerelease.length) {
@@ -50,20 +58,34 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
 
 execSync("npm run build", { stdio: "inherit" });
 
+if (version.prerelease.length || process.env.GITHUB_REF_TYPE === "branch") {
+  // beta时红猫logo
+  await fs.copyFile("./src/assets/logo-beta.png", "./dist/ext/assets/logo.png");
+} else {
+  // 非beta时蓝猫logo
+  await fs.copyFile("./src/assets/logo.png", "./dist/ext/assets/logo.png");
+}
+
 // 处理firefox和chrome的zip压缩包
 
-const firefoxManifest = { ...manifest };
-const chromeManifest = { ...manifest };
+const firefoxManifest = { ...manifest, background: { ...manifest.background } };
+const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
 delete chromeManifest.content_security_policy;
 delete chromeManifest.optional_permissions;
 delete chromeManifest.background.scripts;
 
+delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
 // firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
-    strict_min_version: "91.1.0",
+    id: `{${
+      version.prerelease.length ? "44ab8538-2642-46b0-8a57-3942dbc1a33b" : "8e515334-52b5-4cc5-b4e8-675d50af677d"
+    }}`,
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
+    // Firefox 136 (Released 2025-03-04)
+    strict_min_version: "136.0",
   },
 };
 
@@ -109,13 +131,14 @@ chrome
   })
   .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`));
 
-// firefox
-//   .generateNodeStream({
-//     type: "nodebuffer",
-//     streamFiles: true,
-//     compression: "DEFLATE",
-//   })
-//   .pipe(createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
+PACK_FIREFOX &&
+  firefox
+    .generateNodeStream({
+      type: "nodebuffer",
+      streamFiles: true,
+      compression: "DEFLATE",
+    })
+    .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`));
 
 // 处理crx
 const crx = new ChromeExtension({
