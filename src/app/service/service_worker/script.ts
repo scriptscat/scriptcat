@@ -56,7 +56,7 @@ const selfMetadataUpdate = (script: Script, n: string, s: Set<string>) => {
   } else {
     delete selfMetadata![n];
     if (Object.keys(selfMetadata).length === 0) {
-      delete script.selfMetadata;
+      script.selfMetadata = undefined; // delete script.selfMetadata;
     }
   }
   return script;
