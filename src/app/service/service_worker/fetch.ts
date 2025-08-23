@@ -80,16 +80,17 @@ export async function fetchIconByDomain(domain: string): Promise<TMsgResponse<st
     }
 
     const urls = await Promise.all(
-      icons.map(async (icon) => {
-        try {
-          const res = await fetch((fetchingUrl = icon), { method: "HEAD", signal: timeoutAbortSignal(timeout) });
-          if (res.ok && checkFileNameEqual(res.url, icon)) {
-            return res.url;
-          }
-        } catch {
-          // 忽略错误
-        }
-      })
+      icons.map((icon) =>
+        fetch((fetchingUrl = icon), { method: "HEAD", signal: timeoutAbortSignal(timeout) })
+          .then((res) => {
+            if (res.ok && checkFileNameEqual(res.url, icon)) {
+              return res.url;
+            }
+          })
+          .catch(() => {
+            // 忽略错误
+          })
+      )
     );
 
     return msgResponse(0, urls.filter((url) => !!url) as string[]);
