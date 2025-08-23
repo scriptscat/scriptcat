@@ -12,7 +12,8 @@ import Logger from "@App/app/logger/logger";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
-import { parsePatternMatchesURL } from "@App/pkg/utils/match";
+import { blackListSelfCheck } from "@App/pkg/utils/match";
+import { obtainBlackList } from "@App/pkg/utils/utils";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -386,17 +387,14 @@ function Setting() {
             }}
             onBlur={(v) => {
               // 校验黑名单格式
-              const lines = v.target.value
-                .split("\n")
-                .map((line) => line.trim())
-                .filter((line) => line);
-              for (const line of lines) {
-                if (line && !parsePatternMatchesURL(line)) {
-                  Message.error(`${t("expression_format_error")}: ${line}`);
-                  return;
-                }
+              const val = v.target.value;
+              const blacklist = obtainBlackList(val);
+              const ret = blackListSelfCheck(blacklist);
+              if (!ret.ok) {
+                Message.error(`${t("expression_format_error")}: ${ret.line}`);
+                return;
               }
-              systemConfig.setBlacklist(v.target.value);
+              systemConfig.setBlacklist(val);
             }}
           />
         </div>

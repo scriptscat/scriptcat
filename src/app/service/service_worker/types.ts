@@ -1,13 +1,13 @@
 import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata } from "@App/app/repo/scripts";
+import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type GetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
 export interface ScriptMatchInfo extends ScriptRunResource {
-  matches: string[];
-  excludeMatches: string[];
-  customizeExcludeMatches: string[];
+  scriptUrlPatterns: URLRuleEntry[];
+  customUrlPatterns: URLRuleEntry[] | null;
 }
 
 export interface ScriptLoadInfo extends ScriptMatchInfo {
@@ -86,5 +86,5 @@ export type ScriptMenu = {
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
-  customExclude: string[]; // 自定义排除
+  customUrlPatterns: URLRuleEntry[] | null; // 自定义排除
 };
