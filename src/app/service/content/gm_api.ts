@@ -633,36 +633,32 @@ export default class GMApi extends GM_Base {
       if (details.data instanceof FormData) {
         // 处理FormData
         param.dataType = "FormData";
-        const data: Array<GMSend.XHRFormData> = [];
         const keys: { [key: string]: boolean } = {};
         details.data.forEach((val, key) => {
           keys[key] = true;
         });
         // 处理FormData中的数据
-        await Promise.all(
-          Object.keys(keys).map((key) => {
-            const values = (<FormData>details.data).getAll(key);
-            return Promise.all(
-              values.map(async (val) => {
-                if (val instanceof File) {
-                  const url = await a.CAT_createBlobUrl(val);
-                  data.push({
-                    key,
-                    type: "file",
-                    val: url,
-                    filename: val.name,
-                  });
-                } else {
-                  data.push({
+        const data = (await Promise.all(
+          Object.keys(keys).flatMap((key) =>
+            (<FormData>details.data).getAll(key).map((val) =>
+              val instanceof File
+                ? a.CAT_createBlobUrl(val).then(
+                    (url) =>
+                      ({
+                        key,
+                        type: "file",
+                        val: url,
+                        filename: val.name,
+                      }) as GMSend.XHRFormData
+                  )
+                : ({
                     key,
                     type: "text",
                     val,
-                  });
-                }
-              })
-            );
-          })
-        );
+                  } as GMSend.XHRFormData)
+            )
+          )
+        )) as GMSend.XHRFormData[];
         param.data = data;
       } else if (details.data instanceof Blob) {
         // 处理blob
