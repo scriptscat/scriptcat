@@ -5,7 +5,7 @@ import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
 import { createGMBase } from "./gm_api";
 import { protect } from "./gm_context";
-import { isPreDocumentStartScript } from "./utils";
+import { isEarlyStartScript } from "./utils";
 
 // 构建沙盒上下文
 export const createContext = (
@@ -21,7 +21,7 @@ export const createContext = (
   // 如果是preDocumentStart脚本，装载loadScriptPromise
   let loadScriptPromise: Promise<void> | undefined;
   let loadScriptResolve: (() => void) | undefined;
-  if (isPreDocumentStartScript(scriptRes)) {
+  if (isEarlyStartScript(scriptRes)) {
     loadScriptPromise = new Promise((resolve) => {
       loadScriptResolve = resolve;
     });

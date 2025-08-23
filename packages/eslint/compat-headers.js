@@ -15,6 +15,7 @@ const compatMap = {
     exportCookie: [],
     scriptUrl: [],
     storageName: [],
+    earlyStart: [],
   },
 };
 

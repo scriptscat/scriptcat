@@ -15,12 +15,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import {
-  compileInjectScript,
-  compilePreInjectScript,
-  compileScriptCode,
-  isPreDocumentStartScript,
-} from "../content/utils";
+import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -124,7 +119,7 @@ export class RuntimeService {
   }
 
   valueUpdate(data: TScriptValueUpdate) {
-    if (!isPreDocumentStartScript(data.script)) {
+    if (!isEarlyStartScript(data.script)) {
       return;
     }
     // 如果是预加载脚本，需要更新脚本代码重新注册
@@ -685,7 +680,7 @@ export class RuntimeService {
     const preScriptFlag: string[] = [];
     // 遍历pre-document-start的脚本
     this.scriptMatchCache?.forEach((script) => {
-      if (isPreDocumentStartScript(script)) {
+      if (isEarlyStartScript(script)) {
         preScriptFlag.push(script.flag);
       }
     });
@@ -731,7 +726,7 @@ export class RuntimeService {
     const preScriptFlag: string[] = [];
     // 遍历pre-document-start的脚本
     this.scriptMatchCache?.forEach((script) => {
-      if (isPreDocumentStartScript(script)) {
+      if (isEarlyStartScript(script)) {
         preScriptFlag.push(script.flag);
       }
     });
@@ -854,7 +849,7 @@ export class RuntimeService {
 
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
-    const preDocumentStartScript = isPreDocumentStartScript(script);
+    const preDocumentStartScript = isEarlyStartScript(script);
     let scriptFlag: string | undefined;
     if (preDocumentStartScript) {
       //preDocumentStart脚本使用uuid作为flag

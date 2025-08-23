@@ -92,6 +92,8 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
-export function isPreDocumentStartScript(script: Script) {
-  return script.metadata["run-at"] && script.metadata["run-at"][0] === "pre-document-start";
+export function isEarlyStartScript(script: Script) {
+  return (
+    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["earlyStart"]
+  );
 }
