@@ -65,13 +65,13 @@ function App() {
         <span className="text-2xl font-500">{confirm?.title}</span>
         {metadata.map((key) => (
           <span className="text-base" key={key}>
-            {key}: {confirm!.metadata![key]}
+            {`${key}: ${confirm!.metadata![key]}`}
           </span>
         ))}
         <span className="text-xl font-500">{confirm?.describe}</span>
         <div>
           <Button type="primary" onClick={handleConfirm(false, 1)}>
-            {t("ignore")} ({second})
+            {`${t("ignore")} (${second})`}
           </Button>
         </div>
         <div>

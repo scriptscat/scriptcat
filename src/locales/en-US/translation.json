@@ -447,5 +447,9 @@
   "blacklist_pages_desc": "Prevent scripts from running on specified pages, supports wildcards",
   "development_tools": "Development Tools",
   "check_script_code_quality": "Check script code quality and errors",
-  "custom_eslint_rules_config": "Custom ESLint rules configuration (JSON format)"
+  "custom_eslint_rules_config": "Custom ESLint rules configuration (JSON format)",
+  "light": "Light",
+  "dark": "Dark",
+  "individual_edit": "Individual Edit",
+  "batch_edit": "Batch Edit"
 }

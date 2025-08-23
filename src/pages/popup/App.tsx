@@ -315,7 +315,7 @@ function App() {
                     </Menu.Item>
                     <Menu.Item key="https://github.com/scriptscat/scriptcat">
                       <IconGithub style={iconStyle} />
-                      GitHub
+                      {"GitHub"}
                     </Menu.Item>
                   </Menu>
                 }

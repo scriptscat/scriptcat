@@ -447,5 +447,7 @@
   "blacklist_pages_desc": "指定されたページでスクリプトの実行を禁止、ワイルドカードをサポート",
   "development_tools": "開発ツール",
   "check_script_code_quality": "スクリプトコードの品質とエラーをチェック",
-  "custom_eslint_rules_config": "カスタムESLintルール設定（JSON形式）"
+  "custom_eslint_rules_config": "カスタムESLintルール設定（JSON形式）",
+  "individual_edit": "個別編集",
+  "batch_edit": "一括編集"
 }

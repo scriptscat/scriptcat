@@ -466,9 +466,7 @@ function App() {
               <Typography.Text bold>{upsertScript && i18nDescription(upsertScript)}</Typography.Text>
             </div>
             <div>
-              <Typography.Text bold>
-                {t("author")}: {metadataLive.author}
-              </Typography.Text>
+              <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
             </div>
             <div>
               <Typography.Text
@@ -481,7 +479,7 @@ function App() {
                   overflowY: "auto",
                 }}
               >
-                {t("source")}: {scriptInfo?.url}
+                {`${t("source")}: ${scriptInfo?.url}`}
               </Typography.Text>
             </div>
             <div className="text-end">

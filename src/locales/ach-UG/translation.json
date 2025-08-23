@@ -217,6 +217,8 @@
   "run_once": "crwdns8308:0crwdne8308:0",
   "stop": "crwdns8310:0crwdne8310:0",
   "edit": "crwdns8312:0crwdne8312:0",
+  "exclude_on": "crwdns8922:0crwdne8922:0",
+  "exclude_off": "crwdns8924:0crwdne8924:0",
   "user_config": "crwdns8320:0crwdne8320:0",
   "gm_api": "crwdns8322:0crwdne8322:0",
   "storage_api": "crwdns8324:0crwdne8324:0",
@@ -445,5 +447,9 @@
   "blacklist_pages_desc": "crwdns8908:0crwdne8908:0",
   "development_tools": "crwdns8910:0crwdne8910:0",
   "check_script_code_quality": "crwdns8912:0crwdne8912:0",
-  "custom_eslint_rules_config": "crwdns8914:0crwdne8914:0"
+  "custom_eslint_rules_config": "crwdns8914:0crwdne8914:0",
+  "light": "crwdns10794:0crwdne10794:0",
+  "dark": "crwdns10796:0crwdne10796:0",
+  "individual_edit": "crwdns10798:0crwdne10798:0",
+  "batch_edit": "crwdns10800:0crwdne10800:0"
 }

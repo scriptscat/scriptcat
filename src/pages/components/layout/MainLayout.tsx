@@ -67,7 +67,7 @@ const MainLayout: React.FC<{
           </div>
           {stat.msg.length > 0 && (
             <>
-              <b>{t("failure_info")}:</b>
+              <b>{t("failure_info") + ":"}</b>
               {stat.msg}
             </>
           )}
@@ -85,7 +85,7 @@ const MainLayout: React.FC<{
   function simpleDigestMessage(message: string) {
     const encoder = new TextEncoder();
     const data = encoder.encode(message);
-    return crypto.subtle.digest("SHA-1", data).then((hashBuffer) => {
+    return crypto.subtle.digest("SHA-1", data as BufferSource).then((hashBuffer) => {
       const hashArray = new Uint8Array(hashBuffer);
       let hex = "";
       for (let i = 0; i < hashArray.length; i++) {
@@ -117,7 +117,7 @@ const MainLayout: React.FC<{
             }
             // 先检查内容，后弹出安装页面
             const checkOk = await Promise.allSettled([
-              file.text().then((code) => prepareScriptByCode(code, `file://*resp-check*/${file.name}`)),
+              file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
               simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
             ]);
             if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {
@@ -211,7 +211,7 @@ const MainLayout: React.FC<{
           <div className="flex row items-center">
             <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
             <Typography.Title heading={4} className="!m-0">
-              ScriptCat
+              {"ScriptCat"}
             </Typography.Title>
           </div>
           <Space size="small" className="action-tools">
@@ -275,10 +275,10 @@ const MainLayout: React.FC<{
                   selectedKeys={[lightMode]}
                 >
                   <Menu.Item key="light">
-                    <IconSunFill /> Light
+                    <IconSunFill /> {t("light")}
                   </Menu.Item>
                   <Menu.Item key="dark">
-                    <IconMoonFill /> Dark
+                    <IconMoonFill /> {t("dark")}
                   </Menu.Item>
                   <Menu.Item key="auto">
                     <IconDesktop /> {t("system_follow")}
