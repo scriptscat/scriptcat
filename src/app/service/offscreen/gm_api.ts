@@ -148,10 +148,14 @@ export default class GMApi {
       const data = new FormData();
       if (details.data && details.data instanceof Array) {
         await Promise.all(
-          details.data.map(async (val: GMSend.XHRFormData) => {
+          details.data.map((val: GMSend.XHRFormData) => {
             if (val.type === "file") {
-              const file = new File([await (await fetch(val.val)).blob()], val.filename!);
-              data.append(val.key, file, val.filename);
+              return fetch(val.val)
+                .then((res) => res.blob())
+                .then((blob) => {
+                  const file = new File([blob], val.filename!);
+                  data.append(val.key, file, val.filename);
+                });
             } else {
               data.append(val.key, val.val);
             }
