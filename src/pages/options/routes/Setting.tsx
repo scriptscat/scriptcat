@@ -51,22 +51,8 @@ function Setting() {
   });
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      const [
-        cloudSync,
-        menuExpandNum,
-        checkCycle,
-        updateDisabled,
-        silenceUpdate,
-        eslintConfig,
-        enableEslint,
-        language,
-        blacklist,
-        badgeNumberType,
-        badgeBackgroundColor,
-        badgeTextColor,
-        scriptMenuDisplayType,
-      ] = await Promise.all([
+    const loadConfigs = () => {
+      Promise.all([
         systemConfig.getCloudSync(),
         systemConfig.getMenuExpandNum(),
         systemConfig.getCheckScriptUpdateCycle(),
@@ -80,25 +66,41 @@ function Setting() {
         systemConfig.getBadgeBackgroundColor(),
         systemConfig.getBadgeTextColor(),
         systemConfig.getScriptMenuDisplayType(),
-      ]);
-
-      setSyncDelete(cloudSync.syncDelete);
-      setSyncScriptStatus(cloudSync.syncStatus);
-      setEnableCloudSync(cloudSync.enable);
-      setFilesystemType(cloudSync.filesystem);
-      setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
-      setMenuExpandNum(menuExpandNum);
-      setCheckScriptUpdateCycle(checkCycle);
-      setUpdateDisableScript(updateDisabled);
-      setSilenceUpdateScript(silenceUpdate);
-      setEslintConfig(eslintConfig);
-      setEnableEslint(enableEslint);
-      setLanguage(language);
-      setBlacklist(blacklist);
-      setBadgeNumberType(badgeNumberType);
-      setBadgeBackgroundColor(badgeBackgroundColor);
-      setBadgeTextColor(badgeTextColor);
-      setScriptMenuDisplayType(scriptMenuDisplayType);
+      ]).then(
+        ([
+          cloudSync,
+          menuExpandNum,
+          checkCycle,
+          updateDisabled,
+          silenceUpdate,
+          eslintConfig,
+          enableEslint,
+          language,
+          blacklist,
+          badgeNumberType,
+          badgeBackgroundColor,
+          badgeTextColor,
+          scriptMenuDisplayType,
+        ]) => {
+          setSyncDelete(cloudSync.syncDelete);
+          setSyncScriptStatus(cloudSync.syncStatus);
+          setEnableCloudSync(cloudSync.enable);
+          setFilesystemType(cloudSync.filesystem);
+          setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
+          setMenuExpandNum(menuExpandNum);
+          setCheckScriptUpdateCycle(checkCycle);
+          setUpdateDisableScript(updateDisabled);
+          setSilenceUpdateScript(silenceUpdate);
+          setEslintConfig(eslintConfig);
+          setEnableEslint(enableEslint);
+          setLanguage(language);
+          setBlacklist(blacklist);
+          setBadgeNumberType(badgeNumberType);
+          setBadgeBackgroundColor(badgeBackgroundColor);
+          setBadgeTextColor(badgeTextColor);
+          setScriptMenuDisplayType(scriptMenuDisplayType);
+        }
+      );
     };
 
     loadConfigs();
