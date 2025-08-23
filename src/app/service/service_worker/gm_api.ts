@@ -21,6 +21,7 @@ import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
+import { notificationsUpdate } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -888,20 +889,22 @@ export default class GMApi {
     options.progress = options.progress && parseInt(details.progress as any, 10);
 
     if (typeof notificationId === "string") {
-      let wasUpdated: boolean;
-      try {
-        wasUpdated = await chrome.notifications.update(notificationId, options);
-      } catch (e: any) {
-        this.logger.error("GM_notification update", Logger.E(e));
-        if (e.message.includes("images")) {
+      let wasUpdated = await notificationsUpdate(notificationId, options);
+      if (!wasUpdated.ok && wasUpdated.browserNoSupport) {
+        // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
+        this.logger.error("Your browser does not support GM_updateNotification");
+      } else if (!wasUpdated.ok && wasUpdated.apiError) {
+        if (wasUpdated.apiError.message.includes("images")) {
           // 如果更新失败，删除图标再次尝试
           options.iconUrl = chrome.runtime.getURL("assets/logo.png");
-          wasUpdated = await chrome.notifications.update(notificationId, options);
-        } else {
-          throw e;
+          wasUpdated = await notificationsUpdate(notificationId, options);
+        }
+        // 仍然失敗，輸出 error log
+        if (!wasUpdated.ok && wasUpdated.apiError) {
+          this.logger.error("GM_notification update", Logger.E(wasUpdated.apiError));
         }
       }
-      if (!wasUpdated) {
+      if (!wasUpdated?.ok) {
         this.logger.error("GM_notification update by tag", {
           notificationId,
           options,
@@ -967,8 +970,9 @@ export default class GMApi {
     link: ["GM_notification"],
   })
   GM_updateNotification(request: Request) {
-    if (isFirefox()) {
-      throw new Error("firefox does not support this method");
+    if (typeof chrome.notifications?.update !== "function") {
+      // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
+      throw new Error("Your browser does not support GM_updateNotification");
     }
     const id = request.params[0];
     const details: GMTypes.NotificationDetails = request.params[1];
