@@ -22,6 +22,8 @@ export type CATFileStorage = {
   status: "unset" | "success" | "error";
 };
 
+type WithAsyncValue<T> = T | { asyncValue?: () => Promise<T> };
+
 export class SystemConfig {
   private readonly cache = new Map<string, any>();
 
@@ -41,15 +43,20 @@ export class SystemConfig {
     });
   }
 
-  get<T>(key: string, defaultValue: Exclude<T, undefined>): Promise<T> {
+  get<T extends string | number | boolean | object>(
+    key: string,
+    defaultValue: WithAsyncValue<Exclude<T, undefined>>
+  ): Promise<T> {
     if (this.cache.has(key)) {
       let val = this.cache.get(key);
-      val = (val === undefined ? defaultValue : val) as T;
+      //@ts-ignore
+      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
       return Promise.resolve(val);
     }
     return this.storage.get(key).then((val) => {
       this.cache.set(key, val);
-      val = (val === undefined ? defaultValue : val) as T;
+      //@ts-ignore
+      val = (val === undefined ? defaultValue?.asyncValue?.() || defaultValue : val) as T | Promise<T>;
       return val;
     });
   }
@@ -225,12 +232,20 @@ export class SystemConfig {
         return cachedLanguage;
       }
     }
-    const lng = await this.get("language", (await matchLanguage()) || chrome.i18n.getUILanguage());
-    // 设置进入缓存
-    if (globalThis.localStorage) {
-      localStorage.setItem("language", lng);
-    }
-    return lng;
+    return this.get<string>("language", {
+      // 取预设值时呼叫 asyncValue 进行异步取值
+      asyncValue() {
+        return matchLanguage().then((matchLanguageRes) => {
+          return matchLanguageRes || chrome.i18n.getUILanguage();
+        });
+      },
+    }).then((lng) => {
+      // 设置进入缓存
+      if (globalThis.localStorage) {
+        localStorage.setItem("language", `${lng}`);
+      }
+      return lng;
+    });
   }
 
   setLanguage(value: string) {
