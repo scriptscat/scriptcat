@@ -154,6 +154,11 @@ declare function CAT_registerMenuInput(
 
 declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
 
+/**
+ * 当使用 @run-at pre-document-start 时，可以使用此函数来等待脚本完全加载完成
+ */
+declare function CAT_ScriptLoaded(): Promise<void>;
+
 declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab;
 declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab;
 declare function GM_openInTab(url: string): GMTypes.Tab;

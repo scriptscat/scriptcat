@@ -326,7 +326,11 @@ export class ScriptService {
     return this.scriptCodeDAO.get(uuid);
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+  getScriptRunResource(script: Script) {
+    return this.buildScriptRunResource(script);
+  }
+
+  async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
     const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
 
     // 自定义配置
@@ -341,7 +345,7 @@ export class ScriptService {
 
     ret.resource = await this.resourceService.getScriptResources(ret, true);
 
-    ret.flag = randomMessageFlag();
+    ret.flag = scriptFlag || randomMessageFlag();
     const code = await this.getCode(ret.uuid);
     if (!code) {
       throw new Error("code is null");
@@ -644,7 +648,7 @@ export class ScriptService {
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getCode", this.getCode.bind(this));
-    this.group.on("getScriptRunResource", this.buildScriptRunResource.bind(this));
+    this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));

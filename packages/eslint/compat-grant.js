@@ -6,6 +6,7 @@ const compatMap = {
   CAT_fileStorage: [{ type: "scriptcat", versionConstraint: ">=0.11.0" }],
   CAT_registerMenuInput: [{ type: "scriptcat", versionConstraint: ">=0.17.0-beta.2" }],
   CAT_unregisterMenuInput: [{ type: "scriptcat", versionConstraint: ">=0.17.0-beta.2" }],
+  CAT_scriptLoaded: [{ type: "scriptcat", versionConstraint: ">=1.1.0-beta" }],
   ...compat_grant.compatMap,
 };
 

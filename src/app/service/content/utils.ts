@@ -1,6 +1,6 @@
-import type { ScriptRunResource } from "@App/app/repo/scripts";
-
+import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
+import type { ScriptLoadInfo } from "../service_worker/types";
 
 // 构建脚本运行代码
 /**
@@ -68,6 +68,21 @@ export function compileInjectScript(
   return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
+/**
+ * 将脚本函数编译为预注入脚本代码
+ */
+export function compilePreInjectScript(
+  script: ScriptLoadInfo,
+  scriptCode: string,
+  autoDeleteMountFunction: boolean = false
+): string {
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
+  return `window['${script.flag}'] = {
+  scriptInfo: ${JSON.stringify(script)},
+  func: function(){${autoDeleteMountCode}${scriptCode}}
+  }`;
+}
+
 export function addStyle(css: string): HTMLStyleElement {
   const dom = document.createElement("style");
   dom.textContent = css;
@@ -75,4 +90,10 @@ export function addStyle(css: string): HTMLStyleElement {
     return document.head.appendChild(dom);
   }
   return document.documentElement.appendChild(dom);
+}
+
+export function isEarlyStartScript(script: Script) {
+  return (
+    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["early-start"]
+  );
 }

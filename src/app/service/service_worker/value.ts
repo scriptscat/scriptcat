@@ -8,6 +8,7 @@ import { type PopupService } from "./popup";
 import { cacheInstance } from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
+import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
@@ -98,6 +99,7 @@ export class ValueService {
     if (flag) {
       this.pushValueToTab(oldValue, key, value, uuid, storageName, sender);
     }
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   // 推送值到tab
@@ -192,6 +194,7 @@ export class ValueService {
     Object.keys(data.values).forEach((key) => {
       this.pushValueToTab(oldValue[key], key, data.values[key], data.uuid, storageName, sender);
     });
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   setScriptValue(data: { uuid: string; key: string; value: any }, _sender: GetSender) {
