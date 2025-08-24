@@ -94,6 +94,6 @@ export function addStyle(css: string): HTMLStyleElement {
 
 export function isEarlyStartScript(script: Script) {
   return (
-    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["earlyStart"]
+    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["early-start"]
   );
 }
