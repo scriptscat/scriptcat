@@ -145,9 +145,13 @@ export function getIcon(script: Script): string | undefined {
   );
 }
 
-// 在当前页后打开一个新页面
-export async function openInCurrentTab(url: string) {
-  const tab = await getCurrentTab();
+export async function getTab(tabId: number) {
+  return await chrome.tabs.get(tabId).catch(() => undefined);
+}
+
+// 在当前页后打开一个新页面，如果指定tabId则在该tab后打开
+export async function openInCurrentTab(url: string, tabId?: number) {
+  const tab = await (tabId ? getTab(tabId) : getCurrentTab());
   const createProperties: chrome.tabs.CreateProperties = { url };
   if (tab) {
     // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."

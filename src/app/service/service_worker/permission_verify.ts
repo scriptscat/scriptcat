@@ -150,7 +150,7 @@ export default class PermissionVerify {
       return;
     }
     try {
-      const ret = await this.confirm(data.request, data.confirm);
+      const ret = await this.confirm(data.request, data.confirm, data.sender);
       data.resolve(ret);
     } catch (e) {
       data.reject(e);
@@ -169,7 +169,7 @@ export default class PermissionVerify {
     });
   }
 
-  async confirm(request: Request, confirm: boolean | ConfirmParam): Promise<boolean> {
+  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: GetSender): Promise<boolean> {
     if (typeof confirm === "boolean") {
       return confirm;
     }
@@ -194,7 +194,7 @@ export default class PermissionVerify {
       throw new Error("permission denied");
     }
     // 没有权限,则弹出页面让用户进行确认
-    const userConfirm = await this.confirmWindow(request.script, confirm);
+    const userConfirm = await this.confirmWindow(request.script, confirm, sender);
     // 成功存入数据库
     const model: Permission = {
       uuid: request.uuid,
@@ -250,7 +250,7 @@ export default class PermissionVerify {
   > = new Map();
 
   // 弹出窗口让用户进行确认
-  async confirmWindow(script: Script, confirm: ConfirmParam): Promise<UserConfirm> {
+  async confirmWindow(script: Script, confirm: ConfirmParam, sender: GetSender): Promise<UserConfirm> {
     return new Promise((resolve, reject) => {
       const uuid = uuidv4();
       // 超时处理
@@ -269,7 +269,8 @@ export default class PermissionVerify {
         reject,
       });
       // 打开窗口
-      openInCurrentTab(`src/confirm.html?uuid=${uuid}`);
+      const { tabId } = sender.getExtMessageSender();
+      openInCurrentTab(`src/confirm.html?uuid=${uuid}`, tabId === -1 ? undefined : tabId);
     });
   }
 

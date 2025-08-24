@@ -84,6 +84,7 @@ export class Server {
             })
             .catch((e: Error) => {
               con.sendMessage({ code: -1, message: e.message || e.toString() });
+              this.logger.error("connectHandle error", Logger.E(e));
             });
           return true;
         } else {
@@ -106,6 +107,7 @@ export class Server {
             })
             .catch((e: Error) => {
               sendResponse({ code: -1, message: e.message || e.toString() });
+              this.logger.error("messageHandle error", Logger.E(e));
             });
           return true;
         } else {
@@ -113,6 +115,7 @@ export class Server {
         }
       } catch (e: any) {
         sendResponse({ code: -1, message: e.message || e.toString() });
+        this.logger.error("messageHandle error", Logger.E(e));
       }
     } else {
       sendResponse({ code: -1, message: "no such api " + action });
