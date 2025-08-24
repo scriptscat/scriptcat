@@ -476,6 +476,7 @@ export class RuntimeService {
         }),
         // 加载resource
         resource.getScriptResources(script, false).then((resource) => {
+          script.resource = resource;
           for (const name of Object.keys(resource)) {
             const res = script.resource[name];
             // 删除base64以节省资源
@@ -484,7 +485,6 @@ export class RuntimeService {
               res.base64 = undefined;
             }
           }
-          script.resource = resource;
         }),
         // 加载code相关的信息
         scriptDAO.scriptCodeDAO.get(script.uuid).then((code) => {
