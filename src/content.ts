@@ -6,7 +6,7 @@ import { RuntimeClient } from "./app/service/service_worker/client";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
 
-if (typeof chrome?.runtime?.onMessage !== "function") {
+if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   // ScriptCat 未支持 Firefox MV3
   console.error("Firefox MV3 UserScripts is not yet supported by ScriptCat");
 } else {
