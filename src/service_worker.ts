@@ -51,7 +51,7 @@ async function setupOffscreenDocument() {
             console.log("setupOffscreenDocument() calling is invalid.");
             return;
           }
-          creating = true; // chrome.offscreen.createDocument 只執行一次
+          creating = true; // chrome.offscreen.createDocument 只执行一次
         });
       creating = promise;
     }
