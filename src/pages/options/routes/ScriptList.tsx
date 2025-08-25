@@ -222,6 +222,13 @@ function ScriptList() {
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
   const { t } = useTranslation();
 
+  // Global search state
+  const [searchText, setSearchText] = useState("");
+  const [searchScope, setSearchScope] = useState<"title" | "all">("title");
+  const [debouncedText, setDebouncedText] = useState("");
+  const codeCacheRef = useRef(new Map<string, string>());
+  const [codeCacheVersion, setCodeCacheVersion] = useState(0);
+
   // 处理拖拽排序
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -247,6 +254,26 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
+
+  // Debounce search text
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedText(searchText.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchText]);
+
+  // Prefetch codes when doing full-content search
+  useEffect(() => {
+    if (searchScope !== "all" || !debouncedText) return;
+    const toLoad = scriptList.filter((s) => !codeCacheRef.current.has(s.uuid));
+    toLoad.forEach((s) => {
+      scriptClient.getCode(s.uuid).then((res) => {
+        if (res && typeof res.code === "string") {
+          codeCacheRef.current.set(s.uuid, res.code.toLocaleLowerCase());
+          setCodeCacheVersion((v) => v + 1);
+        }
+      });
+    });
+  }, [searchScope, debouncedText, scriptList]);
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -732,6 +759,32 @@ function ScriptList() {
     }
   }, [newColumns, canShowList]);
 
+  // Build filtered data source for table
+  const displayList = useMemo(() => {
+    const text = debouncedText.toLocaleLowerCase();
+    if (!text) return scriptList;
+    const keys = text.split(" ").filter(Boolean);
+    const matchAny = (hay: string) => keys.some((k) => hay.includes(k));
+    return scriptList.filter((row) => {
+      const nameLower = (row.name || "").toLocaleLowerCase();
+      const i18nLower = i18nName(row).toLocaleLowerCase();
+      if (searchScope === "title") {
+        return matchAny(`${nameLower} ${i18nLower}`);
+      }
+      // searchScope === 'all': include metadata + code
+      let metaStr = "";
+      const md: any = row.metadata || {};
+      for (const v of Object.values(md)) {
+        if (Array.isArray(v)) metaStr += ` ${v.join(" ")}`;
+        else if (typeof v === "string") metaStr += ` ${v}`;
+      }
+      const metaLower = metaStr.toLocaleLowerCase();
+      const codeLower = codeCacheRef.current.get(row.uuid) || "";
+      const hay = `${nameLower} ${i18nLower} ${metaLower} ${codeLower}`;
+      return matchAny(hay);
+    });
+  }, [scriptList, debouncedText, searchScope, codeCacheVersion]);
+
   const components: ComponentsProps = {
     header: {
       operations: ({ selectionNode, expandNode }) => [
@@ -787,11 +840,31 @@ function ScriptList() {
       className="script-list"
       style={{
         height: "100%",
-        overflowY: "auto",
       }}
     >
       <DraggableContext.Provider value={draggableContextValue}>
         <Space direction="vertical">
+          {/* Global search bar */}
+          <div className="flex flex-row items-center gap-2" style={{ padding: "8px 6px" }}>
+            <Input.Search
+              allowClear
+              style={{ width: 360 }}
+              placeholder={t("search_scripts")!}
+              value={searchText}
+              onChange={setSearchText}
+              onSearch={(v) => setSearchText(v)}
+            />
+            <Select
+              style={{ minWidth: 260 }}
+              triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+              size="small"
+              value={searchScope}
+              onChange={(v) => setSearchScope(v as "title" | "all")}
+            >
+              <Select.Option value="title">{t("name")}</Select.Option>
+              <Select.Option value="all">{`${t("name")}/${t("description")}/${t("script_source")}`}</Select.Option>
+            </Select>
+          </div>
           {showAction && (
             <Card>
               <div
@@ -1065,7 +1138,7 @@ function ScriptList() {
               rowKey="uuid"
               tableLayoutFixed
               columns={dealColumns}
-              data={scriptList}
+              data={displayList}
               pagination={false}
               style={
                 {
