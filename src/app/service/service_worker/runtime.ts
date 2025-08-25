@@ -41,6 +41,8 @@ import {
 } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 
+const ORIGINAL_URLMATCH_SUFFIX = "{Ori}"; // 匹配原始URLPatterns用
+
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -413,16 +415,16 @@ export class RuntimeService {
   async getPageScriptMatchingResultByUrl(url: string, includeNonEffective: boolean = false) {
     await this.loadScriptMatchInfo();
     // 返回当前页面匹配的uuids
-    // 如果有使用自定义排除，原本脚本定义的会返回 uuid~Ori
-    // 因此基於自定义排除页面被排除的情况下，结果只包含 uuid~Ori 而不包含 uuid
+    // 如果有使用自定义排除，原本脚本定义的会返回 uuid{Ori}
+    // 因此基於自定义排除页面被排除的情况下，结果只包含 uuid{Ori} 而不包含 uuid
     const matchedUuids = this.scriptMatch.urlMatch(url!);
     const ret = new Map<string, { uuid: string; effective: boolean; matchInfo?: TScriptMatchInfoEntry }>();
     const scriptMatchCache = this.scriptMatchCache;
     for (const e of matchedUuids) {
-      const uuid = e.endsWith("~Ori") ? e.slice(0, -4) : e;
+      const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -5) : e;
       if (!includeNonEffective && uuid !== e) continue;
       const o = ret.get(uuid) || { uuid, effective: false };
-      // 只包含 uuid~Ori 而不包含 uuid 的情况，effective = false
+      // 只包含 uuid{Ori} 而不包含 uuid 的情况，effective = false
       if (e === uuid) {
         o.effective = true;
       }
@@ -752,7 +754,7 @@ export class RuntimeService {
     };
     const uuid = matchInfoEntry.uuid;
     scriptMatchCache.set(uuid, matchInfoEntry);
-    const uuidOri = `${matchInfoEntry.uuid}~Ori`;
+    const uuidOri = `${matchInfoEntry.uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
     // 清理一下老数据
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(uuidOri);
@@ -780,7 +782,7 @@ export class RuntimeService {
     }
     this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
-    this.scriptMatch.clearRules(`${uuid}~Ori`);
+    this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
     this.saveScriptMatchInfo();
   }
 
