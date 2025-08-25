@@ -8,7 +8,8 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
-  ScriptDAO
+  ScriptDAO,
+  type UserConfig,
 } from "@App/app/repo/scripts";
 import {
   Subscribe,
@@ -94,7 +95,6 @@ export async function fetchScriptInfo(
   isUpdate: boolean,
   uuid: string
 ): Promise<ScriptInfo> {
-
   const body = await fetchScriptBody(url);
   const ok = parseMetadata(body);
   if (!ok) {
@@ -165,7 +165,7 @@ export async function prepareScriptByCode(
   }
   const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
-  let script: Script = {
+  const script: Script = {
     id: 0,
     uuid: newUUID,
     name: metadata.name[0],
@@ -196,24 +196,32 @@ export async function prepareScriptByCode(
   }
   if (old) {
     if (
-      (old.type === SCRIPT_TYPE_NORMAL &&
-        script.type !== SCRIPT_TYPE_NORMAL) ||
-      (script.type === SCRIPT_TYPE_NORMAL &&
-        old.type !== SCRIPT_TYPE_NORMAL)
+      (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
+      (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
       throw new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变");
     }
-    const { id, uuid, createtime, lastruntime, error, sort, selfMetadata, subscribeUrl, status } = old;
+    const {
+      id,
+      uuid: oldUUID,
+      createtime,
+      lastruntime,
+      error,
+      sort,
+      selfMetadata,
+      subscribeUrl,
+      status,
+    } = old;
     Object.assign(script, {
       id,
-      uuid,
+      oldUUID,
       createtime,
       lastruntime,
       error,
       sort,
       selfMetadata: selfMetadata || {},
       subscribeUrl,
-      status
+      status,
     });
   } else {
     // 前台脚本默认开启
@@ -223,7 +231,6 @@ export async function prepareScriptByCode(
     script.checktime = Date.now();
   }
   return { script, oldScript: old };
-
 }
 
 // 通过代码解析出脚本信息 (Subscribe)
@@ -246,7 +253,7 @@ export async function prepareSubscribeByCode(
     code,
     author: (metadata.author && metadata.author[0]) || "",
     scripts: {},
-    metadata: metadata,
+    metadata,
     status: SUBSCRIBE_STATUS_ENABLE,
     createtime: Date.now(),
     updatetime: Date.now(),

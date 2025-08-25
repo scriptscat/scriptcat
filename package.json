@@ -7,6 +7,7 @@
   "scripts": {
     "test": "jest --coverage",
     "lint": "eslint --ext .js,.ts,.tsx src/",
+    "lint-fix": "eslint --ext .js,.ts,.tsx src/ --fix",
     "dev": "concurrently \"webpack --mode development --config ./webpack/webpack.dev.ts\" \"webpack --mode development --config ./webpack/webpack.inject.dev.ts\"",
     "build": "webpack --mode production --config ./webpack/webpack.prod.ts && concurrently \"npm run build:linter\" \"npm run build:inject && npm run build:no-split\"",
     "build:linter": "webpack --mode production --config ./webpack/webpack.linter.ts",

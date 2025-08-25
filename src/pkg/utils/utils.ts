@@ -166,7 +166,7 @@ export async function getCurrentTab() {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
   const [tab] = await new Promise<chrome.tabs.Tab[]>((resolve, reject) => {
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, (results) => {
-      const lastError = chrome.runtime.lastError;
+      const {lastError} = chrome.runtime;
       if (lastError) {
         reject(new Error(lastError.message));
         return;
@@ -205,7 +205,7 @@ export async function openInCurrentTab(url: string) {
   delete createProperties.windowId;
   try {
     await chrome.tabs.create(createProperties);
-    return;
+    
   } catch {
     // do nothing
   }
