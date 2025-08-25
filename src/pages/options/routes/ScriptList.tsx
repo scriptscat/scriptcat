@@ -840,16 +840,12 @@ function ScriptList() {
       className="script-list"
       style={{
         height: "100%",
-        overflowY: "auto",
       }}
     >
       <DraggableContext.Provider value={draggableContextValue}>
         <Space direction="vertical">
           {/* Global search bar */}
-          <div
-            className="flex flex-row items-center gap-2"
-            style={{ padding: "8px 6px" }}
-          >
+          <div className="flex flex-row items-center gap-2" style={{ padding: "8px 6px" }}>
             <Input.Search
               allowClear
               style={{ width: 360 }}
