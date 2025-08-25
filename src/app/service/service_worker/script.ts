@@ -13,7 +13,7 @@ import {
   randomMessageFlag,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -28,6 +28,39 @@ import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TS
 import { timeoutExecution } from "@App/pkg/utils/timer";
 
 const cIdKey = `(cid_${Math.random()})`;
+
+const getCombinedMeta = (metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata => {
+  const metaRet = { ...metaBase };
+  for (const key of Object.keys(metaCustom)) {
+    const v = metaCustom[key];
+    if (v && typeof v === "object") {
+      if (v[Symbol.iterator]) {
+        metaRet[key] = [...v];
+      } else {
+        metaRet[key] = { ...v };
+      }
+    } else {
+      metaRet[key] = v;
+    }
+  }
+  return metaRet;
+};
+
+const selfMetadataUpdate = (script: Script, n: string, s: Set<string>) => {
+  // 更新 selfMetadata 时建立浅拷贝
+  const selfMetadata = { ...(script.selfMetadata || {}) };
+  script = { ...script, selfMetadata };
+  const a = [...s].filter((e) => e && typeof e === "string");
+  if (a.length > 0) {
+    selfMetadata![n] = a;
+  } else {
+    delete selfMetadata![n];
+    if (Object.keys(selfMetadata).length === 0) {
+      script.selfMetadata = undefined; // delete script.selfMetadata;
+    }
+  }
+  return script;
+};
 
 export class ScriptService {
   logger: Logger;
@@ -327,13 +360,13 @@ export class ScriptService {
   }
 
   buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
+    const ret: ScriptRunResource = { ...script } as ScriptRunResource;
+
     // 自定义配置
+    const { match, include, exclude } = ret.metadata;
+    ret.oriMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
     if (ret.selfMetadata) {
-      ret.metadata = { ...ret.metadata };
-      Object.keys(ret.selfMetadata).forEach((key) => {
-        ret.metadata[key] = ret.selfMetadata![key];
-      });
+      ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
     return Promise.all([
       this.valueService.getScriptValue(ret),
@@ -352,19 +385,25 @@ export class ScriptService {
     });
   }
 
-  async excludeUrl({ uuid, url, remove }: { uuid: string; url: string; remove: boolean }) {
-    const script = await this.scriptDAO.get(uuid);
+  // ScriptMenuList 的 excludeUrl - 排除或回復
+  async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    let excludes = script.selfMetadata.exclude || script.metadata.exclude || [];
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
     if (remove) {
-      excludes = excludes.filter((item) => item !== url);
+      const deleted = excludeSet.delete(excludePattern);
+      if (!deleted) {
+        console.log("excludePattern not found in excludeSet");
+        return; // scriptDAO 不用更新
+      }
     } else {
-      excludes.push(url);
+      excludeSet.add(excludePattern);
     }
-    script.selfMetadata.exclude = excludes;
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
@@ -379,16 +418,14 @@ export class ScriptService {
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (exclude) {
-      script.selfMetadata.exclude = exclude;
-    } else {
-      delete script.selfMetadata.exclude;
-    }
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(exclude || []);
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
@@ -403,16 +440,14 @@ export class ScriptService {
   }
 
   async resetMatch({ uuid, match }: { uuid: string; match: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (match) {
-      script.selfMetadata.match = match;
-    } else {
-      delete script.selfMetadata.match;
-    }
+    // 建立Set去掉重覆（如有）
+    const matchSet = new Set(match || []);
+    // 更新 script.selfMetadata.match
+    script = selfMetadataUpdate(script, "match", matchSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {

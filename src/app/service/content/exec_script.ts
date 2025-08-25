@@ -34,10 +34,10 @@ export default class ExecScript {
     this.scriptRes = scriptRes;
     this.logger = LoggerCore.getInstance().logger({
       component: "exec",
-      uuid: this.scriptRes.uuid,
-      name: this.scriptRes.name,
+      uuid: scriptRes.uuid,
+      name: scriptRes.name,
     });
-    const GM_info = evaluateGMInfo(envInfo, this.scriptRes);
+    const GM_info = evaluateGMInfo(envInfo, scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
       this.scriptFunc = compileScript(code);

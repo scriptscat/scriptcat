@@ -1,5 +1,4 @@
 import { ExtVersion } from "@App/app/const";
-import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
@@ -28,7 +27,7 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: ScriptLoadInfo) {
     // "" => null
     scriptUpdateURL: script.downloadUrl || null,
     scriptMetaStr: script.metadataStr,
-    userConfig: parseUserConfig(script.userConfigStr),
+    userConfig: script.userConfig,
     userConfigStr: script.userConfigStr,
     // scriptSource: script.sourceCode,
     version: ExtVersion,
