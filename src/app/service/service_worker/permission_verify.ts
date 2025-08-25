@@ -10,6 +10,7 @@ import CacheKey from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
+import { subscribeScriptDelete } from "../queue";
 
 export interface ConfirmParam {
   // 权限名

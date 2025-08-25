@@ -2,6 +2,7 @@ import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageS
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
+import Logger from "@App/app/logger/logger";
 
 export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
