@@ -23,17 +23,31 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   const [eslintConfig, setEslintConfig] = useState("");
 
   const div = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({
-    editor: isMobile ? mobileEditor : monacoEditor,
-  }), [isMobile, mobileEditor, monacoEditor]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      editor: isMobile ? mobileEditor : monacoEditor,
+    }),
+    [isMobile, mobileEditor, monacoEditor]
+  );
 
   useEffect(() => {
     const detectMobile = () => {
       try {
         const ua = navigator.userAgent || (navigator as any).vendor || "";
-        const coarse = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-        const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-        const width = typeof window !== "undefined" ? Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0) : 0;
+        const coarse =
+          typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(pointer: coarse)").matches;
+        const mobileUA =
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        const width =
+          typeof window !== "undefined"
+            ? Math.max(
+                document.documentElement?.clientWidth || 0,
+                window.innerWidth || 0
+              )
+            : 0;
         return coarse || mobileUA || width < 768;
       } catch {
         return false;

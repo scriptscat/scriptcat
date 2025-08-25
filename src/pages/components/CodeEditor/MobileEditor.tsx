@@ -28,6 +28,7 @@ const createEditorStub = (opts: { get: () => string; set: (v: string) => void; f
     },
     onKeyUp: (cb: () => void) => {
       keyupHandlers.add(cb);
+      return () => keyupHandlers.delete(cb);
     },
     __emitKeyUp: () => {
       keyupHandlers.forEach((cb) => cb());
@@ -41,35 +42,40 @@ const createEditorStub = (opts: { get: () => string; set: (v: string) => void; f
 };
 
 const MobileEditor: React.ForwardRefRenderFunction<{ editor: any }, MobileEditorProps> = (
-  { id, className, code, editable, onReady },
+  { id, className, code, editable, onReady }: MobileEditorProps,
   ref
 ) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState<string>(code ?? "");
+  const valueRef = useRef<string>(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // 与桌面保持同步，当外部 code 变化时更新本地状态
   useEffect(() => {
     if (code !== undefined && code !== value) {
       setValue(code);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  const editorStub = useMemo(
-    () =>
-      createEditorStub({
-        get: () => value,
-        set: (v: string) => setValue(v),
-        focus: () => textareaRef.current?.focus(),
-      }),
-    [value]
-  );
+  const editorStubRef = useRef<any>();
+  if (!editorStubRef.current) {
+    editorStubRef.current = createEditorStub({
+      get: () => valueRef.current,
+      set: (v: string) => setValue(v),
+      focus: () => textareaRef.current?.focus(),
+    });
+  }
+  const editorStub = editorStubRef.current;
 
   useImperativeHandle(ref, () => ({ editor: editorStub }), [editorStub]);
 
   useEffect(() => {
     onReady?.(editorStub);
-  }, [editorStub, onReady]);
+    // onReady chỉ cần gọi một lần sau mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange: React.ChangeEventHandler<HTMLTextAreaElement> = (e) => {
     setValue(e.target.value);
