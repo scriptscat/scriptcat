@@ -81,32 +81,33 @@ export function isChineseUser() {
 }
 
 // 匹配语言
-export async function matchLanguage() {
-  const acceptLanguages = await chrome.i18n.getAcceptLanguages();
-  // 遍历数组寻找匹配语言
-  for (let i = 0; i < acceptLanguages.length; i += 1) {
-    const lng = acceptLanguages[i];
-    if (i18n.hasResourceBundle(lng, "translation")) {
-      return lng;
+export function matchLanguage(): Promise<string> {
+  return chrome.i18n.getAcceptLanguages().then((acceptLanguages) => {
+    // 遍历数组寻找匹配语言
+    for (let i = 0; i < acceptLanguages.length; i += 1) {
+      const lng = acceptLanguages[i];
+      if (i18n.hasResourceBundle(lng, "translation")) {
+        return lng;
+      }
     }
-  }
-  // 根据前缀去匹配
-  const prefixMap = {} as Partial<Record<string, string[]>>;
-  for (const lng of i18n.languages) {
-    const prefix = lng.split("-")[0];
-    if (!prefixMap[prefix]) {
-      prefixMap[prefix] = [];
+    // 根据前缀去匹配
+    const prefixMap = {} as Partial<Record<string, string[]>>;
+    for (const lng of i18n.languages) {
+      const prefix = lng.split("-")[0];
+      if (!prefixMap[prefix]) {
+        prefixMap[prefix] = [];
+      }
+      prefixMap[prefix].push(lng);
     }
-    prefixMap[prefix].push(lng);
-  }
-  for (let i = 0; i < acceptLanguages.length; i += 1) {
-    const lng = acceptLanguages[i];
-    const prefix = lng.split("-")[0];
-    if (prefixMap[prefix] && prefixMap[prefix].length > 0) {
-      return prefixMap[prefix][0]; // 返回第一个匹配的语言
+    for (let i = 0; i < acceptLanguages.length; i += 1) {
+      const lng = acceptLanguages[i];
+      const prefix = lng.split("-")[0];
+      if (prefixMap[prefix] && prefixMap[prefix].length > 0) {
+        return prefixMap[prefix][0]; // 返回第一个匹配的语言
+      }
     }
-  }
-  return "";
+    return "";
+  });
 }
 
 export { t };

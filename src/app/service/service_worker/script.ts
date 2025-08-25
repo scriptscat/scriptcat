@@ -368,7 +368,6 @@ export class ScriptService {
     if (ret.selfMetadata) {
       ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
-
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),

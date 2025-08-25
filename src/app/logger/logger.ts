@@ -96,6 +96,7 @@ export default class Logger {
       return { error: e };
     }
     if (e instanceof Error) {
+      console.error(e);
       return { error: e.message };
     }
     if (typeof e === "object") {

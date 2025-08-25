@@ -103,7 +103,7 @@ export class SynchronizeService {
     }
     // 获取所有脚本
     const list = await this.scriptDAO.all();
-    return Promise.all(list.map(async (script): Promise<ScriptBackupData> => this.generateScriptBackupData(script)));
+    return Promise.all(list.map((script) => this.generateScriptBackupData(script)));
   }
 
   async generateScriptBackupData(script: Script): Promise<ScriptBackupData> {
@@ -178,20 +178,14 @@ export class SynchronizeService {
     requiresCss: ResourceBackup[];
   }) {
     const { uuid, requires, resources, requiresCss } = data;
-    const ret: Promise<any>[] = [];
-    // 处理requires
-    requires.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "require"));
-    });
-    // 处理resources
-    resources.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "resource"));
-    });
-    // 处理requiresCss
-    requiresCss.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "require-css"));
-    });
-    return Promise.all(ret).then(() => {
+    return Promise.all([
+      // 处理requires
+      ...requires.map((item) => this.resource.importResource(uuid, item, "require")),
+      // 处理resources
+      ...resources.map((item) => this.resource.importResource(uuid, item, "resource")),
+      // 处理requiresCss
+      ...requiresCss.map((item) => this.resource.importResource(uuid, item, "require-css")),
+    ]).then(() => {
       return;
     });
   }

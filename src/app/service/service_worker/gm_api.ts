@@ -311,8 +311,9 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  CAT_userConfig(request: Request): void {
-    openInCurrentTab(`/src/options.html#/?userConfig=${request.uuid}`);
+  CAT_userConfig(request: Request, sender: GetSender): void {
+    const { tabId } = sender.getExtMessageSender();
+    openInCurrentTab(`/src/options.html#/?userConfig=${request.uuid}`, tabId === -1 ? undefined : tabId);
   }
 
   @PermissionVerify.API({
@@ -1192,7 +1193,18 @@ export default class GMApi {
             details.responseHeaders?.forEach((header) => {
               if (header.name.toLowerCase() === "location") {
                 // 重定向
-                location = header.value || "";
+                if (header.value) {
+                  try {
+                    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Location
+                    // <url> May be relative to the request URL or an absolute URL.
+                    const url = new URL(header.value, details.url);
+                    if (url.href) {
+                      location = url.href;
+                    }
+                  } catch {
+                    // ignore
+                  }
+                }
               }
             });
             if (location) {
