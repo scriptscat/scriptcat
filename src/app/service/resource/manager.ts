@@ -17,6 +17,7 @@ import CacheKey from "@App/pkg/utils/cache_key";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import Manager from "../manager";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
+import { base64ToHex, isBase64 } from "./utils";
 
 // 资源管理器,负责资源的更新获取等操作
 
@@ -126,7 +127,7 @@ export class ResourceManager extends Manager {
     }
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
-      script.metadata.require.map(async (u) => {
+      script.metadata!.require!.map(async (u) => {
         const res = await this.getResource(script.id, u, "require-css");
         if (res) {
           ret[u] = res;
@@ -188,7 +189,7 @@ export class ResourceManager extends Manager {
     }
     const ret: { [key: string]: Resource } = {};
     await Promise.allSettled(
-      script.metadata.require.map(async (u) => {
+      script.metadata!.require!.map(async (u) => {
         const res = await this.checkResource(script.id, u, "require-css");
         if (res) {
           ret[u] = res;
@@ -339,13 +340,21 @@ export class ResourceManager extends Manager {
     if (resource) {
       // 校验hash
       if (u.hash) {
-        if (
-          (u.hash.md5 && u.hash.md5 !== resource.hash.md5) ||
-          (u.hash.sha1 && u.hash.sha1 !== resource.hash.sha1) ||
-          (u.hash.sha256 && u.hash.sha256 !== resource.hash.sha256) ||
-          (u.hash.sha384 && u.hash.sha384 !== resource.hash.sha384) ||
-          (u.hash.sha512 && u.hash.sha512 !== resource.hash.sha512)
-        ) {
+        let flag = true;
+        Object.keys(u.hash).forEach((key) => {
+          if (key in resource.hash) {
+            let hex = u.hash![key];
+            if (isBase64(hex)) {
+              // 转换为hash进对比
+              hex = base64ToHex(u.hash![key]);
+            }
+            // 对比普通的hash
+            if (resource.hash[key as keyof ResourceHash] !== hex) {
+              flag = false;
+            }
+          }
+        });
+        if (!flag) {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
         }
       }
@@ -406,7 +415,8 @@ export class ResourceManager extends Manager {
       if (kv.length < 2) {
         return;
       }
-      hash[kv[0]] = kv[1].toLocaleLowerCase();
+      const [key, value] = kv;
+      hash[key] = value;
     });
     return { url: urls[0], hash };
   }
