@@ -88,9 +88,6 @@ export class Runtime {
     const userConfig = parseUserConfig(userConfigStr);
     const loadScript = {
       ...script,
-      code: "",
-      value: {},
-      resource: {},
       metadataStr,
       userConfigStr,
       userConfig,
@@ -313,9 +310,6 @@ export class Runtime {
     const userConfig = parseUserConfig(userConfigStr);
     const loadScript = {
       ...script,
-      code: "",
-      value: {},
-      resource: {},
       metadataStr,
       userConfigStr,
       userConfig,
