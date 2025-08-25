@@ -345,11 +345,14 @@ export class ResourceManager extends Manager {
           if (key in resource.hash) {
             let hex = u.hash![key];
             if (isBase64(hex)) {
-              // 转换为hash进对比
+              // 转换为hex进对比
               hex = base64ToHex(u.hash![key]);
             }
-            // 对比普通的hash
-            if (resource.hash[key as keyof ResourceHash] !== hex) {
+            // 对比hex
+            if (
+              resource.hash[key as keyof ResourceHash].toLowerCase() !==
+              hex.toLowerCase()
+            ) {
               flag = false;
             }
           }
