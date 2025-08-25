@@ -9,7 +9,6 @@ import Cache from "@App/app/cache";
 import CacheKey from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
-import { type TDeleteScript } from "../queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 
 export interface ConfirmParam {
