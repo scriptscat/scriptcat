@@ -2,6 +2,7 @@ import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
+import MobileEditor from "./MobileEditor";
 
 type Props = {
   className?: string;
@@ -16,13 +17,44 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   ref
 ) => {
   const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileEditor, setMobileEditor] = useState<any>();
   const [enableEslint, setEnableEslint] = useState(false);
   const [eslintConfig, setEslintConfig] = useState("");
 
   const div = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({
-    editor: monacoEditor,
-  }));
+  useImperativeHandle(
+    ref,
+    () => ({
+      editor: isMobile ? mobileEditor : monacoEditor,
+    }),
+    [isMobile, mobileEditor, monacoEditor]
+  );
+
+  useEffect(() => {
+    const detectMobile = () => {
+      try {
+        const ua = navigator.userAgent || (navigator as any).vendor || "";
+        const coarse =
+          typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(pointer: coarse)").matches;
+        const mobileUA =
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        const width =
+          typeof window !== "undefined"
+            ? Math.max(
+                document.documentElement?.clientWidth || 0,
+                window.innerWidth || 0
+              )
+            : 0;
+        return coarse || mobileUA || width < 768;
+      } catch {
+        return false;
+      }
+    };
+    setIsMobile(detectMobile());
+  }, []);
 
   useEffect(() => {
     const loadConfigs = () => {
@@ -37,6 +69,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   }, []);
 
   useEffect(() => {
+    if (isMobile) {
+      return () => {};
+    }
     if (diffCode === undefined || code === undefined || !div.current) {
       return () => {};
     }
@@ -81,9 +116,12 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         edit.dispose();
       }
     };
-  }, [div, code, diffCode, editable, id]);
+  }, [div, code, diffCode, editable, id, isMobile]);
 
   useEffect(() => {
+    if (isMobile) {
+      return () => {};
+    }
     if (!enableEslint) {
       return () => {};
     }
@@ -216,7 +254,22 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     return () => {
       LinterWorker.hook.removeListener("message", handler);
     };
-  }, [id, monacoEditor, enableEslint, eslintConfig]);
+  }, [id, monacoEditor, enableEslint, eslintConfig, isMobile]);
+
+  if (isMobile) {
+    return (
+      <MobileEditor
+        id={id}
+        className={className}
+        code={code}
+        diffCode={diffCode}
+        editable={editable}
+        // 使用回调将 stub 返回给父组件，以便通过 ref 暴露
+        // @ts-ignore
+        onReady={(e: any) => setMobileEditor(e)}
+      />
+    );
+  }
 
   return <div id={id} className={className} ref={div} />;
 };
