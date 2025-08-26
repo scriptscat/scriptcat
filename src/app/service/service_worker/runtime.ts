@@ -704,8 +704,7 @@ export class RuntimeService {
         .get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch")
         .then((data) => {
           if (data) {
-            const arr = Object.entries(data);
-            arr.sort(([, a], [, b]) => a.sort! - b.sort!);
+            const arr = Object.entries(data).sort(([, a], [, b]) => a.sort! - b.sort!);
             for (const [, matchInfoEntry] of arr) {
               this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
             }
