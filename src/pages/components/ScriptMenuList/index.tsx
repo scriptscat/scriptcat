@@ -187,8 +187,8 @@ const ScriptMenuList = React.memo(
       window.close();
     }, []);
 
-    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, bExclude: boolean) => {
-      scriptClient.excludeUrl(item.uuid, excludePattern, bExclude).finally(() => {
+    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
         window.close();
       });
     }, []);
