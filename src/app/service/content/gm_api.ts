@@ -1189,7 +1189,7 @@ export default class GMApi extends GM_Base {
   apiLoadPromise: Promise<void> | undefined;
 
   @GMContext.API()
-  CAT_ScriptLoaded() {
+  CAT_scriptLoaded() {
     return this.loadScriptPromise;
   }
 }

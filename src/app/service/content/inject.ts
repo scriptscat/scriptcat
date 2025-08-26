@@ -50,6 +50,7 @@ export class InjectRuntime {
             break;
           }
         }
+        return;
       }
       // @ts-ignore
       const scriptFunc = window[script.flag];

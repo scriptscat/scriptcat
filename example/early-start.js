@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Pre Document Start
+// @name         early start script
 // @namespace    https://bbs.tampermonkey.net.cn/
 // @version      0.1.0
 // @description  使用 early-start 可以比网页更快的加载脚本进行执行，但是会存在一些性能问题与GM API使用限制
@@ -7,7 +7,7 @@
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @grant        CAT_ScriptLoaded
+// @grant        CAT_scriptLoaded
 // @early-start
 // @match        http://test-case.ggnb.top/is_trusted/is_trusted.html
 // ==/UserScript==
@@ -33,6 +33,6 @@ unsafeWindow.onload = () => {
   document.querySelector("#btn").click();
 };
 
-CAT_ScriptLoaded().then(() => {
+CAT_scriptLoaded().then(() => {
   console.log("脚本完全加载完成");
 });
