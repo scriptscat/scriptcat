@@ -1,3 +1,5 @@
+export const BrowserNoSupport = new Error("browserNoSupport");
+
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   if (runAts.length === 0) {
     return "document_idle";
@@ -108,4 +110,32 @@ export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMs
   if (!errType) return { ok: true, res: t };
   const { name, message } = t;
   return { ok: false, err: { name, message, errType, ...t, ...params } };
+}
+
+export async function notificationsUpdate(
+  notificationId: string,
+  options: chrome.notifications.NotificationOptions
+): Promise<
+  | {
+      ok: true;
+      res: boolean | null;
+    }
+  | ({
+      ok: false;
+    } & {
+      browserNoSupport?: true;
+      apiError?: Error;
+    })
+> {
+  // No Support in Firefox
+  if (typeof chrome.notifications?.update !== "function") {
+    return { ok: false, apiError: BrowserNoSupport };
+  }
+  try {
+    // chrome > 116 return Promise<boolean>
+    const wasUpdated: any = await chrome.notifications.update(notificationId, options);
+    return { ok: true, res: typeof wasUpdated === "boolean" ? wasUpdated : null };
+  } catch (e: any) {
+    return { ok: false, apiError: e as Error };
+  }
 }
