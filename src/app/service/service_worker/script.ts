@@ -332,7 +332,6 @@ export class ScriptService {
 
   async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
     const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
-
     // 自定义配置
     if (ret.selfMetadata) {
       ret.metadata = { ...ret.metadata };
@@ -340,20 +339,21 @@ export class ScriptService {
         ret.metadata[key] = ret.selfMetadata![key];
       });
     }
-
-    ret.value = await this.valueService.getScriptValue(ret);
-
-    ret.resource = await this.resourceService.getScriptResources(ret, true);
-
-    ret.flag = scriptFlag || randomMessageFlag();
-    const code = await this.getCode(ret.uuid);
-    if (!code) {
-      throw new Error("code is null");
-    }
-    ret.code = code.code;
-    ret.code = compileScriptCode(ret);
-
-    return ret;
+    return Promise.all([
+      this.valueService.getScriptValue(ret),
+      this.resourceService.getScriptResources(ret, true),
+      this.getCode(script.uuid),
+    ]).then(([value, resource, code]) => {
+      if (!code) {
+        throw new Error("code is null");
+      }
+      ret.value = value;
+      ret.resource = resource;
+      ret.flag = scriptFlag || randomMessageFlag();
+      ret.code = code.code;
+      ret.code = compileScriptCode(ret);
+      return ret;
+    });
   }
 
   async excludeUrl({ uuid, url, remove }: { uuid: string; url: string; remove: boolean }) {

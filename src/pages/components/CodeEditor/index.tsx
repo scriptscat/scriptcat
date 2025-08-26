@@ -25,13 +25,13 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   }));
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      const [eslintConfig, enableEslint] = await Promise.all([
-        systemConfig.getEslintConfig(),
-        systemConfig.getEnableEslint(),
-      ]);
-      setEslintConfig(eslintConfig);
-      setEnableEslint(enableEslint);
+    const loadConfigs = () => {
+      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(
+        ([eslintConfig, enableEslint]) => {
+          setEslintConfig(eslintConfig);
+          setEnableEslint(enableEslint);
+        }
+      );
     };
     loadConfigs();
   }, []);
