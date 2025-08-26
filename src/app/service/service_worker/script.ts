@@ -46,15 +46,15 @@ const getCombinedMeta = (metaBase: SCMetadata, metaCustom: SCMetadata): SCMetada
   return metaRet;
 };
 
-const selfMetadataUpdate = (script: Script, n: string, s: Set<string>) => {
+const selfMetadataUpdate = (script: Script, key: string, valueSet: Set<string>) => {
   // 更新 selfMetadata 时建立浅拷贝
   const selfMetadata = { ...(script.selfMetadata || {}) };
   script = { ...script, selfMetadata };
-  const a = [...s].filter((e) => e && typeof e === "string");
+  const a = [...valueSet].filter((e) => e && typeof e === "string");
   if (a.length > 0) {
-    selfMetadata![n] = a;
+    selfMetadata![key] = a;
   } else {
-    delete selfMetadata![n];
+    delete selfMetadata![key];
     if (Object.keys(selfMetadata).length === 0) {
       script.selfMetadata = undefined; // delete script.selfMetadata;
     }
