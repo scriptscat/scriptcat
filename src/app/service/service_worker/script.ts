@@ -50,9 +50,9 @@ const selfMetadataUpdate = (script: Script, key: string, valueSet: Set<string>) 
   // 更新 selfMetadata 时建立浅拷贝
   const selfMetadata = { ...(script.selfMetadata || {}) };
   script = { ...script, selfMetadata };
-  const a = [...valueSet].filter((e) => e && typeof e === "string");
-  if (a.length > 0) {
-    selfMetadata![key] = a;
+  const value = [...valueSet].filter((item) => typeof item === "string");
+  if (value.length > 0) {
+    selfMetadata![key] = value;
   } else {
     delete selfMetadata![key];
     if (Object.keys(selfMetadata).length === 0) {
