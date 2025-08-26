@@ -33,15 +33,7 @@ const getCombinedMeta = (metaBase: SCMetadata, metaCustom: SCMetadata): SCMetada
   const metaRet = { ...metaBase };
   for (const key of Object.keys(metaCustom)) {
     const v = metaCustom[key];
-    if (v && typeof v === "object") {
-      if (v[Symbol.iterator]) {
-        metaRet[key] = [...v];
-      } else {
-        metaRet[key] = { ...v };
-      }
-    } else {
-      metaRet[key] = v;
-    }
+    metaRet[key] = v ? [...v] : undefined;
   }
   return metaRet;
 };
