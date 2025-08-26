@@ -1,4 +1,4 @@
-[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
+[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md) [Руководство на русском](./docs/CONTRIBUTING_RU.md)
 
 # ScriptCat 贡献指南
 
