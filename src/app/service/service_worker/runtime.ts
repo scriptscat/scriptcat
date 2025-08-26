@@ -421,7 +421,7 @@ export class RuntimeService {
     const ret = new Map<string, { uuid: string; effective: boolean; matchInfo?: TScriptMatchInfoEntry }>();
     const scriptMatchCache = this.scriptMatchCache;
     for (const e of matchedUuids) {
-      const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -5) : e;
+      const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -ORIGINAL_URLMATCH_SUFFIX.length) : e;
       if (!includeNonEffective && uuid !== e) continue;
       const o = ret.get(uuid) || { uuid, effective: false };
       // 只包含 uuid{Ori} 而不包含 uuid 的情况，effective = false
