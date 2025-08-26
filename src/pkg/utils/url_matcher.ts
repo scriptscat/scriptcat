@@ -15,7 +15,7 @@ export const enum RuleTypeBit {
 
 export type URLRuleEntry = {
   ruleType: RuleType;
-  ruleContent: string | string[] | [null, string, string];
+  ruleContent: string | string[] | [null, string, string]; // 由於 cache 设计，ruleContent 不能含有 RegExp，正则类型的ruleContent设置为null
   ruleTag: string;
   patternString: string;
 };

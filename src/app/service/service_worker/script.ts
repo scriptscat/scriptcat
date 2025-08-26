@@ -396,7 +396,6 @@ export class ScriptService {
     if (remove) {
       const deleted = excludeSet.delete(excludePattern);
       if (!deleted) {
-        console.log("excludePattern not found in excludeSet");
         return; // scriptDAO 不用更新
       }
     } else {
