@@ -677,15 +677,15 @@ export class RuntimeService {
   async registerInjectScript(messageFlag: string, excludeMatches: string[], excludeGlobs: string[]) {
     const injectJs = await fetch("/src/inject.js").then((res) => res.text());
     // 替换ScriptFlag
-    const preScriptFlag: string[] = [];
-    // 遍历pre-document-start的脚本
+    const earlyScriptFlag: string[] = [];
+    // 遍历early-start的脚本
     this.scriptMatchCache?.forEach((script) => {
       if (isEarlyStartScript(script)) {
-        preScriptFlag.push(script.flag);
+        earlyScriptFlag.push(script.flag);
       }
     });
     this.script.getAllScripts();
-    const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(preScriptFlag)})`;
+    const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(earlyScriptFlag)})`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],
@@ -711,7 +711,7 @@ export class RuntimeService {
     }
   }
 
-  // 重新注册inject.js，主要是为了更新pre-document-start的脚本flag
+  // 重新注册inject.js，主要是为了更新early-start的脚本flag
   async reRegisterInjectScript() {
     const messageFlag = (await this.getMessageFlag()) as string;
     if (!messageFlag) {
@@ -723,16 +723,16 @@ export class RuntimeService {
     }
     const injectJs = await fetch("/src/inject.js").then((res) => res.text());
     // 替换ScriptFlag
-    const preScriptFlag: string[] = [];
-    // 遍历pre-document-start的脚本
+    const earlyScriptFlag: string[] = [];
+    // 遍历early-start的脚本
     this.scriptMatchCache?.forEach((script) => {
       if (isEarlyStartScript(script)) {
-        preScriptFlag.push(script.flag);
+        earlyScriptFlag.push(script.flag);
       }
     });
     this.script.getAllScripts();
 
-    const code = `(function (MessageFlag, PreInjectScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(preScriptFlag)})`;
+    const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(earlyScriptFlag)})`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],

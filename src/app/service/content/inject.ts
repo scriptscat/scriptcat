@@ -41,14 +41,15 @@ export class InjectRuntime {
 
   start(scripts: ScriptLoadInfo[]) {
     scripts.forEach((script) => {
-      // 如果是PreInjectScriptFlag，处理沙盒环境
-      if (PreInjectScriptFlag.includes(script.flag)) {
-        this.execList.forEach((val) => {
+      // 如果是EarlyScriptFlag，处理沙盒环境
+      if (EarlyScriptFlag.includes(script.flag)) {
+        for (const val of this.execList) {
           if (val.scriptRes.flag === script.flag) {
-            // 处理沙盒环境
-            val.preDocumentStart(this.envInfo!);
+            // 处理早期脚本的沙盒环境
+            val.dealEarlyScript(this.envInfo!);
+            break;
           }
-        });
+        }
       }
       // @ts-ignore
       const scriptFunc = window[script.flag];
@@ -66,8 +67,8 @@ export class InjectRuntime {
     });
   }
 
-  checkPreDocumentStart() {
-    PreInjectScriptFlag.forEach((flag) => {
+  checkEarlyStartScript() {
+    EarlyScriptFlag.forEach((flag) => {
       // @ts-ignore
       const scriptFunc = window[flag] as PreScriptFunc;
       if (scriptFunc) {

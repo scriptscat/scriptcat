@@ -81,8 +81,8 @@ export default class ExecScript {
     return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
   }
 
-  // 处理GM API
-  preDocumentStart(envInfo: GMInfoEnv) {
+  // 早期启动的脚本，处理GM API
+  dealEarlyScript(envInfo: GMInfoEnv) {
     let GM_info;
     if (this.sandboxContext) {
       // 触发loadScriptResolve

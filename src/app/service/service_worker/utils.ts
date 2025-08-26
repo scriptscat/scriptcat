@@ -3,7 +3,7 @@ export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
     return "document_idle";
   }
   const runAt = runAts[0];
-  if (runAt === "document-start" || runAt === "pre-document-start") {
+  if (runAt === "document-start") {
     return "document_start";
   } else if (runAt === "document-end") {
     return "document_end";

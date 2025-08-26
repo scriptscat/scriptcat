@@ -16,8 +16,8 @@ const logger = new LoggerCore({
 
 const server = new Server("inject", msg);
 const runtime = new InjectRuntime(server, msg);
-// 检查pre-document-start的脚本
-runtime.checkPreDocumentStart();
+// 检查early-start的脚本
+runtime.checkEarlyStartScript();
 
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
