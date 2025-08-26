@@ -127,7 +127,7 @@ export async function notificationsUpdate(
 > {
   // No Support in Firefox
   if (typeof chrome.notifications?.update !== "function") {
-    return { ok: false, browserNoSupport: true };
+    return { ok: false, apiError: new Error("browserNoSupport") };
   }
   try {
     // chrome > 116 return Promise<boolean>

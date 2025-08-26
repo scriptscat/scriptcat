@@ -891,7 +891,7 @@ export default class GMApi {
 
     if (typeof notificationId === "string") {
       let res = await notificationsUpdate(notificationId, options);
-      if (!res.ok && res.browserNoSupport) {
+      if (!res.ok && res.apiError?.message?.includes("browserNoSupport")) {
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
         this.logger.error("Your browser does not support GM_updateNotification");
       } else if (!res.ok && res.apiError) {
