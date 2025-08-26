@@ -789,7 +789,7 @@ export class RuntimeService {
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    const { metadata, oriMetadata } = scriptRes;
+    const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
     const metaInclude = metadata.include;
     const metaExclude = metadata.exclude;
@@ -814,9 +814,9 @@ export class RuntimeService {
     const originalUrlPatterns: URLRuleEntry[] | null =
       script.selfMetadata?.match || script.selfMetadata?.include || script.selfMetadata?.exclude
         ? extractUrlPatterns([
-            ...(oriMetadata.match || []).map((e) => `@match ${e}`),
-            ...(oriMetadata.include || []).map((e) => `@include ${e}`),
-            ...(oriMetadata.exclude || []).map((e) => `@exclude ${e}`),
+            ...(originalMetadata.match || []).map((e) => `@match ${e}`),
+            ...(originalMetadata.include || []).map((e) => `@include ${e}`),
+            ...(originalMetadata.exclude || []).map((e) => `@exclude ${e}`),
             ...(blacklist || []).map((e) => `@exclude ${e}`),
           ])
         : scriptUrlPatterns;

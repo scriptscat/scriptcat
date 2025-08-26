@@ -364,7 +364,7 @@ export class ScriptService {
 
     // 自定义配置
     const { match, include, exclude } = ret.metadata;
-    ret.oriMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
+    ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
     if (ret.selfMetadata) {
       ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
