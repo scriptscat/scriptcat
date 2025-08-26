@@ -43,9 +43,9 @@ export class RuntimeService {
 
   logger: Logger;
 
-  // 当前扩充是否在开发者模式打开时执行
+  // 当前扩充是否允许执行 UserScripts API (例如是否已打开开发者模式，或已给予 userScripts 权限)
   // 在未初始化前，预设 false。一般情况初始化值会很快被替换
-  isEnableDeveloperMode = false;
+  boolUserScriptsAvailable = false;
 
   // 当前扩充是否开啟了啟用脚本
   // 在未初始化前，预设 true。一般情况初始化值会很快被替换
@@ -115,6 +115,25 @@ export class RuntimeService {
     });
     chrome.action.setBadgeText({
       text: "!",
+    });
+
+    chrome.permissions.onAdded.addListener((permissions: chrome.permissions.Permissions) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.permissions.onAdded:", lastError);
+        return;
+      }
+      if (permissions.permissions?.includes("userScripts")) {
+        chrome.action.setBadgeBackgroundColor({
+          color: [0, 0, 0, 0], // transparent (RGBA)
+        });
+        chrome.action.setBadgeTextColor({
+          color: "#ffffff", // default is white
+        });
+        chrome.action.setBadgeText({
+          text: "", // clears badge
+        });
+      }
     });
   }
 
@@ -236,22 +255,66 @@ export class RuntimeService {
       });
     });
 
+    const onUserScriptAPIGrantAdded = async () => {
+      this.boolUserScriptsAvailable = true;
+      console.log("onUserScriptAPIGrantAdded() is executed.");
+      // 注册脚本
+      if (this.isLoadScripts) {
+        await this.registerUserscripts();
+      }
+    };
+
+    const onUserScriptAPIGrantRemoved = async () => {
+      this.boolUserScriptsAvailable = false;
+      console.log("onUserScriptAPIGrantRemoved() is executed.");
+      // 取消当前注册 （如有）
+      await this.unregisterUserscripts();
+    };
+
+    chrome.permissions.onAdded.addListener((permissions: chrome.permissions.Permissions) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.permissions.onAdded:", lastError);
+        return;
+      }
+      if (permissions.permissions?.includes("userScripts")) {
+        // Firefox 或其他瀏览器或需要手动啟动 optional_permission
+        // 啟动后注册脚本，不需重啟扩充
+        onUserScriptAPIGrantAdded();
+      }
+      console.log("chrome.permissions.onAdded", [...(permissions.permissions || [])]);
+    });
+
+    chrome.permissions.onRemoved.addListener((permissions: chrome.permissions.Permissions) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.permissions.onRemoved:", lastError);
+        return;
+      }
+      if (permissions.permissions?.includes("userScripts")) {
+        // 虽然在目前设计中未有使用 permissions.remove
+        // 仅保留作为未来之用
+        onUserScriptAPIGrantRemoved();
+      }
+      console.log("chrome.permissions.onRemoved", [...(permissions.permissions || [])]);
+    });
+
     // ======== 以下初始化是异步处理，因此扩充载入时可能会优先跑其他同步初始化 ========
 
     // 取得初始值
-    const [isEnableDeveloperMode, isLoadScripts, strBlacklist] = await Promise.all([
+    const [boolUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
       isUserScriptsAvailable(),
       this.systemConfig.getEnableScript(),
       this.systemConfig.getBlacklist(),
     ]);
 
     // 保存初始值
-    this.isEnableDeveloperMode = isEnableDeveloperMode;
+    this.boolUserScriptsAvailable = boolUserScriptsAvailable;
     this.isLoadScripts = isLoadScripts;
     this.blacklist = obtainBlackList(strBlacklist);
 
     // 检查是否开启了开发者模式
-    if (!this.isEnableDeveloperMode) {
+    if (!this.boolUserScriptsAvailable) {
       // 未开启加上警告引导
       this.showNoDeveloperModeWarning();
     }
@@ -262,7 +325,7 @@ export class RuntimeService {
     await this.initUserAgentData();
 
     // 如果初始化时开啟了啟用脚本，则注册脚本
-    if (this.isLoadScripts) {
+    if (boolUserScriptsAvailable && this.isLoadScripts) {
       await this.registerUserscripts();
     }
   }
@@ -326,7 +389,7 @@ export class RuntimeService {
       });
 
       // 如果脚本开启, 则注册脚本
-      if (this.isEnableDeveloperMode && this.isLoadScripts) {
+      if (this.boolUserScriptsAvailable && this.isLoadScripts) {
         // 批量注册
         // 先删除所有脚本
         await chrome.userScripts.unregister();
@@ -840,7 +903,7 @@ export class RuntimeService {
     const { registerScript } = resp;
 
     // 如果脚本开启, 则注册脚本
-    if (this.isEnableDeveloperMode && this.isLoadScripts && script.status === SCRIPT_STATUS_ENABLE) {
+    if (this.boolUserScriptsAvailable && this.isLoadScripts && script.status === SCRIPT_STATUS_ENABLE) {
       const res = await chrome.userScripts.getScripts({ ids: [uuid] });
       const logger = LoggerCore.logger({
         name,
@@ -868,7 +931,7 @@ export class RuntimeService {
 
   async unregistryPageScript(uuid: string) {
     const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.isEnableDeveloperMode || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
+    if (!this.boolUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
       return;
     }
     // 删除缓存
