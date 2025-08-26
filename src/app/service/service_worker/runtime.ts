@@ -41,7 +41,7 @@ import {
 } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 
-const ORIGINAL_URLMATCH_SUFFIX = "{Ori}"; // 匹配原始URLPatterns用
+const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀，更加明确和自解释
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
