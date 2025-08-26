@@ -1,4 +1,4 @@
-import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata } from "@App/app/repo/scripts";
+import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type GetSender } from "@Packages/message/server";
 
@@ -12,7 +12,7 @@ export interface ScriptMatchInfo extends ScriptRunResource {
 export interface ScriptLoadInfo extends ScriptMatchInfo {
   metadataStr: string; // 脚本元数据字符串
   userConfigStr: string; // 用户配置字符串
-  userConfig?: any;
+  userConfig?: UserConfig;
 }
 
 // 为了优化性能，存储到缓存时删除了code、value与resource
