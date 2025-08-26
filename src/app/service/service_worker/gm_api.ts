@@ -21,7 +21,7 @@ import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
-import { notificationsUpdate } from "./utils";
+import { BrowserNoSupport, notificationsUpdate } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -891,7 +891,7 @@ export default class GMApi {
 
     if (typeof notificationId === "string") {
       let res = await notificationsUpdate(notificationId, options);
-      if (!res.ok && res.apiError?.message?.includes("browserNoSupport")) {
+      if (!res.ok && res.apiError === BrowserNoSupport) {
         // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
         this.logger.error("Your browser does not support GM_updateNotification");
       } else if (!res.ok && res.apiError) {

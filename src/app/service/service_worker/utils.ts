@@ -1,3 +1,5 @@
+export const BrowserNoSupport = new Error("browserNoSupport");
+
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   if (runAts.length === 0) {
     return "document_idle";
@@ -127,7 +129,7 @@ export async function notificationsUpdate(
 > {
   // No Support in Firefox
   if (typeof chrome.notifications?.update !== "function") {
-    return { ok: false, apiError: new Error("browserNoSupport") };
+    return { ok: false, apiError: BrowserNoSupport };
   }
   try {
     // chrome > 116 return Promise<boolean>
