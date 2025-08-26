@@ -82,6 +82,7 @@ import {
   updateEnableStatus,
   synchronizeClient,
   batchDeleteScript,
+  requestScriptCode,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
@@ -203,6 +204,8 @@ const EnableSwitch = React.memo(
 );
 EnableSwitch.displayName = "EnableSwitch";
 
+type SearchType = "auto" | "name" | "script_code";
+
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
     script: Script;
@@ -221,13 +224,6 @@ function ScriptList() {
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
   const { t } = useTranslation();
-
-  // Global search state
-  const [searchText, setSearchText] = useState("");
-  const [searchScope, setSearchScope] = useState<"title" | "all">("title");
-  const [debouncedText, setDebouncedText] = useState("");
-  const codeCacheRef = useRef(new Map<string, string>());
-  const [codeCacheVersion, setCodeCacheVersion] = useState(0);
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -254,26 +250,6 @@ function ScriptList() {
       }
     });
   }, [dispatch]);
-
-  // Debounce search text
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedText(searchText.trim()), 300);
-    return () => clearTimeout(id);
-  }, [searchText]);
-
-  // Prefetch codes when doing full-content search
-  useEffect(() => {
-    if (searchScope !== "all" || !debouncedText) return;
-    const toLoad = scriptList.filter((s) => !codeCacheRef.current.has(s.uuid));
-    toLoad.forEach((s) => {
-      scriptClient.getCode(s.uuid).then((res) => {
-        if (res && typeof res.code === "string") {
-          codeCacheRef.current.set(s.uuid, res.code.toLocaleLowerCase());
-          setCodeCacheVersion((v) => v + 1);
-        }
-      });
-    });
-  }, [searchScope, debouncedText, scriptList]);
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -325,35 +301,84 @@ function ScriptList() {
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+            if (!filterKeys.length) {
+              filterKeys = [{ type: "auto", value: "" }];
+            }
             return (
-              <div className="arco-table-custom-filter">
+              <div className="arco-table-custom-filter flex flex-row gap-2">
+                <Select
+                  className="flex-1"
+                  triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+                  size="small"
+                  value={filterKeys[0].type || "auto"}
+                  onChange={(value) => {
+                    filterKeys[0].type = value;
+                    setFilterKeys([...filterKeys]);
+                  }}
+                >
+                  <Select.Option value="auto">{t("auto")}</Select.Option>
+                  <Select.Option value="name">{t("name")}</Select.Option>
+                  <Select.Option value="script_code">{t("script_code")}</Select.Option>
+                </Select>
                 <Input.Search
                   ref={inputRef}
+                  size="small"
                   searchButton
-                  placeholder={t("enter_script_name")!}
-                  value={filterKeys[0] || ""}
+                  style={{ minWidth: 240 }}
+                  placeholder={
+                    t("enter_search_value", {
+                      search: filterKeys[0].type == "auto" ? `${t("name")}/${t("script_code")}` : t(""),
+                    })!
+                  }
+                  value={filterKeys[0].value || ""}
                   onChange={(value) => {
-                    setFilterKeys(value ? [value] : []);
+                    filterKeys[0].value = value;
+                    setFilterKeys([...filterKeys]);
                   }}
                   onSearch={() => {
-                    confirm();
+                    confirm!();
                   }}
                 />
               </div>
             );
           },
-          onFilter: (value: string, row) => {
-            if (!value) {
+          onFilter: (value: { type: SearchType; value: string }, row) => {
+            if (!value || !value.value) {
               return true;
             }
-            value = value.toLocaleLowerCase();
+            const keyword = value.value.toLocaleLowerCase();
             row.name = row.name.toLocaleLowerCase();
             const i18n = i18nName(row).toLocaleLowerCase();
             // 空格分开关键字搜索
-            const keys = value.split(" ");
+            const keys = keyword.split(" ");
+            const searchName = (keyword: string) => {
+              return row.name.includes(keyword) || i18n.includes(keyword);
+            };
+            const searchCode = (keyword: string) => {
+              if (!row.code) {
+                // 没有code，请求一下code
+                dispatch(requestScriptCode(row.uuid));
+                return false;
+              }
+              return row.code.includes(keyword);
+            };
             for (const key of keys) {
-              if (row.name.includes(key) || i18n.includes(key)) {
-                return true;
+              switch (value.type) {
+                case "auto":
+                  if (searchName(key) || searchCode(key)) {
+                    return true;
+                  }
+                  break;
+                case "script_code":
+                  if (searchCode(key)) {
+                    return true;
+                  }
+                  break;
+                case "name":
+                  if (searchName(key)) {
+                    return true;
+                  }
+                  break;
               }
             }
             return false;
@@ -572,7 +597,6 @@ function ScriptList() {
                     scriptClient
                       .requestCheckUpdate(script.uuid)
                       .then((res) => {
-                        console.log("res", res);
                         if (res) {
                           Message.warning({
                             id: "checkupdate",
@@ -759,32 +783,6 @@ function ScriptList() {
     }
   }, [newColumns, canShowList]);
 
-  // Build filtered data source for table
-  const displayList = useMemo(() => {
-    const text = debouncedText.toLocaleLowerCase();
-    if (!text) return scriptList;
-    const keys = text.split(" ").filter(Boolean);
-    const matchAny = (hay: string) => keys.some((k) => hay.includes(k));
-    return scriptList.filter((row) => {
-      const nameLower = (row.name || "").toLocaleLowerCase();
-      const i18nLower = i18nName(row).toLocaleLowerCase();
-      if (searchScope === "title") {
-        return matchAny(`${nameLower} ${i18nLower}`);
-      }
-      // searchScope === 'all': include metadata + code
-      let metaStr = "";
-      const md: any = row.metadata || {};
-      for (const v of Object.values(md)) {
-        if (Array.isArray(v)) metaStr += ` ${v.join(" ")}`;
-        else if (typeof v === "string") metaStr += ` ${v}`;
-      }
-      const metaLower = metaStr.toLocaleLowerCase();
-      const codeLower = codeCacheRef.current.get(row.uuid) || "";
-      const hay = `${nameLower} ${i18nLower} ${metaLower} ${codeLower}`;
-      return matchAny(hay);
-    });
-  }, [scriptList, debouncedText, searchScope, codeCacheVersion]);
-
   const components: ComponentsProps = {
     header: {
       operations: ({ selectionNode, expandNode }) => [
@@ -844,27 +842,6 @@ function ScriptList() {
     >
       <DraggableContext.Provider value={draggableContextValue}>
         <Space direction="vertical">
-          {/* Global search bar */}
-          <div className="flex flex-row items-center gap-2" style={{ padding: "8px 6px" }}>
-            <Input.Search
-              allowClear
-              style={{ width: 360 }}
-              placeholder={t("search_scripts")!}
-              value={searchText}
-              onChange={setSearchText}
-              onSearch={(v) => setSearchText(v)}
-            />
-            <Select
-              style={{ minWidth: 260 }}
-              triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-              size="small"
-              value={searchScope}
-              onChange={(v) => setSearchScope(v as "title" | "all")}
-            >
-              <Select.Option value="title">{t("name")}</Select.Option>
-              <Select.Option value="all">{`${t("name")}/${t("description")}/${t("script_source")}`}</Select.Option>
-            </Select>
-          </div>
           {showAction && (
             <Card>
               <div
@@ -1138,7 +1115,7 @@ function ScriptList() {
               rowKey="uuid"
               tableLayoutFixed
               columns={dealColumns}
-              data={displayList}
+              data={scriptList}
               pagination={false}
               style={
                 {

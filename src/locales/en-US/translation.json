@@ -451,5 +451,7 @@
   "light": "Light",
   "dark": "Dark",
   "individual_edit": "Individual Edit",
-  "batch_edit": "Batch Edit"
+  "batch_edit": "Batch Edit",
+  "script_code": "Script Code",
+  "enter_search_value": "Enter {{search}} to search"
 }
