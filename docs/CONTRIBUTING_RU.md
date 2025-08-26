@@ -1,4 +1,4 @@
-[Chinese](CONTRIBUTING.md) / [English](./docs/CONTRIBUTING_EN.md) / Русский
+[中文](CONTRIBUTING.md) / [English](./docs/CONTRIBUTING_EN.md) / Русский
 
 # Руководство по внесению вклада в ScriptCat
 
