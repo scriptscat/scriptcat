@@ -838,6 +838,7 @@ function ScriptList() {
       className="script-list"
       style={{
         height: "100%",
+        overflowY: "auto",
       }}
     >
       <DraggableContext.Provider value={draggableContextValue}>
