@@ -15,7 +15,7 @@ export const enum RuleTypeBit {
 
 export type URLRuleEntry = {
   ruleType: RuleType;
-  ruleContent: string | string[] | [null, string, string]; // 由於 cache 设计，ruleContent 不能含有 RegExp，正则类型的ruleContent设置为null
+  ruleContent: string | string[] | [string, string]; // 由於 cache 设计，ruleContent 不能含有 RegExp
   ruleTag: string;
   patternString: string;
 };
@@ -187,7 +187,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       if (re === null) continue; // 忽略不正确的 regex pattern
       rules.push({
         ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
-        ruleContent: [null, rch[1], rch[2]] as [null, string, string],
+        ruleContent: [rch[1], rch[2]] as [string, string],
         ruleTag: tag,
         patternString: content,
       });
@@ -227,10 +227,10 @@ export const isUrlMatch = (url: string, rule: URLRuleEntry) => {
       ret = !isUrlMatchGlob(url, rule.ruleContent as string[]);
       break;
     case RuleType.REGEX_INCLUDE:
-      ret = isUrlMatchRegEx(url, rule.ruleContent as [null, string, string]);
+      ret = isUrlMatchRegEx(url, rule.ruleContent as [string, string]);
       break;
     case RuleType.REGEX_EXCLUDE:
-      ret = !isUrlMatchRegEx(url, rule.ruleContent as [null, string, string]);
+      ret = !isUrlMatchRegEx(url, rule.ruleContent as [string, string]);
       break;
     default:
       throw new Error("invalid ruleType");
@@ -350,8 +350,8 @@ function isUrlMatchGlob(s: string, gs: string[]) {
   return idx === path.length || (idx === path.length - 1 && path[idx] === "?");
 }
 
-function isUrlMatchRegEx(s: string, ruleContent: [null, string, string]) {
-  return new RegExp(ruleContent[1], ruleContent[2] || "i").test(s);
+function isUrlMatchRegEx(s: string, ruleContent: [string, string]) {
+  return new RegExp(ruleContent[0], ruleContent[1] || "i").test(s);
 }
 
 export const addMatchesToGlobs = (matches: URLRuleEntry[], globs: string[]) => {
