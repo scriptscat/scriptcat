@@ -58,16 +58,11 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
 
 execSync("npm run build", { stdio: "inherit" });
 
-if (version.prerelease.length || process.env.GITHUB_REF_TYPE === "branch") {
-  // beta时红猫logo
-  await fs.copyFile("./src/assets/logo-beta.png", "./dist/ext/assets/logo.png");
-} else {
-  // 非beta时蓝猫logo
-  await fs.copyFile("./src/assets/logo.png", "./dist/ext/assets/logo.png");
-}
+// logo 在 rspack.config.ts 处理
 
 // 处理firefox和chrome的zip压缩包
 
+// 浅拷贝防止后续修改
 const firefoxManifest = { ...manifest, background: { ...manifest.background } };
 const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
