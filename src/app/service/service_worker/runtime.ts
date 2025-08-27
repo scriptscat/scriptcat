@@ -689,6 +689,7 @@ export class RuntimeService {
     }
   }
 
+  // 一般情况下请不要直接访问 loadingScript 此变数 （私有变数）
   loadingScript: Promise<void> | null = null;
 
   // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
