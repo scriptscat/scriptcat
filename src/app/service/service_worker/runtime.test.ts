@@ -238,12 +238,19 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const normalResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/page");
       // 测试黑名单URL
       const blacklistResult = await runtime.getPageScriptMatchingResultByUrl("http://www.blacklisted.com/page");
+      // 黑名单中的无效匹配
+      const blacklistAllResult = await runtime.getPageScriptMatchingResultByUrl(
+        "http://www.blacklisted.com/page",
+        true
+      );
 
       // Assert
       expect(normalResult.has(script.uuid)).toBe(true);
       expect(normalResult.get(script.uuid)?.effective).toBe(true);
 
       expect(blacklistResult.has(script.uuid)).toBe(false);
+
+      expect(blacklistAllResult.has(script.uuid)).toBe(false);
     });
   });
 
