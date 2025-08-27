@@ -126,7 +126,7 @@ describe("getCombinedMeta", () => {
   it("应该处理空的自定义元数据", () => {
     const result = getCombinedMeta(baseMetadata, {});
     expect(result).toEqual(baseMetadata);
-    expect(result).not.toBe(baseMetadata);
+    expect(result).not.toBe(baseMetadata); // 确保是一个新对象
   });
 
   it("应该处理特殊值（undefined 和空数组）", () => {

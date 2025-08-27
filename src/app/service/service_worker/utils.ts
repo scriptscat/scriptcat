@@ -112,8 +112,11 @@ export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMs
   return { ok: false, err: { name, message, errType, ...t, ...params } };
 }
 
-export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata {
+export function getCombinedMeta(metaBase: SCMetadata, metaCustom?: SCMetadata): SCMetadata {
   const metaRet = { ...metaBase };
+  if (!metaCustom) {
+    return metaRet;
+  }
   for (const key of Object.keys(metaCustom)) {
     const v = metaCustom[key];
     metaRet[key] = v ? [...v] : undefined;
