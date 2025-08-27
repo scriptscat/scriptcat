@@ -421,7 +421,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
       // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
-      let globPattern = regexToGlob(rule.ruleContent[1]);
+      let globPattern = regexToGlob(rule.ruleContent[0]);
       if (globPattern !== null) {
         let m: RegExpExecArray | null = null;
         if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
