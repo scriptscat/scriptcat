@@ -13,7 +13,7 @@ import {
   randomMessageFlag,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { SCMetadata, Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -26,33 +26,9 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { DocumentationSite } from "@App/app/const";
 import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
+import { getCombinedMeta, selfMetadataUpdate } from "./utils";
 
 const cIdKey = `(cid_${Math.random()})`;
-
-const getCombinedMeta = (metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata => {
-  const metaRet = { ...metaBase };
-  for (const key of Object.keys(metaCustom)) {
-    const v = metaCustom[key];
-    metaRet[key] = v ? [...v] : undefined;
-  }
-  return metaRet;
-};
-
-const selfMetadataUpdate = (script: Script, key: string, valueSet: Set<string>) => {
-  // 更新 selfMetadata 时建立浅拷贝
-  const selfMetadata = { ...(script.selfMetadata || {}) };
-  script = { ...script, selfMetadata };
-  const value = [...valueSet].filter((item) => typeof item === "string");
-  if (value.length > 0) {
-    selfMetadata![key] = value;
-  } else {
-    delete selfMetadata![key];
-    if (Object.keys(selfMetadata).length === 0) {
-      script.selfMetadata = undefined; // delete script.selfMetadata;
-    }
-  }
-  return script;
-};
 
 export class ScriptService {
   logger: Logger;

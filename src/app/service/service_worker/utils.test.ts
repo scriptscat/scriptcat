@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { isBase64, parseUrlSRI } from "./utils";
+import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate } from "./utils";
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 
 describe("parseUrlSRI", () => {
   it("should parse URL SRI", () => {
@@ -93,5 +95,116 @@ describe("isBase64", () => {
       )
     ).toBe(false);
     expect(isBase64("")).toBe(false);
+  });
+});
+
+describe("getCombinedMeta", () => {
+  const baseMetadata: SCMetadata = {
+    name: ["Test Script"],
+    version: ["1.0.0"],
+    match: ["https://example.com/*"],
+    grant: ["none"],
+  };
+
+  it("应该合并并覆盖元数据", () => {
+    const custom: SCMetadata = {
+      match: ["https://custom.com/*"],
+      exclude: ["https://custom.com/admin/*"],
+    };
+
+    const result = getCombinedMeta(baseMetadata, custom);
+
+    expect(result).toEqual({
+      name: ["Test Script"],
+      version: ["1.0.0"],
+      match: ["https://custom.com/*"],
+      grant: ["none"],
+      exclude: ["https://custom.com/admin/*"],
+    });
+  });
+
+  it("应该处理空的自定义元数据", () => {
+    const result = getCombinedMeta(baseMetadata, {});
+    expect(result).toEqual(baseMetadata);
+    expect(result).not.toBe(baseMetadata);
+  });
+
+  it("应该处理特殊值（undefined 和空数组）", () => {
+    const custom: SCMetadata = {
+      match: undefined,
+      grant: [],
+      exclude: ["https://admin.com/*"],
+    };
+
+    const result = getCombinedMeta(baseMetadata, custom);
+
+    expect(result.match).toBeUndefined();
+    expect(result.grant).toEqual([]);
+    expect(result.exclude).toEqual(["https://admin.com/*"]);
+  });
+});
+
+describe("selfMetadataUpdate", () => {
+  const createMockScript = (selfMetadata?: SCMetadata): Script => ({
+    uuid: "test-uuid",
+    name: "Test Script",
+    namespace: "https://test.com",
+    author: "Test Author",
+    type: SCRIPT_TYPE_NORMAL,
+    status: SCRIPT_STATUS_ENABLE,
+    sort: 1,
+    runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+    createtime: Date.now(),
+    checktime: Date.now(),
+    metadata: {
+      name: ["Test Script"],
+      version: ["1.0.0"],
+      match: ["https://example.com/*"],
+      grant: ["none"],
+    },
+    selfMetadata,
+  });
+
+  it("应该添加和更新字段", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "include", new Set(["https://new.com/*"]));
+
+    expect(result.selfMetadata).toEqual({
+      exclude: ["https://admin.com/*"],
+      include: ["https://new.com/*"],
+    });
+    expect(result).not.toBe(script);
+  });
+
+  it("应该删除空字段并处理空对象", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "exclude", new Set());
+
+    expect(result.selfMetadata).toBeUndefined();
+  });
+
+  it("应该处理没有 selfMetadata 的脚本", () => {
+    const script = createMockScript();
+
+    const result = selfMetadataUpdate(script, "exclude", new Set(["https://new.com/*"]));
+
+    expect(result.selfMetadata).toEqual({
+      exclude: ["https://new.com/*"],
+    });
+  });
+
+  it("应该过滤非字符串值", () => {
+    const script = createMockScript();
+    const mixedValues = new Set(["valid", 123 as any, null as any, "another-valid"]);
+
+    const result = selfMetadataUpdate(script, "test", mixedValues);
+
+    expect(result.selfMetadata?.test).toEqual(["valid", "another-valid"]);
   });
 });

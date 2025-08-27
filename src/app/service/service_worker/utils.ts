@@ -1,3 +1,5 @@
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
+
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   if (runAts.length === 0) {
     return "document_idle";
@@ -108,4 +110,29 @@ export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMs
   if (!errType) return { ok: true, res: t };
   const { name, message } = t;
   return { ok: false, err: { name, message, errType, ...t, ...params } };
+}
+
+export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata {
+  const metaRet = { ...metaBase };
+  for (const key of Object.keys(metaCustom)) {
+    const v = metaCustom[key];
+    metaRet[key] = v ? [...v] : undefined;
+  }
+  return metaRet;
+}
+
+export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string>) {
+  // 更新 selfMetadata 时建立浅拷贝
+  const selfMetadata = { ...(script.selfMetadata || {}) };
+  script = { ...script, selfMetadata };
+  const value = [...valueSet].filter((item) => typeof item === "string");
+  if (value.length > 0) {
+    selfMetadata![key] = value;
+  } else {
+    delete selfMetadata![key];
+    if (Object.keys(selfMetadata).length === 0) {
+      script.selfMetadata = undefined; // delete script.selfMetadata;
+    }
+  }
+  return script;
 }
