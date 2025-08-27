@@ -689,7 +689,7 @@ export class RuntimeService {
     }
   }
 
-  private loadingScript: Promise<void> | null = null;
+  loadingScript: Promise<void> | null = null;
 
   // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
   // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量使用此方法获取

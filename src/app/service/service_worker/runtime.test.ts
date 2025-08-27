@@ -283,4 +283,25 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(result.has(script.uuid)).toBe(false);
     });
   });
+  describe("测试脚本重新加载", () => {
+    it("应该正确处理脚本的重新加载", async () => {
+      // Arrange
+      const script = createMockScript();
+      const scriptRunResource = createScriptRunResource(script);
+      mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
+
+      // Act
+      await runtime.getAndSetUserScriptRegister(script);
+
+      // Assert
+      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      expect(result.has(script.uuid)).toBe(true);
+
+      // 清空缓存之类的数据后再次操作
+      runtime.scriptMatchCache = null;
+      const resultAfterClear = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      expect(resultAfterClear.has(script.uuid)).toBe(true);
+      expect(runtime.loadingScript).toBeNull();
+    });
+  });
 });
