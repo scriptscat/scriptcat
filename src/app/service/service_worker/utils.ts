@@ -127,9 +127,9 @@ export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<st
   script = { ...script, selfMetadata };
   const value = [...valueSet].filter((item) => typeof item === "string");
   if (value.length > 0) {
-    selfMetadata![key] = value;
+    selfMetadata[key] = value;
   } else {
-    delete selfMetadata![key];
+    delete selfMetadata[key];
     if (Object.keys(selfMetadata).length === 0) {
       script.selfMetadata = undefined; // delete script.selfMetadata;
     }
