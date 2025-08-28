@@ -22,7 +22,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     getBlacklist: MockedFunction<() => string>;
   };
   let mockScriptService: {
-    buildScriptRunResource: MockedFunction<(script: Script) => ScriptRunResource>;
+    buildScriptRunResource: MockedFunction<(script: Script, scriptFlag?: string) => ScriptRunResource>;
   };
 
   // 测试数据创建工具函数
@@ -98,7 +98,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, undefined);
       expect(result.has(script.uuid)).toBe(true);
 
       const matchInfo = result.get(script.uuid);
@@ -130,7 +130,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const allResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, undefined);
 
       // 默认查询应该不包含被排除的脚本
       expect(defaultResult.has(script.uuid)).toBe(false);
