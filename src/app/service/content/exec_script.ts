@@ -68,6 +68,8 @@ export default class ExecScript {
     this.sandboxContext?.valueUpdate(data);
   }
 
+  execContext: any;
+
   /**
    * @see {@link compileScriptCode}
    * @returns
@@ -75,8 +77,23 @@ export default class ExecScript {
   exec() {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
-    const context = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc.call(context, this.named, this.scriptRes.name);
+    this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
+    return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
+  }
+
+  // 早期启动的脚本，处理GM API
+  dealEarlyScript(envInfo: GMInfoEnv) {
+    let GM_info;
+    if (this.sandboxContext) {
+      // 触发loadScriptResolve
+      this.sandboxContext["loadScriptResolve"]?.();
+      GM_info = this.execContext["GM_info"];
+    } else {
+      GM_info = this.named?.GM_info;
+    }
+    GM_info.isIncognito = envInfo.isIncognito;
+    GM_info.sandboxMode = envInfo.sandboxMode;
+    GM_info.userAgentData = envInfo.userAgentData;
   }
 
   stop() {
