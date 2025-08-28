@@ -141,7 +141,7 @@ export async function notificationsUpdate(
   }
 }
 
-export function getCombinedMeta(metaBase: SCMetadata, metaCustom?: SCMetadata): SCMetadata {
+export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata {
   const metaRet = { ...metaBase };
   if (!metaCustom) {
     return metaRet;
