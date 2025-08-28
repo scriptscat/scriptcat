@@ -14,10 +14,10 @@ import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import type { ValueUpdateData } from "../content/types";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import { parseUserConfig } from "@App/pkg/utils/yaml";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -83,15 +83,21 @@ export class Runtime {
     if (this.execScripts.has(script.uuid)) {
       await this.disableScript(script.uuid);
     }
-    const loadScript = script as ScriptLoadInfo;
-    loadScript.metadataStr = getMetadataStr(script.code) || "";
-    loadScript.userConfigStr = getUserConfigStr(script.code) || "";
+    const metadataStr = getMetadataStr(script.code) || "";
+    const userConfigStr = getUserConfigStr(script.code) || "";
+    const userConfig = parseUserConfig(userConfigStr);
+    const loadScript = {
+      ...script,
+      metadataStr,
+      userConfigStr,
+      userConfig,
+    } as ScriptLoadInfo;
     if (script.type === SCRIPT_TYPE_BACKGROUND) {
       // 后台脚本直接运行起来
       return this.execScript(loadScript);
     } else {
       // 定时脚本加入定时任务
-      await this.stopCronJob(script.uuid);
+      this.stopCronJob(script.uuid);
       return this.crontabScript(loadScript);
     }
   }
@@ -164,7 +170,7 @@ export class Runtime {
     return ret;
   }
 
-  private crontabSripts: ScriptLoadInfo[] = [];
+  private crontabSripts: ScriptRunResource[] = [];
 
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
@@ -299,9 +305,15 @@ export class Runtime {
     if (exec) {
       await this.stopScript(script.uuid);
     }
-    const loadScript = script as ScriptLoadInfo;
-    loadScript.metadataStr = getMetadataStr(script.code) || "";
-    loadScript.userConfigStr = getUserConfigStr(script.code) || "";
+    const metadataStr = getMetadataStr(script.code) || "";
+    const userConfigStr = getUserConfigStr(script.code) || "";
+    const userConfig = parseUserConfig(userConfigStr);
+    const loadScript = {
+      ...script,
+      metadataStr,
+      userConfigStr,
+      userConfig,
+    } as ScriptLoadInfo;
     return this.execScript(loadScript, true);
   }
 

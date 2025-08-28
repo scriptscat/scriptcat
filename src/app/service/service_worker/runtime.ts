@@ -1,4 +1,4 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
+import type { EmitEventRequest, ScriptLoadInfo, TScriptMatchInfoEntry } from "./types";
 import type { MessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
@@ -10,7 +10,13 @@ import type { TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
-import { isUserScriptsAvailable, randomMessageFlag } from "@App/pkg/utils/utils";
+import {
+  isUserScriptsAvailable,
+  randomMessageFlag,
+  getMetadataStr,
+  getUserConfigStr,
+  obtainBlackList,
+} from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
@@ -22,7 +28,6 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type ResourceService } from "./resource";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
-import { getMetadataStr, getUserConfigStr, obtainBlackList } from "@App/pkg/utils/utils";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
@@ -34,12 +39,14 @@ import {
   toUniquePatternStrings,
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
+import { parseUserConfig } from "@App/pkg/utils/yaml";
+
+const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
-  scriptCustomizeMatch: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
-  scriptMatchCache: Map<string, ScriptMatchInfo> | null | undefined;
+  scriptMatchCache: Map<string, TScriptMatchInfoEntry> | null | undefined;
 
   logger: Logger;
 
@@ -179,9 +186,8 @@ export class RuntimeService {
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
-      this.scriptCustomizeMatch.setupSorter(uuidSort);
       // 更新缓存
-      const scriptMatchCache = await cacheInstance.get<{ [key: string]: ScriptMatchInfo }>("scriptMatch");
+      const scriptMatchCache = await cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch");
       if (!scriptMatchCache) {
         console.warn("scriptMatchCache is undefined.");
         return;
@@ -406,23 +412,30 @@ export class RuntimeService {
     );
   }
 
-  async getPageScriptUuidByUrl(url: string, includeCustomize?: boolean) {
+  async getPageScriptMatchingResultByUrl(url: string, includeNonEffective: boolean = false) {
     await this.loadScriptMatchInfo();
-    // 匹配当前页面的脚本
-    let matchScriptUuid = this.scriptMatch.urlMatch(url!);
-    // 包含自定义排除的脚本
-    if (includeCustomize) {
-      const excludeScriptUuid = this.scriptCustomizeMatch.urlMatch(url!);
-      // 自定义排除的脚本优化显示
-      matchScriptUuid = [...new Set<string>([...excludeScriptUuid, ...matchScriptUuid])];
+    // 返回当前页面匹配的uuids
+    // 如果有使用自定义排除，原本脚本定义的会返回 uuid{Ori}
+    // 因此基於自定义排除页面被排除的情况下，结果只包含 uuid{Ori} 而不包含 uuid
+    const matchedUuids = this.scriptMatch.urlMatch(url!);
+    const ret = new Map<string, { uuid: string; effective: boolean; matchInfo?: TScriptMatchInfoEntry }>();
+    const scriptMatchCache = this.scriptMatchCache;
+    for (const e of matchedUuids) {
+      const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -ORIGINAL_URLMATCH_SUFFIX.length) : e;
+      if (!includeNonEffective && uuid !== e) continue;
+      const o = ret.get(uuid) || { uuid, effective: false };
+      // 只包含 uuid{Ori} 而不包含 uuid 的情况，effective = false
+      if (e === uuid) {
+        o.effective = true;
+      }
+      // 把匹配脚本的资料从 cache 取出来
+      if (scriptMatchCache) {
+        o.matchInfo = scriptMatchCache.get(uuid);
+      }
+      ret.set(uuid, o);
     }
-    return matchScriptUuid;
-  }
-
-  async getPageScriptByUrl(url: string, includeCustomize?: boolean) {
-    const matchScriptUuid = await this.getPageScriptUuidByUrl(url, includeCustomize);
-    const cache = this.scriptMatchCache;
-    return (cache ? matchScriptUuid.map((uuid) => ({ ...cache.get(uuid) })) : []) as ScriptMatchInfo[];
+    // ret 只包含 uuid 为键的 matchingResult
+    return ret;
   }
 
   async pageLoad(_: any, sender: GetSender) {
@@ -439,13 +452,20 @@ export class RuntimeService {
 
     const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // loadScriptMatchInfo 不產生结果
 
-    // 匹配当前页面的脚本
-    const matchScriptUuid = await this.getPageScriptUuidByUrl(chromeSender.url!);
+    // 匹配当前页面的脚本（只包含有效脚本。自定义排除了的不包含）
+    const matchingResult = await this.getPageScriptMatchingResultByUrl(chromeSender.url!);
 
     const enableScript = [] as ScriptLoadInfo[];
 
-    for (const uuid of matchScriptUuid) {
-      const scriptRes = Object.assign({}, this.scriptMatchCache?.get(uuid));
+    for (const [_uuid, o] of matchingResult) {
+      // 物件部份内容预设为空
+      const scriptRes = Object.assign({}, o.matchInfo, {
+        code: "",
+        value: {},
+        resource: {},
+        metadataStr: "",
+        userConfigStr: "",
+      }) as ScriptLoadInfo;
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
         continue;
@@ -464,7 +484,7 @@ export class RuntimeService {
           continue;
         }
       }
-      enableScript.push(scriptRes as ScriptLoadInfo);
+      enableScript.push(scriptRes);
     }
 
     const { value, resource, scriptDAO } = this;
@@ -491,8 +511,10 @@ export class RuntimeService {
           if (code) {
             const metadataStr = getMetadataStr(code.code) || "";
             const userConfigStr = getUserConfigStr(code.code) || "";
+            const userConfig = parseUserConfig(userConfigStr);
             script.metadataStr = metadataStr;
             script.userConfigStr = userConfigStr;
+            script.userConfig = userConfig;
           }
         }),
       ])
@@ -667,7 +689,8 @@ export class RuntimeService {
     }
   }
 
-  loadingScript: Promise<void> | null | undefined;
+  // 一般情况下请不要直接访问 loadingScript 此变数 （私有变数）
+  loadingScript: Promise<void> | null = null;
 
   // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
   // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量使用此方法获取
@@ -675,26 +698,30 @@ export class RuntimeService {
     if (this.scriptMatchCache) {
       return;
     }
-    if (this.loadingScript) {
-      await this.loadingScript;
-    } else {
+    if (!this.loadingScript) {
       // 如果没有缓存, 则创建一个新的缓存
-      const cache = new Map<string, ScriptMatchInfo>();
-      this.loadingScript = cacheInstance.get<{ [key: string]: ScriptMatchInfo }>("scriptMatch").then((data) => {
-        if (data) {
-          Object.entries(data)
-            .sort(([, a], [, b]) => a.sort - b.sort)
-            .forEach(([key]) => {
-              const item = data[key];
-              cache.set(item.uuid, item);
-              this.syncAddScriptMatch(item);
-            });
-        }
-      });
-      await this.loadingScript;
-      this.loadingScript = null;
-      this.scriptMatchCache = cache;
+      const scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
+      const loadingScript = cacheInstance
+        .get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch")
+        .then((data) => {
+          if (data) {
+            const arr = Object.entries(data).sort(([, a], [, b]) => a.sort! - b.sort!);
+            for (const [, matchInfoEntry] of arr) {
+              this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
+            }
+          }
+        })
+        .then(() => {
+          if (loadingScript !== this.loadingScript) {
+            console.error("invalid loadScriptMatchInfo() calling");
+            return;
+          }
+          this.scriptMatchCache = scriptMatchCache;
+          this.loadingScript = null;
+        });
+      this.loadingScript = loadingScript;
     }
+    await this.loadingScript;
   }
 
   // 保存脚本匹配信息
@@ -702,35 +729,39 @@ export class RuntimeService {
     if (!this.scriptMatchCache) {
       return;
     }
-    const scriptMatch = {} as { [key: string]: ScriptMatchInfo };
-    this.scriptMatchCache.forEach((val, key) => {
-      scriptMatch[key] = val;
-      // 优化性能，将不需要的信息去掉
-      // 而且可能会超过缓存的存储限制
-      scriptMatch[key].code = "";
-      scriptMatch[key].value = {};
-      scriptMatch[key].resource = {};
-    });
-    return await cacheInstance.set("scriptMatch", scriptMatch);
+    return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache));
   }
 
-  async addScriptMatch(item: ScriptMatchInfo) {
+  async addScriptMatch(matchInfoEntry: TScriptMatchInfoEntry) {
     if (!this.scriptMatchCache) {
       await this.loadScriptMatchInfo();
     }
-    this.scriptMatchCache!.set(item.uuid, item);
-    this.syncAddScriptMatch(item);
+    const scriptMatchCache = this.scriptMatchCache!;
+    this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
     await this.saveScriptMatchInfo();
   }
 
-  syncAddScriptMatch(item: ScriptMatchInfo) {
+  addScriptMatchEntry(scriptMatchCache: Map<string, TScriptMatchInfoEntry>, matchInfoEntry: TScriptMatchInfoEntry) {
+    // 优化性能，将不需要的信息去掉
+    // 而且可能会超过缓存的存储限制
+    matchInfoEntry = {
+      ...matchInfoEntry,
+      ...{
+        code: "",
+        value: {},
+        resource: {},
+      },
+    };
+    const uuid = matchInfoEntry.uuid;
+    scriptMatchCache.set(uuid, matchInfoEntry);
+    const uuidOri = `${matchInfoEntry.uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
     // 清理一下老数据
-    this.scriptMatch.clearRules(item.uuid);
-    this.scriptCustomizeMatch.clearRules(item.uuid);
+    this.scriptMatch.clearRules(uuid);
+    this.scriptMatch.clearRules(uuidOri);
     // 添加新的数据
-    this.scriptMatch.addRules(item.uuid, item.scriptUrlPatterns);
-    if (item.customUrlPatterns?.length) {
-      this.scriptCustomizeMatch.addRules(item.uuid, item.customUrlPatterns!);
+    this.scriptMatch.addRules(uuid, matchInfoEntry.scriptUrlPatterns);
+    if (matchInfoEntry.originalUrlPatterns !== matchInfoEntry.scriptUrlPatterns) {
+      this.scriptMatch.addRules(uuidOri, matchInfoEntry.originalUrlPatterns);
     }
   }
 
@@ -751,16 +782,17 @@ export class RuntimeService {
     }
     this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
-    this.scriptCustomizeMatch.clearRules(uuid);
+    this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
     this.saveScriptMatchInfo();
   }
 
   // 构建userScript注册信息
   async getAndSetUserScriptRegister(script: Script) {
     const scriptRes = await this.script.buildScriptRunResource(script);
-    const metaMatch = scriptRes.metadata["match"];
-    const metaInclude = scriptRes.metadata["include"];
-    const metaExclude = scriptRes.metadata["exclude"];
+    const { metadata, originalMetadata } = scriptRes;
+    const metaMatch = metadata.match;
+    const metaInclude = metadata.include;
+    const metaExclude = metadata.exclude;
     if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
       return undefined;
     }
@@ -776,13 +808,18 @@ export class RuntimeService {
       ...(blacklist || []).map((e) => `@exclude ${e}`),
     ]);
 
-    let customUrlPatterns: URLRuleEntry[] | null = null;
+    // 如果使用了自定义排除，无法在脚本原有的网域看到匹配情况
+    // 所有统一把原本的pattern都解析一下
 
-    // 自定义排除
-    if (script.selfMetadata && script.selfMetadata.exclude) {
-      customUrlPatterns = extractUrlPatterns([...(script.selfMetadata.exclude || []).map((e) => `@exclude ${e}`)]);
-      if (customUrlPatterns.length === 0) customUrlPatterns = null;
-    }
+    const originalUrlPatterns: URLRuleEntry[] | null =
+      script.selfMetadata?.match || script.selfMetadata?.include || script.selfMetadata?.exclude
+        ? extractUrlPatterns([
+            ...(originalMetadata.match || []).map((e) => `@match ${e}`),
+            ...(originalMetadata.include || []).map((e) => `@include ${e}`),
+            ...(originalMetadata.exclude || []).map((e) => `@exclude ${e}`),
+            ...(blacklist || []).map((e) => `@exclude ${e}`),
+          ])
+        : scriptUrlPatterns;
 
     scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
 
@@ -811,16 +848,15 @@ export class RuntimeService {
     const scriptMatchInfo = Object.assign(
       {
         scriptUrlPatterns: scriptUrlPatterns,
-        customUrlPatterns: customUrlPatterns,
+        originalUrlPatterns: originalUrlPatterns,
       },
       scriptRes
-    ) as ScriptMatchInfo;
+    ) as TScriptMatchInfoEntry;
 
     // 将脚本match信息放入缓存中
     this.addScriptMatch(scriptMatchInfo);
 
     return {
-      scriptMatchInfo,
       registerScript,
     };
   }

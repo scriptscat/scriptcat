@@ -2,7 +2,7 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
-import type { ScriptMatchInfo, ScriptMenu } from "./types";
+import type { TScriptMatchInfoEntry, ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
@@ -161,14 +161,14 @@ export class PopupService {
       runNum: script.type === SCRIPT_TYPE_NORMAL ? 0 : script.runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0,
       runNumByIframe: 0,
       menus: [],
-      customUrlPatterns: (script as ScriptMatchInfo).customUrlPatterns || null,
+      isEffective: null,
     };
   }
 
   // 获取popup页面数据
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
-    const [scripts, runScripts, backScriptList] = await Promise.all([
-      this.runtime.getPageScriptByUrl(req.url, true),
+    const [matchingResult, runScripts, backScriptList] = await Promise.all([
+      this.runtime.getPageScriptMatchingResultByUrl(req.url, true),
       this.getScriptMenu(req.tabId),
       this.getScriptMenu(-1),
     ]);
@@ -177,15 +177,17 @@ export class PopupService {
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
-    for (const script of scripts) {
-      let run = runMap.get(script.uuid);
+    for (const [uuid, o] of matchingResult) {
+      const script = o.matchInfo || ({} as TScriptMatchInfoEntry);
+      let run = runMap.get(uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
-        run.customUrlPatterns = script.customUrlPatterns || run.customUrlPatterns;
+        run.isEffective = o.effective!;
         run.hasUserConfig = !!script.config;
       } else {
         run = this.scriptToMenu(script);
+        run.isEffective = o.effective!;
       }
       scriptMenuMap.set(script.uuid, run);
     }
@@ -214,15 +216,7 @@ export class PopupService {
     return cacheInstance.tx<ScriptMenu[]>(cacheKey, (menu) => callback(menu || []));
   }
 
-  async addScriptRunNumber({
-    tabId,
-    frameId,
-    scripts,
-  }: {
-    tabId: number;
-    frameId: number;
-    scripts: ScriptMatchInfo[];
-  }) {
+  async addScriptRunNumber({ tabId, frameId, scripts }: { tabId: number; frameId: number; scripts: Script[] }) {
     // 设置数据
     return await this.txUpdateScriptMenu(tabId, async (data) => {
       if (!frameId) {
@@ -238,6 +232,7 @@ export class PopupService {
           }
         } else {
           const item = this.scriptToMenu(script);
+          item.isEffective = true;
           item.runNum = 1;
           if (frameId) {
             item.runNumByIframe = 1;
@@ -501,16 +496,7 @@ export class PopupService {
     // 监听运行次数
     this.mq.subscribe(
       "pageLoad",
-      async ({
-        tabId,
-        frameId,
-        scripts,
-      }: {
-        tabId: number;
-        frameId: number;
-        document: string;
-        scripts: ScriptMatchInfo[];
-      }) => {
+      async ({ tabId, frameId, scripts }: { tabId: number; frameId: number; document: string; scripts: Script[] }) => {
         await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标
         await this.updateBadgeIcon(tabId);

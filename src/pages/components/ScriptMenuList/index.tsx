@@ -29,26 +29,8 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
-import { isUrlMatch, RuleTypeBit } from "@App/pkg/utils/url_matcher";
 
 const CollapseItem = Collapse.Item;
-
-function isExclude(script: ScriptMenu, url: URL) {
-  const rules = script.customUrlPatterns;
-  const href = url.href;
-  if (!rules) {
-    return false;
-  }
-  for (const rule of rules) {
-    if (!(rule.ruleType & RuleTypeBit.INCLUSION)) {
-      // exclude
-      if (!isUrlMatch(href, rule)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 
 const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
@@ -205,8 +187,8 @@ const ScriptMenuList = React.memo(
       window.close();
     }, []);
 
-    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, currentUrl: URL) => {
-      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude(item, currentUrl)).finally(() => {
+    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
         window.close();
       });
     }, []);
@@ -313,15 +295,15 @@ const ScriptMenuList = React.memo(
               >
                 {t("edit")}
               </Button>
-              {url && (
+              {url && item.isEffective !== null && (
                 <Button
                   className="text-left"
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, url)}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !item.isEffective)}
                 >
-                  {(isExclude(item, url) ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
+                  {(!item.isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
               <Popconfirm
