@@ -15,7 +15,7 @@ export const enum RuleTypeBit {
 
 export type URLRuleEntry = {
   ruleType: RuleType;
-  ruleContent: string | string[] | [RegExp, string, string];
+  ruleContent: string | string[] | [string, string]; // 由於 cache 设计，ruleContent 不能含有 RegExp
   ruleTag: string;
   patternString: string;
 };
@@ -187,7 +187,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       if (re === null) continue; // 忽略不正确的 regex pattern
       rules.push({
         ruleType: isExclusion ? RuleType.REGEX_EXCLUDE : RuleType.REGEX_INCLUDE,
-        ruleContent: [re, rch[1], rch[2]] as [RegExp, string, string],
+        ruleContent: [rch[1], rch[2]] as [string, string],
         ruleTag: tag,
         patternString: content,
       });
@@ -227,10 +227,10 @@ export const isUrlMatch = (url: string, rule: URLRuleEntry) => {
       ret = !isUrlMatchGlob(url, rule.ruleContent as string[]);
       break;
     case RuleType.REGEX_INCLUDE:
-      ret = isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
+      ret = isUrlMatchRegEx(url, rule.ruleContent as [string, string]);
       break;
     case RuleType.REGEX_EXCLUDE:
-      ret = !isUrlMatchRegEx(url, rule.ruleContent[0] as RegExp);
+      ret = !isUrlMatchRegEx(url, rule.ruleContent as [string, string]);
       break;
     default:
       throw new Error("invalid ruleType");
@@ -350,8 +350,8 @@ function isUrlMatchGlob(s: string, gs: string[]) {
   return idx === path.length || (idx === path.length - 1 && path[idx] === "?");
 }
 
-function isUrlMatchRegEx(s: string, re: RegExp) {
-  return re.test(s);
+function isUrlMatchRegEx(s: string, ruleContent: [string, string]) {
+  return new RegExp(ruleContent[0], ruleContent[1] || "i").test(s);
 }
 
 export const addMatchesToGlobs = (matches: URLRuleEntry[], globs: string[]) => {
@@ -421,7 +421,7 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   if (rulesForRegexInclude.length > 0) {
     for (const rule of rulesForRegexInclude) {
       // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
-      let globPattern = regexToGlob(rule.ruleContent[1]);
+      let globPattern = regexToGlob(rule.ruleContent[0]);
       if (globPattern !== null) {
         let m: RegExpExecArray | null = null;
         if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
