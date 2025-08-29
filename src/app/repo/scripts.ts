@@ -81,6 +81,8 @@ export interface ScriptRunResource extends Script {
   value: { [key: string]: any };
   flag: string;
   resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
+  metadata: SCMetadata; // 经自定义覆盖的 Metadata
+  originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
 }
 
 export class ScriptDAO extends Repo<Script> {
