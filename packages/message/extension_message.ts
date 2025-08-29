@@ -73,7 +73,6 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
             port!.onMessage.addListener(handler);
           });
           addUserScriptConnectionListener = null;
-          console.log("addUserScriptConnectionListener() is executed.");
         } catch {
           // do nothing
         }
@@ -101,7 +100,6 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
         return false;
       }
       if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
-        console.log("userScripts.LISTEN_CONNECTIONS");
         if (
           typeof chrome.runtime.onUserScriptConnect?.addListener === "function" &&
           typeof chrome.runtime.onUserScriptMessage?.addListener === "function"
@@ -133,7 +131,6 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
             return callback(msg, sendResponse, sender);
           });
           addUserScriptMessageListener = null;
-          console.log("addUserScriptMessageListener() is executed.");
         } catch {
           // do nothing
         }

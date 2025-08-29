@@ -259,14 +259,12 @@ function App() {
                 });
               }
               if (granted) {
-                console.log("Permission granted");
                 setPermissionReqResult("✅");
                 // UserScripts API相关的初始化：
                 // userScripts.LISTEN_CONNECTIONS 進行 Server 通讯初始化
                 // onUserScriptAPIGrantAdded 進行 腳本注冊
                 updateIsUserScriptsAvailableState();
               } else {
-                console.log("Permission denied");
                 setPermissionReqResult("❎");
               }
             };

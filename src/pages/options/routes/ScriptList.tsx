@@ -545,7 +545,6 @@ function ScriptList() {
                     scriptClient
                       .requestCheckUpdate(script.uuid)
                       .then((res) => {
-                        console.log("res", res);
                         if (res) {
                           Message.warning({
                             id: "checkupdate",
