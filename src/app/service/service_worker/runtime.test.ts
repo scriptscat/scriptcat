@@ -42,15 +42,23 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     ...overrides,
   });
 
-  const createScriptRunResource = (script: Script): ScriptRunResource => ({
-    ...script,
-    code: "// test code",
-    flag: "",
-    value: {},
-    resource: {},
-    metadata: getCombinedMeta(script.metadata, script.selfMetadata),
-    originalMetadata: script.metadata,
-  });
+  const createScriptRunResource = (script: Script): ScriptRunResource => {
+    let metadata = { ...script.metadata };
+    const { match, include, exclude } = metadata;
+    const originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
+    if (script.selfMetadata) {
+      metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+    }
+    return {
+      ...script,
+      code: "// test code",
+      flag: "",
+      value: {},
+      resource: {},
+      metadata,
+      originalMetadata,
+    };
+  };
 
   beforeEach(() => {
     // 创建所有必需的mock对象
