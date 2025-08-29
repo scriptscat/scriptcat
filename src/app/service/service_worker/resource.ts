@@ -170,10 +170,11 @@ export class ResourceService {
     let result = await this.getResourceModel(u.url);
     try {
       const resource = await this.loadByUrl(u.url, type);
-      resource.updatetime = Date.now();
+      const now = Date.now();
+      resource.updatetime = now;
       if (!result) {
         // 资源不存在,保存
-        resource.createtime = Date.now();
+        resource.createtime = now;
         resource.link = { [uuid]: true };
         await this.resourceDAO.save(resource);
         result = resource;
