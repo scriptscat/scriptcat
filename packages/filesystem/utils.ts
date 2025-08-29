@@ -1,8 +1,8 @@
 export function joinPath(...paths: string[]): string {
   let path = "";
-  paths.forEach((value) => {
+  for (let value of paths) {
     if (!value) {
-      return;
+      continue;
     }
     if (!value.startsWith("/")) {
       value = `/${value}`;
@@ -11,6 +11,6 @@ export function joinPath(...paths: string[]): string {
       value = value.substring(0, value.length - 1);
     }
     path += value;
-  });
+  }
   return path;
 }

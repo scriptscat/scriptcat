@@ -37,14 +37,14 @@ export class ValueService {
     // 和userconfig组装
     const { config } = script;
     if (config) {
-      Object.keys(config).forEach((tabKey) => {
+      for (const tabKey of Object.keys(config)) {
         const tab = config![tabKey];
         if (!(tab instanceof Object)) {
-          return;
+          continue;
         }
-        Object.keys(tab).forEach((key) => {
+        for (const key of Object.keys(tab)) {
           if (!tab[key]) {
-            return;
+            continue;
           }
           // 动态变量
           if (tab[key].bind) {
@@ -53,8 +53,8 @@ export class ValueService {
           }
           newValues[`${tabKey}.${key}`] =
             data[`${tabKey}.${key}`] === undefined ? config![tabKey][key].default : data[`${tabKey}.${key}`];
-        });
-      });
+        }
+      }
     }
     return newValues;
   }
@@ -178,20 +178,20 @@ export class ValueService {
           }
         }
         // 处理oldValue有但是没有在data.values中的情况
-        Object.keys(oldValue).forEach((key) => {
+        for (const key of Object.keys(oldValue)) {
           if (!(key in data.values)) {
             delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
             data.values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
           }
-        });
+        }
         await this.valueDAO.save(storageName, valueModel);
       }
       return true;
     });
     // 推送到所有加载了本脚本的tab中
-    Object.keys(data.values).forEach((key) => {
+    for (const key of Object.keys(data.values)) {
       this.pushValueToTab(oldValue[key], key, data.values[key], data.uuid, storageName, sender);
-    });
+    }
   }
 
   setScriptValue(data: { uuid: string; key: string; value: any }, _sender: GetSender) {

@@ -139,9 +139,9 @@ const ScriptMenuList = React.memo(
         });
       });
       return () => {
-        listeners.forEach((listener) => {
+        for (const listener of listeners) {
           document.removeEventListener("keypress", listener);
-        });
+        }
       };
     }, [script]);
 

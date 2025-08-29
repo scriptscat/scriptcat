@@ -94,12 +94,12 @@ export class InjectRuntime {
     this.execList.push(exec);
     // 注入css
     if (script.metadata["require-css"]) {
-      script.metadata["require-css"].forEach((val) => {
+      for (const val of script.metadata["require-css"]) {
         const res = script.resource[val];
         if (res) {
           addStyle(res.content);
         }
-      });
+      }
     }
     if (script.metadata["run-at"] && script.metadata["run-at"][0] === "document-body") {
       // 等待页面加载完成
