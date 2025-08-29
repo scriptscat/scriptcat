@@ -348,7 +348,7 @@ export class RuntimeService {
 
     if (await this.getMessageFlag()) {
       // 异常
-      console.error("messageFlag exsits");
+      console.error("messageFlag exists");
       await loadingScriptMatchInfo;
       return;
     }
