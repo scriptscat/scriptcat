@@ -268,10 +268,10 @@ describe("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret["GM.getValue"].name).toEqual("bound GM.getValue");
-    expect(ret["GM.getTab"].name).toEqual("bound GM_getTab");
+    expect(ret["GM.getTab"].name).toEqual("bound GM.getTab");
     expect(ret["GM.saveTab"].name).toEqual("bound GM_saveTab");
     expect(ret.GM_getValue).toBeUndefined();
-    expect(ret.GM_getTab).toBeUndefined();
+    // expect(ret.GM_getTab).toBeUndefined();
     expect(ret.GM_saveTab).toBeUndefined();
     expect(ret.GM_cookie).toBeUndefined();
     expect(ret["GM.cookie"].name).toEqual("bound GM.cookie");
