@@ -332,7 +332,38 @@ declare namespace CATType {
     // 文件修改时间
     updatetime: number;
   }
+
+  namespace NetRequestRules {
+    /**
+     * 配置
+     */
+    type Option<T extends OptionType> = T extends "list"
+      ? {
+          ondone: (rules: chrome.declarativeNetRequest.Rule[]) => void;
+        }
+      : T extends "delete"
+        ? {
+            removeRuleIds: number[];
+          }
+        : T extends "set"
+          ? {
+              rules: chrome.declarativeNetRequest.Rule[];
+            }
+          : never;
+
+    // 支持的操作
+    type OptionType = "list" | "delete" | "set";
+  }
 }
+
+/**
+ * 脚本猫网络请求规则，详情可以参考chrome.declarativeNetRequest API
+ * https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest?hl=zh-cn#type-UpdateRuleOptions
+ * @param option 配置选项
+ */
+declare function CAT_netRequestRules<T extends CATType.NetRequestRules.OptionType>(
+  option: CATType.NetRequestRules.Option<T>
+): void;
 
 declare namespace GMTypes {
   type CookieAction = "list" | "delete" | "set";
