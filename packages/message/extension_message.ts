@@ -70,7 +70,7 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
   onMessage(
     callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => boolean | void
   ): void {
-    chrome.runtime.onMessage?.addListener((msg: TMessage, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
       const lastError = chrome.runtime.lastError;
       if (typeof msg.action !== "string") return;
       if (lastError) {
