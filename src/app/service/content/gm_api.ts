@@ -1082,10 +1082,19 @@ export default class GMApi extends GM_Base {
     return this.sendMessage("GM_closeInTab", [tabid]);
   }
 
-  @GMContext.API({ alias: "GM.getTab" })
+  @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
       callback(data ?? {});
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTab"] })
+  public ["GM.getTab"](): Promise<any> {
+    return new Promise<any>((resolve) => {
+      this.GM_getTab((data) => {
+        resolve(data);
+      });
     });
   }
 
@@ -1097,10 +1106,19 @@ export default class GMApi extends GM_Base {
     this.sendMessage("GM_saveTab", [obj]);
   }
 
-  @GMContext.API({ alias: "GM.getTabs" })
+  @GMContext.API()
   GM_getTabs(callback: (objs: { [key: string | number]: object }) => any) {
     this.sendMessage("GM_getTabs", []).then((resp) => {
       callback(resp);
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTabs"] })
+  public ["GM.getTabs"](): Promise<{ [key: string | number]: object }> {
+    return new Promise<{ [key: string | number]: object }>((resolve) => {
+      this.GM_getTabs((data) => {
+        resolve(data);
+      });
     });
   }
 

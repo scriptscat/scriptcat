@@ -60,15 +60,17 @@ describe("@grant GM", () => {
 
   it("GM.*", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.saveTab", "GM.cookie"];
+    script.metadata.grant = ["GM.getValue", "GM.getTab", "GM.getTabs", "GM.saveTab", "GM.cookie"];
     // @ts-ignore
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `return {
       ["GM.getValue"]: GM.getValue,
       ["GM.getTab"]: GM.getTab,
+      ["GM.getTabs"]: GM.getTabs,
       ["GM.saveTab"]: GM.saveTab,
       GM_getValue: this.GM_getValue,
       GM_getTab: this.GM_getTab,
+      GM_getTabs: this.GM_getTabs,
       GM_saveTab: this.GM_saveTab,
       GM_cookie: this.GM_cookie,
       ["GM.cookie"]: this.GM.cookie,
@@ -76,10 +78,12 @@ describe("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret["GM.getValue"].name).toEqual("bound GM.getValue");
-    expect(ret["GM.getTab"].name).toEqual("bound GM_getTab");
+    expect(ret["GM.getTab"].name).toEqual("bound GM.getTab");
+    expect(ret["GM.getTabs"].name).toEqual("bound GM.getTabs");
     expect(ret["GM.saveTab"].name).toEqual("bound GM_saveTab");
     expect(ret.GM_getValue).toBeUndefined();
-    expect(ret.GM_getTab).toBeUndefined();
+    expect(ret.GM_getTab.name).toEqual("bound GM_getTab");
+    expect(ret.GM_getTabs.name).toEqual("bound GM_getTabs");
     expect(ret.GM_saveTab).toBeUndefined();
     expect(ret.GM_cookie).toBeUndefined();
     expect(ret["GM.cookie"].name).toEqual("bound GM.cookie");
