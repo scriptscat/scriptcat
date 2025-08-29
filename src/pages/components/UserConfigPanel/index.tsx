@@ -74,7 +74,6 @@ const UserConfigPanel: React.FC<{
           const keys = Object.keys(value).sort((a, b) => {
             return (value[a].index || 0) - (value[b].index || 0);
           });
-          console.log("keys", value, keys);
           return (
             <TabPane key={itemKey} title={itemKey}>
               <Form
