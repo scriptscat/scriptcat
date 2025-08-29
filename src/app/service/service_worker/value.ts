@@ -73,12 +73,13 @@ export class ValueService {
     const flag = await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
+        const now = Date.now();
         await this.valueDAO.save(storageName, {
           uuid: script.uuid,
           storageName: storageName,
           data: { [key]: value },
-          createtime: Date.now(),
-          updatetime: Date.now(),
+          createtime: now,
+          updatetime: now,
         });
       } else {
         // 值没有发生变化, 不进行操作
@@ -161,12 +162,13 @@ export class ValueService {
     await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
+        const now = Date.now();
         await this.valueDAO.save(storageName, {
           uuid: script.uuid,
           storageName: storageName,
           data: data.values,
-          createtime: Date.now(),
-          updatetime: Date.now(),
+          createtime: now,
+          updatetime: now,
         });
       } else {
         oldValue = valueModel.data;
