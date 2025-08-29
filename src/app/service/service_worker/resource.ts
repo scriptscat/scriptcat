@@ -334,10 +334,10 @@ export class ResourceService {
         const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
         });
-        resources.forEach((res) => {
+        for (const res of resources) {
           // 删除link
           delete res.link[data.uuid];
-        });
+        }
         await Promise.all(
           resources.map((res) => {
             if (Object.keys(res.link).length > 0) {
