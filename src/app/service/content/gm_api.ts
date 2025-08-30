@@ -51,6 +51,12 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   public eventId!: number;
 
+  @GMContext.protected()
+  protected loadScriptResolve: (() => void) | undefined;
+
+  @GMContext.protected()
+  protected loadScriptPromise: Promise<void> | undefined;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
@@ -63,7 +69,10 @@ class GM_Base implements IGM_Base {
 
   // 单次回调使用
   @GMContext.protected()
-  public sendMessage(api: string, params: any[]) {
+  public async sendMessage(api: string, params: any[]) {
+    if (this.loadScriptPromise) {
+      await this.loadScriptPromise;
+    }
     return sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
@@ -1073,10 +1082,19 @@ export default class GMApi extends GM_Base {
     return this.sendMessage("GM_closeInTab", [tabid]);
   }
 
-  @GMContext.API({ alias: "GM.getTab" })
+  @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
       callback(data ?? {});
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTab"] })
+  public ["GM.getTab"](): Promise<any> {
+    return new Promise<any>((resolve) => {
+      this.GM_getTab((data) => {
+        resolve(data);
+      });
     });
   }
 
@@ -1088,10 +1106,19 @@ export default class GMApi extends GM_Base {
     this.sendMessage("GM_saveTab", [obj]);
   }
 
-  @GMContext.API({ alias: "GM.getTabs" })
+  @GMContext.API()
   GM_getTabs(callback: (objs: { [key: string | number]: object }) => any) {
     this.sendMessage("GM_getTabs", []).then((resp) => {
       callback(resp);
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTabs"] })
+  public ["GM.getTabs"](): Promise<{ [key: string | number]: object }> {
+    return new Promise<{ [key: string | number]: object }>((resolve) => {
+      this.GM_getTabs((data) => {
+        resolve(data);
+      });
     });
   }
 
@@ -1174,6 +1201,14 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   ["window.focus"]() {
     return this.sendMessage("window.focus", []);
+  }
+
+  @GMContext.protected()
+  apiLoadPromise: Promise<void> | undefined;
+
+  @GMContext.API()
+  CAT_scriptLoaded() {
+    return this.loadScriptPromise;
   }
 }
 

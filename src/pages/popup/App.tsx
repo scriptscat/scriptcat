@@ -245,24 +245,36 @@ function App() {
       {showRequestButton && (
         <Button
           onClick={() => {
-            chrome.permissions.request({ permissions: ["userScripts"] }, function (granted) {
+            const updateOnPermissionGranted = async (granted: boolean) => {
+              if (granted) {
+                granted = await new Promise((resolve) => {
+                  chrome.runtime.sendMessage({ type: "userScripts.LISTEN_CONNECTIONS" }, (resp) => {
+                    const lastError = chrome.runtime.lastError;
+                    if (lastError) {
+                      resp = false;
+                      console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
+                    }
+                    resolve(resp === true);
+                  });
+                });
+              }
+              if (granted) {
+                setPermissionReqResult("✅");
+                // UserScripts API相关的初始化：
+                // userScripts.LISTEN_CONNECTIONS 進行 Server 通讯初始化
+                // onUserScriptAPIGrantAdded 進行 腳本注冊
+                updateIsUserScriptsAvailableState();
+              } else {
+                setPermissionReqResult("❎");
+              }
+            };
+            chrome.permissions.request({ permissions: ["userScripts"] }, (granted) => {
               const lastError = chrome.runtime.lastError;
               if (lastError) {
                 granted = false;
                 console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
               }
-              if (granted) {
-                console.log("Permission granted");
-                setPermissionReqResult("✅");
-                // 需要进行UserScript API相关的通讯初始化
-                // 或是使用 用 chrome.permissions.onAdded.addListener
-                // 及 chrome.permissions.onRemoved.addListener
-                // 来实现
-                updateIsUserScriptsAvailableState();
-              } else {
-                console.log("Permission denied");
-                setPermissionReqResult("❎");
-              }
+              updateOnPermissionGranted(granted);
             });
           }}
         >

@@ -26,6 +26,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { DocumentationSite } from "@App/app/const";
 import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
+import { getCombinedMeta, selfMetadataUpdate } from "./utils";
 
 const cIdKey = `(cid_${Math.random()})`;
 
@@ -326,14 +327,17 @@ export class ScriptService {
     return this.scriptCodeDAO.get(uuid);
   }
 
-  buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
+  getScriptRunResource(script: Script) {
+    return this.buildScriptRunResource(script);
+  }
+
+  async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = { ...script } as ScriptRunResource;
     // 自定义配置
+    const { match, include, exclude } = ret.metadata;
+    ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
     if (ret.selfMetadata) {
-      ret.metadata = { ...ret.metadata };
-      Object.keys(ret.selfMetadata).forEach((key) => {
-        ret.metadata[key] = ret.selfMetadata![key];
-      });
+      ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
     return Promise.all([
       this.valueService.getScriptValue(ret),
@@ -345,26 +349,31 @@ export class ScriptService {
       }
       ret.value = value;
       ret.resource = resource;
-      ret.flag = randomMessageFlag();
+      ret.flag = scriptFlag || randomMessageFlag();
       ret.code = code.code;
       ret.code = compileScriptCode(ret);
       return ret;
     });
   }
 
-  async excludeUrl({ uuid, url, remove }: { uuid: string; url: string; remove: boolean }) {
-    const script = await this.scriptDAO.get(uuid);
+  // ScriptMenuList 的 excludeUrl - 排除或回復
+  async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    let excludes = script.selfMetadata.exclude || script.metadata.exclude || [];
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
     if (remove) {
-      excludes = excludes.filter((item) => item !== url);
+      const deleted = excludeSet.delete(excludePattern);
+      if (!deleted) {
+        return; // scriptDAO 不用更新
+      }
     } else {
-      excludes.push(url);
+      excludeSet.add(excludePattern);
     }
-    script.selfMetadata.exclude = excludes;
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
@@ -379,16 +388,14 @@ export class ScriptService {
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (exclude) {
-      script.selfMetadata.exclude = exclude;
-    } else {
-      delete script.selfMetadata.exclude;
-    }
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(exclude || []);
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
@@ -403,16 +410,14 @@ export class ScriptService {
   }
 
   async resetMatch({ uuid, match }: { uuid: string; match: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (match) {
-      script.selfMetadata.match = match;
-    } else {
-      delete script.selfMetadata.match;
-    }
+    // 建立Set去掉重覆（如有）
+    const matchSet = new Set(match || []);
+    // 更新 script.selfMetadata.match
+    script = selfMetadataUpdate(script, "match", matchSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
@@ -644,7 +649,7 @@ export class ScriptService {
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getCode", this.getCode.bind(this));
-    this.group.on("getScriptRunResource", this.buildScriptRunResource.bind(this));
+    this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));

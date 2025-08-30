@@ -1,6 +1,8 @@
-// types
+import type { ScriptLoadInfo } from "../service_worker/types";
 
 export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName: string) => any;
+
+export type PreScriptFunc = { scriptInfo: ScriptLoadInfo; func: ScriptFunc };
 
 // exec_script.ts
 

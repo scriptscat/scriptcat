@@ -16,6 +16,7 @@ const config = {
     CAT_userConfig: "readonly",
     CAT_registerMenuInput: "readonly",
     CAT_unregisterMenuInput: "readonly",
+    CAT_scriptLoaded: "readonly",
   },
   rules: {
     "constructor-super": ["error"],
