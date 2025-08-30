@@ -448,7 +448,7 @@ export class RuntimeService {
       return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
     });
 
-    const batchData: { [key: string]: any } = {};
+    const batchData: { [key: string]: boolean } = {};
     for (const script of registerScripts) {
       batchData[`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`] = true;
     }
