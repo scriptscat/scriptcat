@@ -553,7 +553,7 @@ export class RuntimeService {
     try {
       await chrome.userScripts.register(list);
     } catch (e: any) {
-      this.logger.error("update error", Logger.E(e));
+      this.logger.error("batch registration error", Logger.E(e));
       // 批量注册失败则退回单个注册
       for (const script of list) {
         try {
