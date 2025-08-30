@@ -1,10 +1,10 @@
 export default class Storage {
-  sync = new CrhomeStorage();
-  local = new CrhomeStorage();
-  session = new CrhomeStorage();
+  sync = new ChromeStorage();
+  local = new ChromeStorage();
+  session = new ChromeStorage();
 }
 
-export class CrhomeStorage {
+export class ChromeStorage {
   data: any = {};
 
   get(key: string, callback: (data: any) => void) {
