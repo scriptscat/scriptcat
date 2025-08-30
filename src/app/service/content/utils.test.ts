@@ -50,6 +50,7 @@ describe("utils", () => {
       flag: "test-flag",
       resource: {},
       metadata: {},
+      originalMetadata: {},
       ...overrides,
     });
 
@@ -282,6 +283,7 @@ describe("utils", () => {
       flag: "inject-test-flag",
       resource: {},
       metadata: {},
+      originalMetadata: {},
       ...overrides,
     });
 
