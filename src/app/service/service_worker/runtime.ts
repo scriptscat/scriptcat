@@ -415,11 +415,9 @@ export class RuntimeService {
   }
 
   async getParticularScriptList() {
-    // 将开启的脚本发送一次enable消息
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
-    // 根据messageFlag来判断是否已经注册过了
     const registerScripts = await Promise.all(
       list.map((script) => {
         if (script.type !== SCRIPT_TYPE_NORMAL) {
@@ -442,7 +440,6 @@ export class RuntimeService {
             });
             return undefined;
           }
-          // 设置黑名单
           return registerScript;
         });
       })
