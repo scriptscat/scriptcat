@@ -226,8 +226,9 @@ function ScriptList() {
 
   const filterCache: Map<string, any> = new Map<string, any>();
 
-  const setFilterCache = (res: Partial<Record<string, any>>[]) => {
+  const setFilterCache = (res: Partial<Record<string, any>>[] | null) => {
     filterCache.clear();
+    if (res === null) return;
     for (const entry of res) {
       filterCache.set(entry.uuid, {
         code: entry.code === true,
@@ -326,6 +327,11 @@ function ScriptList() {
                   onChange={(value) => {
                     if (value !== filterKeys[0].type) {
                       filterKeys[0].type = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
                       dispatch(requestFilterResult({ type: value, value: filterKeys[0].value }))
                         .unwrap()
                         .then((res) => {
@@ -354,6 +360,11 @@ function ScriptList() {
                   onChange={(value) => {
                     if (value !== filterKeys[0].value) {
                       filterKeys[0].value = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
                       dispatch(requestFilterResult({ value, type: filterKeys[0].type }))
                         .unwrap()
                         .then((res) => {
