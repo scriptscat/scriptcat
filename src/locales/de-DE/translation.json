@@ -350,7 +350,7 @@
   "start_guide_content": "Als nächstes stellen wir Ihnen die grundlegende Verwendung von ScriptCat vor",
   "guide_installed_scripts": "Ihre installierten Skripte werden hier angezeigt",
   "guide_script_list_title": "Skript-Markt",
-  "guide_script_list_content": "Sie können Skripte aus dem <Link href=\"https://scriptcat.org/search\">Skript-Markt</Link> installieren. ScriptCat unterstützt neben Benutzerskripten auch <Link href=\"https://docs.scriptcat.org/en/docs/dev/backgroud/\">Hintergrundskripte</Link>",
+  "guide_script_list_content": "Sie können Skripte aus dem <Link href=\"https://scriptcat.org/search\">Skript-Markt</Link> installieren. ScriptCat unterstützt neben Benutzerskripten auch <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">Hintergrundskripte</Link>",
   "guide_script_list_enable_title": "Skript-Aktivierung",
   "guide_script_list_enable_content": "Skripte müssen aktiviert werden, um verwendet zu werden. Seitenskripte sind bei der Installation standardmäßig aktiviert, Hintergrundskripte sind bei der Installation standardmäßig deaktiviert",
   "guide_script_list_apply_to_run_status_title": "Anwenden auf und Ausführungsstatus",
