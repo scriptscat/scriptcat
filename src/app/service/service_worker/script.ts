@@ -324,10 +324,6 @@ export class ScriptService {
     return true;
   }
 
-  getCode(uuid: string) {
-    return this.scriptCodeDAO.get(uuid);
-  }
-
   async getFilterResult(req: { type: SearchType; value: string }) {
     const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
@@ -403,7 +399,7 @@ export class ScriptService {
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),
-      this.getCode(script.uuid),
+      this.scriptCodeDAO.get(script.uuid),
     ]).then(([value, resource, code]) => {
       if (!code) {
         throw new Error("code is null");
@@ -709,7 +705,6 @@ export class ScriptService {
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
-    this.group.on("getCode", this.getCode.bind(this));
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
