@@ -350,7 +350,7 @@
   "start_guide_content": "Next, we will introduce the basic usage of ScriptCat to you.",
   "guide_installed_scripts": "The scripts you have installed will be displayed here.",
   "guide_script_list_title": "Script Market",
-  "guide_script_list_content": "You can install scripts from the <Link href=\"https://scriptcat.org/search\">Script Market</Link>. In addition to supporting user scripts, ScriptCat also supports <Link href=\"https://docs.scriptcat.org/docs/dev/backgroud/\">background scripts</Link>.",
+  "guide_script_list_content": "You can install scripts from the <Link href=\"https://scriptcat.org/search\">Script Market</Link>. In addition to supporting user scripts, ScriptCat also supports <Link href=\"https://docs.scriptcat.org/docs/dev/background/\">background scripts</Link>.",
   "guide_script_list_enable_title": "Enable Scripts",
   "guide_script_list_enable_content": "Scripts need to be enabled to be used. Page scripts are enabled by default upon installation, while background scripts are disabled by default.",
   "guide_script_list_apply_to_run_status_title": "Apply To and Run Status",
