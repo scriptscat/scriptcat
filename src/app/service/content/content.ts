@@ -74,9 +74,9 @@ export default class ContentRuntime {
             } else {
               attr = {};
             }
-            Object.keys(attr).forEach((key) => {
+            for (const key of Object.keys(attr)) {
               el.setAttribute(key, attr[key]);
-            });
+            }
             if (textContent) {
               el.textContent = textContent;
             }

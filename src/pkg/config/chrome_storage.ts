@@ -49,11 +49,11 @@ export default class ChromeStorage {
         if (!items) {
           return resolve(ret);
         }
-        Object.keys(items).forEach((key) => {
+        for (const key of Object.keys(items)) {
           if (key.startsWith(prefix)) {
             ret[key.substring(prefix.length)] = items[key];
           }
-        });
+        }
         return resolve(ret);
       });
     });

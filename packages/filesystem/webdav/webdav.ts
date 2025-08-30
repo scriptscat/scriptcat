@@ -70,19 +70,20 @@ export default class WebDAVFileSystem implements FileSystem {
   async list(): Promise<File[]> {
     const dir = (await this.client.getDirectoryContents(this.basePath)) as FileStat[];
     const ret: File[] = [];
-    dir.forEach((item: FileStat) => {
+    for (const item of dir) {
       if (item.type !== "file") {
-        return;
+        continue;
       }
+      const time = new Date(item.lastmod).getTime();
       ret.push({
         name: item.basename,
         path: this.basePath,
         digest: item.etag || "",
         size: item.size,
-        createtime: new Date(item.lastmod).getTime(),
-        updatetime: new Date(item.lastmod).getTime(),
+        createtime: time,
+        updatetime: time,
       });
-    });
+    }
     return ret;
   }
 

@@ -31,12 +31,12 @@ const ScriptResource: React.FC<{
     }
     resourceClient.getScriptResources(script).then((res) => {
       const arr: ResourceListItem[] = [];
-      Object.keys(res).forEach((key) => {
+      for (const key of Object.keys(res)) {
         // @ts-ignore
         const item: ResourceListItem = res[key];
         item.key = key;
         arr.push(item);
-      });
+      }
       setData(arr);
     });
     return () => {};

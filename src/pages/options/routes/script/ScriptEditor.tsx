@@ -214,9 +214,9 @@ function ScriptEditor() {
   const scriptCodeDAO = new ScriptCodeDAO();
 
   const setShow = (key: visibleItem, show: boolean) => {
-    Object.keys(visible).forEach((k) => {
+    for (const k of Object.keys(visible)) {
       visible[k] = false;
-    });
+    }
     visible[key] = show;
     setVisible({ ...visible });
   };
@@ -428,17 +428,16 @@ function ScriptEditor() {
     }
   }
   menu.forEach((item) => {
-    item.items &&
-      item.items.forEach((menuItem) => {
-        if (menuItem.hotKey) {
-          hotKeys.push({
-            id: menuItem.id,
-            title: menuItem.title,
-            hotKey: menuItem.hotKey,
-            action: menuItem.action,
-          });
-        }
-      });
+    item.items?.forEach((menuItem) => {
+      if (menuItem.hotKey) {
+        hotKeys.push({
+          id: menuItem.id,
+          title: menuItem.title,
+          hotKey: menuItem.hotKey,
+          action: menuItem.action,
+        });
+      }
+    });
   });
   useEffect(() => {
     const [alreadyInit] = [pageInit];

@@ -259,9 +259,9 @@ function LoggerPage() {
                   type="primary"
                   status="warning"
                   onClick={() => {
-                    queryLogs.forEach((log) => {
+                    for (const log of queryLogs) {
                       loggerDAO.delete(log.id);
-                    });
+                    }
                     setQueryLogs([]);
                     setLogs([]);
                     Message.info(t("delete_completed")!);

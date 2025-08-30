@@ -115,9 +115,10 @@ export default class BackupImport {
       }
       const key = name.substring(0, name.length - 13);
       const data = <ValueStorage>await this.getFileContent(file, true);
-      Object.keys(data.data).forEach((dataKey) => {
-        data.data[dataKey] = parseStorageValue(data.data[dataKey]);
-      });
+      const dataData = data.data;
+      for (const dataKey of Object.keys(dataData)) {
+        dataData[dataKey] = parseStorageValue(dataData[dataKey]);
+      }
       map.get(key)!.storage = data;
       return true;
     });
@@ -210,17 +211,17 @@ export default class BackupImport {
       try {
         const data = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyFile;
         // 设置开启状态
-        const keys = Object.keys(data.scripts);
-        keys.forEach((key) => {
-          const vioScript = data.scripts[key];
+        const scripts = data.scripts;
+        for (const key of Object.keys(scripts)) {
+          const vioScript = scripts[key];
           if (!vioScript.config.enabled) {
             const script = map.get(key);
             if (!script) {
-              return;
+              continue;
             }
             script.enabled = false;
           }
-        });
+        }
       } catch (e) {
         this.logger.error("violentmonkey file parse error", Logger.E(e));
       }

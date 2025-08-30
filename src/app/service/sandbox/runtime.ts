@@ -51,10 +51,10 @@ export class Runtime {
           retryList.push(item.script);
         }
       }
-      retryList.forEach((script) => {
+      for (const script of retryList) {
         script.nextruntime = 0;
         this.execScript(script);
-      });
+      }
     }, 5000);
   }
 
@@ -215,9 +215,9 @@ export class Runtime {
     });
     if (cronJobList.length !== script.metadata.crontab.length) {
       // 有表达式失败了
-      cronJobList.forEach((crontab) => {
+      for (const crontab of cronJobList) {
         crontab.stop();
-      });
+      }
     } else {
       this.cronJob.set(script.uuid, cronJobList);
     }
@@ -279,9 +279,9 @@ export class Runtime {
   stopCronJob(uuid: string) {
     const list = this.cronJob.get(uuid);
     if (list) {
-      list.forEach((val) => {
+      for (const val of list) {
         val.stop();
-      });
+      }
       this.cronJob.delete(uuid);
     }
     this.crontabSripts = this.crontabSripts.filter((val) => val.uuid !== uuid);

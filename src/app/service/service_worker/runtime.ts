@@ -202,15 +202,15 @@ export class RuntimeService {
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
     this.mq.subscribe("preparationOffscreen", () => {
       this.scriptDAO.all().then((list) => {
-        list.forEach((script) => {
+        for (const script of list) {
           if (script.type === SCRIPT_TYPE_NORMAL) {
-            return;
+            continue;
           }
           this.mq.publish<TEnableScript>("enableScript", {
             uuid: script.uuid,
             enable: script.status === SCRIPT_STATUS_ENABLE,
           });
-        });
+        }
       });
     });
 

@@ -143,15 +143,15 @@ const MainLayout: React.FC<{
   });
 
   const languageList: { key: string; title: string }[] = [];
-  Object.keys(i18n.store.data).forEach((key) => {
+  for (const key of Object.keys(i18n.store.data)) {
     if (key === "ach-UG") {
-      return;
+      continue;
     }
     languageList.push({
       key,
       title: i18n.store.data[key].title as string,
     });
-  });
+  }
   languageList.push({
     key: "help",
     title: t("help_translate"),

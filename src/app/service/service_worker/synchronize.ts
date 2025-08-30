@@ -138,9 +138,9 @@ export class SynchronizeService {
       ts: Date.now(),
     };
     const values = await this.value.getScriptValue(script);
-    Object.keys(values).forEach((key) => {
+    for (const key of Object.keys(values)) {
       storage.data[key] = values[key];
-    });
+    }
 
     const requires = await this.resource.getResourceByType(script, "require", false);
     const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
@@ -156,18 +156,19 @@ export class SynchronizeService {
 
   resourceToBackdata(resource: { [key: string]: Resource }) {
     const ret: ResourceBackup[] = [];
-    Object.keys(resource).forEach((key) => {
+    for (const key of Object.keys(resource)) {
+      const resourceValue = resource[key];
       ret.push({
         meta: {
-          name: this.getUrlName(resource[key].url),
-          url: resource[key].url,
-          ts: resource[key].updatetime || resource[key].createtime,
-          mimetype: resource[key].contentType,
+          name: this.getUrlName(resourceValue.url),
+          url: resourceValue.url,
+          ts: resourceValue.updatetime || resourceValue.createtime,
+          mimetype: resourceValue.contentType,
         },
-        source: resource[key]!.content || undefined,
-        base64: resource[key]!.base64,
+        source: resourceValue.content || undefined,
+        base64: resourceValue.base64,
       });
-    });
+    }
     return ret;
   }
 
@@ -343,7 +344,7 @@ export class SynchronizeService {
       },
     } as ScriptcatSync;
 
-    list.forEach((file) => {
+    for (const file of list) {
       if (file.name.endsWith(".user.js")) {
         const uuid = file.name.substring(0, file.name.length - 8);
         let files = uuidMap.get(uuid);
@@ -361,7 +362,7 @@ export class SynchronizeService {
         }
         files.meta = file;
       }
-    });
+    }
 
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
@@ -491,9 +492,9 @@ export class SynchronizeService {
   async updateFileDigest(fs: FileSystem) {
     const newList = await fs.list();
     const newFileDigestMap: { [key: string]: string } = {};
-    newList.forEach((file) => {
+    for (const file of newList) {
       newFileDigestMap[file.name] = file.digest;
-    });
+    }
     await this.storage.set("file_digest", newFileDigestMap);
     return;
   }
