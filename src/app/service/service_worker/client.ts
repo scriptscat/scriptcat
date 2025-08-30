@@ -2,7 +2,7 @@ import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/script
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem } from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -60,6 +60,10 @@ export class ScriptClient extends Client {
 
   getCode(uuid: string): Promise<ScriptCode | undefined> {
     return this.do("getCode", uuid);
+  }
+
+  getFilterResult(req: { type: SearchType; value: string }): Promise<ScriptCode | undefined> {
+    return this.do("getFilterResult", req);
   }
 
   getScriptRunResource(script: Script): Promise<ScriptRunResource> {

@@ -27,6 +27,7 @@ import { DocumentationSite } from "@App/app/const";
 import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
+import { SearchType } from "./types";
 
 const cIdKey = `(cid_${Math.random()})`;
 
@@ -325,6 +326,53 @@ export class ScriptService {
 
   getCode(uuid: string) {
     return this.scriptCodeDAO.get(uuid);
+  }
+
+  async getFilterResult(req: { type: SearchType; value: string }) {
+    const scripts = await this.scriptDAO.all();
+
+    const keyword = req.value.toLocaleLowerCase();
+
+    // 空格分开关键字搜索
+    const keys = keyword.split(" ");
+
+    const results: Partial<Record<string, string | boolean>>[] = [];
+    const codeCache: Partial<Record<string, string>> = {}; // temp cache
+    for (const script of scripts) {
+      const uuid = script.uuid;
+      const result: Partial<Record<string, string | boolean>> = { uuid: script.uuid };
+
+      const searchName = (keyword: string) => {
+        return script.name.includes(keyword);
+      };
+      const searchCode = async (keyword: string) => {
+        const c = codeCache[script.uuid];
+        if (c) {
+          return c.includes(keyword);
+        }
+
+        const code = await this.scriptCodeDAO.get(uuid);
+        if (code && code.uuid === script.uuid) {
+          codeCache[script.uuid] = code.code;
+          return code.code.includes(keyword);
+        }
+        return false;
+      };
+
+      for (const key of keys) {
+        if (result.code === undefined && (await searchCode(key))) {
+          result.code = true;
+        }
+        if (result.name === undefined && searchName(key)) {
+          result.name = true;
+        }
+      }
+      if (result.name || result.code) {
+        result.auto = true;
+      }
+      results.push(result);
+    }
+    return results;
   }
 
   getScriptRunResource(script: Script) {
@@ -649,6 +697,7 @@ export class ScriptService {
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getCode", this.getCode.bind(this));
+    this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));

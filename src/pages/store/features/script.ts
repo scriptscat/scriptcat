@@ -15,6 +15,7 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -59,6 +60,13 @@ export const requestScriptCode = createAsyncThunk("script/requestScriptCode", as
 
   return await scriptClient.getCode(uuid);
 });
+
+export const requestFilterResult = createAsyncThunk(
+  "script/requestFilterResult",
+  async (req: { type: SearchType; value: string }) => {
+    return await scriptClient.getFilterResult(req);
+  }
+);
 
 export type ScriptLoading = Script & {
   enableLoading?: boolean;
