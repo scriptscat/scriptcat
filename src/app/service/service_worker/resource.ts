@@ -170,10 +170,11 @@ export class ResourceService {
     let result = await this.getResourceModel(u.url);
     try {
       const resource = await this.loadByUrl(u.url, type);
-      resource.updatetime = Date.now();
+      const now = Date.now();
+      resource.updatetime = now;
       if (!result) {
         // 资源不存在,保存
-        resource.createtime = Date.now();
+        resource.createtime = now;
         resource.link = { [uuid]: true };
         await this.resourceDAO.save(resource);
         result = resource;
@@ -202,23 +203,27 @@ export class ResourceService {
     const resource = await this.resourceDAO.get(u.url);
     if (resource) {
       // 校验hash
-      if (u.hash) {
+      const hash = u.hash;
+      if (hash) {
         let flag = true;
-        Object.keys(u.hash).forEach((key) => {
-          if (isBase64(u.hash![key])) {
+        for (const key of Object.keys(hash)) {
+          if (isBase64(hash[key])) {
             // 对比base64编码的hash
-            if ((resource.hash as any).integrity && (resource.hash as any).integrity[key] !== u.hash![key]) {
+            const integrity = resource.hash.integrity as Partial<Record<string, string>>;
+            if (integrity && integrity[key] !== hash[key]) {
               flag = false;
+              break;
             }
           } else {
             // 对比普通的hash
             if (key in resource.hash) {
-              if (resource.hash[key as keyof ResourceHash] !== u.hash![key].toLowerCase()) {
+              if (resource.hash[key as keyof ResourceHash] !== hash[key].toLowerCase()) {
                 flag = false;
+                break;
               }
             }
           }
-        });
+        }
         if (!flag) {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
         }
@@ -330,10 +335,10 @@ export class ResourceService {
         const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
         });
-        resources.forEach((res) => {
+        for (const res of resources) {
           // 删除link
           delete res.link[data.uuid];
-        });
+        }
         await Promise.all(
           resources.map((res) => {
             if (Object.keys(res.link).length > 0) {
