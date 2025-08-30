@@ -531,8 +531,10 @@ export class RuntimeService {
     // 使注册时重新注入 chrome.runtime
     chrome.userScripts.resetWorldConfiguration();
 
+    // unregisterUserscripts 已处理。按道理不会有messageFlag。
+    // messageFlag是用来判断是否已经注册过了
     if (await this.getMessageFlag()) {
-      // 异常？
+      // 异常情况
       console.error("messageFlag exists");
       await loadingScriptMatchInfo;
       return;
