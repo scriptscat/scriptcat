@@ -27,7 +27,7 @@ import { DocumentationSite } from "@App/app/const";
 import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
-import { SearchType } from "./types";
+import type { SearchType } from "./types";
 
 const cIdKey = `(cid_${Math.random()})`;
 
@@ -329,7 +329,11 @@ export class ScriptService {
   }
 
   async getFilterResult(req: { type: SearchType; value: string }) {
+    const OPTION_CASE_INSENSITIVE = true;
     const scripts = await this.scriptDAO.all();
+    const scriptCodes = await Promise.all(
+      scripts.map((script) => this.scriptCodeDAO.get(script.uuid).catch((_) => undefined))
+    );
 
     const keyword = req.value.toLocaleLowerCase();
 
@@ -338,29 +342,38 @@ export class ScriptService {
 
     const results: Partial<Record<string, string | boolean>>[] = [];
     const codeCache: Partial<Record<string, string>> = {}; // temp cache
-    for (const script of scripts) {
+    for (let i = 0, l = scripts.length; i < l; i++) {
+      const script = scripts[i];
+      const scriptCode = scriptCodes[i];
       const uuid = script.uuid;
-      const result: Partial<Record<string, string | boolean>> = { uuid: script.uuid };
+      const result: Partial<Record<string, string | boolean>> = { uuid };
 
       const searchName = (keyword: string) => {
+        if (OPTION_CASE_INSENSITIVE) {
+          return script.name.toLowerCase().includes(keyword.toLowerCase());
+        }
         return script.name.includes(keyword);
       };
-      const searchCode = async (keyword: string) => {
-        const c = codeCache[script.uuid];
-        if (c) {
-          return c.includes(keyword);
+      const searchCode = (keyword: string) => {
+        let c = codeCache[script.uuid];
+        if (!c) {
+          const code = scriptCode;
+          if (code && code.uuid === script.uuid) {
+            codeCache[script.uuid] = c = code.code;
+            c = code.code;
+          }
         }
-
-        const code = await this.scriptCodeDAO.get(uuid);
-        if (code && code.uuid === script.uuid) {
-          codeCache[script.uuid] = code.code;
-          return code.code.includes(keyword);
+        if (c) {
+          if (OPTION_CASE_INSENSITIVE) {
+            return c.toLowerCase().includes(keyword.toLowerCase());
+          }
+          return c.includes(keyword);
         }
         return false;
       };
 
       for (const key of keys) {
-        if (result.code === undefined && (await searchCode(key))) {
+        if (result.code === undefined && searchCode(key)) {
           result.code = true;
         }
         if (result.name === undefined && searchName(key)) {
