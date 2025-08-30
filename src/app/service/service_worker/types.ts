@@ -3,6 +3,7 @@ import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type GetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
+export type SearchType = "auto" | "name" | "script_code";
 
 export interface ScriptMatchInfo extends ScriptRunResource {
   scriptUrlPatterns: URLRuleEntry[]; // 已被自定义覆盖的 UrlPatterns
