@@ -15,6 +15,7 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -48,17 +49,12 @@ export const requestDeleteScript = createAsyncThunk("script/deleteScript", async
   return await scriptClient.delete(uuid);
 });
 
-export const requestScriptCode = createAsyncThunk("script/requestScriptCode", async (uuid: string, { getState }) => {
-  const state = getState() as { script: { scripts: ScriptLoading[] } };
-  const script = state.script.scripts.find((s) => s.uuid === uuid);
-
-  // 如果已经有代码了，直接返回
-  if (script?.code !== undefined) {
-    return { code: script.code };
+export const requestFilterResult = createAsyncThunk(
+  "script/requestFilterResult",
+  async (req: { type: SearchType; value: string }) => {
+    return await scriptClient.getFilterResult(req);
   }
-
-  return await scriptClient.getCode(uuid);
-});
+);
 
 export type ScriptLoading = Script & {
   enableLoading?: boolean;
@@ -184,13 +180,7 @@ export const scriptSlice = createAppSlice({
       )
       .addCase(requestStopScript.fulfilled, (state, action) =>
         updateScript(state.scripts, action.meta.arg, (s) => (s.actionLoading = false))
-      )
-      //处理请求脚本代码
-      .addCase(requestScriptCode.fulfilled, (state, action) => {
-        updateScript(state.scripts, action.meta.arg, (s) => {
-          s.code = action.payload?.code.toLocaleLowerCase();
-        });
-      });
+      );
   },
   selectors: {
     selectScripts: (state) => state.scripts,

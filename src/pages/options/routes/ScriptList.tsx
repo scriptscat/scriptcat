@@ -82,11 +82,12 @@ import {
   updateEnableStatus,
   synchronizeClient,
   batchDeleteScript,
-  requestScriptCode,
+  requestFilterResult,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { store } from "@App/pages/store/store";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -204,8 +205,6 @@ const EnableSwitch = React.memo(
 );
 EnableSwitch.displayName = "EnableSwitch";
 
-type SearchType = "auto" | "name" | "script_code";
-
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
     script: Script;
@@ -224,6 +223,20 @@ function ScriptList() {
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
   const { t } = useTranslation();
+
+  const filterCache: Map<string, any> = new Map<string, any>();
+
+  const setFilterCache = (res: Partial<Record<string, any>>[] | null) => {
+    filterCache.clear();
+    if (res === null) return;
+    for (const entry of res) {
+      filterCache.set(entry.uuid, {
+        code: entry.code === true,
+        name: entry.name === true,
+        auto: entry.auto === true,
+      });
+    }
+  };
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -312,8 +325,21 @@ function ScriptList() {
                   size="small"
                   value={filterKeys[0].type || "auto"}
                   onChange={(value) => {
-                    filterKeys[0].type = value;
-                    setFilterKeys([...filterKeys]);
+                    if (value !== filterKeys[0].type) {
+                      filterKeys[0].type = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
+                      dispatch(requestFilterResult({ type: value, value: filterKeys[0].value }))
+                        .unwrap()
+                        .then((res) => {
+                          if (filterKeys[0].type !== value) return;
+                          setFilterCache(res as any);
+                          setFilterKeys([...filterKeys]);
+                        });
+                    }
                   }}
                 >
                   <Select.Option value="auto">{t("auto")}</Select.Option>
@@ -332,8 +358,21 @@ function ScriptList() {
                   }
                   value={filterKeys[0].value || ""}
                   onChange={(value) => {
-                    filterKeys[0].value = value;
-                    setFilterKeys([...filterKeys]);
+                    if (value !== filterKeys[0].value) {
+                      filterKeys[0].value = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
+                      dispatch(requestFilterResult({ value, type: filterKeys[0].type }))
+                        .unwrap()
+                        .then((res) => {
+                          if (filterKeys[0].value !== value) return;
+                          setFilterCache(res as any);
+                          setFilterKeys([...filterKeys]);
+                        });
+                    }
                   }}
                   onSearch={() => {
                     confirm!();
@@ -346,42 +385,18 @@ function ScriptList() {
             if (!value || !value.value) {
               return true;
             }
-            const keyword = value.value.toLocaleLowerCase();
-            row.name = row.name.toLocaleLowerCase();
-            const i18n = i18nName(row).toLocaleLowerCase();
-            // 空格分开关键字搜索
-            const keys = keyword.split(" ");
-            const searchName = (keyword: string) => {
-              return row.name.includes(keyword) || i18n.includes(keyword);
-            };
-            const searchCode = (keyword: string) => {
-              if (!row.code) {
-                // 没有code，请求一下code
-                dispatch(requestScriptCode(row.uuid));
+            const result = filterCache.get(row.uuid);
+            if (!result) return false;
+            switch (value.type) {
+              case "auto":
+                return result.auto;
+              case "script_code":
+                return result.code;
+              case "name":
+                return result.name;
+              default:
                 return false;
-              }
-              return row.code.includes(keyword);
-            };
-            for (const key of keys) {
-              switch (value.type) {
-                case "auto":
-                  if (searchName(key) || searchCode(key)) {
-                    return true;
-                  }
-                  break;
-                case "script_code":
-                  if (searchCode(key)) {
-                    return true;
-                  }
-                  break;
-                case "name":
-                  if (searchName(key)) {
-                    return true;
-                  }
-                  break;
-              }
             }
-            return false;
           },
           onFilterDropdownVisibleChange: (visible) => {
             if (visible) {

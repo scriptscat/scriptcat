@@ -27,6 +27,7 @@ import { DocumentationSite } from "@App/app/const";
 import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
+import type { SearchType } from "./types";
 
 const cIdKey = `(cid_${Math.random()})`;
 
@@ -323,8 +324,64 @@ export class ScriptService {
     return true;
   }
 
-  getCode(uuid: string) {
-    return this.scriptCodeDAO.get(uuid);
+  async getFilterResult(req: { type: SearchType; value: string }) {
+    const OPTION_CASE_INSENSITIVE = true;
+    const scripts = await this.scriptDAO.all();
+    const scriptCodes = await Promise.all(
+      scripts.map((script) => this.scriptCodeDAO.get(script.uuid).catch((_) => undefined))
+    );
+
+    const keyword = req.value.toLocaleLowerCase();
+
+    // 空格分开关键字搜索
+    const keys = keyword.split(" ");
+
+    const results: Partial<Record<string, string | boolean>>[] = [];
+    const codeCache: Partial<Record<string, string>> = {}; // temp cache
+    for (let i = 0, l = scripts.length; i < l; i++) {
+      const script = scripts[i];
+      const scriptCode = scriptCodes[i];
+      const uuid = script.uuid;
+      const result: Partial<Record<string, string | boolean>> = { uuid };
+
+      const searchName = (keyword: string) => {
+        if (OPTION_CASE_INSENSITIVE) {
+          return script.name.toLowerCase().includes(keyword.toLowerCase());
+        }
+        return script.name.includes(keyword);
+      };
+      const searchCode = (keyword: string) => {
+        let c = codeCache[script.uuid];
+        if (!c) {
+          const code = scriptCode;
+          if (code && code.uuid === script.uuid) {
+            codeCache[script.uuid] = c = code.code;
+            c = code.code;
+          }
+        }
+        if (c) {
+          if (OPTION_CASE_INSENSITIVE) {
+            return c.toLowerCase().includes(keyword.toLowerCase());
+          }
+          return c.includes(keyword);
+        }
+        return false;
+      };
+
+      for (const key of keys) {
+        if (result.code === undefined && searchCode(key)) {
+          result.code = true;
+        }
+        if (result.name === undefined && searchName(key)) {
+          result.name = true;
+        }
+      }
+      if (result.name || result.code) {
+        result.auto = true;
+      }
+      results.push(result);
+    }
+    return results;
   }
 
   getScriptRunResource(script: Script) {
@@ -342,7 +399,7 @@ export class ScriptService {
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),
-      this.getCode(script.uuid),
+      this.scriptCodeDAO.get(script.uuid),
     ]).then(([value, resource, code]) => {
       if (!code) {
         throw new Error("code is null");
@@ -648,7 +705,7 @@ export class ScriptService {
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
-    this.group.on("getCode", this.getCode.bind(this));
+    this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
