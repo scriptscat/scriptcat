@@ -125,6 +125,7 @@ export async function prepareScriptByCode(
   }
   const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
+  const now = Date.now();
   const script: Script = {
     uuid: newUUID,
     name: metadata.name[0],
@@ -142,9 +143,9 @@ export async function prepareScriptByCode(
     type,
     status: SCRIPT_STATUS_DISABLE,
     runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-    createtime: Date.now(),
-    updatetime: Date.now(),
-    checktime: Date.now(),
+    createtime: now,
+    updatetime: now,
+    checktime: now,
   };
   let old: Script | undefined;
   let oldCode: ScriptCode | undefined;
@@ -183,7 +184,7 @@ export async function prepareScriptByCode(
     if (script.type === SCRIPT_TYPE_NORMAL) {
       script.status = SCRIPT_STATUS_ENABLE;
     }
-    script.checktime = Date.now();
+    script.checktime = now;
   }
   return { script, oldScript: old, oldScriptCode: oldCode?.code };
 }
@@ -201,6 +202,7 @@ export async function prepareSubscribeByCode(
   if (metadata.name === undefined) {
     throw new Error("订阅名不能为空");
   }
+  const now = Date.now();
   const subscribe: Subscribe = {
     url,
     name: metadata.name[0],
@@ -209,9 +211,9 @@ export async function prepareSubscribeByCode(
     scripts: {},
     metadata: metadata,
     status: SUBSCRIBE_STATUS_ENABLE,
-    createtime: Date.now(),
-    updatetime: Date.now(),
-    checktime: Date.now(),
+    createtime: now,
+    updatetime: now,
+    checktime: now,
   };
   const old = await dao.findByUrl(url);
   if (old) {
