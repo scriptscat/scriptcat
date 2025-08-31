@@ -350,7 +350,7 @@
   "start_guide_content": "接下来我们将为您介绍脚本猫的基本使用方法",
   "guide_installed_scripts": "你所安装的脚本将会在这里显示",
   "guide_script_list_title": "脚本市场",
-  "guide_script_list_content": "可以从<Link href=\"https://scriptcat.org/search\">脚本市场</Link>中安装脚本，脚本猫除了支持用户脚本以外，还支持<Link href=\"https://docs.scriptcat.org/docs/dev/backgroud/\">后台脚本</Link>",
+  "guide_script_list_content": "可以从<Link href=\"https://scriptcat.org/search\">脚本市场</Link>中安装脚本，脚本猫除了支持用户脚本以外，还支持<Link href=\"https://docs.scriptcat.org/docs/dev/background/\">后台脚本</Link>",
   "guide_script_list_enable_title": "脚本开启",
   "guide_script_list_enable_content": "脚本需要开启才能使用，页面脚本安装默认开启，后台脚本安装默认关闭",
   "guide_script_list_apply_to_run_status_title": "应用至、与运行状态",
