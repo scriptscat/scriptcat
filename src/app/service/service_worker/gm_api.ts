@@ -4,7 +4,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { GetSender, type Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import type { MessageQueueGroup } from "@Packages/message/message_queue";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
@@ -129,7 +129,7 @@ export default class GMApi {
     private permissionVerify: PermissionVerify,
     private group: Group,
     private send: MessageSend,
-    private mq: MessageQueue,
+    private mq: MessageQueueGroup,
     private value: ValueService,
     private gmExternalDependencies: IGMExternalDependencies
   ) {

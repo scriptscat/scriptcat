@@ -145,7 +145,7 @@ export class Group {
     private name: string,
     middleware?: MiddlewareFunction
   ) {
-    if (!name.endsWith("/")) {
+    if (!name.endsWith("/") && name.length > 0) {
       this.name += "/";
     }
     if (middleware) {
@@ -160,9 +160,10 @@ export class Group {
     return newGroup;
   }
 
-  use(middleware: MiddlewareFunction) {
-    this.middlewares.push(middleware);
-    return this;
+  use(middleware: MiddlewareFunction): Group {
+    const newGroup = new Group(this.server, `${this.name}`, middleware);
+    newGroup.middlewares = [...this.middlewares, ...newGroup.middlewares];
+    return newGroup;
   }
 
   on(name: string, func: ApiFunction) {

@@ -78,7 +78,7 @@ export class MessageQueueGroup {
     private name: string,
     middleware?: MiddlewareFunction
   ) {
-    if (!name.endsWith("/")) {
+    if (!name.endsWith("/") && name.length > 0) {
       this.name += "/";
     }
     if (middleware) {

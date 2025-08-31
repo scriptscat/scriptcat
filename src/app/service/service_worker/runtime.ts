@@ -1,5 +1,5 @@
 import type { EmitEventRequest, ScriptLoadInfo, TScriptMatchInfoEntry } from "./types";
-import type { MessageQueue } from "@Packages/message/message_queue";
+import type { MessageQueue, MessageQueueGroup } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
@@ -74,17 +74,29 @@ export class RuntimeService {
   // initReady
   initReady: Promise<boolean> | boolean = false;
 
+  mq: MessageQueueGroup;
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
     private sender: MessageSend,
-    private mq: MessageQueue,
+    mq: MessageQueue,
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
     private scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
+
+    // 使用中间件
+    this.group = this.group.use(async (_, __, next) => {
+      if (typeof this.initReady !== "boolean") await this.initReady;
+      return next();
+    });
+    this.mq = mq.group("", async (_, __, next) => {
+      if (typeof this.initReady !== "boolean") await this.initReady;
+      return next();
+    });
   }
 
   async initUserAgentData() {
@@ -151,7 +163,6 @@ export class RuntimeService {
   }
 
   async valueUpdate(data: TScriptValueUpdate) {
-    if (typeof this.initReady !== "boolean") await this.initReady;
     if (!isEarlyStartScript(data.script)) {
       return;
     }
@@ -192,7 +203,6 @@ export class RuntimeService {
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript>("enableScript", async (data) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
       const script = await this.scriptDAO.getAndCode(data.uuid);
       if (!script) {
         this.logger.error("script enable failed, script not found", {
@@ -214,7 +224,6 @@ export class RuntimeService {
 
     // 监听脚本安装
     this.mq.subscribe<TInstallScript>("installScript", async (data) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
       const script = await this.scriptDAO.get(data.script.uuid);
       if (!script) {
         this.logger.error("script install failed, script not found", {
@@ -231,7 +240,6 @@ export class RuntimeService {
 
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
       await this.unregistryPageScript(uuid);
       await this.deleteScriptMatch(uuid);
       // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
@@ -240,7 +248,6 @@ export class RuntimeService {
 
     // 监听脚本排序
     this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
       // 更新缓存
@@ -258,7 +265,6 @@ export class RuntimeService {
 
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
     this.mq.subscribe("preparationOffscreen", async () => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
       await this.scriptDAO.all().then((list) => {
         list.forEach((script) => {
           if (script.type === SCRIPT_TYPE_NORMAL) {
@@ -636,8 +642,6 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
-    if (typeof this.initReady !== "boolean") await this.initReady;
-
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
@@ -805,13 +809,11 @@ export class RuntimeService {
 
   // 停止脚本
   async stopScript(uuid: string) {
-    if (typeof this.initReady !== "boolean") await this.initReady;
     return await stopScript(this.sender, uuid);
   }
 
   // 运行脚本
   async runScript(uuid: string) {
-    if (typeof this.initReady !== "boolean") await this.initReady;
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       return;
