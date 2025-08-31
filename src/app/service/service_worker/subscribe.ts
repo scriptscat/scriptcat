@@ -94,18 +94,18 @@ export class SubscribeService {
     const removeScript: SubscribeScript[] = [];
     const scriptUrl = subscribe.metadata.scripturl || [];
     const scripts = Object.keys(subscribe.scripts);
-    scriptUrl.forEach((url) => {
+    for (const url of scriptUrl) {
       // 不存在于已安装的脚本中, 则添加
       if (!scripts.includes(url)) {
         addScript.push(url);
       }
-    });
-    scripts.forEach((url) => {
+    }
+    for (const url of scripts) {
       // 不存在于订阅的脚本中, 则删除
       if (!scriptUrl.includes(url)) {
         removeScript.push(subscribe.scripts[url]);
       }
-    });
+    }
 
     const notification: string[][] = [[], []];
     const result: Promise<boolean>[] = [];
@@ -242,12 +242,12 @@ export class SubscribeService {
       return value.checktime + checkCycle * 1000 < Date.now();
     });
 
-    list.forEach((subscribe) => {
+    for (const subscribe of list) {
       if (!checkDisable && subscribe.status === SUBSCRIBE_STATUS_ENABLE) {
-        return;
+        continue;
       }
       this.checkUpdate(subscribe.url, "system");
-    });
+    }
   }
 
   requestCheckUpdate(url: string) {

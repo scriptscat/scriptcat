@@ -590,6 +590,7 @@ export class ScriptService {
     }
     this.scriptDAO.all().then(async (scripts) => {
       const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
+      const now = Date.now();
       scripts.forEach(async (script) => {
         // 不检查更新
         if (script.checkUpdate === false) {
@@ -600,7 +601,7 @@ export class ScriptService {
           return;
         }
         // 检查是否符合
-        if (script.checktime + checkCycle * 1000 > Date.now()) {
+        if (script.checktime + checkCycle * 1000 > now) {
           return;
         }
         this.checkUpdate(script.uuid, "system");

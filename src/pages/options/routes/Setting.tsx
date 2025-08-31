@@ -37,15 +37,15 @@ function Setting() {
   const [scriptMenuDisplayType, setScriptMenuDisplayType] = useState<"no_browser" | "all">("all");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
-  Object.keys(i18n.store.data).forEach((key) => {
+  for (const key of Object.keys(i18n.store.data)) {
     if (key === "ach-UG") {
-      return;
+      continue;
     }
     languageList.push({
       key,
       title: i18n.store.data[key].title as string,
     });
-  });
+  }
   languageList.push({
     key: "help",
     title: t("help_translate"),

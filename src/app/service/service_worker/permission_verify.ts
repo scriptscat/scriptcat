@@ -300,7 +300,7 @@ export default class PermissionVerify {
     // 查询允许统配的有多少个相同等待确认权限
     let likeNum = 0;
     if (data.confirm.wildcard) {
-      this.confirmQueue.list.forEach((value) => {
+      for (const value of this.confirmQueue.list) {
         const confirm = value.confirm as ConfirmParam;
         if (
           confirm.wildcard &&
@@ -309,7 +309,7 @@ export default class PermissionVerify {
         ) {
           likeNum += 1;
         }
-      });
+      }
     }
     return { script, confirm, likeNum };
   }
@@ -352,9 +352,9 @@ export default class PermissionVerify {
   async resetPermission(uuid: string) {
     // 删除所有权限
     const permissions = await this.permissionDAO.find((key, item) => item.uuid === uuid);
-    permissions.forEach((item) => {
+    for (const item of permissions) {
       this.permissionDAO.delete(this.permissionDAO.key(item));
-    });
+    }
     this.clearCache(uuid);
   }
 

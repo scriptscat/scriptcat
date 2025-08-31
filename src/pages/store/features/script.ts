@@ -135,15 +135,15 @@ export const scriptSlice = createAppSlice({
     },
     setScriptFavicon: (state, action: PayloadAction<{ uuid: string; fav: { match: string; icon?: string }[] }[]>) => {
       const scriptMap = new Map<string, ScriptLoading>();
-      state.scripts.forEach((s) => {
+      for (const s of state.scripts) {
         scriptMap.set(s.uuid, s);
-      });
-      action.payload.forEach((item) => {
+      }
+      for (const item of action.payload) {
         const script = scriptMap.get(item.uuid);
         if (script) {
           script.favorite = item.fav;
         }
-      });
+      }
     },
   },
   extraReducers: (builder) => {

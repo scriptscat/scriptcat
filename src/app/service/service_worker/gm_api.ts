@@ -373,10 +373,10 @@ export default class GMApi {
       case "list":
         try {
           const list = await fs.list();
-          list.forEach((file) => {
+          for (const file of list) {
             (<any>file).absPath = file.path;
             file.path = joinPath(file.path.substring(file.path.indexOf(baseDir) + baseDir.length));
-          });
+          }
           return { action: "onload", data: list };
         } catch (e: any) {
           return { action: "error", data: { code: 3, error: e.message } };
@@ -510,7 +510,7 @@ export default class GMApi {
       }
     }
 
-    Object.keys(headers).forEach((key) => {
+    for (const key of Object.keys(headers)) {
       /** 请求的header的值 */
       const headerValue = headers[key];
       let deleteHeader = false;
@@ -531,7 +531,7 @@ export default class GMApi {
         deleteHeader = true;
       }
       deleteHeader && delete headers[key];
-    });
+    }
 
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = reqeustId;
@@ -542,11 +542,11 @@ export default class GMApi {
     rule.priority = 1;
     const tabs = await chrome.tabs.query({});
     const excludedTabIds: number[] = [];
-    tabs.forEach((tab) => {
+    for (const tab of tabs) {
       if (tab.id) {
         excludedTabIds.push(tab.id);
       }
-    });
+    }
     let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
     if (!this.chromeSupportMethod.has(requestMethod)) {
       requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;

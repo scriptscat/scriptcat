@@ -42,13 +42,13 @@ export function parseExportCookie(exportCookie: string): Promise<ExportCookies[]
     const line = lines[i];
     const detail: ExportCookies = {};
     if (line.trim()) {
-      line.split(";").forEach((param) => {
+      for (const param of line.split(";")) {
         const s = param.split("=");
         if (s.length !== 2) {
-          return;
+          continue;
         }
         detail[s[0].trim()] = s[1].trim();
-      });
+      }
       if (detail.url || detail.domain) {
         result.push(
           new Promise<ExportCookies>((resolve) => {
