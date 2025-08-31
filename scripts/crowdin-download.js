@@ -10,7 +10,7 @@ execSync("crowdin download --skip-untranslated-strings", { stdio: "inherit" });
 const localesPath = "./src/locales";
 function removeEmptyStringsFromLocaleFiles(dir) {
   const files = readdirSync(dir);
-  files.forEach((file) => {
+  for (const file of files) {
     const filePath = join(dir, file);
     if (statSync(filePath).isDirectory() && !filePath.includes("zh-CN")) {
       removeEmptyStringsFromLocaleFiles(filePath);
@@ -23,6 +23,6 @@ function removeEmptyStringsFromLocaleFiles(dir) {
       }
       writeFileSync(filePath, JSON.stringify(content, null, 2));
     }
-  });
+  }
 }
 removeEmptyStringsFromLocaleFiles(localesPath);

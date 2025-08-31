@@ -903,9 +903,9 @@ function ScriptList() {
                           break;
                         case "export": {
                           const uuids: string[] = [];
-                          select.forEach((item) => {
+                          for (const item of select) {
                             uuids.push(item.uuid);
-                          });
+                          }
                           Message.loading({
                             id: "export",
                             content: t("exporting"),
@@ -1074,9 +1074,9 @@ function ScriptList() {
                     size="mini"
                     onClick={() => {
                       const newWidth: { [key: string]: number } = {};
-                      newColumns.forEach((column) => {
+                      for (const column of newColumns) {
                         newWidth[column.key! as string] = column.width as number;
-                      });
+                      }
                       systemConfig.setScriptListColumnWidth(newWidth);
                     }}
                   >

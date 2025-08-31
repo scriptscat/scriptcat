@@ -224,10 +224,10 @@ export default class GMApi extends GM_Base {
     if (typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
-    Object.keys(values).forEach((key) => {
+    for (const key of Object.keys(values)) {
       const value = values[key];
       _GM_setValue(this, key, value);
-    });
+    }
   }
 
   @GMContext.API()
@@ -249,10 +249,10 @@ export default class GMApi extends GM_Base {
     } else {
       // 对象 键: 默认值
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
-      Object.keys(keysOrDefaults).forEach((key) => {
+      for (const key of Object.keys(keysOrDefaults)) {
         const defaultValue = keysOrDefaults[key];
         result[key] = _GM_getValue(this, key, defaultValue);
-      });
+      }
     }
     return result;
   }
@@ -282,9 +282,9 @@ export default class GMApi extends GM_Base {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
-    keys.forEach((key) => {
+    for (const key of keys) {
       _GM_setValue(this, key, undefined);
-    });
+    }
   }
 
   // Asynchronous wrapper for GM.deleteValues
@@ -598,13 +598,14 @@ export default class GMApi extends GM_Base {
 
   static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
     const u = new URL(details.url, window.location.href);
-    if (details.headers) {
-      Object.keys(details.headers).forEach((key) => {
+    const headers = details.headers;
+    if (headers) {
+      for (const key of Object.keys(headers)) {
         if (key.toLowerCase() === "cookie") {
-          details.cookie = details.headers![key];
-          delete details.headers![key];
+          details.cookie = headers[key];
+          delete headers[key];
         }
-      });
+      }
     }
 
     const param: GMSend.XHRDetails = {
