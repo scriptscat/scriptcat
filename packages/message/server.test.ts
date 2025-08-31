@@ -260,7 +260,7 @@ describe("Server", () => {
         return result;
       });
 
-      const group = server.group("api", middleware1);
+      let group = server.group("api", middleware1);
 
       // 添加另一个中间件
       const middleware2 = vi.fn(async (params: any, con: any, next: any) => {
@@ -270,7 +270,7 @@ describe("Server", () => {
         return result;
       });
 
-      group.use(middleware2);
+      group = group.use(middleware2);
 
       // 注册一个处理函数
       const handler = vi.fn(async (params: any) => {

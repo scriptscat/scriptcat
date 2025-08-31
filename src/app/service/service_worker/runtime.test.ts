@@ -70,9 +70,13 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       buildScriptRunResource: vi.fn(),
     };
 
-    const mockGroup = {} as Group;
+    const mockGroup = {
+      use: vi.fn().mockReturnThis(),
+    } as unknown as Group;
     const mockSender = {} as MessageSend;
-    const mockMessageQueue = {} as MessageQueue;
+    const mockMessageQueue = {
+      group: vi.fn().mockReturnValue(mockGroup),
+    } as unknown as MessageQueue;
     const mockValueService = {} as ValueService;
     const mockResourceService = {} as ResourceService;
     const mockScriptDAO = {} as ScriptDAO;
