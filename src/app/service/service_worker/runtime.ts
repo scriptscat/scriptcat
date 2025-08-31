@@ -68,7 +68,7 @@ export class RuntimeService {
   // 注意：即使没有使用 Object.freeze, 也不应该直接修改阵列内容 (immutable)
   blacklist: string[] = [];
 
-  // Promise to pre-fetch inject.js
+  // 获取inject.js内容时调用，需要预先调用preInject
   injectJsCodePromise: Promise<string | undefined> | null = null;
 
   // initReady
@@ -168,6 +168,7 @@ export class RuntimeService {
           return undefined;
         });
     }
+    return this.injectJsCodePromise;
   }
 
   async init() {
@@ -457,7 +458,8 @@ export class RuntimeService {
     return registerScripts;
   }
 
-  async getGeneralScriptList() {
+  // 获取content.js和inject.js的脚本注册信息
+  async getContentAndInjectScript() {
     // 黑名单排除
 
     const blacklist = this.blacklist;
@@ -544,7 +546,7 @@ export class RuntimeService {
       // registerScripts
       this.getParticularScriptList(),
       // content.js, inject.js
-      this.getGeneralScriptList(),
+      this.getContentAndInjectScript(),
     ]);
 
     const list = [...particularScriptList, ...generalScriptList];

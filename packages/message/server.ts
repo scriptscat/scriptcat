@@ -40,6 +40,7 @@ export class GetSender {
 
 type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
 type ApiFunctionSync = (params: any, con: GetSender) => any;
+type MiddlewareFunction = (params: any, con: GetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
@@ -72,8 +73,8 @@ export class Server {
     });
   }
 
-  group(name: string) {
-    return new Group(this, name);
+  group(name: string, middleware?: MiddlewareFunction) {
+    return new Group(this, name, middleware);
   }
 
   on(name: string, func: ApiFunction) {
@@ -137,21 +138,57 @@ export class Server {
 }
 
 export class Group {
+  private middlewares: MiddlewareFunction[] = [];
+
   constructor(
     private server: Server,
-    private name: string
+    private name: string,
+    middleware?: MiddlewareFunction
   ) {
     if (!name.endsWith("/")) {
       this.name += "/";
     }
+    if (middleware) {
+      this.middlewares.push(middleware);
+    }
   }
 
-  group(name: string) {
-    return new Group(this.server, `${this.name}${name}`);
+  group(name: string, middleware?: MiddlewareFunction) {
+    const newGroup = new Group(this.server, `${this.name}${name}`, middleware);
+    // 继承父级的中间件
+    newGroup.middlewares = [...this.middlewares, ...newGroup.middlewares];
+    return newGroup;
+  }
+
+  use(middleware: MiddlewareFunction) {
+    this.middlewares.push(middleware);
+    return this;
   }
 
   on(name: string, func: ApiFunction) {
-    this.server.on(`${this.name}${name}`, func);
+    const fullName = `${this.name}${name}`;
+
+    if (this.middlewares.length === 0) {
+      // 没有中间件，直接注册
+      this.server.on(fullName, func);
+    } else {
+      // 有中间件，需要包装处理函数
+      this.server.on(fullName, async (params: any, con: GetSender) => {
+        let index = 0;
+
+        const next = async (): Promise<any> => {
+          if (index < this.middlewares.length) {
+            const middleware = this.middlewares[index++];
+            return await middleware(params, con, next);
+          } else {
+            // 所有中间件都执行完毕，执行最终的处理函数
+            return await func(params, con);
+          }
+        };
+
+        return await next();
+      });
+    }
   }
 }
 
