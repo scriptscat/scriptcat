@@ -347,7 +347,7 @@ function App() {
         />
         <Collapse
           bordered={false}
-          defaultActiveKey={["script", "background"]}
+          defaultActiveKey={["script", ...(backScriptList.length > 0 ? ["background"] : [])]}
           style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
         >
           <CollapseItem
