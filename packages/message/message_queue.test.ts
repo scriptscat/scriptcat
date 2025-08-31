@@ -54,7 +54,7 @@ describe("MessageQueueGroup", () => {
     it("应该自动为分组名称添加斜杠", () => {
       const group1 = messageQueue.group("group1");
       const group2 = messageQueue.group("group2/");
-      
+
       const handler1 = vi.fn();
       const handler2 = vi.fn();
 
@@ -73,7 +73,7 @@ describe("MessageQueueGroup", () => {
       const apiGroup = messageQueue.group("api");
       const userGroup = apiGroup.group("user");
       const profileGroup = userGroup.group("profile");
-      
+
       const handler = vi.fn();
       profileGroup.subscribe("get", handler);
 
@@ -94,7 +94,7 @@ describe("MessageQueueGroup", () => {
       });
 
       const group = messageQueue.group("api", middleware);
-      
+
       const handler = vi.fn(() => {
         middlewareOrder.push("handler");
       });
@@ -103,7 +103,7 @@ describe("MessageQueueGroup", () => {
 
       // 等待异步操作
       group.emit("test", { data: "test" });
-      
+
       // 使用 setTimeout 确保异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -128,7 +128,7 @@ describe("MessageQueueGroup", () => {
       });
 
       const group = messageQueue.group("api").use(middleware1).use(middleware2);
-      
+
       const handler = vi.fn(() => {
         middlewareOrder.push("handler");
       });
@@ -198,7 +198,7 @@ describe("MessageQueueGroup", () => {
   describe("发布方法测试", () => {
     it("publish 方法应该使用 chrome.runtime.sendMessage", () => {
       const group = messageQueue.group("api");
-      
+
       group.publish("test", { data: "test" });
 
       expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
@@ -225,7 +225,7 @@ describe("MessageQueueGroup", () => {
       const handler = vi.fn();
 
       const unsubscribe = group.subscribe("test", handler);
-      
+
       // 发布消息，应该收到
       group.emit("test", { data: "test1" });
       expect(handler).toHaveBeenCalledWith({ data: "test1" });
