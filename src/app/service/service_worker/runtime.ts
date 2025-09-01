@@ -831,7 +831,6 @@ export class RuntimeService {
         earlyScriptFlag.push(script.flag);
       }
     });
-    this.script.getAllScripts();
 
     const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(earlyScriptFlag)})`;
     const script: chrome.userScripts.RegisteredUserScript = {
