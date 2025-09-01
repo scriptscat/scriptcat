@@ -432,6 +432,7 @@ describe("UrlMatch-Issue629", () => {
     um.addRules("ok1", scriptUrlPatterns);
     expect(um.urlMatch("https://www.example.com/cn/?v=example")).toEqual(["ok1"]);
     expect(um.urlMatch("https://example.com/")).toEqual(["ok1"]);
+    expect(um.urlMatch("https://my-example.com/")).toEqual([]);
   });
 });
 
