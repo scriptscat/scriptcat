@@ -80,7 +80,7 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
           // * 会对应成 *://*/
           content = "*://*/";
         } else {
-          m = /^(\*|[-a-z]+|http\*)(:\/\/\*?[^*/:]*)(:[^*/]*)?/.exec(content);
+          m = /^(\*|[-a-z]+|http\*)(:\/\/)(\*?[^*/:]*)(:[^*/]*)?/.exec(content);
           // 若无法匹对，则表示该表达式应为错误match pattern格式，忽略处理。
           if (m) {
             // 特殊处理：自动除去 port (TM的行为是以下完全等价)
@@ -106,7 +106,13 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
               path = path.substring(1);
             }
 
-            content = `${scheme}${m[2]}${path}`;
+            let domain = m[3];
+            // 特殊处理 *domain.com 为 *.domain.com
+            if (domain != "*" && domain.startsWith("*") && !domain.startsWith("*.")) {
+              domain = `*.${domain.substring(1)}`;
+            }
+
+            content = `${scheme}://${domain}${path}`;
           }
         }
       } else {

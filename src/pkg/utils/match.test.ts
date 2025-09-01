@@ -294,6 +294,24 @@ describe("UrlMatch-special", () => {
     expect(url.urlMatch("https://api.example.com/foo/bar")).toEqual(["ok1"]);
     expect(url.urlMatch("https://api.foo.example.com/foo/bar")).toEqual(["ok1"]);
   });
+
+  describe("https://*example.com/*", () => {
+    it("match", () => {
+      const url = new UrlMatch<string>();
+      url.addMatch("https://*example.com/*", "ok1");
+      expect(url.urlMatch("https://example.com/")).toEqual(["ok1"]);
+      expect(url.urlMatch("https://www.example.com/")).toEqual(["ok1"]);
+      expect(url.urlMatch("https://123example.com/")).toEqual([]);
+    });
+
+    it("include", () => {
+      const url = new UrlMatch<string>();
+      url.addInclude("https://*example.com/*", "ok1");
+      expect(url.urlMatch("https://example.com/")).toEqual(["ok1"]);
+      expect(url.urlMatch("https://www.example.com/")).toEqual(["ok1"]);
+      expect(url.urlMatch("https://123example.com/")).toEqual(["ok1"]);
+    });
+  });
 });
 
 describe("UrlMatch-match1", () => {

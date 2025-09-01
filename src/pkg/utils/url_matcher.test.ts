@@ -48,6 +48,7 @@ describe("extractSchemesOfGlobs", () => {
     expect(extractSchemesOfGlobs(["http*://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["https://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["http://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
+    expect(extractSchemesOfGlobs(["https://*google.com/*"])).toEqual(["*://*/*"]);
     // 預設包含 *://*/*
     expect(extractSchemesOfGlobs(["file:///mydrive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
     expect(extractSchemesOfGlobs(["file:///my?ive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
@@ -123,6 +124,7 @@ describe("extractUrlPatterns", () => {
       "@match http://google.com/*",
       "@match https://google.com/*",
       "@match file:///mydir/myfile/001/*",
+      "@match *://*example.com/*",
       "@include *hello*",
       "@exclude *world*",
       "@include /.*apple.*/",
@@ -149,26 +151,32 @@ describe("extractUrlPatterns", () => {
       patternString: "file:///mydir/myfile/001/*",
     });
     expect(scriptUrlPatterns[3]).toEqual({
-      ruleType: RuleType.GLOB_INCLUDE,
+      ruleType: RuleType.MATCH_INCLUDE,
       ruleContent: scriptUrlPatterns[3].ruleContent,
+      ruleTag: "match",
+      patternString: "*://*.example.com/*",
+    });
+    expect(scriptUrlPatterns[4]).toEqual({
+      ruleType: RuleType.GLOB_INCLUDE,
+      ruleContent: scriptUrlPatterns[4].ruleContent,
       ruleTag: "include",
       patternString: "*hello*",
     });
-    expect(scriptUrlPatterns[4]).toEqual({
+    expect(scriptUrlPatterns[5]).toEqual({
       ruleType: RuleType.GLOB_EXCLUDE,
-      ruleContent: scriptUrlPatterns[4].ruleContent,
+      ruleContent: scriptUrlPatterns[5].ruleContent,
       ruleTag: "exclude",
       patternString: "*world*",
     });
-    expect(scriptUrlPatterns[5]).toEqual({
+    expect(scriptUrlPatterns[6]).toEqual({
       ruleType: RuleType.REGEX_INCLUDE,
-      ruleContent: scriptUrlPatterns[5].ruleContent,
+      ruleContent: scriptUrlPatterns[6].ruleContent,
       ruleTag: "include",
       patternString: "/.*apple.*/",
     });
-    expect(scriptUrlPatterns[6]).toEqual({
+    expect(scriptUrlPatterns[7]).toEqual({
       ruleType: RuleType.REGEX_EXCLUDE,
-      ruleContent: scriptUrlPatterns[6].ruleContent,
+      ruleContent: scriptUrlPatterns[7].ruleContent,
       ruleTag: "exclude",
       patternString: "/.*juice.*/",
     });
