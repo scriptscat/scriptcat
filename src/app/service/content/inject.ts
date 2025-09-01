@@ -117,10 +117,34 @@ export class InjectRuntime {
       } catch {
         // 无法注入到 external，忽略
       }
-      try {
-        external.Tampermonkey = scriptExpose;
-      } catch {
-        // 无法注入到 external，忽略
+      const exposedTM = external.Tampermonkey;
+      const isInstalledTM = exposedTM?.isInstalled;
+      const isInstalledSC = scriptExpose.isInstalled;
+      if (isInstalledTM && exposedTM?.getVersion && exposedTM.openOptions) {
+        // 当TM和SC同时启动的特殊处理：如TM没有安装，则查SC的安装状态
+        try {
+          exposedTM.isInstalled = (
+            name: string,
+            namespace: string,
+            callback: (res: App.IsInstalledResponse | undefined) => unknown
+          ) => {
+            isInstalledTM(name, namespace, (res) => {
+              if (res?.installed) callback(res);
+              else
+                isInstalledSC(name, namespace, (res) => {
+                  callback(res);
+                });
+            });
+          };
+        } catch {
+          // 忽略错误
+        }
+      } else {
+        try {
+          external.Tampermonkey = scriptExpose;
+        } catch {
+          // 无法注入到 external，忽略
+        }
       }
     }
   }
