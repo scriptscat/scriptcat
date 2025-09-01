@@ -427,12 +427,22 @@ describe("UrlMatch-exclusion", () => {
 
 describe("UrlMatch-Issue629", () => {
   it("match-1", () => {
-    const scriptUrlPatterns = extractUrlPatterns(["@include     http*://*example.com/*"]);
+    const scriptUrlPatterns = extractUrlPatterns(["@match     http*://*example.com/*"]);
     const um = new UrlMatch<string>();
     um.addRules("ok1", scriptUrlPatterns);
     expect(um.urlMatch("https://www.example.com/cn/?v=example")).toEqual(["ok1"]);
     expect(um.urlMatch("https://example.com/")).toEqual(["ok1"]);
     expect(um.urlMatch("https://my-example.com/")).toEqual([]);
+    expect(um.urlMatch("https://abcexample.com/")).toEqual([]);
+  });
+  it("include-1", () => {
+    const scriptUrlPatterns = extractUrlPatterns(["@include     http*://*example.com/*"]);
+    const um = new UrlMatch<string>();
+    um.addRules("ok1", scriptUrlPatterns);
+    expect(um.urlMatch("https://www.example.com/cn/?v=example")).toEqual(["ok1"]);
+    expect(um.urlMatch("https://example.com/")).toEqual(["ok1"]);
+    expect(um.urlMatch("https://my-example.com/")).toEqual(["ok1"]);
+    expect(um.urlMatch("https://abcexample.com/")).toEqual(["ok1"]);
   });
 });
 
