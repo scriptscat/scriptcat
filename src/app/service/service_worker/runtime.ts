@@ -502,19 +502,21 @@ export class RuntimeService {
       }
     }
 
-    const list: chrome.userScripts.RegisteredUserScript[] = [];
+    const res = {} as {
+      content: chrome.scripting.RegisteredContentScript;
+      inject: chrome.userScripts.RegisteredUserScript | null;
+    };
 
     // content.js
-    list[0] = {
+    const script: chrome.scripting.RegisteredContentScript = {
       id: "scriptcat-content",
-      js: [{ file: "src/content.js" }],
+      js: ["src/content.js"],
       matches: ["<all_urls>"],
       allFrames: true,
       runAt: "document_start",
-      world: "USER_SCRIPT",
       excludeMatches,
-      excludeGlobs,
     };
+    res.content = script;
 
     // inject.js
     const injectJs = await this.injectJsCodePromise;
@@ -523,10 +525,10 @@ export class RuntimeService {
         excludeMatches,
         excludeGlobs,
       });
-      list.push(script);
+      res.inject = script;
     }
 
-    return list;
+    return res;
   }
 
   async registerUserscripts() {
@@ -555,7 +557,15 @@ export class RuntimeService {
       this.getContentAndInjectScript(),
     ]);
 
-    const list = [...particularScriptList, ...generalScriptList];
+    const list = [...particularScriptList, generalScriptList.inject!];
+
+    // 注册 content.js
+    const contentScript: chrome.scripting.RegisteredContentScript = generalScriptList.content;
+    try {
+      await chrome.scripting.registerContentScripts([contentScript]);
+    } catch (e: any) {
+      this.logger.error("register content.js error", Logger.E(e));
+    }
 
     try {
       await chrome.userScripts.register(list);
