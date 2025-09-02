@@ -3,7 +3,7 @@ import { WarpTokenError } from "./error";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { sleep } from "@App/pkg/utils/utils";
 
-type NetDiskType = "baidu" | "onedrive" | "googledrive";
+type NetDiskType = "baidu" | "onedrive" | "googledrive" | "dropbox";
 
 export function GetNetDiskToken(netDiskType: NetDiskType): Promise<{
   code: number;
