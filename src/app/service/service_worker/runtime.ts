@@ -685,10 +685,14 @@ export class RuntimeService {
       }
       // 判断注入页面类型
       if (scriptRes.metadata["run-in"]) {
-        // 判断插件运行环境
-        const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
-        if (!scriptRes.metadata["run-in"].includes(contextType)) {
-          continue;
+        const runIn = scriptRes.metadata["run-in"][0];
+        console.log(scriptRes.metadata["run-in"], chrome.extension.inIncognitoContext);
+        if (runIn !== "all") {
+          // 判断插件运行环境
+          const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+          if (runIn !== contextType) {
+            continue;
+          }
         }
       }
       // 如果是iframe,判断是否允许在iframe里运行

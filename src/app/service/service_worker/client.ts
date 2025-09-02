@@ -158,6 +158,10 @@ export class ScriptClient extends Client {
   setCheckUpdateUrl(uuid: string, checkUpdate: boolean, checkUpdateUrl?: string) {
     return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
   }
+
+  updateMetadata(uuid: string, key: string, value: string[]) {
+    return this.do("updateMetadata", { uuid, key, value });
+  }
 }
 
 export class ResourceClient extends Client {
