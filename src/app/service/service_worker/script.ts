@@ -49,8 +49,8 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onResponseStarted.addListener(
-      (req: chrome.webRequest.OnResponseStartedDetails) => {
+    chrome.webRequest.onBeforeRequest.addListener(
+      (req: chrome.webRequest.OnBeforeRequestDetails) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
           return undefined;
