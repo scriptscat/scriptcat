@@ -178,6 +178,14 @@ export default class ServiceWorkerManager {
             });
         }
       });
+
+      // 监听扩展卸载事件
+      chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
+        }
+      });
     }
   }
 
