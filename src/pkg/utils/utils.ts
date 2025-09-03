@@ -114,15 +114,12 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
   delete createProperties.openerTabId;
   delete createProperties.windowId;
-  await chrome.tabs.create(createProperties);
-  return;
-}
-
-// https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
-export async function getCurrentTab() {
-  // `tab` will either be a `tabs.Tab` instance or `undefined`.
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  return tab;
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch {
+    // do nothing
+  }
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
@@ -158,44 +155,6 @@ export function getIcon(script: Script): string | undefined {
     script.metadata.icon64?.[0] ??
     script.metadata.icon64url?.[0]
   );
-}
-
-export async function getTab(tabId: number) {
-  return await chrome.tabs.get(tabId).catch(() => undefined);
-}
-
-// 在当前页后打开一个新页面，如果指定tabId则在该tab后打开
-export async function openInCurrentTab(url: string, tabId?: number) {
-  const tab = await (tabId ? getTab(tabId) : getCurrentTab());
-  const createProperties: chrome.tabs.CreateProperties = { url };
-  if (tab) {
-    // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
-    if (tab.id! >= 0) {
-      // 如 Tab API 有提供 tab.id, 則指定 tab.id
-      createProperties.openerTabId = tab.id;
-      if (tab.windowId! >= 0) {
-        // 如 Tab API 有提供 tab.windowId, 則指定 tab.windowId
-        createProperties.windowId = tab.windowId;
-      }
-    }
-    createProperties.index = tab.index + 1;
-  }
-  // 先嘗試以 openerTabId 和 windowId 打開
-  try {
-    await chrome.tabs.create(createProperties);
-    return;
-  } catch {
-    // do nothing
-  }
-  // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
-  delete createProperties.openerTabId;
-  delete createProperties.windowId;
-  try {
-    await chrome.tabs.create(createProperties);
-    return;
-  } catch {
-    // do nothing
-  }
 }
 
 export function errorMsg(e: any): string {
