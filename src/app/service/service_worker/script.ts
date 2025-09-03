@@ -704,7 +704,6 @@ export class ScriptService {
     }
     const valueSet = new Set(value);
     script = selfMetadataUpdate(script, key, valueSet);
-    console.log(script);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
