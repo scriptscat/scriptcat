@@ -170,7 +170,7 @@ export class RuntimeService {
     await this.loadPageScript(data.script);
   }
 
-  async preFetch() {
+  async getInjectJsCode() {
     if (!this.injectJsCodePromise) {
       this.injectJsCodePromise = fetch("/src/inject.js")
         .then((res) => res.text())
@@ -523,7 +523,7 @@ export class RuntimeService {
     res.content = script;
 
     // inject.js
-    const injectJs = await this.injectJsCodePromise;
+    const injectJs = await this.getInjectJsCode();
     if (injectJs) {
       const script = this.compileInjectUserScript(injectJs, messageFlag, {
         excludeMatches,
@@ -549,7 +549,6 @@ export class RuntimeService {
       await loadingScriptMatchInfo;
       return;
     }
-    this.preFetch();
     // 使注册时重新注入 chrome.runtime
     chrome.userScripts.resetWorldConfiguration();
 
@@ -870,7 +869,7 @@ export class RuntimeService {
     const [messageFlag, scripts, injectJs] = await Promise.all([
       this.getMessageFlag(),
       chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] }),
-      this.injectJsCodePromise,
+      this.getInjectJsCode(),
     ]);
 
     if (!messageFlag || !scripts || !injectJs) {
