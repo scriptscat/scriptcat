@@ -151,7 +151,7 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/use` });
+          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
         } else if (details.reason === "update") {
           const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
           getCurrentTab()

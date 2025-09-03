@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         New Userscript
-// @namespace    https://bbs.tampermonkey.net.cn/
+// @namespace    https://docs.scriptcat.org/
 // @version      0.1.0
 // @description  try to take over the world!
 // @author       You
