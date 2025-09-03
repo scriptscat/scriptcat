@@ -48,9 +48,9 @@ export function initTestEnv() {
 }
 
 export function initTestGMApi(): Message {
-  const wsEE = new EventEmitter();
+  const wsEE = new EventEmitter<string, any>();
   const wsMessage = new MockMessage(wsEE);
-  const osEE = new EventEmitter();
+  const osEE = new EventEmitter<string, any>();
   const osMessage = new MockMessage(osEE);
   const messageQueue = new MessageQueue();
   const systemConfig = new SystemConfig(messageQueue);

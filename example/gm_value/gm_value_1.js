@@ -15,4 +15,4 @@ setTimeout(() => {
   GM_deleteValue("test_set");
 }, 3000);
 
-GM_setValue("test_set", new Date().getTime());
+GM_setValue("test_set", Date.now());

@@ -37,7 +37,7 @@ const GMApiSetting: React.FC = () => {
                     target="_black"
                     href="https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js"
                   >
-                    CAT_fileStorage
+                    {"CAT_fileStorage"}
                   </Link>
                   {t("use_file_system")}
                 </Typography.Text>

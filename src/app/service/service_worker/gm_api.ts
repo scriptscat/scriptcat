@@ -4,15 +4,15 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { GetSender, type Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import type { MessageQueueGroup } from "@Packages/message/message_queue";
 import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
-import Cache, { incr } from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
-import { getIcon, isFirefox, openInCurrentTab } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -20,6 +20,8 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
+import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
+import { BrowserNoSupport, notificationsUpdate } from "./utils";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -127,7 +129,7 @@ export default class GMApi {
     private permissionVerify: PermissionVerify,
     private group: Group,
     private send: MessageSend,
-    private mq: MessageQueue,
+    private mq: MessageQueueGroup,
     private value: ValueService,
     private gmExternalDependencies: IGMExternalDependencies
   ) {
@@ -338,11 +340,11 @@ export default class GMApi {
   async CAT_fileStorage(request: Request, sender: GetSender): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
-      const tabId = sender.getExtMessageSender().tabId;
+      const { tabId, windowId } = sender.getExtMessageSender();
       chrome.tabs.create({
         url: `/src/options.html#/setting`,
-        active: true,
         openerTabId: tabId === -1 ? undefined : tabId,
+        windowId: windowId === -1 ? undefined : windowId,
       });
       return true;
     }
@@ -371,10 +373,10 @@ export default class GMApi {
       case "list":
         try {
           const list = await fs.list();
-          list.forEach((file) => {
+          for (const file of list) {
             (<any>file).absPath = file.path;
             file.path = joinPath(file.path.substring(file.path.indexOf(baseDir) + baseDir.length));
-          });
+          }
           return { action: "onload", data: list };
         } catch (e: any) {
           return { action: "error", data: { code: 3, error: e.message } };
@@ -508,7 +510,7 @@ export default class GMApi {
       }
     }
 
-    Object.keys(headers).forEach((key) => {
+    for (const key of Object.keys(headers)) {
       /** 请求的header的值 */
       const headerValue = headers[key];
       let deleteHeader = false;
@@ -529,7 +531,7 @@ export default class GMApi {
         deleteHeader = true;
       }
       deleteHeader && delete headers[key];
-    });
+    }
 
     const rule = {} as chrome.declarativeNetRequest.Rule;
     rule.id = reqeustId;
@@ -540,11 +542,11 @@ export default class GMApi {
     rule.priority = 1;
     const tabs = await chrome.tabs.query({});
     const excludedTabIds: number[] = [];
-    tabs.forEach((tab) => {
+    for (const tab of tabs) {
       if (tab.id) {
         excludedTabIds.push(tab.id);
       }
-    });
+    }
     let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
     if (!this.chromeSupportMethod.has(requestMethod)) {
       requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;
@@ -563,7 +565,7 @@ export default class GMApi {
     return headers;
   }
 
-  gmXhrHeadersReceived: EventEmitter = new EventEmitter();
+  gmXhrHeadersReceived = new EventEmitter<string, any>();
 
   dealFetch(
     config: GMSend.XHRDetails,
@@ -706,7 +708,7 @@ export default class GMApi {
     const params = request.params[0] as GMSend.XHRDetails;
     // 先处理unsafe hearder
     // 关联自己生成的请求id与chrome.webRequest的请求id
-    const requestId = 10000 + (await incr(Cache.getInstance(), "gmXhrRequestId", 1));
+    const requestId = 10000 + (await cacheInstance.incr("gmXhrRequestId", 1));
     // 添加请求header
     if (!params.headers) {
       params.headers = {};
@@ -747,7 +749,7 @@ export default class GMApi {
     }
     // 再发送到offscreen, 处理请求
     const offscreenCon = await connect(this.send, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
-    offscreenCon.onMessage((msg: { action: string; data: any }) => {
+    offscreenCon.onMessage((msg) => {
       // 发送到content
       // 替换msg.data.responseHeaders
       msg.data.responseHeaders = resultParam.responseHeader || msg.data.responseHeaders;
@@ -767,7 +769,7 @@ export default class GMApi {
   GM_registerMenuCommand(request: Request, sender: GetSender) {
     const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
-    this.mq.emit("registerMenuCommand", {
+    this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
       uuid: request.script.uuid,
       id,
       name,
@@ -782,7 +784,7 @@ export default class GMApi {
   GM_unregisterMenuCommand(request: Request, sender: GetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
-    this.mq.emit("unregisterMenuCommand", {
+    this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
       id: id,
       tabId: sender.getSender().tab?.id || -1,
@@ -799,8 +801,8 @@ export default class GMApi {
       const ok = await sendMessage(this.send, "offscreen/gmApi/openInTab", { url });
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
-        const [tab] = await chrome.tabs.query({ active: true });
-        await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
+        const tab = await getCurrentTab();
+        await cacheInstance.set(`GM_openInTab:${tab.id}`, {
           uuid: request.uuid,
           sender: sender.getExtMessageSender(),
         });
@@ -811,13 +813,14 @@ export default class GMApi {
         return false;
       }
     } else {
-      const tabId = sender.getExtMessageSender().tabId;
+      const { tabId, windowId } = sender.getExtMessageSender();
       const tab = await chrome.tabs.create({
         url,
         active: options.active,
         openerTabId: tabId === -1 ? undefined : tabId,
+        windowId: windowId === -1 ? undefined : windowId,
       });
-      await Cache.getInstance().set(`GM_openInTab:${tab.id}`, {
+      await cacheInstance.set(`GM_openInTab:${tab.id}`, {
         uuid: request.uuid,
         sender: sender.getExtMessageSender(),
       });
@@ -839,8 +842,8 @@ export default class GMApi {
 
   @PermissionVerify.API({})
   GM_getTab(request: Request, sender: GetSender) {
-    return Cache.getInstance()
-      .tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    return cacheInstance
+      .tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
         return tabData || {};
       })
       .then((data) => {
@@ -852,7 +855,7 @@ export default class GMApi {
   async GM_saveTab(request: Request, sender: GetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    await Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    await cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
       tabData = tabData || {};
       tabData[tabId] = data;
       return tabData;
@@ -862,7 +865,7 @@ export default class GMApi {
 
   @PermissionVerify.API()
   GM_getTabs(request: Request) {
-    return Cache.getInstance().tx(`GM_getTab:${request.uuid}`, async (tabData: { [key: number]: any }) => {
+    return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
       return tabData || {};
     });
   }
@@ -887,20 +890,22 @@ export default class GMApi {
     options.progress = options.progress && parseInt(details.progress as any, 10);
 
     if (typeof notificationId === "string") {
-      let wasUpdated: boolean;
-      try {
-        wasUpdated = await chrome.notifications.update(notificationId, options);
-      } catch (e: any) {
-        this.logger.error("GM_notification update", Logger.E(e));
-        if (e.message.includes("images")) {
+      let res = await notificationsUpdate(notificationId, options);
+      if (!res.ok && res.apiError === BrowserNoSupport) {
+        // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
+        this.logger.error("Your browser does not support GM_updateNotification");
+      } else if (!res.ok && res.apiError) {
+        if (res.apiError.message.includes("images")) {
           // 如果更新失败，删除图标再次尝试
           options.iconUrl = chrome.runtime.getURL("assets/logo.png");
-          wasUpdated = await chrome.notifications.update(notificationId, options);
-        } else {
-          throw e;
+          res = await notificationsUpdate(notificationId, options);
+        }
+        // 仍然失败，输出 error log
+        if (!res.ok && res.apiError) {
+          this.logger.error("GM_notification update", Logger.E(res.apiError));
         }
       }
-      if (!wasUpdated) {
+      if (!res?.ok) {
         this.logger.error("GM_notification update by tag", {
           notificationId,
           options,
@@ -921,7 +926,7 @@ export default class GMApi {
           throw e;
         }
       }
-      Cache.getInstance().set(`GM_notification:${notificationId}`, {
+      await cacheInstance.set(`GM_notification:${notificationId}`, {
         uuid: request.script.uuid,
         details: details,
         sender: sender.getExtMessageSender(),
@@ -929,9 +934,7 @@ export default class GMApi {
       if (details.timeout) {
         setTimeout(async () => {
           chrome.notifications.clear(notificationId);
-          const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
-            | NotificationData
-            | undefined;
+          const sender = await cacheInstance.get<NotificationData>(`GM_notification:${notificationId}`);
           if (sender) {
             this.gmExternalDependencies.emitEventToTab(sender.sender, {
               event: "GM_notification",
@@ -945,7 +948,7 @@ export default class GMApi {
               } as NotificationMessageOption,
             });
           }
-          Cache.getInstance().del(`GM_notification:${notificationId}`);
+          cacheInstance.del(`GM_notification:${notificationId}`);
         }, details.timeout);
       }
       return notificationId;
@@ -960,7 +963,7 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [notificationId] = request.params;
-    Cache.getInstance().del(`GM_notification:${notificationId}`);
+    cacheInstance.del(`GM_notification:${notificationId}`);
     chrome.notifications.clear(notificationId);
   }
 
@@ -968,8 +971,9 @@ export default class GMApi {
     link: ["GM_notification"],
   })
   GM_updateNotification(request: Request) {
-    if (isFirefox()) {
-      throw new Error("firefox does not support this method");
+    if (typeof chrome.notifications?.update !== "function") {
+      // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
+      throw new Error("Your browser does not support GM_updateNotification");
     }
     const id = request.params[0];
     const details: GMTypes.NotificationDetails = request.params[1];
@@ -1007,7 +1011,7 @@ export default class GMApi {
       return;
     }
     // 使用xhr下载blob,再使用download api创建下载
-    const EE = new EventEmitter();
+    const EE = new EventEmitter<string, any>();
     const mockConnect = new MockMessageConnect(EE);
     EE.addListener("message", (data: any) => {
       const xhr = data.data;
@@ -1098,9 +1102,7 @@ export default class GMApi {
       notificationId: string,
       params: NotificationMessageOption["params"] = {}
     ) => {
-      const sender = (await Cache.getInstance().get(`GM_notification:${notificationId}`)) as
-        | NotificationData
-        | undefined;
+      const sender = await cacheInstance.get<NotificationData>(`GM_notification:${notificationId}`);
       if (sender) {
         this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_notification",
@@ -1122,7 +1124,7 @@ export default class GMApi {
       send("close", notificationId, {
         byUser,
       });
-      Cache.getInstance().del(`GM_notification:${notificationId}`);
+      cacheInstance.del(`GM_notification:${notificationId}`);
     });
     chrome.notifications.onClicked.addListener((notificationId) => {
       const lastError = chrome.runtime.lastError;
@@ -1259,10 +1261,10 @@ export default class GMApi {
         return undefined;
       }
       // 处理GM_openInTab关闭事件
-      const sender = (await Cache.getInstance().get(`GM_openInTab:${tabId}`)) as {
+      const sender = await cacheInstance.get<{
         uuid: string;
         sender: ExtMessageSender;
-      };
+      }>(`GM_openInTab:${tabId}`);
       if (sender) {
         this.gmExternalDependencies.emitEventToTab(sender.sender, {
           event: "GM_openInTab",
@@ -1273,7 +1275,7 @@ export default class GMApi {
             tabId: tabId,
           },
         });
-        Cache.getInstance().del(`GM_openInTab:${tabId}`);
+        cacheInstance.del(`GM_openInTab:${tabId}`);
       }
     });
   }

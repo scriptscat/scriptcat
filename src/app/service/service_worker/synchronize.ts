@@ -17,13 +17,12 @@ import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
-import { subscribeScriptDelete, subscribeScriptInstall } from "../queue";
+import type { TDeleteScript, TInstallScript } from "../queue";
 import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
-import { type InstallSource } from "./types";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 
@@ -104,7 +103,7 @@ export class SynchronizeService {
     }
     // 获取所有脚本
     const list = await this.scriptDAO.all();
-    return Promise.all(list.map(async (script): Promise<ScriptBackupData> => this.generateScriptBackupData(script)));
+    return Promise.all(list.map((script) => this.generateScriptBackupData(script)));
   }
 
   async generateScriptBackupData(script: Script): Promise<ScriptBackupData> {
@@ -136,12 +135,12 @@ export class SynchronizeService {
     } as unknown as ScriptBackupData;
     const storage: ValueStorage = {
       data: {},
-      ts: new Date().getTime(),
+      ts: Date.now(),
     };
     const values = await this.value.getScriptValue(script);
-    Object.keys(values).forEach((key) => {
+    for (const key of Object.keys(values)) {
       storage.data[key] = values[key];
-    });
+    }
 
     const requires = await this.resource.getResourceByType(script, "require", false);
     const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
@@ -157,18 +156,19 @@ export class SynchronizeService {
 
   resourceToBackdata(resource: { [key: string]: Resource }) {
     const ret: ResourceBackup[] = [];
-    Object.keys(resource).forEach((key) => {
+    for (const key of Object.keys(resource)) {
+      const resourceValue = resource[key];
       ret.push({
         meta: {
-          name: this.getUrlName(resource[key].url),
-          url: resource[key].url,
-          ts: resource[key].updatetime || resource[key].createtime,
-          mimetype: resource[key].contentType,
+          name: this.getUrlName(resourceValue.url),
+          url: resourceValue.url,
+          ts: resourceValue.updatetime || resourceValue.createtime,
+          mimetype: resourceValue.contentType,
         },
-        source: resource[key]!.content || undefined,
-        base64: resource[key]!.base64,
+        source: resourceValue.content || undefined,
+        base64: resourceValue.base64,
       });
-    });
+    }
     return ret;
   }
 
@@ -179,20 +179,14 @@ export class SynchronizeService {
     requiresCss: ResourceBackup[];
   }) {
     const { uuid, requires, resources, requiresCss } = data;
-    const ret: Promise<any>[] = [];
-    // 处理requires
-    requires.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "require"));
-    });
-    // 处理resources
-    resources.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "resource"));
-    });
-    // 处理requiresCss
-    requiresCss.forEach((item) => {
-      ret.push(this.resource.importResource(uuid, item, "require-css"));
-    });
-    return Promise.all(ret).then(() => {
+    return Promise.all([
+      // 处理requires
+      ...requires.map((item) => this.resource.importResource(uuid, item, "require")),
+      // 处理resources
+      ...resources.map((item) => this.resource.importResource(uuid, item, "resource")),
+      // 处理requiresCss
+      ...requiresCss.map((item) => this.resource.importResource(uuid, item, "require-css")),
+    ]).then(() => {
       return;
     });
   }
@@ -350,7 +344,7 @@ export class SynchronizeService {
       },
     } as ScriptcatSync;
 
-    list.forEach((file) => {
+    for (const file of list) {
       if (file.name.endsWith(".user.js")) {
         const uuid = file.name.substring(0, file.name.length - 8);
         let files = uuidMap.get(uuid);
@@ -368,7 +362,7 @@ export class SynchronizeService {
         }
         files.meta = file;
       }
-    });
+    }
 
     // 获取脚本列表
     const scriptList = await this.scriptDAO.all();
@@ -471,7 +465,7 @@ export class SynchronizeService {
           if (status[script.uuid].sort !== script.sort) {
             await this.scriptDAO.update(script.uuid, {
               sort: status[script.uuid].sort,
-              updatetime: new Date().getTime(),
+              updatetime: Date.now(),
             });
           }
           // 脚本状态
@@ -498,9 +492,9 @@ export class SynchronizeService {
   async updateFileDigest(fs: FileSystem) {
     const newList = await fs.list();
     const newFileDigestMap: { [key: string]: string } = {};
-    newList.forEach((file) => {
+    for (const file of newList) {
       newFileDigestMap[file.name] = file.digest;
-    });
+    }
     await this.storage.set("file_digest", newFileDigestMap);
     return;
   }
@@ -568,10 +562,10 @@ export class SynchronizeService {
     return;
   }
 
-  async pullScript(fs: FileSystem, file: SyncFiles, script?: Script) {
+  async pullScript(fs: FileSystem, file: SyncFiles, existingScript?: Script) {
     const logger = this.logger.with({
-      uuid: script?.uuid || "",
-      name: script?.name || "",
+      uuid: existingScript?.uuid || "",
+      name: existingScript?.name || "",
       file: file.script.name,
     });
     try {
@@ -582,15 +576,15 @@ export class SynchronizeService {
       const meta = await fs.open(file.meta);
       const metaJson = (await meta.read("string")) as string;
       const metaObj = JSON.parse(metaJson) as SyncMeta;
-      const prepareScript = await prepareScriptByCode(
+      const { script } = await prepareScriptByCode(
         code,
-        script?.downloadUrl || metaObj.downloadUrl || "",
-        script?.uuid || metaObj.uuid
+        existingScript?.downloadUrl || metaObj.downloadUrl || "",
+        existingScript?.uuid || metaObj.uuid
       );
-      prepareScript.script.origin = prepareScript.script.origin || metaObj.origin;
+      script.origin = script.origin || metaObj.origin;
       this.script.installScript({
-        script: prepareScript.script,
-        code: code,
+        script,
+        code,
         upsertBy: "sync",
       });
       logger.info("pull script success");
@@ -636,7 +630,7 @@ export class SynchronizeService {
     }
   }
 
-  async scriptInstall(params: { script: Script; update: boolean; upsertBy: InstallSource }) {
+  async scriptInstall(params: TInstallScript) {
     if (params.upsertBy === "sync") {
       return;
     }
@@ -666,7 +660,7 @@ export class SynchronizeService {
     this.group.on("importResources", this.importResources.bind(this));
     // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
-    subscribeScriptInstall(this.mq, this.scriptInstall.bind(this));
-    subscribeScriptDelete(this.mq, this.scriptDelete.bind(this));
+    this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
+    this.mq.subscribe<TDeleteScript>("deleteScript", this.scriptDelete.bind(this));
   }
 }

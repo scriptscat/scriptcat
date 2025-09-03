@@ -25,13 +25,13 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
   }));
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      const [eslintConfig, enableEslint] = await Promise.all([
-        systemConfig.getEslintConfig(),
-        systemConfig.getEnableEslint(),
-      ]);
-      setEslintConfig(eslintConfig);
-      setEnableEslint(enableEslint);
+    const loadConfigs = () => {
+      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(
+        ([eslintConfig, enableEslint]) => {
+          setEslintConfig(eslintConfig);
+          setEnableEslint(enableEslint);
+        }
+      );
     };
     loadConfigs();
   }, []);
@@ -218,21 +218,7 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     };
   }, [id, monacoEditor, enableEslint, eslintConfig]);
 
-  return (
-    <div
-      id={id}
-      style={{
-        margin: 0,
-        padding: 0,
-        border: 0,
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-      }}
-      className={className}
-      ref={div}
-    />
-  );
+  return <div id={id} className={className} ref={div} />;
 };
 
 export default React.forwardRef(CodeEditor);

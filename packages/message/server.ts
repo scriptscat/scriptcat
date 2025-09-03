@@ -1,4 +1,4 @@
-import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend } from "./types";
+import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend, TMessage } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
@@ -8,6 +8,9 @@ export class GetSender {
   constructor(private sender: MessageConnect | MessageSender) {}
 
   getSender(): MessageSender {
+    if (this.sender instanceof ExtensionMessageConnect) {
+      return this.sender.getPort().sender as MessageSender;
+    }
     return this.sender as MessageSender;
   }
 
@@ -15,6 +18,7 @@ export class GetSender {
     if (this.sender instanceof ExtensionMessageConnect) {
       const con = this.sender.getPort();
       return {
+        windowId: con.sender?.tab?.windowId || -1, // -1表示后台脚本
         tabId: con.sender?.tab?.id || -1, // -1表示后台脚本
         frameId: con.sender?.frameId,
         documentId: con.sender?.documentId,
@@ -22,6 +26,7 @@ export class GetSender {
     }
     const sender = this.sender as MessageSender;
     return {
+      windowId: sender.tab?.windowId || -1, // -1表示后台脚本
       tabId: sender.tab?.id || -1, // -1表示后台脚本
       frameId: sender.frameId,
       documentId: sender.documentId,
@@ -35,6 +40,7 @@ export class GetSender {
 
 type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
 type ApiFunctionSync = (params: any, con: GetSender) => any;
+type MiddlewareFunction = (params: any, con: GetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
@@ -47,26 +53,28 @@ export class Server {
     private enableConnect: boolean = true
   ) {
     if (this.enableConnect) {
-      message.onConnect((msg: any, con: MessageConnect) => {
+      message.onConnect((msg: TMessage, con: MessageConnect) => {
+        if (typeof msg.action !== "string") return;
         this.logger.trace("server onConnect", { msg });
-        if (msg.action.startsWith(prefix)) {
+        if (msg.action?.startsWith(prefix)) {
           return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
         }
         return false;
       });
     }
 
-    message.onMessage((msg: { action: string; data: any }, sendResponse, sender) => {
+    message.onMessage((msg: TMessage, sendResponse, sender) => {
+      if (typeof msg.action !== "string") return;
       this.logger.trace("server onMessage", { msg: msg as any });
-      if (msg.action.startsWith(prefix)) {
+      if (msg.action?.startsWith(prefix)) {
         return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
       }
       return false;
     });
   }
 
-  group(name: string) {
-    return new Group(this, name);
+  group(name: string, middleware?: MiddlewareFunction) {
+    return new Group(this, name, middleware);
   }
 
   on(name: string, func: ApiFunction) {
@@ -104,7 +112,11 @@ export class Server {
         if (ret instanceof Promise) {
           ret
             .then((data) => {
-              sendResponse({ code: 0, data });
+              try {
+                sendResponse({ code: 0, data });
+              } catch (e: any) {
+                this.logger.error("sendResponse error", Logger.E(e));
+              }
             })
             .catch((e: Error) => {
               sendResponse({ code: -1, message: e.message || e.toString() });
@@ -126,21 +138,58 @@ export class Server {
 }
 
 export class Group {
+  private middlewares: MiddlewareFunction[] = [];
+
   constructor(
     private server: Server,
-    private name: string
+    private name: string,
+    middleware?: MiddlewareFunction
   ) {
-    if (!name.endsWith("/")) {
+    if (!name.endsWith("/") && name.length > 0) {
       this.name += "/";
+    }
+    if (middleware) {
+      this.middlewares.push(middleware);
     }
   }
 
-  group(name: string) {
-    return new Group(this.server, `${this.name}${name}`);
+  group(name: string, middleware?: MiddlewareFunction) {
+    const newGroup = new Group(this.server, `${this.name}${name}`, middleware);
+    // 继承父级的中间件
+    newGroup.middlewares = [...this.middlewares, ...newGroup.middlewares];
+    return newGroup;
+  }
+
+  use(middleware: MiddlewareFunction): Group {
+    const newGroup = new Group(this.server, `${this.name}`, middleware);
+    newGroup.middlewares = [...this.middlewares, ...newGroup.middlewares];
+    return newGroup;
   }
 
   on(name: string, func: ApiFunction) {
-    this.server.on(`${this.name}${name}`, func);
+    const fullName = `${this.name}${name}`;
+
+    if (this.middlewares.length === 0) {
+      // 没有中间件，直接注册
+      this.server.on(fullName, func);
+    } else {
+      // 有中间件，需要包装处理函数
+      this.server.on(fullName, async (params: any, con: GetSender) => {
+        let index = 0;
+
+        const next = async (): Promise<any> => {
+          if (index < this.middlewares.length) {
+            const middleware = this.middlewares[index++];
+            return await middleware(params, con, next);
+          } else {
+            // 所有中间件都执行完毕，执行最终的处理函数
+            return await func(params, con);
+          }
+        };
+
+        return await next();
+      });
+    }
   }
 }
 
@@ -155,7 +204,7 @@ export function forwardMessage(
   const handler = (params: any, fromCon: GetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
-      connect(to, prefix + "/" + path, params).then((toCon: MessageConnect) => {
+      connect(to, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
         fromConnect.onMessage((data) => {
           toCon.sendMessage(data);
         });

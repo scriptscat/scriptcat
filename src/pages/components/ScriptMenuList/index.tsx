@@ -28,21 +28,9 @@ import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { subscribeScriptRunStatus } from "@App/app/service/queue";
+import { type TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
-
-function isExclude(script: ScriptMenu, host: string) {
-  if (!script.customExclude) {
-    return false;
-  }
-  for (let i = 0; i < script.customExclude.length; i += 1) {
-    if (script.customExclude[i] === `*://${host}/*`) {
-      return true;
-    }
-  }
-  return false;
-}
 
 const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
   popupClient.menuClick(uuid, menu, inputValue).then(() => {
@@ -151,16 +139,16 @@ const ScriptMenuList = React.memo(
         });
       });
       return () => {
-        listeners.forEach((listener) => {
+        for (const listener of listeners) {
           document.removeEventListener("keypress", listener);
-        });
+        }
       };
     }, [script]);
 
     useEffect(() => {
       let isMounted = true;
       // 监听脚本运行状态
-      const unsub = subscribeScriptRunStatus(messageQueue, ({ uuid, runStatus }) => {
+      const unsub = messageQueue.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
         if (!isMounted) return;
         setList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
       });
@@ -199,8 +187,8 @@ const ScriptMenuList = React.memo(
       window.close();
     }, []);
 
-    const handleExcludeUrl = useCallback((item: ScriptMenu, urlHost: string) => {
-      scriptClient.excludeUrl(item.uuid, `*://${urlHost}/*`, isExclude(item, urlHost)).finally(() => {
+    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
         window.close();
       });
     }, []);
@@ -307,16 +295,15 @@ const ScriptMenuList = React.memo(
               >
                 {t("edit")}
               </Button>
-              {url && (
+              {url && item.isEffective !== null && (
                 <Button
                   className="text-left"
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, url.host)}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !item.isEffective)}
                 >
-                  {isExclude(item, url.host) ? t("exclude_on") : t("exclude_off")}
-                  {` ${url.host} ${t("exclude_execution")}`}
+                  {(!item.isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
               <Popconfirm
@@ -333,7 +320,6 @@ const ScriptMenuList = React.memo(
           <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
             {/* 判断菜单数量，再判断是否展开 */}
             {visibleMenus.map((menu) => {
-              console.log("menu", menu);
               return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
             })}
             {shouldShowMore && (

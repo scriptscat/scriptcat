@@ -82,10 +82,12 @@ import {
   updateEnableStatus,
   synchronizeClient,
   batchDeleteScript,
+  requestFilterResult,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { store } from "@App/pages/store/store";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -222,6 +224,20 @@ function ScriptList() {
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
   const { t } = useTranslation();
 
+  const filterCache: Map<string, any> = new Map<string, any>();
+
+  const setFilterCache = (res: Partial<Record<string, any>>[] | null) => {
+    filterCache.clear();
+    if (res === null) return;
+    for (const entry of res) {
+      filterCache.set(entry.uuid, {
+        code: entry.code === true,
+        name: entry.name === true,
+        auto: entry.auto === true,
+      });
+    }
+  };
+
   // 处理拖拽排序
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -298,38 +314,89 @@ function ScriptList() {
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
           filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+            if (!filterKeys.length) {
+              filterKeys = [{ type: "auto", value: "" }];
+            }
             return (
-              <div className="arco-table-custom-filter">
+              <div className="arco-table-custom-filter flex flex-row gap-2">
+                <Select
+                  className="flex-1"
+                  triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
+                  size="small"
+                  value={filterKeys[0].type || "auto"}
+                  onChange={(value) => {
+                    if (value !== filterKeys[0].type) {
+                      filterKeys[0].type = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
+                      dispatch(requestFilterResult({ type: value, value: filterKeys[0].value }))
+                        .unwrap()
+                        .then((res) => {
+                          if (filterKeys[0].type !== value) return;
+                          setFilterCache(res as any);
+                          setFilterKeys([...filterKeys]);
+                        });
+                    }
+                  }}
+                >
+                  <Select.Option value="auto">{t("auto")}</Select.Option>
+                  <Select.Option value="name">{t("name")}</Select.Option>
+                  <Select.Option value="script_code">{t("script_code")}</Select.Option>
+                </Select>
                 <Input.Search
                   ref={inputRef}
+                  size="small"
                   searchButton
-                  placeholder={t("enter_script_name")!}
-                  value={filterKeys[0] || ""}
+                  style={{ minWidth: 240 }}
+                  placeholder={
+                    t("enter_search_value", {
+                      search: filterKeys[0].type == "auto" ? `${t("name")}/${t("script_code")}` : t(""),
+                    })!
+                  }
+                  value={filterKeys[0].value || ""}
                   onChange={(value) => {
-                    setFilterKeys(value ? [value] : []);
+                    if (value !== filterKeys[0].value) {
+                      filterKeys[0].value = value;
+                      if (!filterKeys[0].value) {
+                        setFilterCache(null);
+                        setFilterKeys([...filterKeys]);
+                        return;
+                      }
+                      dispatch(requestFilterResult({ value, type: filterKeys[0].type }))
+                        .unwrap()
+                        .then((res) => {
+                          if (filterKeys[0].value !== value) return;
+                          setFilterCache(res as any);
+                          setFilterKeys([...filterKeys]);
+                        });
+                    }
                   }}
                   onSearch={() => {
-                    confirm();
+                    confirm!();
                   }}
                 />
               </div>
             );
           },
-          onFilter: (value: string, row) => {
-            if (!value) {
+          onFilter: (value: { type: SearchType; value: string }, row) => {
+            if (!value || !value.value) {
               return true;
             }
-            value = value.toLocaleLowerCase();
-            row.name = row.name.toLocaleLowerCase();
-            const i18n = i18nName(row).toLocaleLowerCase();
-            // 空格分开关键字搜索
-            const keys = value.split(" ");
-            for (const key of keys) {
-              if (row.name.includes(key) || i18n.includes(key)) {
-                return true;
-              }
+            const result = filterCache.get(row.uuid);
+            if (!result) return false;
+            switch (value.type) {
+              case "auto":
+                return result.auto;
+              case "script_code":
+                return result.code;
+              case "name":
+                return result.name;
+              default:
+                return false;
             }
-            return false;
           },
           onFilterDropdownVisibleChange: (visible) => {
             if (visible) {
@@ -459,9 +526,7 @@ function ScriptList() {
               return (
                 <Tooltip
                   content={
-                    <p style={{ margin: 0 }}>
-                      {t("subscription_link")}: {decodeURIComponent(item.subscribeUrl)}
-                    </p>
+                    <p style={{ margin: 0 }}>{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
                   }
                 >
                   <Tag
@@ -494,9 +559,7 @@ function ScriptList() {
             return (
               <Tooltip
                 content={
-                  <p style={{ margin: 0, padding: 0 }}>
-                    {t("script_link")}: {decodeURIComponent(item.origin)}
-                  </p>
+                  <p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>
                 }
               >
                 <Tag
@@ -549,7 +612,6 @@ function ScriptList() {
                     scriptClient
                       .requestCheckUpdate(script.uuid)
                       .then((res) => {
-                        console.log("res", res);
                         if (res) {
                           Message.warning({
                             id: "checkupdate",
@@ -740,7 +802,7 @@ function ScriptList() {
     header: {
       operations: ({ selectionNode, expandNode }) => [
         {
-          node: <th />,
+          node: <th className="script-sort" />,
           width: 34,
         },
         {
@@ -805,7 +867,7 @@ function ScriptList() {
                 }}
               >
                 <Space direction="horizontal">
-                  <Typography.Text>{t("batch_operations")}:</Typography.Text>
+                  <Typography.Text>{t("batch_operations") + ":"}</Typography.Text>
                   <Select
                     style={{ minWidth: "100px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
@@ -856,9 +918,9 @@ function ScriptList() {
                           break;
                         case "export": {
                           const uuids: string[] = [];
-                          select.forEach((item) => {
+                          for (const item of select) {
                             uuids.push(item.uuid);
-                          });
+                          }
                           Message.loading({
                             id: "export",
                             content: t("exporting"),
@@ -950,7 +1012,7 @@ function ScriptList() {
                     {t("confirm")}
                   </Button>
                   <Divider type="horizontal" />
-                  <Typography.Text>{t("resize_column_width")}:</Typography.Text>
+                  <Typography.Text>{t("resize_column_width") + ":"}</Typography.Text>
                   <Select
                     style={{ minWidth: "80px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
@@ -1027,9 +1089,9 @@ function ScriptList() {
                     size="mini"
                     onClick={() => {
                       const newWidth: { [key: string]: number } = {};
-                      newColumns.forEach((column) => {
+                      for (const column of newColumns) {
                         newWidth[column.key! as string] = column.width as number;
-                      });
+                      }
                       systemConfig.setScriptListColumnWidth(newWidth);
                     }}
                   >

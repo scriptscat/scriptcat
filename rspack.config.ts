@@ -2,7 +2,7 @@ import * as path from "path";
 import { defineConfig } from "@rspack/cli";
 import { rspack } from "@rspack/core";
 import { readFileSync } from "fs";
-import NodePolyfillPlugin from "node-polyfill-webpack-plugin";
+
 const pkg = JSON.parse(readFileSync("./package.json") as unknown as string);
 
 const version = pkg.version;
@@ -201,7 +201,6 @@ export default defineConfig({
       minify: true,
       chunks: ["sandbox"],
     }),
-    new NodePolyfillPlugin(),
   ].filter(Boolean),
   optimization: {
     minimizer: [

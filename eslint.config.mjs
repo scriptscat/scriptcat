@@ -59,6 +59,7 @@ export default [
       "prettier/prettier": "error",
       "react/prop-types": "off",
       "chrome-error/require-last-error-check": "error",
+      "react/jsx-no-literals": "warn",
     },
   },
   prettier,

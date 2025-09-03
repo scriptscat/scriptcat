@@ -1,6 +1,6 @@
-import type { Metadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
 
-function randNum(a: number, b: number) {
+export function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
 
@@ -8,16 +8,6 @@ export function randomMessageFlag(): string {
   // parseInt('a0000000', 36) = 783641640960;
   // parseInt('zzzzzzzz', 36) = 2821109907455;
   return `-${Date.now().toString(36)}.${randNum(8e11, 2e12).toString(36)}`;
-}
-
-export function dealSymbol(source: string): string {
-  source = source.replace(/("|\\)/g, "\\$1");
-  source = source.replace(/(\r\n|\n)/g, "\\n");
-  return source;
-}
-
-export function dealScript(source: string): string {
-  return dealSymbol(source);
 }
 
 export function isFirefox() {
@@ -51,9 +41,9 @@ export function toStorageValueStr(val: unknown): string {
     case "string":
       return `s${val}`;
     case "number":
-      return `n${val.toString()}`;
+      return `n${val}`;
     case "boolean":
-      return `b${val ? "true" : "false"}`;
+      return `b${val}`;
     default:
       try {
         return `o${JSON.stringify(val)}`;
@@ -87,8 +77,45 @@ export function parseStorageValue(str: string): unknown {
   }
 }
 
-export function isDebug() {
-  return process.env.NODE_ENV === "development";
+// https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
+export async function getCurrentTab() {
+  // `tab` will either be a `tabs.Tab` instance or `undefined`.
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab;
+}
+
+export async function getTab(tabId: number) {
+  return await chrome.tabs.get(tabId).catch(() => undefined);
+}
+
+// 在当前页后打开一个新页面，如果指定tabId则在该tab后打开
+export async function openInCurrentTab(url: string, tabId?: number) {
+  const tab = await (tabId ? getTab(tabId) : getCurrentTab());
+  const createProperties: chrome.tabs.CreateProperties = { url };
+  if (tab) {
+    // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
+    if (tab.id! >= 0) {
+      // 如 Tab API 有提供 tab.id, 則指定 tab.id
+      createProperties.openerTabId = tab.id;
+      if (tab.windowId! >= 0) {
+        // 如 Tab API 有提供 tab.windowId, 則指定 tab.windowId
+        createProperties.windowId = tab.windowId;
+      }
+    }
+    createProperties.index = tab.index + 1;
+  }
+  // 先嘗試以 openerTabId 和 windowId 打開
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch {
+    // do nothing
+  }
+  // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
+  delete createProperties.openerTabId;
+  delete createProperties.windowId;
+  await chrome.tabs.create(createProperties);
+  return;
 }
 
 // https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
@@ -99,49 +126,37 @@ export async function getCurrentTab() {
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
-export function checkSilenceUpdate(oldMeta: Metadata, newMeta: Metadata): boolean {
+export function checkSilenceUpdate(oldMeta: SCMetadata, newMeta: SCMetadata): boolean {
   // 判断connect是否改变
-  const oldConnect: { [key: string]: boolean } = {};
-  const newConnect: { [key: string]: boolean } = {};
-  oldMeta.connect &&
-    oldMeta.connect.forEach((val) => {
-      oldConnect[val] = true;
-    });
-  newMeta.connect &&
-    newMeta.connect.forEach((val) => {
-      newConnect[val] = true;
-    });
+  const oldConnect = new Set<string>(oldMeta.connect || []);
+  const newConnect = new Set<string>(newMeta.connect || []);
   // 老的里面没有新的就需要用户确认了
-  const keys = Object.keys(newConnect);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    if (!oldConnect[key]) {
+  for (const key of newConnect) {
+    if (!oldConnect.has(key)) {
       return false;
     }
   }
   return true;
 }
 
-export function sleep(time: number) {
+export function sleep(millis: number) {
   return new Promise((resolve) => {
-    setTimeout(resolve, time);
+    setTimeout(resolve, millis);
   });
 }
 
 export function getStorageName(script: Script): string {
-  if (script.metadata && script.metadata.storagename) {
-    return script.metadata.storagename[0];
-  }
-  return script.uuid;
+  const storagename = script.metadata?.storagename;
+  return storagename ? storagename[0] : script.uuid;
 }
 
 export function getIcon(script: Script): string | undefined {
   return (
-    (script.metadata.icon && script.metadata.icon[0]) ||
-    (script.metadata.iconurl && script.metadata.iconurl[0]) ||
-    (script.metadata.defaulticon && script.metadata.defaulticon[0]) ||
-    (script.metadata.icon64 && script.metadata.icon64[0]) ||
-    (script.metadata.icon64url && script.metadata.icon64url[0])
+    script.metadata.icon?.[0] ??
+    script.metadata.iconurl?.[0] ??
+    script.metadata.defaulticon?.[0] ??
+    script.metadata.icon64?.[0] ??
+    script.metadata.icon64url?.[0]
   );
 }
 
@@ -298,7 +313,6 @@ export function base64ToBlob(dataURI: string) {
   return new Blob([intArray], { type: mimeString });
 }
 
-/*
 export function strToBase64(str: string): string {
   return btoa(
     encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1: string) => {
@@ -306,7 +320,6 @@ export function strToBase64(str: string): string {
     })
   );
 }
-*/
 
 export function getMetadataStr(code: string): string | null {
   const start = code.indexOf("==UserScript==");
@@ -325,3 +338,13 @@ export function getUserConfigStr(code: string): string | null {
   }
   return `/* ${code.substring(start, end + 15)} */`;
 }
+
+export const obtainBlackList = (strBlacklist: string | null | undefined) => {
+  const blacklist = strBlacklist
+    ? strBlacklist
+        .split("\n")
+        .map((item) => item.trim())
+        .filter((item) => item)
+    : [];
+  return blacklist;
+};

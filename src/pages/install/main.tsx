@@ -10,6 +10,7 @@ import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
+import "./index.css";
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
@@ -19,22 +20,9 @@ const loggerCore = new LoggerCore({
 
 loggerCore.logger().debug("install page start");
 
-// 接收FileSystemType
-window.addEventListener(
-  "message",
-  (event) => {
-    if (event.data && event.data.type === "file") {
-      // 将FileSystemType存储到全局变量中
-      window.localFile = event.data.file;
-      window.localFileHandle = event.data.fileHandle;
-    }
-  },
-  false
-);
-
 const Root = (
   <Provider store={store}>
-    <MainLayout className="!flex-col !px-4 box-border">
+    <MainLayout className="!flex-col !px-4 box-border install-main-layout">
       <App />
     </MainLayout>
   </Provider>

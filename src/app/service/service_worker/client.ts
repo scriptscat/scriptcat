@@ -2,18 +2,20 @@ import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/script
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem } from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { v4 as uuidv4 } from "uuid";
-import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { cacheInstance } from "@App/app/cache";
+import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
+import { type SystemService } from "./system";
+import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -32,16 +34,16 @@ export class ScriptClient extends Client {
 
   // 脚本数据量大的时候，options页要读取全部的数据，可能会导致options页卡顿，直接调用serviceWorker的接口从内存中读取数据
   getAllScripts(): Promise<Script[]> {
-    return this.do("getAllScripts");
+    return this.doThrow("getAllScripts");
   }
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo]>("getInstallInfo", uuid);
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
-    return this.do("install", { script, code, upsertBy });
+    return this.doThrow("install", { script, code, upsertBy });
   }
 
   delete(uuid: string) {
@@ -53,19 +55,19 @@ export class ScriptClient extends Client {
   }
 
   info(uuid: string): Promise<Script> {
-    return this.do("fetchInfo", uuid);
+    return this.doThrow("fetchInfo", uuid);
   }
 
-  getCode(uuid: string): Promise<ScriptCode | undefined> {
-    return this.do("getCode", uuid);
+  getFilterResult(req: { type: SearchType; value: string }): Promise<ScriptCode | undefined> {
+    return this.do("getFilterResult", req);
   }
 
   getScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    return this.do("getScriptRunResource", script);
+    return this.doThrow("getScriptRunResource", script);
   }
 
-  excludeUrl(uuid: string, url: string, remove: boolean) {
-    return this.do("excludeUrl", { uuid, url, remove });
+  excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
+    return this.do("excludeUrl", { uuid, excludePattern, remove });
   }
 
   // 重置匹配项
@@ -141,23 +143,24 @@ export class ScriptClient extends Client {
       })
       // this.do 只会resolve 不会reject
     )) as PromiseFulfilledResult<{ success: boolean; msg: string }>[];
-    const stat = results.reduce(
-      (obj, result, index) => {
-        if (result.value.success) {
-          obj.success++;
-        } else {
-          obj.fail++;
-          obj.msg.push(`#${index + 1}: ${result.value.msg}`);
-        }
-        return obj;
-      },
-      { success: 0, fail: 0, msg: [] as string[] }
-    );
+    const stat = { success: 0, fail: 0, msg: [] as string[] };
+    results.forEach(({ value }, index) => {
+      if (value.success) {
+        stat.success++;
+      } else {
+        stat.fail++;
+        stat.msg.push(`#${index + 1}: ${value.msg}`);
+      }
+    });
     return stat;
   }
 
   setCheckUpdateUrl(uuid: string, checkUpdate: boolean, checkUpdateUrl?: string) {
     return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
+  }
+
+  updateMetadata(uuid: string, key: string, value: string[]) {
+    return this.do("updateMetadata", { uuid, key, value });
   }
 }
 
@@ -167,7 +170,7 @@ export class ResourceClient extends Client {
   }
 
   getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.do("getScriptResources", script);
+    return this.doThrow("getScriptResources", script);
   }
 
   deleteResource(url: string) {
@@ -181,7 +184,7 @@ export class ValueClient extends Client {
   }
 
   getScriptValue(script: Script): Promise<{ [key: string]: any }> {
-    return this.do("getScriptValue", script);
+    return this.doThrow("getScriptValue", script);
   }
 
   setScriptValue(uuid: string, key: string, value: any) {
@@ -207,7 +210,7 @@ export class RuntimeClient extends Client {
   }
 
   pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
-    return this.do("pageLoad");
+    return this.doThrow("pageLoad");
   }
 
   scriptLoad(flag: string, uuid: string) {
@@ -233,7 +236,7 @@ export class PopupClient extends Client {
   }
 
   getPopupData(data: GetPopupDataReq): Promise<GetPopupDataRes> {
-    return this.do("getPopupData", data);
+    return this.doThrow("getPopupData", data);
   }
 
   menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
@@ -260,7 +263,7 @@ export class PermissionClient extends Client {
   }
 
   getPermissionInfo(uuid: string): ReturnType<PermissionVerify["getInfo"]> {
-    return this.do("getInfo", uuid);
+    return this.doThrow("getInfo", uuid);
   }
 
   deletePermission(uuid: string, permission: string, permissionValue: string) {
@@ -268,7 +271,7 @@ export class PermissionClient extends Client {
   }
 
   getScriptPermissions(uuid: string): ReturnType<PermissionVerify["getScriptPermissions"]> {
-    return this.do("getScriptPermissions", uuid);
+    return this.doThrow("getScriptPermissions", uuid);
   }
 
   addPermission(permission: Permission) {
@@ -304,7 +307,8 @@ export class SynchronizeClient extends Client {
     //   URL.revokeObjectURL(url);
     // }, 60 * 1000);
     const uuid = uuidv4();
-    await Cache.getInstance().set(CacheKey.importFile(uuid), {
+    const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
+    await cacheInstance.set(cacheKey, {
       filename: filename,
       url: url,
     });
@@ -354,6 +358,10 @@ export class SystemClient extends Client {
   }
 
   loadFavicon(icon: string): Promise<string> {
-    return this.do("loadFavicon", icon);
+    return this.doThrow("loadFavicon", icon);
+  }
+
+  getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
+    return this.doThrow("getFaviconFromDomain", domain);
   }
 }

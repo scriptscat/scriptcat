@@ -248,6 +248,259 @@ describe("Server", () => {
       expect(response2.code).toBe(0);
       expect(mockHandler).toHaveBeenCalledTimes(2);
     });
+
+    it("应该能够在 Group 中添加和执行中间件", async () => {
+      const middlewareOrder: string[] = [];
+
+      // 创建一个带中间件的group
+      const middleware1 = vi.fn(async (params: any, con: any, next: any) => {
+        middlewareOrder.push("middleware1-before");
+        const result = await next();
+        middlewareOrder.push("middleware1-after");
+        return result;
+      });
+
+      let group = server.group("api", middleware1);
+
+      // 添加另一个中间件
+      const middleware2 = vi.fn(async (params: any, con: any, next: any) => {
+        middlewareOrder.push("middleware2-before");
+        const result = await next();
+        middlewareOrder.push("middleware2-after");
+        return result;
+      });
+
+      group = group.use(middleware2);
+
+      // 注册一个处理函数
+      const handler = vi.fn(async (params: any) => {
+        middlewareOrder.push("handler");
+        return { success: true, data: params };
+      });
+
+      group.on("test", handler);
+
+      // 发送消息
+      const response = await client.sendMessage({
+        action: "api/api/test",
+        data: { message: "hello" },
+      });
+
+      // 验证中间件执行顺序
+      expect(middlewareOrder).toEqual([
+        "middleware1-before",
+        "middleware2-before",
+        "handler",
+        "middleware2-after",
+        "middleware1-after",
+      ]);
+
+      // 验证响应
+      expect(response.code).toBe(0);
+      expect(response.data).toEqual({ success: true, data: { message: "hello" } });
+
+      // 验证所有函数都被调用
+      expect(middleware1).toHaveBeenCalledTimes(1);
+      expect(middleware2).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("子 Group 应该继承父 Group 的中间件", async () => {
+      const middlewareOrder: string[] = [];
+
+      // 父group中间件
+      const parentMiddleware = vi.fn(async (params: any, con: any, next: any) => {
+        middlewareOrder.push("parent-middleware");
+        return await next();
+      });
+
+      // 子group中间件
+      const childMiddleware = vi.fn(async (params: any, con: any, next: any) => {
+        middlewareOrder.push("child-middleware");
+        return await next();
+      });
+
+      const parentGroup = server.group("parent", parentMiddleware);
+      const childGroup = parentGroup.group("child", childMiddleware);
+
+      // 在子group中注册处理函数
+      const handler = vi.fn(async () => {
+        middlewareOrder.push("handler");
+        return { success: true };
+      });
+
+      childGroup.on("test", handler);
+
+      // 发送消息
+      await client.sendMessage({
+        action: "api/parent/child/test",
+        data: {},
+      });
+
+      // 验证中间件执行顺序（父中间件 -> 子中间件 -> 处理函数）
+      expect(middlewareOrder).toEqual(["parent-middleware", "child-middleware", "handler"]);
+    });
+
+    it("中间件可以修改参数", async () => {
+      // 中间件修改参数
+      const modifyMiddleware = vi.fn(async (params: any, con: any, next: any) => {
+        params.modified = true;
+        params.timestamp = Date.now();
+        return await next();
+      });
+
+      const group = server.group("api", modifyMiddleware);
+
+      const handler = vi.fn(async (params: any) => {
+        return { received: params };
+      });
+
+      group.on("test", handler);
+
+      // 发送消息
+      const response = await client.sendMessage({
+        action: "api/api/test",
+        data: { original: true },
+      });
+
+      // 验证参数被修改
+      expect(response.data.received.original).toBe(true);
+      expect(response.data.received.modified).toBe(true);
+      expect(response.data.received.timestamp).toBeDefined();
+    });
+
+    it("中间件可以短路执行", async () => {
+      // 短路中间件
+      const shortCircuitMiddleware = vi.fn(async (params: any, con: any, next: any) => {
+        if (params.skipHandler) {
+          return { shortCircuited: true };
+        }
+        return await next();
+      });
+
+      const group = server.group("api", shortCircuitMiddleware);
+
+      const handler = vi.fn(async () => {
+        return { fromHandler: true };
+      });
+
+      group.on("test", handler);
+
+      // 测试短路
+      const response1 = await client.sendMessage({
+        action: "api/api/test",
+        data: { skipHandler: true },
+      });
+
+      expect(response1.data).toEqual({ shortCircuited: true });
+      expect(handler).not.toHaveBeenCalled();
+
+      // 测试正常执行
+      const response2 = await client.sendMessage({
+        action: "api/api/test",
+        data: { skipHandler: false },
+      });
+
+      expect(response2.data).toEqual({ fromHandler: true });
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("没有中间件的 Group 应该正常工作", async () => {
+      const group = server.group("api");
+
+      const handler = vi.fn(async (params: any) => {
+        return { data: params };
+      });
+
+      group.on("test", handler);
+
+      const response = await client.sendMessage({
+        action: "api/api/test",
+        data: { message: "hello" },
+      });
+
+      expect(response.code).toBe(0);
+      expect(response.data).toEqual({ data: { message: "hello" } });
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("中间件应该能够处理异步错误", async () => {
+      const errorMiddleware = vi.fn(async (params: any, con: any, next: any) => {
+        if (params.throwError) {
+          throw new Error("Middleware error");
+        }
+        return await next();
+      });
+
+      const group = server.group("api", errorMiddleware);
+
+      const handler = vi.fn(async () => {
+        return { success: true };
+      });
+
+      group.on("test", handler);
+
+      // 测试中间件抛出错误
+      const response = await client.sendMessage({
+        action: "api/api/test",
+        data: { throwError: true },
+      });
+
+      expect(response.code).toBe(-1);
+      expect(response.message).toBe("Middleware error");
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("多层嵌套的 Group 中间件应该正确执行", async () => {
+      const executionOrder: string[] = [];
+
+      const middleware1 = vi.fn(async (params: any, con: any, next: any) => {
+        executionOrder.push("level1-before");
+        const result = await next();
+        executionOrder.push("level1-after");
+        return result;
+      });
+
+      const middleware2 = vi.fn(async (params: any, con: any, next: any) => {
+        executionOrder.push("level2-before");
+        const result = await next();
+        executionOrder.push("level2-after");
+        return result;
+      });
+
+      const middleware3 = vi.fn(async (params: any, con: any, next: any) => {
+        executionOrder.push("level3-before");
+        const result = await next();
+        executionOrder.push("level3-after");
+        return result;
+      });
+
+      const level1 = server.group("level1", middleware1);
+      const level2 = level1.group("level2", middleware2);
+      const level3 = level2.group("level3", middleware3);
+
+      const handler = vi.fn(async () => {
+        executionOrder.push("handler");
+        return { success: true };
+      });
+
+      level3.on("test", handler);
+
+      await client.sendMessage({
+        action: "api/level1/level2/level3/test",
+        data: {},
+      });
+
+      expect(executionOrder).toEqual([
+        "level1-before",
+        "level2-before",
+        "level3-before",
+        "handler",
+        "level3-after",
+        "level2-after",
+        "level1-after",
+      ]);
+    });
   });
 
   describe("GetSender 功能测试", () => {
@@ -337,12 +590,12 @@ describe("Server", () => {
       });
 
       // 客户端向服务端发送消息
-      clientConnection.sendMessage({ msg: "hello from client" });
+      clientConnection.sendMessage({ action: "test123", data: "hello from client" });
 
       // 等待消息处理
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(serverMessageHandler).toHaveBeenCalledWith({ msg: "hello from client" });
+      expect(serverMessageHandler).toHaveBeenCalledWith({ action: "test123", data: "hello from client" });
     });
 
     it("应该在 enableConnect 为 false 时不处理连接", async () => {

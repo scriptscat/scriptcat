@@ -14,7 +14,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
   useLocation: () => ({ pathname: "/" }),
-  Outlet: () => <div data-testid="outlet">Options Content</div>,
+  Outlet: () => <div data-testid="outlet">{"Options Content"}</div>,
 }));
 
 vi.mock("@App/pages/store/hooks", () => ({
@@ -57,7 +57,7 @@ describe("Options MainLayout Component", () => {
   it("should render main layout successfully", async () => {
     render(
       <MainLayout className="" pageName="options">
-        Test Content
+        {"Test Content"}
       </MainLayout>
     );
 
@@ -81,7 +81,7 @@ describe("Options MainLayout Component", () => {
   it("should handle page name prop", async () => {
     render(
       <MainLayout className="" pageName="options">
-        Content
+        {"Content"}
       </MainLayout>
     );
 
@@ -92,7 +92,7 @@ describe("Options MainLayout Component", () => {
   it("should render with custom className", async () => {
     render(
       <MainLayout pageName="options" className="custom-class">
-        Content
+        {"Content"}
       </MainLayout>
     );
 

@@ -1,5 +1,6 @@
 import { Repo } from "./repo";
 import type { Resource } from "./resource";
+import type { SCMetadata } from "./metadata";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -18,7 +19,7 @@ export const SCRIPT_RUN_STATUS_RUNNING: SCRIPT_RUN_STATUS = "running";
 export const SCRIPT_RUN_STATUS_COMPLETE: SCRIPT_RUN_STATUS = "complete";
 export const SCRIPT_RUN_STATUS_ERROR: SCRIPT_RUN_STATUS = "error";
 
-export type Metadata = { [key: string]: string[] | undefined };
+export { SCMetadata };
 
 export type ConfigType = "text" | "checkbox" | "select" | "mult-select" | "number" | "textarea" | "switch";
 
@@ -50,8 +51,8 @@ export interface Script {
   checkUpdate?: boolean; // 是否检查更新
   checkUpdateUrl?: string; // 检查更新URL
   downloadUrl?: string; // 脚本下载URL
-  metadata: Metadata; // 脚本的元数据
-  selfMetadata?: Metadata; // 自定义脚本元数据
+  metadata: SCMetadata; // 脚本的元数据
+  selfMetadata?: SCMetadata; // 自定义脚本元数据
   subscribeUrl?: string; // 如果是通过订阅脚本安装的话,会有订阅地址
   config?: UserConfig; // 通过UserConfig定义的用户配置
   type: SCRIPT_TYPE; // 脚本类型 1:普通脚本 2:定时脚本 3:后台脚本
@@ -79,7 +80,9 @@ export interface ScriptRunResource extends Script {
   code: string;
   value: { [key: string]: any };
   flag: string;
-  resource: { [key: string]: Resource };
+  resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
+  metadata: SCMetadata; // 经自定义覆盖的 Metadata
+  originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
 }
 
 export class ScriptDAO extends Repo<Script> {

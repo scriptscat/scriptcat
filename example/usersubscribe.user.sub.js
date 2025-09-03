@@ -4,5 +4,5 @@
 // @version      1.0.0
 // @author       You
 // @connect      www.baidu.com
-// @scriptUrl    https://scriptcat.org/scripts/code/22/test.user.js
+// @scriptURL    https://scriptcat.org/scripts/code/22/test.user.js
 // ==/UserSubscribe==

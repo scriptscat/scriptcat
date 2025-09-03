@@ -15,6 +15,7 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
+import type { SearchType } from "@App/app/service/service_worker/types";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -48,6 +49,13 @@ export const requestDeleteScript = createAsyncThunk("script/deleteScript", async
   return await scriptClient.delete(uuid);
 });
 
+export const requestFilterResult = createAsyncThunk(
+  "script/requestFilterResult",
+  async (req: { type: SearchType; value: string }) => {
+    return await scriptClient.getFilterResult(req);
+  }
+);
+
 export type ScriptLoading = Script & {
   enableLoading?: boolean;
   actionLoading?: boolean;
@@ -56,6 +64,7 @@ export type ScriptLoading = Script & {
     website?: string;
     icon?: string;
   }[];
+  code?: string; // 用于搜索的脚本代码
 };
 
 const updateScript = (scripts: ScriptLoading[], uuid: string, update: (s: ScriptLoading) => void) => {
@@ -126,15 +135,15 @@ export const scriptSlice = createAppSlice({
     },
     setScriptFavicon: (state, action: PayloadAction<{ uuid: string; fav: { match: string; icon?: string }[] }[]>) => {
       const scriptMap = new Map<string, ScriptLoading>();
-      state.scripts.forEach((s) => {
+      for (const s of state.scripts) {
         scriptMap.set(s.uuid, s);
-      });
-      action.payload.forEach((item) => {
+      }
+      for (const item of action.payload) {
         const script = scriptMap.get(item.uuid);
         if (script) {
           script.favorite = item.fav;
         }
-      });
+      }
     },
   },
   extraReducers: (builder) => {

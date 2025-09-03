@@ -5,6 +5,7 @@ import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_context";
 import { createGMBase } from "./gm_api";
 import { protect } from "./gm_context";
+import { isEarlyStartScript } from "./utils";
 
 // 构建沙盒上下文
 export const createContext = (
@@ -16,7 +17,15 @@ export const createContext = (
 ) => {
   // 按照GMApi构建
   const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
-  const EE: EventEmitter = new EventEmitter();
+  const EE = new EventEmitter<string, any>();
+  // 如果是preDocumentStart脚本，装载loadScriptPromise
+  let loadScriptPromise: Promise<void> | undefined;
+  let loadScriptResolve: (() => void) | undefined;
+  if (isEarlyStartScript(scriptRes)) {
+    loadScriptPromise = new Promise((resolve) => {
+      loadScriptResolve = resolve;
+    });
+  }
   const context = createGMBase({
     prefix: envPrefix,
     message,
@@ -31,6 +40,8 @@ export const createContext = (
       // onurlchange: null,
     },
     grantSet: new Set(),
+    loadScriptPromise,
+    loadScriptResolve,
   });
   const grantedAPIs: { [key: string]: any } = {};
   const __methodInject__ = (grant: string): boolean => {
@@ -160,7 +171,7 @@ descsCache.clear(); // 内存释放
 // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
 //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
 // sharedInitCopy: ScriptCat脚本共通使用
-const sharedInitCopy = Object.create(Object.getPrototypeOf(global), {
+const sharedInitCopy = Object.create(null, {
   ...initOwnDescs,
   ...overridedDescs,
 });

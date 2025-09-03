@@ -20,7 +20,7 @@ export default class MessageWriter implements Writer {
         level,
         message,
         label,
-        createtime: new Date().getTime(),
+        createtime: Date.now(),
       },
     });
   }

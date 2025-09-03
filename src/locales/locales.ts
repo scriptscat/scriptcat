@@ -4,7 +4,7 @@ import i18n, { t } from "i18next";
 import { initReactI18next } from "react-i18next";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import type { Metadata } from "@App/app/repo/scripts";
+import type { SCMetadata } from "@App/app/repo/scripts";
 import enUS from "./en-US/translation.json";
 import viVN from "./vi-VN/translation.json";
 import zhCN from "./zh-CN/translation.json";
@@ -64,16 +64,14 @@ export function initLocales(systemConfig: SystemConfig) {
   });
 }
 
-export function i18nName(script: { name: string; metadata: Metadata }) {
-  return script.metadata[`name:${i18n.language.toLowerCase()}`]
-    ? script.metadata[`name:${i18n.language.toLowerCase()}`]![0]
-    : script.name;
+export function i18nName(script: { name: string; metadata: SCMetadata }) {
+  const m = script.metadata[`name:${i18n.language.toLowerCase()}`];
+  return m ? m[0] : script.name;
 }
 
-export function i18nDescription(script: { metadata: Metadata }) {
-  return script.metadata[`description:${i18n.language.toLowerCase()}`]
-    ? script.metadata[`description:${i18n.language.toLowerCase()}`]![0]
-    : script.metadata.description;
+export function i18nDescription(script: { metadata: SCMetadata }) {
+  const m = script.metadata[`description:${i18n.language.toLowerCase()}`];
+  return m ? m[0] : script.metadata.description;
 }
 
 // 判断是否是中文用户
@@ -83,35 +81,33 @@ export function isChineseUser() {
 }
 
 // 匹配语言
-export async function matchLanguage() {
-  const acceptLanguages = await chrome.i18n.getAcceptLanguages();
-  // 遍历数组寻找匹配语言
-  for (let i = 0; i < acceptLanguages.length; i += 1) {
-    const lng = acceptLanguages[i];
-    if (i18n.hasResourceBundle(lng, "translation")) {
-      return lng;
-    }
-  }
-  // 根据前缀去匹配
-  const prefixMap = i18n.languages.reduce(
-    (acc, lng) => {
-      const prefix = lng.split("-")[0];
-      if (!acc[prefix]) {
-        acc[prefix] = [];
+export function matchLanguage(): Promise<string> {
+  return chrome.i18n.getAcceptLanguages().then((acceptLanguages) => {
+    // 遍历数组寻找匹配语言
+    for (let i = 0; i < acceptLanguages.length; i += 1) {
+      const lng = acceptLanguages[i];
+      if (i18n.hasResourceBundle(lng, "translation")) {
+        return lng;
       }
-      acc[prefix].push(lng);
-      return acc;
-    },
-    {} as Record<string, string[]>
-  );
-  for (let i = 0; i < acceptLanguages.length; i += 1) {
-    const lng = acceptLanguages[i];
-    const prefix = lng.split("-")[0];
-    if (prefixMap[prefix] && prefixMap[prefix].length > 0) {
-      return prefixMap[prefix][0]; // 返回第一个匹配的语言
     }
-  }
-  return "";
+    // 根据前缀去匹配
+    const prefixMap = {} as Partial<Record<string, string[]>>;
+    for (const lng of i18n.languages) {
+      const prefix = lng.split("-")[0];
+      if (!prefixMap[prefix]) {
+        prefixMap[prefix] = [];
+      }
+      prefixMap[prefix].push(lng);
+    }
+    for (let i = 0; i < acceptLanguages.length; i += 1) {
+      const lng = acceptLanguages[i];
+      const prefix = lng.split("-")[0];
+      if (prefixMap[prefix] && prefixMap[prefix].length > 0) {
+        return prefixMap[prefix][0]; // 返回第一个匹配的语言
+      }
+    }
+    return "";
+  });
 }
 
 export { t };

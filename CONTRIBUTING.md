@@ -1,4 +1,4 @@
-[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md)
+[English Contribution Guidelines](./docs/CONTRIBUTING_EN.md) [Руководство на русском](./docs/CONTRIBUTING_RU.md)
 
 # ScriptCat 贡献指南
 
@@ -71,7 +71,6 @@ pnpm start
 是一个在线的多语言翻译平台。如果您有兴趣帮助我们翻译 ScriptCat 的相关内容，您可以在 Crowdin 上找到 ScriptCat 项目，并开始进行翻译工作。
 
 - `src/locales`为[扩展](https://github.com/scriptscat/scriptcat)翻译文件目录
-- `public/locales`为[脚本站](https://github.com/scriptscat/scriptlist-frontend)的翻译文件目录
 
 #### 扩展开启所见即所得模式
 

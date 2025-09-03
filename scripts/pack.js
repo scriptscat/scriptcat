@@ -1,15 +1,23 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable no-undef */
-const fs = require("fs");
-const JSZip = require("jszip");
-const ChromeExtension = require("crx");
-const { execSync } = require("child_process");
-const semver = require("semver");
-const manifest = require("../src/manifest.json");
-const package = require("../package.json");
+/* global process */
+import { promises as fs } from "fs";
+import { createWriteStream } from "fs";
+import JSZip from "jszip";
+import ChromeExtension from "crx";
+import { execSync } from "child_process";
+import manifest from "../src/manifest.json" with { type: "json" };
+import packageInfo from "../package.json" with { type: "json" };
+import semver from "semver";
+
+// ============================================================================
+
+// 目前 ScriptCat MV3 未正式支持 Firefox，
+// 测试人员可修改 PACK_FIREFOX 为 true 作个人测试用途
+const PACK_FIREFOX = false;
+
+// ============================================================================
 
 // 判断是否为beta版本
-const version = semver.parse(package.version);
+const version = semver.parse(packageInfo.version);
 if (version.prerelease.length) {
   // 替换manifest中的版本
   let betaVersion = 1000;
@@ -25,75 +33,89 @@ if (version.prerelease.length) {
     default:
       throw new Error("未知的版本类型");
   }
-  manifest.version = `${version.major.toString()}.${version.minor.toString()}.${version.patch.toString()}.${betaVersion.toString()}`;
+  manifest.version = `${version.major}.${version.minor}.${version.patch}.${betaVersion}`;
   manifest.name = `__MSG_scriptcat_beta__`;
 } else {
   manifest.name = `__MSG_scriptcat__`;
-  manifest.version = package.version;
+  manifest.version = packageInfo.version;
 }
 
 // 处理manifest version
-let str = fs.readFileSync("./src/manifest.json").toString();
+let str = (await fs.readFile("./src/manifest.json", { encoding: "utf8" })).toString();
 str = str.replace(/"version": "(.*?)"/, `"version": "${manifest.version}"`);
-fs.writeFileSync("./src/manifest.json", str);
+await fs.writeFile("./src/manifest.json", str);
 
 // 处理configSystem version
-let configSystem = fs.readFileSync("./src/app/const.ts").toString();
+let configSystem = (await fs.readFile("./src/app/const.ts", { encoding: "utf8" })).toString();
 // 如果是由github action的分支触发的构建,在版本中再加上commit id
 if (process.env.GITHUB_REF_TYPE === "branch") {
   configSystem = configSystem.replace(
     "ExtVersion = version;",
     `ExtVersion = \`\${version}+${process.env.GITHUB_SHA.substring(0, 7)}\`;`
   );
-  fs.writeFileSync("./src/app/const.ts", configSystem);
+  await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
 execSync("npm run build", { stdio: "inherit" });
 
+// logo 在 rspack.config.ts 处理
+
 // 处理firefox和chrome的zip压缩包
 
-const firefoxManifest = { ...manifest };
-const chromeManifest = { ...manifest };
+// 浅拷贝防止后续修改
+const firefoxManifest = { ...manifest, background: { ...manifest.background } };
+const chromeManifest = { ...manifest, background: { ...manifest.background } };
 
 delete chromeManifest.content_security_policy;
 delete chromeManifest.optional_permissions;
 delete chromeManifest.background.scripts;
 
+delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
 // firefoxManifest.content_security_policy = "script-src 'self' blob:; object-src 'self' blob:";
 firefoxManifest.browser_specific_settings = {
   gecko: {
-    strict_min_version: "91.1.0",
+    id: `{${
+      version.prerelease.length ? "44ab8538-2642-46b0-8a57-3942dbc1a33b" : "8e515334-52b5-4cc5-b4e8-675d50af677d"
+    }}`,
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
+    // Firefox 136 (Released 2025-03-04)
+    strict_min_version: "136.0",
   },
 };
 
 const chrome = new JSZip();
 const firefox = new JSZip();
 
-function addDir(zip, localDir, toDir, filters) {
-  const files = fs.readdirSync(localDir);
-  files.forEach((file) => {
-    const localPath = `${localDir}/${file}`;
-    const toPath = `${toDir}${file}`;
-    const stats = fs.statSync(localPath);
-    if (stats.isDirectory()) {
-      addDir(zip, localPath, `${toPath}/`, filters);
-    } else {
-      if (filters && filters.includes(file)) {
-        return;
+async function addDir(zip, localDir, toDir, filters) {
+  const sub = async (localDir, toDir) => {
+    const files = await fs.readdir(localDir);
+    for (const file of files) {
+      if (filters?.includes(file)) {
+        continue;
       }
-      zip.file(toPath, fs.readFileSync(localPath));
+      const localPath = `${localDir}/${file}`;
+      const toPath = `${toDir}${file}`;
+      const stats = await fs.stat(localPath);
+      if (stats.isDirectory()) {
+        await sub(localPath, `${toPath}/`);
+      } else {
+        zip.file(toPath, await fs.readFile(localPath));
+      }
     }
-  });
+  };
+  await sub(localDir, toDir);
 }
 
 chrome.file("manifest.json", JSON.stringify(chromeManifest));
 firefox.file("manifest.json", JSON.stringify(firefoxManifest));
 
-addDir(chrome, "./dist/ext", "", ["manifest.json"]);
-addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]);
+await Promise.all([
+  addDir(chrome, "./dist/ext", "", ["manifest.json"]),
+  addDir(firefox, "./dist/ext", "", ["manifest.json", "ts.worker.js"]),
+]);
 // 添加ts.worker.js名字为gz
-firefox.file("src/ts.worker.js.gz", fs.readFileSync("./dist/ext/src/ts.worker.js"));
+firefox.file("src/ts.worker.js.gz", await fs.readFile("./dist/ext/src/ts.worker.js", { encoding: "utf8" }));
 
 // 导出zip包
 chrome
@@ -102,27 +124,26 @@ chrome
     streamFiles: true,
     compression: "DEFLATE",
   })
-  .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-chrome.zip`));
+  .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`));
 
-// firefox
-//   .generateNodeStream({
-//     type: "nodebuffer",
-//     streamFiles: true,
-//     compression: "DEFLATE",
-//   })
-//   .pipe(fs.createWriteStream(`./dist/${package.name}-v${package.version}-firefox.zip`));
+PACK_FIREFOX &&
+  firefox
+    .generateNodeStream({
+      type: "nodebuffer",
+      streamFiles: true,
+      compression: "DEFLATE",
+    })
+    .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`));
 
 // 处理crx
 const crx = new ChromeExtension({
-  privateKey: fs.readFileSync("./dist/scriptcat.pem"),
+  privateKey: await fs.readFile("./dist/scriptcat.pem", { encoding: "utf8" }),
 });
 
-crx
+await crx
   .load("./dist/ext")
   .then((crxFile) => crxFile.pack())
-  .then((crxBuffer) => {
-    fs.writeFileSync(`./dist/${package.name}-v${package.version}-chrome.crx`, crxBuffer);
-  })
+  .then((crxBuffer) => fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.crx`, crxBuffer))
   .catch((err) => {
     console.error(err);
   });

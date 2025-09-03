@@ -2,11 +2,12 @@ import BaiduFileSystem from "./baidu/baidu";
 import type FileSystem from "./filesystem";
 import GoogleDriveFileSystem from "./googledrive/googledrive";
 import OneDriveFileSystem from "./onedrive/onedrive";
+import DropboxFileSystem from "./dropbox/dropbox";
 import WebDAVFileSystem from "./webdav/webdav";
 import ZipFileSystem from "./zip/zip";
 import { t } from "@App/locales/locales";
 
-export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive";
+export type FileSystemType = "zip" | "webdav" | "baidu-netdsik" | "onedrive" | "googledrive" | "dropbox";
 
 export type FileSystemParams = {
   [key: string]: {
@@ -35,6 +36,9 @@ export default class FileSystemFactory {
       case "googledrive":
         fs = new GoogleDriveFileSystem();
         break;
+      case "dropbox":
+        fs = new DropboxFileSystem();
+        break;
       default:
         throw new Error("not found filesystem");
     }
@@ -56,6 +60,7 @@ export default class FileSystemFactory {
       "baidu-netdsik": {},
       onedrive: {},
       googledrive: {},
+      dropbox: {},
     };
   }
 

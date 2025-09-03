@@ -128,7 +128,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
         }
       }}
       locale={{
-        next: t("next"),
+        nextLabelWithProgress: t("next_with_progress"),
         skip: t("skip"),
         back: t("back"),
         last: t("last"),
@@ -146,6 +146,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       styles={{
         options: {
           zIndex: 10000,
+          primaryColor: "#4594D5",
         },
       }}
     />

@@ -47,14 +47,14 @@ const UserConfigPanel: React.FC<{
           const saveValues = formRefs.current[tab].getFieldsValue();
           // 更新value
           const valueClient = new ValueClient(message);
-          Object.keys(saveValues).forEach((key) => {
-            Object.keys(saveValues[key]).forEach((valueKey) => {
+          for (const key of Object.keys(saveValues)) {
+            for (const valueKey of Object.keys(saveValues[key])) {
               if (saveValues[key][valueKey] === undefined) {
-                return;
+                continue;
               }
               valueClient.setScriptValue(script.uuid, `${key}.${valueKey}`, saveValues[key][valueKey]);
-            });
-          });
+            }
+          }
           Message.success(t("save_success")!); // 替换为键值对应的英文文本
           setVisible(false);
         }
@@ -74,7 +74,6 @@ const UserConfigPanel: React.FC<{
           const keys = Object.keys(value).sort((a, b) => {
             return (value[a].index || 0) - (value[b].index || 0);
           });
-          console.log("keys", value, keys);
           return (
             <TabPane key={itemKey} title={itemKey}>
               <Form

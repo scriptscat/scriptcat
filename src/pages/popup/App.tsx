@@ -1,4 +1,4 @@
-import { Discord, ExtVersion } from "@App/app/const";
+import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
@@ -20,7 +20,7 @@ import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
-import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
+import { isUserScriptsAvailable, getBrowserType, BrowserType, getCurrentTab } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -55,10 +55,10 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const onCurrentUrlUpdated = (tabs: chrome.tabs.Tab[]) => {
+    const onCurrentUrlUpdated = (url: string, tabId: number) => {
       checkScriptEnableAndUpdate();
       popupClient
-        .getPopupData({ url: tabs[0].url!, tabId: tabs[0].id! })
+        .getPopupData({ url, tabId })
         .then((resp) => {
           if (!isMounted) return;
 
@@ -103,23 +103,22 @@ function App() {
       setIsEnableScript(isEnableScript);
       setCheckUpdate(checkUpdate);
     };
-    const queryTabInfo = () => {
+    const queryTabInfo = async () => {
       // 只跑一次 tab 资讯，不绑定在 currentUrl
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-          return;
-        }
-        if (!isMounted || !tabs.length) return;
-        const newUrl = tabs[0].url || "";
+      try {
+        const tab = await getCurrentTab();
+        if (!isMounted || !tab) return;
+        const newUrl = tab.url || "";
         setCurrentUrl((prev) => {
           if (newUrl !== prev) {
-            onCurrentUrlUpdated(tabs);
+            const { url, id: tabId } = tab;
+            if (url && tabId) onCurrentUrlUpdated(url, tabId);
           }
           return newUrl;
         });
-      });
+      } catch (e) {
+        console.error(e);
+      }
     };
 
     checkScriptEnableAndUpdate();
@@ -246,24 +245,36 @@ function App() {
       {showRequestButton && (
         <Button
           onClick={() => {
-            chrome.permissions.request({ permissions: ["userScripts"] }, function (granted) {
+            const updateOnPermissionGranted = async (granted: boolean) => {
+              if (granted) {
+                granted = await new Promise((resolve) => {
+                  chrome.runtime.sendMessage({ type: "userScripts.LISTEN_CONNECTIONS" }, (resp) => {
+                    const lastError = chrome.runtime.lastError;
+                    if (lastError) {
+                      resp = false;
+                      console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
+                    }
+                    resolve(resp === true);
+                  });
+                });
+              }
+              if (granted) {
+                setPermissionReqResult("✅");
+                // UserScripts API相关的初始化：
+                // userScripts.LISTEN_CONNECTIONS 進行 Server 通讯初始化
+                // onUserScriptAPIGrantAdded 進行 腳本注冊
+                updateIsUserScriptsAvailableState();
+              } else {
+                setPermissionReqResult("❎");
+              }
+            };
+            chrome.permissions.request({ permissions: ["userScripts"] }, (granted) => {
               const lastError = chrome.runtime.lastError;
               if (lastError) {
                 granted = false;
                 console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
               }
-              if (granted) {
-                console.log("Permission granted");
-                setPermissionReqResult("✅");
-                // 需要进行UserScript API相关的通讯初始化
-                // 或是使用 用 chrome.permissions.onAdded.addListener
-                // 及 chrome.permissions.onRemoved.addListener
-                // 来实现
-                updateIsUserScriptsAvailableState();
-              } else {
-                console.log("Permission denied");
-                setPermissionReqResult("❎");
-              }
+              updateOnPermissionGranted(granted);
             });
           }}
         >
@@ -275,7 +286,7 @@ function App() {
         size="small"
         title={
           <div className="flex justify-between">
-            <span className="text-xl">ScriptCat</span>
+            <span className="text-xl">{"ScriptCat"}</span>
             <div className="flex flex-row items-center">
               <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
@@ -306,7 +317,7 @@ function App() {
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key={`https://docs.scriptcat.org${localePath}`}>
+                    <Menu.Item key={`${DocumentationSite}${localePath}`}>
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
@@ -316,7 +327,7 @@ function App() {
                     </Menu.Item>
                     <Menu.Item key="https://github.com/scriptscat/scriptcat">
                       <IconGithub style={iconStyle} />
-                      GitHub
+                      {"GitHub"}
                     </Menu.Item>
                   </Menu>
                 }
@@ -336,7 +347,7 @@ function App() {
         />
         <Collapse
           bordered={false}
-          defaultActiveKey={["script", "background"]}
+          defaultActiveKey={["script", ...(backScriptList.length > 0 ? ["background"] : [])]}
           style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
         >
           <CollapseItem

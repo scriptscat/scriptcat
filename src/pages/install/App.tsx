@@ -16,15 +16,21 @@ import { IconDown } from "@arco-design/web-react/icon";
 import { v4 as uuidv4 } from "uuid";
 import CodeEditor from "../components/CodeEditor";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Metadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import { i18nDescription, i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import type { ScriptInfo } from "@App/pkg/utils/script";
-import { prepareScriptByCode, prepareSubscribeByCode, scriptInfoByCode } from "@App/pkg/utils/script";
+import { createScriptInfo, type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import { parseMetadata, prepareScriptByCode, prepareSubscribeByCode } from "@App/pkg/utils/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { scriptClient, subscribeClient } from "../store/features/script";
+import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/file-tracker";
+import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
+import { dayFormat } from "@App/pkg/utils/day_format";
+import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
+
+type ScriptOrSubscribe = Script | Subscribe;
 
 // Types
 interface PermissionItem {
@@ -39,99 +45,138 @@ const closeWindow = () => {
   window.close();
 };
 
-// Custom hooks
-const useScriptInstall = () => {
+const cIdKey = `(cid_${Math.random()})`;
+
+function App() {
+  const [enable, setEnable] = useState<boolean>(false);
+  const [btnText, setBtnText] = useState<string>("");
+  const [scriptCode, setScriptCode] = useState<string>("");
   const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  const [upsertScript, setUpsertScript] = useState<Script | Subscribe>();
-  const [code, setCode] = useState<string>("");
+  const [upsertScript, setUpsertScript] = useState<ScriptOrSubscribe>();
   const [diffCode, setDiffCode] = useState<string>();
-  const [oldScript, setOldScript] = useState<Script | Subscribe>();
+  const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
-  const [localFile, setLocalFile] = useState<File | null>(null);
   const [localFileHandle, setLocalFileHandle] = useState<FileSystemFileHandle | null>(null);
   const { t } = useTranslation();
 
-  useEffect(() => {
-    const handle = async () => {
-      try {
-        const url = new URL(window.location.href);
-        const uuid = url.searchParams.get("uuid");
-        let info: ScriptInfo | undefined;
-        if (!uuid) {
-          // 检查是不是本地文件安装
-          const local = url.searchParams.get("local") === "true";
-          if (!local || !window.localFile) {
-            return;
-          }
-          // 处理本地文件的安装流程
-          // 处理成info对象
-          const file = window.localFile;
-          setLocalFile(file);
-          setLocalFileHandle(window.localFileHandle!);
-          const code = await file.text();
-          info = scriptInfoByCode(code, "file:///*from-local*/" + file.name, "user", false, uuidv4());
-        } else {
-          info = await scriptClient.getInstallInfo(uuid);
-          if (!info) {
-            throw new Error("fetch script info failed");
-          }
-        }
-
-        let prepare:
-          | { script: Script; oldScript?: Script; oldScriptCode?: string }
-          | { subscribe: Subscribe; oldSubscribe?: Subscribe };
-        let action: Script | Subscribe;
-
-        if (info.userSubscribe) {
-          prepare = await prepareSubscribeByCode(info.code, info.url);
-          action = prepare.subscribe;
-          setOldScript(prepare.oldSubscribe);
-          setCode(prepare.subscribe.code);
-          setDiffCode(prepare.oldSubscribe?.code);
-          if (prepare.oldSubscribe) {
-            setIsUpdate(true);
-          }
-        } else {
-          if (info.update) {
-            prepare = await prepareScriptByCode(info.code, info.url, info.uuid);
-          } else {
-            prepare = await prepareScriptByCode(info.code, info.url);
-          }
-          action = prepare.script;
-          setOldScript(prepare.oldScript);
-          setCode(info.code);
-          setDiffCode(prepare.oldScriptCode);
-          if (prepare.oldScript) {
-            setIsUpdate(true);
-          }
-        }
-
-        setScriptInfo(info);
-        setUpsertScript(action);
-      } catch (e: any) {
-        Message.error(t("script_info_load_failed") + " " + e.message);
-      }
-    };
-    handle();
-  }, [t]);
-
-  return {
-    scriptInfo,
-    upsertScript,
-    setUpsertScript,
-    code,
-    diffCode,
-    oldScript,
-    isUpdate,
-    localFile,
-    localFileHandle,
+  const installOrUpdateScript = async (newScript: Script, code: string) => {
+    await scriptClient.install(newScript, code);
+    const metadata = newScript.metadata;
+    setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
+    setOldScriptVersion(metadata!.version![0]);
+    setUpsertScript(newScript);
+    setDiffCode(code);
   };
-};
 
-const usePermissions = (scriptInfo: ScriptInfo | undefined, metadata: Metadata) => {
-  const { t } = useTranslation();
+  const getUpdatedNewScript = async (uuid: string, code: string) => {
+    const oldScript = await scriptClient.info(uuid);
+    if (!oldScript || oldScript.uuid !== uuid) {
+      throw new Error("uuid is mismatched");
+    }
+    const { script } = await prepareScriptByCode(code, oldScript.origin || "", uuid);
+    script.origin = oldScript.origin || script.origin || "";
+    if (!script.name) {
+      throw new Error(t("script_name_cannot_be_set_to_empty"));
+    }
+    return script;
+  };
 
-  return useMemo(() => {
+  const initAsync = async () => {
+    try {
+      const locationUrl = new URL(window.location.href);
+      const uuid = locationUrl.searchParams.get("uuid");
+      let info: ScriptInfo | undefined;
+      let isKnownUpdate: boolean = false;
+      if (uuid) {
+        const cachedInfo = await scriptClient.getInstallInfo(uuid);
+        if (cachedInfo?.[0]) isKnownUpdate = true;
+        info = cachedInfo?.[1] || undefined;
+        if (!info) {
+          throw new Error("fetch script info failed");
+        }
+      } else {
+        // 检查是不是本地文件安装
+        const fid = locationUrl.searchParams.get("file");
+        if (!fid) {
+          throw new Error("url param - local file id is not found");
+        }
+        const fileHandle = await loadHandle(fid);
+        if (!fileHandle) {
+          throw new Error("invalid file access - fileHandle is null");
+        }
+        const file = await fileHandle.getFile();
+        if (!file) {
+          throw new Error("invalid file access - file is null");
+        }
+        // 处理本地文件的安装流程
+        // 处理成info对象
+        setLocalFileHandle((prev) => {
+          if (prev instanceof FileSystemFileHandle) unmountFileTrack(prev);
+          return fileHandle!;
+        });
+
+        // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
+        // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
+        intervalExecution(`${cIdKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
+
+        const code = await file.text();
+        const metadata = parseMetadata(code);
+        if (!metadata) {
+          throw new Error("parse script info failed");
+        }
+        info = createScriptInfo(uuidv4(), code, `file:///*from-local*/${file.name}`, "user", metadata);
+      }
+
+      let prepare:
+        | { script: Script; oldScript?: Script; oldScriptCode?: string }
+        | { subscribe: Subscribe; oldSubscribe?: Subscribe };
+      let action: Script | Subscribe;
+
+      const { code, url } = info;
+      let oldVersion: string | undefined = undefined;
+      let diffCode: string | undefined = undefined;
+      if (info.userSubscribe) {
+        prepare = await prepareSubscribeByCode(code, url);
+        action = prepare.subscribe;
+        if (prepare.oldSubscribe) {
+          oldVersion = prepare.oldSubscribe!.metadata!.version![0] || "";
+        }
+        diffCode = prepare.oldSubscribe?.code;
+      } else {
+        const knownUUID = isKnownUpdate ? info.uuid : undefined;
+        prepare = await prepareScriptByCode(code, url, knownUUID);
+        action = prepare.script;
+        if (prepare.oldScript) {
+          oldVersion = prepare.oldScript!.metadata!.version![0] || "";
+        }
+        diffCode = prepare.oldScriptCode;
+      }
+      setScriptCode(code);
+      setDiffCode(diffCode);
+      setOldScriptVersion(typeof oldVersion === "string" ? oldVersion : null);
+      setIsUpdate(typeof oldVersion === "string");
+      setScriptInfo(info);
+      setUpsertScript(action);
+    } catch (e: any) {
+      Message.error(t("script_info_load_failed") + " " + e.message);
+    } finally {
+      // fileHandle 保留处理方式（暂定）：
+      // fileHandle 会保留一段足够时间，避免用户重新刷画面，重啟瀏览器等操作后，安装页变得空白一片。
+      // 处理会在所有Tab都载入后（不包含睡眠Tab）进行，因此延迟 10s~15s 让处理有足够时间。
+      // 安装页面关掉后15分鐘为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
+      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免瀏览器重啟时大量Tabs同时执行DB清除
+      timeoutExecution(`${cIdKey}cleanupFileHandle`, cleanupOldHandles, delay);
+    }
+  };
+
+  useEffect(() => {
+    initAsync();
+  }, []);
+
+  const [watchFile, setWatchFile] = useState(false);
+  const metadataLive = useMemo(() => (scriptInfo?.metadata || {}) as SCMetadata, [scriptInfo]);
+
+  const permissions = useMemo(() => {
     const permissions: Permission = [];
 
     if (!scriptInfo) return permissions;
@@ -140,39 +185,35 @@ const usePermissions = (scriptInfo: ScriptInfo | undefined, metadata: Metadata) 
       permissions.push({
         label: t("subscribe_install_label"),
         color: "#ff0000",
-        value: metadata.scripturl!,
+        value: metadataLive.scripturl!,
       });
     }
 
-    if (metadata.match) {
-      permissions.push({ label: t("script_runs_in"), value: metadata.match });
+    if (metadataLive.match) {
+      permissions.push({ label: t("script_runs_in"), value: metadataLive.match });
     }
 
-    if (metadata.connect) {
+    if (metadataLive.connect) {
       permissions.push({
         label: t("script_has_full_access_to"),
         color: "#F9925A",
-        value: metadata.connect,
+        value: metadataLive.connect,
       });
     }
 
-    if (metadata.require) {
-      permissions.push({ label: t("script_requires"), value: metadata.require });
+    if (metadataLive.require) {
+      permissions.push({ label: t("script_requires"), value: metadataLive.require });
     }
 
     return permissions;
-  }, [scriptInfo, metadata, t]);
-};
+  }, [scriptInfo, metadataLive]);
 
-const useScriptDescription = (scriptInfo: ScriptInfo | undefined, metadata: Metadata) => {
-  const { t } = useTranslation();
-
-  return useMemo(() => {
+  const description = useMemo(() => {
     const description: JSX.Element[] = [];
 
     if (!scriptInfo) return description;
 
-    const isCookie = metadata.grant?.some((val) => val === "GM_cookie");
+    const isCookie = metadataLive.grant?.some((val) => val === "GM_cookie");
     if (isCookie) {
       description.push(
         <Typography.Text type="error" key="cookie">
@@ -181,80 +222,55 @@ const useScriptDescription = (scriptInfo: ScriptInfo | undefined, metadata: Meta
       );
     }
 
-    if (metadata.crontab) {
+    if (metadataLive.crontab) {
       description.push(<Typography.Text key="crontab">{t("scheduled_script_description_title")}</Typography.Text>);
       description.push(
         <Typography.Text key="cronta-nexttime">
           {t("scheduled_script_description_description", {
-            expression: metadata.crontab[0],
-            time: nextTime(metadata.crontab[0]),
+            expression: metadataLive.crontab[0],
+            time: nextTime(metadataLive.crontab[0]),
           })}
         </Typography.Text>
       );
-    } else if (metadata.background) {
+    } else if (metadataLive.background) {
       description.push(<Typography.Text key="background">{t("background_script_description")}</Typography.Text>);
     }
 
     return description;
-  }, [scriptInfo, metadata, t]);
-};
+  }, [scriptInfo, metadataLive]);
 
-const useAntiFeatures = () => {
-  const { t } = useTranslation();
-
-  return useMemo(() => {
-    const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
-      "referral-link": {
-        color: "purple",
-        title: t("antifeature_referral_link_title"),
-        description: t("antifeature_referral_link_description"),
-      },
-      ads: {
-        color: "orange",
-        title: t("antifeature_ads_title"),
-        description: t("antifeature_ads_description"),
-      },
-      payment: {
-        color: "magenta",
-        title: t("antifeature_payment_title"),
-        description: t("antifeature_payment_description"),
-      },
-      miner: {
-        color: "orangered",
-        title: t("antifeature_miner_title"),
-        description: t("antifeature_miner_description"),
-      },
-      membership: {
-        color: "blue",
-        title: t("antifeature_membership_title"),
-        description: t("antifeature_membership_description"),
-      },
-      tracking: {
-        color: "pinkpurple",
-        title: t("antifeature_tracking_title"),
-        description: t("antifeature_tracking_description"),
-      },
-    };
-
-    return antifeatures;
-  }, [t]);
-};
-
-function App() {
-  const [enable, setEnable] = useState<boolean>(false);
-  const [btnText, setBtnText] = useState<string>("");
-  const [scriptCode, setScriptCode] = useState<string>("");
-  const { t } = useTranslation();
-
-  const { scriptInfo, upsertScript, setUpsertScript, code, diffCode, oldScript, isUpdate, localFile, localFileHandle } =
-    useScriptInstall();
-
-  const [watchFile, setWatchFile] = useState(false);
-
-  const metadata: Metadata = scriptInfo?.metadata || {};
-  const permissions = usePermissions(scriptInfo, metadata);
-  const description = useScriptDescription(scriptInfo, metadata);
-  const antifeatures = useAntiFeatures();
+  const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
+    "referral-link": {
+      color: "purple",
+      title: t("antifeature_referral_link_title"),
+      description: t("antifeature_referral_link_description"),
+    },
+    ads: {
+      color: "orange",
+      title: t("antifeature_ads_title"),
+      description: t("antifeature_ads_description"),
+    },
+    payment: {
+      color: "magenta",
+      title: t("antifeature_payment_title"),
+      description: t("antifeature_payment_description"),
+    },
+    miner: {
+      color: "orangered",
+      title: t("antifeature_miner_title"),
+      description: t("antifeature_miner_description"),
+    },
+    membership: {
+      color: "blue",
+      title: t("antifeature_membership_title"),
+      description: t("antifeature_membership_description"),
+    },
+    tracking: {
+      color: "pinkpurple",
+      title: t("antifeature_tracking_title"),
+      description: t("antifeature_tracking_description"),
+    },
+  };
 
   // 更新按钮文案和页面标题
   useEffect(() => {
@@ -263,11 +279,10 @@ function App() {
     } else {
       setBtnText(isUpdate ? t("update_script")! : t("install_script"));
     }
-    setScriptCode(code || "");
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, upsertScript, t]);
+  }, [isUpdate, scriptInfo, upsertScript]);
 
   // 设置脚本状态
   useEffect(() => {
@@ -297,7 +312,8 @@ function App() {
             (upsertScript as Script).checkUpdate = false;
           }
 
-          await scriptClient.install(upsertScript as Script, code);
+          // 故意只安装或执行，不改变显示内容
+          await scriptClient.install(upsertScript as Script, scriptCode);
           if (isUpdate) {
             Message.success(t("install.update_success")!);
             setBtnText(t("install.update_success")!);
@@ -317,7 +333,7 @@ function App() {
         Message.error(`${errorMessage}: ${e}`);
       }
     },
-    [upsertScript, scriptInfo, code, isUpdate, t]
+    [upsertScript, scriptInfo, scriptCode, isUpdate]
   );
 
   const handleStatusChange = useCallback(
@@ -345,216 +361,278 @@ function App() {
     [scriptInfo]
   );
 
-  useEffect(() => {
-    if (!watchFile) {
-      return;
+  const fileWatchMessageId = `id_${Math.random()}`;
+
+  async function onWatchFileCodeChanged(this: FTInfo, code: string, hideInfo: boolean = false) {
+    if (this.uuid !== scriptInfo?.uuid) return;
+    if (this.fileName !== localFileHandle?.name) return;
+    setScriptCode(code);
+    const uuid = (upsertScript as Script)?.uuid;
+    if (!uuid) {
+      throw new Error("uuid is undefined");
     }
-    if (!upsertScript) {
-      return;
-    }
-    // @ts-ignore
-    const observer = new FileSystemObserver(async (records) => {
-      // 调用安装
-      const code = await (await records[0].root.getFile()).text();
-      setScriptCode(code);
-      scriptClient.install(upsertScript as Script, code).catch((e) => {
-        Message.error(t("install_failed") + ": " + e);
+    try {
+      const newScript = await getUpdatedNewScript(uuid, code);
+      await installOrUpdateScript(newScript, code);
+    } catch (e) {
+      Message.error({
+        id: fileWatchMessageId,
+        content: t("install_failed") + ": " + e,
       });
-    });
-    observer.observe(localFileHandle);
+      return;
+    }
+    if (!hideInfo) {
+      Message.info({
+        id: fileWatchMessageId,
+        content: `${t("last_updated")}: ${dayFormat()}`,
+        duration: 3000,
+        closable: true,
+        showIcon: true,
+      });
+    }
+  }
+
+  const memoWatchFile = useMemo(() => {
+    return `${watchFile}.${scriptInfo?.uuid}.${localFileHandle?.name}`;
+  }, [watchFile, scriptInfo, localFileHandle]);
+
+  const setupWatchFile = async (uuid: string, fileName: string, handle: FileSystemFileHandle) => {
+    try {
+      // 如没有安装纪录，将进行安装。
+      // 如已经安装，在FileSystemObserver检查更改前，先进行更新。
+      const code = `${scriptCode}`;
+      await installOrUpdateScript(upsertScript as Script, code);
+      // setScriptCode(`${code}`);
+      setDiffCode(`${code}`);
+      const ftInfo: FTInfo = {
+        uuid,
+        fileName,
+        setCode: onWatchFileCodeChanged,
+      };
+      // 进行监听
+      startFileTrack(handle, ftInfo);
+      // 先取最新代码
+      const file = await handle.getFile();
+      const currentCode = await file.text();
+      // 如不一致，先更新
+      if (currentCode !== code) {
+        ftInfo.setCode(currentCode, true);
+      }
+    } catch (e: any) {
+      Message.error(`${e.message}`);
+      console.warn(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!watchFile || !localFileHandle) {
+      return;
+    }
+    // 去除React特性
+    const [handle] = [localFileHandle];
+    unmountFileTrack(handle); // 避免重覆追踪
+    const uuid = scriptInfo?.uuid;
+    const fileName = handle?.name;
+    if (!uuid || !fileName) {
+      return;
+    }
+    setupWatchFile(uuid, fileName, handle);
     return () => {
-      observer.disconnect();
+      unmountFileTrack(handle);
     };
-  }, [watchFile]);
+  }, [memoWatchFile]);
 
   return (
-    <div className="h-full">
-      <div className="h-full">
-        <Grid.Row className="mb-2" gutter={8}>
-          <Grid.Col flex={1} className="flex-col p-8px">
-            <Space direction="vertical" className="w-full">
-              <div>
-                {upsertScript?.metadata.icon && (
-                  <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                    <img src={upsertScript.metadata.icon[0]} alt={upsertScript?.name} />
-                  </Avatar>
-                )}
-                <Typography.Text bold className="text-size-lg">
-                  {upsertScript && i18nName(upsertScript)}
-                  <Tooltip
-                    content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
-                  >
-                    <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
-                  </Tooltip>
-                </Typography.Text>
-              </div>
-              <div>
-                <Typography.Text bold>{upsertScript && i18nDescription(upsertScript)}</Typography.Text>
-              </div>
-              <div>
-                <Typography.Text bold>
-                  {t("author")}: {metadata.author}
-                </Typography.Text>
-              </div>
-              <div>
-                <Typography.Text
-                  bold
-                  style={{
-                    overflowWrap: "break-word",
-                    wordBreak: "break-all",
-                    maxHeight: "70px",
-                    display: "block",
-                    overflowY: "auto",
-                  }}
+    <div id="install-app-container">
+      <Grid.Row className="mb-2" gutter={8}>
+        <Grid.Col flex={1} className="flex-col p-8px">
+          <Space direction="vertical" className="w-full">
+            <div>
+              {upsertScript?.metadata.icon && (
+                <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
+                  <img src={upsertScript.metadata.icon[0]} alt={upsertScript?.name} />
+                </Avatar>
+              )}
+              <Typography.Text bold className="text-size-lg">
+                {upsertScript && i18nName(upsertScript)}
+                <Tooltip
+                  content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
                 >
-                  {t("source")}: {scriptInfo?.url}
-                </Typography.Text>
-              </div>
-              <div className="text-end">
-                <Space>
+                  <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
+                </Tooltip>
+              </Typography.Text>
+            </div>
+            <div>
+              <Typography.Text bold>{upsertScript && i18nDescription(upsertScript)}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
+            </div>
+            <div>
+              <Typography.Text
+                bold
+                style={{
+                  overflowWrap: "break-word",
+                  wordBreak: "break-all",
+                  maxHeight: "70px",
+                  display: "block",
+                  overflowY: "auto",
+                }}
+              >
+                {`${t("source")}: ${scriptInfo?.url}`}
+              </Typography.Text>
+            </div>
+            <div className="text-end">
+              <Space>
+                <Button.Group>
+                  <Button type="primary" size="small" onClick={() => handleInstall()} disabled={watchFile}>
+                    {btnText}
+                  </Button>
+                  <Dropdown
+                    droplist={
+                      <Menu>
+                        <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
+                          {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
+                        </Menu.Item>
+                        {!scriptInfo?.userSubscribe && (
+                          <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
+                            {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                          </Menu.Item>
+                        )}
+                      </Menu>
+                    }
+                    position="bottom"
+                    disabled={watchFile}
+                  >
+                    <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                  </Dropdown>
+                </Button.Group>
+                {localFileHandle && (
+                  <Popover content={t("watch_file_description")}>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() => {
+                        setWatchFile((prev) => !prev);
+                      }}
+                    >
+                      {watchFile ? t("stop_watch_file") : t("watch_file")}
+                    </Button>
+                  </Popover>
+                )}
+                {isUpdate ? (
                   <Button.Group>
-                    <Button type="primary" size="small" onClick={() => handleInstall()}>
-                      {btnText}
+                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                      {t("close")}
                     </Button>
                     <Dropdown
                       droplist={
                         <Menu>
-                          <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
-                            {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
-                          </Menu.Item>
                           {!scriptInfo?.userSubscribe && (
-                            <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
-                              {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                            <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
+                              {t("close_update_script_no_more_update")}
                             </Menu.Item>
                           )}
                         </Menu>
                       }
                       position="bottom"
                     >
-                      <Button type="primary" size="small" icon={<IconDown />} />
+                      <Button type="primary" status="danger" size="small" icon={<IconDown />} />
                     </Dropdown>
                   </Button.Group>
-                  {localFile && (
-                    <Popover content={t("watch_file_description")}>
-                      <Button
-                        type="secondary"
-                        size="small"
-                        onClick={() => {
-                          setWatchFile(!watchFile);
-                        }}
-                      >
-                        {watchFile ? t("stop_watch_file") : t("watch_file")}
-                      </Button>
-                    </Popover>
-                  )}
-                  {isUpdate ? (
-                    <Button.Group>
-                      <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
-                        {t("close")}
-                      </Button>
-                      <Dropdown
-                        droplist={
-                          <Menu>
-                            {!scriptInfo?.userSubscribe && (
-                              <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
-                                {t("close_update_script_no_more_update")}
-                              </Menu.Item>
-                            )}
-                          </Menu>
-                        }
-                        position="bottom"
-                      >
-                        <Button type="primary" status="danger" size="small" icon={<IconDown />} />
-                      </Dropdown>
-                    </Button.Group>
-                  ) : (
-                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
-                      {t("close")}
-                    </Button>
-                  )}
-                </Space>
-              </div>
-            </Space>
-          </Grid.Col>
-          <Grid.Col flex={1} className="p-8px">
-            <Space direction="vertical">
-              <div>
-                <Space>
-                  {oldScript && (
-                    <Tooltip content={`${t("current_version")}: v${oldScript.metadata.version![0]}`}>
-                      <Tag bordered>{oldScript.metadata.version![0]}</Tag>
-                    </Tooltip>
-                  )}
-                  {metadata.version && (
-                    <Tooltip color="red" content={`${t("update_version")}: v${metadata.version[0]}`}>
-                      <Tag bordered color="red">
-                        {metadata.version[0]}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {(metadata.background || metadata.crontab) && (
-                    <Tooltip color="green" content={t("background_script_tag")}>
-                      <Tag bordered color="green">
-                        {t("background_script")}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {metadata.crontab && (
-                    <Tooltip color="green" content={t("scheduled_script_tag")}>
-                      <Tag bordered color="green">
-                        {t("scheduled_script")}
-                      </Tag>
-                    </Tooltip>
-                  )}
-                  {metadata.antifeature &&
-                    metadata.antifeature.map((antifeature) => {
-                      const item = antifeature.split(" ")[0];
-                      return (
-                        antifeatures[item] && (
-                          <Tooltip color={antifeatures[item].color} content={antifeatures[item].description}>
-                            <Tag bordered color={antifeatures[item].color}>
-                              {antifeatures[item].title}
-                            </Tag>
-                          </Tooltip>
-                        )
-                      );
-                    })}
-                </Space>
-              </div>
-              {description && description}
-              <div>
-                <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
-              </div>
-            </Space>
-          </Grid.Col>
-          <Grid.Col span={24}>
-            <Grid.Row>
-              {permissions.map((item) => (
-                <Grid.Col
-                  key={item.label}
-                  span={8}
-                  style={{
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    overflowX: "auto",
-                    boxSizing: "border-box",
-                  }}
-                  className="p-8px"
-                >
-                  <Typography.Text bold color={item.color}>
-                    {item.label}
-                  </Typography.Text>
-                  {item.value.map((v) => (
-                    <div key={v}>
-                      <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
-                    </div>
-                  ))}
-                </Grid.Col>
-              ))}
-            </Grid.Row>
-          </Grid.Col>
-        </Grid.Row>
-        <CodeEditor id="show-code" code={scriptCode || undefined} diffCode={diffCode || ""} />
+                ) : (
+                  <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                    {t("close")}
+                  </Button>
+                )}
+              </Space>
+            </div>
+          </Space>
+        </Grid.Col>
+        <Grid.Col flex={1} className="p-8px">
+          <Space direction="vertical">
+            <div>
+              <Space>
+                {oldScriptVersion && (
+                  <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
+                    <Tag bordered>{oldScriptVersion}</Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+                  <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
+                    <Tag bordered color="red">
+                      {metadataLive.version[0]}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {(metadataLive.background || metadataLive.crontab) && (
+                  <Tooltip color="green" content={t("background_script_tag")}>
+                    <Tag bordered color="green">
+                      {t("background_script")}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.crontab && (
+                  <Tooltip color="green" content={t("scheduled_script_tag")}>
+                    <Tag bordered color="green">
+                      {t("scheduled_script")}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {metadataLive.antifeature &&
+                  metadataLive.antifeature.map((antifeature) => {
+                    const item = antifeature.split(" ")[0];
+                    return (
+                      antifeatures[item] && (
+                        <Tooltip color={antifeatures[item].color} content={antifeatures[item].description}>
+                          <Tag bordered color={antifeatures[item].color}>
+                            {antifeatures[item].title}
+                          </Tag>
+                        </Tooltip>
+                      )
+                    );
+                  })}
+              </Space>
+            </div>
+            {description && description}
+            <div>
+              <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
+            </div>
+          </Space>
+        </Grid.Col>
+        <Grid.Col span={24}>
+          <Grid.Row>
+            {permissions.map((item) => (
+              <Grid.Col
+                key={item.label}
+                span={8}
+                style={{
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  overflowX: "auto",
+                  boxSizing: "border-box",
+                }}
+                className="p-8px"
+              >
+                <Typography.Text bold color={item.color}>
+                  {item.label}
+                </Typography.Text>
+                {item.value.map((v) => (
+                  <div key={v}>
+                    <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
+                  </div>
+                ))}
+              </Grid.Col>
+            ))}
+          </Grid.Row>
+        </Grid.Col>
+      </Grid.Row>
+      <div id="show-code-container">
+        <CodeEditor
+          id="show-code"
+          code={scriptCode || undefined}
+          diffCode={diffCode === scriptCode ? "" : diffCode || ""}
+        />
       </div>
     </div>
   );

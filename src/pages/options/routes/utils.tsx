@@ -1,5 +1,5 @@
 import React from "react";
-import type { Metadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
@@ -137,7 +137,7 @@ export function ListHomeRender({ script }: { script: Script }) {
 }
 
 export type ScriptIconsProps = {
-  script: { name: string; metadata: Metadata };
+  script: { name: string; metadata: SCMetadata };
   size?: number;
   style?: React.CSSProperties;
 };

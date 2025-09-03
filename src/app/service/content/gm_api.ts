@@ -1,7 +1,7 @@
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
-import { base64ToBlob } from "@App/pkg/utils/utils";
+import { base64ToBlob, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -51,6 +51,12 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   public eventId!: number;
 
+  @GMContext.protected()
+  protected loadScriptResolve: (() => void) | undefined;
+
+  @GMContext.protected()
+  protected loadScriptPromise: Promise<void> | undefined;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
@@ -63,8 +69,11 @@ class GM_Base implements IGM_Base {
 
   // 单次回调使用
   @GMContext.protected()
-  public sendMessage(api: string, params: any[]) {
-    return sendMessage(this.message, this.prefix + "/runtime/gmApi", {
+  public async sendMessage(api: string, params: any[]) {
+    if (this.loadScriptPromise) {
+      await this.loadScriptPromise;
+    }
+    return sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -75,7 +84,7 @@ class GM_Base implements IGM_Base {
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public connect(api: string, params: any[]) {
-    return connect(this.message, this.prefix + "/runtime/gmApi", {
+    return connect(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
       params,
@@ -104,7 +113,7 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
-    this.EE.emit(event + ":" + eventId, data);
+    this.EE.emit(`${event}:${eventId}`, data);
   }
 }
 
@@ -122,7 +131,7 @@ export default class GMApi extends GM_Base {
   ) {
     // testing only 仅供测试用
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
-    const EE: EventEmitter = new EventEmitter();
+    const EE = new EventEmitter<string, any>();
     super(
       {
         prefix,
@@ -224,10 +233,10 @@ export default class GMApi extends GM_Base {
     if (typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
-    Object.keys(values).forEach((key) => {
+    for (const key of Object.keys(values)) {
       const value = values[key];
       _GM_setValue(this, key, value);
-    });
+    }
   }
 
   @GMContext.API()
@@ -249,10 +258,10 @@ export default class GMApi extends GM_Base {
     } else {
       // 对象 键: 默认值
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
-      Object.keys(keysOrDefaults).forEach((key) => {
+      for (const key of Object.keys(keysOrDefaults)) {
         const defaultValue = keysOrDefaults[key];
         result[key] = _GM_getValue(this, key, defaultValue);
-      });
+      }
     }
     return result;
   }
@@ -282,9 +291,9 @@ export default class GMApi extends GM_Base {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
-    keys.forEach((key) => {
+    for (const key of keys) {
       _GM_setValue(this, key, undefined);
-    });
+    }
   }
 
   // Asynchronous wrapper for GM.deleteValues
@@ -485,7 +494,7 @@ export default class GMApi extends GM_Base {
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -498,7 +507,7 @@ export default class GMApi extends GM_Base {
         ],
       },
     });
-    if (resp.code !== 0) {
+    if (resp.code) {
       throw new Error(resp.message);
     }
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
@@ -516,7 +525,7 @@ export default class GMApi extends GM_Base {
       parentNodeId = null;
     }
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
-      action: this.prefix + "/runtime/gmApi",
+      action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
@@ -527,7 +536,7 @@ export default class GMApi extends GM_Base {
         ],
       },
     });
-    if (resp.code !== 0) {
+    if (resp.code) {
       throw new Error(resp.message);
     }
     return (<CustomEventMessage>this.message).getAndDelRelatedTarget(resp.data);
@@ -598,13 +607,14 @@ export default class GMApi extends GM_Base {
 
   static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
     const u = new URL(details.url, window.location.href);
-    if (details.headers) {
-      Object.keys(details.headers).forEach((key) => {
+    const headers = details.headers;
+    if (headers) {
+      for (const key of Object.keys(headers)) {
         if (key.toLowerCase() === "cookie") {
-          details.cookie = details.headers![key];
-          delete details.headers![key];
+          details.cookie = headers[key];
+          delete headers[key];
         }
-      });
+      }
     }
 
     const param: GMSend.XHRDetails = {
@@ -633,36 +643,32 @@ export default class GMApi extends GM_Base {
       if (details.data instanceof FormData) {
         // 处理FormData
         param.dataType = "FormData";
-        const data: Array<GMSend.XHRFormData> = [];
         const keys: { [key: string]: boolean } = {};
         details.data.forEach((val, key) => {
           keys[key] = true;
         });
         // 处理FormData中的数据
-        await Promise.all(
-          Object.keys(keys).map((key) => {
-            const values = (<FormData>details.data).getAll(key);
-            return Promise.all(
-              values.map(async (val) => {
-                if (val instanceof File) {
-                  const url = await a.CAT_createBlobUrl(val);
-                  data.push({
-                    key,
-                    type: "file",
-                    val: url,
-                    filename: val.name,
-                  });
-                } else {
-                  data.push({
+        const data = (await Promise.all(
+          Object.keys(keys).flatMap((key) =>
+            (<FormData>details.data).getAll(key).map((val) =>
+              val instanceof File
+                ? a.CAT_createBlobUrl(val).then(
+                    (url) =>
+                      ({
+                        key,
+                        type: "file",
+                        val: url,
+                        filename: val.name,
+                      }) as GMSend.XHRFormData
+                  )
+                : ({
                     key,
                     type: "text",
                     val,
-                  });
-                }
-              })
-            );
-          })
-        );
+                  } as GMSend.XHRFormData)
+            )
+          )
+        )) as GMSend.XHRFormData[];
         param.data = data;
       } else if (details.data instanceof Blob) {
         // 处理blob
@@ -736,7 +742,7 @@ export default class GMApi extends GM_Base {
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         connect = con;
-        con.onMessage((data: { code?: number; message?: string; action: string; data: any }) => {
+        con.onMessage((data) => {
           if (data.code === -1) {
             // 处理错误
             LoggerCore.logger().error("GM_xmlhttpRequest error", {
@@ -857,7 +863,7 @@ export default class GMApi extends GM_Base {
       },
     ]).then((con) => {
       connect = con;
-      connect.onMessage((data: { action: string; data: any }) => {
+      connect.onMessage((data) => {
         switch (data.action) {
           case "onload":
             details.onload && details.onload(data.data);
@@ -1077,10 +1083,19 @@ export default class GMApi extends GM_Base {
     return this.sendMessage("GM_closeInTab", [tabid]);
   }
 
-  @GMContext.API({ alias: "GM.getTab" })
+  @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
     this.sendMessage("GM_getTab", []).then((data) => {
       callback(data ?? {});
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTab"] })
+  public ["GM.getTab"](): Promise<any> {
+    return new Promise<any>((resolve) => {
+      this.GM_getTab((data) => {
+        resolve(data);
+      });
     });
   }
 
@@ -1092,10 +1107,19 @@ export default class GMApi extends GM_Base {
     this.sendMessage("GM_saveTab", [obj]);
   }
 
-  @GMContext.API({ alias: "GM.getTabs" })
+  @GMContext.API()
   GM_getTabs(callback: (objs: { [key: string | number]: object }) => any) {
     this.sendMessage("GM_getTabs", []).then((resp) => {
       callback(resp);
+    });
+  }
+
+  @GMContext.API({ depend: ["GM_getTabs"] })
+  public ["GM.getTabs"](): Promise<{ [key: string | number]: object }> {
+    return new Promise<{ [key: string | number]: object }>((resolve) => {
+      this.GM_getTabs((data) => {
+        resolve(data);
+      });
     });
   }
 
@@ -1147,10 +1171,15 @@ export default class GMApi extends GM_Base {
     }
     const r = this.scriptRes.resource[name];
     if (r) {
-      if (isBlobUrl) {
-        return URL.createObjectURL(base64ToBlob(r.base64));
+      let base64 = r.base64;
+      if (!base64) {
+        // 没有base64的话,则使用content转化
+        base64 = `data:${r.contentType};base64,${strToBase64(r.content)}`;
       }
-      return r.base64;
+      if (isBlobUrl) {
+        return URL.createObjectURL(base64ToBlob(base64));
+      }
+      return base64;
     }
     return undefined;
   }
@@ -1173,6 +1202,14 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   ["window.focus"]() {
     return this.sendMessage("window.focus", []);
+  }
+
+  @GMContext.protected()
+  apiLoadPromise: Promise<void> | undefined;
+
+  @GMContext.API()
+  CAT_scriptLoaded() {
+    return this.loadScriptPromise;
   }
 }
 

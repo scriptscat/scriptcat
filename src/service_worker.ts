@@ -7,12 +7,14 @@ import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
+import { fetchIconByDomain } from "./app/service/service_worker/fetch";
+import { msgResponse } from "./app/service/service_worker/utils";
 
 migrate();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
-let creating: Promise<void> | null;
+let creating: Promise<void> | null | boolean = null;
 
 async function hasDocument() {
   const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
@@ -24,26 +26,36 @@ async function hasDocument() {
 }
 
 async function setupOffscreenDocument() {
+  if (typeof chrome.offscreen?.createDocument !== "function") {
+    // Firefox does not support offscreen
+    console.error("Your browser does not support chrome.offscreen.createDocument");
+    return;
+  }
   //if we do not have a document, we are already setup and can skip
   if (!(await hasDocument())) {
     // create offscreen document
-    if (creating) {
-      await creating;
-    } else {
-      creating = chrome.offscreen.createDocument({
-        url: OFFSCREEN_DOCUMENT_PATH,
-        reasons: [
-          chrome.offscreen.Reason.BLOBS,
-          chrome.offscreen.Reason.CLIPBOARD,
-          chrome.offscreen.Reason.DOM_SCRAPING,
-          chrome.offscreen.Reason.LOCAL_STORAGE,
-        ],
-        justification: "offscreen page",
-      });
-
-      await creating;
-      creating = null;
+    if (!creating) {
+      const promise = chrome.offscreen
+        .createDocument({
+          url: OFFSCREEN_DOCUMENT_PATH,
+          reasons: [
+            chrome.offscreen.Reason.BLOBS,
+            chrome.offscreen.Reason.CLIPBOARD,
+            chrome.offscreen.Reason.DOM_SCRAPING,
+            chrome.offscreen.Reason.LOCAL_STORAGE,
+          ],
+          justification: "offscreen page",
+        })
+        .then(() => {
+          if (creating !== promise) {
+            console.log("setupOffscreenDocument() calling is invalid.");
+            return;
+          }
+          creating = true; // chrome.offscreen.createDocument 只执行一次
+        });
+      creating = promise;
     }
+    await creating;
   }
 }
 
@@ -63,5 +75,36 @@ async function main() {
   // 初始化沙盒环境
   await setupOffscreenDocument();
 }
+
+const apiActions: {
+  [key: string]: (message: any, _sender: chrome.runtime.MessageSender) => Promise<any> | any;
+} = {
+  async "fetch-icon-by-domain"(message: any, _sender: chrome.runtime.MessageSender) {
+    const { domain } = message;
+    return await fetchIconByDomain(domain);
+  },
+};
+
+chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  const f = apiActions[req.message ?? ""];
+  if (f) {
+    let res;
+    try {
+      res = f(req, sender);
+    } catch (e: any) {
+      sendResponse(msgResponse(1, e));
+      return false;
+    }
+    if (typeof res?.then === "function") {
+      res.then(sendResponse).catch((e: Error) => {
+        sendResponse(msgResponse(1, e));
+      });
+      return true;
+    } else {
+      sendResponse(msgResponse(0, res));
+      return false;
+    }
+  }
+});
 
 main();

@@ -1,9 +1,9 @@
-import type { Message, MessageConnect, MessageSend, MessageSender } from "./types";
+import type { Message, MessageConnect, MessageSend, MessageSender, TMessage, TMessageCommAction } from "./types";
 
 export class ExtensionMessageSend implements MessageSend {
   constructor() {}
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
       const con = chrome.runtime.connect();
       con.postMessage(data);
@@ -12,9 +12,9 @@ export class ExtensionMessageSend implements MessageSend {
   }
 
   // 发送消息 注意不进行回调的内存泄漏
-  sendMessage(data: any): Promise<any> {
-    return new Promise((resolve: ((value: any) => void) | null) => {
-      chrome.runtime.sendMessage(data, (resp) => {
+  sendMessage<T = any>(data: TMessage): Promise<T> {
+    return new Promise((resolve: ((value: T) => void) | null) => {
+      chrome.runtime.sendMessage(data, (resp: T) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.sendMessage:", lastError);
@@ -29,52 +29,26 @@ export class ExtensionMessageSend implements MessageSend {
   }
 }
 
-// 由于service worker的限制，特殊处理chrome.runtime.onConnect/Message
-export class ServiceWorkerMessage extends ExtensionMessageSend implements Message {
-  onConnect(callback: (data: any, con: MessageConnect) => void): void {
-    chrome.runtime.onConnect.addListener((port) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
-        // 消息API发生错误因此不继续执行
-      }
-      const handler = (msg: any) => {
-        port.onMessage.removeListener(handler);
-        callback(msg, new ExtensionMessageConnect(port));
-      };
-      port.onMessage.addListener(handler);
-    });
-  }
-
-  onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
-        // 消息API发生错误因此不继续执行
-        return false;
-      }
-      if (msg.action === "messageQueue") {
-        return false;
-      }
-      return callback(msg, sendResponse, sender);
-    });
-  }
-}
-
 export class ExtensionMessage extends ExtensionMessageSend implements Message {
-  constructor(private onUserScript = false) {
+  tryEnableUserScriptConnectionListener = (..._args: any) => {
+    // empty function
+  };
+  tryEnableUserScriptMessageListener = (..._args: any) => {
+    // empty function
+  };
+
+  constructor(private backgroundPrimary = false) {
     super();
   }
 
-  onConnect(callback: (data: any, con: MessageConnect) => void) {
+  onConnect(callback: (data: TMessage, con: MessageConnect) => void) {
     chrome.runtime.onConnect.addListener((port: chrome.runtime.Port | null) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
         // 消息API发生错误因此不继续执行
       }
-      const handler = (msg: any) => {
+      const handler = (msg: TMessage) => {
         port!.onMessage.removeListener(handler);
         callback(msg, new ExtensionMessageConnect(port!));
         port = null;
@@ -82,51 +56,93 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
       port!.onMessage.addListener(handler);
     });
 
-    if (this.onUserScript) {
-      // 监听用户脚本的连接
-      chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port | null) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptConnect:", lastError);
+    if (this.backgroundPrimary) {
+      let addUserScriptConnectionListener: (() => void) | null = () => {
+        try {
+          // 监听用户脚本的连接
+          chrome.runtime.onUserScriptConnect.addListener((port: chrome.runtime.Port | null) => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptConnect:", lastError);
+            }
+            const handler = (msg: TMessage) => {
+              port!.onMessage.removeListener(handler);
+              callback(msg, new ExtensionMessageConnect(port!));
+              port = null;
+            };
+            port!.onMessage.addListener(handler);
+          });
+          addUserScriptConnectionListener = null;
+        } catch {
+          // do nothing
         }
-        const handler = (msg: any) => {
-          port!.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port!));
-          port = null;
-        };
-        port!.onMessage.addListener(handler);
-      });
+      };
+      // Firefox 需要先得到 userScripts 权限才能进行 onUserScriptConnect 的监听
+      this.tryEnableUserScriptConnectionListener = () => {
+        if (typeof chrome.runtime.onUserScriptConnect?.addListener === "function") {
+          addUserScriptConnectionListener && addUserScriptConnectionListener();
+        }
+      };
+      // Chrome 在初始化时就能监听
+      this.tryEnableUserScriptConnectionListener();
     }
   }
 
   // 注意chrome.runtime.onMessage.addListener的回调函数需要返回true才能处理异步请求
-  onMessage(callback: (data: any, sendResponse: (data: any) => void, sender: MessageSender) => void): void {
-    chrome.runtime.onMessage?.addListener((msg, sender, sendResponse) => {
+  onMessage(
+    callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => boolean | void
+  ): void {
+    chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
         // 消息API发生错误因此不继续执行
         return false;
       }
-      if (msg.action === "messageQueue") {
+      if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
+        if (
+          typeof chrome.runtime.onUserScriptConnect?.addListener === "function" &&
+          typeof chrome.runtime.onUserScriptMessage?.addListener === "function"
+        ) {
+          this.tryEnableUserScriptConnectionListener();
+          this.tryEnableUserScriptMessageListener();
+          sendResponse(true);
+        } else {
+          sendResponse(false);
+        }
         return false;
       }
+      if (typeof msg.action !== "string") return;
       return callback(msg, sendResponse, sender);
     });
-    if (this.onUserScript) {
-      // 监听用户脚本的消息
-      chrome.runtime.onUserScriptMessage?.addListener((msg, sender, sendResponse) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptMessage:", lastError);
-          // 消息API发生错误因此不继续执行
-          return false;
+
+    if (this.backgroundPrimary) {
+      let addUserScriptMessageListener: (() => void) | null = () => {
+        try {
+          // 监听用户脚本的消息
+          chrome.runtime.onUserScriptMessage.addListener((msg: TMessage, sender, sendResponse) => {
+            const lastError = chrome.runtime.lastError;
+            if (typeof msg.action !== "string") return;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptMessage:", lastError);
+              // 消息API发生错误因此不继续执行
+              return false;
+            }
+            return callback(msg, sendResponse, sender);
+          });
+          addUserScriptMessageListener = null;
+        } catch {
+          // do nothing
         }
-        if (msg.action === "messageQueue") {
-          return false;
+      };
+      // Firefox 需要先得到 userScripts 权限才能进行 onUserScriptMessage 的监听
+      this.tryEnableUserScriptMessageListener = () => {
+        if (typeof chrome.runtime.onUserScriptMessage?.addListener === "function") {
+          addUserScriptMessageListener && addUserScriptMessageListener();
         }
-        return callback(msg, sendResponse, sender);
-      });
+      };
+      // Chrome 在初始化时就能监听
+      this.tryEnableUserScriptMessageListener();
     }
   }
 }
@@ -134,11 +150,11 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
 export class ExtensionMessageConnect implements MessageConnect {
   constructor(private con: chrome.runtime.Port) {}
 
-  sendMessage(data: any) {
+  sendMessage(data: TMessage) {
     this.con.postMessage(data);
   }
 
-  onMessage(callback: (data: any) => void) {
+  onMessage(callback: (data: TMessage) => void) {
     this.con.onMessage.addListener(callback);
   }
 
@@ -166,11 +182,11 @@ export class ExtensionContentMessageSend extends ExtensionMessageSend {
     super();
   }
 
-  sendMessage(data: any): Promise<any> {
+  sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
       if (!this.options?.documentId || this.options?.frameId) {
         // 发送给指定的tab
-        chrome.tabs.sendMessage(this.tabId, data, (resp) => {
+        chrome.tabs.sendMessage(this.tabId, data, (resp: T) => {
           const lastError = chrome.runtime.lastError;
           if (lastError) {
             console.error("chrome.runtime.lastError in chrome.tabs.sendMessage:", lastError);
@@ -179,7 +195,7 @@ export class ExtensionContentMessageSend extends ExtensionMessageSend {
           resolve(resp);
         });
       } else {
-        chrome.tabs.sendMessage(this.tabId, data, this.options, (resp) => {
+        chrome.tabs.sendMessage(this.tabId, data, this.options, (resp: T) => {
           const lastError = chrome.runtime.lastError;
           if (lastError) {
             console.error("chrome.runtime.lastError in chrome.tabs.sendMessage:", lastError);
@@ -191,7 +207,7 @@ export class ExtensionContentMessageSend extends ExtensionMessageSend {
     });
   }
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
       const con = chrome.tabs.connect(this.tabId, this.options);
       con.postMessage(data);

@@ -12,7 +12,8 @@ import Logger from "@App/app/logger/logger";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
-import { parsePatternMatchesURL } from "@App/pkg/utils/match";
+import { blackListSelfCheck } from "@App/pkg/utils/match";
+import { obtainBlackList } from "@App/pkg/utils/utils";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -36,37 +37,23 @@ function Setting() {
   const [scriptMenuDisplayType, setScriptMenuDisplayType] = useState<"no_browser" | "all">("all");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
-  Object.keys(i18n.store.data).forEach((key) => {
+  for (const key of Object.keys(i18n.store.data)) {
     if (key === "ach-UG") {
-      return;
+      continue;
     }
     languageList.push({
       key,
       title: i18n.store.data[key].title as string,
     });
-  });
+  }
   languageList.push({
     key: "help",
     title: t("help_translate"),
   });
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      const [
-        cloudSync,
-        menuExpandNum,
-        checkCycle,
-        updateDisabled,
-        silenceUpdate,
-        eslintConfig,
-        enableEslint,
-        language,
-        blacklist,
-        badgeNumberType,
-        badgeBackgroundColor,
-        badgeTextColor,
-        scriptMenuDisplayType,
-      ] = await Promise.all([
+    const loadConfigs = () => {
+      Promise.all([
         systemConfig.getCloudSync(),
         systemConfig.getMenuExpandNum(),
         systemConfig.getCheckScriptUpdateCycle(),
@@ -80,25 +67,41 @@ function Setting() {
         systemConfig.getBadgeBackgroundColor(),
         systemConfig.getBadgeTextColor(),
         systemConfig.getScriptMenuDisplayType(),
-      ]);
-
-      setSyncDelete(cloudSync.syncDelete);
-      setSyncScriptStatus(cloudSync.syncStatus);
-      setEnableCloudSync(cloudSync.enable);
-      setFilesystemType(cloudSync.filesystem);
-      setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
-      setMenuExpandNum(menuExpandNum);
-      setCheckScriptUpdateCycle(checkCycle);
-      setUpdateDisableScript(updateDisabled);
-      setSilenceUpdateScript(silenceUpdate);
-      setEslintConfig(eslintConfig);
-      setEnableEslint(enableEslint);
-      setLanguage(language);
-      setBlacklist(blacklist);
-      setBadgeNumberType(badgeNumberType);
-      setBadgeBackgroundColor(badgeBackgroundColor);
-      setBadgeTextColor(badgeTextColor);
-      setScriptMenuDisplayType(scriptMenuDisplayType);
+      ]).then(
+        ([
+          cloudSync,
+          menuExpandNum,
+          checkCycle,
+          updateDisabled,
+          silenceUpdate,
+          eslintConfig,
+          enableEslint,
+          language,
+          blacklist,
+          badgeNumberType,
+          badgeBackgroundColor,
+          badgeTextColor,
+          scriptMenuDisplayType,
+        ]) => {
+          setSyncDelete(cloudSync.syncDelete);
+          setSyncScriptStatus(cloudSync.syncStatus);
+          setEnableCloudSync(cloudSync.enable);
+          setFilesystemType(cloudSync.filesystem);
+          setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
+          setMenuExpandNum(menuExpandNum);
+          setCheckScriptUpdateCycle(checkCycle);
+          setUpdateDisableScript(updateDisabled);
+          setSilenceUpdateScript(silenceUpdate);
+          setEslintConfig(eslintConfig);
+          setEnableEslint(enableEslint);
+          setLanguage(language);
+          setBlacklist(blacklist);
+          setBadgeNumberType(badgeNumberType);
+          setBadgeBackgroundColor(badgeBackgroundColor);
+          setBadgeTextColor(badgeTextColor);
+          setScriptMenuDisplayType(scriptMenuDisplayType);
+        }
+      );
     };
 
     loadConfigs();
@@ -133,6 +136,82 @@ function Setting() {
           </div>
           <span className="text-xs ml-6 flex-shrink-0">{t("select_interface_language")}</span>
         </div>
+      </Card>
+
+      {/* 脚本同步 */}
+      <Card className="sync" title={t("script_sync")} bordered={false}>
+        <Space direction="vertical" className={"w-full"}>
+          <Space direction="horizontal" className={"w-full"}>
+            <Checkbox
+              checked={syncDelete}
+              onChange={(checked) => {
+                setSyncDelete(checked);
+              }}
+            >
+              {t("sync_delete")}
+            </Checkbox>
+            <Checkbox
+              checked={syncScriptStatus}
+              onChange={(checked) => {
+                setSyncScriptStatus(checked);
+              }}
+            >
+              {t("sync_status")}
+            </Checkbox>
+          </Space>
+          <FileSystemParams
+            preNode={
+              <Checkbox
+                checked={enableCloudSync}
+                onChange={(checked) => {
+                  setEnableCloudSync(checked);
+                }}
+              >
+                {t("enable_script_sync_to")}
+              </Checkbox>
+            }
+            actionButton={[
+              <Button
+                key="save"
+                type="primary"
+                onClick={async () => {
+                  // Save to the configuration
+                  // Perform validation if enabled
+                  if (enableCloudSync) {
+                    Message.info(t("cloud_sync_account_verification")!);
+                    try {
+                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                    } catch (e) {
+                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
+                      return;
+                    }
+                  }
+                  const cloudSync = await systemConfig.getCloudSync();
+                  const params = { ...cloudSync.params };
+                  params[fileSystemType] = fileSystemParams;
+                  systemConfig.setCloudSync({
+                    enable: enableCloudSync || false,
+                    syncDelete: syncDelete || false,
+                    syncStatus: syncScriptStatus || false,
+                    filesystem: fileSystemType,
+                    params,
+                  });
+                  Message.success(t("save_success")!);
+                }}
+              >
+                {t("save")}
+              </Button>,
+            ]}
+            fileSystemType={fileSystemType}
+            fileSystemParams={fileSystemParams}
+            onChangeFileSystemType={(type) => {
+              setFilesystemType(type);
+            }}
+            onChangeFileSystemParams={(params) => {
+              setFilesystemParam(params);
+            }}
+          />
+        </Space>
       </Card>
 
       {/* 界面外观 */}
@@ -236,80 +315,7 @@ function Setting() {
           </div>
         </Space>
       </Card>
-      <Card className="sync" title={t("script_sync")} bordered={false}>
-        <Space direction="vertical" className={"w-full"}>
-          <Space direction="horizontal" className={"w-full"}>
-            <Checkbox
-              checked={syncDelete}
-              onChange={(checked) => {
-                setSyncDelete(checked);
-              }}
-            >
-              {t("sync_delete")}
-            </Checkbox>
-            <Checkbox
-              checked={syncScriptStatus}
-              onChange={(checked) => {
-                setSyncScriptStatus(checked);
-              }}
-            >
-              {t("sync_status")}
-            </Checkbox>
-          </Space>
-          <FileSystemParams
-            preNode={
-              <Checkbox
-                checked={enableCloudSync}
-                onChange={(checked) => {
-                  setEnableCloudSync(checked);
-                }}
-              >
-                {t("enable_script_sync_to")}
-              </Checkbox>
-            }
-            actionButton={[
-              <Button
-                key="save"
-                type="primary"
-                onClick={async () => {
-                  // Save to the configuration
-                  // Perform validation if enabled
-                  if (enableCloudSync) {
-                    Message.info(t("cloud_sync_account_verification")!);
-                    try {
-                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
-                    } catch (e) {
-                      Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
-                      return;
-                    }
-                  }
-                  const cloudSync = await systemConfig.getCloudSync();
-                  const params = { ...cloudSync.params };
-                  params[fileSystemType] = fileSystemParams;
-                  systemConfig.setCloudSync({
-                    enable: enableCloudSync || false,
-                    syncDelete: syncDelete || false,
-                    syncStatus: syncScriptStatus || false,
-                    filesystem: fileSystemType,
-                    params,
-                  });
-                  Message.success(t("save_success")!);
-                }}
-              >
-                {t("save")}
-              </Button>,
-            ]}
-            fileSystemType={fileSystemType}
-            fileSystemParams={fileSystemParams}
-            onChangeFileSystemType={(type) => {
-              setFilesystemType(type);
-            }}
-            onChangeFileSystemParams={(params) => {
-              setFilesystemParam(params);
-            }}
-          />
-        </Space>
-      </Card>
+
       {/* 脚本更新设置 */}
       <Card title={t("update")} bordered={false}>
         <Space direction="vertical" size={20} className="w-full">
@@ -383,17 +389,14 @@ function Setting() {
             }}
             onBlur={(v) => {
               // 校验黑名单格式
-              const lines = v.target.value
-                .split("\n")
-                .map((line) => line.trim())
-                .filter((line) => line);
-              for (const line of lines) {
-                if (line && !parsePatternMatchesURL(line)) {
-                  Message.error(`${t("expression_format_error")}: ${line}`);
-                  return;
-                }
+              const val = v.target.value;
+              const blacklist = obtainBlackList(val);
+              const ret = blackListSelfCheck(blacklist);
+              if (!ret.ok) {
+                Message.error(`${t("expression_format_error")}: ${ret.line}`);
+                return;
               }
-              systemConfig.setBlacklist(v.target.value);
+              systemConfig.setBlacklist(val);
             }}
           />
         </div>

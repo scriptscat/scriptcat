@@ -65,11 +65,6 @@ export type ScriptOptionsFile = {
   meta: ScriptMeta;
 };
 
-export type ScriptInfo = {
-  name: string;
-  code: string;
-};
-
 export type ScriptBackupData = {
   code: string;
   options?: ScriptOptionsFile;

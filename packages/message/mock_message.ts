@@ -1,17 +1,17 @@
-import type { Message, MessageConnect, MessageSend } from "./types";
+import type { Message, MessageConnect, MessageSend, TMessage } from "./types";
 import EventEmitter from "eventemitter3";
 import { sleep } from "@App/pkg/utils/utils";
 
 export class MockMessageConnect implements MessageConnect {
-  constructor(protected EE: EventEmitter) {}
+  constructor(protected EE: EventEmitter<string, any>) {}
 
-  onMessage(callback: (data: any) => void): void {
+  onMessage(callback: (data: TMessage) => void): void {
     this.EE.on("message", (data: any) => {
       callback(data);
     });
   }
 
-  sendMessage(data: any): void {
+  sendMessage(data: TMessage): void {
     this.EE.emit("message", data);
   }
 
@@ -25,11 +25,11 @@ export class MockMessageConnect implements MessageConnect {
 }
 
 export class MockMessageSend implements MessageSend {
-  constructor(protected EE: EventEmitter) {}
+  constructor(protected EE: EventEmitter<string, any>) {}
 
-  connect(data: any): Promise<MessageConnect> {
+  connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      const EE = new EventEmitter();
+      const EE = new EventEmitter<string, any>();
       const con = new MockMessageConnect(EE);
       resolve(con);
       sleep(1).then(() => {
@@ -38,9 +38,9 @@ export class MockMessageSend implements MessageSend {
     });
   }
 
-  sendMessage(data: any): Promise<any> {
+  sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
-      this.EE.emit("message", data, (resp: any) => {
+      this.EE.emit("message", data, (resp: T) => {
         resolve(resp);
       });
     });

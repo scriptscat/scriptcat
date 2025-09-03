@@ -1,17 +1,9 @@
-export function isExtensionRequest(
-  details: chrome.webRequest.OnBeforeRequestDetails & { originUrl?: string }
-): boolean {
-  return !!(
-    (details.initiator && chrome.runtime.getURL("").startsWith(details.initiator)) ||
-    (details.originUrl && details.originUrl.startsWith(chrome.runtime.getURL("")))
-  );
-}
+export const BrowserNoSupport = new Error("browserNoSupport");
+import type { SCMetadata, Script } from "@App/app/repo/scripts";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
-  if (runAts.length === 0) {
-    return "document_idle";
-  }
-  const runAt = runAts[0];
+  // 没有 run-at 时为 undefined. Fallback 至 document_idle
+  const runAt = runAts[0] as string | undefined;
   if (runAt === "document-start") {
     return "document_start";
   } else if (runAt === "document-end") {
@@ -20,83 +12,41 @@ export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   return "document_idle";
 }
 
-export function mapToObject(map: Map<string, any>): { [key: string]: any } {
-  const obj: { [key: string]: any } = {};
-  map.forEach((value, key) => {
-    if (value instanceof Map) {
-      obj[key] = mapToObject(value);
-    } else if (obj[key] instanceof Array) {
-      obj[key].push(value);
-    } else {
-      obj[key] = value;
-    }
-  });
-  return obj;
-}
-
-export function objectToMap(obj: { [key: string]: any }): Map<string, any> {
-  const map = new Map<string, any>();
-  Object.keys(obj).forEach((key) => {
-    if (obj[key] instanceof Map) {
-      map.set(key, objectToMap(obj[key]));
-    } else if (obj[key] instanceof Array) {
-      map.set(key, obj[key]);
-    } else {
-      map.set(key, obj[key]);
-    }
-  });
-  return map;
-}
-
-export function arrayToObject(arr: Array<any>): any[] {
-  const obj: any[] = [];
-  arr.forEach((item) => {
-    if (item instanceof Map) {
-      obj.push(mapToObject(item));
-    } else if (item instanceof Array) {
-      obj.push(arrayToObject(item));
-    } else {
-      obj.push(item);
-    }
-  });
-  return obj;
-}
-
 // 检查是不是base64编码
 export function isBase64(str: string): boolean {
   if (typeof str !== "string" || str.length === 0) {
     return false;
   }
 
+  // Base64字符串长度必须是4的倍数。不会出现没有填充的情况（Base64定义）
+  const lengthMod4 = str.length % 4;
+  if (lengthMod4 !== 0) {
+    // 长度除以4余数为非0的字符串不可能是有效的Base64
+    return false;
+  }
+
   // Base64字符串必须只包含有效的Base64字符
-  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+  const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
   if (!base64Regex.test(str)) {
     return false;
   }
 
-  // Base64字符串长度必须是4的倍数（如果有填充），或者没有填充的情况下可以是其他长度
-  // 但要确保它不是纯数字或纯字母（避免误判十六进制字符串）
-  const lengthMod4 = str.length % 4;
-  if (lengthMod4 === 1) {
-    // 长度除以4余数为1的字符串不可能是有效的Base64
-    return false;
+  // 避免将纯十六进制字符串误判为Base64
+  for (let i = 0, l = str.length; i < l; i++) {
+    const c = str.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      // 0-9
+    } else if (c >= 97 && c <= 102) {
+      // a-f
+    } else if (c >= 65 && c <= 70) {
+      // A-F
+    } else {
+      // 包括非0-9a-fA-F时接受为 Base64
+      return true;
+    }
   }
-
-  // 检查是否包含Base64特有的字符（+ 或 /），或者有正确的填充
-  // 这样可以避免将纯十六进制字符串误判为Base64
-  if (str.includes("+") || str.includes("/") || str.endsWith("=")) {
-    return true;
-  }
-
-  // 如果没有特殊字符，检查是否可能是有效的Base64（但要排除明显的十六进制）
-  // 十六进制字符串只包含0-9和a-f（或A-F），而Base64还包含其他字母
-  const hexOnlyRegex = /^[0-9a-fA-F]+$/;
-  if (hexOnlyRegex.test(str)) {
-    // 这很可能是十六进制字符串，不是Base64
-    return false;
-  }
-
-  return true;
+  // 纯十六进制字符串
+  return false;
 }
 
 // 解析URL SRI
@@ -110,51 +60,94 @@ export function parseUrlSRI(url: string): {
   }
   const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
-  hashs.forEach((val) => {
-    // 首先检查是否是 sha256-abc123== 格式
-    const dashMatch = val.match(/^([a-zA-Z0-9]+)-(.+)$/);
-    if (dashMatch) {
-      const [, key, value] = dashMatch;
+  for (const val of hashs) {
+    // 接受以下格式
+    // sha256-abc123== 格式
+    // sha256=abc123== 格式
+    const match = val.match(/^([a-zA-Z0-9]+)[-=](.+)$/);
+    if (match) {
+      const [, key, value] = match;
       hash[key] = value;
-      return;
     }
-
-    // 然后检查是否是 sha256=abc123== 格式
-    const equalIndex = val.indexOf("=");
-    if (equalIndex !== -1) {
-      const key = val.substring(0, equalIndex);
-      const value = val.substring(equalIndex + 1);
-      if (key) {
-        // 确保 key 不为空
-        hash[key] = value;
-      }
-      return;
-    }
-  });
-
-  // 如果没有解析到任何哈希值，返回空对象而不是 undefined
-  if (Object.keys(hash).length === 0) {
-    return { url: urls[0], hash: {} };
   }
 
+  // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
   return { url: urls[0], hash };
 }
 
-// 检查是否正在播放视频，或者窗口未激活
-export function isVideoPlayingOrInactive() {
-  return new Promise<boolean>((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.query:", lastError);
-        resolve(false);
-        return;
-      }
-      if (tabs.length === 0 || tabs[0].audible === true || !tabs[0].active) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
+export type TMsgResponse<T> =
+  | {
+      ok: true;
+      res: T;
+    }
+  | {
+      ok: false;
+      err: {
+        name?: string;
+        message?: string;
+        errType?: number;
+        [key: string]: any;
+      };
+    };
+
+export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMsgResponse<T> {
+  if (!errType) return { ok: true, res: t };
+  const { name, message } = t;
+  return { ok: false, err: { name, message, errType, ...t, ...params } };
+}
+
+export async function notificationsUpdate(
+  notificationId: string,
+  options: chrome.notifications.NotificationOptions
+): Promise<
+  | {
+      ok: true;
+      res: boolean | null;
+    }
+  | ({
+      ok: false;
+    } & {
+      browserNoSupport?: true;
+      apiError?: Error;
+    })
+> {
+  // No Support in Firefox
+  if (typeof chrome.notifications?.update !== "function") {
+    return { ok: false, apiError: BrowserNoSupport };
+  }
+  try {
+    // chrome > 116 return Promise<boolean>
+    const wasUpdated: any = await chrome.notifications.update(notificationId, options);
+    return { ok: true, res: typeof wasUpdated === "boolean" ? wasUpdated : null };
+  } catch (e: any) {
+    return { ok: false, apiError: e as Error };
+  }
+}
+
+export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata {
+  const metaRet = { ...metaBase };
+  if (!metaCustom) {
+    return metaRet;
+  }
+  for (const key of Object.keys(metaCustom)) {
+    const v = metaCustom[key];
+    metaRet[key] = v ? [...v] : undefined;
+  }
+  return metaRet;
+}
+
+export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string>) {
+  // 更新 selfMetadata 时建立浅拷贝
+  const selfMetadata = { ...(script.selfMetadata || {}) };
+  script = { ...script, selfMetadata };
+  const value = [...valueSet].filter((item) => typeof item === "string");
+  if (value.length > 0) {
+    selfMetadata[key] = value;
+  } else {
+    delete selfMetadata[key];
+    if (Object.keys(selfMetadata).length === 0) {
+      script.selfMetadata = undefined; // delete script.selfMetadata;
+    }
+  }
+  return script;
 }

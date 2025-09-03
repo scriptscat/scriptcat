@@ -5,8 +5,8 @@ import JSZip from "jszip";
 import type { ScriptOptions, ScriptData, SubscribeData } from "@App/pkg/backup/struct";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptDAO } from "@App/app/repo/scripts";
-import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { cacheInstance } from "@App/app/cache";
+import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
 import { scriptClient, synchronizeClient, valueClient } from "../store/features/script";
 import { sleep } from "@App/pkg/utils/utils";
@@ -40,17 +40,15 @@ const ScriptListItem = React.memo(
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
             {item.script?.script?.name || item.error || t("unknown")}
           </Typography.Title>
+          <span className="text-sm color-gray-5">{`${t("author")}: ${item.script?.script?.metadata.author?.[0]}`}</span>
           <span className="text-sm color-gray-5">
-            {t("author")}: {item.script?.script?.metadata.author?.[0]}
+            {`${t("description")}: ${item.script?.script?.metadata.description?.[0]}`}
           </span>
           <span className="text-sm color-gray-5">
-            {t("description")}: {item.script?.script?.metadata.description?.[0]}
+            {`${t("source")}: ${item.options?.meta.file_url || t("local_creation")}`}
           </span>
           <span className="text-sm color-gray-5">
-            {t("source")}: {item.options?.meta.file_url || t("local_creation")}
-          </span>
-          <span className="text-sm color-gray-5">
-            {t("operation")}:{" "}
+            {`${t("operation")}: `}
             {(item.install && (item.script?.oldScript ? t("update") : t("add_new"))) ||
               (item.error
                 ? `${t("error")}: ${item.options?.meta.name} - ${item.options?.meta.uuid}`
@@ -86,7 +84,9 @@ function App() {
     try {
       const url = new URL(window.location.href);
       const uuid = url.searchParams.get("uuid") || "";
-      const resp: { filename: string; url: string } = await Cache.getInstance().get(CacheKey.importFile(uuid));
+      const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
+      const resp = await cacheInstance.get<{ filename: string; url: string }>(cacheKey);
+      if (!resp) throw new Error("fetchData failed");
       const filedata = await fetch(resp.url).then((resp) => resp.blob());
       const zip = await JSZip.loadAsync(filedata);
       const backData = await parseBackupZipFile(zip);
@@ -279,20 +279,20 @@ function App() {
             </Button>
           </Space>
           <Typography.Text>
-            {t("select_scripts_to_import")}:{" "}
+            {`${t("select_scripts_to_import")}: `}
             <Checkbox checked={selectAll[0]} onChange={handleSelectAllScripts}>
               {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            {t("script_import_progress")}: {installNum[0]}/{scripts.length}
+            {`${t("script_import_progress")}: ${installNum[0]}/${scripts.length}`}
           </Typography.Text>
           <Typography.Text>
-            {t("select_subscribes_to_import")}:{" "}
+            {`${t("select_subscribes_to_import")}: `}
             <Checkbox checked={selectAll[1]} onChange={handleSelectAllSubscribes}>
               {t("select_all")}
             </Checkbox>
             <Divider type="vertical" />
-            {t("subscribe_import_progress")}: {installNum[1]}/{subscribes.length}
+            {`${t("subscribe_import_progress")}: ${installNum[1]}/${subscribes.length}`}
           </Typography.Text>
           {scripts.length > 0 && (
             <List

@@ -48,10 +48,10 @@ const LogLabel: React.FC<{
           onChange({ ...value, condition: opt });
         }}
       >
-        <Select.Option value="=">=</Select.Option>
-        <Select.Option value="=~">=~</Select.Option>
-        <Select.Option value="!=">!=</Select.Option>
-        <Select.Option value="!~">!~</Select.Option>
+        <Select.Option value="=">{"="}</Select.Option>
+        <Select.Option value="=~">{"=~"}</Select.Option>
+        <Select.Option value="!=">{"!="}</Select.Option>
+        <Select.Option value="!~">{"!~"}</Select.Option>
       </Select>
       <Select
         showSearch

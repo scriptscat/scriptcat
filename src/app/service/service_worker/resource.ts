@@ -8,8 +8,8 @@ import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
 import { blobToBase64 } from "@App/pkg/utils/utils";
-import { subscribeScriptDelete } from "../queue";
-import Cache from "@App/app/cache";
+import { type TDeleteScript } from "../queue";
+import { cacheInstance } from "@App/app/cache";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 
@@ -147,8 +147,8 @@ export class ResourceService {
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
     if (res) {
-      // 判断1分钟过期
-      if ((res.updatetime || 0) > new Date().getTime() - 1000 * 60) {
+      // 判断1天过期
+      if ((res.updatetime || 0) > Date.now() - 1000 * 86400) {
         return res;
       }
     }
@@ -170,10 +170,11 @@ export class ResourceService {
     let result = await this.getResourceModel(u.url);
     try {
       const resource = await this.loadByUrl(u.url, type);
-      resource.updatetime = new Date().getTime();
+      const now = Date.now();
+      resource.updatetime = now;
       if (!result) {
         // 资源不存在,保存
-        resource.createtime = new Date().getTime();
+        resource.createtime = now;
         resource.link = { [uuid]: true };
         await this.resourceDAO.save(resource);
         result = resource;
@@ -202,23 +203,27 @@ export class ResourceService {
     const resource = await this.resourceDAO.get(u.url);
     if (resource) {
       // 校验hash
-      if (u.hash) {
+      const hash = u.hash;
+      if (hash) {
         let flag = true;
-        Object.keys(u.hash).forEach((key) => {
-          if (isBase64(u.hash![key])) {
+        for (const key of Object.keys(hash)) {
+          if (isBase64(hash[key])) {
             // 对比base64编码的hash
-            if ((resource.hash as any).integrity && (resource.hash as any).integrity[key] !== u.hash![key]) {
+            const integrity = resource.hash.integrity as Partial<Record<string, string>>;
+            if (integrity && integrity[key] !== hash[key]) {
               flag = false;
+              break;
             }
           } else {
             // 对比普通的hash
             if (key in resource.hash) {
-              if (resource.hash[key as keyof ResourceHash] !== u.hash![key].toLowerCase()) {
+              if (resource.hash[key as keyof ResourceHash] !== hash[key].toLowerCase()) {
                 flag = false;
+                break;
               }
             }
           }
-        });
+        }
         if (!flag) {
           resource.content = `console.warn("ScriptCat: couldn't load resource from URL ${url} due to a SRI error ");`;
         }
@@ -268,7 +273,7 @@ export class ResourceService {
       base64: "",
       link: {},
       type,
-      createtime: new Date().getTime(),
+      createtime: Date.now(),
     };
     const uint8Array = new Uint8Array(arrayBuffer);
     if (isText(uint8Array)) {
@@ -292,7 +297,7 @@ export class ResourceService {
     if (!data.source) {
       return undefined;
     }
-    const time = new Date().getTime();
+    const time = Date.now();
     let res = await this.resourceDAO.get(data.meta.url);
     if (!res) {
       // 新增资源
@@ -324,16 +329,16 @@ export class ResourceService {
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源
-    subscribeScriptDelete(this.mq, (data) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", (data) => {
       // 使用事务当锁，避免并发删除导致数据不一致
-      Cache.getInstance().tx("resource_lock", async (_start) => {
+      cacheInstance.tx("resource_lock", async (_start) => {
         const resources = await this.resourceDAO.find((key, value) => {
           return value.link[data.uuid];
         });
-        resources.forEach((res) => {
+        for (const res of resources) {
           // 删除link
           delete res.link[data.uuid];
-        });
+        }
         await Promise.all(
           resources.map((res) => {
             if (Object.keys(res.link).length > 0) {

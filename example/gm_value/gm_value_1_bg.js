@@ -12,6 +12,6 @@
 // ==/UserScript==
 
 return new Promise((resolve) => {
-  GM_setValue("test_set", new Date().getTime());
+  GM_setValue("test_set", Date.now());
   resolve();
 });

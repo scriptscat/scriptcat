@@ -1,4 +1,4 @@
-import { ExtServer, ExtVersion } from "@App/app/const";
+import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
@@ -15,8 +15,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
-import { InfoNotification } from "@App/pkg/utils/utils";
-import { isVideoPlayingOrInactive } from "./utils";
+import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -136,13 +135,8 @@ export default class ServiceWorkerManager {
     });
 
     // 监听配置变化
-    this.mq.subscribe("systemConfigChange", (msg) => {
-      switch (msg.key) {
-        case "cloud_sync": {
-          synchronize.cloudSyncConfigChange(msg.value);
-          break;
-        }
-      }
+    systemConfig.addListener("cloud_sync", (value) => {
+      synchronize.cloudSyncConfigChange(value);
     });
     // 启动一次云同步
     systemConfig.getCloudSync().then((config) => {
@@ -157,17 +151,31 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: "https://docs.scriptcat.org" + localePath });
+          chrome.tabs.create({ url: `${DocumentationSite}${localePath}` });
         } else if (details.reason === "update") {
-          isVideoPlayingOrInactive().then((ok) => {
-            chrome.tabs.create({
-              url: `https://docs.scriptcat.org/docs/change/${
-                ExtVersion.includes("-") ? "beta-changelog/" : ""
-              }#${ExtVersion}`,
-              active: !ok,
+          const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
+          getCurrentTab()
+            .then((tab) => {
+              // 检查是否正在播放视频，或者窗口未激活
+              const openInBackground = !tab || tab.audible === true || !tab.active;
+              // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
+              return chrome.tabs.create({
+                url,
+                active: !openInBackground,
+                index: !tab ? undefined : tab.index + 1,
+                windowId: !tab ? undefined : tab.windowId,
+              });
+            })
+            .then((_createdTab) => {
+              // 当新 Tab 成功建立时才执行
+              InfoNotification(
+                t("ext_update_notification"),
+                t("ext_update_notification_desc", { version: ExtVersion })
+              );
+            })
+            .catch((e) => {
+              console.error(e);
             });
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }));
-          });
         }
       });
     }
@@ -177,13 +185,15 @@ export default class ServiceWorkerManager {
     fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
       .then((resp) => resp.json())
       .then((resp: { data: { notice: string; version: string } }) => {
-        systemConfig.getCheckUpdate().then((items) => {
-          if (items.notice !== resp.data.notice) {
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: false }));
-          } else {
-            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: items.isRead }));
-          }
-        });
+        systemConfig
+          .getCheckUpdate()
+          .then((items) => {
+            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+            systemConfig.setCheckUpdate(Object.assign(resp.data, { isRead: isRead }));
+          })
+          .catch((e) => {
+            console.error(e);
+          });
       });
   }
 }

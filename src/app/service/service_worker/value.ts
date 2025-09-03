@@ -5,11 +5,13 @@ import { ValueDAO } from "@App/app/repo/value";
 import type { GetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import Cache from "@App/app/cache";
+import { cacheInstance } from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
-import { subscribeScriptDelete } from "../queue";
+import type { TScriptValueUpdate } from "../queue";
+import { type TDeleteScript } from "../queue";
 import { type MessageQueue } from "@Packages/message/message_queue";
+import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 
 export class ValueService {
   logger: Logger;
@@ -36,14 +38,14 @@ export class ValueService {
     // 和userconfig组装
     const { config } = script;
     if (config) {
-      Object.keys(config).forEach((tabKey) => {
+      for (const tabKey of Object.keys(config)) {
         const tab = config![tabKey];
         if (!(tab instanceof Object)) {
-          return;
+          continue;
         }
-        Object.keys(tab).forEach((key) => {
+        for (const key of Object.keys(tab)) {
           if (!tab[key]) {
-            return;
+            continue;
           }
           // 动态变量
           if (tab[key].bind) {
@@ -52,8 +54,8 @@ export class ValueService {
           }
           newValues[`${tabKey}.${key}`] =
             data[`${tabKey}.${key}`] === undefined ? config![tabKey][key].default : data[`${tabKey}.${key}`];
-        });
-      });
+        }
+      }
     }
     return newValues;
   }
@@ -68,15 +70,17 @@ export class ValueService {
     const storageName = getStorageName(script);
     let oldValue;
     // 使用事务来保证数据一致性
-    const flag = await Cache.getInstance().tx("setValue:" + storageName, async () => {
+    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+    const flag = await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
+        const now = Date.now();
         await this.valueDAO.save(storageName, {
           uuid: script.uuid,
           storageName: storageName,
           data: { [key]: value },
-          createtime: Date.now(),
-          updatetime: Date.now(),
+          createtime: now,
+          updatetime: now,
         });
       } else {
         // 值没有发生变化, 不进行操作
@@ -96,6 +100,7 @@ export class ValueService {
     if (flag) {
       this.pushValueToTab(oldValue, key, value, uuid, storageName, sender);
     }
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   // 推送值到tab
@@ -155,15 +160,17 @@ export class ValueService {
     }
     const storageName = getStorageName(script);
     let oldValue: { [key: string]: any } = {};
-    await Cache.getInstance().tx("setValue:" + storageName, async () => {
+    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+    await cacheInstance.tx(cacheKey, async () => {
       const valueModel = await this.valueDAO.get(storageName);
       if (!valueModel) {
+        const now = Date.now();
         await this.valueDAO.save(storageName, {
           uuid: script.uuid,
           storageName: storageName,
           data: data.values,
-          createtime: Date.now(),
-          updatetime: Date.now(),
+          createtime: now,
+          updatetime: now,
         });
       } else {
         oldValue = valueModel.data;
@@ -175,20 +182,21 @@ export class ValueService {
           }
         }
         // 处理oldValue有但是没有在data.values中的情况
-        Object.keys(oldValue).forEach((key) => {
+        for (const key of Object.keys(oldValue)) {
           if (!(key in data.values)) {
             delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
             data.values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
           }
-        });
+        }
         await this.valueDAO.save(storageName, valueModel);
       }
       return true;
     });
     // 推送到所有加载了本脚本的tab中
-    Object.keys(data.values).forEach((key) => {
+    for (const key of Object.keys(data.values)) {
       this.pushValueToTab(oldValue[key], key, data.values[key], data.uuid, storageName, sender);
-    });
+    }
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   setScriptValue(data: { uuid: string; key: string; value: any }, _sender: GetSender) {
@@ -212,7 +220,7 @@ export class ValueService {
     this.group.on("setScriptValue", this.setScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));
 
-    subscribeScriptDelete(this.mq, async (data) => {
+    this.mq.subscribe<TDeleteScript>("deleteScript", async (data) => {
       const storageName = getStorageName(data.script);
       // 判断还有没有其他同名storageName
       const list = await this.scriptDAO.find((_, script) => {

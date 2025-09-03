@@ -1,10 +1,10 @@
-import { fetchScriptInfo, prepareScriptByCode } from "@App/pkg/utils/script";
+import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
 import { v4 as uuidv4 } from "uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
-import Cache from "@App/app/cache";
-import CacheKey from "@App/app/cache_key";
+import { cacheInstance } from "@App/app/cache";
+import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import {
   checkSilenceUpdate,
   getBrowserType,
@@ -16,13 +16,20 @@ import { ltever } from "@App/pkg/utils/semver";
 import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
-import type { InstallSource } from "./types";
+import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
 import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
+import { DocumentationSite } from "@App/app/const";
+import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
+import { timeoutExecution } from "@App/pkg/utils/timer";
+import { getCombinedMeta, selfMetadataUpdate } from "./utils";
+import type { SearchType } from "./types";
+
+const cIdKey = `(cid_${Math.random()})`;
 
 export class ScriptService {
   logger: Logger;
@@ -42,23 +49,23 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onResponseStarted.addListener(
-      (req: chrome.webRequest.OnResponseStartedDetails) => {
+    chrome.webRequest.onBeforeRequest.addListener(
+      (req: chrome.webRequest.OnBeforeRequestDetails) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
           return undefined;
         }
-        const url = new URL(req.url);
+        const reqUrl = new URL(req.url);
         // 判断是否有hash
-        if (!url.hash) {
+        if (!reqUrl.hash) {
           return undefined;
         }
         // 判断是否有url参数
-        if (!url.hash.includes("url=")) {
+        if (!reqUrl.hash.includes("url=")) {
           return undefined;
         }
         // 获取url参数
-        const targetUrl = url.hash.split("url=")[1];
+        const targetUrl = reqUrl.hash.split("url=")[1];
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
@@ -106,8 +113,8 @@ export class ScriptService {
       },
       {
         urls: [
-          "https://docs.scriptcat.org/docs/script_installation/*",
-          "https://docs.scriptcat.org/en/docs/script_installation/*",
+          `${DocumentationSite}/docs/script_installation/*`,
+          `${DocumentationSite}/en/docs/script_installation/*`,
           "https://www.tampermonkey.net/script_installation.php*",
         ],
         types: ["main_frame"],
@@ -141,7 +148,7 @@ export class ScriptService {
             action: {
               type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
               redirect: {
-                regexSubstitution: `https://docs.scriptcat.org${localePath}/docs/script_installation/#url=\\0`,
+                regexSubstitution: `${DocumentationSite}${localePath}/docs/script_installation/#url=\\0`,
               },
             },
             condition: condition,
@@ -159,51 +166,56 @@ export class ScriptService {
     );
   }
 
-  public openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
+  public async openInstallPageByUrl(url: string, source: InstallSource): Promise<{ success: boolean; msg: string }> {
     const uuid = uuidv4();
-    return fetchScriptInfo(url, source, false, uuid)
-      .then((info) => {
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(uuid), info);
-        setTimeout(() => {
+    try {
+      await this.openUpdateOrInstallPage(uuid, url, source, false);
+      timeoutExecution(
+        `${cIdKey}_cleanup_${uuid}`,
+        () => {
           // 清理缓存
-          Cache.getInstance().del(CacheKey.scriptInstallInfo(uuid));
-        }, 30 * 1000);
-        openInCurrentTab(`/src/install.html?uuid=${uuid}`);
-        return { success: true, msg: "" };
-      })
-      .catch((err) => {
-        console.error(err);
-        return { success: false, msg: err.message };
-      });
+          cacheInstance.del(`${CACHE_KEY_SCRIPT_INFO}${uuid}`);
+        },
+        30 * 1000
+      );
+      await openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      return { success: true, msg: "" };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, msg: err.message };
+    }
   }
 
   // 直接通过url静默安装脚本
   async installByUrl(url: string, source: InstallSource, subscribeUrl?: string) {
-    const info = await fetchScriptInfo(url, source, false, uuidv4());
-    const prepareScript = await prepareScriptByCode(info.code, url, info.uuid);
-    prepareScript.script.subscribeUrl = subscribeUrl;
+    const uuid = uuidv4();
+    const code = await fetchScriptBody(url);
+    const { script } = await prepareScriptByCode(code, url, uuid);
+    script.subscribeUrl = subscribeUrl;
     this.installScript({
-      script: prepareScript.script,
-      code: info.code,
+      script,
+      code,
       upsertBy: source,
     });
-    return prepareScript.script;
+    return script;
   }
 
   // 直接通过code静默安装脚本
   async installByCode(param: { uuid: string; code: string; upsertBy: InstallSource }) {
-    const prepareScript = await prepareScriptByCode(param.code, "", param.uuid, true);
+    const { code, upsertBy, uuid } = param;
+    const { script } = await prepareScriptByCode(code, "", uuid, true);
     this.installScript({
-      script: prepareScript.script,
-      code: param.code,
-      upsertBy: param.upsertBy,
+      script,
+      code,
+      upsertBy,
     });
-    return prepareScript.script;
+    return script;
   }
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return Cache.getInstance().get(CacheKey.scriptInstallInfo(uuid));
+    const cacheKey = `${CACHE_KEY_SCRIPT_INFO}${uuid}`;
+    return cacheInstance.get<[boolean, ScriptInfo]>(cacheKey);
   }
 
   // 安装脚本
@@ -235,7 +247,7 @@ export class ScriptService {
         // 下载资源
         this.resourceService.checkScriptResource(script).then(() => {
           // 广播一下
-          this.mq.publish("installScript", { script, update, upsertBy });
+          this.mq.publish<TInstallScript>("installScript", { script, update, upsertBy });
         });
         return { update };
       })
@@ -257,7 +269,7 @@ export class ScriptService {
       .then(() => {
         this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
-        this.mq.publish("deleteScript", { uuid, script });
+        this.mq.publish<TDeleteScript>("deleteScript", { uuid, script });
         return true;
       })
       .catch((e) => {
@@ -276,11 +288,11 @@ export class ScriptService {
     return this.scriptDAO
       .update(param.uuid, {
         status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-        updatetime: new Date().getTime(),
+        updatetime: Date.now(),
       })
       .then(() => {
         logger.info("enable success");
-        this.mq.publish("enableScript", { uuid: param.uuid, enable: param.enable });
+        this.mq.publish<TEnableScript>("enableScript", { uuid: param.uuid, enable: param.enable });
         return {};
       })
       .catch((e) => {
@@ -301,65 +313,129 @@ export class ScriptService {
     if (
       (await this.scriptDAO.update(params.uuid, {
         runStatus: params.runStatus,
-        lastruntime: new Date().getTime(),
+        lastruntime: Date.now(),
         error: params.error,
         nextruntime: params.nextruntime,
       })) === false
     ) {
       throw new Error("update error");
     }
-    this.mq.publish("scriptRunStatus", params);
+    this.mq.publish<TScriptRunStatus>("scriptRunStatus", params);
     return true;
   }
 
-  getCode(uuid: string) {
-    return this.scriptCodeDAO.get(uuid);
+  async getFilterResult(req: { type: SearchType; value: string }) {
+    const OPTION_CASE_INSENSITIVE = true;
+    const scripts = await this.scriptDAO.all();
+    const scriptCodes = await Promise.all(
+      scripts.map((script) => this.scriptCodeDAO.get(script.uuid).catch((_) => undefined))
+    );
+
+    const keyword = req.value.toLocaleLowerCase();
+
+    // 空格分开关键字搜索
+    const keys = keyword.split(" ");
+
+    const results: Partial<Record<string, string | boolean>>[] = [];
+    const codeCache: Partial<Record<string, string>> = {}; // temp cache
+    for (let i = 0, l = scripts.length; i < l; i++) {
+      const script = scripts[i];
+      const scriptCode = scriptCodes[i];
+      const uuid = script.uuid;
+      const result: Partial<Record<string, string | boolean>> = { uuid };
+
+      const searchName = (keyword: string) => {
+        if (OPTION_CASE_INSENSITIVE) {
+          return script.name.toLowerCase().includes(keyword.toLowerCase());
+        }
+        return script.name.includes(keyword);
+      };
+      const searchCode = (keyword: string) => {
+        let c = codeCache[script.uuid];
+        if (!c) {
+          const code = scriptCode;
+          if (code && code.uuid === script.uuid) {
+            codeCache[script.uuid] = c = code.code;
+            c = code.code;
+          }
+        }
+        if (c) {
+          if (OPTION_CASE_INSENSITIVE) {
+            return c.toLowerCase().includes(keyword.toLowerCase());
+          }
+          return c.includes(keyword);
+        }
+        return false;
+      };
+
+      for (const key of keys) {
+        if (result.code === undefined && searchCode(key)) {
+          result.code = true;
+        }
+        if (result.name === undefined && searchName(key)) {
+          result.name = true;
+        }
+      }
+      if (result.name || result.code) {
+        result.auto = true;
+      }
+      results.push(result);
+    }
+    return results;
   }
 
-  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    const ret: ScriptRunResource = <ScriptRunResource>Object.assign(script);
+  getScriptRunResource(script: Script) {
+    return this.buildScriptRunResource(script);
+  }
 
+  async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
+    const ret: ScriptRunResource = { ...script } as ScriptRunResource;
     // 自定义配置
+    const { match, include, exclude } = ret.metadata;
+    ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
     if (ret.selfMetadata) {
-      ret.metadata = { ...ret.metadata };
-      Object.keys(ret.selfMetadata).forEach((key) => {
-        ret.metadata[key] = ret.selfMetadata![key];
-      });
+      ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
-
-    ret.value = await this.valueService.getScriptValue(ret);
-
-    ret.resource = await this.resourceService.getScriptResources(ret, true);
-
-    ret.flag = randomMessageFlag();
-    const code = await this.getCode(ret.uuid);
-    if (!code) {
-      throw new Error("code is null");
-    }
-    ret.code = code.code;
-    ret.code = compileScriptCode(ret);
-
-    return ret;
+    return Promise.all([
+      this.valueService.getScriptValue(ret),
+      this.resourceService.getScriptResources(ret, true),
+      this.scriptCodeDAO.get(script.uuid),
+    ]).then(([value, resource, code]) => {
+      if (!code) {
+        throw new Error("code is null");
+      }
+      ret.value = value;
+      ret.resource = resource;
+      ret.flag = scriptFlag || randomMessageFlag();
+      ret.code = code.code;
+      ret.code = compileScriptCode(ret);
+      return ret;
+    });
   }
 
-  async excludeUrl({ uuid, url, remove }: { uuid: string; url: string; remove: boolean }) {
-    const script = await this.scriptDAO.get(uuid);
+  // ScriptMenuList 的 excludeUrl - 排除或回復
+  async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    let excludes = script.selfMetadata.exclude || script.metadata.exclude || [];
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
     if (remove) {
-      excludes = excludes.filter((item) => item !== url);
+      const deleted = excludeSet.delete(excludePattern);
+      if (!deleted) {
+        return; // scriptDAO 不用更新
+      }
     } else {
-      excludes.push(url);
+      excludeSet.add(excludePattern);
     }
-    script.selfMetadata.exclude = excludes;
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -369,21 +445,19 @@ export class ScriptService {
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (exclude) {
-      script.selfMetadata.exclude = exclude;
-    } else {
-      delete script.selfMetadata.exclude;
-    }
+    // 建立Set去掉重覆（如有）
+    const excludeSet = new Set(exclude || []);
+    // 更新 script.selfMetadata.exclude
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -393,21 +467,19 @@ export class ScriptService {
   }
 
   async resetMatch({ uuid, match }: { uuid: string; match: string[] | undefined }) {
-    const script = await this.scriptDAO.get(uuid);
+    let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    script.selfMetadata = script.selfMetadata || {};
-    if (match) {
-      script.selfMetadata.match = match;
-    } else {
-      delete script.selfMetadata.match;
-    }
+    // 建立Set去掉重覆（如有）
+    const matchSet = new Set(match || []);
+    // 更新 script.selfMetadata.match
+    script = selfMetadataUpdate(script, "match", matchSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish("installScript", { script, update: true });
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
       })
       .catch((e) => {
@@ -416,23 +488,24 @@ export class ScriptService {
       });
   }
 
-  async checkUpdate(uuid: string, source: "user" | "system") {
+  async checkUpdate(uuid_: string, source: "user" | "system") {
     // 检查更新
-    const script = await this.scriptDAO.get(uuid);
+    const script = await this.scriptDAO.get(uuid_);
     if (!script) {
       return false;
     }
-    await this.scriptDAO.update(uuid, { checktime: new Date().getTime() });
-    if (!script.checkUpdateUrl) {
+    await this.scriptDAO.update(uuid_, { checktime: Date.now() });
+    const { uuid, name, checkUpdateUrl } = script;
+    if (!checkUpdateUrl) {
       return false;
     }
     const logger = LoggerCore.logger({
-      uuid: script.uuid,
-      name: script.name,
+      uuid,
+      name,
     });
     try {
-      const info = await fetchScriptInfo(script.checkUpdateUrl, source, false, script.uuid);
-      const { metadata } = info;
+      const code = await fetchScriptBody(checkUpdateUrl);
+      const metadata = parseMetadata(code);
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -450,57 +523,64 @@ export class ScriptService {
       if (ltever(newVersion, oldVersion, logger)) {
         return false;
       }
-      // 进行更新
-      this.openUpdatePage(script, source);
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
       return false;
     }
+    // 进行更新
+    this.openUpdatePage(script, source);
     return true;
   }
 
-  // 打开更新窗口
-  public openUpdatePage(script: Script, source: "user" | "system") {
-    const logger = this.logger.with({
-      uuid: script.uuid,
-      name: script.name,
-      downloadUrl: script.downloadUrl,
-      checkUpdateUrl: script.checkUpdateUrl,
-    });
-    fetchScriptInfo(script.downloadUrl || script.checkUpdateUrl!, source, true, script.uuid)
-      .then(async (info) => {
-        // 是否静默更新
-        if (await this.systemConfig.getSilenceUpdateScript()) {
-          try {
-            const prepareScript = await prepareScriptByCode(
-              info.code,
-              script.downloadUrl || script.checkUpdateUrl!,
-              script.uuid
-            );
-            if (checkSilenceUpdate(prepareScript.oldScript!.metadata, prepareScript.script.metadata)) {
-              logger.info("silence update script");
-              this.installScript({
-                script: prepareScript.script,
-                code: info.code,
-                upsertBy: source,
-              });
-              return;
-            }
-            // 如果不符合静默更新规则，走后面的流程
-            logger.info("not silence update script, open install page");
-          } catch (e) {
-            logger.error("prepare script failed", Logger.E(e));
-          }
+  async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
+    const code = await fetchScriptBody(url);
+    if (update && (await this.systemConfig.getSilenceUpdateScript())) {
+      try {
+        const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
+        if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
+          logger?.info("silence update script");
+          this.installScript({
+            script,
+            code,
+            upsertBy,
+          });
+          return 2;
         }
-        // 打开安装页面
-        Cache.getInstance().set(CacheKey.scriptInstallInfo(info.uuid), info);
-        chrome.tabs.create({
-          url: `/src/install.html?uuid=${info.uuid}`,
-        });
-      })
-      .catch((e) => {
-        logger.error("fetch script info failed", Logger.E(e));
+        // 如果不符合静默更新规则，走后面的流程
+        logger?.info("not silence update script, open install page");
+      } catch (e) {
+        logger?.error("prepare script failed", Logger.E(e));
+      }
+    }
+    const metadata = parseMetadata(code);
+    if (!metadata) {
+      throw new Error("parse script info failed");
+    }
+    const si = [update, createScriptInfo(uuid, code, url, upsertBy, metadata)];
+    await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+    return 1;
+  }
+
+  // 打开更新窗口
+  public async openUpdatePage(script: Script, source: "user" | "system") {
+    const { uuid, name, downloadUrl, checkUpdateUrl } = script;
+    const logger = this.logger.with({
+      uuid,
+      name,
+      downloadUrl,
+      checkUpdateUrl,
+    });
+    const url = downloadUrl || checkUpdateUrl!;
+    try {
+      const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
+      if (ret === 2) return; // slience update
+      // 打开安装页面
+      chrome.tabs.create({
+        url: `/src/install.html?uuid=${uuid}`,
       });
+    } catch (e) {
+      logger.error("fetch script info failed", Logger.E(e));
+    }
   }
 
   async checkScriptUpdate() {
@@ -510,6 +590,7 @@ export class ScriptService {
     }
     this.scriptDAO.all().then(async (scripts) => {
       const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
+      const now = Date.now();
       scripts.forEach(async (script) => {
         // 不检查更新
         if (script.checkUpdate === false) {
@@ -520,7 +601,7 @@ export class ScriptService {
           return;
         }
         // 检查是否符合
-        if (script.checktime + checkCycle * 1000 > Date.now()) {
+        if (script.checktime + checkCycle * 1000 > now) {
           return;
         }
         this.checkUpdate(script.uuid, "system");
@@ -546,12 +627,15 @@ export class ScriptService {
     }
   }
 
-  isInstalled({ name, namespace }: { name: string; namespace: string }) {
+  isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
     return this.scriptDAO.findByNameAndNamespace(name, namespace).then((script) => {
       if (script) {
-        return { installed: true, version: script.metadata.version && script.metadata.version[0] };
+        return {
+          installed: true,
+          version: script.metadata.version && script.metadata.version[0],
+        } as App.IsInstalledResponse;
       }
-      return { installed: false };
+      return { installed: false } as App.IsInstalledResponse;
     });
   }
 
@@ -584,11 +668,11 @@ export class ScriptService {
     const newSort = arrayMove(scripts, oldIndex, newIndex);
     for (let i = 0; i < newSort.length; i += 1) {
       if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: new Date().getTime() });
+        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: Date.now() });
         newSort[i].sort = i;
       }
     }
-    this.mq.publish("sortScript", newSort);
+    this.mq.publish<TSortScript>("sortScript", newSort);
   }
 
   importByUrl(url: string) {
@@ -612,6 +696,27 @@ export class ScriptService {
     return this.scriptDAO.update(uuid, update);
   }
 
+  // 更新脚本元数据
+  async updateMetadata({ uuid, key, value }: { uuid: string; key: string; value: string[] }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const valueSet = new Set(value);
+    script = selfMetadataUpdate(script, key, valueSet);
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        // 广播一下
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("reset exclude error", Logger.E(e));
+        throw e;
+      });
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -622,8 +727,8 @@ export class ScriptService {
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
-    this.group.on("getCode", this.getCode.bind(this));
-    this.group.on("getScriptRunResource", this.buildScriptRunResource.bind(this));
+    this.group.on("getFilterResult", this.getFilterResult.bind(this));
+    this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
@@ -633,6 +738,7 @@ export class ScriptService {
     this.group.on("importByUrl", this.importByUrl.bind(this));
     this.group.on("installByCode", this.installByCode.bind(this));
     this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
+    this.group.on("updateMetadata", this.updateMetadata.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create(
