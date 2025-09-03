@@ -34,8 +34,11 @@ function generateChangelog() {
     let content = fs.readFileSync(changelogPath, "utf8");
 
     // 使用正则表达式替换 (by (\w) -> (by @$1
+    // 删除owner
     console.log("🔄 处理文件内容，添加 @ 符号...");
-    const updatedContent = content.replace(/\(by (\w)/g, "(by @$1");
+    let updatedContent = content.replaceAll(" (by 王一之)", "");
+    updatedContent = updatedContent.replaceAll(" (by CodFrm)", "");
+    updatedContent = updatedContent.replace(/\(by (\w)/g, "(by @$1");
 
     // 检查是否有内容被替换
     if (content !== updatedContent) {

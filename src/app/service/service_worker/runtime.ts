@@ -284,6 +284,7 @@ export class RuntimeService {
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
         // 隐身窗口不对注册了的脚本进行实际操作
+        // 在pageLoad时，根据isLoadScripts进行判断
         this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptNormal());
       });
       this.systemConfig.addListener("enable_script", async (enable) => {
@@ -294,17 +295,19 @@ export class RuntimeService {
     } else {
       this.systemConfig.addListener("enable_script", async (enable) => {
         this.isLoadScripts = enable;
-        await (enable ? this.registerUserscripts() : this.unregisterUserscripts());
+        await this.unregisterUserscripts();
+        if (enable) {
+          await this.registerUserscripts();
+        }
       });
     }
 
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);
+      await this.unregisterUserscripts();
       if (this.boolUserScriptsAvailable && this.isLoadScripts) {
         // 重新注册用户脚本
         await this.registerUserscripts();
-      } else {
-        await this.unregisterUserscripts();
       }
       this.loadBlacklist();
       this.logger.info("blacklist updated", {
@@ -316,6 +319,7 @@ export class RuntimeService {
       this.boolUserScriptsAvailable = true;
       // 注册脚本
       if (this.isLoadScripts) {
+        await this.unregisterUserscripts();
         await this.registerUserscripts();
       }
     };
@@ -531,24 +535,23 @@ export class RuntimeService {
     return res;
   }
 
+  // 如果是重复注册，需要先调用 unregisterUserscripts
   async registerUserscripts() {
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
     if (!this.boolUserScriptsAvailable || !this.isLoadScripts) return;
-    this.preFetch();
-    const loadingScriptMatchInfo = this.loadScriptMatchInfo();
-    // 先取消当前注册 （如有）。
-    await this.unregisterUserscripts();
-    // 使注册时重新注入 chrome.runtime
-    chrome.userScripts.resetWorldConfiguration();
 
-    // unregisterUserscripts 已处理。按道理不会有messageFlag。
-    // messageFlag是用来判断是否已经注册过了
+    const loadingScriptMatchInfo = this.loadScriptMatchInfo();
+
+    // messageFlag是用来判断是否已经注册过
     if (await this.getMessageFlag()) {
       // 异常情况
       console.error("messageFlag exists");
       await loadingScriptMatchInfo;
       return;
     }
+    this.preFetch();
+    // 使注册时重新注入 chrome.runtime
+    chrome.userScripts.resetWorldConfiguration();
 
     const [particularScriptList, generalScriptList] = await Promise.all([
       // registerScripts
