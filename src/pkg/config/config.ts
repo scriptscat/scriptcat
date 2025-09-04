@@ -1,10 +1,11 @@
-import { Message } from "@arco-design/web-react";
 import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
+import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import type { MessageQueue, TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
+import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -186,16 +187,37 @@ export class SystemConfig {
   setEslintConfig(v: string) {
     if (v === "") {
       this.set("eslint_config", undefined);
-      Message.success("ESLint规则已重置");
       return;
     }
-    try {
-      JSON.parse(v);
-      this.set("eslint_config", v);
-      Message.success("ESLint规则已保存");
-    } catch (err: any) {
-      Message.error(err.toString());
+    JSON.parse(v);
+    return this.set("eslint_config", v);
+  }
+
+  getEditorConfig() {
+    return this.get<string>("editor_config", editorDefaultConfig);
+  }
+
+  setEditorConfig(v: string) {
+    if (v === "") {
+      this.set("editor_config", undefined);
+      return;
     }
+    JSON.parse(v);
+    return this.set("editor_config", v);
+  }
+
+  // 获取typescript类型定义
+  getEditorTypeDefinition() {
+    return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
+  }
+
+  // 由于内容过大，只能存储到chrome.storage.local中
+  setEditorTypeDefinition(v: string) {
+    if (v === "") {
+      delete localStorage["editor_type_definition"];
+      return;
+    }
+    localStorage.setItem("editor_type_definition", v);
   }
 
   // 日志清理周期

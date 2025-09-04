@@ -1,7 +1,7 @@
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
-import { editor, Range, languages } from "monaco-editor";
+import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
+import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 
 type Props = {
   className?: string;
@@ -10,16 +10,6 @@ type Props = {
   id: string;
   code?: string;
 };
-
-languages.typescript.javascriptDefaults.setCompilerOptions({
-  target: languages.typescript.ScriptTarget.ESNext,
-  allowNonTsExtensions: true,
-  alwaysStrict: true,
-  noUnusedParameters: true,
-  noImplicitUseStrict: true,
-  noUnusedLocals: true,
-  strict: true,
-});
 
 const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCodeEditor | undefined }, Props> = (
   { id, className, code, diffCode, editable },
