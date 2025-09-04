@@ -25,6 +25,29 @@ export type CATFileStorage = {
 
 type WithAsyncValue<T> = T | { asyncValue?: () => Promise<T> };
 
+// typeof获取 SystemConfig 的所有方法，去掉 get/set 前缀，并把方法名的第一个字母改为小写
+// 修改为蛇形命名法
+
+// 帮助类型：将驼峰命名转换为蛇形命名
+type CamelToSnake<S extends string> = S extends `${infer First}${infer Rest}`
+  ? `${Lowercase<First>}${CamelToSnakeRest<Rest>}`
+  : S;
+
+// 处理除第一个字符外的其余字符
+type CamelToSnakeRest<S extends string> = S extends `${infer T}${infer U}`
+  ? `${T extends Capitalize<T> ? "_" : ""}${Lowercase<T>}${CamelToSnakeRest<U>}`
+  : S;
+
+// 提取以 get 或 set 开头的方法名，去掉前缀并转换为蛇形命名
+type ExtractConfigKey<T> = T extends `get${infer K}` | `set${infer K}`
+  ? K extends ""
+    ? never
+    : CamelToSnake<K>
+  : never;
+
+// 从 SystemConfig 的方法名中提取配置键，过滤掉空类型
+export type SystemConfigKey = Exclude<ExtractConfigKey<keyof SystemConfig>, never>;
+
 export class SystemConfig {
   private readonly cache = new Map<string, any>();
 
