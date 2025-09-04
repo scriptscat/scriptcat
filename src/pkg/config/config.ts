@@ -211,7 +211,7 @@ export class SystemConfig {
     return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
   }
 
-  // 由于内容过大，只能存储到chrome.storage.local中
+  // 由于内容过大，只能存储到localStorage中
   setEditorTypeDefinition(v: string) {
     if (v === "") {
       delete localStorage["editor_type_definition"];
