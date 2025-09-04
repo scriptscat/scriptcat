@@ -350,7 +350,7 @@
   "start_guide_content": "crwdns8560:0crwdne8560:0",
   "guide_installed_scripts": "crwdns8562:0crwdne8562:0",
   "guide_script_list_title": "crwdns8564:0crwdne8564:0",
-  "guide_script_list_content": "crwdns8566:0crwdne8566:0",
+  "guide_script_list_content": "crwdns10802:0crwdne10802:0",
   "guide_script_list_enable_title": "crwdns8568:0crwdne8568:0",
   "guide_script_list_enable_content": "crwdns8570:0crwdne8570:0",
   "guide_script_list_apply_to_run_status_title": "crwdns8572:0crwdne8572:0",
@@ -451,5 +451,14 @@
   "light": "crwdns10794:0crwdne10794:0",
   "dark": "crwdns10796:0crwdne10796:0",
   "individual_edit": "crwdns10798:0crwdne10798:0",
-  "batch_edit": "crwdns10800:0crwdne10800:0"
+  "batch_edit": "crwdns10800:0crwdne10800:0",
+  "script_code": "crwdns10804:0crwdne10804:0",
+  "enter_search_value": "crwdns10806:0{{search}}crwdne10806:0",
+  "script_run_env": {
+    "title": "crwdns10808:0crwdne10808:0",
+    "default": "crwdns10810:0crwdne10810:0",
+    "all": "crwdns10812:0crwdne10812:0",
+    "normal-tabs": "crwdns10814:0crwdne10814:0",
+    "incognito-tabs": "crwdns10816:0crwdne10816:0"
+  }
 }

@@ -453,5 +453,12 @@
   "individual_edit": "Individual Edit",
   "batch_edit": "Batch Edit",
   "script_code": "Script Code",
-  "enter_search_value": "Enter {{search}} to search"
+  "enter_search_value": "Enter {{search}} to search",
+  "script_run_env": {
+    "title": "Operating environment",
+    "default": "default",
+    "all": "All",
+    "normal-tabs": "Normal tags",
+    "incognito-tabs": "Incognito tags"
+  }
 }
