@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 
 // 因为i18n的Trans组件打包后出现问题，所以自己实现一个
 export const CustomTrans: React.FC<{
+  className?: string;
   i18nKey: string;
-}> = ({ i18nKey }) => {
+}> = ({ className, i18nKey }) => {
   const { t } = useTranslation();
   const children: (JSX.Element | string)[] = [];
   let content = t(i18nKey);
@@ -39,7 +40,7 @@ export const CustomTrans: React.FC<{
     }
   }
 
-  return <div>{children}</div>;
+  return <div className={className}>{children}</div>;
 };
 
 export default CustomTrans;

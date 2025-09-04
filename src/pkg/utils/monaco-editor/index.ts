@@ -1,5 +1,4 @@
-import { globalCache } from "@App/pages/store/global";
-import dts from "@App/template/scriptcat.d.tpl";
+import { globalCache, systemConfig } from "@App/pages/store/global";
 import EventEmitter from "eventemitter3";
 import { languages } from "monaco-editor";
 
@@ -15,8 +14,6 @@ export default function registerEditor() {
       return "/src/editor.worker.js";
     },
   };
-
-  languages.typescript.javascriptDefaults.addExtraLib(dts, "scriptcat.d.ts");
 
   // 悬停提示
   const prompt: { [key: string]: any } = {
@@ -92,6 +89,53 @@ export default function registerEditor() {
             isPreferred: true,
           });
         }
+        // 添加eslint-disable-next-line和eslint-disable
+        actions.push(<languages.CodeAction>{
+          title: `添加 eslint-disable-next-line 注释`,
+          diagnostics: [val],
+          kind: "quickfix",
+          edit: {
+            edits: [
+              {
+                resource: model.uri,
+                textEdit: {
+                  range: {
+                    startLineNumber: val.startLineNumber,
+                    endLineNumber: val.startLineNumber,
+                    startColumn: 1,
+                    endColumn: 1,
+                  },
+                  text: `// eslint-disable-next-line ${typeof val.code === "string" ? val.code : val.code!.value}\n`,
+                },
+                versionId: undefined,
+              },
+            ],
+          },
+          isPreferred: true,
+        });
+        actions.push(<languages.CodeAction>{
+          title: `添加 eslint-disable 注释`,
+          diagnostics: [val],
+          kind: "quickfix",
+          edit: {
+            edits: [
+              {
+                resource: model.uri,
+                textEdit: {
+                  range: {
+                    startLineNumber: 1,
+                    endLineNumber: 1,
+                    startColumn: 1,
+                    endColumn: 1,
+                  },
+                  text: `/* eslint-disable ${typeof val.code === "string" ? val.code : val.code!.value} */\n`,
+                },
+                versionId: undefined,
+              },
+            ],
+          },
+          isPreferred: true,
+        });
       }
 
       // const actions = context.markers.map((error) => {
@@ -119,6 +163,17 @@ export default function registerEditor() {
       };
     },
   });
+
+  Promise.all([systemConfig.getEditorConfig(), systemConfig.getEditorTypeDefinition()]).then(
+    ([editorConfig, typeDefinition]) => {
+      // 设置编辑器设置
+      languages.typescript.javascriptDefaults.setCompilerOptions(
+        JSON.parse(editorConfig) as languages.typescript.CompilerOptions
+      );
+      // 注册类型定义
+      languages.typescript.javascriptDefaults.addExtraLib(typeDefinition, "scriptcat.d.ts");
+    }
+  );
 }
 
 export class LinterWorker {

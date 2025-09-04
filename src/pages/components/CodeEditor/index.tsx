@@ -1,7 +1,7 @@
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 import { editor, Range } from "monaco-editor";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { globalCache, systemConfig } from "@App/pages/store/global";
+import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 
 type Props = {
   className?: string;

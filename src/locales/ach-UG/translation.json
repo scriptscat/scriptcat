@@ -460,5 +460,16 @@
     "all": "crwdns10812:0crwdne10812:0",
     "normal-tabs": "crwdns10814:0crwdne10814:0",
     "incognito-tabs": "crwdns10816:0crwdne10816:0"
-  }
+  },
+  "editor_config": "crwdns10818:0crwdne10818:0",
+  "editor_config_description": "crwdns10820:0crwdne10820:0",
+  "editor_type_definition": "crwdns10822:0crwdne10822:0",
+  "editor_type_definition_description": "crwdns10824:0crwdne10824:0",
+  "eslint_rules_reset": "crwdns10826:0crwdne10826:0",
+  "eslint_rules_saved": "crwdns10828:0crwdne10828:0",
+  "editor_config_reset": "crwdns10830:0crwdne10830:0",
+  "editor_config_saved": "crwdns10832:0crwdne10832:0",
+  "editor_config_format_error": "crwdns10834:0crwdne10834:0",
+  "editor_type_definition_reset": "crwdns10836:0crwdne10836:0",
+  "editor_type_definition_saved": "crwdns10838:0crwdne10838:0"
 }
