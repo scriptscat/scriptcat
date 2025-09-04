@@ -57,8 +57,6 @@ ScriptCat — это мощный менеджер пользовательск�
 | Chrome | [Стабильная версия](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) / [Beta](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ Доступно |
 | Edge | [Стабильная версия](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) / [Beta](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Доступно |
 | Firefox | [Стабильная версия](https://addons.mozilla.org/firefox/addon/scriptcat/) / [Beta](https://addons.mozilla.org/firefox/addon/scriptcat-pre/) | ✅ MV2 |
-| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ Доступно |
-| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | Запускается при каждом коммите |
 
 #### Ручная установка
 Если доступ к магазину расширений невозможен, вы можете скачать ZIP-архив последней версии с [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) и установить его вручную.

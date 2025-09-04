@@ -732,6 +732,9 @@ export default class GMApi {
     };
     let finalUrl = "";
     // 等待response
+    this.cache.set("gmXhrRequest:params:" + requestId, {
+      redirect: params.redirect,
+    });
     this.gmXhrHeadersReceived.addListener(
       "headersReceived:" + requestId,
       (details: chrome.webRequest.OnHeadersReceivedDetails) => {
@@ -1211,7 +1214,9 @@ export default class GMApi {
                 }
               }
             });
-            if (location) {
+            const params = this.cache.get("gmXhrRequest:params:" + requestId) as GMSend.XHRDetails;
+            // 如果是重定向，并且不是manual模式，则需要重新设置dnr规则
+            if (location && params.redirect !== "manual") {
               // 处理重定向后的unsafeHeader
               const rule = this.cache.get("dnrRule:" + requestId) as chrome.declarativeNetRequest.Rule;
               // 修改匹配链接
@@ -1233,6 +1238,7 @@ export default class GMApi {
             this.cache.delete("gmXhrRequest:" + details.requestId);
             this.cache.delete("dnrRule:" + requestId);
             this.cache.delete("gmXhrRequest:finalUrl:" + requestId);
+            this.cache.delete("gmXhrRequest:params:" + requestId);
             chrome.declarativeNetRequest.updateSessionRules({
               removeRuleIds: [parseInt(requestId)],
             });

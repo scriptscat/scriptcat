@@ -68,8 +68,6 @@ ScriptCat is a powerful userscript manager based on Tampermonkey's design philos
 | Chrome | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ Available |
 | Edge | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Available |
 | Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
-| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ Available |
-| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | Triggered on every commit |
 
 #### Manual Installation
 
