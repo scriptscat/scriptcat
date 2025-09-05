@@ -45,6 +45,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     // @ts-ignore
     if (diffCode) {
       edit = editor.createDiffEditor(inlineDiv, {
+        hideUnchangedRegions: {
+          enabled: true,
+        },
         enableSplitViewResizing: false,
         renderSideBySide: false,
         folding: true,
@@ -77,9 +80,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
       setEditor(edit);
     }
     return () => {
-      if (edit) {
-        edit.dispose();
-      }
+      // 目前会出现：Uncaught (in promise) Canceled: Canceled
+      // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+      edit?.dispose();
     };
   }, [div, code, diffCode, editable, id]);
 
