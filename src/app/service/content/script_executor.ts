@@ -11,7 +11,10 @@ export class ScriptExecutor {
 
   envInfo: GMInfoEnv | undefined;
 
-  constructor(private msg: Message) {}
+  constructor(
+    private msg: Message,
+    private earlyScriptFlag: string[]
+  ) {}
 
   init(envInfo: GMInfoEnv) {
     this.envInfo = envInfo;
@@ -36,7 +39,7 @@ export class ScriptExecutor {
   start(scripts: ScriptLoadInfo[]) {
     scripts.forEach((script) => {
       // 如果是EarlyScriptFlag，处理沙盒环境
-      if (EarlyScriptFlag.includes(script.flag)) {
+      if (this.earlyScriptFlag.includes(script.flag)) {
         for (const val of this.execList) {
           if (val.scriptRes.flag === script.flag) {
             // 处理早期脚本的沙盒环境

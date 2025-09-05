@@ -16,7 +16,7 @@ const logger = new LoggerCore({
 });
 
 const server = new Server("inject", msg);
-const scriptExecutor = new ScriptExecutor(msg);
+const scriptExecutor = new ScriptExecutor(msg, EarlyScriptFlag);
 const runtime = new InjectRuntime(server, msg, scriptExecutor);
 // 检查early-start的脚本
 scriptExecutor.checkEarlyStartScript();

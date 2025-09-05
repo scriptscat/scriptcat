@@ -3,8 +3,8 @@ import type { Message } from "@Packages/message/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 import type { ScriptExecutor } from "./script_executor";
-import type { ScriptLoadInfo } from "../service_worker/types";
-import type { GMInfoEnv } from "./types";
+import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { GMInfoEnv, ValueUpdateData } from "./types";
 
 export class InjectRuntime {
   constructor(
@@ -15,6 +15,15 @@ export class InjectRuntime {
 
   init(envInfo: GMInfoEnv) {
     this.scriptExecutor.init(envInfo);
+
+    this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
+      // 转发给脚本
+      this.scriptExecutor.emitEvent(data);
+    });
+    this.server.on("runtime/valueUpdate", (data: ValueUpdateData) => {
+      this.scriptExecutor.valueUpdate(data);
+    });
+
     // 注入允许外部调用
     this.externalMessage();
   }
