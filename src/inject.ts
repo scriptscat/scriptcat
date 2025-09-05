@@ -2,9 +2,10 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
-import { InjectRuntime } from "./app/service/content/inject";
 import type { ScriptLoadInfo } from "./app/service/service_worker/types";
 import type { GMInfoEnv } from "./app/service/content/types";
+import { InjectRuntime } from "./app/service/content/inject";
+import { ScriptExecutor } from "./app/service/content/script_executor";
 
 const msg = new CustomEventMessage(MessageFlag, false);
 
@@ -15,9 +16,10 @@ const logger = new LoggerCore({
 });
 
 const server = new Server("inject", msg);
-const runtime = new InjectRuntime(server, msg);
+const scriptExecutor = new ScriptExecutor(msg);
+const runtime = new InjectRuntime(server, msg, scriptExecutor);
 // 检查early-start的脚本
-runtime.checkEarlyStartScript();
+scriptExecutor.checkEarlyStartScript();
 
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
