@@ -66,7 +66,7 @@ export class ScriptExecutor {
   }
 
   checkEarlyStartScript() {
-    EarlyScriptFlag.forEach((flag) => {
+    this.earlyScriptFlag.forEach((flag) => {
       // @ts-ignore
       const scriptFunc = window[flag] as PreScriptFunc;
       if (scriptFunc) {
