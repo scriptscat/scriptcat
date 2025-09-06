@@ -2,7 +2,7 @@ import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/script
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, SearchType } from "./types";
+import type { InstallSource, ScriptLoadInfo, ScriptMenu, ScriptMenuItem, SearchType } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -209,7 +209,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ flag: string; scripts: ScriptRunResource[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<{ flag: string; scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
     return this.doThrow("pageLoad");
   }
 

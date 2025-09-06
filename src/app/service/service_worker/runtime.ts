@@ -21,7 +21,13 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
+import {
+  compileInjectScript,
+  compilePreInjectScript,
+  compileScriptCode,
+  isEarlyStartScript,
+  isInjectIntoContent,
+} from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -507,18 +513,19 @@ export class RuntimeService {
     }
 
     const res = {} as {
-      content: chrome.scripting.RegisteredContentScript;
+      content: chrome.userScripts.RegisteredUserScript;
       inject: chrome.userScripts.RegisteredUserScript | null;
     };
 
-    // content.js
-    const script: chrome.scripting.RegisteredContentScript = {
+    const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-content",
-      js: ["src/content.js"],
+      js: [{ file: "src/content.js" }],
       matches: ["<all_urls>"],
       allFrames: true,
       runAt: "document_start",
+      world: "USER_SCRIPT",
       excludeMatches,
+      excludeGlobs,
     };
     res.content = script;
 
@@ -559,15 +566,7 @@ export class RuntimeService {
       this.getContentAndInjectScript(),
     ]);
 
-    const list = [...particularScriptList, generalScriptList.inject!];
-
-    // 注册 content.js
-    const contentScript: chrome.scripting.RegisteredContentScript = generalScriptList.content;
-    try {
-      await chrome.scripting.registerContentScripts([contentScript]);
-    } catch (e: any) {
-      this.logger.error("register content.js error", Logger.E(e));
-    }
+    const list = [...particularScriptList, generalScriptList.content, generalScriptList.inject!];
 
     try {
       await chrome.userScripts.register(list);
@@ -1054,6 +1053,11 @@ export class RuntimeService {
       allFrames: !scriptRes.metadata["noframes"],
       world: "MAIN",
     };
+
+    if (isInjectIntoContent(script)) {
+      // 需要注入到content script的脚本
+      registerScript.world = "USER_SCRIPT";
+    }
 
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);

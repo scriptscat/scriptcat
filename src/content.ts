@@ -5,6 +5,8 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { RuntimeClient } from "./app/service/service_worker/client";
 import { Server } from "@Packages/message/server";
 import ContentRuntime from "./app/service/content/content";
+import { ScriptExecutor } from "./app/service/content/script_executor";
+import { randomMessageFlag } from "./pkg/utils/utils";
 
 if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   // ScriptCat 未支持 Firefox MV3
@@ -24,12 +26,22 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
     loggerCore.logger().debug("content start");
     const extMsg = new ExtensionMessage();
     const msg = new CustomEventMessage(data.flag, true);
-    const server = new Server("content", msg);
+    const scriptExecutorFlag = randomMessageFlag();
+    const scriptExecutorMsg = new CustomEventMessage(scriptExecutorFlag, true);
+    const server = new Server("content", [msg, scriptExecutorMsg]);
     // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
     // 所以不需要处理连接，设置为false
     const extServer = new Server("content", extMsg, false);
+    // scriptExecutor的消息接口
     // 初始化运行环境
-    const runtime = new ContentRuntime(extServer, server, send, msg);
+    const runtime = new ContentRuntime(
+      extServer,
+      server,
+      send,
+      msg,
+      scriptExecutorMsg,
+      new ScriptExecutor(new CustomEventMessage(scriptExecutorFlag, false), [])
+    );
     runtime.init();
     runtime.start(data.scripts, data.envInfo);
   });

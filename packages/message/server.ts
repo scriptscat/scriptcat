@@ -49,26 +49,30 @@ export class Server {
 
   constructor(
     prefix: string,
-    message: Message,
+    message: Message | Message[],
     private enableConnect: boolean = true
   ) {
     if (this.enableConnect) {
-      message.onConnect((msg: TMessage, con: MessageConnect) => {
-        if (typeof msg.action !== "string") return;
-        this.logger.trace("server onConnect", { msg });
-        if (msg.action?.startsWith(prefix)) {
-          return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
-        }
-        return false;
+      (Array.isArray(message) ? message : [message]).forEach((msg) => {
+        msg.onConnect((msg: TMessage, con: MessageConnect) => {
+          if (typeof msg.action !== "string") return;
+          this.logger.trace("server onConnect", { msg });
+          if (msg.action?.startsWith(prefix)) {
+            return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
+          }
+          return false;
+        });
       });
     }
 
-    message.onMessage((msg: TMessage, sendResponse, sender) => {
-      if (typeof msg.action !== "string") return;
-      this.logger.trace("server onMessage", { msg: msg as any });
-      if (msg.action?.startsWith(prefix)) {
-        return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
-      }
+    (Array.isArray(message) ? message : [message]).forEach((msg) => {
+      msg.onMessage((msg: TMessage, sendResponse, sender) => {
+        if (typeof msg.action !== "string") return;
+        this.logger.trace("server onMessage", { msg: msg as any });
+        if (msg.action?.startsWith(prefix)) {
+          return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
+        }
+      });
       return false;
     });
   }

@@ -97,3 +97,7 @@ export function isEarlyStartScript(script: Script) {
     script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["early-start"]
   );
 }
+
+export function isInjectIntoContent(script: Script) {
+  return script.metadata["inject-into"] && script.metadata["inject-into"][0] === "content";
+}
