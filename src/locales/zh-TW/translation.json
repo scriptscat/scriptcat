@@ -451,5 +451,14 @@
   "light": "淺色模式",
   "dark": "暗色模式",
   "individual_edit": "单独编辑",
-  "batch_edit": "批量編輯"
+  "batch_edit": "批量編輯",
+  "script_code": "脚本代码",
+  "enter_search_value": "請輸入 {{search}} 進行搜尋",
+  "script_run_env": {
+    "title": "運作環境",
+    "default": "預設",
+    "all": "所有標籤",
+    "normal-tabs": "普通標籤",
+    "incognito-tabs": "隱身標籤"
+  }
 }

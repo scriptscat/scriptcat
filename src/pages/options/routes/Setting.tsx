@@ -14,6 +14,7 @@ import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { obtainBlackList } from "@App/pkg/utils/utils";
+import CustomTrans from "@App/pages/components/CustomTrans";
 
 function Setting() {
   const [syncDelete, setSyncDelete] = useState<boolean>();
@@ -29,6 +30,8 @@ function Setting() {
   const [updateDisableScript, setUpdateDisableScript] = useState(false);
   const [silenceUpdateScript, setSilenceUpdateScript] = useState(false);
   const [enableEslint, setEnableEslint] = useState(false);
+  const [editorConfig, setEditorConfig] = useState("");
+  const [editorTypeDefinition, setEditorTypeDefinition] = useState("");
   const [eslintConfig, setEslintConfig] = useState("");
   const [blacklist, setBlacklist] = useState<string>("");
   const [badgeNumberType, setBadgeNumberType] = useState<"none" | "run_count" | "script_count">("run_count");
@@ -67,6 +70,8 @@ function Setting() {
         systemConfig.getBadgeBackgroundColor(),
         systemConfig.getBadgeTextColor(),
         systemConfig.getScriptMenuDisplayType(),
+        systemConfig.getEditorConfig(),
+        systemConfig.getEditorTypeDefinition(),
       ]).then(
         ([
           cloudSync,
@@ -82,6 +87,8 @@ function Setting() {
           badgeBackgroundColor,
           badgeTextColor,
           scriptMenuDisplayType,
+          editorConfig,
+          editorTypeDefinition,
         ]) => {
           setSyncDelete(cloudSync.syncDelete);
           setSyncScriptStatus(cloudSync.syncStatus);
@@ -100,6 +107,8 @@ function Setting() {
           setBadgeBackgroundColor(badgeBackgroundColor);
           setBadgeTextColor(badgeTextColor);
           setScriptMenuDisplayType(scriptMenuDisplayType);
+          setEditorConfig(editorConfig);
+          setEditorTypeDefinition(editorTypeDefinition);
         }
       );
     };
@@ -445,14 +454,19 @@ function Setting() {
                 onChange={(v) => {
                   setEslintConfig(v);
                 }}
-                onBlur={(v) => {
+                onBlur={() => {
                   prettier
                     .format(eslintConfig, {
                       parser: "json",
                       plugins: [prettierPluginEstree, babel],
                     })
-                    .then(() => {
-                      systemConfig.setEslintConfig(v.target.value);
+                    .then((value) => {
+                      if (value === "") {
+                        Message.success(t("eslint_rules_reset"));
+                      } else {
+                        Message.success(t("eslint_rules_saved"));
+                      }
+                      systemConfig.setEslintConfig(value);
                     })
                     .catch((e) => {
                       Message.error(`${t("eslint_config_format_error")}: ${JSON.stringify(Logger.E(e))}`);
@@ -461,6 +475,74 @@ function Setting() {
               />
             </div>
           )}
+          <div>
+            <div className="flex items-start justify-between mb-3">
+              <span className="font-medium min-w-20">{t("editor_config")}</span>
+              <CustomTrans
+                className="text-xs max-w-80 text-right ml-6 flex-shrink-0"
+                i18nKey="editor_config_description"
+              />
+            </div>
+            <Input.TextArea
+              placeholder={t("editor_config")!}
+              autoSize={{
+                minRows: 4,
+                maxRows: 8,
+              }}
+              value={editorConfig}
+              onChange={(v) => {
+                setEditorConfig(v);
+              }}
+              onBlur={() => {
+                prettier
+                  .format(editorConfig, {
+                    parser: "json",
+                    plugins: [prettierPluginEstree, babel],
+                  })
+                  .then((value) => {
+                    if (value === "") {
+                      Message.success(t("editor_config_reset"));
+                    } else {
+                      Message.success(t("editor_config_saved"));
+                    }
+                    systemConfig.setEditorConfig(value);
+                  })
+                  .catch((e) => {
+                    Message.error(`${t("editor_config_format_error")}: ${JSON.stringify(Logger.E(e))}`);
+                  });
+              }}
+            />
+          </div>
+          <div>
+            <div className="flex items-start justify-between mb-3">
+              <span className="font-medium min-w-20">{t("editor_type_definition")}</span>
+              <span
+                className="text-xs max-w-100 text-right ml-6 flex-shrink-0"
+                dangerouslySetInnerHTML={{
+                  __html: t("editor_type_definition_description"),
+                }}
+              ></span>
+            </div>
+            <Input.TextArea
+              placeholder={t("editor_type_definition")!}
+              autoSize={{
+                minRows: 4,
+                maxRows: 8,
+              }}
+              value={editorTypeDefinition}
+              onChange={(v) => {
+                setEditorTypeDefinition(v);
+              }}
+              onBlur={() => {
+                if (editorTypeDefinition === "") {
+                  Message.success(t("editor_type_definition_reset"));
+                } else {
+                  Message.success(t("editor_type_definition_saved"));
+                }
+                systemConfig.setEditorTypeDefinition(editorTypeDefinition);
+              }}
+            />
+          </div>
         </Space>
       </Card>
     </Space>

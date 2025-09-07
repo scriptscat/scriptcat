@@ -453,5 +453,23 @@
   "individual_edit": "Individual Edit",
   "batch_edit": "Batch Edit",
   "script_code": "Script Code",
-  "enter_search_value": "Enter {{search}} to search"
+  "enter_search_value": "Enter {{search}} to search",
+  "script_run_env": {
+    "title": "Operating environment",
+    "default": "default",
+    "all": "All",
+    "normal-tabs": "Normal tags",
+    "incognito-tabs": "Incognito tags"
+  },
+  "editor_config": "Editor Configuration",
+  "editor_config_description": "You can refer to the compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> for configuration",
+  "editor_type_definition": "Editor Type Definition",
+  "editor_type_definition_description": "You can customize your own type definitions, and the script editor will automatically load these type definitions",
+  "eslint_rules_reset": "ESLint Rules Reset",
+  "eslint_rules_saved": "ESLint Rules Saved",
+  "editor_config_reset": "Editor Configuration Reset",
+  "editor_config_saved": "Editor Configuration Saved",
+  "editor_config_format_error": "Editor Configuration Format Error",
+  "editor_type_definition_reset": "Editor Type Definition Reset",
+  "editor_type_definition_saved": "Editor Type Definition Saved"
 }

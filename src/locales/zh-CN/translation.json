@@ -460,5 +460,16 @@
     "all": "所有标签",
     "normal-tabs": "普通标签",
     "incognito-tabs": "隐身标签"
-  }
+  },
+  "editor_config": "",
+  "editor_config_description": "",
+  "editor_type_definition": "",
+  "editor_type_definition_description": "",
+  "eslint_rules_reset": "",
+  "eslint_rules_saved": "",
+  "editor_config_reset": "",
+  "editor_config_saved": "",
+  "editor_config_format_error": "",
+  "editor_type_definition_reset": "",
+  "editor_type_definition_saved": ""
 }
