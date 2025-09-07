@@ -460,5 +460,16 @@
     "all": "所有標籤",
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
-  }
+  },
+  "editor_config": "編輯器設定",
+  "editor_config_description": "你可以參考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions進行配置",
+  "editor_type_definition": "編輯器類型定義",
+  "editor_type_definition_description": "你可以自訂自己的類型定義，腳本編輯器會自動載入這些類型定義",
+  "eslint_rules_reset": "ESLint規則已重置",
+  "eslint_rules_saved": "ESLint規則已儲存",
+  "editor_config_reset": "編輯器配置已重置",
+  "editor_config_saved": "編輯器配置已儲存",
+  "editor_config_format_error": "編輯器配置格式錯誤",
+  "editor_type_definition_reset": "編輯器類型定義已重設",
+  "editor_type_definition_saved": "編輯器類型定義已儲存"
 }

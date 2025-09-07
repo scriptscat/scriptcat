@@ -461,15 +461,15 @@
     "normal-tabs": "普通标签",
     "incognito-tabs": "隐身标签"
   },
-  "editor_config": "",
-  "editor_config_description": "",
-  "editor_type_definition": "",
-  "editor_type_definition_description": "",
-  "eslint_rules_reset": "",
-  "eslint_rules_saved": "",
-  "editor_config_reset": "",
-  "editor_config_saved": "",
-  "editor_config_format_error": "",
-  "editor_type_definition_reset": "",
-  "editor_type_definition_saved": ""
+  "editor_config": "编辑器配置",
+  "editor_config_description": "你可以参考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions进行配置",
+  "editor_type_definition": "编辑器类型定义",
+  "editor_type_definition_description": "你可以自定义自己的类型定义，脚本编辑器会自动加载这些类型定义",
+  "eslint_rules_reset": "ESLint规则已重置",
+  "eslint_rules_saved": "ESLint规则已保存",
+  "editor_config_reset": "编辑器配置已重置",
+  "editor_config_saved": "编辑器配置已保存",
+  "editor_config_format_error": "编辑器配置格式错误",
+  "editor_type_definition_reset": "编辑器类型定义已重置",
+  "editor_type_definition_saved": "编辑器类型定义已保存"
 }
