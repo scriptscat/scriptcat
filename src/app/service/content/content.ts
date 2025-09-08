@@ -49,9 +49,8 @@ export default class ContentRuntime {
               xhr.responseType = "document";
               xhr.open("GET", data.params[0]);
               xhr.onload = () => {
-                resolve({
-                  relatedTarget: xhr.response,
-                });
+                const nodeId = (this.msg as CustomEventMessage).sendRelatedTarget(xhr.response);
+                resolve(nodeId);
               };
               xhr.send();
             });
