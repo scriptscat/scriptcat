@@ -24,9 +24,8 @@ export class CustomEventMessage implements Message {
     protected isContent: boolean
   ) {
     window.addEventListener((isContent ? "ct" : "fd") + flag, (event) => {
-      if (event instanceof MouseEvent) {
+      if (event instanceof MouseEvent && event.movementX && event.relatedTarget) {
         this.relatedTarget.set(event.movementX, event.relatedTarget!);
-        return;
       } else if (event instanceof CustomEvent) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
       }
