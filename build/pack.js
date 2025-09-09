@@ -76,6 +76,11 @@ firefoxManifest.browser_specific_settings = {
   },
 };
 
+// 为 Firefox 添加激活工具栏按钮的快捷键
+firefoxManifest.commands = {
+  _execute_browser_action: {},
+};
+
 const chrome = new JSZip();
 const firefox = new JSZip();
 
