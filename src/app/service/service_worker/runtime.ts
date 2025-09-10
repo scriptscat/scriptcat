@@ -557,7 +557,11 @@ export class RuntimeService {
       return;
     }
     // 使注册时重新注入 chrome.runtime
-    chrome.userScripts.resetWorldConfiguration();
+    try {
+      await chrome.userScripts.resetWorldConfiguration();
+    } catch (e: any) {
+      console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
+    }
 
     const [particularScriptList, generalScriptList] = await Promise.all([
       // registerScripts

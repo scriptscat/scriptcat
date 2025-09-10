@@ -108,8 +108,8 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   try {
     await chrome.tabs.create(createProperties);
     return;
-  } catch {
-    // do nothing
+  } catch (e: any) {
+    console.error("Error opening tab:", e);
   }
   // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
   delete createProperties.openerTabId;
@@ -117,8 +117,8 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   try {
     await chrome.tabs.create(createProperties);
     return;
-  } catch {
-    // do nothing
+  } catch (e: any) {
+    console.error("Retry opeing tab error:", e);
   }
 }
 
