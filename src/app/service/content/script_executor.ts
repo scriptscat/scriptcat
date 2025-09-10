@@ -16,6 +16,10 @@ export class ScriptExecutor {
     private earlyScriptFlag: string[]
   ) {}
 
+  setEarlyStartScriptFlag(flag: string[]) {
+    this.earlyScriptFlag = flag;
+  }
+
   init(envInfo: GMInfoEnv) {
     this.envInfo = envInfo;
   }
