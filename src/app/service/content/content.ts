@@ -1,26 +1,40 @@
-import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { Message, MessageSend } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
+import type { ScriptLoadInfo } from "../service_worker/types";
+import type { ScriptExecutor } from "./script_executor";
+import { isInjectIntoContent } from "./utils";
 
 // content页的处理
 export default class ContentRuntime {
+  // 运行在content页面的脚本
+  contentScript: Map<string, ScriptLoadInfo> = new Map();
+
   constructor(
+    // 监听来自service_worker的消息
     private extServer: Server,
+    // 监听来自inject的消息
     private server: Server,
+    // 发送给扩展service_worker的通信接口
     private extSend: MessageSend,
-    private msg: Message
+    // 发送给inject的消息接口
+    private msg: Message,
+    // 脚本执行器消息接口
+    private scriptExecutorMsg: Message,
+    private scriptExecutor: ScriptExecutor
   ) {}
 
   init() {
     this.extServer.on("runtime/emitEvent", (data) => {
-      // 转发给inject
+      // 转发给inject和scriptExecutor
+      this.scriptExecutor.emitEvent(data);
       return sendMessage(this.msg, "inject/runtime/emitEvent", data);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject
+      // 转发给inject和scriptExecutor
+      this.scriptExecutor.valueUpdate(data);
       return sendMessage(this.msg, "inject/runtime/valueUpdate", data);
     });
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.extSend);
@@ -29,7 +43,7 @@ export default class ContentRuntime {
       "runtime/gmApi",
       this.server,
       this.extSend,
-      (data: { api: string; params: any }) => {
+      (data: { api: string; params: any; uuid: string }) => {
         // 拦截关注的api
         switch (data.api) {
           case "CAT_createBlobUrl": {
@@ -57,10 +71,17 @@ export default class ContentRuntime {
           }
           case "GM_addElement": {
             const [parentNodeId, tagName, tmpAttr] = data.params;
-            let attr = tmpAttr;
+            let attr = { ...tmpAttr };
             let parentNode: EventTarget | undefined;
+            // 判断是不是content脚本发过来的
+            let msg: Message;
+            if (this.contentScript.has(data.uuid)) {
+              msg = this.scriptExecutorMsg;
+            } else {
+              msg = this.msg;
+            }
             if (parentNodeId) {
-              parentNode = (this.msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);
+              parentNode = (msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);
             }
             const el = <Element>document.createElement(tagName);
 
@@ -80,7 +101,7 @@ export default class ContentRuntime {
               el.textContent = textContent;
             }
             (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
-            const nodeId = (this.msg as CustomEventMessage).sendRelatedTarget(el);
+            const nodeId = (msg as CustomEventMessage).sendRelatedTarget(el);
             return nodeId;
           }
           case "GM_log":
@@ -104,9 +125,28 @@ export default class ContentRuntime {
     );
   }
 
-  start(scripts: ScriptRunResource[], envInfo: GMInfoEnv) {
+  start(scripts: ScriptLoadInfo[], envInfo: GMInfoEnv) {
     // 启动脚本
     const client = new Client(this.msg, "inject");
-    client.do("pageLoad", { scripts, envInfo });
+    // 根据@inject-into content过滤脚本
+    const injectScript: ScriptLoadInfo[] = [];
+    const contentScript: ScriptLoadInfo[] = [];
+    for (const script of scripts) {
+      if (isInjectIntoContent(script)) {
+        contentScript.push(script);
+        continue;
+      }
+      injectScript.push(script);
+    }
+    client.do("pageLoad", { scripts: injectScript, envInfo });
+
+    // 处理注入到content环境的脚本
+    for (const script of contentScript) {
+      this.contentScript.set(script.uuid, script);
+    }
+    // 监听事件
+    this.scriptExecutor.init(envInfo);
+    // 启动脚本
+    this.scriptExecutor.start(contentScript);
   }
 }
