@@ -1,4 +1,5 @@
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SystemConfigKey } from "../config/config";
 
 export function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
@@ -307,3 +308,8 @@ export const obtainBlackList = (strBlacklist: string | null | undefined) => {
     : [];
   return blacklist;
 };
+
+// 将蛇形的 key 转换为驼峰的函数名
+export function toCamelCase(key: SystemConfigKey) {
+  return key.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace(/^([a-z])/, (g) => g.toUpperCase());
+}

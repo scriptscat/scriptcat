@@ -1,8 +1,11 @@
-import React from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
+import type { SystemConfigKey, SystemConfigValueType } from "@App/pkg/config/config";
+import { systemConfig } from "@App/pages/store/global";
+import { toCamelCase } from "@App/pkg/utils/utils";
 
 // 安装url转home主页
 export function installUrlToHome(installUrl: string) {
@@ -164,4 +167,38 @@ export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
     );
   }
   return <></>;
+}
+
+// 系统配置hooks
+// 返回3个数组，第一个是值，第二个是设置值的函数，第三个提交值的函数
+export function useSystemConfig<T extends SystemConfigKey>(key: T) {
+  const [value, setValue] = useState<SystemConfigValueType<T>>(() => {
+    const funcName = `default${toCamelCase(key)}`;
+    if (typeof (systemConfig as any)[funcName] === "function") {
+      // @ts-ignore
+      return (systemConfig as any)[funcName]();
+    }
+    return undefined;
+  });
+  useEffect(() => {
+    (async () => {
+      const v = await systemConfig.get(key);
+      setValue(v);
+    })();
+  }, [key]);
+  const submitValue = useCallback(
+    (v?: SystemConfigValueType<T>) => {
+      if (v === undefined) {
+        setValue((old) => {
+          systemConfig.set(key, old);
+          return old;
+        });
+      } else {
+        systemConfig.set(key, v);
+        setValue(v);
+      }
+    },
+    [key]
+  );
+  return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
