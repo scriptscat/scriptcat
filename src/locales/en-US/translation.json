@@ -471,5 +471,7 @@
   "editor_config_saved": "Editor Configuration Saved",
   "editor_config_format_error": "Editor Configuration Format Error",
   "editor_type_definition_reset": "Editor Type Definition Reset",
-  "editor_type_definition_saved": "Editor Type Definition Saved"
+  "editor_type_definition_saved": "Editor Type Definition Saved",
+  "layout": "Layout",
+  "hide_script_list": "Hide Script List"
 }
