@@ -187,12 +187,6 @@ const ScriptMenuList = React.memo(
       window.close();
     }, []);
 
-    const handleExcludeUrl = useCallback((item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
-      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-        window.close();
-      });
-    }, []);
-
     const handleDeleteScript = useCallback((uuid: string) => {
       setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
       scriptClient.delete(uuid).catch((e) => {
@@ -259,6 +253,8 @@ const ScriptMenuList = React.memo(
     CollapseHeader.displayName = "CollapseHeader";
 
     const ListMenuItem = React.memo(({ item, index }: { item: ScriptMenu; index: number }) => {
+      const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
+
       const visibleMenus = useMemo(() => {
         return item.menus.length > menuExpandNum && !expandMenuIndex[index]
           ? item.menus.slice(0, menuExpandNum)
@@ -268,6 +264,15 @@ const ScriptMenuList = React.memo(
       const isExpand = useMemo(() => expandMenuIndex[index], [expandMenuIndex, index]);
 
       const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
+
+      const handleExcludeUrl = useCallback(
+        (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+          scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
+            setIsEffective(!isEffective);
+          });
+        },
+        [item, isEffective]
+      );
 
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
@@ -295,15 +300,15 @@ const ScriptMenuList = React.memo(
               >
                 {t("edit")}
               </Button>
-              {url && item.isEffective !== null && (
+              {url && isEffective !== null && (
                 <Button
                   className="text-left"
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !item.isEffective)}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
                 >
-                  {(!item.isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
+                  {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
               <Popconfirm
