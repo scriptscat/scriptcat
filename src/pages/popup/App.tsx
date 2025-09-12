@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
@@ -33,6 +32,7 @@ const iconStyle = {
 };
 
 function App() {
+  const [loading, setLoading] = useState(true);
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
@@ -44,6 +44,7 @@ function App() {
   const [currentUrl, setCurrentUrl] = useState("");
   const [isEnableScript, setIsEnableScript] = useState(true);
   const [isBlacklist, setIsBlacklist] = useState(false);
+  const [collapseActiveKey, setCollapseActiveKey] = useState<string[]>(["script"]);
   const { t } = useTranslation();
 
   let url: URL | undefined;
@@ -84,6 +85,9 @@ function App() {
           setBackScriptList(resp.backScriptList || []);
           setIsBlacklist(resp.isBlacklist || false);
           checkScriptEnableAndUpdate();
+          if (resp.backScriptList.length > 0) {
+            setCollapseActiveKey(["script", "background"]);
+          }
         })
         .catch((error) => {
           console.error("Failed to get popup data:", error);
@@ -92,6 +96,10 @@ function App() {
           setScriptList([]);
           setBackScriptList([]);
           setIsBlacklist(false);
+        })
+        .finally(() => {
+          if (!isMounted) return;
+          setLoading(false);
         });
     };
 
@@ -201,8 +209,7 @@ function App() {
                       const dropdown = dropdowns[0] as HTMLElement;
                       console.log(dropdowns, dropdown.style.top);
                       // 如果top是负数修改为0
-                      if (parseInt(dropdown
-                        .style.top) < 0) {
+                      if (parseInt(dropdown.style.top) < 0) {
                         dropdown.style.top = "0px";
                       }
                     }
@@ -261,7 +268,10 @@ function App() {
         />
         <Collapse
           bordered={false}
-          defaultActiveKey={["script", ...(backScriptList.length > 0 ? ["background"] : [])]}
+          activeKey={collapseActiveKey}
+          onChange={(_, keys) => {
+            setCollapseActiveKey(keys);
+          }}
           style={{ maxWidth: 640, maxHeight: 500, overflow: "auto" }}
         >
           <CollapseItem
@@ -276,7 +286,11 @@ function App() {
           <CollapseItem
             header={t("enabled_background_scripts")}
             name="background"
-            style={{ padding: "0" }}
+            style={{
+              padding: "0",
+              // 未加载完成前不采用动画，避免collapseActiveKey变化时闪现
+              ...(loading ? { transform: "none" } : { transform: "height 0.2s cubic-bezier(0.34, 0.69, 0.1, 1)" }),
+            }}
             contentStyle={{ padding: "0" }}
           >
             <ScriptMenuList script={backScriptList} isBackscript={true} currentUrl={currentUrl} />
