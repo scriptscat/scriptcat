@@ -27,7 +27,6 @@ const CollapseItem = Collapse.Item;
 const iconStyle = {
   marginRight: 8,
   fontSize: 16,
-  transform: "translateY(1px)",
 };
 
 function App() {
@@ -145,35 +144,32 @@ function App() {
     systemConfig.setCheckUpdate(updatedCheckUpdate);
   }, [checkUpdate]);
 
-  const handleMenuClick = useCallback(
-    async (key: string) => {
-      switch (key) {
-        case "newScript":
-          await chrome.storage.local.set({
-            activeTabUrl: { url: currentUrl },
-          });
-          window.open("/src/options.html#/script/editor?target=initial", "_blank");
-          break;
-        case "checkUpdate":
-          await scriptClient.requestCheckUpdate("");
-          window.close();
-          break;
-        case "report_issue": {
-          const browserInfo = `${navigator.userAgent}`;
-          const issueUrl =
-            `https://github.com/scriptscat/scriptcat/issues/new?` +
-            `template=bug_report${isChineseUser() ? "" : "_en"}.yaml&scriptcat-version=${ExtVersion}&` +
-            `browser-version=${encodeURIComponent(browserInfo)}`;
-          window.open(issueUrl, "_blank");
-          break;
-        }
-        default:
-          window.open(key, "_blank");
-          break;
+  const handleMenuClick = async (key: string) => {
+    switch (key) {
+      case "newScript":
+        await chrome.storage.local.set({
+          activeTabUrl: { url: currentUrl },
+        });
+        window.open("/src/options.html#/script/editor?target=initial", "_blank");
+        break;
+      case "checkUpdate":
+        await scriptClient.requestCheckUpdate("");
+        window.close();
+        break;
+      case "report_issue": {
+        const browserInfo = `${navigator.userAgent}`;
+        const issueUrl =
+          `https://github.com/scriptscat/scriptcat/issues/new?` +
+          `template=bug_report${isChineseUser() ? "" : "_en"}.yaml&scriptcat-version=${ExtVersion}&` +
+          `browser-version=${encodeURIComponent(browserInfo)}`;
+        window.open(issueUrl, "_blank");
+        break;
       }
-    },
-    [currentUrl]
-  );
+      default:
+        window.open(key, "_blank");
+        break;
+    }
+  };
 
   const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(false);
 
@@ -286,7 +282,9 @@ function App() {
         size="small"
         title={
           <div className="flex justify-between">
-            <span className="text-xl">{"ScriptCat"}</span>
+            <div className="text-xl inline-flex flex-row items-center gap-x-1">
+              <span>{"ScriptCat"}</span>
+            </div>
             <div className="flex flex-row items-center">
               <Switch size="small" className="mr-1" checked={isEnableScript} onChange={handleEnableScriptChange} />
               <Button type="text" icon={<IconSettings />} iconOnly onClick={handleSettingsClick} />
@@ -301,31 +299,37 @@ function App() {
                     }}
                     onClickMenuItem={handleMenuClick}
                   >
-                    <Menu.Item key="newScript">
+                    <Menu.Item key="newScript" className="flex flex-row items-center">
                       <IconPlus style={iconStyle} />
                       {t("create_script")}
                     </Menu.Item>
-                    <Menu.Item key={`https://scriptcat.org/search?domain=${url && url.host}`}>
+                    <Menu.Item
+                      key={`https://scriptcat.org/search?domain=${url && url.host}`}
+                      className="flex flex-row items-center"
+                    >
                       <IconSearch style={iconStyle} />
                       {t("get_script")}
                     </Menu.Item>
-                    <Menu.Item key={"checkUpdate"}>
+                    <Menu.Item key={"checkUpdate"} className="flex flex-row items-center">
                       <IconSync style={iconStyle} />
                       {t("check_update")}
                     </Menu.Item>
-                    <Menu.Item key="report_issue">
+                    <Menu.Item key="report_issue" className="flex flex-row items-center">
                       <IconBug style={iconStyle} />
                       {t("report_issue")}
                     </Menu.Item>
-                    <Menu.Item key={`${DocumentationSite}${localePath}`}>
+                    <Menu.Item key={`${DocumentationSite}${localePath}`} className="flex flex-row items-center">
                       <IconBook style={iconStyle} />
                       {t("project_docs")}
                     </Menu.Item>
-                    <Menu.Item key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}>
+                    <Menu.Item
+                      key={isChineseUser() ? "https://bbs.tampermonkey.net.cn/" : Discord}
+                      className="flex flex-row items-center"
+                    >
                       <RiMessage2Line style={iconStyle} />
                       {t("community")}
                     </Menu.Item>
-                    <Menu.Item key="https://github.com/scriptscat/scriptcat">
+                    <Menu.Item key="https://github.com/scriptscat/scriptcat" className="flex flex-row items-center">
                       <IconGithub style={iconStyle} />
                       {"GitHub"}
                     </Menu.Item>
