@@ -162,7 +162,7 @@ const DragHandle = () => {
   );
 };
 
-const DraggableContainer = React.forwardRef((props: any, ref: any) => {
+const DraggableContainer = (props: any) => {
   const context = useContext(DraggableContext);
   if (!context) return <></>;
   const { sensors, dispatch, scriptList } = context;
@@ -183,11 +183,11 @@ const DraggableContainer = React.forwardRef((props: any, ref: any) => {
       }}
     >
       <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
-        <tbody {...props} ref={ref} />
+        <tbody {...props} />
       </SortableContext>
     </DndContext>
   );
-});
+};
 DraggableContainer.displayName = "DraggableContainer";
 
 const EnableSwitch = React.memo(
