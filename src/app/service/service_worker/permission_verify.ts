@@ -380,9 +380,11 @@ export default class PermissionVerify {
     this.group.on("updatePermission", this.updatePermission.bind(this));
     this.group.on("resetPermission", this.resetPermission.bind(this));
 
-    this.mq.subscribe<TDeleteScript>("deleteScript", (data) => {
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
       // 删除脚本的所有权限
-      this.resetPermission(data.script.uuid);
+      for (const { uuid } of data) {
+        await this.resetPermission(uuid);
+      }
     });
   }
 }

@@ -1,7 +1,5 @@
 import type { Script } from "@App/app/repo/scripts";
 import { extractFavicons } from "@App/pkg/utils/favicon";
-import { store } from "./store";
-import { scriptSlice } from "./features/script";
 import { cacheInstance } from "@App/app/cache";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
@@ -52,7 +50,17 @@ type FavIconResult = {
 };
 
 // 在scriptSlice创建后处理favicon加载，以批次方式处理
-export const loadScriptFavicons = (scripts: Script[]) => {
+export const loadScriptFavicons = async function* (scripts: Script[]) {
+  const stack: any[] = [];
+  const asyncWaiter: { promise?: any; resolve?: any } = {};
+  const createPromise = () => {
+    asyncWaiter.promise = new Promise<{ chunkResults: FavIconResult[]; pendingCount: number }>((resolve) => {
+      asyncWaiter.resolve = resolve;
+    });
+  };
+  createPromise();
+  let pendingCount = scripts.length;
+  if (!pendingCount) return;
   const results: FavIconResult[] = [];
   let waiting = false;
   for (const script of scripts) {
@@ -63,13 +71,22 @@ export const loadScriptFavicons = (scripts: Script[]) => {
       if (!waiting) {
         requestAnimationFrame(() => {
           waiting = false;
-          if (!results.length) return;
           const chunkResults: FavIconResult[] = results.slice(0);
           results.length = 0;
-          store.dispatch(scriptSlice.actions.setScriptFavicon(chunkResults));
+          pendingCount -= chunkResults.length;
+          stack.push({ chunkResults, pendingCount } as { chunkResults: FavIconResult[]; pendingCount: number });
+          asyncWaiter.resolve();
         });
         waiting = true;
       }
     });
+  }
+  while (true) {
+    await asyncWaiter.promise;
+    while (stack.length) {
+      yield stack.shift();
+    }
+    if (pendingCount <= 0) break;
+    createPromise();
   }
 };

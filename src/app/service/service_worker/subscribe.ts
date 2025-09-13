@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import type { Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
+import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type MessageQueue } from "@Packages/message/message_queue";
@@ -84,7 +84,9 @@ export class SubscribeService {
   }
 
   // 更新订阅的脚本
-  async upsertScript(subscribe: Subscribe) {
+  async upsertScript(url: string) {
+    const subscribe = await this.subscribeDAO.get(url);
+    if (!subscribe) return;
     const logger = this.logger.with({
       url: subscribe.url,
       name: subscribe.name,
@@ -159,22 +161,20 @@ export class SubscribeService {
     return true;
   }
 
-  // 检查更新
-  async checkUpdate(url: string, source: InstallSource) {
-    const subscribe = await this.subscribeDAO.get(url);
-    if (!subscribe) {
-      return false;
-    }
+  async _checkUpdateAvailable(subscribe: {
+    url: string;
+    name: string;
+    checkUpdateUrl?: string;
+    metadata: Partial<Record<string, any>>;
+  }): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
+    const { url, name } = subscribe;
     const logger = this.logger.with({
-      url: subscribe.url,
-      name: subscribe.name,
+      url,
+      name,
     });
-    await this.subscribeDAO.update(url, { checktime: Date.now() });
     try {
-      const code = await fetchScriptBody(subscribe.url);
+      const code = await fetchScriptBody(url);
       const metadata = parseMetadata(code);
-      const url = subscribe.url;
-      const uuid = uuidv4();
       if (!metadata) {
         logger.error("parse metadata failed");
         return false;
@@ -192,20 +192,45 @@ export class SubscribeService {
       if (ltever(newVersion, oldVersion, logger)) {
         return false;
       }
-      // 进行更新
-      if (true === (await this.trySilenceUpdate(code, url))) {
-        // slience update
-      } else {
-        const si = [false, createScriptInfo(uuid, code, url, source, metadata)];
-        await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
-        chrome.tabs.create({
-          url: `/src/install.html?uuid=${uuid}`,
-        });
-      }
-      return true;
+      return { updateAvailable: true, code, metadata };
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
       return false;
+    }
+  }
+
+  // 检查更新
+  async checkUpdate(url: string, source: InstallSource) {
+    const subscribe = await this.subscribeDAO.get(url);
+    if (!subscribe) {
+      return false;
+    }
+    await this.subscribeDAO.update(url, { checktime: Date.now() });
+    const logger = this.logger.with({
+      url: subscribe.url,
+      name: subscribe.name,
+    });
+    const res = await this._checkUpdateAvailable(subscribe);
+    if (res) {
+      const { code, metadata } = res;
+      const { url } = subscribe;
+      const uuid = uuidv4();
+      try {
+        // 进行更新
+        if (true === (await this.trySilenceUpdate(code, url))) {
+          // slience update
+        } else {
+          const si = [false, createScriptInfo(uuid, code, url, source, metadata)];
+          await cacheInstance.set(`${CACHE_KEY_SCRIPT_INFO}${uuid}`, si);
+          chrome.tabs.create({
+            url: `/src/install.html?uuid=${uuid}`,
+          });
+        }
+        return true;
+      } catch (e) {
+        logger.error("check update failed", Logger.E(e));
+        return false;
+      }
     }
   }
 
@@ -277,7 +302,7 @@ export class SubscribeService {
     this.group.on("enable", this.enable.bind(this));
 
     this.mq.subscribe<TInstallSubscribe>("installSubscribe", (message) => {
-      this.upsertScript(message.subscribe);
+      this.upsertScript(message.subscribe.url);
     });
 
     // 定时检查更新, 每10分钟检查一次

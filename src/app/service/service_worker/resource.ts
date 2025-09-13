@@ -329,25 +329,27 @@ export class ResourceService {
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源
-    this.mq.subscribe<TDeleteScript>("deleteScript", (data) => {
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", (data) => {
       // 使用事务当锁，避免并发删除导致数据不一致
       cacheInstance.tx("resource_lock", async (_start) => {
-        const resources = await this.resourceDAO.find((key, value) => {
-          return value.link[data.uuid];
-        });
-        for (const res of resources) {
-          // 删除link
-          delete res.link[data.uuid];
+        for (const { uuid } of data) {
+          const resources = await this.resourceDAO.find((key, value) => {
+            return value.link[uuid];
+          });
+          for (const res of resources) {
+            // 删除link
+            delete res.link[uuid];
+          }
+          await Promise.all(
+            resources.map((res) => {
+              if (Object.keys(res.link).length > 0) {
+                return this.resourceDAO.update(res.url, res);
+              }
+              // 如果没有关联脚本了,删除资源
+              return this.resourceDAO.delete(res.url);
+            })
+          );
         }
-        await Promise.all(
-          resources.map((res) => {
-            if (Object.keys(res.link).length > 0) {
-              return this.resourceDAO.update(res.url, res);
-            }
-            // 如果没有关联脚本了,删除资源
-            return this.resourceDAO.delete(res.url);
-          })
-        );
         return true;
       });
     });

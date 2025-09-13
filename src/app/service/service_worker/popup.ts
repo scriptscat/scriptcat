@@ -252,7 +252,12 @@ export class PopupService {
 
   dealBackgroundScriptInstall() {
     // 处理后台脚本
-    this.mq.subscribe<TInstallScript>("installScript", async ({ script }) => {
+    this.mq.subscribe<TInstallScript>("installScript", async (data) => {
+      const uuid = data.script.uuid;
+      const script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        return;
+      }
       if (script.type === SCRIPT_TYPE_NORMAL) {
         return;
       }
@@ -269,24 +274,37 @@ export class PopupService {
         return menu;
       });
     });
-    this.mq.subscribe<TEnableScript>("enableScript", async ({ uuid }) => {
-      const script = await this.scriptDAO.get(uuid);
-      if (!script) {
-        return;
-      }
-      if (script.type === SCRIPT_TYPE_NORMAL) {
-        return;
-      }
-      return this.txUpdateScriptMenu(-1, (menu) => {
-        const index = menu.findIndex((item) => item.uuid === uuid);
-        if (script.status === SCRIPT_STATUS_ENABLE) {
-          // 加入菜单
-          if (index === -1) {
-            const item = this.scriptToMenu(script);
-            menu.push(item);
+    this.mq.subscribe<TEnableScript[]>("enableScripts", async (data): Promise<ScriptMenu[]> => {
+      return this.txUpdateScriptMenu(-1, async (menu) => {
+        for (const { uuid } of data) {
+          const script = await this.scriptDAO.get(uuid);
+          if (!script) {
+            continue;
           }
-        } else {
-          // 移出菜单
+          if (script.type === SCRIPT_TYPE_NORMAL) {
+            continue;
+          }
+          const index = menu.findIndex((item) => item.uuid === uuid);
+          if (script.status === SCRIPT_STATUS_ENABLE) {
+            // 加入菜单
+            if (index === -1) {
+              const item = this.scriptToMenu(script);
+              menu.push(item);
+            }
+          } else {
+            // 移出菜单
+            if (index !== -1) {
+              menu.splice(index, 1);
+            }
+          }
+        }
+        return menu;
+      });
+    });
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", (data): Promise<ScriptMenu[]> => {
+      return this.txUpdateScriptMenu(-1, (menu) => {
+        for (const { uuid } of data) {
+          const index = menu.findIndex((item) => item.uuid === uuid);
           if (index !== -1) {
             menu.splice(index, 1);
           }
@@ -294,16 +312,7 @@ export class PopupService {
         return menu;
       });
     });
-    this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
-      return this.txUpdateScriptMenu(-1, (menu) => {
-        const index = menu.findIndex((item) => item.uuid === uuid);
-        if (index !== -1) {
-          menu.splice(index, 1);
-        }
-        return menu;
-      });
-    });
-    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", async ({ uuid, runStatus }) => {
+    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }): Promise<ScriptMenu[]> => {
       return this.txUpdateScriptMenu(-1, (menu) => {
         const scriptMenu = menu.find((item) => item.uuid === uuid);
         if (scriptMenu) {

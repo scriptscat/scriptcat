@@ -17,7 +17,7 @@ import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
-import type { TDeleteScript, TInstallScript } from "../queue";
+import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
 import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
@@ -53,6 +53,8 @@ type ScriptcatSync = {
     };
   };
 };
+
+type PushScriptParam = TInstallScriptParams;
 
 export class SynchronizeService {
   logger: Logger;
@@ -533,7 +535,7 @@ export class SynchronizeService {
   }
 
   // 上传脚本
-  async pushScript(fs: FileSystem, script: Script) {
+  async pushScript(fs: FileSystem, script: PushScriptParam) {
     const filename = `${script.uuid}.user.js`;
     const logger = this.logger.with({
       uuid: script.uuid,
@@ -644,12 +646,14 @@ export class SynchronizeService {
     }
   }
 
-  async scriptDelete(script: { uuid: string }) {
+  async scriptsDelete(data: TDeleteScript[]) {
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
       this.buildFileSystem(config).then(async (fs) => {
-        await this.deleteCloudScript(fs, script.uuid, config.syncDelete);
+        for (const { uuid } of data) {
+          await this.deleteCloudScript(fs, uuid, config.syncDelete);
+        }
       });
     }
   }
@@ -661,6 +665,6 @@ export class SynchronizeService {
     // this.group.on("import", this.openImportWindow.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
-    this.mq.subscribe<TDeleteScript>("deleteScript", this.scriptDelete.bind(this));
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));
   }
 }

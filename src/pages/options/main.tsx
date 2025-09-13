@@ -12,7 +12,6 @@ import LoggerCore from "@App/app/logger/core.ts";
 import { LoggerDAO } from "@App/app/repo/logger.ts";
 import DBWriter from "@App/app/logger/db_writer.ts";
 import registerEditor from "@App/pkg/utils/monaco-editor";
-import storeSubscribe from "../store/subscribe.ts";
 import migrate from "@App/app/migrate.ts";
 
 migrate();
@@ -26,8 +25,6 @@ const loggerCore = new LoggerCore({
 });
 
 loggerCore.logger().debug("options page start");
-
-storeSubscribe();
 
 const Root = (
   <Provider store={store}>

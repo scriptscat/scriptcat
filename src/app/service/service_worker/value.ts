@@ -220,16 +220,17 @@ export class ValueService {
     this.group.on("setScriptValue", this.setScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));
 
-    this.mq.subscribe<TDeleteScript>("deleteScript", async (data) => {
-      const storageName = getStorageName(data.script);
-      // 判断还有没有其他同名storageName
-      const list = await this.scriptDAO.find((_, script) => {
-        return getStorageName(script) === storageName;
-      });
-      if (list.length === 0) {
-        this.valueDAO.delete(storageName).then(() => {
-          this.logger.trace("delete value", { storageName });
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+      for (const { storageName } of data) {
+        // 判断还有没有其他同名storageName
+        const list = await this.scriptDAO.find((_, script) => {
+          return getStorageName(script) === storageName;
         });
+        if (list.length === 0) {
+          this.valueDAO.delete(storageName).then(() => {
+            this.logger.trace("delete value", { storageName });
+          });
+        }
       }
     });
   }
