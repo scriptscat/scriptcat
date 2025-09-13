@@ -151,7 +151,7 @@ export default class ServiceWorkerManager {
           // chrome.runtime.onInstalled API出错不进行后续处理
         }
         if (details.reason === "install") {
-          chrome.tabs.create({ url: `${DocumentationSite}${localePath}` });
+          chrome.tabs.create({ url: `${DocumentationSite}${localePath}/docs/use/install_comple` });
         } else if (details.reason === "update") {
           const url = `${DocumentationSite}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
           getCurrentTab()
@@ -176,6 +176,14 @@ export default class ServiceWorkerManager {
             .catch((e) => {
               console.error(e);
             });
+        }
+      });
+
+      // 监听扩展卸载事件
+      chrome.runtime.setUninstallURL(`${DocumentationSite}${localePath}/uninstall`, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.setUninstallURL:", lastError);
         }
       });
     }

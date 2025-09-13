@@ -57,8 +57,8 @@ export class ScriptService {
 
   listenerScriptInstall() {
     // 初始化脚本安装监听
-    chrome.webRequest.onResponseStarted.addListener(
-      (req: chrome.webRequest.OnResponseStartedDetails) => {
+    chrome.webRequest.onBeforeRequest.addListener(
+      (req: chrome.webRequest.OnBeforeRequestDetails) => {
         // 处理url, 实现安装脚本
         if (req.method !== "GET") {
           return undefined;
@@ -833,6 +833,27 @@ export class ScriptService {
     return this.scriptDAO.update(uuid, update);
   }
 
+  // 更新脚本元数据
+  async updateMetadata({ uuid, key, value }: { uuid: string; key: string; value: string[] }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const valueSet = new Set(value);
+    script = selfMetadataUpdate(script, key, valueSet);
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        // 广播一下
+        this.mq.publish<TInstallScript>("installScript", { script, update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("reset exclude error", Logger.E(e));
+        throw e;
+      });
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -858,6 +879,7 @@ export class ScriptService {
     this.group.on("importByUrl", this.importByUrl.bind(this));
     this.group.on("installByCode", this.installByCode.bind(this));
     this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
+    this.group.on("updateMetadata", this.updateMetadata.bind(this));
 
     // 定时检查更新, 每10分钟检查一次
     chrome.alarms.create(

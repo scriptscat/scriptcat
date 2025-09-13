@@ -22,11 +22,15 @@ ScriptCat
 [![Chrome](https://img.shields.io/badge/chrome-success-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
-![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
+[![Crowdin](https://badges.crowdin.net/scriptcat/localized.svg)](https://crowdin.com/project/scriptcat)
 
 ## About ScriptCat
 
-ScriptCat is a powerful userscript manager based on Tampermonkey's design philosophy, fully compatible with Tampermonkey scripts. It not only supports traditional userscripts but also innovatively implements a background script execution framework with rich API extensions, enabling scripts to accomplish more powerful functions. It features an excellent built-in code editor with intelligent completion and syntax checking, making script development more efficient and smooth.
+ScriptCat is a powerful userscript manager based on Tampermonkey's design philosophy, fully compatible with Tampermonkey
+scripts. It not only supports traditional userscripts but also innovatively implements a background script execution
+framework with rich API extensions, enabling scripts to accomplish more powerful functions. It features an excellent
+built-in code editor with intelligent completion and syntax checking, making script development more efficient and
+smooth.
 
 **If you find it useful, please give us a Star ⭐ This is the greatest support for us!**
 
@@ -40,14 +44,16 @@ ScriptCat is a powerful userscript manager based on Tampermonkey's design philos
 ### 🔧 Powerful Functions
 
 - **Full Tampermonkey Compatibility**: Seamlessly migrate existing Tampermonkey scripts with zero learning curve
-- **Background Scripts**: Innovative background execution mechanism, keeping scripts running continuously without page limitations
+- **Background Scripts**: Innovative background execution mechanism, keeping scripts running continuously without page
+  limitations
 - **Scheduled Scripts**: Support timed execution tasks for auto check-ins, scheduled reminders, and more
 - **Rich APIs**: Provides more powerful APIs compared to Tampermonkey, unlocking more possibilities
 
 ### 🛡️ Security & Reliability
 
 - **Sandbox Mechanism**: Scripts run in isolated environments, preventing malicious code from affecting other scripts
-- **Permission Management**: Scripts must explicitly request required permissions, with additional confirmation needed for sensitive operations
+- **Permission Management**: Scripts must explicitly request required permissions, with additional confirmation needed
+  for sensitive operations
 
 ### 💻 Development Experience
 
@@ -63,17 +69,16 @@ ScriptCat is a powerful userscript manager based on Tampermonkey's design philos
 
 #### Extension Stores (Recommended)
 
-| Browser | Store Link | Status |
-|---------|------------|--------|
-| Chrome | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ Available |
-| Edge | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ Available |
-| Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
-| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ Available |
-| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | Triggered on every commit |
+| Browser | Store Link                                                                                                                                                                                                                                            | Status       |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Chrome  | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ Available |
+| Edge    | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)                      | ✅ Available |
+| Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)                                                                                             | ✅ MV2       |
 
 #### Manual Installation
 
-If you cannot access extension stores, download the latest ZIP package from [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) for manual installation.
+If you cannot access extension stores, download the latest ZIP package from
+[GitHub Releases](https://github.com/scriptscat/scriptcat/releases) for manual installation.
 
 ### 📝 Usage Guide
 
@@ -81,19 +86,24 @@ If you cannot access extension stores, download the latest ZIP package from [Git
 
 1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/search) or other userscript markets
 2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/zh-CN/search?script_type=3)
-3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
+3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible
+   scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
 
 #### Developing Scripts
 
-Check our [Development Documentation](https://docs.scriptcat.org/docs/dev/) and [Developer Guide](https://learn.scriptcat.org/) to learn how to write scripts. The documentation covers everything from basics to advanced topics, making script development effortless.
+Check our [Development Documentation](https://docs.scriptcat.org/docs/dev/) and
+[Developer Guide](https://learn.scriptcat.org/) to learn how to write scripts. The documentation covers everything from
+basics to advanced topics, making script development effortless.
 
-If you find errors in the documentation or want to contribute content, you can click "Edit this page" on the documentation page to make modifications.
+If you find errors in the documentation or want to contribute content, you can click "Edit this page" on the
+documentation page to make modifications.
 
 ---
 
 ## 🤝 Contributing
 
-We welcome all forms of contributions! Please check the [Contributing Guide](./docs/CONTRIBUTING_EN.md) to learn how to get started.
+We welcome all forms of contributions! Please check the [Contributing Guide](./docs/CONTRIBUTING_EN.md) to learn how to
+get started.
 
 ### 💬 Community
 

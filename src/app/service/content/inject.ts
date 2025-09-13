@@ -1,95 +1,35 @@
 import { type Server } from "@Packages/message/server";
 import type { Message } from "@Packages/message/types";
-import ExecScript from "./exec_script";
-import type { ValueUpdateData, GMInfoEnv, ScriptFunc, PreScriptFunc } from "./types";
-import { addStyle } from "./utils";
-import { getStorageName } from "@App/pkg/utils/utils";
-import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
+import type { ScriptExecutor } from "./script_executor";
+import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
+import type { GMInfoEnv, ValueUpdateData } from "./types";
 
 export class InjectRuntime {
-  execList: ExecScript[] = [];
-
-  envInfo: GMInfoEnv | undefined;
-
   constructor(
     private server: Server,
-    private msg: Message
+    private msg: Message,
+    private scriptExecutor: ScriptExecutor
   ) {}
 
   init(envInfo: GMInfoEnv) {
-    this.envInfo = envInfo;
+    this.scriptExecutor.init(envInfo);
 
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本
-      const exec = this.execList.find((val) => val.scriptRes.uuid === data.uuid);
-      if (exec) {
-        exec.emitEvent(data.event, data.eventId, data.data);
-      }
+      this.scriptExecutor.emitEvent(data);
     });
     this.server.on("runtime/valueUpdate", (data: ValueUpdateData) => {
-      this.execList
-        .filter((val) => val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName)
-        .forEach((val) => {
-          val.valueUpdate(data);
-        });
+      this.scriptExecutor.valueUpdate(data);
     });
+
     // 注入允许外部调用
     this.externalMessage();
   }
 
   start(scripts: ScriptLoadInfo[]) {
-    scripts.forEach((script) => {
-      // 如果是EarlyScriptFlag，处理沙盒环境
-      if (EarlyScriptFlag.includes(script.flag)) {
-        for (const val of this.execList) {
-          if (val.scriptRes.flag === script.flag) {
-            // 处理早期脚本的沙盒环境
-            val.dealEarlyScript(this.envInfo!);
-            break;
-          }
-        }
-        return;
-      }
-      // @ts-ignore
-      const scriptFunc = window[script.flag];
-      if (scriptFunc) {
-        this.execScript(script, scriptFunc);
-      } else {
-        // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, script.flag, {
-          configurable: true,
-          set: (val: ScriptFunc) => {
-            this.execScript(script, val);
-          },
-        });
-      }
-    });
-  }
-
-  checkEarlyStartScript() {
-    EarlyScriptFlag.forEach((flag) => {
-      // @ts-ignore
-      const scriptFunc = window[flag] as PreScriptFunc;
-      if (scriptFunc) {
-        // @ts-ignore
-        const exec = new ExecScript(scriptFunc.scriptInfo, "content", this.msg, scriptFunc.func, {});
-        this.execList.push(exec);
-        exec.exec();
-      } else {
-        // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, flag, {
-          configurable: true,
-          set: (val: PreScriptFunc) => {
-            // @ts-ignore
-            const exec = new ExecScript(val.scriptInfo, "content", this.msg, val.func, {});
-            this.execList.push(exec);
-            exec.exec();
-          },
-        });
-      }
-    });
+    this.scriptExecutor.start(scripts);
   }
 
   externalMessage() {
@@ -117,52 +57,35 @@ export class InjectRuntime {
       } catch {
         // 无法注入到 external，忽略
       }
-      try {
-        external.Tampermonkey = scriptExpose;
-      } catch {
-        // 无法注入到 external，忽略
-      }
-    }
-  }
-
-  execScript(script: ScriptLoadInfo, scriptFunc: ScriptFunc) {
-    // @ts-ignore
-    delete window[script.flag];
-    const exec = new ExecScript(script, "content", this.msg, scriptFunc, this.envInfo!);
-    this.execList.push(exec);
-    // 注入css
-    if (script.metadata["require-css"]) {
-      for (const val of script.metadata["require-css"]) {
-        const res = script.resource[val];
-        if (res) {
-          addStyle(res.content);
+      const exposedTM = external.Tampermonkey;
+      const isInstalledTM = exposedTM?.isInstalled;
+      const isInstalledSC = scriptExpose.isInstalled;
+      if (isInstalledTM && exposedTM?.getVersion && exposedTM.openOptions) {
+        // 当TM和SC同时启动的特殊处理：如TM没有安装，则查SC的安装状态
+        try {
+          exposedTM.isInstalled = (
+            name: string,
+            namespace: string,
+            callback: (res: App.IsInstalledResponse | undefined) => unknown
+          ) => {
+            isInstalledTM(name, namespace, (res) => {
+              if (res?.installed) callback(res);
+              else
+                isInstalledSC(name, namespace, (res) => {
+                  callback(res);
+                });
+            });
+          };
+        } catch {
+          // 忽略错误
+        }
+      } else {
+        try {
+          external.Tampermonkey = scriptExpose;
+        } catch {
+          // 无法注入到 external，忽略
         }
       }
     }
-    if (script.metadata["run-at"] && script.metadata["run-at"][0] === "document-body") {
-      // 等待页面加载完成
-      this.waitBody(() => {
-        exec.exec();
-      });
-    } else {
-      exec.exec();
-    }
-  }
-
-  // 参考了tm的实现
-  waitBody(callback: () => void) {
-    if (document.body) {
-      callback();
-      return;
-    }
-    const listen = () => {
-      document.removeEventListener("load", listen, false);
-      document.removeEventListener("DOMNodeInserted", listen, false);
-      document.removeEventListener("DOMContentLoaded", listen, false);
-      this.waitBody(callback);
-    };
-    document.addEventListener("load", listen, false);
-    document.addEventListener("DOMNodeInserted", listen, false);
-    document.addEventListener("DOMContentLoaded", listen, false);
   }
 }

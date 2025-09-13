@@ -1,40 +1,36 @@
-import { useEffect, useState } from "react";
 import { Button, Card, Checkbox, ColorPicker, Input, Message, Select, Space } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
-import { systemConfig } from "@App/pages/store/global";
 import i18n from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
-import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { obtainBlackList } from "@App/pkg/utils/utils";
+import CustomTrans from "@App/pages/components/CustomTrans";
+import { useSystemConfig } from "./utils";
 
 function Setting() {
-  const [syncDelete, setSyncDelete] = useState<boolean>();
-  const [syncScriptStatus, setSyncScriptStatus] = useState<boolean>();
-  const [enableCloudSync, setEnableCloudSync] = useState<boolean>();
-  const [fileSystemType, setFilesystemType] = useState<FileSystemType>("webdav");
-  const [fileSystemParams, setFilesystemParam] = useState<{
-    [key: string]: any;
-  }>({});
-  const [language, setLanguage] = useState(i18n.language);
-  const [menuExpandNum, setMenuExpandNum] = useState(5);
-  const [checkScriptUpdateCycle, setCheckScriptUpdateCycle] = useState(0);
-  const [updateDisableScript, setUpdateDisableScript] = useState(false);
-  const [silenceUpdateScript, setSilenceUpdateScript] = useState(false);
-  const [enableEslint, setEnableEslint] = useState(false);
-  const [eslintConfig, setEslintConfig] = useState("");
-  const [blacklist, setBlacklist] = useState<string>("");
-  const [badgeNumberType, setBadgeNumberType] = useState<"none" | "run_count" | "script_count">("run_count");
-  const [badgeBackgroundColor, setBadgeBackgroundColor] = useState("#4e5969");
-  const [badgeTextColor, setBadgeTextColor] = useState("#ffffff");
-  const [scriptMenuDisplayType, setScriptMenuDisplayType] = useState<"no_browser" | "all">("all");
+  const [editorConfig, setEditorConfig, submitEditorConfig] = useSystemConfig("editor_config");
+  const [cloudSync, setCloudSync, submitCloudSync] = useSystemConfig("cloud_sync");
+  const [language, , submitLanguage] = useSystemConfig("language");
+  const [menuExpandNum, , submitMenuExpandNum] = useSystemConfig("menu_expand_num");
+  const [checkScriptUpdateCycle, , submitCheckScriptUpdateCycle] = useSystemConfig("check_script_update_cycle");
+  const [updateDisableScript, , submitUpdateDisableScript] = useSystemConfig("update_disable_script");
+  const [silenceUpdateScript, , submitSilenceUpdateScript] = useSystemConfig("silence_update_script");
+  const [enableEslint, , submitEnableEslint] = useSystemConfig("enable_eslint");
+  const [eslintConfig, setEslintConfig, submitEslintConfig] = useSystemConfig("eslint_config");
+  const [blacklist, setBlacklist, submitBlacklist] = useSystemConfig("blacklist");
+  const [badgeNumberType, , submitBadgeNumberType] = useSystemConfig("badge_number_type");
+  const [badgeBackgroundColor, , submitBadgeBackgroundColor] = useSystemConfig("badge_background_color");
+  const [badgeTextColor, , submitBadgeTextColor] = useSystemConfig("badge_text_color");
+  const [scriptMenuDisplayType, , submitScriptMenuDisplayType] = useSystemConfig("script_menu_display_type");
+  const [editorTypeDefinition, setEditorTypeDefinition, submitEditorTypeDefinition] =
+    useSystemConfig("editor_type_definition");
   const languageList: { key: string; title: string }[] = [];
   const { t } = useTranslation();
   for (const key of Object.keys(i18n.store.data)) {
@@ -51,62 +47,6 @@ function Setting() {
     title: t("help_translate"),
   });
 
-  useEffect(() => {
-    const loadConfigs = () => {
-      Promise.all([
-        systemConfig.getCloudSync(),
-        systemConfig.getMenuExpandNum(),
-        systemConfig.getCheckScriptUpdateCycle(),
-        systemConfig.getUpdateDisableScript(),
-        systemConfig.getSilenceUpdateScript(),
-        systemConfig.getEslintConfig(),
-        systemConfig.getEnableEslint(),
-        systemConfig.getLanguage(),
-        systemConfig.getBlacklist(),
-        systemConfig.getBadgeNumberType(),
-        systemConfig.getBadgeBackgroundColor(),
-        systemConfig.getBadgeTextColor(),
-        systemConfig.getScriptMenuDisplayType(),
-      ]).then(
-        ([
-          cloudSync,
-          menuExpandNum,
-          checkCycle,
-          updateDisabled,
-          silenceUpdate,
-          eslintConfig,
-          enableEslint,
-          language,
-          blacklist,
-          badgeNumberType,
-          badgeBackgroundColor,
-          badgeTextColor,
-          scriptMenuDisplayType,
-        ]) => {
-          setSyncDelete(cloudSync.syncDelete);
-          setSyncScriptStatus(cloudSync.syncStatus);
-          setEnableCloudSync(cloudSync.enable);
-          setFilesystemType(cloudSync.filesystem);
-          setFilesystemParam(cloudSync.params[cloudSync.filesystem] || {});
-          setMenuExpandNum(menuExpandNum);
-          setCheckScriptUpdateCycle(checkCycle);
-          setUpdateDisableScript(updateDisabled);
-          setSilenceUpdateScript(silenceUpdate);
-          setEslintConfig(eslintConfig);
-          setEnableEslint(enableEslint);
-          setLanguage(language);
-          setBlacklist(blacklist);
-          setBadgeNumberType(badgeNumberType);
-          setBadgeBackgroundColor(badgeBackgroundColor);
-          setBadgeTextColor(badgeTextColor);
-          setScriptMenuDisplayType(scriptMenuDisplayType);
-        }
-      );
-    };
-
-    loadConfigs();
-  }, []);
-
   return (
     <Space className="setting w-full h-full overflow-auto relative" direction="vertical">
       {/* 基本设置 */}
@@ -122,8 +62,7 @@ function Setting() {
                   window.open("https://crowdin.com/project/scriptcat", "_blank");
                   return;
                 }
-                setLanguage(value);
-                systemConfig.setLanguage(value);
+                submitLanguage(value);
                 Message.success(t("language_change_tip")!);
               }}
             >
@@ -143,17 +82,17 @@ function Setting() {
         <Space direction="vertical" className={"w-full"}>
           <Space direction="horizontal" className={"w-full"}>
             <Checkbox
-              checked={syncDelete}
+              checked={cloudSync.syncDelete}
               onChange={(checked) => {
-                setSyncDelete(checked);
+                setCloudSync({ ...cloudSync, syncDelete: checked });
               }}
             >
               {t("sync_delete")}
             </Checkbox>
             <Checkbox
-              checked={syncScriptStatus}
+              checked={cloudSync.syncStatus}
               onChange={(checked) => {
-                setSyncScriptStatus(checked);
+                setCloudSync({ ...cloudSync, syncStatus: checked });
               }}
             >
               {t("sync_status")}
@@ -162,9 +101,9 @@ function Setting() {
           <FileSystemParams
             preNode={
               <Checkbox
-                checked={enableCloudSync}
+                checked={cloudSync.enable}
                 onChange={(checked) => {
-                  setEnableCloudSync(checked);
+                  setCloudSync({ ...cloudSync, enable: checked });
                 }}
               >
                 {t("enable_script_sync_to")}
@@ -177,38 +116,29 @@ function Setting() {
                 onClick={async () => {
                   // Save to the configuration
                   // Perform validation if enabled
-                  if (enableCloudSync) {
+                  if (cloudSync.enable) {
                     Message.info(t("cloud_sync_account_verification")!);
                     try {
-                      await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                      await FileSystemFactory.create(cloudSync.filesystem, cloudSync.params[cloudSync.filesystem]);
                     } catch (e) {
                       Message.error(`${t("cloud_sync_verification_failed")}: ${JSON.stringify(Logger.E(e))}`);
                       return;
                     }
                   }
-                  const cloudSync = await systemConfig.getCloudSync();
-                  const params = { ...cloudSync.params };
-                  params[fileSystemType] = fileSystemParams;
-                  systemConfig.setCloudSync({
-                    enable: enableCloudSync || false,
-                    syncDelete: syncDelete || false,
-                    syncStatus: syncScriptStatus || false,
-                    filesystem: fileSystemType,
-                    params,
-                  });
+                  submitCloudSync();
                   Message.success(t("save_success")!);
                 }}
               >
                 {t("save")}
               </Button>,
             ]}
-            fileSystemType={fileSystemType}
-            fileSystemParams={fileSystemParams}
+            fileSystemType={cloudSync.filesystem}
+            fileSystemParams={cloudSync.params[cloudSync.filesystem] || {}}
             onChangeFileSystemType={(type) => {
-              setFilesystemType(type);
+              setCloudSync({ ...cloudSync, filesystem: type });
             }}
             onChangeFileSystemParams={(params) => {
-              setFilesystemParam(params);
+              setCloudSync({ ...cloudSync, params: { ...cloudSync.params, [cloudSync.filesystem]: params } });
             }}
           />
         </Space>
@@ -228,8 +158,7 @@ function Setting() {
                     value={badgeNumberType}
                     className="w-40 max-w-50"
                     onChange={(value) => {
-                      setBadgeNumberType(value);
-                      systemConfig.setBadgeNumberType(value);
+                      submitBadgeNumberType(value);
                     }}
                   >
                     <Select.Option value="none">{t("badge_type_none")}</Select.Option>
@@ -246,8 +175,7 @@ function Setting() {
                     value={badgeBackgroundColor}
                     onChange={(value) => {
                       const colorValue = typeof value === "string" ? value : value[0]?.color || "#4e5969";
-                      setBadgeBackgroundColor(colorValue);
-                      systemConfig.setBadgeBackgroundColor(colorValue);
+                      submitBadgeBackgroundColor(colorValue);
                     }}
                     showText
                     disabledAlpha
@@ -263,8 +191,7 @@ function Setting() {
                     value={badgeTextColor}
                     onChange={(value) => {
                       const colorValue = typeof value === "string" ? value : value[0]?.color || "#ffffff";
-                      setBadgeTextColor(colorValue);
-                      systemConfig.setBadgeTextColor(colorValue);
+                      submitBadgeTextColor(colorValue);
                     }}
                     showText
                     disabledAlpha
@@ -286,8 +213,7 @@ function Setting() {
                     checked={scriptMenuDisplayType === "all"}
                     onChange={(e) => {
                       const checked = e;
-                      setScriptMenuDisplayType(checked ? "all" : "no_browser");
-                      systemConfig.setScriptMenuDisplayType(checked ? "all" : "no_browser");
+                      submitScriptMenuDisplayType(checked ? "all" : "no_browser");
                     }}
                   >
                     {t("display_right_click_menu")}
@@ -304,8 +230,7 @@ function Setting() {
                     value={menuExpandNum.toString()}
                     onChange={(val) => {
                       const num = parseInt(val, 10);
-                      setMenuExpandNum(num);
-                      systemConfig.setMenuExpandNum(num);
+                      submitMenuExpandNum(num);
                     }}
                   />
                 </div>
@@ -327,8 +252,7 @@ function Setting() {
                 className="w-35 max-w-45"
                 onChange={(value) => {
                   const num = parseInt(value, 10);
-                  setCheckScriptUpdateCycle(num);
-                  systemConfig.setCheckScriptUpdateCycle(num);
+                  submitCheckScriptUpdateCycle(num);
                 }}
               >
                 <Select.Option value="0">{t("never")}</Select.Option>
@@ -346,8 +270,7 @@ function Setting() {
               <span className="font-medium mb-1">{t("update_options")}</span>
               <Checkbox
                 onChange={(checked) => {
-                  setUpdateDisableScript(checked);
-                  systemConfig.setUpdateDisableScript(checked);
+                  submitUpdateDisableScript(checked);
                 }}
                 checked={updateDisableScript}
               >
@@ -355,8 +278,7 @@ function Setting() {
               </Checkbox>
               <Checkbox
                 onChange={(checked) => {
-                  setSilenceUpdateScript(checked);
-                  systemConfig.setSilenceUpdateScript(checked);
+                  submitSilenceUpdateScript(checked);
                 }}
                 checked={silenceUpdateScript}
               >
@@ -396,7 +318,7 @@ function Setting() {
                 Message.error(`${t("expression_format_error")}: ${ret.line}`);
                 return;
               }
-              systemConfig.setBlacklist(val);
+              submitBlacklist(val);
             }}
           />
         </div>
@@ -408,8 +330,7 @@ function Setting() {
             <div className="flex items-center gap-4 flex-1">
               <Checkbox
                 onChange={(checked) => {
-                  setEnableEslint(checked);
-                  systemConfig.setEnableEslint(checked);
+                  submitEnableEslint(checked);
                 }}
                 checked={enableEslint}
               >
@@ -445,14 +366,19 @@ function Setting() {
                 onChange={(v) => {
                   setEslintConfig(v);
                 }}
-                onBlur={(v) => {
+                onBlur={() => {
                   prettier
                     .format(eslintConfig, {
                       parser: "json",
                       plugins: [prettierPluginEstree, babel],
                     })
-                    .then(() => {
-                      systemConfig.setEslintConfig(v.target.value);
+                    .then((value) => {
+                      if (value === "") {
+                        Message.success(t("eslint_rules_reset"));
+                      } else {
+                        Message.success(t("eslint_rules_saved"));
+                      }
+                      submitEslintConfig(value);
                     })
                     .catch((e) => {
                       Message.error(`${t("eslint_config_format_error")}: ${JSON.stringify(Logger.E(e))}`);
@@ -461,6 +387,74 @@ function Setting() {
               />
             </div>
           )}
+          <div>
+            <div className="flex items-start justify-between mb-3">
+              <span className="font-medium min-w-20">{t("editor_config")}</span>
+              <CustomTrans
+                className="text-xs max-w-80 text-right ml-6 flex-shrink-0"
+                i18nKey="editor_config_description"
+              />
+            </div>
+            <Input.TextArea
+              placeholder={t("editor_config")!}
+              autoSize={{
+                minRows: 4,
+                maxRows: 8,
+              }}
+              value={editorConfig}
+              onChange={(v) => {
+                setEditorConfig(v);
+              }}
+              onBlur={() => {
+                prettier
+                  .format(editorConfig, {
+                    parser: "json",
+                    plugins: [prettierPluginEstree, babel],
+                  })
+                  .then((value) => {
+                    if (value === "") {
+                      Message.success(t("editor_config_reset"));
+                    } else {
+                      Message.success(t("editor_config_saved"));
+                    }
+                    submitEditorConfig(value);
+                  })
+                  .catch((e) => {
+                    Message.error(`${t("editor_config_format_error")}: ${JSON.stringify(Logger.E(e))}`);
+                  });
+              }}
+            />
+          </div>
+          <div>
+            <div className="flex items-start justify-between mb-3">
+              <span className="font-medium min-w-20">{t("editor_type_definition")}</span>
+              <span
+                className="text-xs max-w-100 text-right ml-6 flex-shrink-0"
+                dangerouslySetInnerHTML={{
+                  __html: t("editor_type_definition_description"),
+                }}
+              ></span>
+            </div>
+            <Input.TextArea
+              placeholder={t("editor_type_definition")!}
+              autoSize={{
+                minRows: 4,
+                maxRows: 8,
+              }}
+              value={editorTypeDefinition as string}
+              onChange={(v) => {
+                setEditorTypeDefinition(v);
+              }}
+              onBlur={() => {
+                if (editorTypeDefinition === "") {
+                  Message.success(t("editor_type_definition_reset"));
+                } else {
+                  Message.success(t("editor_type_definition_saved"));
+                }
+                submitEditorTypeDefinition(editorTypeDefinition as string);
+              }}
+            />
+          </div>
         </Space>
       </Card>
     </Space>

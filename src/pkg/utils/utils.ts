@@ -1,4 +1,5 @@
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SystemConfigKey } from "../config/config";
 
 export function randNum(a: number, b: number) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
@@ -108,14 +109,18 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   try {
     await chrome.tabs.create(createProperties);
     return;
-  } catch {
-    // do nothing
+  } catch (e: any) {
+    console.error("Error opening tab:", e);
   }
   // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
   delete createProperties.openerTabId;
   delete createProperties.windowId;
-  await chrome.tabs.create(createProperties);
-  return;
+  try {
+    await chrome.tabs.create(createProperties);
+    return;
+  } catch (e: any) {
+    console.error("Retry opeing tab error:", e);
+  }
 }
 
 // 检查订阅规则是否改变,是否能够静默更新
@@ -173,8 +178,8 @@ export async function isUserScriptsAvailable() {
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
     const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
-      // 放不存在的uuid. 我们只需要知道API能否执行。不需要完整所有userScripts
-      ids: ["65471e40-f2c4-4d07-8224-24ccc24fa291", "da5365aa-de3c-4db3-87fb-0311513424e4"],
+      // 放不可能存在的id. 我们只需要知道API能否执行。不需要完整所有userScripts
+      ids: ["undefined-id-1", "undefined-id-2"],
     });
     // 返回一个阵列的话表示API能正常使用 （有执行权限）
     return ret !== undefined && ret !== null && typeof ret[Symbol.iterator] === "function";
@@ -303,3 +308,8 @@ export const obtainBlackList = (strBlacklist: string | null | undefined) => {
     : [];
   return blacklist;
 };
+
+// 将蛇形的 key 转换为驼峰的函数名
+export function toCamelCase(key: SystemConfigKey) {
+  return key.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace(/^([a-z])/, (g) => g.toUpperCase());
+}

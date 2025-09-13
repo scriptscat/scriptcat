@@ -22,7 +22,7 @@ ScriptCat
 [![Chrome](https://img.shields.io/badge/chrome-success-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
-![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
+[![Crowdin](https://badges.crowdin.net/scriptcat/localized.svg)](https://crowdin.com/project/scriptcat)
 
 ## 关于
 
@@ -63,17 +63,16 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 #### 扩展商店（推荐）
 
-| 浏览器 | 商店链接 | 状态 |
-|--------|----------|------|
-| Chrome | [正式版本](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta版本](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ 可用 |
-| Edge | [正式版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi) | ✅ 可用 |
-| Firefox | [正式版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/) | ✅ MV2 |
-| GitHub Releases | [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) | ✅ 可用 |
-| GitHub Actions | [GitHub Actions](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml) | 每次提交触发 |
+| 浏览器  | 商店链接                                                                                                                                                                                                                                    | 状态    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Chrome  | [正式版本](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta版本](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ 可用 |
+| Edge    | [正式版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta版本](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)                      | ✅ 可用 |
+| Firefox | [正式版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta版本](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)                                                                                             | ✅ MV2  |
 
 #### 手动安装
 
-如果无法访问扩展商店，可以在 [GitHub Releases](https://github.com/scriptscat/scriptcat/releases) 下载最新版本的 ZIP 包进行手动安装。
+如果无法访问扩展商店，可以在 [GitHub Releases](https://github.com/scriptscat/scriptcat/releases)
+下载最新版本的 ZIP 包进行手动安装。
 
 ### 📝 使用指南
 
@@ -81,11 +80,13 @@ ScriptCat（脚本猫）是一个功能强大的用户脚本管理器，基于�
 
 1. **从脚本市场获取**：访问 [ScriptCat 脚本站](https://scriptcat.org/search) 或其他用户脚本市场
 2. **后台脚本专区**：体验独有的 [后台脚本](https://scriptcat.org/zh-CN/search?script_type=3)
-3. **兼容性**：支持绝大部分油猴脚本，可直接安装使用，如果遇到不兼容的脚本，欢迎通过 [issue](https://github.com/scriptscat/scriptcat/issues) 反馈给我们。
+3. **兼容性**：支持绝大部分油猴脚本，可直接安装使用，如果遇到不兼容的脚本，欢迎通过
+   [issue](https://github.com/scriptscat/scriptcat/issues) 反馈给我们。
 
 #### 开发脚本
 
-查看我们的 [开发文档](https://docs.scriptcat.org/docs/dev/)与[开发指南](https://learn.scriptcat.org/) 学习如何编写脚本。文档涵盖了从基础到高级的所有内容，让你在编写脚本时得心应手。
+查看我们的 [开发文档](https://docs.scriptcat.org/docs/dev/)与[开发指南](https://learn.scriptcat.org/)
+学习如何编写脚本。文档涵盖了从基础到高级的所有内容，让你在编写脚本时得心应手。
 
 如果发现文档有错误或希望贡献内容，可以点击文档页面的"编辑此页"进行修改。
 

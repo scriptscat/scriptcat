@@ -350,7 +350,7 @@
   "start_guide_content": "crwdns8560:0crwdne8560:0",
   "guide_installed_scripts": "crwdns8562:0crwdne8562:0",
   "guide_script_list_title": "crwdns8564:0crwdne8564:0",
-  "guide_script_list_content": "crwdns8566:0crwdne8566:0",
+  "guide_script_list_content": "crwdns10802:0crwdne10802:0",
   "guide_script_list_enable_title": "crwdns8568:0crwdne8568:0",
   "guide_script_list_enable_content": "crwdns8570:0crwdne8570:0",
   "guide_script_list_apply_to_run_status_title": "crwdns8572:0crwdne8572:0",
@@ -451,5 +451,25 @@
   "light": "crwdns10794:0crwdne10794:0",
   "dark": "crwdns10796:0crwdne10796:0",
   "individual_edit": "crwdns10798:0crwdne10798:0",
-  "batch_edit": "crwdns10800:0crwdne10800:0"
+  "batch_edit": "crwdns10800:0crwdne10800:0",
+  "script_code": "crwdns10804:0crwdne10804:0",
+  "enter_search_value": "crwdns10806:0{{search}}crwdne10806:0",
+  "script_run_env": {
+    "title": "crwdns10808:0crwdne10808:0",
+    "default": "crwdns10810:0crwdne10810:0",
+    "all": "crwdns10812:0crwdne10812:0",
+    "normal-tabs": "crwdns10814:0crwdne10814:0",
+    "incognito-tabs": "crwdns10816:0crwdne10816:0"
+  },
+  "editor_config": "crwdns10818:0crwdne10818:0",
+  "editor_config_description": "crwdns10820:0crwdne10820:0",
+  "editor_type_definition": "crwdns10822:0crwdne10822:0",
+  "editor_type_definition_description": "crwdns10824:0crwdne10824:0",
+  "eslint_rules_reset": "crwdns10826:0crwdne10826:0",
+  "eslint_rules_saved": "crwdns10828:0crwdne10828:0",
+  "editor_config_reset": "crwdns10830:0crwdne10830:0",
+  "editor_config_saved": "crwdns10832:0crwdne10832:0",
+  "editor_config_format_error": "crwdns10834:0crwdne10834:0",
+  "editor_type_definition_reset": "crwdns10836:0crwdne10836:0",
+  "editor_type_definition_saved": "crwdns10838:0crwdne10838:0"
 }

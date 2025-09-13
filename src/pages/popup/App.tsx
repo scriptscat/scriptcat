@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
@@ -11,16 +12,17 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import semver from "semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
+import PopupWarnings from "../components/PopupWarnings";
 import { popupClient, scriptClient } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
-import { isUserScriptsAvailable, getBrowserType, BrowserType, getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab } from "@App/pkg/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -33,7 +35,6 @@ function App() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
-  const [permissionReqResult, setPermissionReqResult] = useState("");
   const [checkUpdate, setCheckUpdate] = useState<Parameters<typeof systemConfig.setCheckUpdate>[0]>({
     version: ExtVersion,
     notice: "",
@@ -171,113 +172,9 @@ function App() {
     }
   };
 
-  const [isUserScriptsAvailableState, setIsUserScriptsAvailableState] = useState(false);
-
-  const updateIsUserScriptsAvailableState = async () => {
-    const flag = await isUserScriptsAvailable();
-    setIsUserScriptsAvailableState(flag);
-  };
-  updateIsUserScriptsAvailableState();
-
-  const warningMessageHTML = useMemo(() => {
-    // 可使用UserScript的话，不查browserType
-    const browserType = !isUserScriptsAvailableState ? getBrowserType() : null;
-
-    const warningMessageHTML = browserType
-      ? browserType.firefox
-        ? t("develop_mode_guide")
-        : browserType.chrome
-          ? browserType.chrome & BrowserType.chromeA
-            ? t("lower_version_browser_guide")
-            : browserType.chrome & BrowserType.chromeC && browserType.chrome & BrowserType.Chrome
-              ? t("allow_user_script_guide")
-              : t("develop_mode_guide") // Edge浏览器目前没有允许用户脚本选项，开启开发者模式即可
-          : "UNKNOWN"
-      : "";
-
-    return warningMessageHTML;
-  }, [isUserScriptsAvailableState]);
-
-  // 权限要求详见：https://github.com/mdn/webextensions-examples/blob/main/userScripts-mv3/options.mjs
-
-  const [showRequestButton, setShowRequestButton] = useState(false);
-  //@ts-ignore
-  if (chrome.permissions?.contains && chrome.permissions?.request) {
-    chrome.permissions.contains(
-      {
-        permissions: ["userScripts"],
-      },
-      function (permissionOK) {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.permissions.contains:", lastError.message);
-          // runtime 错误的话不显示按钮
-          return;
-        }
-        if (permissionOK === false) {
-          // 假设browser能支持 `chrome.permissions.contains` 及在 callback返回一个false值的话，
-          // chrome.permissions.request 应该可以执行
-          // 因此在这裡显示按钮
-          setShowRequestButton(true);
-        }
-      }
-    );
-  }
-
   return (
     <>
-      {warningMessageHTML && (
-        <Alert
-          type="warning"
-          content={
-            <div
-              dangerouslySetInnerHTML={{
-                __html: warningMessageHTML,
-              }}
-            />
-          }
-        />
-      )}
-      {showRequestButton && (
-        <Button
-          onClick={() => {
-            const updateOnPermissionGranted = async (granted: boolean) => {
-              if (granted) {
-                granted = await new Promise((resolve) => {
-                  chrome.runtime.sendMessage({ type: "userScripts.LISTEN_CONNECTIONS" }, (resp) => {
-                    const lastError = chrome.runtime.lastError;
-                    if (lastError) {
-                      resp = false;
-                      console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
-                    }
-                    resolve(resp === true);
-                  });
-                });
-              }
-              if (granted) {
-                setPermissionReqResult("✅");
-                // UserScripts API相关的初始化：
-                // userScripts.LISTEN_CONNECTIONS 進行 Server 通讯初始化
-                // onUserScriptAPIGrantAdded 進行 腳本注冊
-                updateIsUserScriptsAvailableState();
-              } else {
-                setPermissionReqResult("❎");
-              }
-            };
-            chrome.permissions.request({ permissions: ["userScripts"] }, (granted) => {
-              const lastError = chrome.runtime.lastError;
-              if (lastError) {
-                granted = false;
-                console.error("chrome.runtime.lastError in chrome.permissions.request:", lastError.message);
-              }
-              updateOnPermissionGranted(granted);
-            });
-          }}
-        >
-          {t("request_permission")} {permissionReqResult}
-        </Button>
-      )}
-      {isBlacklist && <Alert type="warning" content={t("page_in_blacklist")} />}
+      <PopupWarnings isBlacklist={isBlacklist} />
       <Card
         size="small"
         title={
@@ -292,6 +189,23 @@ function App() {
                 <Button type="text" icon={<IconNotification />} iconOnly onClick={handleNotificationClick} />
               </Badge>
               <Dropdown
+                onVisibleChange={(visible) => {
+                  if (!visible) return;
+                  // 检查位置，优化窗口过小，导致弹出菜单显示不全的问题
+                  setTimeout(() => {
+                    const dropdowns = document.getElementsByClassName("arco-dropdown");
+                    console.log(dropdowns);
+                    if (dropdowns.length > 0) {
+                      const dropdown = dropdowns[0] as HTMLElement;
+                      console.log(dropdowns, dropdown.style.top);
+                      // 如果top是负数修改为0
+                      if (parseInt(dropdown
+                        .style.top) < 0) {
+                        dropdown.style.top = "0px";
+                      }
+                    }
+                  }, 100);
+                }}
                 droplist={
                   <Menu
                     style={{

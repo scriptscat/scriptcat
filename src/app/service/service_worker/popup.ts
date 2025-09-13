@@ -244,8 +244,8 @@ export class PopupService {
       for (const d of data) {
         runCount += d.runNum;
       }
-      scriptCountMap.set(tabId, `${data.length}`);
-      runCountMap.set(tabId, `${runCount}`);
+      data.length && scriptCountMap.set(tabId, `${data.length}`);
+      runCount && runCountMap.set(tabId, `${runCount}`);
       return data;
     });
   }

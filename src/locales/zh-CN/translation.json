@@ -453,5 +453,25 @@
   "individual_edit": "单独编辑",
   "batch_edit": "批量编辑",
   "script_code": "脚本代码",
-  "enter_search_value": "请输入 {{search}} 进行搜索"
+  "enter_search_value": "请输入 {{search}} 进行搜索",
+  "script_run_env": {
+    "title": "运行环境",
+    "default": "默认",
+    "all": "所有标签",
+    "normal-tabs": "普通标签",
+    "incognito-tabs": "隐身标签"
+  },
+  "editor_config": "编辑器配置",
+  "editor_config_description": "你可以参考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions进行配置",
+  "editor_type_definition": "编辑器类型定义",
+  "editor_type_definition_description": "你可以自定义自己的类型定义，脚本编辑器会自动加载这些类型定义",
+  "eslint_rules_reset": "ESLint规则已重置",
+  "eslint_rules_saved": "ESLint规则已保存",
+  "editor_config_reset": "编辑器配置已重置",
+  "editor_config_saved": "编辑器配置已保存",
+  "editor_config_format_error": "编辑器配置格式错误",
+  "editor_type_definition_reset": "编辑器类型定义已重置",
+  "editor_type_definition_saved": "编辑器类型定义已保存",
+  "layout": "布局",
+  "hide_script_list": "隐藏脚本列表"
 }

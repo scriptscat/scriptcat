@@ -195,7 +195,7 @@ const scriptListSortOrder = (
   sortScript({ active, over });
 };
 
-const DraggableContainer = (props: any) => {
+const DraggableContainer = React.forwardRef((props: any, ref: any) => {
   const context = useContext(DraggableContext);
   if (!context) return <></>;
   const { sensors, scriptList, setScriptList } = context;
@@ -204,6 +204,7 @@ const DraggableContainer = (props: any) => {
       sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
+      accessibility={{ container: document.body }}
       onDragEnd={(event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) {
@@ -215,11 +216,12 @@ const DraggableContainer = (props: any) => {
       }}
     >
       <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
-        <tbody {...props} />
+        <tbody {...props} ref={ref} />
       </SortableContext>
     </DndContext>
   );
-};
+});
+DraggableContainer.displayName = "DraggableContainer";
 
 const EnableSwitch = React.memo(
   ({

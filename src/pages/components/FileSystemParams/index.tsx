@@ -42,6 +42,10 @@ const FileSystemParams: React.FC<{
       key: "googledrive",
       name: "Google Drive",
     },
+    {
+      key: "dropbox",
+      name: "Dropbox",
+    },
   ];
 
   return (
