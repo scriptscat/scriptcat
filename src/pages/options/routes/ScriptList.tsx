@@ -18,6 +18,7 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { TbWorldWww } from "react-icons/tb";
+import { messageQueue } from "@App/pages/store/global";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
@@ -52,6 +53,7 @@ import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
+  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -67,27 +69,31 @@ import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { ListHomeRender, ScriptIcons } from "./utils";
-import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
+import { useAppDispatch } from "@App/pages/store/hooks";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
-  fetchScriptList,
-  requestDeleteScript,
-  selectScripts,
+  requestDeleteScripts,
   sortScript,
+  pinToTop,
   requestStopScript,
   requestRunScript,
   scriptClient,
-  enableLoading,
-  updateEnableStatus,
   synchronizeClient,
-  batchDeleteScript,
   requestFilterResult,
+  fetchScriptList,
+  fetchScript,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { loadScriptFavicons } from "@App/pages/store/utils";
-import { store } from "@App/pages/store/store";
 import type { SearchType } from "@App/app/service/service_worker/types";
+import type {
+  TDeleteScript,
+  TEnableScript,
+  TInstallScript,
+  TScriptRunStatus,
+  TSortedScript,
+} from "@App/app/service/queue";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -97,6 +103,7 @@ const SortableRowCtx = createContext<RowCtx>(null);
 interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
   scriptList: ScriptLoading[];
+  setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>;
   dispatch: ReturnType<typeof useAppDispatch>;
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
@@ -162,10 +169,36 @@ const DragHandle = () => {
   );
 };
 
+const scriptListSortOrder = (
+  scripts: ScriptLoading[],
+  setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>,
+  { active, over }: { active: string; over: string }
+) => {
+  let oldIndex = -1;
+  let newIndex = -1;
+  scripts.forEach((item, index) => {
+    if (item.uuid === active) {
+      oldIndex = index;
+    } else if (item.uuid === over) {
+      newIndex = index;
+    }
+  });
+  if (oldIndex >= 0 && newIndex >= 0) {
+    const newItems = arrayMove(scripts, oldIndex, newIndex);
+    for (let i = 0, l = newItems.length; i < l; i += 1) {
+      if (newItems[i].sort !== i) {
+        newItems[i].sort = i;
+      }
+    }
+    setScriptList(newItems);
+  }
+  sortScript({ active, over });
+};
+
 const DraggableContainer = (props: any) => {
   const context = useContext(DraggableContext);
   if (!context) return <></>;
-  const { sensors, dispatch, scriptList } = context;
+  const { sensors, scriptList, setScriptList } = context;
   return (
     <DndContext
       sensors={sensors}
@@ -177,7 +210,7 @@ const DraggableContainer = (props: any) => {
           return;
         }
         if (active.id !== over.id) {
-          dispatch(sortScript({ active: active.id as string, over: over.id as string }));
+          scriptListSortOrder(scriptList, setScriptList, { active: active.id as string, over: over.id as string });
         }
       }}
     >
@@ -213,7 +246,8 @@ function ScriptList() {
   }>();
   const [cloudScript, setCloudScript] = useState<Script>();
   const dispatch = useAppDispatch();
-  const scriptList = useAppSelector(selectScripts);
+  const [mInitial, setInitial] = useState<boolean>(false);
+  const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
@@ -250,19 +284,195 @@ function ScriptList() {
     () => ({
       sensors,
       scriptList,
+      setScriptList,
       dispatch,
     }),
-    [sensors, scriptList, dispatch]
+    [sensors, scriptList, setScriptList, dispatch]
   );
 
-  useEffect(() => {
-    dispatch(fetchScriptList()).then((action) => {
-      if (fetchScriptList.fulfilled.match(action)) {
-        // 在脚本列表加载完成后，加载favicon
-        loadScriptFavicons(action.payload);
+  const doInitial = async () => {
+    setInitial(true);
+    const list = await fetchScriptList();
+    setScriptList(list);
+
+    for await (const { chunkResults } of loadScriptFavicons(list)) {
+      setScriptList((list) => {
+        const scriptMap = new Map<string, ScriptLoading>();
+        for (const s of list) {
+          scriptMap.set(s.uuid, s);
+        }
+        const altered = new Set();
+        for (const item of chunkResults) {
+          const script = scriptMap.get(item.uuid);
+          if (script) {
+            altered.add(item.uuid);
+            script.favorite = item.fav;
+          }
+        }
+        return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+      });
+    }
+  };
+
+  mInitial === false && doInitial();
+
+  const pageApi = {
+    scriptRunStatus(data: TScriptRunStatus) {
+      const { uuid, runStatus } = data;
+      setScriptList((list: ScriptLoading[]) => {
+        for (let i = 0, l = list.length; i < l; i++) {
+          const s = list[i];
+          if (s.uuid === uuid) {
+            s.runStatus = runStatus;
+            list[i] = { ...s };
+            return { ...list };
+          }
+        }
+        return list;
+      });
+    },
+
+    async installScript(message: TInstallScript) {
+      const installedScript = await fetchScript(message.script.uuid);
+      if (!installedScript) return;
+      const installedScriptUUID = installedScript.uuid;
+      if (!installedScriptUUID) return;
+      setScriptList((list: ScriptLoading[]) => {
+        for (let i = 0, l = list.length; i < l; i++) {
+          const s = list[i];
+          if (s.uuid === installedScriptUUID) {
+            Object.assign(s, installedScript);
+            list[i] = { ...s };
+            return { ...list };
+          }
+        }
+        // 放到第一
+        const res = [{ ...installedScript }, ...list];
+        for (let i = 0, l = res.length; i < l; i++) {
+          res[i].sort = i;
+        }
+        return res;
+      });
+    },
+
+    deleteScripts(data: TDeleteScript[]) {
+      const uuids = data.map(({ uuid }) => uuid);
+      const set = new Set(uuids);
+      setScriptList((list: ScriptLoading[]) => {
+        const res = list.filter((s) => !set.has(s.uuid));
+        for (let i = 0, l = res.length; i < l; i++) {
+          res[i].sort = i;
+        }
+        return res;
+      });
+    },
+
+    enableScript(data: TEnableScript) {
+      const { uuid, enable } = data;
+      setScriptList((list: ScriptLoading[]) =>
+        list.map((script) => {
+          if (script.uuid === uuid) {
+            script.enableLoading = false;
+            script.status = enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+            return { ...script };
+          } else {
+            return script;
+          }
+        })
+      );
+    },
+
+    enableScripts(data: TEnableScript[]) {
+      const map = new Map();
+      for (const { uuid, enable } of data) {
+        map.set(uuid, enable);
+      }
+      setScriptList((list: ScriptLoading[]) =>
+        list.map((script) => {
+          if (map.has(script.uuid)) {
+            const enable = map.get(script.uuid);
+            script.enableLoading = false;
+            script.status = enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+            return { ...script };
+          } else {
+            return script;
+          }
+        })
+      );
+    },
+
+    sortedScripts(data: TSortedScript[]) {
+      setScriptList((list: ScriptLoading[]) => {
+        const listEntries = new Map<string, ScriptLoading>();
+        for (const item of list) {
+          listEntries.set(item.uuid, item);
+        }
+        let j = 0;
+        const res = new Array(data.length);
+        for (const { uuid } of data) {
+          const item = listEntries.get(uuid);
+          if (item) {
+            res[j] = item;
+            item.sort = j;
+            j++;
+          }
+        }
+        res.length = j;
+        return res;
+      });
+    },
+  };
+
+  const subscribeMessageConsumed = new WeakSet();
+  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
+    return messageQueue.subscribe<any>(topic, (data: any) => {
+      const message = data?.myMessage || data;
+      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
+        subscribeMessageConsumed.add(message);
+        handler(message);
       }
     });
-  }, [dispatch]);
+  };
+
+  useEffect(() => {
+    const unhooks = [
+      subscribeMessage("scriptRunStatus", pageApi.scriptRunStatus),
+      subscribeMessage("installScript", pageApi.installScript),
+      subscribeMessage("deleteScripts", pageApi.deleteScripts),
+      subscribeMessage("enableScripts", pageApi.enableScripts),
+      subscribeMessage("sortedScripts", pageApi.sortedScripts),
+    ];
+    return () => {
+      for (const unhook of unhooks) unhook();
+    };
+  });
+
+  const updateScriptList = (data: Partial<Script | ScriptLoading>) => {
+    setScriptList((list) =>
+      list.map((script) => {
+        if (script.uuid === data.uuid) {
+          Object.assign(script, data);
+          return { ...script };
+        } else {
+          return script;
+        }
+      })
+    );
+  };
+
+  const updateScriptListMultiple = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
+    const set = new Set(uuids);
+    setScriptList((list) =>
+      list.map((script) => {
+        if (set.has(script.uuid)) {
+          Object.assign(script, data);
+          return { ...script };
+        } else {
+          return script;
+        }
+      })
+    );
+  };
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -301,8 +511,10 @@ function ScriptList() {
           ],
           onFilter: (value, row) => row.status === value,
           render: (col, item: ScriptLoading) => {
+            const { uuid } = item;
             const onChange = (checked: boolean) => {
-              dispatch(requestEnableScript({ uuid: item.uuid, enable: checked }));
+              updateScriptList({ uuid: uuid, enableLoading: true });
+              requestEnableScript({ uuid: uuid, enable: checked });
             };
             return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
           },
@@ -332,13 +544,11 @@ function ScriptList() {
                         setFilterKeys([...filterKeys]);
                         return;
                       }
-                      dispatch(requestFilterResult({ type: value, value: filterKeys[0].value }))
-                        .unwrap()
-                        .then((res) => {
-                          if (filterKeys[0].type !== value) return;
-                          setFilterCache(res as any);
-                          setFilterKeys([...filterKeys]);
-                        });
+                      requestFilterResult({ type: value, value: filterKeys[0].value }).then((res) => {
+                        if (filterKeys[0].type !== value) return;
+                        setFilterCache(res as any);
+                        setFilterKeys([...filterKeys]);
+                      });
                     }
                   }}
                 >
@@ -365,13 +575,11 @@ function ScriptList() {
                         setFilterKeys([...filterKeys]);
                         return;
                       }
-                      dispatch(requestFilterResult({ value, type: filterKeys[0].type }))
-                        .unwrap()
-                        .then((res) => {
-                          if (filterKeys[0].value !== value) return;
-                          setFilterCache(res as any);
-                          setFilterKeys([...filterKeys]);
-                        });
+                      requestFilterResult({ value, type: filterKeys[0].type }).then((res) => {
+                        if (filterKeys[0].value !== value) return;
+                        setFilterCache(res as any);
+                        setFilterKeys([...filterKeys]);
+                      });
                     }
                   }}
                   onSearch={() => {
@@ -659,7 +867,9 @@ function ScriptList() {
                   title={t("confirm_delete_script")}
                   icon={<RiDeleteBin5Fill />}
                   onOk={() => {
-                    dispatch(requestDeleteScript(item.uuid));
+                    const { uuid } = item;
+                    updateScriptList({ uuid, actionLoading: true });
+                    requestDeleteScripts([item.uuid]);
                   }}
                 >
                   <Button
@@ -701,7 +911,9 @@ function ScriptList() {
                           id: "script-stop",
                           content: t("stopping_script"),
                         });
-                        await dispatch(requestStopScript(item.uuid)).unwrap();
+                        updateScriptListMultiple([item.uuid], { actionLoading: true });
+                        await requestStopScript(item.uuid);
+                        updateScriptListMultiple([item.uuid], { actionLoading: false });
                         Message.success({
                           id: "script-stop",
                           content: t("script_stopped"),
@@ -712,7 +924,9 @@ function ScriptList() {
                           id: "script-run",
                           content: t("starting_script"),
                         });
-                        await dispatch(requestRunScript(item.uuid)).unwrap();
+                        updateScriptListMultiple([item.uuid], { actionLoading: true });
+                        await requestRunScript(item.uuid);
+                        updateScriptListMultiple([item.uuid], { actionLoading: false });
                         Message.success({
                           id: "script-run",
                           content: t("script_started"),
@@ -902,13 +1116,9 @@ function ScriptList() {
                     onClick={() => {
                       const enableAction = (enable: boolean) => {
                         const uuids = select.map((item) => item.uuid);
-                        dispatch(enableLoading({ uuids: uuids, loading: true }));
-                        Promise.allSettled(uuids.map((uuid) => scriptClient.enable(uuid, enable))).finally(() => {
-                          dispatch(updateEnableStatus({ uuids: uuids, enable: enable }));
-                          dispatch(enableLoading({ uuids: uuids, loading: false }));
-                        });
+                        updateScriptListMultiple(uuids, { enableLoading: true });
+                        scriptClient.enables(uuids, enable);
                       };
-                      let l: number | undefined;
                       switch (action) {
                         case "enable":
                           enableAction(true);
@@ -917,10 +1127,8 @@ function ScriptList() {
                           enableAction(false);
                           break;
                         case "export": {
-                          const uuids: string[] = [];
-                          for (const item of select) {
-                            uuids.push(item.uuid);
-                          }
+                          const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
+                          const uuids = sortedSelect.map((item) => item.uuid);
                           Message.loading({
                             id: "export",
                             content: t("exporting"),
@@ -937,32 +1145,19 @@ function ScriptList() {
                         case "delete":
                           if (confirm(t("list.confirm_delete"))) {
                             const uuids = select.map((item) => item.uuid);
-                            dispatch(batchDeleteScript(uuids));
-                            Promise.allSettled(uuids.map((uuid) => scriptClient.delete(uuid)));
+                            scriptClient.deletes(uuids); // async
                           }
                           break;
                         case "pin_to_top": {
                           // 将选中的脚本置顶
-                          l = select.length;
-                          if (l > 0) {
-                            // 获取当前所有脚本列表
-                            const currentScripts = store.getState().script.scripts;
-                            // 将选中的脚本依次置顶（从后往前，保持选中脚本之间的相对顺序）
-                            for (let i = l - 1; i >= 0; i--) {
-                              const script = select[i];
-                              // 找到脚本当前的位置
-                              const scriptIndex = currentScripts.findIndex((s) => s.uuid === script.uuid);
-                              if (scriptIndex > 0) {
-                                // 如果不是已经在最顶部
-                                // 将脚本置顶（移动到第一个位置）
-                                dispatch(sortScript({ active: script.uuid, over: currentScripts[0].uuid }));
-                              }
-                            }
+                          const sortedSelect = [...select].sort((a, b) => a.sort - b.sort);
+                          const uuids = sortedSelect.map((item) => item.uuid);
+                          pinToTop(uuids).then(() => {
                             Message.success({
                               content: t("scripts_pinned_to_top"),
                               duration: 3000,
                             });
-                          }
+                          });
                           break;
                         }
                         // 批量检查更新

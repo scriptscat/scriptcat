@@ -6,7 +6,7 @@ import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource } from "@App/a
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
-import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortScript } from "../queue";
+import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getRunAt } from "./utils";
@@ -202,22 +202,24 @@ export class RuntimeService {
     this.group.on("pageLoad", this.pageLoad.bind(this));
 
     // 监听脚本开启
-    this.mq.subscribe<TEnableScript>("enableScript", async (data) => {
-      const script = await this.scriptDAO.getAndCode(data.uuid);
-      if (!script) {
-        this.logger.error("script enable failed, script not found", {
-          uuid: data.uuid,
-        });
-        return;
-      }
-      // 如果是普通脚本, 在service worker中进行注册
-      // 如果是后台脚本, 在offscreen中进行处理
-      if (script.type === SCRIPT_TYPE_NORMAL) {
-        // 加载页面脚本
-        // 不管开没开启都要加载一次脚本信息
-        await this.loadPageScript(script);
-        if (!data.enable) {
-          await this.unregistryPageScript(script.uuid);
+    this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
+      for (const { uuid, enable } of data) {
+        const script = await this.scriptDAO.getAndCode(uuid);
+        if (!script) {
+          this.logger.error("script enable failed, script not found", {
+            uuid: uuid,
+          });
+          continue;
+        }
+        // 如果是普通脚本, 在service worker中进行注册
+        // 如果是后台脚本, 在offscreen中进行处理
+        if (script.type === SCRIPT_TYPE_NORMAL) {
+          // 加载页面脚本
+          // 不管开没开启都要加载一次脚本信息
+          await this.loadPageScript(script);
+          if (!enable) {
+            await this.unregistryPageScript(script.uuid);
+          }
         }
       }
     });
@@ -239,15 +241,17 @@ export class RuntimeService {
     });
 
     // 监听脚本删除
-    this.mq.subscribe<TDeleteScript>("deleteScript", async ({ uuid }) => {
-      await this.unregistryPageScript(uuid);
-      await this.deleteScriptMatch(uuid);
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+      for (const { uuid } of data) {
+        await this.unregistryPageScript(uuid);
+        await this.deleteScriptMatch(uuid);
+      }
       // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
       await this.reRegisterInjectScript();
     });
 
     // 监听脚本排序
-    this.mq.subscribe<TSortScript>("sortScript", async (scripts) => {
+    this.mq.subscribe<TSortedScript[]>("sortedScripts", async (scripts) => {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
       // 更新缓存
@@ -266,14 +270,18 @@ export class RuntimeService {
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
     this.mq.subscribe("preparationOffscreen", () => {
       this.scriptDAO.all().then((list) => {
+        const res = [];
         for (const script of list) {
           if (script.type === SCRIPT_TYPE_NORMAL) {
             continue;
           }
-          this.mq.publish<TEnableScript>("enableScript", {
+          res.push({
             uuid: script.uuid,
             enable: script.status === SCRIPT_STATUS_ENABLE,
           });
+        }
+        if (res.length > 0) {
+          this.mq.publish<TEnableScript[]>("enableScripts", res);
         }
       });
     });

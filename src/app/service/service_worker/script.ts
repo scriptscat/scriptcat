@@ -9,11 +9,12 @@ import {
   checkSilenceUpdate,
   getBrowserType,
   InfoNotification,
+  getStorageName,
   openInCurrentTab,
   randomMessageFlag,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -24,7 +25,14 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
 import { DocumentationSite } from "@App/app/const";
-import type { TScriptRunStatus, TDeleteScript, TEnableScript, TInstallScript, TSortScript } from "../queue";
+import type {
+  TScriptRunStatus,
+  TDeleteScript,
+  TEnableScript,
+  TInstallScript,
+  TSortedScript,
+  TInstallScriptParams,
+} from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
 import type { SearchType } from "./types";
@@ -36,12 +44,12 @@ export class ScriptService {
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
 
   constructor(
-    private systemConfig: SystemConfig,
-    private group: Group,
-    private mq: MessageQueue,
-    private valueService: ValueService,
-    private resourceService: ResourceService,
-    private scriptDAO: ScriptDAO
+    private readonly systemConfig: SystemConfig,
+    private readonly group: Group,
+    private readonly mq: MessageQueue,
+    private readonly valueService: ValueService,
+    private readonly resourceService: ResourceService,
+    private readonly scriptDAO: ScriptDAO
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
     this.scriptCodeDAO.enableCache();
@@ -218,6 +226,12 @@ export class ScriptService {
     return cacheInstance.get<[boolean, ScriptInfo]>(cacheKey);
   }
 
+  publishInstallScript(scriptFull: Script, options: any) {
+    const { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } = scriptFull;
+    const script = { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } as TInstallScriptParams;
+    return this.mq.publish<TInstallScript>("installScript", { script, ...options });
+  }
+
   // 安装脚本
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
@@ -247,7 +261,7 @@ export class ScriptService {
         // 下载资源
         this.resourceService.checkScriptResource(script).then(() => {
           // 广播一下
-          this.mq.publish<TInstallScript>("installScript", { script, update, upsertBy });
+          this.publishInstallScript(script, { update, upsertBy });
         });
         return { update };
       })
@@ -264,12 +278,48 @@ export class ScriptService {
       logger.error("script not found");
       throw new Error("script not found");
     }
+    const storageName = getStorageName(script);
     return this.scriptDAO
       .delete(uuid)
-      .then(() => {
-        this.scriptCodeDAO.delete(uuid);
+      .then(async () => {
+        await this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
-        this.mq.publish<TDeleteScript>("deleteScript", { uuid, script });
+        const data = [{ uuid, storageName }];
+        await this.mq.publish<TDeleteScript[]>("deleteScripts", data);
+        return true;
+      })
+      .catch((e) => {
+        logger.error("delete error", Logger.E(e));
+        throw e;
+      });
+  }
+
+  async deleteScripts(uuids: string[]) {
+    const logger = this.logger.with({ uuids });
+    const scripts = await this.scriptDAO.gets(uuids);
+    const uuids2: string[] = [];
+    const storageNames: string[] = [];
+    for (let i = 0, l = uuids.length; i < l; i++) {
+      const script = scripts[i];
+      if (script && script.uuid && script.uuid === uuids[i]) {
+        uuids2.push(script.uuid);
+        storageNames.push(getStorageName(script));
+      }
+    }
+    if (!uuids2.length) {
+      logger.error("scripts not found");
+      throw new Error("scripts not found");
+    }
+    return this.scriptDAO
+      .deletes(uuids2)
+      .then(async () => {
+        await this.scriptCodeDAO.deletes(uuids2);
+        logger.info("delete success");
+        const data = uuids2.map((uuid, i) => ({
+          uuid,
+          storageName: storageNames[i],
+        }));
+        await this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
       .catch((e) => {
@@ -279,20 +329,55 @@ export class ScriptService {
   }
 
   async enableScript(param: { uuid: string; enable: boolean }) {
-    const logger = this.logger.with({ uuid: param.uuid, enable: param.enable });
-    const script = await this.scriptDAO.get(param.uuid);
+    const { uuid, enable } = param;
+    const logger = this.logger.with({ uuid, enable });
+    const script = await this.scriptDAO.get(uuid);
     if (!script) {
       logger.error("script not found");
       throw new Error("script not found");
     }
     return this.scriptDAO
-      .update(param.uuid, {
-        status: param.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+      .update(uuid, {
+        status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
         updatetime: Date.now(),
       })
       .then(() => {
         logger.info("enable success");
-        this.mq.publish<TEnableScript>("enableScript", { uuid: param.uuid, enable: param.enable });
+        this.mq.publish<TEnableScript[]>("enableScripts", [{ uuid: uuid, enable: enable }]);
+        return {};
+      })
+      .catch((e) => {
+        logger.error("enable error", Logger.E(e));
+        throw e;
+      });
+  }
+
+  async enableScripts(param: { uuids: string[]; enable: boolean }) {
+    const { uuids, enable } = param;
+    const logger = this.logger.with({ uuids, enable });
+    const scripts = await this.scriptDAO.gets(uuids);
+    const uuids2: string[] = [];
+    for (let i = 0, l = uuids.length; i < l; i++) {
+      const script = scripts[i];
+      if (script && script.uuid && script.uuid === uuids[i]) {
+        uuids2.push(script.uuid);
+      }
+    }
+    if (!uuids2.length) {
+      logger.error("scripts not found");
+      throw new Error("scripts not found");
+    }
+    return this.scriptDAO
+      .updates(uuids2, {
+        status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+        updatetime: Date.now(),
+      })
+      .then(() => {
+        logger.info("enable success");
+        this.mq.publish<TEnableScript[]>(
+          "enableScripts",
+          uuids2.map((uuid) => ({ uuid, enable }))
+        );
         return {};
       })
       .catch((e) => {
@@ -384,7 +469,13 @@ export class ScriptService {
     return results;
   }
 
-  getScriptRunResource(script: Script) {
+  // getScriptRunResource(script: Script) {
+  //   return this.buildScriptRunResource(script);
+  // }
+
+  async getScriptRunResourceByUUID(uuid: string) {
+    const script = await this.fetchInfo(uuid);
+    if (!script) return null;
     return this.buildScriptRunResource(script);
   }
 
@@ -413,13 +504,13 @@ export class ScriptService {
     });
   }
 
-  // ScriptMenuList 的 excludeUrl - 排除或回復
+  // ScriptMenuList 的 excludeUrl - 排除或回复
   async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重覆（如有）
+    // 建立Set去掉重复（如有）
     const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
     if (remove) {
       const deleted = excludeSet.delete(excludePattern);
@@ -435,7 +526,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish<TInstallScript>("installScript", { script, update: true });
+        this.publishInstallScript(script, { update: true });
         return true;
       })
       .catch((e) => {
@@ -449,7 +540,7 @@ export class ScriptService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重覆（如有）
+    // 建立Set去掉重复（如有）
     const excludeSet = new Set(exclude || []);
     // 更新 script.selfMetadata.exclude
     script = selfMetadataUpdate(script, "exclude", excludeSet);
@@ -457,7 +548,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish<TInstallScript>("installScript", { script, update: true });
+        this.publishInstallScript(script, { update: true });
         return true;
       })
       .catch((e) => {
@@ -471,7 +562,7 @@ export class ScriptService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重覆（如有）
+    // 建立Set去掉重复（如有）
     const matchSet = new Set(match || []);
     // 更新 script.selfMetadata.match
     script = selfMetadataUpdate(script, "match", matchSet);
@@ -479,7 +570,7 @@ export class ScriptService {
       .update(uuid, script)
       .then(() => {
         // 广播一下
-        this.mq.publish<TInstallScript>("installScript", { script, update: true });
+        this.publishInstallScript(script, { update: true });
         return true;
       })
       .catch((e) => {
@@ -488,14 +579,14 @@ export class ScriptService {
       });
   }
 
-  async checkUpdate(uuid_: string, source: "user" | "system") {
-    // 检查更新
-    const script = await this.scriptDAO.get(uuid_);
-    if (!script) {
-      return false;
-    }
-    await this.scriptDAO.update(uuid_, { checktime: Date.now() });
+  async _checkUpdateAvailable(script: {
+    uuid: string;
+    name: string;
+    checkUpdateUrl?: string;
+    metadata: Partial<Record<string, any>>;
+  }): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
     const { uuid, name, checkUpdateUrl } = script;
+
     if (!checkUpdateUrl) {
       return false;
     }
@@ -523,10 +614,22 @@ export class ScriptService {
       if (ltever(newVersion, oldVersion, logger)) {
         return false;
       }
+      return { updateAvailable: true, code, metadata };
     } catch (e) {
       logger.error("check update failed", Logger.E(e));
       return false;
     }
+  }
+
+  async checkUpdate(uuid_: string, source: "user" | "system") {
+    // 检查更新
+    const script = await this.scriptDAO.get(uuid_);
+    if (!script || !script.checkUpdateUrl) {
+      return false;
+    }
+    await this.scriptDAO.update(uuid_, { checktime: Date.now() });
+    const res = await this._checkUpdateAvailable(script);
+    if (!res) return false;
     // 进行更新
     this.openUpdatePage(script, source);
     return true;
@@ -575,9 +678,7 @@ export class ScriptService {
       const ret = await this.openUpdateOrInstallPage(uuid, url, source, true, logger);
       if (ret === 2) return; // slience update
       // 打开安装页面
-      chrome.tabs.create({
-        url: `/src/install.html?uuid=${uuid}`,
-      });
+      openInCurrentTab(`/src/install.html?uuid=${uuid}`);
     } catch (e) {
       logger.error("fetch script info failed", Logger.E(e));
     }
@@ -639,9 +740,10 @@ export class ScriptService {
     });
   }
 
-  getAllScripts() {
+  async getAllScripts() {
     // 获取数据并排序
-    return this.scriptDAO.all().then((scripts) => {
+    const scripts = await this.scriptDAO.all();
+    try {
       scripts.sort((a, b) => a.sort - b.sort);
       for (let i = 0; i < scripts.length; i += 1) {
         if (scripts[i].sort !== i) {
@@ -649,8 +751,10 @@ export class ScriptService {
           scripts[i].sort = i;
         }
       }
-      return scripts;
-    });
+    } catch (_) {
+      //
+    }
+    return scripts;
   }
 
   async sortScript({ active, over }: { active: string; over: string }) {
@@ -666,13 +770,46 @@ export class ScriptService {
       }
     });
     const newSort = arrayMove(scripts, oldIndex, newIndex);
-    for (let i = 0; i < newSort.length; i += 1) {
-      if (newSort[i].sort !== i) {
-        this.scriptDAO.update(newSort[i].uuid, { sort: i, updatetime: Date.now() });
-        newSort[i].sort = i;
+    const updatetime = Date.now();
+    for (let i = 0, l = newSort.length; i < l; i += 1) {
+      const item = newSort[i];
+      if (item.sort !== i) {
+        item.sort = i;
+        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
       }
     }
-    this.mq.publish<TSortScript>("sortScript", newSort);
+    this.mq.publish<TSortedScript[]>(
+      "sortedScripts",
+      newSort.map(({ uuid, sort }) => ({ uuid, sort }))
+    );
+  }
+
+  async pinToTop(uuids: string[]) {
+    const scripts = await this.scriptDAO.all();
+    const m = uuids.length;
+    const oldSorts = new Map<string, number>();
+    for (const script of scripts) {
+      oldSorts.set(script.uuid, script.sort);
+      const idx = uuids.indexOf(script.uuid);
+      if (idx >= 0) {
+        script.sort = idx;
+      } else {
+        script.sort += m;
+      }
+    }
+    scripts.sort((a, b) => a.sort - b.sort);
+    const updatetime = Date.now();
+    for (let i = 0, l = scripts.length; i < l; i += 1) {
+      const item = scripts[i];
+      item.sort = i;
+      if (item.sort !== oldSorts.get(item.uuid)) {
+        await this.scriptDAO.update(item.uuid, { sort: i, updatetime });
+      }
+    }
+    this.mq.publish<TSortedScript[]>(
+      "sortedScripts",
+      scripts.map(({ uuid, sort }) => ({ uuid, sort }))
+    );
   }
 
   importByUrl(url: string) {
@@ -702,18 +839,22 @@ export class ScriptService {
     this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
-    this.group.on("delete", this.deleteScript.bind(this));
+    // this.group.on("delete", this.deleteScript.bind(this));
+    this.group.on("deletes", this.deleteScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
+    this.group.on("enables", this.enableScripts.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
-    this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
+    // this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
+    this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
     this.group.on("isInstalled", this.isInstalled.bind(this));
     this.group.on("sortScript", this.sortScript.bind(this));
+    this.group.on("pinToTop", this.pinToTop.bind(this));
     this.group.on("importByUrl", this.importByUrl.bind(this));
     this.group.on("installByCode", this.installByCode.bind(this));
     this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));

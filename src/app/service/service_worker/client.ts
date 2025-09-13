@@ -46,12 +46,20 @@ export class ScriptClient extends Client {
     return this.doThrow("install", { script, code, upsertBy });
   }
 
-  delete(uuid: string) {
-    return this.do("delete", uuid);
+  // delete(uuid: string) {
+  //   return this.do("delete", uuid);
+  // }
+
+  deletes(uuids: string[]) {
+    return this.do("deletes", uuids);
   }
 
   enable(uuid: string, enable: boolean) {
     return this.do("enable", { uuid, enable });
+  }
+
+  enables(uuids: string[], enable: boolean) {
+    return this.do("enables", { uuids, enable });
   }
 
   info(uuid: string): Promise<Script> {
@@ -62,8 +70,12 @@ export class ScriptClient extends Client {
     return this.do("getFilterResult", req);
   }
 
-  getScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    return this.doThrow("getScriptRunResource", script);
+  // getScriptRunResource(script: Script): Promise<ScriptRunResource> {
+  //   return this.doThrow("getScriptRunResource", script);
+  // }
+
+  getScriptRunResourceByUUID(uuid: string): Promise<ScriptRunResource> {
+    return this.doThrow("getScriptRunResourceByUUID", uuid);
   }
 
   excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
@@ -86,6 +98,10 @@ export class ScriptClient extends Client {
 
   sortScript(active: string, over: string) {
     return this.do("sortScript", { active, over });
+  }
+
+  pinToTop(uuids: string[]) {
+    return this.do("pinToTop", uuids);
   }
 
   importByUrl(url: string) {

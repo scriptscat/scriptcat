@@ -195,7 +195,7 @@ const ScriptMenuList = React.memo(
 
     const handleDeleteScript = useCallback((uuid: string) => {
       setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
-      scriptClient.delete(uuid).catch((e) => {
+      scriptClient.deletes([uuid]).catch((e) => {
         Message.error(`{t('delete_failed')}: ${e}`);
       });
     }, []);

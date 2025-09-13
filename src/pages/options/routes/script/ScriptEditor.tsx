@@ -981,7 +981,7 @@ function ScriptEditor() {
                         content: t("confirm_delete_script_content", { name: i18nName(script) }),
                         onOk: () => {
                           scriptClient
-                            .delete(script.uuid)
+                            .deletes([script.uuid])
                             .then(() => {
                               setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
                               handleDeleteEditor(script.uuid);
