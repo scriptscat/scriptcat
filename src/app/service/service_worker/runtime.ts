@@ -21,7 +21,13 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
+import {
+  compileInjectScript,
+  compilePreInjectScript,
+  compileScriptCode,
+  isEarlyStartScript,
+  isInjectIntoContent,
+} from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -505,22 +511,17 @@ export class RuntimeService {
         // do nothing
       }
     }
-
-    const res = {} as {
-      content: chrome.scripting.RegisteredContentScript;
-      inject: chrome.userScripts.RegisteredUserScript | null;
-    };
-
-    // content.js
-    const script: chrome.scripting.RegisteredContentScript = {
+    const retScript: chrome.userScripts.RegisteredUserScript[] = [];
+    retScript.push({
       id: "scriptcat-content",
-      js: ["src/content.js"],
+      js: [{ file: "src/content.js" }],
       matches: ["<all_urls>"],
       allFrames: true,
       runAt: "document_start",
+      world: "USER_SCRIPT",
       excludeMatches,
-    };
-    res.content = script;
+      excludeGlobs,
+    });
 
     // inject.js
     const injectJs = await this.getInjectJsCode();
@@ -529,10 +530,10 @@ export class RuntimeService {
         excludeMatches,
         excludeGlobs,
       });
-      res.inject = script;
+      retScript.push(...script);
     }
 
-    return res;
+    return retScript;
   }
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
@@ -556,22 +557,12 @@ export class RuntimeService {
       console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
     }
 
-    const [particularScriptList, generalScriptList] = await Promise.all([
-      // registerScripts
-      this.getParticularScriptList(),
-      // content.js, inject.js
-      this.getContentAndInjectScript(),
-    ]);
+    const particularScriptList = await this.getParticularScriptList();
+    // getContentAndInjectScript依赖loadScriptMatchInfo
+    // 需要等getParticularScriptList完成后再执行
+    const generalScriptList = await this.getContentAndInjectScript();
 
-    const list = [...particularScriptList, generalScriptList.inject!];
-
-    // 注册 content.js
-    const contentScript: chrome.scripting.RegisteredContentScript = generalScriptList.content;
-    try {
-      await chrome.scripting.registerContentScripts([contentScript]);
-    } catch (e: any) {
-      this.logger.error("register content.js error", Logger.E(e));
-    }
+    const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...generalScriptList];
 
     try {
       await chrome.userScripts.register(list);
@@ -851,6 +842,7 @@ export class RuntimeService {
       }
     });
 
+    // 构建inject.js的脚本注册信息
     const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(earlyScriptFlag)})`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
@@ -862,7 +854,21 @@ export class RuntimeService {
       excludeMatches: o.excludeMatches,
       excludeGlobs: o.excludeGlobs,
     };
-    return script;
+
+    // 构建给content.js用的early-start脚本flag
+    return [
+      {
+        id: "scriptcat-early-start-flag",
+        js: [{ code: "window.EarlyScriptFlag=" + JSON.stringify(earlyScriptFlag) + ";" }],
+        matches: ["<all_urls>"],
+        allFrames: true,
+        world: "USER_SCRIPT",
+        runAt: "document_start",
+        excludeMatches: o.excludeMatches,
+        excludeGlobs: o.excludeGlobs,
+      },
+      script,
+    ] as chrome.userScripts.RegisteredUserScript[];
   }
 
   // 重新注册inject.js，主要是为了更新early-start的脚本flag
@@ -881,7 +887,7 @@ export class RuntimeService {
     }
     const script = this.compileInjectUserScript(injectJs, messageFlag, scripts[0]);
     try {
-      await chrome.userScripts.update([script]);
+      await chrome.userScripts.update(script);
     } catch (e: any) {
       this.logger.error("register inject.js error", Logger.E(e));
     }
@@ -1059,6 +1065,11 @@ export class RuntimeService {
       world: "MAIN",
     };
 
+    if (isInjectIntoContent(script)) {
+      // 需要注入到content script的脚本
+      registerScript.world = "USER_SCRIPT";
+    }
+
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }
@@ -1072,7 +1083,7 @@ export class RuntimeService {
     ) as TScriptMatchInfoEntry;
 
     // 将脚本match信息放入缓存中
-    this.addScriptMatch(scriptMatchInfo);
+    await this.addScriptMatch(scriptMatchInfo);
 
     return {
       registerScript,

@@ -471,5 +471,7 @@
   "editor_config_saved": "编辑器配置已保存",
   "editor_config_format_error": "编辑器配置格式错误",
   "editor_type_definition_reset": "编辑器类型定义已重置",
-  "editor_type_definition_saved": "编辑器类型定义已保存"
+  "editor_type_definition_saved": "编辑器类型定义已保存",
+  "layout": "布局",
+  "hide_script_list": "隐藏脚本列表"
 }

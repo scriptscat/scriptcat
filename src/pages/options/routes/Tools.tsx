@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -18,42 +18,23 @@ import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
-import type { FileSystemType } from "@Packages/filesystem/factory";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import type { File, FileReader } from "@Packages/filesystem/filesystem";
-import { message, systemConfig } from "@App/pages/store/global";
+import { message } from "@App/pages/store/global";
 import { synchronizeClient } from "@App/pages/store/features/script";
 import { SystemClient } from "@App/app/service/service_worker/client";
 import { migrateToChromeStorage } from "@App/app/migrate";
+import { useSystemConfig } from "./utils";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
   const fileRef = useRef<HTMLInputElement>(null);
-  const [fileSystemType, setFilesystemType] = useState<FileSystemType>("webdav");
-  const [fileSystemParams, setFilesystemParam] = useState<{
-    [key: string]: any;
-  }>({});
-  const [vscodeUrl, setVscodeUrl] = useState<string>("");
-  const [vscodeReconnect, setVscodeReconnect] = useState<boolean>(false);
   const [backupFileList, setBackupFileList] = useState<File[]>([]);
   const vscodeRef = useRef<RefInputType>(null);
   const { t } = useTranslation();
-
-  useEffect(() => {
-    // 获取配置
-    const loadConfig = async () => {
-      const [backup, vscodeUrl, vscodeReconnect] = await Promise.all([
-        systemConfig.getBackup(),
-        systemConfig.getVscodeUrl(),
-        systemConfig.getVscodeReconnect(),
-      ]);
-      setFilesystemType(backup.filesystem);
-      setFilesystemParam(backup.params[backup.filesystem] || {});
-      setVscodeUrl(vscodeUrl);
-      setVscodeReconnect(vscodeReconnect);
-    };
-    loadConfig();
-  }, []);
+  const [backup, setBackup, submitBackup] = useSystemConfig("backup");
+  const [vscodeUrl, setVscodeUrl, submitVscodeUrl] = useSystemConfig("vscode_url");
+  const [vscodeReconnect, setVscodeReconnect, submitVscodeReconnect] = useSystemConfig("vscode_reconnect");
 
   return (
     <Space
@@ -112,10 +93,10 @@ function Tools() {
           <FileSystemParams
             preNode={t("backup_to")}
             onChangeFileSystemType={(type) => {
-              setFilesystemType(type);
+              setBackup({ ...backup, filesystem: type });
             }}
             onChangeFileSystemParams={(params) => {
-              setFilesystemParam(params);
+              setBackup({ ...backup, params: { ...backup.params, [backup.filesystem]: params } });
             }}
             actionButton={[
               <Button
@@ -124,16 +105,11 @@ function Tools() {
                 loading={loading.cloud}
                 onClick={() => {
                   // Store parameters
-                  const params = { ...fileSystemParams };
-                  params[fileSystemType] = fileSystemParams;
-                  systemConfig.setBackup({
-                    filesystem: fileSystemType,
-                    params,
-                  });
+                  submitBackup();
                   setLoading((prev) => ({ ...prev, cloud: true }));
                   Message.info(t("preparing_backup")!);
                   synchronizeClient
-                    .backupToCloud(fileSystemType, fileSystemParams)
+                    .backupToCloud(backup.filesystem, backup.params[backup.filesystem])
                     .then(() => {
                       Message.success(t("backup_success")!);
                     })
@@ -154,7 +130,7 @@ function Tools() {
                 onClick={async () => {
                   setLoading((prev) => ({ ...prev, cloud: true }));
                   try {
-                    let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                    let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                     fs = await fs.openDir("ScriptCat");
                     let list = await fs.list();
                     list.sort((a, b) => b.updatetime - a.updatetime);
@@ -174,8 +150,8 @@ function Tools() {
                 {t("backup_list")}
               </Button>,
             ]}
-            fileSystemType={fileSystemType}
-            fileSystemParams={fileSystemParams}
+            fileSystemType={backup.filesystem}
+            fileSystemParams={backup.params[backup.filesystem] || {}}
           />
           <Drawer
             width={400}
@@ -186,7 +162,7 @@ function Tools() {
                   type="secondary"
                   size="mini"
                   onClick={async () => {
-                    let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                    let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                     try {
                       fs = await fs.openDir("ScriptCat");
                       const url = await fs.getDirUrl();
@@ -222,7 +198,7 @@ function Tools() {
                       size="small"
                       onClick={async () => {
                         Message.info(t("pulling_data_from_cloud")!);
-                        let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                        let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                         let file: FileReader;
                         let data: Blob;
                         try {
@@ -254,7 +230,10 @@ function Tools() {
                           title: t("confirm_delete"),
                           content: `${t("confirm_delete_backup_file")}${item.name}?`,
                           onOk: async () => {
-                            let fs = await FileSystemFactory.create(fileSystemType, fileSystemParams);
+                            let fs = await FileSystemFactory.create(
+                              backup.filesystem,
+                              backup.params[backup.filesystem]
+                            );
                             try {
                               fs = await fs.openDir("ScriptCat");
                               await fs.delete(item.name);
@@ -331,8 +310,10 @@ function Tools() {
           <Button
             type="primary"
             onClick={() => {
-              systemConfig.setVscodeUrl(vscodeUrl);
-              systemConfig.setVscodeReconnect(vscodeReconnect);
+              setVscodeUrl(vscodeUrl);
+              setVscodeReconnect(vscodeReconnect);
+              submitVscodeUrl();
+              submitVscodeReconnect();
               const systemClient = new SystemClient(message);
               systemClient
                 .connectVSCode({

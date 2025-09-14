@@ -342,8 +342,8 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    const data = await this.sendMessage("CAT_fetchDocument", [url]);
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(data.relatedTarget) as Document;
+    const nodeId = await this.sendMessage("CAT_fetchDocument", [url]);
+    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(nodeId) as Document;
   }
 
   static _GM_cookie(
