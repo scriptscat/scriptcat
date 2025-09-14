@@ -1,5 +1,9 @@
 # ScriptCat Development Guide
 
+## Code Review
+
+When performing a code review, respond in Chinese.
+
 ## Architecture Overview
 
 ScriptCat is a sophisticated browser extension that executes user scripts with a unique multi-process architecture:
@@ -139,13 +143,3 @@ pnpm run coverage      # Generate coverage reports
 - Tests co-located with source files (`.test.ts` suffix)
 - Template files use `.tpl` extension for build-time processing
 - Configuration files use factory pattern for environment-specific setup
-
-## Language
-- The code is developed and maintained by developers based in China.
-- Comments should preferably be written in Chinese.
-- The user interface supports multiple languages, with English set as the default for global users.
-
-## Code Review
-
-- When performing a code review, respond in Chinese.
-
