@@ -296,7 +296,7 @@ export class RuntimeService {
       this.systemConfig.addListener("enable_script", async (enable) => {
         // 隐身窗口不对注册了的脚本进行实际操作
         // 当主窗口的enable改为false时，isLoadScripts也会更改为false
-        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptIncognite());
+        this.isLoadScripts = enable && (await this.systemConfig.getEnableScriptIncognito());
       });
     } else {
       this.systemConfig.addListener("enable_script", async (enable) => {
