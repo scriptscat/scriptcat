@@ -126,8 +126,22 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const DraggableRow = ({ record, index, ...rest }: { record: any; index: any; [key: string]: any }) => {
+function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
+  return (node) => {
+    for (const ref of refs) {
+      if (typeof ref === "function") {
+        ref(node);
+      } else if (ref) {
+        (ref as React.MutableRefObject<T | null>).current = node;
+      }
+    }
+  };
+}
+
+const DraggableRow = React.forwardRef<
+  HTMLTableRowElement,
+  { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>
+>(({ record, index: _index, ...rest }, ref) => {
   const sortable = useSortable({ id: record.uuid });
   const { setNodeRef, transform, transition } = sortable;
 
@@ -138,10 +152,10 @@ const DraggableRow = ({ record, index, ...rest }: { record: any; index: any; [ke
 
   return (
     <SortableRowCtx.Provider value={sortable}>
-      <tr ref={setNodeRef} style={style} {...rest} />
+      <tr ref={composeRefs(setNodeRef, ref)} style={style} {...rest} />
     </SortableRowCtx.Provider>
   );
-};
+});
 DraggableRow.displayName = "DraggableRow";
 
 const DragHandle = () => {
@@ -195,32 +209,35 @@ const scriptListSortOrder = (
   sortScript({ active, over });
 };
 
-const DraggableContainer = React.forwardRef((props: any, ref: any) => {
-  const context = useContext(DraggableContext);
-  if (!context) return <></>;
-  const { sensors, scriptList, setScriptList } = context;
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      accessibility={{ container: document.body }}
-      onDragEnd={(event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over) {
-          return;
-        }
-        if (active.id !== over.id) {
-          scriptListSortOrder(scriptList, setScriptList, { active: active.id as string, over: over.id as string });
-        }
-      }}
-    >
-      <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
-        <tbody {...props} ref={ref} />
-      </SortableContext>
-    </DndContext>
-  );
-});
+const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  (props, ref) => {
+    const context = useContext(DraggableContext);
+    if (!context) return <></>;
+    const { sensors, scriptList, setScriptList } = context;
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        accessibility={{ container: document.body }}
+        onDragEnd={(event: DragEndEvent) => {
+          const { active, over } = event;
+          if (!over) {
+            return;
+          }
+          if (active.id !== over.id) {
+            scriptListSortOrder(scriptList, setScriptList, { active: active.id as string, over: over.id as string });
+          }
+        }}
+      >
+        <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
+          <tbody ref={ref} {...props} />
+        </SortableContext>
+      </DndContext>
+    );
+  }
+);
+
 DraggableContainer.displayName = "DraggableContainer";
 
 const EnableSwitch = React.memo(
