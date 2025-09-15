@@ -407,8 +407,23 @@ describe("沙盒环境测试", async () => {
   });
   // toString.call(window)返回的是'[object Object]',影响内容: https://github.com/scriptscat/scriptcat/issues/260
   it("toString.call(window)", () => {
-    expect(toString.call(_this)).toEqual(`[object ${tag}]`); // 与 global 一致
-    expect(toString.call(_this)).not.toEqual("[object Object]"); // 不是 [object Object]
+    expect(toString.call(_this)).toEqual(`[object Window]`);
+  });
+
+  // 与TM保持一致，toString返回global([object Window]) #737
+  it("toString", async () => {
+    scriptRes2.code = `return {
+      toStringThis: {}.toString.call(this),
+      toStringWindow: {}.toString.call(window),
+      toString: toString(),
+    }`;
+    sandboxExec.scriptFunc = compileScript(compileScriptCode(scriptRes2));
+    const ret = await sandboxExec.exec();
+    expect(ret).toEqual({
+      toStringThis: `[object Window]`,
+      toStringWindow: `[object Window]`,
+      toString: `[object ${tag}]`,
+    });
   });
 
   // Object.hasOwnProperty穿透 https://github.com/scriptscat/scriptcat/issues/272
