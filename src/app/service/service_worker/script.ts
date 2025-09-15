@@ -319,7 +319,7 @@ export class ScriptService {
           uuid,
           storageName: storageNames[i],
         }));
-        await this.mq.publish<TDeleteScript[]>("deleteScripts", data);
+        this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
       .catch((e) => {
