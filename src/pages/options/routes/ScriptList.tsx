@@ -386,21 +386,6 @@ function ScriptList() {
       });
     },
 
-    enableScript(data: TEnableScript) {
-      const { uuid, enable } = data;
-      setScriptList((list: ScriptLoading[]) =>
-        list.map((script) => {
-          if (script.uuid === uuid) {
-            script.enableLoading = false;
-            script.status = enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
-            return { ...script };
-          } else {
-            return script;
-          }
-        })
-      );
-    },
-
     enableScripts(data: TEnableScript[]) {
       const map = new Map();
       for (const { uuid, enable } of data) {
