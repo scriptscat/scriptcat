@@ -405,11 +405,11 @@ export class SystemConfig {
     if (chrome.extension.inIncognitoContext) {
       // 如果是隐身窗口，主窗口设置为false，直接返回false
       // 主窗口和隐身窗口都是true的情况下才会返回true
-      const [enableNormal, enableIncognite] = await Promise.all([
+      const [enableNormal, enableIncognito] = await Promise.all([
         this._get<boolean>("enable_script", true),
         this._get<boolean>("enable_script_incognito", true),
       ]);
-      return enableNormal && enableIncognite;
+      return enableNormal && enableIncognito;
     } else {
       return this._get<boolean>("enable_script", true);
     }
