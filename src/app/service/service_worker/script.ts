@@ -285,7 +285,7 @@ export class ScriptService {
         await this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
         const data = [{ uuid, storageName }];
-        await this.mq.publish<TDeleteScript[]>("deleteScripts", data);
+        this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
       .catch((e) => {
@@ -743,16 +743,12 @@ export class ScriptService {
   async getAllScripts() {
     // 获取数据并排序
     const scripts = await this.scriptDAO.all();
-    try {
-      scripts.sort((a, b) => a.sort - b.sort);
-      for (let i = 0; i < scripts.length; i += 1) {
-        if (scripts[i].sort !== i) {
-          this.scriptDAO.update(scripts[i].uuid, { sort: i });
-          scripts[i].sort = i;
-        }
+    scripts.sort((a, b) => a.sort - b.sort);
+    for (let i = 0; i < scripts.length; i += 1) {
+      if (scripts[i].sort !== i) {
+        this.scriptDAO.update(scripts[i].uuid, { sort: i });
+        scripts[i].sort = i;
       }
-    } catch (err) {
-      console.error("Error in getAllScripts()", err);
     }
     return scripts;
   }

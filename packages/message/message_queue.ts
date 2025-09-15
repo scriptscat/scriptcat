@@ -48,8 +48,8 @@ export class MessageQueue {
     };
   }
 
-  async publish<T>(topic: string, message: NonNullable<T>) {
-    await chrome.runtime.sendMessage({
+  publish<T>(topic: string, message: NonNullable<T>) {
+    chrome.runtime.sendMessage({
       msgQueue: topic,
       data: { action: "message", message },
     });
