@@ -104,17 +104,6 @@ const getAllPropertyDescriptors = (obj: any, callback: ForEachCallback<[string |
   }
 };
 
-// mySandbox 不进行with变量拦截
-const unscopables: Record<PropertyKey, any> = {
-  this: true,
-  arguments: true,
-  // "await": true,
-  // "define": true,
-  // "module": true,
-  // "exports": true,
-  [Symbol.unscopables]: true,
-};
-
 // 在 CacheSet 加入的propKeys将会在 mySandbox 实装阶段时设置
 const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
 
@@ -174,6 +163,8 @@ descsCache.clear(); // 内存释放
 const sharedInitCopy = Object.create(null, {
   ...initOwnDescs,
   ...overridedDescs,
+  // Symbol.toStringTag设置为 Window
+  [Symbol.toStringTag]: { value: "Window", writable: false, enumerable: false, configurable: true },
 });
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
@@ -289,12 +280,6 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
 
   // 把初始Copy加上特殊变量后，生成一份新Copy
   mySandbox = Object.create(Object.getPrototypeOf(sharedInitCopy), ownDescs);
-
-  // 用於避开 mySandbox 的with拦截
-  mySandbox[Symbol.unscopables] = {
-    ...(mySandbox[Symbol.unscopables] || {}),
-    ...unscopables,
-  };
 
   // 处理特殊关键字，不能穿越出沙盒，也不能被外部修改
   for (const key of ["define", "module", "exports"]) {
