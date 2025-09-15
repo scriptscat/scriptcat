@@ -479,7 +479,7 @@ function ScriptList() {
     );
   };
 
-  const updateScriptListMultiple = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
+  const updateEntry = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
     const set = new Set(uuids);
     setScriptList((list) =>
       list.map((script) => {
@@ -930,9 +930,9 @@ function ScriptList() {
                           id: "script-stop",
                           content: t("stopping_script"),
                         });
-                        updateScriptListMultiple([item.uuid], { actionLoading: true });
+                        updateEntry([item.uuid], { actionLoading: true });
                         await requestStopScript(item.uuid);
-                        updateScriptListMultiple([item.uuid], { actionLoading: false });
+                        updateEntry([item.uuid], { actionLoading: false });
                         Message.success({
                           id: "script-stop",
                           content: t("script_stopped"),
@@ -943,9 +943,9 @@ function ScriptList() {
                           id: "script-run",
                           content: t("starting_script"),
                         });
-                        updateScriptListMultiple([item.uuid], { actionLoading: true });
+                        updateEntry([item.uuid], { actionLoading: true });
                         await requestRunScript(item.uuid);
-                        updateScriptListMultiple([item.uuid], { actionLoading: false });
+                        updateEntry([item.uuid], { actionLoading: false });
                         Message.success({
                           id: "script-run",
                           content: t("script_started"),
@@ -1135,7 +1135,7 @@ function ScriptList() {
                     onClick={() => {
                       const enableAction = (enable: boolean) => {
                         const uuids = select.map((item) => item.uuid);
-                        updateScriptListMultiple(uuids, { enableLoading: true });
+                        updateEntry(uuids, { enableLoading: true });
                         scriptClient.enables(uuids, enable);
                       };
                       switch (action) {
