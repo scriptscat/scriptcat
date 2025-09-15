@@ -751,8 +751,8 @@ export class ScriptService {
           scripts[i].sort = i;
         }
       }
-    } catch (_) {
-      //
+    } catch (err) {
+      console.error("Error in getAllScripts()", err);
     }
     return scripts;
   }
