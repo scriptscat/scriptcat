@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { permissionClient } from "../store/features/script";
 
 function App() {
-  const uuid = window.location.search.split("=")[1];
+  const uuid = new URLSearchParams(location.search).get("uuid");
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
   const [second, setSecond] = React.useState(30);
@@ -21,6 +21,7 @@ function App() {
   }, 1000);
 
   useEffect(() => {
+    if (!uuid) return;
     window.addEventListener("beforeunload", () => {
       permissionClient.confirm(uuid, {
         allow: false,
@@ -42,6 +43,7 @@ function App() {
 
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
+      if (!uuid) return;
       try {
         await permissionClient.confirm(uuid, {
           allow,

@@ -35,17 +35,19 @@ export class ScriptService {
   }
 
   async init() {
-    this.messageQueue.subscribe<TEnableScript>("enableScript", async (data) => {
-      const script = await this.scriptClient.info(data.uuid);
-      if (script.type === SCRIPT_TYPE_NORMAL) {
-        return;
-      }
-      if (data.enable) {
-        // 构造脚本运行资源,发送给沙盒运行
-        enableScript(this.windowMessage, await this.scriptClient.getScriptRunResource(script));
-      } else {
-        // 发送给沙盒停止
-        disableScript(this.windowMessage, script.uuid);
+    this.messageQueue.subscribe<TEnableScript[]>("enableScripts", async (data) => {
+      for (const { uuid, enable } of data) {
+        const script = await this.scriptClient.info(uuid);
+        if (script.type === SCRIPT_TYPE_NORMAL) {
+          continue;
+        }
+        if (enable) {
+          // 构造脚本运行资源,发送给沙盒运行
+          enableScript(this.windowMessage, await this.scriptClient.getScriptRunResourceByUUID(uuid));
+        } else {
+          // 发送给沙盒停止
+          disableScript(this.windowMessage, script.uuid);
+        }
       }
     });
     this.messageQueue.subscribe<TInstallScript>("installScript", async (data) => {
@@ -56,14 +58,16 @@ export class ScriptService {
       // 判断是开启还是关闭
       if (data.script.status === SCRIPT_STATUS_ENABLE) {
         // 构造脚本运行资源,发送给沙盒运行
-        enableScript(this.windowMessage, await this.scriptClient.getScriptRunResource(data.script));
+        enableScript(this.windowMessage, await this.scriptClient.getScriptRunResourceByUUID(data.script.uuid));
       } else {
         // 发送给沙盒停止
         disableScript(this.windowMessage, data.script.uuid);
       }
     });
-    this.messageQueue.subscribe<TDeleteScript>("deleteScript", async (data) => {
-      disableScript(this.windowMessage, data.uuid);
+    this.messageQueue.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+      for (const { uuid } of data) {
+        await disableScript(this.windowMessage, uuid);
+      }
     });
 
     this.group.on("runScript", this.runScript.bind(this));
