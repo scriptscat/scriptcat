@@ -4,7 +4,12 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { type WindowMessage } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import {
+  SCRIPT_STATUS_ENABLE,
+  SCRIPT_TYPE_BACKGROUND,
+  SCRIPT_TYPE_CRONTAB,
+  SCRIPT_TYPE_NORMAL,
+} from "@App/app/repo/scripts";
 import { disableScript, enableScript, runScript, stopScript } from "../sandbox/client";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
@@ -65,8 +70,11 @@ export class ScriptService {
       }
     });
     this.messageQueue.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
-      for (const { uuid } of data) {
-        await disableScript(this.windowMessage, uuid);
+      for (const { uuid, type } of data) {
+        // 只发送后台脚本和定时脚本
+        if (type === SCRIPT_TYPE_BACKGROUND || type === SCRIPT_TYPE_CRONTAB) {
+          await disableScript(this.windowMessage, uuid);
+        }
       }
     });
 

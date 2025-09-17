@@ -102,16 +102,21 @@ export class Runtime {
     }
   }
 
-  disableScript(uuid: string) {
+  async disableScript(uuid: string) {
     // 关闭脚本
     // 停止定时任务
-    this.stopCronJob(uuid);
+    // 检查是否有定时器
+    if (this.cronJob.has(uuid)) {
+      this.stopCronJob(uuid);
+    }
     // 移除重试队列
     this.removeRetryList(uuid);
-    // 发送运行状态变更
-    proxyUpdateRunStatus(this.windowMessage, { uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+    if (!this.execScripts.has(uuid)) {
+      // 没有在运行
+      return false;
+    }
     // 停止脚本运行
-    return this.stopScript(uuid);
+    return await this.stopScript(uuid);
   }
 
   // 执行脚本

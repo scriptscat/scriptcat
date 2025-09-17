@@ -15,7 +15,7 @@ export type TInstallScriptParams = {
 
 export type TInstallScript = { script: TInstallScriptParams; update: boolean; upsertBy?: InstallSource };
 
-export type TDeleteScript = { uuid: string; storageName: string };
+export type TDeleteScript = { uuid: string; storageName: string; type: SCRIPT_TYPE };
 
 export type TSortedScript = { uuid: string; sort: number };
 

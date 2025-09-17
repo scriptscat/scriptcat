@@ -284,7 +284,7 @@ export class ScriptService {
       .then(async () => {
         await this.scriptCodeDAO.delete(uuid);
         logger.info("delete success");
-        const data = [{ uuid, storageName }];
+        const data = [{ uuid, storageName, type: script.type }];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
@@ -296,28 +296,20 @@ export class ScriptService {
 
   async deleteScripts(uuids: string[]) {
     const logger = this.logger.with({ uuids });
-    const scripts = await this.scriptDAO.gets(uuids);
-    const uuids2: string[] = [];
-    const storageNames: string[] = [];
-    for (let i = 0, l = uuids.length; i < l; i++) {
-      const script = scripts[i];
-      if (script && script.uuid && script.uuid === uuids[i]) {
-        uuids2.push(script.uuid);
-        storageNames.push(getStorageName(script));
-      }
-    }
-    if (!uuids2.length) {
+    const scripts = (await this.scriptDAO.gets(uuids)).filter((s) => !!s);
+    if (!scripts.length) {
       logger.error("scripts not found");
       throw new Error("scripts not found");
     }
     return this.scriptDAO
-      .deletes(uuids2)
+      .deletes(uuids)
       .then(async () => {
-        await this.scriptCodeDAO.deletes(uuids2);
+        await this.scriptCodeDAO.deletes(uuids);
         logger.info("delete success");
-        const data = uuids2.map((uuid, i) => ({
-          uuid,
-          storageName: storageNames[i],
+        const data = scripts.map((script) => ({
+          uuid: script.uuid,
+          storageName: getStorageName(script),
+          type: script.type,
         }));
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;

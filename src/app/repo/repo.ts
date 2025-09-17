@@ -128,13 +128,12 @@ function deleteStorage(key: string) {
   });
 }
 function deletesStorage(keys: string[]) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve) => {
     chrome.storage.local.remove(keys, () => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
         // 无视storage API错误，继续执行
-        reject();
       }
       resolve();
     });
