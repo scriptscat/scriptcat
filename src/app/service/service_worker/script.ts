@@ -387,6 +387,11 @@ export class ScriptService {
   }
 
   async updateRunStatus(params: { uuid: string; runStatus: SCRIPT_RUN_STATUS; error?: string; nextruntime?: number }) {
+    // 如果脚本删除了就不再更新状态
+    const script = await this.scriptDAO.get(params.uuid);
+    if (!script) {
+      return false;
+    }
     if (
       (await this.scriptDAO.update(params.uuid, {
         runStatus: params.runStatus,

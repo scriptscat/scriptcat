@@ -344,7 +344,7 @@ function ScriptList() {
           if (s.uuid === uuid) {
             s.runStatus = runStatus;
             list[i] = { ...s };
-            return { ...list };
+            return [...list];
           }
         }
         return list;
@@ -452,16 +452,15 @@ function ScriptList() {
   });
 
   const updateScriptList = (data: Partial<Script | ScriptLoading>) => {
-    setScriptList((list) =>
-      list.map((script) => {
+    setScriptList((list) => {
+      for (const script of list) {
         if (script.uuid === data.uuid) {
           Object.assign(script, data);
-          return { ...script };
-        } else {
-          return script;
+          return [...list];
         }
-      })
-    );
+      }
+      return list;
+    });
   };
 
   const updateEntry = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
