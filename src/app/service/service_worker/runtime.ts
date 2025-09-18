@@ -471,7 +471,6 @@ export class RuntimeService {
   // 获取content.js和inject.js的脚本注册信息
   async getContentAndInjectScript() {
     // 黑名单排除
-
     const blacklist = this.blacklist;
     const excludeMatches = [];
     const excludeGlobs = [];
@@ -506,21 +505,17 @@ export class RuntimeService {
       }
     }
 
-    const res = {} as {
-      content: chrome.scripting.RegisteredContentScript;
-      inject: chrome.userScripts.RegisteredUserScript | null;
-    };
-
-    // content.js
-    const script: chrome.scripting.RegisteredContentScript = {
+    const retScript: chrome.userScripts.RegisteredUserScript[] = [];
+    retScript.push({
       id: "scriptcat-content",
-      js: ["src/content.js"],
+      js: [{ file: "src/content.js" }],
       matches: ["<all_urls>"],
       allFrames: true,
       runAt: "document_start",
+      world: "USER_SCRIPT",
       excludeMatches,
-    };
-    res.content = script;
+      excludeGlobs,
+    });
 
     // inject.js
     const injectJs = await this.getInjectJsCode();
@@ -529,10 +524,10 @@ export class RuntimeService {
         excludeMatches,
         excludeGlobs,
       });
-      res.inject = script;
+      retScript.push(script);
     }
 
-    return res;
+    return retScript;
   }
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
@@ -556,22 +551,12 @@ export class RuntimeService {
       console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
     }
 
-    const [particularScriptList, generalScriptList] = await Promise.all([
-      // registerScripts
-      this.getParticularScriptList(),
-      // content.js, inject.js
-      this.getContentAndInjectScript(),
-    ]);
+    const particularScriptList = await this.getParticularScriptList();
+    // getContentAndInjectScript依赖loadScriptMatchInfo
+    // 需要等getParticularScriptList完成后再执行
+    const generalScriptList = await this.getContentAndInjectScript();
 
-    const list = [...particularScriptList, generalScriptList.inject!];
-
-    // 注册 content.js
-    const contentScript: chrome.scripting.RegisteredContentScript = generalScriptList.content;
-    try {
-      await chrome.scripting.registerContentScripts([contentScript]);
-    } catch (e: any) {
-      this.logger.error("register content.js error", Logger.E(e));
-    }
+    const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...generalScriptList];
 
     try {
       await chrome.userScripts.register(list);
