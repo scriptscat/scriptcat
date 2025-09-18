@@ -1,5 +1,5 @@
-import { LoggerDAO } from "../repo/logger";
-import { LogLabel, LogLevel, Writer } from "./core";
+import type { LoggerDAO } from "../repo/logger";
+import type { LogLabel, LogLevel, Writer } from "./core";
 
 // 使用indexdb作为日志存储
 export default class DBWriter implements Writer {
@@ -9,13 +9,17 @@ export default class DBWriter implements Writer {
     this.dao = dao;
   }
 
-  write(level: LogLevel, message: string, label: LogLabel): void {
-    this.dao.save({
-      id: 0,
-      level,
-      message,
-      label,
-      createtime: new Date().getTime(),
-    });
+  async write(level: LogLevel, message: string, label: LogLabel): Promise<void> {
+    try {
+      await this.dao.save({
+        id: 0,
+        level,
+        message,
+        label,
+        createtime: Date.now(),
+      });
+    } catch (e) {
+      console.error("DBWriter error", e);
+    }
   }
 }

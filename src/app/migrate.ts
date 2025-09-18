@@ -1,9 +1,209 @@
-/* eslint-disable no-param-reassign */
+import { getStorageName } from "@App/pkg/utils/utils";
 import { db } from "./repo/dao";
-import { Script } from "./repo/scripts";
+import type { Script, ScriptAndCode } from "./repo/scripts";
+import { ScriptCodeDAO, ScriptDAO } from "./repo/scripts";
+import type { Subscribe } from "./repo/subscribe";
+import { SubscribeDAO } from "./repo/subscribe";
+import type { Value } from "./repo/value";
+import { ValueDAO } from "./repo/value";
+import type { Permission } from "./repo/permission";
+import { PermissionDAO } from "./repo/permission";
+import { DocumentationSite } from "./const";
+
+// 迁移数据到chrome.storage
+export function migrateToChromeStorage() {
+  // 默认使用的事务，这里加个延时，用db.open()打开数据库后，再执行
+  setTimeout(async () => {
+    try {
+      // 迁移脚本
+      const scripts = await db.table("scripts").toArray();
+      const scriptDAO = new ScriptDAO();
+      const scriptCodeDAO = new ScriptCodeDAO();
+      console.log("开始迁移脚本数据", scripts.length);
+      await Promise.all(
+        // 不处理 Promise.reject ?
+        scripts.map(async (script: ScriptAndCode) => {
+          const {
+            uuid,
+            name,
+            namespace,
+            author,
+            originDomain,
+            subscribeUrl,
+            type,
+            sort,
+            status,
+            runStatus,
+            metadata,
+            createtime,
+            checktime,
+            code,
+            checkUpdateUrl,
+            downloadUrl,
+            selfMetadata,
+            config,
+            error,
+            updatetime,
+            lastruntime,
+            nextruntime,
+          } = script;
+          const s = await scriptDAO.save({
+            uuid,
+            name,
+            namespace,
+            author,
+            originDomain,
+            origin,
+            checkUpdateUrl,
+            downloadUrl,
+            metadata,
+            selfMetadata,
+            subscribeUrl,
+            config,
+            type,
+            status,
+            sort,
+            runStatus,
+            error,
+            createtime,
+            updatetime,
+            checktime,
+            lastruntime,
+            nextruntime,
+          });
+          return scriptCodeDAO
+            .save({
+              uuid: s.uuid,
+              code,
+            })
+            .catch((e) => {
+              console.log("脚本代码迁移失败", e);
+              return Promise.reject(e);
+            });
+        })
+      );
+      // 迁移订阅
+      const subscribe = await db.table("subscribe").toArray();
+      const subscribeDAO = new SubscribeDAO();
+      if (subscribe.length) {
+        await Promise.all(
+          subscribe.map((s: Subscribe) => {
+            const { url, name, code, author, scripts, metadata, status, createtime, updatetime, checktime } = s;
+            return subscribeDAO.save({
+              url,
+              name,
+              code,
+              author,
+              scripts,
+              metadata,
+              status,
+              createtime,
+              updatetime,
+              checktime,
+            });
+          })
+        );
+      }
+      console.log("订阅数据迁移完成", subscribe.length);
+      // 迁移value
+      interface MV2Value {
+        id: number;
+        scriptId: number;
+        storageName?: string;
+        key: string;
+        value: any;
+        createtime: number;
+        updatetime: number;
+      }
+      const values = await db.table("value").toArray();
+      const valueDAO = new ValueDAO();
+      const valueMap = new Map<string, Value>();
+      await Promise.all(
+        values.map((v: MV2Value) => {
+          const { scriptId, key, value, createtime } = v;
+          return db
+            .table("scripts")
+            .where("id")
+            .equals(scriptId)
+            .first((script: Script) => {
+              if (script) {
+                let data: { [key: string]: any } = {};
+                if (!valueMap.has(script.uuid)) {
+                  valueMap.set(script.uuid, {
+                    uuid: script.uuid,
+                    storageName: getStorageName(script),
+                    data: data,
+                    createtime,
+                    updatetime: 0,
+                  });
+                } else {
+                  data = valueMap.get(script.uuid)!.data;
+                }
+                data[key] = value;
+              }
+            });
+        })
+      );
+      // 保存到数据库
+      await Promise.all(
+        Array.from(valueMap.keys()).map((uuid) => {
+          const { storageName, data, createtime } = valueMap.get(uuid)!;
+          return valueDAO.save(storageName!, {
+            uuid,
+            storageName,
+            data,
+            createtime,
+            updatetime: 0,
+          });
+        })
+      );
+      console.log("脚本value数据迁移完成", values.length);
+      // 迁移permission
+      const permissions = await db.table("permission").toArray();
+      const permissionDAO = new PermissionDAO();
+      await Promise.all(
+        permissions.map((p: Permission & { scriptId: number }) => {
+          const { scriptId, permission, permissionValue, createtime, updatetime, allow } = p;
+          return db
+            .table("scripts")
+            .where("id")
+            .equals(scriptId)
+            .first((script: Script) => {
+              if (script) {
+                return permissionDAO.save({
+                  uuid: script.uuid,
+                  permission,
+                  permissionValue,
+                  createtime,
+                  updatetime,
+                  allow,
+                });
+              }
+            });
+        })
+      );
+      console.log("脚本permission数据迁移完成", permissions.length);
+      // 打开页面，告知数据储存+升级至了mv3，重启一次扩展
+      setTimeout(async () => {
+        const scripts = await scriptDAO.all();
+        console.log("脚本数据迁移完成", scripts.length);
+        if (scripts.length > 0) {
+          chrome.tabs.create({
+            url: `${DocumentationSite}/docs/change/v0.17/`,
+          });
+          setTimeout(() => {
+            chrome.runtime.reload();
+          }, 1000);
+        }
+      }, 2000);
+    } catch (e) {
+      console.error("脚本数据迁移失败", e);
+    }
+  }, 200);
+}
 
 // 0.10.0重构,重命名字段,统一使用小峰驼
-function renameField(): void {
+function renameField() {
   db.version(16)
     .stores({
       scripts:
@@ -33,18 +233,21 @@ function renameField(): void {
     // export是0.10.x时的兼容性处理
     export: "++id,&scriptId",
   });
+  // 将脚本数据迁移到chrome.storage
+  db.version(18).upgrade(() => {
+    migrateToChromeStorage();
+  });
+  return db.open();
 }
 
 export default function migrate() {
   // 数据库索引定义,每一次变动必须更新version
   db.version(1).stores({
-    scripts:
-      "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
+    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,createtime,updatetime,checktime",
   });
   db.version(2).stores({
     logger: "++id,level,origin,createtime",
-    permission:
-      "++id,[scriptId+permission+permissionValue],createtime,updatetime",
+    permission: "++id,[scriptId+permission+permissionValue],createtime,updatetime",
   });
   db.version(3).stores({
     logger: "++id,level,title,origin,createtime",
@@ -53,12 +256,10 @@ export default function migrate() {
     value: "++id,scriptId,namespace,key,createtime",
   });
   db.version(5).stores({
-    logger:
-      "++id,level,origin,createtime,title,[origin+title],[level+origin+title]",
+    logger: "++id,level,origin,createtime,title,[origin+title],[level+origin+title]",
   });
   db.version(6).stores({
-    scripts:
-      "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
+    scripts: "++id,&uuid,name,namespace,author,origin_domain,type,status,runStatus,createtime,updatetime,checktime",
   });
   db.version(7).stores({
     resource: "++id,&url,content,type,createtime,updatetime",
@@ -91,7 +292,8 @@ export default function migrate() {
       value: "++id,scriptId,storageName,key,createtime",
     })
     .upgrade((tx) => {
-      tx.table("value")
+      return tx
+        .table("value")
         .toCollection()
         .modify((value) => {
           if (value.namespace) {
@@ -110,9 +312,8 @@ export default function migrate() {
     value: "++id,[scriptId+key],[storageName+key]",
   });
   db.version(15).stores({
-    permission:
-      "++id,scriptId,[scriptId+permission+permissionValue],createtime,updatetime",
+    permission: "++id,scriptId,[scriptId+permission+permissionValue],createtime,updatetime",
   });
   // 使用小峰驼统一命名规范
-  renameField();
+  return renameField();
 }

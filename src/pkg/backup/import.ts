@@ -1,10 +1,9 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import FileSystem, { File } from "@Pkg/filesystem/filesystem";
 import { isText } from "../utils/istextorbinary";
-import { blobToBase64 } from "../utils/script";
+import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
-import {
+import type {
   BackupData,
   ResourceBackup,
   ResourceMeta,
@@ -13,7 +12,11 @@ import {
   SubscribeBackupData,
   SubscribeOptionsFile,
   ValueStorage,
+  ScriptData,
+  SubscribeData,
 } from "./struct";
+import type { File } from "@Packages/filesystem/filesystem";
+import type FileSystem from "@Packages/filesystem/filesystem";
 
 type ViolentmonkeyFile = {
   scripts: {
@@ -34,7 +37,14 @@ export default class BackupImport {
 
   constructor(fileSystem: FileSystem) {
     this.fs = fileSystem;
-    this.logger = LoggerCore.getLogger({ component: "backupImport" });
+    this.logger = LoggerCore.logger({ component: "backupImport" });
+  }
+
+  async getFileContent(file: File, toJson: boolean, type?: "string" | "blob"): Promise<string | any> {
+    const fileReader = await this.fs.open(file);
+    const fileContent = await fileReader.read(type);
+    if (toJson) return JSON.parse(fileContent);
+    return fileContent;
   }
 
   // 解析出备份数据
@@ -47,75 +57,70 @@ export default class BackupImport {
     files = await this.dealFile(files, async (file) => {
       const { name } = file;
       if (!name.endsWith(".user.sub.js")) {
-        return Promise.resolve(false);
+        return false;
       }
       const key = name.substring(0, name.length - 12);
       const subData = {
-        source: await (await this.fs.open(file)).read(),
+        source: <string>await this.getFileContent(file, false),
       } as SubscribeBackupData;
       subscribe.set(key, subData);
-      return Promise.resolve(true);
+      return true;
     });
     // 处理订阅options
     files = await this.dealFile(files, async (file) => {
       const { name } = file;
       if (!name.endsWith(".user.sub.options.json")) {
-        return Promise.resolve(false);
+        return false;
       }
       const key = name.substring(0, name.length - 22);
-      const data = <SubscribeOptionsFile>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <SubscribeOptionsFile>await this.getFileContent(file, true);
       subscribe.get(key)!.options = data;
-      return Promise.resolve(true);
+      return true;
     });
 
     // 先处理*.user.js文件
     files = await this.dealFile(files, async (file) => {
       const { name } = file;
       if (!name.endsWith(".user.js")) {
-        return Promise.resolve(false);
+        return false;
       }
       // 遍历与脚本同名的文件
       const key = name.substring(0, name.length - 8);
       const backupData = {
-        code: await (await this.fs.open(file)).read(),
+        code: <string>await this.getFileContent(file, false),
         storage: { data: {}, ts: 0 },
         requires: [],
         requiresCss: [],
         resources: [],
       } as ScriptBackupData;
       map.set(key, backupData);
-      return Promise.resolve(true);
+      return true;
     });
     // 处理options.json文件
     files = await this.dealFile(files, async (file) => {
       const { name } = file;
       if (!name.endsWith(".options.json")) {
-        return Promise.resolve(false);
+        return false;
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ScriptOptionsFile>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <ScriptOptionsFile>await this.getFileContent(file, true);
       map.get(key)!.options = data;
-      return Promise.resolve(true);
+      return true;
     });
     // 处理storage.json文件
     files = await this.dealFile(files, async (file) => {
       const { name } = file;
       if (!name.endsWith(".storage.json")) {
-        return Promise.resolve(false);
+        return false;
       }
       const key = name.substring(0, name.length - 13);
-      const data = <ValueStorage>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
-      Object.keys(data.data).forEach((dataKey) => {
-        data.data[dataKey] = parseStorageValue(data.data[dataKey]);
-      });
+      const data = <ValueStorage>await this.getFileContent(file, true);
+      const dataData = data.data;
+      for (const dataKey of Object.keys(dataData)) {
+        dataData[dataKey] = parseStorageValue(dataData[dataKey]);
+      }
       map.get(key)!.storage = data;
-      return Promise.resolve(true);
+      return true;
     });
     // 处理各种资源文件
     // 将期望的资源文件名储存到map中, 以便后续处理
@@ -131,14 +136,14 @@ export default class BackupImport {
       const { name } = file;
       const userJsIndex = name.indexOf(".user.js-");
       if (userJsIndex === -1) {
-        return Promise.resolve(false);
+        return false;
       }
       const key = name.substring(0, userJsIndex);
       let type: "resources" | "requires" | "requiresCss" | "" = "";
       if (!name.endsWith(".resources.json")) {
         if (!name.endsWith(".requires.json")) {
           if (!name.endsWith(".requires.css.json")) {
-            return Promise.resolve(false);
+            return false;
           }
           type = "requiresCss";
           resourceFilenameMap.set(name.substring(0, name.length - 18), {
@@ -162,13 +167,11 @@ export default class BackupImport {
           type,
         });
       }
-      const data = <ResourceMeta>(
-        JSON.parse(await (await this.fs.open(file)).read())
-      );
+      const data = <ResourceMeta>await this.getFileContent(file, true);
       map.get(key)![type].push({
         meta: data,
       } as never as ResourceBackup);
-      return Promise.resolve(true);
+      return true;
     });
 
     // 处理资源文件的内容
@@ -176,30 +179,25 @@ export default class BackupImport {
     files = await this.dealFile(files, async (file) => {
       if (file.name === "violentmonkey") {
         violentmonkeyFile = file;
-        return Promise.resolve(true);
+        return true;
       }
       const info = resourceFilenameMap.get(file.name);
       if (info === undefined) {
-        return Promise.resolve(false);
+        return false;
       }
       const resource = map.get(info.key)![info.type][info.index];
-      resource.base64 = await blobToBase64(
-        await (await this.fs.open(file)).read("blob")
-      );
+      resource.base64 = await blobToBase64(await this.getFileContent(file, false, "blob"));
       if (resource.meta) {
         // 存在meta
         // 替换base64前缀
         if (resource.meta.mimetype) {
-          resource.base64 = resource.base64.replace(
-            /^data:.*?;base64,/,
-            `data:${resource.meta.mimetype};base64,`
-          );
+          resource.base64 = resource.base64.replace(/^data:.*?;base64,/, `data:${resource.meta.mimetype};base64,`);
         }
         if (isText(await (await this.fs.open(file)).read("blob"))) {
           resource.source = await (await this.fs.open(file)).read();
         }
       }
-      return Promise.resolve(true);
+      return true;
     });
 
     files.length &&
@@ -211,37 +209,32 @@ export default class BackupImport {
     // 处理暴力猴导入资源
     if (violentmonkeyFile) {
       try {
-        const data = JSON.parse(
-          await (await this.fs.open(violentmonkeyFile)).read("string")
-        ) as ViolentmonkeyFile;
+        const data = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyFile;
         // 设置开启状态
-        const keys = Object.keys(data.scripts);
-        keys.forEach((key) => {
-          const vioScript = data.scripts[key];
+        const scripts = data.scripts;
+        for (const key of Object.keys(scripts)) {
+          const vioScript = scripts[key];
           if (!vioScript.config.enabled) {
             const script = map.get(key);
             if (!script) {
-              return;
+              continue;
             }
             script.enabled = false;
           }
-        });
+        }
       } catch (e) {
         this.logger.error("violentmonkey file parse error", Logger.E(e));
       }
     }
 
     // 将map转化为数组
-    return Promise.resolve({
-      script: Array.from(map.values()),
-      subscribe: Array.from(subscribe.values()),
-    });
+    return {
+      script: <ScriptData[]>Array.from(map.values()),
+      subscribe: <SubscribeData[]>Array.from(subscribe.values()),
+    };
   }
 
-  async dealFile(
-    files: File[],
-    handler: (file: File) => Promise<boolean>
-  ): Promise<File[]> {
+  async dealFile(files: File[], handler: (file: File) => Promise<boolean>): Promise<File[]> {
     const newFiles: File[] = [];
     const results = await Promise.all(files.map(handler));
     results.forEach((result, index) => {
@@ -249,6 +242,6 @@ export default class BackupImport {
         newFiles.push(files[index]);
       }
     });
-    return Promise.resolve(newFiles);
+    return newFiles;
   }
 }

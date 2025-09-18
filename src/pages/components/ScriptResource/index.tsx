@@ -1,24 +1,12 @@
-import IoC from "@App/app/ioc";
-import { Resource } from "@App/app/repo/resource";
-import { Script } from "@App/app/repo/scripts";
-import ResourceController from "@App/app/service/resource/controller";
-import { base64ToBlob } from "@App/pkg/utils/script";
-import {
-  Button,
-  Drawer,
-  Input,
-  Message,
-  Popconfirm,
-  Space,
-  Table,
-} from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
-import {
-  IconDelete,
-  IconDownload,
-  IconSearch,
-} from "@arco-design/web-react/icon";
+import type { Resource } from "@App/app/repo/resource";
+import type { Script } from "@App/app/repo/scripts";
+import { ResourceClient } from "@App/app/service/service_worker/client";
+import { message } from "@App/pages/store/global";
+import { base64ToBlob } from "@App/pkg/utils/utils";
+import { Button, Drawer, Input, Message, Popconfirm, Space, Table } from "@arco-design/web-react";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
+import { IconDelete, IconDownload, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,7 +15,6 @@ type ResourceListItem = {
 } & Resource;
 
 const ScriptResource: React.FC<{
-  // eslint-disable-next-line react/require-default-props
   script?: Script;
   visible: boolean;
   onOk: () => void;
@@ -35,21 +22,21 @@ const ScriptResource: React.FC<{
 }> = ({ script, visible, onCancel, onOk }) => {
   const [data, setData] = useState<ResourceListItem[]>([]);
   const inputRef = useRef<RefInputType>(null);
-  const resourceCtrl = IoC.instance(ResourceController) as ResourceController;
   const { t } = useTranslation();
+  const resourceClient = new ResourceClient(message);
 
   useEffect(() => {
     if (!script) {
       return () => {};
     }
-    resourceCtrl.getResource(script).then((res) => {
+    resourceClient.getScriptResources(script).then((res) => {
       const arr: ResourceListItem[] = [];
-      Object.keys(res).forEach((key) => {
+      for (const key of Object.keys(res)) {
         // @ts-ignore
         const item: ResourceListItem = res[key];
         item.key = key;
         arr.push(item);
-      });
+      }
       setData(arr);
     });
     return () => {};
@@ -61,7 +48,7 @@ const ScriptResource: React.FC<{
       dataIndex: "key",
       key: "key",
       filterIcon: <IconSearch />,
-      // eslint-disable-next-line react/no-unstable-nested-components
+
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -80,10 +67,10 @@ const ScriptResource: React.FC<{
           </div>
         );
       },
-      onFilter: (value, row) => (value ? row.key.indexOf(value) !== -1 : true),
+      onFilter: (value, row) => !value || row.key.includes(value),
       onFilterDropdownVisibleChange: (v) => {
         if (v) {
-          setTimeout(() => inputRef.current!.focus(), 150);
+          setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
     },
@@ -122,10 +109,21 @@ const ScriptResource: React.FC<{
               title={t("confirm_delete_resource")}
               onOk={() => {
                 Message.info({
-                  content: t("delete_success"),
+                  content: t("deleting"),
                 });
-                resourceCtrl.deleteResource(value.id);
-                setData(data.filter((_, i) => i !== index));
+                resourceClient
+                  .deleteResource(value.url)
+                  .then(() => {
+                    Message.info({
+                      content: t("delete_success"),
+                    });
+                    setData(data.filter((_, i) => i !== index));
+                  })
+                  .catch((e) => {
+                    Message.error({
+                      content: t("delete_failed") + ": " + e.message,
+                    });
+                  });
               }}
             >
               <Button type="text" iconOnly icon={<IconDelete />} />
@@ -156,7 +154,7 @@ const ScriptResource: React.FC<{
             onOk={() => {
               setData((prev) => {
                 prev.forEach((v) => {
-                  resourceCtrl.deleteResource(v.id);
+                  resourceClient.deleteResource(v.url);
                 });
                 Message.info({
                   content: t("clear_success"),

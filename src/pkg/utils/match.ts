@@ -1,263 +1,118 @@
-/* eslint-disable max-classes-per-file */
+import { isUrlMatch, extractUrlPatterns, RuleTypeBit, type URLRuleEntry } from "./url_matcher";
+import { randNum } from "./utils";
 
-import Logger from "@App/app/logger/logger";
+export class UrlMatch<T> {
+  public readonly rulesMap = new Map<T, URLRuleEntry[]>();
+  public readonly cacheMap = new Map<string, T[]>();
+  private sorter: Partial<Record<string, number>> | null = null;
 
-export default class Match<T> {
-  protected cache = new Map<string, T[]>();
-
-  protected rule = new Map<string, T[]>();
-
-  protected parseURL(url: string): Url | undefined {
-    if (url.indexOf("*http") === 0) {
-      url = url.substring(1);
-    }
-    const match = /^(.+?):\/\/(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
-    if (match) {
-      return {
-        scheme: match[1],
-        host: match[2],
-        path: match[4] || (url[url.length - 1] === "*" ? "*" : "/"),
-        search: match[5],
-      };
-    }
-    // 处理一些特殊情况
-    switch (url) {
-      case "*":
-        return {
-          scheme: "*",
-          host: "*",
-          path: "*",
-          search: "*",
-        };
-      default:
-    }
-    return undefined;
+  public addRules(uuid: T, rules: URLRuleEntry[]) {
+    this.cacheMap.clear();
+    let map = this.rulesMap.get(uuid);
+    if (!map) this.rulesMap.set(uuid, (map = []));
+    map.push(...rules);
   }
 
-  protected compileRe(url: string): string {
-    const u = this.parseURL(url);
-    if (!u) {
-      return "";
-    }
-    switch (u.scheme) {
-      case "*":
-        u.scheme = ".+?";
-        break;
-      case "http*":
-        u.scheme = "http[s]?";
-        break;
-      default:
-    }
-    let pos = u.host.indexOf("*");
-    if (u.host === "*" || u.host === "**") {
-      pos = -1;
-    } else if (u.host.endsWith("*")) {
-      // 处理*结尾
-      u.host = u.host.substring(0, u.host.length - 1);
-    } else if (pos !== -1 && pos !== 0) {
-      return "";
-    }
-    u.host = u.host.replace(/\*/g, "[^/]*?");
-    // 处理 *.开头
-    if (u.host.startsWith("[^/]*?.")) {
-      u.host = `([^/]*?\\.?)${u.host.substring(7)}`;
-    } else if (pos !== -1) {
-      if (u.host.indexOf(".") === -1) {
-        return "";
-      }
-    }
-    // 处理顶域
-    if (u.host.endsWith("tld")) {
-      u.host = `${u.host.substr(0, u.host.length - 3)}.*?`;
-    }
-    // 处理端口
-    const pos2 = u.host.indexOf(":");
-    if (pos2 === -1) {
-      u.host = `${u.host}(:\\d+)?`;
-    } else {
-      u.host = `${u.host.substring(0, pos2)}(:\\d+)?`;
-    }
-    let re = `^${u.scheme}://${u.host}`;
-    if (u.path === "/") {
-      re += "[/]?";
-    } else {
-      re += u.path.replace(/\*/g, ".*?");
-    }
-    if (u.search) {
-      re += u.search.replace(/([\\?])/g, "\\$1").replace(/\*/g, ".*?");
-    }
-    return `${re.replace(/\//g, "/")}$`;
-  }
-
-  public add(url: string, val: T) {
-    const re = this.compileRe(url);
-    if (!re) {
-      throw new Error(`invalid url: ${url}`);
-    }
-    let rule = this.rule.get(re);
-    if (!rule) {
-      rule = [];
-      this.rule.set(re, rule);
-    }
-    rule.push(val);
-    this.delCache();
-  }
-
-  public match(url: string): T[] {
-    let ret = this.cache.get(url);
-    if (ret) {
-      return ret;
-    }
-    ret = [];
-    try {
-      this.rule.forEach((val, key) => {
-        const re = new RegExp(key);
-        if (re.test(url) && ret) {
-          ret.push(...val);
+  public urlMatch(url: string): T[] {
+    const cacheMap = this.cacheMap;
+    if (cacheMap.has(url)) return cacheMap.get(url) as T[];
+    const s = new Set<T>();
+    for (const [uuid, rules] of this.rulesMap.entries()) {
+      let ruleIncluded = false;
+      let ruleExcluded = false;
+      for (const rule of rules) {
+        if (rule.ruleType & RuleTypeBit.INCLUSION) {
+          // include
+          if (!ruleIncluded && isUrlMatch(url, rule)) {
+            ruleIncluded = true;
+          }
+        } else {
+          // exclude
+          if (!ruleExcluded && !isUrlMatch(url, rule)) {
+            ruleExcluded = true;
+            break;
+          }
         }
-      });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn("bad match rule", Logger.E(e));
-      // LoggerCore.getLogger({ component: "match" }).warn(
-      //   "bad match rule",
-      //   Logger.E(e)
-      // );
+      }
+      if (ruleIncluded && !ruleExcluded) {
+        s.add(uuid);
+      }
     }
-    this.cache.set(url, ret);
-    return ret;
-  }
-
-  protected static getId(val: any): string {
-    if (typeof val === "object") {
-      return (<{ id: string }>(<unknown>val)).id;
-    }
-    return <string>(<unknown>val);
-  }
-
-  public del(val: T) {
-    const id = Match.getId(val);
-    this.rule.forEach((rules, key) => {
-      const tmp: T[] = [];
-      rules.forEach((rule) => {
-        if (Match.getId(rule) !== id) {
-          tmp.push(rule);
+    const res = [...s];
+    const sorter = this.sorter;
+    if (sorter !== null && typeof sorter === "object" && typeof res[0] === "string") {
+      (res as string[]).sort((a, b) => {
+        const p = sorter[a];
+        const q = sorter[b];
+        if (p! > -1 && q! > -1) {
+          return p! - q!;
         }
+        return a.localeCompare(b);
       });
-      if (tmp) {
-        this.rule.set(key, tmp);
-      } else {
-        this.rule.delete(key);
+    }
+    cacheMap.set(url, res);
+    return res;
+  }
+
+  public clearRules(uuid: T) {
+    this.cacheMap.clear();
+    this.rulesMap.delete(uuid);
+  }
+
+  // 测试用
+  public addInclude(rulePattern: string, uuid: T) {
+    // @include xxxxx
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@include ${e}`));
+    this.addRules(uuid, rules);
+  }
+
+  // 测试用
+  public addMatch(rulePattern: string, uuid: T) {
+    // @match xxxxx
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@match ${e}`));
+    this.addRules(uuid, rules);
+  }
+
+  // 测试用
+  public exclude(rulePattern: string, uuid: T) {
+    // @exclude xxxxx
+    const rules = extractUrlPatterns([rulePattern].map((e) => `@exclude ${e}`));
+    this.addRules(uuid, rules);
+  }
+
+  public setupSorter(sorter: Partial<Record<string, number>> | null) {
+    if (this.sorter !== sorter) {
+      this.cacheMap.clear();
+      this.sorter = sorter;
+    }
+  }
+}
+
+export const blackListSelfCheck = (blacklist: string[] | null | undefined) => {
+  blacklist = blacklist || [];
+
+  const scriptUrlPatterns = extractUrlPatterns([...blacklist.map((e) => `@include ${e}`)]);
+  const blackMatch = new UrlMatch<string>();
+  blackMatch.addRules("BK", scriptUrlPatterns);
+
+  for (const line of blacklist) {
+    const templateLine = line.replace(/[*?]/g, (a) => {
+      // ?: 置换成１个英文字母
+      if (a === "?") return String.fromCharCode(randNum(97, 122));
+      // *: 置换成３～５个英文字母
+      const s = [];
+      for (let i = randNum(3, 5); i > 0; i--) {
+        s.push(randNum(97, 122));
       }
+      return String.fromCharCode(...s);
     });
-    this.delCache();
+    if (blackMatch.urlMatch(templateLine)[0] !== "BK") {
+      // 无效的复合规则
+      // 生成的字串不能被匹对、例如正则表达式
+      return { ok: false, line };
+    }
   }
-
-  protected delCache() {
-    this.cache.clear();
-  }
-}
-
-export class UrlMatch<T> extends Match<T> {
-  protected excludeMatch = new Match<T>();
-
-  public exclude(url: string, val: T) {
-    this.excludeMatch.add(url, val);
-  }
-
-  public del(val: T): void {
-    super.del(val);
-    this.excludeMatch.del(val);
-    this.cache.clear();
-  }
-
-  public match(url: string): T[] {
-    const cache = this.cache.get(url);
-    if (cache) {
-      return cache;
-    }
-    let ret = super.match(url);
-    // 排除
-    const includeMap = new Map();
-    ret.forEach((val) => {
-      includeMap.set(Match.getId(val), val);
-    });
-    const exclude = this.excludeMatch.match(url);
-    const excludeMap = new Map();
-    exclude.forEach((val) => {
-      excludeMap.set(Match.getId(val), 1);
-    });
-    ret = [];
-    includeMap.forEach((val: T, key) => {
-      if (!excludeMap.has(key)) {
-        ret.push(val);
-      }
-    });
-    this.cache.set(url, ret);
-    return ret;
-  }
-}
-
-export interface Url {
-  scheme: string;
-  host: string;
-  path: string;
-  search: string;
-}
-
-export class UrlInclude<T> extends UrlMatch<T> {
-  protected parseURL(url: string): Url | undefined {
-    const ret = super.parseURL(url);
-    if (ret) {
-      return ret;
-    }
-    if (url === "http*") {
-      return { scheme: "*", host: "*", path: "*", search: "*" };
-    }
-    const match = /^(.*?)((\/.*?)(\?.*?|)|)$/.exec(url);
-    if (match) {
-      return {
-        scheme: "*",
-        host: match[1],
-        path: match[3] || (url[url.length - 1] === "*" ? "*" : "/"),
-        search: match[4],
-      };
-    }
-    return undefined;
-  }
-
-  protected compileRe(url: string): string {
-    const u = this.parseURL(url);
-    if (!u) {
-      return "";
-    }
-    switch (u.scheme) {
-      case "*":
-        u.scheme = ".+?";
-        break;
-      case "http*":
-        u.scheme = "http[s]?";
-        break;
-      default:
-    }
-    u.host = u.host.replace(/\*/g, "[^/]*?");
-    // 处理 *.开头
-    if (u.host.startsWith("[^/]*?.")) {
-      u.host = `([^/]*?.?)${u.host.substring(7)}`;
-    }
-    // 处理顶域
-    if (u.host.endsWith("tld")) {
-      u.host = `${u.host.substring(0, u.host.length - 3)}.*?`;
-    }
-    let re = `^${u.scheme}://${u.host}`;
-    if (u.path === "/") {
-      re += "[/]?";
-    } else {
-      re += u.path.replace(/\*/g, ".*?");
-    }
-    if (u.search) {
-      re += u.search.replace(/([\\?])/g, "\\$1").replace(/\*/g, ".*?");
-    }
-    return `${re.replace(/\//g, "/")}$`;
-  }
-}
+  // 有效的复合规则
+  // 只包含 match pattern 及 glob pattern
+  return { ok: true };
+};

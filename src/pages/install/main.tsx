@@ -1,39 +1,36 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import registerEditor from "@App/pkg/utils/monaco-editor";
+import App from "./App.tsx";
+import { Provider } from "react-redux";
+import { store } from "@App/pages/store/store.ts";
+import MainLayout from "../components/layout/MainLayout.tsx";
+import LoggerCore from "@App/app/logger/core.ts";
+import { message } from "../store/global.ts";
+import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
-import MessageInternal from "@App/app/message/internal";
-import migrate from "@App/app/migrate";
-// eslint-disable-next-line import/no-unresolved
-import "uno.css";
-import IoC from "@App/app/ioc";
-import DBWriter from "@App/app/logger/db_writer";
-import { LoggerDAO } from "@App/app/repo/logger";
-import LoggerCore from "@App/app/logger/core";
-import { MessageHander } from "@App/app/message/message";
-import MainLayout from "../components/layout/MainLayout";
-import App from "./App";
 import "@App/locales/locales";
+import "@App/index.css";
+import "./index.css";
+import registerEditor from "@App/pkg/utils/monaco-editor";
 
-migrate();
 registerEditor();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
-  debug: process.env.NODE_ENV === "development",
-  writer: new DBWriter(new LoggerDAO()),
+  writer: new MessageWriter(message),
   labels: { env: "install" },
 });
-loggerCore.logger().debug("install start");
 
-const con = new MessageInternal("install");
+loggerCore.logger().debug("install page start");
 
-IoC.registerInstance(MessageInternal, con).alias(MessageHander);
-
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div>
-    <MainLayout pageName="install" className="!flex-col !px-4 box-border">
+const Root = (
+  <Provider store={store}>
+    <MainLayout className="!flex-col !px-4 box-border install-main-layout">
       <App />
     </MainLayout>
-  </div>
+  </Provider>
+);
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
 );

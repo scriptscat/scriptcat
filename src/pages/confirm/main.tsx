@@ -1,29 +1,32 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import MainLayout from "../components/layout/MainLayout.tsx";
+import { Provider } from "react-redux";
+import { store } from "@App/pages/store/store.ts";
+import LoggerCore from "@App/app/logger/core.ts";
+import { message } from "../store/global.ts";
+import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
-import MessageInternal from "@App/app/message/internal";
-import migrate from "@App/app/migrate";
-// eslint-disable-next-line import/no-unresolved
-import "uno.css";
-import IoC from "@App/app/ioc";
-import { MessageBroadcast, MessageHander } from "@App/app/message/message";
-import App from "./App";
-import MainLayout from "../components/layout/MainLayout";
 import "@App/locales/locales";
+import "@App/index.css";
 
-migrate();
+// 初始化日志组件
+const loggerCore = new LoggerCore({
+  writer: new MessageWriter(message),
+  labels: { env: "confirm" },
+});
 
-const con = new MessageInternal("confirm");
+loggerCore.logger().debug("confirm page start");
 
-IoC.registerInstance(MessageInternal, con).alias([
-  MessageHander,
-  MessageBroadcast,
-]);
-
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div>
-    <MainLayout className="!flex-col !px-4 box-border" pageName="confirm">
+const Root = (
+  <Provider store={store}>
+    <MainLayout className="!flex-col !px-4 box-border">
       <App />
     </MainLayout>
-  </div>
+  </Provider>
+);
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
 );

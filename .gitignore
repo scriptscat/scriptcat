@@ -27,3 +27,8 @@ coverage
 CHANGELOG.md
 
 tailwind.config.js
+
+.env
+
+package-lock.json
+yarn.lock

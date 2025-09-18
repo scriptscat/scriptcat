@@ -1,13 +1,12 @@
 import React, { useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Joyride, { Step } from "react-joyride";
-import { Path, useLocation, useNavigate } from "react-router-dom";
-import { CustomTrans } from "..";
+import type { Step } from "react-joyride";
+import Joyride from "react-joyride";
+import type { Path } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import CustomTrans from "../CustomTrans";
 
-const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
-  _props,
-  ref
-) => {
+const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> = (_props, ref) => {
   const { t } = useTranslation();
   const [stepIndex, setStepIndex] = useState(0);
   const [initRoute, setInitRoute] = useState<Partial<Path>>({ pathname: "/" });
@@ -21,9 +20,12 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
     // 首次使用时，打开引导
     if (localStorage.getItem("firstUse") === null) {
       localStorage.setItem("firstUse", "false");
-      setRun(true);
+      // 隐身模式不打开引导
+      if (!chrome.extension.inIncognitoContext) {
+        setRun(true);
+      }
     }
-  });
+  }, []);
 
   const steps: Array<Step> = [
     {
@@ -98,11 +100,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
   return (
     <Joyride
       callback={(data) => {
-        if (
-          data.action === "stop" ||
-          data.action === "close" ||
-          data.status === "finished"
-        ) {
+        if (data.action === "stop" || data.action === "close" || data.status === "finished") {
           setRun(false);
           setStepIndex(0);
           gotoNavigate(initRoute);
@@ -130,7 +128,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
         }
       }}
       locale={{
-        next: t("next"),
+        nextLabelWithProgress: t("next_with_progress"),
         skip: t("skip"),
         back: t("back"),
         last: t("last"),
@@ -148,6 +146,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, {}> = (
       styles={{
         options: {
           zIndex: 10000,
+          primaryColor: "#4594D5",
         },
       }}
     />

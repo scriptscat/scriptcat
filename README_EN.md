@@ -1,93 +1,128 @@
-<h1 align="center">ScriptCat</h1>
-
-<p align="center">
-<img src="./build/assets/logo.png"/>
+<p align="right">
+<a href="./README.md">中文</a>  <a href="./README_EN.md">English</a>
 </p>
+
+<h1 align="center">
+<img src="./src/assets/logo.png"/><br/>
+ScriptCat
+</h1>
 
 <p align="center">ScriptCat, a browser extension that can execute user scripts, everything can be scripted, allowing your browser to do more things!</p>
 
 <p align="center">
-<a href="https://docs.scriptcat.org/">Docs</a> ·
+<a href="https://docs.scriptcat.org/">Documentation</a> ·
 <a href="https://bbs.tampermonkey.net.cn/">Community</a> ·
-<a href="https://scriptcat.org/search">Script Hub</a> ·
-</p>
-
-<p align="center">
-<a href="./README.md">中文说明</a>
+<a href="https://scriptcat.org/search">Script Hub</a>
 </p>
 
 ![GitHub stars](https://img.shields.io/github/stars/scriptscat/scriptcat.svg)
-[![Build Status](https://github.com/scriptscat/scriptcat/workflows/build/badge.svg?branch=main)](https://github.com/scriptscat/scriptcat)
+[![Build Status](https://github.com/scriptscat/scriptcat/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/scriptscat/scriptcat)
 [![codecov](https://codecov.io/gh/scriptscat/scriptcat/branch/main/graph/badge.svg?token=G1A6ZGDQTY)](https://codecov.io/gh/scriptscat/scriptcat)
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/scriptscat/scriptcat.svg?label=version)
-[![Chrome](https://img.shields.io/badge/chrome-sucess-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
-[![Edge](https://img.shields.io/badge/edge-sucess-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
-[![FireFox](https://img.shields.io/badge/firefox-sucess-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
-![GitHub All Releases](https://img.shields.io/github/downloads/scriptscat/scriptcat/total)
+[![Chrome](https://img.shields.io/badge/chrome-success-brightgreen?logo=google%20chrome)](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
+[![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
+[![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
+[![Crowdin](https://badges.crowdin.net/scriptcat/localized.svg)](https://crowdin.com/project/scriptcat)
 
-## About
+## About ScriptCat
 
-We built a framework for executing background scripts and Greasemonkey/Tampermonkey scripts based on the design ideas of Greasemonkey/Tampermonkey. It also has several unique APIs that enable scripts to do more. Furthermore, we provide a fantastic online editor that makes script code development more pleasant and easy.
+ScriptCat is a powerful userscript manager based on Tampermonkey's design philosophy, fully compatible with Tampermonkey
+scripts. It not only supports traditional userscripts but also innovatively implements a background script execution
+framework with rich API extensions, enabling scripts to accomplish more powerful functions. It features an excellent
+built-in code editor with intelligent completion and syntax checking, making script development more efficient and
+smooth.
 
-**Please Star it if you find it useful. ❤❤❤**
+**If you find it useful, please give us a Star ⭐ This is the greatest support for us!**
 
-## Features
+## ✨ Core Features
 
-- Cloud Sync: script recovery is easy when changing or reinstalling browser
-- Scripts subscription: creating your own script collections or enabling multiple scripts to work together.
-- Compatibility: allowing seamless migration from other userscript managers.
-- Background scripts: allowing your scripts to run continuously in the background.
-- Scheduled scripts: allowing for daily scheduled tasks. You can use them for automatic check-ins, timed reminders, and more.
-- Rich API: more powerful APIs than other managers, which can realize more functions.
-- Sandbox mechanism: ensuring user safety, script permissions are granted only with user consent.
-- Excellent editor: providing API auto-completion and ESLint.
-- Nice UI
+### 🔄 Cloud Sync
 
-...More features are Coming.
+- **Script Cloud Sync**: Sync scripts across devices, easily restore when switching browsers or reinstalling systems
+- **Script Subscriptions**: Create and manage script collections, support team collaboration and script combinations
 
-## Instructions
+### 🔧 Powerful Functions
 
-### Install script
+- **Full Tampermonkey Compatibility**: Seamlessly migrate existing Tampermonkey scripts with zero learning curve
+- **Background Scripts**: Innovative background execution mechanism, keeping scripts running continuously without page
+  limitations
+- **Scheduled Scripts**: Support timed execution tasks for auto check-ins, scheduled reminders, and more
+- **Rich APIs**: Provides more powerful APIs compared to Tampermonkey, unlocking more possibilities
 
-You can get normal userscripts from [major userscript markets](https://docs.scriptcat.org/docs/use/#%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC) and background scripts from [Background Scripts](https://bbs.tampermonkey.net.cn/forum-68-1.html) which is supported by ScriptCat.
+### 🛡️ Security & Reliability
 
-The installation method is the same as Greasemonkey/Tampermonkey, and it is also compatible with the majority of userscripts. If you encounter any incompatible scripts, you can provide feedback to us through [issues](https://github.com/scriptscat/scriptcat/issues).
+- **Sandbox Mechanism**: Scripts run in isolated environments, preventing malicious code from affecting other scripts
+- **Permission Management**: Scripts must explicitly request required permissions, with additional confirmation needed
+  for sensitive operations
 
-### Script development documentation
+### 💻 Development Experience
 
-The [Documentation](https://docs.scriptcat.org/docs/dev/) is trying its best to improve. Because it refers to the design of Greasemonkey/Tampermonkey, there are many similarities with their scripts. Even if you use other script managers, You can also refer to the documentation of ScriptCat to develop!
+- **Smart Editor**: Built-in code editor with syntax highlighting, intelligent completion, and ESLint
+- **Debugging Tools**: Comprehensive debugging features for quick problem identification and resolution
+- **Beautiful Interface**: Modern UI design with intuitive and clean operations
 
-Suppose there are any errors in the development documentation or you would like to make additions. In that case, you can click the "Edit this page" link below to make changes.
+> 🚀 More features in continuous development...
 
-### Install extension
+## 🚀 Quick Start
 
-We have published our extension in the Chrome or Firefox store. If you cannot access the store, please download the ZIP package manually from the [release](https://github.com/scriptscat/scriptcat/releases) and install it.
+### 📦 Install Extension
 
-#### Extension store
+#### Extension Stores (Recommended)
 
-- [Chrome Store](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf)
-- [Edge Store](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
-- [Firefox Store](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/)
+| Browser | Store Link                                                                                                                                                                                                                                            | Status       |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Chrome  | [Stable Version](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) [Beta Version](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom?authuser=0&hl=zh-CN) | ✅ Available |
+| Edge    | [Stable Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) [Beta Version](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)                      | ✅ Available |
+| Firefox | [Stable Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat/) [Beta Version](https://addons.mozilla.org/zh-CN/firefox/addon/scriptcat-pre/)                                                                                             | ✅ MV2       |
 
-### Discussion
+#### Manual Installation
+
+If you cannot access extension stores, download the latest ZIP package from
+[GitHub Releases](https://github.com/scriptscat/scriptcat/releases) for manual installation.
+
+### 📝 Usage Guide
+
+#### Installing Scripts
+
+1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/search) or other userscript markets
+2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/zh-CN/search?script_type=3)
+3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible
+   scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
+
+#### Developing Scripts
+
+Check our [Development Documentation](https://docs.scriptcat.org/docs/dev/) and
+[Developer Guide](https://learn.scriptcat.org/) to learn how to write scripts. The documentation covers everything from
+basics to advanced topics, making script development effortless.
+
+If you find errors in the documentation or want to contribute content, you can click "Edit this page" on the
+documentation page to make modifications.
+
+---
+
+## 🤝 Contributing
+
+We welcome all forms of contributions! Please check the [Contributing Guide](./docs/CONTRIBUTING_EN.md) to learn how to
+get started.
+
+### 💬 Community
+
+Join our community to communicate with other users and developers:
 
 - [Telegram](https://t.me/scriptscat)
-- [油猴中文网](https://bbs.tampermonkey.net.cn/)
+- [Discord](https://discord.gg/JF76nHCCM7)
+- [Tampermonkey Chinese Forum](https://bbs.tampermonkey.net.cn/)
 
-## License
+### 🙏 Acknowledgments
 
-This project is open source under the GPLv3 license. Please comply with the terms and conditions of the license.
+Thanks to the following developers who have contributed to ScriptCat. ScriptCat becomes better with your help!
+
+[![Contributors](https://contrib.rocks/image?repo=scriptscat/scriptcat&max=1000)](https://github.com/scriptscat/scriptcat/graphs/contributors)
+
+---
+
+## 📄 Open Source License
+
+This project is open-sourced under the [GPLv3](./LICENSE) license. Please comply with the relevant license terms.
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fscriptscat%2Fscriptcat?ref=badge_large)
-
-## Contribution
-
-Please refer to [Contribution Guidelines](./CONTRIBUTING.md)
-
-### Thanks
-
-Thanks to the following developers for contributing to ScriptCat and making ScriptCat even better!
-
-<a href="https://github.com/scriptscat/scriptcat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=scriptscat/scriptcat&max=1000" />
-</a>

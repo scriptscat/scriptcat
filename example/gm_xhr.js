@@ -13,14 +13,23 @@ const data = new FormData();
 
 data.append("username", "admin");
 
+data.append(
+  "file",
+  new File(["foo"], "foo.txt", {
+    type: "text/plain",
+  })
+);
+
 GM_xmlhttpRequest({
   url: "https://bbs.tampermonkey.net.cn/",
   method: "POST",
   responseType: "blob",
   data: data,
+  cookie: "ceshi=123",
+  anonymous: true,
   headers: {
-    "referer": "http://www.example.com/",
-    "origin": "www.example.com",
+    referer: "http://www.example.com/",
+    origin: "www.example.com",
     // 为空将不会发送此header
     "sec-ch-ua-mobile": "",
   },

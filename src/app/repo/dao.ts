@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import Dexie from "dexie";
 
 export const db = new Dexie("ScriptCat");
@@ -14,12 +13,7 @@ export class Page {
 
   protected Sort: "asc" | "desc";
 
-  constructor(
-    page: number,
-    count: number,
-    sort?: "asc" | "desc",
-    order?: string
-  ) {
+  constructor(page: number, count: number, sort?: "asc" | "desc", order?: string) {
     this.Page = page;
     this.Count = count;
     this.Order = order || "id";
@@ -81,9 +75,9 @@ export abstract class DAO<T> {
     }
     const resp = await this.table.update(id, <any>val);
     if (resp) {
-      return Promise.resolve(id);
+      return id;
     }
-    return Promise.reject(ErrSaveError);
+    throw ErrSaveError;
   }
 
   public findById(id: number) {
@@ -102,7 +96,7 @@ export abstract class DAO<T> {
   }
 
   public update(id: number, changes: { [key: string]: any }) {
-    return this.table.update(id, changes);
+    return this.table.update(id, <any>changes);
   }
 
   public count() {

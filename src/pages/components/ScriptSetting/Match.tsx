@@ -1,33 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Script } from "@App/app/repo/scripts";
-import IoC from "@App/app/ioc";
-import ScriptController from "@App/app/service/script/controller";
-import {
-  Space,
-  Popconfirm,
-  Button,
-  Divider,
-  Typography,
-  Modal,
-  Input,
-} from "@arco-design/web-react";
-import Table, { ColumnProps } from "@arco-design/web-react/es/Table";
+import type { Script } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { Space, Popconfirm, Button, Divider, Typography, Modal, Input } from "@arco-design/web-react";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
+import Table from "@arco-design/web-react/es/Table";
 import { IconDelete } from "@arco-design/web-react/icon";
+import { scriptClient } from "@App/pages/store/features/script";
 
 type MatchItem = {
   // id是为了避免match重复
   id: number;
   match: string;
-  self: boolean;
-  hasMatch: boolean;
-  isExclude: boolean;
+  byUser: boolean;
+  hasMatch: boolean; // 是否已经匹配
+  isExclude: boolean; // 是否是排除项
 };
 
 const Match: React.FC<{
   script: Script;
 }> = ({ script }) => {
-  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const scriptDAO = new ScriptDAO();
   const [match, setMatch] = useState<MatchItem[]>([]);
   const [exclude, setExclude] = useState<MatchItem[]>([]);
   const [matchValue, setMatchValue] = useState<string>("");
@@ -36,10 +29,21 @@ const Match: React.FC<{
   const [excludeVisible, setExcludeVisible] = useState<boolean>(false);
   const { t } = useTranslation(); // 使用 react-i18next 的 useTranslation 钩子函数获取翻译函数
 
-  useEffect(() => {
+  // 自定义的状态更新函数，会在更新后自动刷新数据
+  const updateMatchAndRefresh = (newMatch: MatchItem[]) => {
+    setMatch(newMatch);
+    refreshMatch();
+  };
+
+  const updateExcludeAndRefresh = (newExclude: MatchItem[]) => {
+    setExclude(newExclude);
+    refreshMatch();
+  };
+
+  const refreshMatch = () => {
     if (script) {
       // 从数据库中获取是简单处理数据一致性的问题
-      scriptCtrl.scriptDAO.findById(script.id).then((res) => {
+      scriptDAO.get(script.uuid).then((res) => {
         if (!res) {
           return;
         }
@@ -50,28 +54,17 @@ const Match: React.FC<{
         });
         const v: MatchItem[] = [];
         matchArr.forEach((value, index) => {
-          if (matchMap.has(value)) {
-            v.push({
-              id: index,
-              match: value,
-              self: false,
-              hasMatch: false,
-              isExclude: false,
-            });
-          } else {
-            v.push({
-              id: index,
-              match: value,
-              self: true,
-              hasMatch: false,
-              isExclude: false,
-            });
-          }
+          v.push({
+            id: index,
+            match: value,
+            byUser: !matchMap.has(value),
+            hasMatch: false,
+            isExclude: false,
+          });
         });
         setMatch(v);
 
-        const excludeArr =
-          res.selfMetadata?.exclude || res.metadata.exclude || [];
+        const excludeArr = res.selfMetadata?.exclude || res.metadata.exclude || [];
         const excludeMap = new Map<string, boolean>();
         res.metadata.exclude?.forEach((m) => {
           excludeMap.set(m, true);
@@ -79,28 +72,22 @@ const Match: React.FC<{
         const e: MatchItem[] = [];
         excludeArr.forEach((value, index) => {
           const hasMatch = matchMap.has(value);
-          if (excludeMap.has(value)) {
-            e.push({
-              id: index,
-              match: value,
-              self: false,
-              hasMatch,
-              isExclude: true,
-            });
-          } else {
-            e.push({
-              id: index,
-              match: value,
-              self: true,
-              hasMatch,
-              isExclude: true,
-            });
-          }
+          e.push({
+            id: index,
+            match: value,
+            byUser: !excludeMap.has(value),
+            hasMatch,
+            isExclude: true,
+          });
         });
         setExclude(e);
       });
     }
-  }, [script, exclude, match]);
+  };
+
+  useEffect(() => {
+    refreshMatch();
+  }, [script]);
 
   const columns: ColumnProps[] = [
     {
@@ -110,8 +97,8 @@ const Match: React.FC<{
     },
     {
       title: t("user_setting"),
-      dataIndex: "self",
-      key: "self",
+      dataIndex: "byUser",
+      key: "byUser",
       width: 100,
       render(col) {
         if (col) {
@@ -127,27 +114,28 @@ const Match: React.FC<{
           return (
             <Space>
               <Popconfirm
-                title={`${t("confirm_delete_exclude")}${
-                  item.hasMatch ? ` ${t("after_deleting_match_item")}` : ""
-                }`}
+                title={`${t("confirm_delete_exclude")}${item.hasMatch ? ` ${t("after_deleting_match_item")}` : ""}`}
                 onOk={() => {
                   exclude.splice(exclude.indexOf(item), 1);
-                  scriptCtrl
+                  // 删除所有排除
+                  scriptClient
                     .resetExclude(
-                      script.id,
+                      script.uuid,
                       exclude.map((m) => m.match)
                     )
                     .then(() => {
-                      setExclude([...exclude]);
+                      updateExcludeAndRefresh([...exclude]);
+                      // 如果包含在里面，再加回match
                       if (item.hasMatch) {
                         match.push(item);
-                        scriptCtrl
+                        // 重置匹配
+                        scriptClient
                           .resetMatch(
-                            script.id,
+                            script.uuid,
                             match.map((m) => m.match)
                           )
                           .then(() => {
-                            setMatch([...match]);
+                            updateMatchAndRefresh([...match]);
                           });
                       }
                     });
@@ -161,28 +149,26 @@ const Match: React.FC<{
         return (
           <Space>
             <Popconfirm
-              title={`${t("confirm_delete_match")}${
-                item.self ? "" : ` ${t("after_deleting_exclude_item")}`
-              }`}
+              title={`${t("confirm_delete_match")}${item.byUser ? "" : ` ${t("after_deleting_exclude_item")}`}`}
               onOk={() => {
                 match.splice(match.indexOf(item), 1);
-                scriptCtrl
+                scriptClient
                   .resetMatch(
-                    script.id,
+                    script.uuid,
                     match.map((m) => m.match)
                   )
                   .then(() => {
-                    setMatch([...match]);
+                    updateMatchAndRefresh([...match]);
                     // 添加到exclue
-                    if (!item.self) {
+                    if (!item.byUser) {
                       exclude.push(item);
-                      scriptCtrl
+                      scriptClient
                         .resetExclude(
-                          script.id,
+                          script.uuid,
                           exclude.map((m) => m.match)
                         )
                         .then(() => {
-                          setExclude([...exclude]);
+                          updateExcludeAndRefresh([...exclude]);
                         });
                     }
                   });
@@ -207,17 +193,17 @@ const Match: React.FC<{
             match.push({
               id: Math.random(),
               match: matchValue,
-              self: true,
+              byUser: true,
               hasMatch: false,
               isExclude: false,
             });
-            scriptCtrl
+            scriptClient
               .resetMatch(
-                script.id,
+                script.uuid,
                 match.map((m) => m.match)
               )
               .then(() => {
-                setMatch([...match]);
+                updateMatchAndRefresh([...match]);
                 setMatchVisible(false);
               });
           }
@@ -239,17 +225,17 @@ const Match: React.FC<{
             exclude.push({
               id: Math.random(),
               match: excludeValue,
-              self: true,
+              byUser: true,
               hasMatch: false,
               isExclude: true,
             });
-            scriptCtrl
+            scriptClient
               .resetExclude(
-                script.id,
+                script.uuid,
                 exclude.map((m) => m.match)
               )
               .then(() => {
-                setExclude([...exclude]);
+                updateExcludeAndRefresh([...exclude]);
                 setExcludeVisible(false);
               });
           }
@@ -278,8 +264,8 @@ const Match: React.FC<{
           <Popconfirm
             title={t("confirm_reset")}
             onOk={() => {
-              scriptCtrl.resetMatch(script.id, undefined).then(() => {
-                setMatch([]);
+              scriptClient.resetMatch(script.uuid, undefined).then(() => {
+                updateMatchAndRefresh([]);
               });
             }}
           >
@@ -307,8 +293,8 @@ const Match: React.FC<{
           <Popconfirm
             title={t("confirm_reset")}
             onOk={() => {
-              scriptCtrl.resetExclude(script.id, undefined).then(() => {
-                setExclude([]);
+              scriptClient.resetExclude(script.uuid, undefined).then(() => {
+                updateExcludeAndRefresh([]);
               });
             }}
           >

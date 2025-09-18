@@ -1,19 +1,13 @@
-import IoC from "@App/app/ioc";
-import { Script } from "@App/app/repo/scripts";
-import { formatUnixTime } from "@App/pkg/utils/utils";
-import {
-  Descriptions,
-  Divider,
-  Drawer,
-  Empty,
-  Input,
-  Message,
-} from "@arco-design/web-react";
+import type { Script } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
+import { Checkbox, Descriptions, Divider, Drawer, Input, Message, Select } from "@arco-design/web-react";
 import React, { useEffect, useState } from "react";
-import ScriptController from "@App/app/service/script/controller";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
+import { scriptClient } from "@App/pages/store/features/script";
+import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 
 const ScriptSetting: React.FC<{
   script: Script;
@@ -21,15 +15,26 @@ const ScriptSetting: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const scriptCtrl = IoC.instance(ScriptController) as ScriptController;
+  const scriptDAO = new ScriptDAO();
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
+  const [checkUpdate, setCheckUpdate] = useState<boolean>(false);
+  const [scriptRunEnv, setScriptRunEnv] = useState<string>("all");
 
   const { t } = useTranslation();
 
   useEffect(() => {
     if (script) {
-      scriptCtrl.scriptDAO.findById(script.id).then((v) => {
-        setCheckUpdateUrl(v?.downloadUrl || "");
+      scriptDAO.get(script.uuid).then((v) => {
+        if (!v) {
+          return;
+        }
+        setCheckUpdateUrl(v.downloadUrl || "");
+        setCheckUpdate(v.checkUpdate === false ? false : true);
+        let metadata = v.metadata;
+        if (v.selfMetadata) {
+          metadata = getCombinedMeta(metadata, v.selfMetadata);
+        }
+        setScriptRunEnv(metadata["run-in"]?.[0] || "all");
       });
     }
   }, [script]);
@@ -58,13 +63,40 @@ const ScriptSetting: React.FC<{
         data={[
           {
             label: t("last_updated"),
-            value: formatUnixTime(
-              (script?.updatetime || script?.createtime || 0) / 1000
-            ),
+            value: formatUnixTime((script?.updatetime || script?.createtime || 0) / 1000),
           },
           {
             label: "UUID",
             value: script?.uuid,
+          },
+        ]}
+        style={{ marginBottom: 20 }}
+        labelStyle={{ paddingRight: 36 }}
+      />
+      <Divider />
+      <Descriptions
+        column={1}
+        title={t("script_setting")}
+        data={[
+          {
+            label: t("script_run_env.title"),
+            value: (
+              <Select
+                value={scriptRunEnv}
+                options={[
+                  { label: t("script_run_env.default"), value: "default" },
+                  { label: t("script_run_env.all"), value: "all" },
+                  { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
+                  { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
+                ]}
+                onChange={(value) => {
+                  setScriptRunEnv(value);
+                  scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
+                    Message.success(t("update_success")!);
+                  });
+                }}
+              />
+            ),
           },
         ]}
         style={{ marginBottom: 20 }}
@@ -77,6 +109,20 @@ const ScriptSetting: React.FC<{
         title={t("update")}
         data={[
           {
+            label: t("check_update"),
+            value: (
+              <Checkbox
+                checked={checkUpdate}
+                onChange={(val) => {
+                  setCheckUpdate(val);
+                  scriptClient.setCheckUpdateUrl(script.uuid, val, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success")!);
+                  });
+                }}
+              />
+            ),
+          },
+          {
             label: t("update_url"),
             value: (
               <Input
@@ -85,11 +131,9 @@ const ScriptSetting: React.FC<{
                   setCheckUpdateUrl(e);
                 }}
                 onBlur={() => {
-                  scriptCtrl
-                    .updateCheckUpdateUrl(script!.id, checkUpdateUrl)
-                    .then(() => {
-                      Message.success(t("update_success")!);
-                    });
+                  scriptClient.setCheckUpdateUrl(script.uuid, checkUpdate, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success")!);
+                  });
                 }}
               />
             ),
@@ -100,7 +144,6 @@ const ScriptSetting: React.FC<{
       />
       <Divider />
       {script && <PermissionManager script={script} />}
-      <Empty description={t("under_construction")} />
     </Drawer>
   );
 };

@@ -1,17 +1,13 @@
-import IoC from "@App/app/ioc";
-import PermissionController from "@App/app/service/permission/controller";
-import { ConfirmParam } from "@App/runtime/background/permission_verify";
+import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 import { Button, Message, Space } from "@arco-design/web-react";
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { permissionClient } from "../store/features/script";
 
 function App() {
-  const uuid = window.location.search.split("=")[1];
+  const uuid = new URLSearchParams(location.search).get("uuid");
   const [confirm, setConfirm] = React.useState<ConfirmParam>();
   const [likeNum, setLikeNum] = React.useState(0);
-  const permissionCtrl = IoC.instance(
-    PermissionController
-  ) as PermissionController;
   const [second, setSecond] = React.useState(30);
 
   const { t } = useTranslation();
@@ -25,16 +21,18 @@ function App() {
   }, 1000);
 
   useEffect(() => {
+    if (!uuid) return;
     window.addEventListener("beforeunload", () => {
-      permissionCtrl.sendConfirm(uuid, {
+      permissionClient.confirm(uuid, {
         allow: false,
         type: 0,
       });
     });
 
-    permissionCtrl
-      .getConfirm(uuid)
+    permissionClient
+      .getPermissionInfo(uuid)
       .then((data) => {
+        console.log(data);
         setConfirm(data.confirm);
         setLikeNum(data.likeNum);
       })
@@ -45,8 +43,9 @@ function App() {
 
   const handleConfirm = (allow: boolean, type: number) => {
     return async () => {
+      if (!uuid) return;
       try {
-        await permissionCtrl.sendConfirm(uuid, {
+        await permissionClient.confirm(uuid, {
           allow,
           type,
         });
@@ -60,21 +59,21 @@ function App() {
     };
   };
 
+  const metadata = useMemo(() => (confirm && confirm.metadata && Object.keys(confirm.metadata)) || [], [confirm]);
+
   return (
     <div className="h-full">
       <Space direction="vertical">
         <span className="text-2xl font-500">{confirm?.title}</span>
-        {confirm &&
-          confirm.metadata &&
-          Object.keys(confirm.metadata).map((key) => (
-            <span className="text-base" key={key}>
-              {key}: {confirm!.metadata![key]}
-            </span>
-          ))}
+        {metadata.map((key) => (
+          <span className="text-base" key={key}>
+            {`${key}: ${confirm!.metadata![key]}`}
+          </span>
+        ))}
         <span className="text-xl font-500">{confirm?.describe}</span>
         <div>
           <Button type="primary" onClick={handleConfirm(false, 1)}>
-            {t("ignore")} ({second})
+            {`${t("ignore")} (${second})`}
           </Button>
         </div>
         <div>

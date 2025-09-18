@@ -17,12 +17,14 @@ import {
   IconSubscribe,
   IconTool,
 } from "@arco-design/web-react/icon";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
-import CustomLink from "..";
 import SiderGuide from "./SiderGuide";
+import CustomLink from "../CustomLink";
+import { localePath } from "@App/locales/locales";
+import { DocumentationSite } from "@App/app/const";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -38,19 +40,16 @@ const Sider: React.FC = () => {
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
 
+  const handleMenuClick = useCallback((key: string) => {
+    setMenuSelect(key);
+  }, []);
+
   return (
     <HashRouter>
       <SiderGuide ref={guideRef} />
       <Layout.Sider className="h-full" collapsed={collapsed} width={170}>
         <div className="flex flex-col justify-between h-full">
-          <Menu
-            style={{ width: "100%" }}
-            selectedKeys={[menuSelect]}
-            selectable
-            onClickMenuItem={(key) => {
-              setMenuSelect(key);
-            }}
-          >
+          <Menu style={{ width: "100%" }} selectedKeys={[menuSelect]} selectable onClickMenuItem={handleMenuClick}>
             <CustomLink to="/">
               <MenuItem key="/" className="menu-script">
                 <IconCode /> {t("installed_scripts")}
@@ -81,9 +80,7 @@ const Sider: React.FC = () => {
             style={{ width: "100%", borderTop: "1px solid var(--color-bg-5)" }}
             selectedKeys={[]}
             selectable
-            onClickMenuItem={(key) => {
-              setMenuSelect(key);
-            }}
+            onClickMenuItem={handleMenuClick}
             mode="pop"
           >
             <Menu.SubMenu
@@ -101,53 +98,33 @@ const Sider: React.FC = () => {
                 key="/external_links"
                 title={
                   <>
-                    <RiLinkM /> {t("external_links")}
+                    <RiLinkM /> <span className="grow">{t("external_links")}</span>
                   </>
                 }
               >
                 <Menu.Item key="scriptcat/docs/dev/">
-                  <a
-                    href="https://docs.scriptcat.org/docs/dev/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href={`${DocumentationSite}${localePath}/docs/dev/`} target="_blank" rel="noreferrer">
                     <RiFileCodeLine /> {t("api_docs")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="scriptcat/docs/learn/">
-                  <a
-                    href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://learn.scriptcat.org/docs/%E7%AE%80%E4%BB%8B/" target="_blank" rel="noreferrer">
                     <RiFileCodeLine /> {t("development_guide")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="scriptcat/userscript">
-                  <a
-                    href="https://scriptcat.org/search"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://scriptcat.org/search" target="_blank" rel="noreferrer">
                     <IconLink /> {t("script_gallery")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="tampermonkey/bbs">
-                  <a
-                    href="https://bbs.tampermonkey.net.cn/"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href="https://bbs.tampermonkey.net.cn/" target="_blank" rel="noreferrer">
                     <IconLink /> {t("community_forum")}
                   </a>
                 </Menu.Item>
                 <Menu.Item key="GitHub">
-                  <a
-                    href="https://github.com/scriptscat/scriptcat"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <IconGithub /> GitHub
+                  <a href="https://github.com/scriptscat/scriptcat" target="_blank" rel="noreferrer">
+                    <IconGithub /> {"GitHub"}
                   </a>
                 </Menu.Item>
               </Menu.SubMenu>
@@ -160,11 +137,7 @@ const Sider: React.FC = () => {
                 <RiGuideLine /> {t("guide")}
               </Menu.Item>
               <Menu.Item key="scriptcat/docs/use/">
-                <a
-                  href="https://docs.scriptcat.org/docs/use/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a href={`${DocumentationSite}${localePath}/docs/use/`} target="_blank" rel="noreferrer">
                   <RiFileCodeLine /> {t("user_guide")}
                 </a>
               </Menu.Item>
@@ -176,7 +149,7 @@ const Sider: React.FC = () => {
                 setCollapsed(!collapsed);
               }}
             >
-              {collapsed ? <IconRight /> : <IconLeft />} {t("collapsible")}
+              {collapsed ? <IconRight /> : <IconLeft />} {t("hide_sidebar")}
             </MenuItem>
           </Menu>
         </div>
@@ -194,7 +167,7 @@ const Sider: React.FC = () => {
         <Routes>
           <Route index element={<ScriptList />} />
           <Route path="/script/editor">
-            <Route path=":id" element={<ScriptEditor />} />
+            <Route path=":uuid" element={<ScriptEditor />} />
             <Route path="" element={<ScriptEditor />} />
           </Route>
           <Route path="/subscribe" element={<SubscribeList />} />

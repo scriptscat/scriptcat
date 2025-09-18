@@ -1,23 +1,31 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
-import MessageContent from "./app/message/content";
-import InjectRuntime from "./runtime/content/inject";
+import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { Server } from "@Packages/message/server";
+import type { ScriptLoadInfo } from "./app/service/service_worker/types";
+import type { GMInfoEnv } from "./app/service/content/types";
+import { InjectRuntime } from "./app/service/content/inject";
+import { ScriptExecutor } from "./app/service/content/script_executor";
 
-// 通过flag与content建立通讯,这个ScriptFlag是后端注入时候生成的
-// eslint-disable-next-line no-undef
-const flag = ScriptFlag;
+/* global MessageFlag, EarlyScriptFlag */
 
-const message = new MessageContent(flag, false);
+const msg = new CustomEventMessage(MessageFlag, false);
 
 // 加载logger组件
 const logger = new LoggerCore({
-  debug: process.env.NODE_ENV === "development",
-  writer: new MessageWriter(message),
+  writer: new MessageWriter(msg),
   labels: { env: "inject", href: window.location.href },
 });
 
-message.setHandler("pageLoad", (_action, data) => {
+const server = new Server("inject", msg);
+const scriptExecutor = new ScriptExecutor(msg, EarlyScriptFlag);
+const runtime = new InjectRuntime(server, msg, scriptExecutor);
+// 检查early-start的脚本
+scriptExecutor.checkEarlyStartScript();
+
+server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
-  const runtime = new InjectRuntime(message, data.scripts, flag);
-  runtime.start();
+  // 监听事件
+  runtime.init(data.envInfo);
+  runtime.start(data.scripts);
 });

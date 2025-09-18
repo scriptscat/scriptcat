@@ -1,86 +1,93 @@
-import Cache from "@App/app/cache";
-import IoC from "@App/app/ioc";
-import { SystemConfig } from "@App/pkg/config/config";
-import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 import { editor, Range } from "monaco-editor";
-import React, { useEffect, useImperativeHandle, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { globalCache, systemConfig } from "@App/pages/store/global";
+import { LinterWorker } from "@App/pkg/utils/monaco-editor";
 
 type Props = {
-  // eslint-disable-next-line react/require-default-props
   className?: string;
-  // eslint-disable-next-line react/require-default-props
   diffCode?: string; // 因为代码加载是异步的,diifCode有3种状态:undefined不确定,""没有diff,有diff,不确定的情况下,编辑器不会加载
-  // eslint-disable-next-line react/require-default-props
   editable?: boolean;
   id: string;
-  // eslint-disable-next-line react/require-default-props
   code?: string;
 };
 
-const CodeEditor: React.ForwardRefRenderFunction<
-  { editor: editor.ICodeEditor | undefined },
-  Props
-> = ({ id, className, code, diffCode, editable }, ref) => {
-  const [monacoEditor, setEditor] = useState<editor.ICodeEditor>();
+const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCodeEditor | undefined }, Props> = (
+  { id, className, code, diffCode, editable },
+  ref
+) => {
+  const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
+  const [enableEslint, setEnableEslint] = useState(false);
+  const [eslintConfig, setEslintConfig] = useState("");
+
+  const div = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => ({
     editor: monacoEditor,
   }));
+
   useEffect(() => {
-    if (diffCode === undefined || code === undefined) {
+    const loadConfigs = () => {
+      Promise.all([systemConfig.getEslintConfig(), systemConfig.getEnableEslint()]).then(
+        ([eslintConfig, enableEslint]) => {
+          setEslintConfig(eslintConfig);
+          setEnableEslint(enableEslint);
+        }
+      );
+    };
+    loadConfigs();
+  }, []);
+
+  useEffect(() => {
+    if (diffCode === undefined || code === undefined || !div.current) {
       return () => {};
     }
     let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
+    const inlineDiv = document.getElementById(id) as HTMLDivElement;
     // @ts-ignore
-    const ts = window.tsUrl ? 0 : 200;
-    setTimeout(() => {
-      const div = document.getElementById(id) as HTMLDivElement;
-      if (diffCode) {
-        edit = editor.createDiffEditor(div, {
-          enableSplitViewResizing: false,
-          renderSideBySide: false,
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: true,
-          diffWordWrap: "off",
-          glyphMargin: true,
-        });
-        edit.setModel({
-          original: editor.createModel(diffCode, "javascript"),
-          modified: editor.createModel(code, "javascript"),
-        });
-      } else {
-        edit = editor.create(div, {
-          language: "javascript",
-          theme:
-            document.body.getAttribute("arco-theme") === "dark"
-              ? "vs-dark"
-              : "vs",
-          folding: true,
-          foldingStrategy: "indentation",
-          automaticLayout: true,
-          overviewRulerBorder: false,
-          scrollBeyondLastLine: false,
-          readOnly: !editable,
-          glyphMargin: true,
-        });
-        edit.setValue(code);
+    if (diffCode) {
+      edit = editor.createDiffEditor(inlineDiv, {
+        hideUnchangedRegions: {
+          enabled: true,
+        },
+        enableSplitViewResizing: false,
+        renderSideBySide: false,
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: true,
+        diffWordWrap: "off",
+        glyphMargin: true,
+      });
+      edit.setModel({
+        original: editor.createModel(diffCode, "javascript"),
+        modified: editor.createModel(code, "javascript"),
+      });
+    } else {
+      edit = editor.create(inlineDiv, {
+        language: "javascript",
+        theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
+        folding: true,
+        foldingStrategy: "indentation",
+        automaticLayout: true,
+        overviewRulerBorder: false,
+        scrollBeyondLastLine: false,
+        readOnly: !editable,
+        glyphMargin: true,
+      });
+      edit.setValue(code);
 
-        setEditor(edit);
-      }
-    }, ts);
+      setEditor(edit);
+    }
     return () => {
-      if (edit) {
-        edit.dispose();
-      }
+      // 目前会出现：Uncaught (in promise) Canceled: Canceled
+      // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
+      edit?.dispose();
     };
-  }, [code, diffCode]);
+  }, [div, code, diffCode, editable, id]);
 
   useEffect(() => {
-    const config = IoC.instance(SystemConfig) as SystemConfig;
-    if (!config.enableEslint) {
+    if (!enableEslint) {
       return () => {};
     }
     if (!monacoEditor) {
@@ -90,7 +97,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
     if (!model) {
       return () => {};
     }
-    let timer: any;
+    let timer: NodeJS.Timeout | null;
     const lint = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
@@ -98,7 +105,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
         LinterWorker.sendLinterMessage({
           code: model.getValue(),
           id,
-          config: JSON.parse(config.eslintConfig),
+          config: JSON.parse(eslintConfig),
         });
       }, 500);
     };
@@ -128,9 +135,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
         .filter(
           (i) =>
             i.options.glyphMarginClassName &&
-            Object.values(glyphMarginClassList).includes(
-              i.options.glyphMarginClassName
-            )
+            Object.values(glyphMarginClassList).includes(i.options.glyphMarginClassName)
         );
       monacoEditor.removeDecorations(oldDecorations.map((i) => i.id));
 
@@ -194,7 +199,7 @@ const CodeEditor: React.ForwardRefRenderFunction<
           }
         }
       );
-      Cache.getInstance().set("eslint-fix", fix);
+      globalCache.set("eslint-fix", fix);
 
       // 在行号旁显示ESLint错误/警告图标
       const formatMarkers = message.markers.map(
@@ -214,22 +219,9 @@ const CodeEditor: React.ForwardRefRenderFunction<
     return () => {
       LinterWorker.hook.removeListener("message", handler);
     };
-  }, [monacoEditor]);
+  }, [id, monacoEditor, enableEslint, eslintConfig]);
 
-  return (
-    <div
-      id={id}
-      style={{
-        margin: 0,
-        padding: 0,
-        border: 0,
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-      }}
-      className={className}
-    />
-  );
+  return <div id={id} className={className} ref={div} />;
 };
 
 export default React.forwardRef(CodeEditor);

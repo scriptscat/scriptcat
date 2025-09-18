@@ -1,37 +1,44 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "CommonJS",
+    "target": "ES2020",
     "lib": [
-      "ES2021",
-      "DOM"
+      "DOM",
+      "ES2020",
+      "WebWorker"
     ],
-    "strict": true,
+    "module": "nodenext",
     "jsx": "react-jsx",
-    "importHelpers": true,
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "sourceMap": true,
+    "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": true,
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
       "@App/*": [
         "src/*"
       ],
-      "@Pkg/*": [
-        "pkg/*"
+      "@Packages/*": [
+        "packages/*"
+      ],
+      "@Tests/*": [
+        "tests/*"
       ]
-    },
-    "typeRoots": [
-      "./node_modules/@types/",
-      "./src/types/"
-    ]
+    }
   },
   "include": [
     "src",
-    "pkg",
-  ]
+    "packages",
+    "tests"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  }
 }

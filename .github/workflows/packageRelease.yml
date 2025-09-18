@@ -11,12 +11,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 16
-          cache: 'npm'
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Package with Node
         env:
@@ -25,52 +27,10 @@ jobs:
           mkdir dist
           echo "$CHROME_PEM" > ./dist/scriptcat.pem
           chmod 600 ./dist/scriptcat.pem
-          npm ci
-          npm test
-          npm run pack
+          pnpm i --frozen-lockfile
+          pnpm test
+          pnpm run pack
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+      - uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          body: |
-            'no description'
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset zip
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/scriptcat-${{ github.ref_name }}-chrome.zip
-          asset_name: scriptcat-${{ github.ref_name }}-chrome.zip
-          asset_content_type: application/zip
-
-      - name: Upload FireFox Release Asset zip
-        id: upload-firefox-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/scriptcat-${{ github.ref_name }}-firefox.zip
-          asset_name: scriptcat-${{ github.ref_name }}-firefox.zip
-          asset_content_type: application/zip
-
-      - name: Upload Crx Release Asset zip
-        id: upload-crx-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/scriptcat-${{ github.ref_name }}-chrome.crx
-          asset_name: scriptcat-${{ github.ref_name }}-chrome.crx
-          asset_content_type: application/zip
+          artifacts: "./dist/*.zip,./dist/*.crx"

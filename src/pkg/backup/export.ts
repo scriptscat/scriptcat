@@ -1,13 +1,8 @@
-import FileSystem from "@Pkg/filesystem/filesystem";
-import crypto from "crypto-js";
-import { base64ToBlob } from "../utils/script";
+import type FileSystem from "@Packages/filesystem/filesystem";
+import { base64ToBlob } from "../utils/utils";
 import { toStorageValueStr } from "../utils/utils";
-import {
-  BackupData,
-  ResourceBackup,
-  ScriptBackupData,
-  SubscribeBackupData,
-} from "./struct";
+import type { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
+import { md5OfText } from "../utils/crypto";
 
 export default class BackupExport {
   fs: FileSystem;
@@ -19,76 +14,80 @@ export default class BackupExport {
   // 导出备份数据
   export(data: BackupData): Promise<void> {
     // 写入脚本备份
-    const results: Promise<void>[] = [];
-    data.script.forEach((item) => {
-      results.push(this.writeScript(item));
+    return Promise.all([
+      ...data.script.flatMap((item) => this.writeScript(item)),
+      ...data.subscribe.flatMap((item) => this.writeSubscribe(item)),
+    ]).then(() => {
+      return;
     });
-    data.subscribe.forEach((item) => {
-      results.push(this.writeSubscribe(item));
-    });
-    return Promise.all(results).then(() => undefined);
   }
 
-  async writeScript(script: ScriptBackupData) {
+  writeScript(script: ScriptBackupData): Promise<void>[] {
     const { name } = script.options!.meta;
+    // 将脚本名中的特殊字符替换为下划线
+    const filename = name.replace(/[\\/\\:*?"<>|]/g, "_");
+
     // 写脚本文件
-    await (await this.fs.create(`${name}.user.js`)).write(script.code);
+    const writeCode = script.code;
+
     // 写入脚本options.json
-    await (
-      await this.fs.create(`${name}.options.json`)
-    ).write(JSON.stringify(script.options));
+    const writeOptions = JSON.stringify(script.options);
+
     // 写入脚本storage.json
     // 不想兼容tm的导出规则了,直接写入storage.json
     const storage = { ...script.storage };
-    Object.keys(storage.data).forEach((key: string) => {
-      storage.data[key] = toStorageValueStr(storage.data[key]);
-    });
-    await (
-      await this.fs.create(`${name}.storage.json`)
-    ).write(JSON.stringify(storage));
-    // 写入脚本资源文件
-    await this.writeResource(name, script.resources, "resources");
-    await this.writeResource(name, script.requires, "requires");
-    await this.writeResource(name, script.requiresCss, "requires.css");
+    const { data } = storage;
+    for (const key of Object.keys(data)) {
+      data[key] = toStorageValueStr(data[key]);
+    }
+    const wrtieStorage = JSON.stringify(storage);
 
-    return Promise.resolve();
+    return [
+      // 写脚本文件
+      this.fs.create(`${filename}.user.js`).then((fileWriter) => fileWriter.write(writeCode)),
+      // 写入脚本options.json
+      this.fs.create(`${filename}.options.json`).then((fileWriter) => fileWriter.write(writeOptions)),
+      // 写入脚本storage.json
+      this.fs.create(`${filename}.storage.json`).then((fileWriter) => fileWriter.write(wrtieStorage)),
+      // 写入脚本资源文件
+      ...this.writeResource(filename, script.resources, "resources"),
+      ...this.writeResource(filename, script.requires, "requires"),
+      ...this.writeResource(filename, script.requiresCss, "requires.css"),
+    ];
   }
 
-  async writeResource(
-    name: string,
+  writeResource(
+    filename: string,
     resources: ResourceBackup[],
     type: "resources" | "requires" | "requires.css"
-  ): Promise<void[]> {
-    const results: Promise<void>[] = resources.map(async (item) => {
+  ): Promise<void>[] {
+    return resources.flatMap((item) => {
       // md5是tm的导出规则
-      const md5 = crypto.MD5(`${type}{val.meta.url}`).toString();
-      if (item.source) {
-        await (
-          await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)
-        ).write(item.source!);
-      } else {
-        await (
-          await this.fs.create(`${name}.user.js-${md5}-${item.meta.name}`)
-        ).write(base64ToBlob(item.base64));
-      }
-      (
-        await this.fs.create(
-          `${name}.user.js-${md5}-${item.meta.name}.${type}.json`
-        )
-      ).write(JSON.stringify(item.meta));
+      const md5 = md5OfText(`${type}{val.meta.url}`);
+      const writeSource = item.source || base64ToBlob(item.base64);
+      const writeMeta = JSON.stringify(item.meta);
+      return [
+        this.fs
+          .create(`${filename}.user.js-${md5}-${item.meta.name}`)
+          .then((fileWriter) => fileWriter.write(writeSource)),
+        this.fs
+          .create(`${filename}.user.js-${md5}-${item.meta.name}.${type}.json`)
+          .then((fileWriter) => fileWriter.write(writeMeta)),
+      ];
     });
-    return Promise.all(results);
   }
 
-  async writeSubscribe(subscribe: SubscribeBackupData) {
+  writeSubscribe(subscribe: SubscribeBackupData): Promise<void>[] {
     const { name } = subscribe.options!.meta;
-    // 写入订阅文件
-    await (await this.fs.create(`${name}.user.sub.js`)).write(subscribe.source);
-    // 写入订阅options.json
-    await (
-      await this.fs.create(`${name}.user.sub.options.json`)
-    ).write(JSON.stringify(subscribe.options));
-
-    return Promise.resolve();
+    // 将订阅名中的特殊字符替换为下划线
+    const filename = name.replace(/[\\/\\:*?"<>|]/g, "_");
+    const writeSource = subscribe.source;
+    const writeOptions = JSON.stringify(subscribe.options);
+    return [
+      // 写入订阅文件
+      this.fs.create(`${filename}.user.sub.js`).then((fileWriter) => fileWriter.write(writeSource)),
+      // 写入订阅options.json
+      this.fs.create(`${filename}.user.sub.options.json`).then((fileWriter) => fileWriter.write(writeOptions)),
+    ];
   }
 }

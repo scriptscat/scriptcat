@@ -1,11 +1,21 @@
 .arco-dropdown-menu-selected {
-  background-color: var(--color-fill-2) !important;
+    background-color: var(--color-fill-2) !important;
 }
 
 .action-tools .arco-dropdown-popup-visible .arco-icon-down {
-  transform: rotate(180deg);
+    transform: rotate(180deg);
 }
 
-.action-tools > .arco-btn {
-  padding: 0 8px;
+.action-tools>.arco-btn {
+    padding: 0 8px;
+}
+
+.arco-dropdown-menu-item,
+.arco-dropdown-menu-item a {
+    display: flex;
+    align-items: center;
+}
+
+:is(.arco-dropdown-menu-pop-header, .arco-dropdown-menu-item, .arco-dropdown-menu-item a) > svg {
+    margin-right: .5em;
 }

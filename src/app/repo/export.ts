@@ -1,12 +1,11 @@
-import { ExportParams } from "@Pkg/cloudscript/cloudscript";
-import { DAO, db } from "./dao";
+import type { ExportParams } from "@Packages/cloudscript/cloudscript";
+import { Repo } from "./repo";
 
 export type ExportTarget = "local" | "tencentCloud";
 
 // 导出与本地脚本关联记录
 export interface Export {
-  id: number;
-  scriptId: number;
+  uuid: string;
   params: {
     [key: string]: ExportParams;
   };
@@ -14,15 +13,18 @@ export interface Export {
   target: ExportTarget;
 }
 
-export class ExportDAO extends DAO<Export> {
+export class ExportDAO extends Repo<Export> {
   public tableName = "export";
 
   constructor() {
-    super();
-    this.table = db.table(this.tableName);
+    super("export");
   }
 
-  findByScriptID(scriptID: number) {
-    return this.table.where({ scriptId: scriptID }).first();
+  findByScriptID(uuid: string) {
+    return this.get(uuid);
+  }
+
+  save(model: Export): Promise<Export> {
+    return this._save(model.uuid, model);
   }
 }

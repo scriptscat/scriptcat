@@ -1,72 +1,86 @@
-import IoC from "@App/app/ioc";
-import { Script } from "@App/app/repo/scripts";
-import { Value } from "@App/app/repo/value";
-import ValueController from "@App/app/service/value/controller";
+import type { Script } from "@App/app/repo/scripts";
+import { valueClient } from "@App/pages/store/features/script";
 import { valueType } from "@App/pkg/utils/utils";
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Message,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-} from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
+import { Button, Drawer, Form, Input, Message, Modal, Popconfirm, Select, Space, Table } from "@arco-design/web-react";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconDelete, IconEdit, IconSearch } from "@arco-design/web-react/icon";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const FormItem = Form.Item;
 
+interface ValueModel {
+  key: string;
+  value: any;
+}
+
 const ScriptStorage: React.FC<{
-  // eslint-disable-next-line react/require-default-props
   script?: Script;
   visible: boolean;
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const [data, setData] = useState<Value[]>([]);
+  const [data, setData] = useState<ValueModel[]>([]);
+  const [rawData, setRawData] = useState<{ [key: string]: any }>({});
   const inputRef = useRef<RefInputType>(null);
-  const valueCtrl = IoC.instance(ValueController) as ValueController;
-  const [currentValue, setCurrentValue] = useState<Value>();
+  const [currentValue, setCurrentValue] = useState<ValueModel>();
   const [visibleEdit, setVisibleEdit] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editValue, setEditValue] = useState("");
   const [form] = Form.useForm();
   const { t } = useTranslation();
+
+  // 保存单个键值
+  const saveData = (key: string, value: any) => {
+    valueClient.setScriptValue(script!.uuid, key, value);
+    const newRawData = { ...rawData, [key]: value };
+    if (value === undefined) {
+      delete newRawData[key];
+    }
+    updateRawData(newRawData);
+  };
+
+  // 保存所有键值
+  const saveRawData = (newRawValue: { [key: string]: any }) => {
+    valueClient.setScriptValues(script!.uuid, newRawValue);
+    updateRawData(newRawValue);
+  };
+
+  // 更新UI数据
+  const updateRawData = (newRawValue: { [key: string]: any }) => {
+    setRawData(newRawValue);
+    setEditValue(JSON.stringify(newRawValue, null, 2));
+    setData(
+      Object.keys(newRawValue).map((key) => {
+        return { key: key, value: newRawValue[key] };
+      })
+    );
+  };
+
+  // 删除单个键值
+  const deleteData = (key: string) => {
+    saveData(key, undefined);
+    Message.info({
+      content: t("delete_success"),
+    });
+  };
+
+  // 清空所有键值
+  const clearData = () => {
+    saveRawData({});
+    Message.info({
+      content: t("clear_success"),
+    });
+  };
 
   useEffect(() => {
     if (!script) {
       return () => {};
     }
-    valueCtrl.getValues(script).then((values) => {
-      setData(values);
+    valueClient.getScriptValue(script).then((rawValue) => {
+      updateRawData(rawValue);
     });
-    // Monitor value changes
-    const channel = valueCtrl.watchValue(script);
-    channel.setHandler((value: Value) => {
-      setData((prev) => {
-        const index = prev.findIndex((item) => item.key === value.key);
-        if (index === -1) {
-          if (value.value === undefined) {
-            return prev;
-          }
-          return [value, ...prev];
-        }
-        if (value.value === undefined) {
-          prev.splice(index, 1);
-          return [...prev];
-        }
-        prev[index] = value;
-        return [...prev];
-      });
-    });
-    return () => {
-      channel.disChannel();
-    };
   }, [script]);
   const columns: ColumnProps[] = [
     {
@@ -75,7 +89,6 @@ const ScriptStorage: React.FC<{
       key: "key",
       filterIcon: <IconSearch />,
       width: 140,
-      // eslint-disable-next-line react/no-unstable-nested-components
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -94,10 +107,10 @@ const ScriptStorage: React.FC<{
           </div>
         );
       },
-      onFilter: (value, row) => (value ? row.key.indexOf(value) !== -1 : true),
+      onFilter: (value, row) => !value || row.key.includes(value),
       onFilterDropdownVisibleChange: (v) => {
         if (v) {
-          setTimeout(() => inputRef.current!.focus(), 150);
+          setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
     },
@@ -134,7 +147,7 @@ const ScriptStorage: React.FC<{
     },
     {
       title: t("action"),
-      render(_col, value: Value, index) {
+      render(_col, value: { key: string; value: string }) {
         return (
           <Space>
             <Button
@@ -150,11 +163,7 @@ const ScriptStorage: React.FC<{
               iconOnly
               icon={<IconDelete />}
               onClick={() => {
-                valueCtrl.setValue(script!.id, value.key, undefined);
-                Message.info({
-                  content: t("delete_success"),
-                });
-                setData(data.filter((_, i) => i !== index));
+                deleteData(value.key);
               }}
             />
           </Space>
@@ -174,65 +183,33 @@ const ScriptStorage: React.FC<{
       visible={visible}
       onOk={onOk}
       onCancel={onCancel}
+      footer={null}
     >
       <Modal
         title={currentValue ? t("edit_value") : t("add_value")}
         visible={visibleEdit}
         onOk={() => {
-          form
-            .validate()
-            .then((value: { key: string; value: any; type: string }) => {
-              switch (value.type) {
-                case "number":
-                  value.value = Number(value.value);
-                  break;
-                case "boolean":
-                  value.value = value.value === "true";
-                  break;
-                case "object":
-                  value.value = JSON.parse(value.value);
-                  break;
-                default:
-                  break;
-              }
-              valueCtrl.setValue(script!.id, value.key, value.value);
-              if (currentValue) {
-                Message.info({
-                  content: t("update_success"),
-                });
-                setData(
-                  data.map((v) => {
-                    if (v.key === value.key) {
-                      return {
-                        ...v,
-                        value: value.value,
-                      };
-                    }
-                    return v;
-                  })
-                );
-              } else {
-                Message.info({
-                  content: t("add_success"),
-                });
-                setData([
-                  {
-                    id: 0,
-                    scriptId: script!.id,
-                    storageName:
-                      (script?.metadata.storagename &&
-                        script?.metadata.storagename[0]) ||
-                      "",
-                    key: value.key,
-                    value: value.value,
-                    createtime: Date.now(),
-                    updatetime: 0,
-                  },
-                  ...data,
-                ]);
-              }
-              setVisibleEdit(false);
+          form.validate().then((value: { key: string; value: any; type: string }) => {
+            switch (value.type) {
+              case "number":
+                value.value = Number(value.value);
+                break;
+              case "boolean":
+                value.value = value.value === "true";
+                break;
+              case "object":
+                value.value = JSON.parse(value.value);
+                break;
+              default:
+                break;
+            }
+            saveData(value.key, value.value);
+
+            Message.info({
+              content: currentValue ? t("update_success") : t("add_success"),
             });
+            setVisibleEdit(false);
+          });
         }}
         onCancel={() => setVisibleEdit(false)}
       >
@@ -249,25 +226,16 @@ const ScriptStorage: React.FC<{
             }}
           >
             <FormItem label="Key" field="key" rules={[{ required: true }]}>
-              <Input
-                placeholder={t("key_placeholder")!}
-                disabled={!!currentValue}
-              />
+              <Input placeholder={t("key_placeholder")!} disabled={!!currentValue} />
             </FormItem>
             <FormItem label="Value" field="value" rules={[{ required: true }]}>
               <Input.TextArea rows={6} placeholder={t("value_placeholder")!} />
             </FormItem>
-            <FormItem
-              label={t("type")}
-              field="type"
-              rules={[{ required: true }]}
-            >
+            <FormItem label={t("type")} field="type" rules={[{ required: true }]}>
               <Select>
                 <Select.Option value="string">{t("type_string")}</Select.Option>
                 <Select.Option value="number">{t("type_number")}</Select.Option>
-                <Select.Option value="boolean">
-                  {t("type_boolean")}
-                </Select.Option>
+                <Select.Option value="boolean">{t("type_boolean")}</Select.Option>
                 <Select.Option value="object">{t("type_object")}</Select.Option>
               </Select>
             </FormItem>
@@ -276,36 +244,79 @@ const ScriptStorage: React.FC<{
       </Modal>
       <Space className="w-full" direction="vertical">
         <Space className="!flex justify-end">
-          <Popconfirm
-            focusLock
-            title={t("confirm_clear")}
-            onOk={() => {
-              setData((prev) => {
-                prev.forEach((v) => {
-                  valueCtrl.setValue(script!.id, v.key, undefined);
-                });
-                Message.info({
-                  content: t("clear_success"),
-                });
-                return [];
-              });
-            }}
-          >
-            <Button type="primary" status="warning">
-              {t("clear")}
-            </Button>
-          </Popconfirm>
+          {isEdit ? (
+            <>
+              <Button
+                type="primary"
+                status="warning"
+                onClick={() => {
+                  setEditValue(JSON.stringify(rawData, null, 2));
+                }}
+              >
+                {t("restore")}
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => {
+                  try {
+                    const newValue = JSON.parse(editValue);
+                    saveRawData(newValue);
+                    Message.info({
+                      content: t("save_success"),
+                    });
+                  } catch (err) {
+                    Message.error({
+                      content: `${t("save_failed")}: ${err}`,
+                    });
+                  }
+                }}
+              >
+                {t("save")}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Popconfirm
+                focusLock
+                title={t("confirm_clear")}
+                onOk={() => {
+                  clearData();
+                }}
+              >
+                <Button type="primary" status="warning">
+                  {t("clear")}
+                </Button>
+              </Popconfirm>
+              <Button
+                type="primary"
+                onClick={() => {
+                  setCurrentValue(undefined);
+                  setVisibleEdit(true);
+                }}
+              >
+                {t("add")}
+              </Button>
+            </>
+          )}
           <Button
             type="primary"
+            status="success"
             onClick={() => {
-              setCurrentValue(undefined);
-              setVisibleEdit(true);
+              setIsEdit(!isEdit);
             }}
           >
-            {t("add")}
+            {isEdit ? t("individual_edit") : t("batch_edit")}
           </Button>
         </Space>
-        <Table columns={columns} data={data} rowKey="id" />
+        {isEdit ? (
+          <Input.TextArea
+            value={editValue}
+            onChange={(value) => setEditValue(value)}
+            style={{ height: "calc(95vh - 100px)" }}
+          />
+        ) : (
+          <Table columns={columns} data={data} rowKey="id" />
+        )}
       </Space>
     </Drawer>
   );

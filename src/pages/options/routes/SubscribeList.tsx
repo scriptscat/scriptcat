@@ -1,62 +1,59 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Text from "@arco-design/web-react/es/Typography/text";
-import {
-  Button,
-  Card,
-  Input,
-  Message,
-  Popconfirm,
-  Switch,
-  Table,
-  Tag,
-  Tooltip,
-} from "@arco-design/web-react";
-import {
-  Subscribe,
-  SUBSCRIBE_STATUS_DISABLE,
-  SUBSCRIBE_STATUS_ENABLE,
-  SubscribeDAO,
-} from "@App/app/repo/subscribe";
-import { ColumnProps } from "@arco-design/web-react/es/Table";
-import IoC from "@App/app/ioc";
-import SubscribeController from "@App/app/service/subscribe/controller";
+import { Button, Card, Input, Message, Popconfirm, Switch, Table, Tag, Tooltip } from "@arco-design/web-react";
+import type { Subscribe } from "@App/app/repo/subscribe";
+import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
+import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import { IconSearch, IconUserAdd } from "@arco-design/web-react/icon";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
-import { semTime } from "@App/pkg/utils/utils";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import { semTime } from "@App/pkg/utils/dayjs";
 import { RiDeleteBin5Fill } from "react-icons/ri";
 import { useTranslation } from "react-i18next"; // 添加了 react-i18next 的引用
+import { subscribeClient } from "@App/pages/store/features/script";
 
 type ListType = Subscribe & { loading?: boolean };
 
 function SubscribeList() {
-  const dao = new SubscribeDAO();
-  const subscribeCtrl = IoC.instance(
-    SubscribeController
-  ) as SubscribeController;
   const [list, setList] = useState<ListType[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const { t } = useTranslation(); // 使用 useTranslation hook
 
+  const setListEntry = async (index: number, obj: any) => {
+    setList((prev) =>
+      prev.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              ...obj,
+            }
+          : item
+      )
+    );
+  };
+
   useEffect(() => {
-    dao.table
-      .orderBy("id")
-      .toArray()
-      .then((subscribes) => {
-        setList(subscribes);
-      });
+    const dao = new SubscribeDAO();
+    dao.all().then((subscribes) => {
+      setList(subscribes);
+    });
   }, []);
 
   const columns: ColumnProps[] = [
     {
       title: "#",
-      dataIndex: "id",
       width: 70,
       key: "#",
-      sorter: (a, b) => a.id - b.id,
+      sorter: (a: Subscribe, b) => a.createtime - b.createtime,
+      render(col, item, index) {
+        if (col < 0) {
+          return "-";
+        }
+        return index + 1;
+      },
     },
     {
       title: t("enable"),
-      width: 100,
+      width: t("subscribe_list_enable_width"),
       key: "enable",
       sorter(a, b) {
         return a.status - b.status;
@@ -79,24 +76,24 @@ function SubscribeList() {
             loading={item.loading}
             disabled={item.loading}
             onChange={(checked) => {
-              list[index].loading = true;
-              setList([...list]);
-              let p: Promise<any>;
-              if (checked) {
-                p = subscribeCtrl.enable(item.id).then(() => {
-                  list[index].status = SUBSCRIBE_STATUS_ENABLE;
+              setListEntry(index, { loading: true });
+              let statusChange = false;
+              subscribeClient
+                .enable(item.url, checked)
+                .then(() => {
+                  statusChange = true;
+                })
+                .catch((err) => {
+                  Message.error(err);
+                })
+                .finally(() => {
+                  setListEntry(index, {
+                    loading: false,
+                    ...(statusChange && {
+                      status: checked ? SUBSCRIBE_STATUS_ENABLE : SUBSCRIBE_STATUS_DISABLE,
+                    }),
+                  });
                 });
-              } else {
-                p = subscribeCtrl.disable(item.id).then(() => {
-                  list[index].status = SUBSCRIBE_STATUS_DISABLE;
-                });
-              }
-              p.catch((err) => {
-                Message.error(err);
-              }).finally(() => {
-                list[index].loading = false;
-                setList([...list]);
-              });
             }}
           />
         );
@@ -108,7 +105,7 @@ function SubscribeList() {
       sorter: (a, b) => a.name.localeCompare(b.name),
       filterIcon: <IconSearch />,
       key: "name",
-      // eslint-disable-next-line react/no-unstable-nested-components
+
       filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
         return (
           <div className="arco-table-custom-filter">
@@ -127,10 +124,10 @@ function SubscribeList() {
           </div>
         );
       },
-      onFilter: (value, row) => (value ? row.name.indexOf(value) !== -1 : true),
+      onFilter: (value, row) => !value || row.name.includes(value),
       onFilterDropdownVisibleChange: (visible) => {
         if (visible) {
-          setTimeout(() => inputRef.current!.focus(), 150);
+          setTimeout(() => inputRef.current!.focus(), 1);
         }
       },
       className: "max-w-[240px]",
@@ -167,19 +164,13 @@ function SubscribeList() {
       align: "center",
       key: "permission",
       render(_, item: Subscribe) {
-        if (item.metadata.connect) {
-          return <div />;
-        }
-        return (item.metadata.connect as string[]).map((val) => {
-          return (
-            <img
-              src={`https://${val}/favicon.ico`}
-              alt={val}
-              height={16}
-              width={16}
-            />
-          );
-        });
+        return (
+          <div>
+            {(item.metadata.connect || []).map((val) => {
+              return <img key={val} src={`https://${val}/favicon.ico`} alt={val} height={16} width={16} />;
+            })}
+          </div>
+        );
       },
     },
     {
@@ -192,7 +183,7 @@ function SubscribeList() {
           <Tooltip
             content={
               <p style={{ margin: 0, padding: 0 }}>
-                {t("subscribe_url")}: {decodeURIComponent(item.url)}
+                {t("subscribe_url") + ":"} {decodeURIComponent(item.url)}
               </p>
             }
           >
@@ -215,10 +206,10 @@ function SubscribeList() {
       dataIndex: "updatetime",
       align: "center",
       key: "updatetime",
-      width: 100,
+      width: t("script_list_last_updated_width"),
+      sorter: (a, b) => a.updatetime - b.updatetime,
       render(col, subscribe: Subscribe) {
         return (
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
           <span
             style={{
               cursor: "pointer",
@@ -226,10 +217,10 @@ function SubscribeList() {
             onClick={() => {
               Message.info({
                 id: "checkupdate",
-                content: t("checking_update"),
+                content: t("checking_for_updates"),
               });
-              subscribeCtrl
-                .checkUpdate(subscribe.id)
+              subscribeClient
+                .checkUpdate(subscribe.url)
                 .then((res) => {
                   if (res) {
                     Message.warning({
@@ -268,10 +259,15 @@ function SubscribeList() {
               title={t("confirm_delete_subscription")}
               icon={<RiDeleteBin5Fill />}
               onOk={() => {
-                setList(list.filter((val) => val.id !== item.id));
-                subscribeCtrl.delete(item.id).catch((e) => {
-                  Message.error(`${t("delete_failed")}: ${e}`);
-                });
+                subscribeClient
+                  .delete(item.url)
+                  .then(() => {
+                    setList(list.filter((val) => val.url !== item.url));
+                    Message.success(t("delete_success"));
+                  })
+                  .catch((e) => {
+                    Message.error(`${t("delete_failed")}: ${e}`);
+                  });
               }}
             >
               <Button
@@ -299,7 +295,7 @@ function SubscribeList() {
     >
       <Table
         className="arco-drag-table-container"
-        rowKey="id"
+        rowKey="url"
         tableLayoutFixed
         columns={columns}
         data={list}
@@ -309,7 +305,7 @@ function SubscribeList() {
           hideOnSinglePage: true,
         }}
         style={{
-          minWidth: "1100px",
+          minWidth: "1200px",
         }}
       />
     </Card>

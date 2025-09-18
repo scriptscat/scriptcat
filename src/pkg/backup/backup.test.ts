@@ -1,11 +1,9 @@
 import JSZip from "jszip";
-import ZipFileSystem from "@Pkg/filesystem/zip/zip";
-import initTestEnv from "../utils/test_utils";
 import BackupExport from "./export";
 import BackupImport from "./import";
-import { BackupData, ScriptOptions } from "./struct";
-
-initTestEnv();
+import type { BackupData } from "./struct";
+import { describe, expect, it } from "vitest";
+import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
 describe("backup", () => {
   const zipFile = new JSZip();

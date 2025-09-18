@@ -1,26 +1,9 @@
 import React from "react";
 import { Input, Select, Space } from "@arco-design/web-react";
-import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
+import type { FileSystemType } from "@Packages/filesystem/factory";
+import FileSystemFactory from "@Packages/filesystem/factory";
+import { useTranslation } from "react-i18next";
 
-const fsParams = FileSystemFactory.params();
-
-const fileSystemList: {
-  key: FileSystemType;
-  name: string;
-}[] = [
-  {
-    key: "webdav",
-    name: "WebDAV",
-  },
-  {
-    key: "baidu-netdsik",
-    name: "百度网盘",
-  },
-  {
-    key: "onedrive",
-    name: "OneDrive",
-  },
-];
 const FileSystemParams: React.FC<{
   preNode: React.ReactNode | string;
   onChangeFileSystemType: (type: FileSystemType) => void;
@@ -36,6 +19,35 @@ const FileSystemParams: React.FC<{
   fileSystemType,
   fileSystemParams,
 }) => {
+  const fsParams = FileSystemFactory.params();
+  const { t } = useTranslation();
+
+  const fileSystemList: {
+    key: FileSystemType;
+    name: string;
+  }[] = [
+    {
+      key: "webdav",
+      name: "WebDAV",
+    },
+    {
+      key: "baidu-netdsik",
+      name: t("baidu_netdisk"),
+    },
+    {
+      key: "onedrive",
+      name: "OneDrive",
+    },
+    {
+      key: "googledrive",
+      name: "Google Drive",
+    },
+    {
+      key: "dropbox",
+      name: "Dropbox",
+    },
+  ];
+
   return (
     <>
       <Space>
@@ -67,10 +79,7 @@ const FileSystemParams: React.FC<{
               <>
                 <span>{fsParams[fileSystemType][key].title}</span>
                 <Select
-                  value={
-                    fileSystemParams[key] ||
-                    fsParams[fileSystemType][key].options![0]
-                  }
+                  value={fileSystemParams[key] || fsParams[fileSystemType][key].options![0]}
                   onChange={(value) => {
                     onChangeFileSystemParams({
                       ...fileSystemParams,
@@ -84,6 +93,20 @@ const FileSystemParams: React.FC<{
                     </Select.Option>
                   ))}
                 </Select>
+              </>
+            )}
+            {fsParams[fileSystemType][key].type === "password" && (
+              <>
+                <span>{fsParams[fileSystemType][key].title}</span>
+                <Input.Password
+                  value={fileSystemParams[key]}
+                  onChange={(value) => {
+                    onChangeFileSystemParams({
+                      ...fileSystemParams,
+                      [key]: value,
+                    });
+                  }}
+                />
               </>
             )}
             {!fsParams[fileSystemType][key].type && (

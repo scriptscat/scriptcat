@@ -1,5 +1,3 @@
-import IoC from "@App/app/ioc";
-import ScriptController from "@App/app/service/script/controller";
 import {
   Button,
   ConfigProvider,
@@ -13,63 +11,173 @@ import {
   Space,
   Typography,
 } from "@arco-design/web-react";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { RefTextAreaType } from "@arco-design/web-react/es/Input";
 import {
+  IconCheckCircle,
+  IconCloseCircle,
   IconDesktop,
   IconDown,
+  IconLanguage,
   IconLink,
   IconMoonFill,
   IconSunFill,
 } from "@arco-design/web-react/icon";
-import { editor } from "monaco-editor";
-import React, { ReactNode, useRef, useState } from "react";
-import {
-  RiFileCodeLine,
-  RiTerminalBoxLine,
-  RiTimerLine,
-  RiPlayListAddLine,
-} from "react-icons/ri";
-import "./index.css";
+import type { ReactNode } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-
-export function switchLight(mode: string) {
-  if (mode === "auto") {
-    const darkThemeMq = window.matchMedia("(prefers-color-scheme: dark)");
-    const isMatch = (match: boolean) => {
-      if (match) {
-        document.body.setAttribute("arco-theme", "dark");
-        editor.setTheme("vs-dark");
-      } else {
-        document.body.removeAttribute("arco-theme");
-        editor.setTheme("vs");
-      }
-    };
-    darkThemeMq.addEventListener("change", (e) => {
-      isMatch(e.matches);
-    });
-    isMatch(darkThemeMq.matches);
-  } else {
-    document.body.setAttribute("arco-theme", mode);
-    editor.setTheme(mode === "dark" ? "vs-dark" : "vs");
-  }
-}
+import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
+import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
+import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
+import { scriptClient } from "@App/pages/store/features/script";
+import { useDropzone, type FileWithPath } from "react-dropzone";
+import { systemConfig } from "@App/pages/store/global";
+import i18n, { matchLanguage } from "@App/locales/locales";
+import "./index.css";
+import { arcoLocale } from "@App/locales/arco";
+import { prepareScriptByCode } from "@App/pkg/utils/script";
+import type { ScriptClient } from "@App/app/service/service_worker/client";
+import { saveHandle } from "@App/pkg/utils/filehandle-db";
 
 const MainLayout: React.FC<{
   children: ReactNode;
   className: string;
-  pageName: string;
+  pageName?: string;
 }> = ({ children, className, pageName }) => {
-  const [lightMode, setLightMode] = useState(localStorage.lightMode || "auto");
-  const importRef = useRef<RefInputType>(null);
+  const lightMode = useAppSelector(selectThemeMode);
+  const dispatch = useAppDispatch();
+  const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
-  switchLight(lightMode);
+  const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
+    if (!stat) return;
+    Modal.info({
+      title: t("script_import_result"),
+      content: (
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <div style={{ textAlign: "center" }}>
+            <Space size="small" style={{ fontSize: 18 }}>
+              <IconCheckCircle style={{ color: "green" }} />
+              {stat.success}
+              {""}
+              <IconCloseCircle style={{ color: "red" }} />
+              {stat.fail}
+            </Space>
+          </div>
+          {stat.msg.length > 0 && (
+            <>
+              <b>{t("failure_info") + ":"}</b>
+              {stat.msg}
+            </>
+          )}
+        </Space>
+      ),
+    });
+  };
+
+  const importByUrlsLocal = async (urls: string[]) => {
+    const stat = await scriptClient.importByUrls(urls);
+    stat && showImportResult(stat);
+  };
+
+  // 提供一个简单的字串封装（非加密用)
+  function simpleDigestMessage(message: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    return crypto.subtle.digest("SHA-1", data as BufferSource).then((hashBuffer) => {
+      const hashArray = new Uint8Array(hashBuffer);
+      let hex = "";
+      for (let i = 0; i < hashArray.length; i++) {
+        const byte = hashArray[i];
+        hex += `${byte < 16 ? "0" : ""}${byte.toString(16)}`;
+      }
+      return hex;
+    });
+  }
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { "application/javascript": [".js"] },
+    onDrop: (acceptedFiles: FileWithPath[]) => {
+      // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
+      // 实现本地文件的监听
+      const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
+      Promise.all(
+        acceptedFiles.map(async (aFile) => {
+          try {
+            // 解析看看是不是一个标准的script文件
+            // 如果是，则打开安装页面
+            const fileHandle = aFile.handle;
+            if (!fileHandle) {
+              throw new Error("Invalid Local File Access");
+            }
+            const file = await fileHandle.getFile();
+            if (!file.name || !file.size) {
+              throw new Error("No Read Access Right for File");
+            }
+            // 先检查内容，后弹出安装页面
+            const checkOk = await Promise.allSettled([
+              file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
+              simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
+            ]);
+            if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {
+              throw new Error(t("script_import_failed"));
+            }
+            const fid = checkOk[1].value;
+            await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
+            // 打开安装页面
+            const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
+            if (!installWindow) {
+              throw new Error(t("install_page_open_failed"));
+            }
+            stat.success++;
+          } catch (e: any) {
+            stat.fail++;
+            stat.msg.push(e.message);
+          }
+        })
+      ).then(() => {
+        showImportResult(stat);
+      });
+    },
+  });
+
+  const languageList: { key: string; title: string }[] = [];
+  for (const key of Object.keys(i18n.store.data)) {
+    if (key === "ach-UG") {
+      continue;
+    }
+    languageList.push({
+      key,
+      title: i18n.store.data[key].title as string,
+    });
+  }
+  languageList.push({
+    key: "help",
+    title: t("help_translate"),
+  });
+
+  useEffect(() => {
+    // 当没有匹配语言时显示语言按钮
+    matchLanguage().then((result) => {
+      if (!result) {
+        setShowLanguage(true);
+      }
+    });
+  });
+
+  const handleImport = async () => {
+    const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
+    importByUrlsLocal(urls);
+    setImportVisible(false);
+  };
+
   return (
     <ConfigProvider
       renderEmpty={() => {
         return <Empty description={t("no_data")} />;
       }}
+      locale={arcoLocale(i18n.language)}
     >
       <Layout>
         <Layout.Header
@@ -77,45 +185,40 @@ const MainLayout: React.FC<{
             height: "50px",
             borderBottom: "1px solid var(--color-neutral-3)",
           }}
-          className="flex items-center justify-between p-x-4"
+          className="flex items-center justify-between px-4"
         >
           <Modal
             title={t("import_link")}
             visible={importVisible}
-            onOk={async () => {
-              const scriptCtl = IoC.instance(
-                ScriptController
-              ) as ScriptController;
-              try {
-                await scriptCtl.importByUrl(importRef.current!.dom.value);
-              } catch (e) {
-                Message.error(`${t("import_link_failure")}: ${e}`);
-              }
-              setImportVisible(false);
-            }}
+            onOk={handleImport}
             onCancel={() => {
               setImportVisible(false);
             }}
           >
-            <Input ref={importRef} defaultValue="" />
+            <Input.TextArea
+              ref={importRef}
+              rows={8}
+              placeholder={t("import_script_placeholder")}
+              defaultValue=""
+              onKeyDown={(e) => {
+                if (e.ctrlKey && e.key === "Enter") {
+                  e.preventDefault();
+                  handleImport();
+                }
+              }}
+            />
           </Modal>
           <div className="flex row items-center">
-            <img
-              style={{ height: "40px" }}
-              src="/assets/logo.png"
-              alt="ScriptCat"
-            />
+            <img style={{ height: "40px" }} src="/assets/logo.png" alt="ScriptCat" />
             <Typography.Title heading={4} className="!m-0">
-              ScriptCat
+              {"ScriptCat"}
             </Typography.Title>
           </div>
           <Space size="small" className="action-tools">
             {pageName === "options" && (
               <Dropdown
                 droplist={
-                  <Menu
-                    style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}
-                  >
+                  <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                     <Menu.Item key="/script/editor">
                       <a href="#/script/editor">
                         <RiFileCodeLine /> {t("create_user_script")}
@@ -130,6 +233,14 @@ const MainLayout: React.FC<{
                       <a href="#/script/editor?template=crontab">
                         <RiTimerLine /> {t("create_scheduled_script")}
                       </a>
+                    </Menu.Item>
+                    <Menu.Item
+                      key="import_local"
+                      onClick={() => {
+                        document.getElementById("import-local")?.click();
+                      }}
+                    >
+                      <RiImportLine /> {t("import_by_local")}
                     </Menu.Item>
                     <Menu.Item
                       key="link"
@@ -159,17 +270,15 @@ const MainLayout: React.FC<{
               droplist={
                 <Menu
                   onClickMenuItem={(key) => {
-                    switchLight(key);
-                    setLightMode(key);
-                    localStorage.lightMode = key;
+                    dispatch(setDarkMode(key as "light" | "dark" | "auto"));
                   }}
                   selectedKeys={[lightMode]}
                 >
                   <Menu.Item key="light">
-                    <IconSunFill /> Light
+                    <IconSunFill /> {t("light")}
                   </Menu.Item>
                   <Menu.Item key="dark">
-                    <IconMoonFill /> Dark
+                    <IconMoonFill /> {t("dark")}
                   </Menu.Item>
                   <Menu.Item key="auto">
                     <IconDesktop /> {t("system_follow")}
@@ -191,9 +300,43 @@ const MainLayout: React.FC<{
                 style={{
                   color: "var(--color-text-1)",
                 }}
-                className="!text-size-lg"
+                className="!text-lg"
               />
             </Dropdown>
+            {showLanguage && (
+              <Dropdown
+                droplist={
+                  <Menu>
+                    {languageList.map((value) => (
+                      <Menu.Item
+                        key={value.key}
+                        onClick={() => {
+                          if (value.key === "help") {
+                            window.open("https://crowdin.com/project/scriptcat", "_blank");
+                            return;
+                          }
+                          systemConfig.setLanguage(value.key);
+                          Message.success(t("language_change_tip")!);
+                        }}
+                      >
+                        {value.title}
+                      </Menu.Item>
+                    ))}
+                  </Menu>
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  iconOnly
+                  icon={<IconLanguage />}
+                  style={{
+                    color: "var(--color-text-1)",
+                  }}
+                  className="!text-lg"
+                ></Button>
+              </Dropdown>
+            )}
           </Space>
         </Layout.Header>
         <Layout
@@ -201,7 +344,27 @@ const MainLayout: React.FC<{
           style={{
             background: "var(--color-fill-2)",
           }}
+          {...getRootProps({ onClick: (e) => e.stopPropagation() })}
         >
+          <input id="import-local" {...getInputProps({ style: { display: "none" } })} />
+          <div
+            style={{
+              position: "absolute",
+              zIndex: 100,
+              display: isDragActive ? "flex" : "none",
+              justifyContent: "center",
+              alignItems: "center",
+              inset: 0,
+              margin: "auto",
+              color: "grey",
+              fontSize: 36,
+              width: "100%",
+              height: "100%",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            {t("drag_script_here_to_upload")}
+          </div>
           {children}
         </Layout>
       </Layout>

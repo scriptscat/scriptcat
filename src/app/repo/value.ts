@@ -1,20 +1,19 @@
-import { DAO, db } from "./dao";
+import { Repo } from "./repo";
 
 export interface Value {
-  id: number;
-  scriptId: number;
+  uuid: string;
   storageName?: string;
-  key: string;
-  value: any;
+  data: { [key: string]: any };
   createtime: number;
   updatetime: number;
 }
 
-export class ValueDAO extends DAO<Value> {
-  public tableName = "value";
-
+export class ValueDAO extends Repo<Value> {
   constructor() {
-    super();
-    this.table = db.table(this.tableName);
+    super("value");
+  }
+
+  save(key: string, value: Value) {
+    return super._save(key, value);
   }
 }

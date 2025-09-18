@@ -16,7 +16,7 @@ export default class ChromeStorage {
     return new Promise((resolve) => {
       key = this.buildKey(key);
       this.storage.get(key, (items) => {
-        resolve(items[key]);
+        resolve(items && items[key]);
       });
     });
   }
@@ -45,13 +45,16 @@ export default class ChromeStorage {
     return new Promise((resolve) => {
       const ret: { [key: string]: any } = {};
       const prefix = this.buildKey("");
-      this.storage.get((items) => {
-        Object.keys(items).forEach((key) => {
+      this.storage.get((items: { [key: string]: any }) => {
+        if (!items) {
+          return resolve(ret);
+        }
+        for (const key of Object.keys(items)) {
           if (key.startsWith(prefix)) {
             ret[key.substring(prefix.length)] = items[key];
           }
-        });
-        resolve(ret);
+        }
+        return resolve(ret);
       });
     });
   }

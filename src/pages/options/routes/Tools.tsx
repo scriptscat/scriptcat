@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -9,35 +9,32 @@ import {
   List,
   Message,
   Modal,
+  Popconfirm,
   Space,
 } from "@arco-design/web-react";
 import Title from "@arco-design/web-react/es/Typography/title";
-import IoC from "@App/app/ioc";
-import SynchronizeController from "@App/app/service/synchronize/controller";
-import FileSystemFactory, { FileSystemType } from "@Pkg/filesystem/factory";
-import { SystemConfig } from "@App/pkg/config/config";
-import { File, FileReader } from "@Pkg/filesystem/filesystem";
-import { formatUnixTime } from "@App/pkg/utils/utils";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 import FileSystemParams from "@App/pages/components/FileSystemParams";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
-import { RefInputType } from "@arco-design/web-react/es/Input/interface";
+import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import { useTranslation } from "react-i18next";
-import SystemController from "@App/app/service/system/controller";
+import FileSystemFactory from "@Packages/filesystem/factory";
+import type { File, FileReader } from "@Packages/filesystem/filesystem";
+import { message } from "@App/pages/store/global";
+import { synchronizeClient } from "@App/pages/store/features/script";
+import { SystemClient } from "@App/app/service/service_worker/client";
+import { migrateToChromeStorage } from "@App/app/migrate";
+import { useSystemConfig } from "./utils";
 
 function Tools() {
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
-  const syncCtrl = IoC.instance(SynchronizeController) as SynchronizeController;
   const fileRef = useRef<HTMLInputElement>(null);
-  const systemConfig = IoC.instance(SystemConfig) as SystemConfig;
-  const [fileSystemType, setFilesystemType] = useState<FileSystemType>(
-    systemConfig.backup.filesystem
-  );
-  const [fileSystemParams, setFilesystemParam] = useState<{
-    [key: string]: any;
-  }>(systemConfig.backup.params[fileSystemType] || {});
   const [backupFileList, setBackupFileList] = useState<File[]>([]);
   const vscodeRef = useRef<RefInputType>(null);
   const { t } = useTranslation();
+  const [backup, setBackup, submitBackup] = useSystemConfig("backup");
+  const [vscodeUrl, setVscodeUrl, submitVscodeUrl] = useSystemConfig("vscode_url");
+  const [vscodeReconnect, setVscodeReconnect, submitVscodeReconnect] = useSystemConfig("vscode_reconnect");
 
   return (
     <Space
@@ -54,18 +51,13 @@ function Tools() {
         <Space direction="vertical">
           <Title heading={6}>{t("local")}</Title>
           <Space>
-            <input
-              type="file"
-              ref={fileRef}
-              style={{ display: "none" }}
-              accept=".zip"
-            />
+            <input type="file" ref={fileRef} style={{ display: "none" }} accept=".zip" />
             <Button
               type="primary"
               loading={loading.local}
               onClick={async () => {
                 setLoading((prev) => ({ ...prev, local: true }));
-                await syncCtrl.backup();
+                await synchronizeClient.export();
                 setLoading((prev) => ({ ...prev, local: false }));
               }}
             >
@@ -74,14 +66,24 @@ function Tools() {
             <Button
               type="primary"
               onClick={() => {
-                syncCtrl
-                  .openImportFile(fileRef.current!)
-                  .then(() => {
+                const el = fileRef.current!;
+                el.onchange = async () => {
+                  const { files } = el;
+                  if (!files) {
+                    return;
+                  }
+                  const file = files[0];
+                  if (!file) {
+                    return;
+                  }
+                  try {
+                    await synchronizeClient.openImportWindow(file.name, file);
                     Message.success(t("select_import_script")!);
-                  })
-                  .then((e) => {
-                    Message.error(`${t("import_error")}${e}`);
-                  });
+                  } catch (e) {
+                    Message.error(`${t("import_error")}: ${e}`);
+                  }
+                };
+                el.click();
               }}
             >
               {t("import_file")}
@@ -91,10 +93,10 @@ function Tools() {
           <FileSystemParams
             preNode={t("backup_to")}
             onChangeFileSystemType={(type) => {
-              setFilesystemType(type);
+              setBackup({ ...backup, filesystem: type });
             }}
             onChangeFileSystemParams={(params) => {
-              setFilesystemParam(params);
+              setBackup({ ...backup, params: { ...backup.params, [backup.filesystem]: params } });
             }}
             actionButton={[
               <Button
@@ -103,16 +105,11 @@ function Tools() {
                 loading={loading.cloud}
                 onClick={() => {
                   // Store parameters
-                  const params = { ...systemConfig.backup.params };
-                  params[fileSystemType] = fileSystemParams;
-                  systemConfig.backup = {
-                    filesystem: fileSystemType,
-                    params,
-                  };
+                  submitBackup();
                   setLoading((prev) => ({ ...prev, cloud: true }));
                   Message.info(t("preparing_backup")!);
-                  syncCtrl
-                    .backupToCloud(fileSystemType, fileSystemParams)
+                  synchronizeClient
+                    .backupToCloud(backup.filesystem, backup.params[backup.filesystem])
                     .then(() => {
                       Message.success(t("backup_success")!);
                     })
@@ -129,12 +126,11 @@ function Tools() {
               <Button
                 key="list"
                 type="primary"
+                loading={loading.cloud}
                 onClick={async () => {
-                  let fs = await FileSystemFactory.create(
-                    fileSystemType,
-                    fileSystemParams
-                  );
+                  setLoading((prev) => ({ ...prev, cloud: true }));
                   try {
+                    let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                     fs = await fs.openDir("ScriptCat");
                     let list = await fs.list();
                     list.sort((a, b) => b.updatetime - a.updatetime);
@@ -142,19 +138,20 @@ function Tools() {
                     list = list.filter((file) => file.name.endsWith(".zip"));
                     if (list.length === 0) {
                       Message.info(t("no_backup_files")!);
-                      return;
+                    } else {
+                      setBackupFileList(list);
                     }
-                    setBackupFileList(list);
                   } catch (e) {
                     Message.error(`${t("get_backup_files_failed")}: ${e}`);
                   }
+                  setLoading((prev) => ({ ...prev, cloud: false }));
                 }}
               >
                 {t("backup_list")}
               </Button>,
             ]}
-            fileSystemType={fileSystemType}
-            fileSystemParams={fileSystemParams}
+            fileSystemType={backup.filesystem}
+            fileSystemParams={backup.params[backup.filesystem] || {}}
           />
           <Drawer
             width={400}
@@ -165,10 +162,7 @@ function Tools() {
                   type="secondary"
                   size="mini"
                   onClick={async () => {
-                    let fs = await FileSystemFactory.create(
-                      fileSystemType,
-                      fileSystemParams
-                    );
+                    let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                     try {
                       fs = await fs.openDir("ScriptCat");
                       const url = await fs.getDirUrl();
@@ -196,21 +190,15 @@ function Tools() {
               bordered={false}
               dataSource={backupFileList}
               render={(item: File) => (
-                <List.Item key={item.name}>
-                  <List.Item.Meta
-                    title={item.name}
-                    description={formatUnixTime(item.updatetime / 1000)}
-                  />
+                <List.Item key={`${item.name}_${item.updatetime}`}>
+                  <List.Item.Meta title={item.name} description={formatUnixTime(item.updatetime / 1000)} />
                   <Space className="w-full justify-end">
                     <Button
                       type="primary"
                       size="small"
                       onClick={async () => {
                         Message.info(t("pulling_data_from_cloud")!);
-                        let fs = await FileSystemFactory.create(
-                          fileSystemType,
-                          fileSystemParams
-                        );
+                        let fs = await FileSystemFactory.create(backup.filesystem, backup.params[backup.filesystem]);
                         let file: FileReader;
                         let data: Blob;
                         try {
@@ -221,12 +209,8 @@ function Tools() {
                           Message.error(`${t("pull_failed")}: ${e}`);
                           return;
                         }
-                        const url = URL.createObjectURL(data);
-                        setTimeout(() => {
-                          URL.revokeObjectURL(url);
-                        }, 60 * 100000);
-                        syncCtrl
-                          .openImportWindow(item.name, url)
+                        synchronizeClient
+                          .openImportWindow(item.name, data)
                           .then(() => {
                             Message.success(t("select_import_script")!);
                           })
@@ -244,22 +228,16 @@ function Tools() {
                       onClick={() => {
                         Modal.confirm({
                           title: t("confirm_delete"),
-                          content: `${t("confirm_delete_backup_file")}${
-                            item.name
-                          }?`,
+                          content: `${t("confirm_delete_backup_file")}${item.name}?`,
                           onOk: async () => {
                             let fs = await FileSystemFactory.create(
-                              fileSystemType,
-                              fileSystemParams
+                              backup.filesystem,
+                              backup.params[backup.filesystem]
                             );
                             try {
                               fs = await fs.openDir("ScriptCat");
                               await fs.delete(item.name);
-                              setBackupFileList(
-                                backupFileList.filter(
-                                  (i) => i.name !== item.name
-                                )
-                              );
+                              setBackupFileList(backupFileList.filter((i) => i.name !== item.name));
                               Message.success(t("delete_success")!);
                             } catch (e) {
                               Message.error(`${t("delete_failed")}${e}`);
@@ -277,6 +255,14 @@ function Tools() {
           </Drawer>
           <Title heading={6}>{t("backup_strategy")}</Title>
           <Empty description={t("under_construction")} />
+          <Popconfirm
+            title={t("migration_confirm_message")}
+            onOk={() => {
+              migrateToChromeStorage();
+            }}
+          >
+            <Button type="primary">{t("retry_migration")}</Button>
+          </Popconfirm>
         </Space>
       </Card>
 
@@ -308,25 +294,32 @@ function Tools() {
           <Title heading={6}>{t("vscode_url")}</Title>
           <Input
             ref={vscodeRef}
-            defaultValue={systemConfig.vscodeUrl}
+            value={vscodeUrl}
             onChange={(value) => {
-              systemConfig.vscodeUrl = value;
+              setVscodeUrl(value);
             }}
           />
           <Checkbox
+            checked={vscodeReconnect}
             onChange={(checked) => {
-              systemConfig.vscodeReconnect = checked;
+              setVscodeReconnect(checked);
             }}
-            defaultChecked={systemConfig.vscodeReconnect}
           >
             {t("auto_connect_vscode_service")}
           </Checkbox>
           <Button
             type="primary"
             onClick={() => {
-              const ctrl = IoC.instance(SystemController) as SystemController;
-              ctrl
-                .connectVSCode()
+              setVscodeUrl(vscodeUrl);
+              setVscodeReconnect(vscodeReconnect);
+              submitVscodeUrl();
+              submitVscodeReconnect();
+              const systemClient = new SystemClient(message);
+              systemClient
+                .connectVSCode({
+                  url: vscodeUrl,
+                  reconnect: vscodeReconnect,
+                })
                 .then(() => {
                   Message.success(t("connection_success")!);
                 })

@@ -5,8 +5,8 @@
 // @description  会在页面上显示用户配置,可以可视化的进行配置
 // @author       You
 // @background
-// @grant GM_getValue
-// @grant CAT_userConfig
+// @grant        GM_getValue
+// @grant        CAT_userConfig
 // ==/UserScript==
 
 /* ==UserConfig==
@@ -60,6 +60,11 @@ group1:
     type: textarea
     default: 默认值
     rows: 6
+  configI:
+    title: 开关
+    description: 这是一个开关类型的配置
+    type: switch
+    default: true
 ---
 group2:
   configX:
@@ -73,11 +78,11 @@ const rawUserConfig = GM_info.userConfig;
 // 定义一个对象暂存读取到的UserConfig值
 const userConfig = {};
 // 解构遍历读取UserConfig并赋缺省值
-Object.entries(rawUserConfig).forEach(([mainKey, configs]) => {
-  Object.entries(configs).forEach(([subKey, { default: defaultValue }]) => {
-    userConfig[`${mainKey}.${subKey}`] = GM_getValue(`${mainKey}.${subKey}`, defaultValue)
-  })
-})
+for (const [mainKey, configs] of Object.entries(rawUserConfig)) {
+  for (const [subKey, { default: defaultValue }] of Object.entries(configs)) {
+    userConfig[`${mainKey}.${subKey}`] = GM_getValue(`${mainKey}.${subKey}`, defaultValue);
+  }
+}
 
 setInterval(() => {
   // 传统方法读取UserConfig，每个缺省值需要单独静态声明，修改UserConfig缺省值后代码也需要手动修改

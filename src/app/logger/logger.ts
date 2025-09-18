@@ -1,12 +1,14 @@
-/* eslint-disable no-console */
-import dayjs from "dayjs";
-import LoggerCore, { LogLabel, LogLevel } from "./core";
+import type { LogLabel, LogLevel } from "./core";
+import type LoggerCore from "./core";
+import { dayFormat } from "@App/pkg/utils/day_format";
 
-const levelNumber = {
-  debug: 10,
-  info: 100,
-  warn: 1000,
-  error: 10000,
+const levelNumber: { [key in LogLevel]: number } = {
+  none: 0,
+  trace: 10,
+  debug: 100,
+  info: 1000,
+  warn: 10000,
+  error: 100000,
 };
 
 function buildLabel(...label: LogLabel[][]): LogLabel {
@@ -32,35 +34,45 @@ export default class Logger {
   }
 
   log(level: LogLevel, message: string, ...label: LogLabel[]) {
+    const newLabel = buildLabel(this.label, label);
     if (levelNumber[level] >= levelNumber[this.core.level]) {
-      this.core.writer.write(level, message, buildLabel(this.label, label));
+      this.core.writer.write(level, message, newLabel);
     }
-    if (this.core.debug) {
+    let labelJson;
+    try {
+      labelJson = JSON.stringify(newLabel);
+    } catch (e) {
+      labelJson = newLabel;
+      console.error("Logger label JSON stringify error:", e);
+    }
+    if (this.core.consoleLevel !== "none" && levelNumber[level] >= levelNumber[this.core.consoleLevel]) {
       if (typeof message === "object") {
         message = JSON.stringify(message);
       }
-      const msg = `${dayjs(new Date()).format(
-        "YYYY-MM-DD HH:mm:ss"
-      )} [${level}] msg=${message} label=${JSON.stringify(
-        buildLabel(this.label, label)
-      )}`;
+      const msg = `${dayFormat(new Date(), "YYYY-MM-DD HH:mm:ss")} [${level}] ${message}`;
       switch (level) {
         case "error":
-          console.error(msg);
+          console.error(msg, labelJson);
           break;
         case "warn":
-          console.warn(msg);
+          console.warn(msg, labelJson);
+          break;
+        case "trace":
+          console.info(msg, labelJson);
           break;
         default:
-          console.info(msg);
+          console.info(msg, labelJson);
           break;
       }
     }
-    LoggerCore.hook.trigger("log", { level, message, label });
   }
 
   with(...label: LogLabel[]) {
     return new Logger(this.core, ...this.label, ...label);
+  }
+
+  trace(message: string, ...label: LogLabel[]) {
+    this.log("trace", message, ...label);
   }
 
   debug(message: string, ...label: LogLabel[]) {
@@ -79,15 +91,16 @@ export default class Logger {
     this.log("error", message, ...label);
   }
 
-  static E(e: any): LogLabel {
+  static E(e: unknown): LogLabel {
     if (typeof e === "string") {
       return { error: e };
     }
     if (e instanceof Error) {
+      console.error(e);
       return { error: e.message };
     }
     if (typeof e === "object") {
-      return e;
+      return e as never;
     }
     return {};
   }

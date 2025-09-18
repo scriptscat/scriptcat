@@ -1,6 +1,7 @@
-import { DAO, db } from "./dao";
+import { Repo } from "./repo";
+import type { SCMetadata } from "./metadata";
 
-export type Metadata = { [key: string]: string[] };
+export { SCMetadata };
 
 export type SUBSCRIBE_STATUS = 1 | 2 | 3 | 4;
 export const SUBSCRIBE_STATUS_ENABLE: SUBSCRIBE_STATUS = 1;
@@ -12,28 +13,28 @@ export interface SubscribeScript {
 }
 
 export interface Subscribe {
-  id: number;
   url: string;
   name: string;
   code: string;
   author: string;
   scripts: { [key: string]: SubscribeScript };
-  metadata: Metadata;
+  metadata: SCMetadata;
   status: SUBSCRIBE_STATUS;
   createtime: number;
   updatetime?: number;
   checktime: number;
 }
 
-export class SubscribeDAO extends DAO<Subscribe> {
-  public tableName = "subscribe";
-
+export class SubscribeDAO extends Repo<Subscribe> {
   constructor() {
-    super();
-    this.table = db.table(this.tableName);
+    super("subscribe");
   }
 
   public findByUrl(url: string) {
-    return this.findOne({ url });
+    return this.get(url);
+  }
+
+  public save(val: Subscribe) {
+    return super._save(val.url, val);
   }
 }

@@ -1,11 +1,7 @@
 /* eslint no-use-before-define:0 */
-/* eslint-disable */
 
 // copy from istextorbinary
 // 由于未知原因,该包在jest中运行提示"Cannot find module",故将其代码简化并copy到此处
-
-// Import
-import type Buffer from "buffer";
 
 export interface EncodingOpts {
   /** Defaults to 24 */
@@ -50,10 +46,7 @@ export function isBinary(buffer: Buffer) {
  * History has shown that inspection at all three locations is necessary.
  * @returns Will be `null` if `buffer` was not provided. Otherwise will be either `'utf8'` or `'binary'`
  */
-export function getEncoding(
-  buffer: Uint8Array,
-  opts?: EncodingOpts
-): "utf8" | "binary" | null {
+export function getEncoding(buffer: Uint8Array, opts?: EncodingOpts): "utf8" | "binary" | null {
   // Check
   if (!buffer) return null;
 
@@ -93,10 +86,7 @@ export function getEncoding(
       return binaryEncoding;
     }
 
-    const chunkEnd = getChunkEnd(
-      buffer,
-      Math.min(buffer.length, chunkBegin + chunkLength)
-    );
+    const chunkEnd = getChunkEnd(buffer, Math.min(buffer.length, chunkBegin + chunkLength));
 
     if (chunkEnd > buffer.length) {
       return binaryEncoding;
@@ -146,10 +136,7 @@ function getChunkBegin(buf: Uint8Array, chunkBegin: number) {
   begin = chunkBegin - 2;
 
   if (begin >= 0) {
-    if (
-      isFirstByteOf4ByteChar(buf[begin]) ||
-      isFirstByteOf3ByteChar(buf[begin])
-    ) {
+    if (isFirstByteOf4ByteChar(buf[begin]) || isFirstByteOf3ByteChar(buf[begin])) {
       return begin;
     }
   }
@@ -216,21 +203,17 @@ function getChunkEnd(buf: Uint8Array, chunkEnd: number) {
 }
 
 function isFirstByteOf4ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
   return byte >> 3 === 30; // 11110xxx?
 }
 
 function isFirstByteOf3ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
   return byte >> 4 === 14; // 1110xxxx?
 }
 
 function isFirstByteOf2ByteChar(byte: number) {
-  // eslint-disable-next-line no-bitwise
   return byte >> 5 === 6; // 110xxxxx?
 }
 
 function isLaterByteOfUtf8(byte: number) {
-  // eslint-disable-next-line no-bitwise
   return byte >> 6 === 2; // 10xxxxxx?
 }
