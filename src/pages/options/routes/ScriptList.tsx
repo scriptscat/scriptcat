@@ -138,24 +138,25 @@ function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   };
 }
 
-const DraggableRow = React.forwardRef<
-  HTMLTableRowElement,
-  { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>
->(({ record, index: _index, ...rest }, ref) => {
-  const sortable = useSortable({ id: record.uuid });
-  const { setNodeRef, transform, transition } = sortable;
+const DraggableRow = React.memo(
+  React.forwardRef<HTMLTableRowElement, { record: any; index: any } & React.HTMLAttributes<HTMLTableRowElement>>(
+    ({ record, index: _index, ...rest }, ref) => {
+      const sortable = useSortable({ id: record.uuid });
+      const { setNodeRef, transform, transition } = sortable;
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+      const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      };
 
-  return (
-    <SortableRowCtx.Provider value={sortable}>
-      <tr ref={composeRefs(setNodeRef, ref)} style={style} {...rest} />
-    </SortableRowCtx.Provider>
-  );
-});
+      return (
+        <SortableRowCtx.Provider value={sortable}>
+          <tr ref={composeRefs(setNodeRef, ref)} style={style} {...rest} />
+        </SortableRowCtx.Provider>
+      );
+    }
+  )
+);
 DraggableRow.displayName = "DraggableRow";
 
 const DragHandle = () => {
@@ -182,6 +183,361 @@ const DragHandle = () => {
     />
   );
 };
+
+// 提取render函数以避免每次渲染时重新创建
+const SortRender = React.memo(({ col }: { col: number }) => {
+  if (col < 0) {
+    return "-";
+  }
+  return col + 1;
+});
+SortRender.displayName = "SortRender";
+
+const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
+  const { uuid } = item;
+  const onChange = React.useCallback(
+    (checked: boolean) => {
+      updateScriptList({ uuid: uuid, enableLoading: true });
+      requestEnableScript({ uuid: uuid, enable: checked });
+    },
+    [uuid, updateScriptList]
+  );
+
+  return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
+});
+EnableSwitchCell.displayName = "EnableSwitchCell";
+
+const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
+  return (
+    <Tooltip content={col} position="tl">
+      <Link
+        to={`/script/editor/${item.uuid}`}
+        style={{
+          textDecoration: "none",
+        }}
+      >
+        <Text
+          style={{
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            lineHeight: "20px",
+          }}
+        >
+          <ScriptIcons script={item} size={20} />
+          {i18nName(item)}
+        </Text>
+      </Link>
+    </Tooltip>
+  );
+});
+NameCell.displayName = "NameCell";
+
+const VersionCell = React.memo(({ item }: { item: ListType }) => {
+  return item.metadata.version && item.metadata.version[0];
+});
+VersionCell.displayName = "VersionCell";
+
+const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
+  const toLogger = React.useCallback(() => {
+    navigate({
+      pathname: "logger",
+      search: `query=${encodeURIComponent(
+        JSON.stringify([
+          { key: "uuid", value: item.uuid },
+          {
+            key: "component",
+            value: "GM_log",
+          },
+        ])
+      )}`,
+    });
+  }, [item.uuid, navigate]);
+
+  if (item.type === SCRIPT_TYPE_NORMAL) {
+    return (
+      <>
+        <Avatar.Group size={20}>
+          {item.favorite &&
+            [...item.favorite]
+              .sort((a, b) => {
+                if (a.icon && !b.icon) return -1;
+                if (!a.icon && b.icon) return 1;
+                return a.match.localeCompare(b.match);
+              })
+              .slice(0, 4)
+              .map((fav) => (
+                <MemoizedAvatar
+                  key={`${fav.match}_${fav.icon}_${fav.website}`}
+                  {...fav}
+                  onClick={() => {
+                    if (fav.website) {
+                      window.open(fav.website, "_blank");
+                    }
+                  }}
+                />
+              ))}
+          {item.favorite && item.favorite.length > 4 && "..."}
+        </Avatar.Group>
+      </>
+    );
+  }
+  let tooltip = "";
+  if (item.type === SCRIPT_TYPE_BACKGROUND) {
+    tooltip = t("background_script_tooltip");
+  } else {
+    tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
+  }
+  return (
+    <>
+      <Tooltip content={tooltip}>
+        <Tag
+          icon={<IconClockCircle />}
+          color="blue"
+          bordered
+          style={{
+            cursor: "pointer",
+          }}
+          onClick={toLogger}
+        >
+          {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
+        </Tag>
+      </Tooltip>
+    </>
+  );
+});
+ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
+
+const SourceCell = React.memo(({ item, t }: { item: ListType; t: any }) => {
+  if (item.subscribeUrl) {
+    return (
+      <Tooltip
+        content={<p style={{ margin: 0 }}>{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>}
+      >
+        <Tag
+          icon={<IconLink />}
+          color="orange"
+          bordered
+          style={{
+            cursor: "pointer",
+          }}
+        >
+          {t("subscription_installation")}
+        </Tag>
+      </Tooltip>
+    );
+  }
+  if (!item.origin) {
+    return (
+      <Tag
+        icon={<IconEdit />}
+        color="purple"
+        bordered
+        style={{
+          cursor: "pointer",
+        }}
+      >
+        {t("manually_created")}
+      </Tag>
+    );
+  }
+  return (
+    <Tooltip
+      content={<p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>}
+    >
+      <Tag
+        icon={<IconUserAdd color="" />}
+        color="green"
+        bordered
+        style={{
+          cursor: "pointer",
+        }}
+      >
+        {t("user_installation")}
+      </Tag>
+    </Tooltip>
+  );
+});
+SourceCell.displayName = "SourceCell";
+
+const HomeCell = React.memo(({ item }: { item: ListType }) => {
+  return <ListHomeRender script={item} />;
+});
+HomeCell.displayName = "HomeCell";
+
+const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: ListType; t: any }) => {
+  const handleClick = React.useCallback(() => {
+    if (!script.checkUpdateUrl) {
+      Message.warning(t("update_not_supported")!);
+      return;
+    }
+    Message.info({
+      id: "checkupdate",
+      content: t("checking_for_updates"),
+    });
+    scriptClient
+      .requestCheckUpdate(script.uuid)
+      .then((res) => {
+        if (res) {
+          Message.warning({
+            id: "checkupdate",
+            content: t("new_version_available"),
+          });
+        } else {
+          Message.success({
+            id: "checkupdate",
+            content: t("latest_version"),
+          });
+        }
+      })
+      .catch((e) => {
+        Message.error({
+          id: "checkupdate",
+          content: `${t("update_check_failed")}: ${e.message}`,
+        });
+      });
+  }, [script.checkUpdateUrl, script.uuid, t]);
+
+  return (
+    <Tooltip content={t("check_update")} position="tl">
+      <Text
+        style={{
+          cursor: "pointer",
+        }}
+        onClick={handleClick}
+      >
+        {semTime(new Date(col))}
+      </Text>
+    </Tooltip>
+  );
+});
+UpdateTimeCell.displayName = "UpdateTimeCell";
+
+const ActionCell = React.memo(
+  ({
+    item,
+    updateScriptList,
+    updateEntry,
+    setUserConfig,
+    setCloudScript,
+    t,
+  }: {
+    item: ScriptLoading;
+    updateScriptList: any;
+    updateEntry: any;
+    setUserConfig: any;
+    setCloudScript: any;
+    t: any;
+  }) => {
+    const handleDelete = React.useCallback(() => {
+      const { uuid } = item;
+      updateScriptList({ uuid, actionLoading: true });
+      requestDeleteScripts([item.uuid]);
+    }, [item, updateScriptList]);
+
+    const handleConfig = React.useCallback(() => {
+      new ValueClient(message).getScriptValue(item).then((newValues) => {
+        setUserConfig({
+          userConfig: { ...item.config! },
+          script: item,
+          values: newValues,
+        });
+      });
+    }, [item, setUserConfig]);
+
+    const handleRunStop = React.useCallback(async () => {
+      if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+        // Stop script
+        Message.loading({
+          id: "script-stop",
+          content: t("stopping_script"),
+        });
+        updateEntry([item.uuid], { actionLoading: true });
+        await requestStopScript(item.uuid);
+        updateEntry([item.uuid], { actionLoading: false });
+        Message.success({
+          id: "script-stop",
+          content: t("script_stopped"),
+          duration: 3000,
+        });
+      } else {
+        Message.loading({
+          id: "script-run",
+          content: t("starting_script"),
+        });
+        updateEntry([item.uuid], { actionLoading: true });
+        await requestRunScript(item.uuid);
+        updateEntry([item.uuid], { actionLoading: false });
+        Message.success({
+          id: "script-run",
+          content: t("script_started"),
+          duration: 3000,
+        });
+      }
+    }, [item, updateEntry, t]);
+
+    const handleCloud = React.useCallback(() => {
+      setCloudScript(item);
+    }, [item, setCloudScript]);
+
+    return (
+      <Button.Group>
+        <Link to={`/script/editor/${item.uuid}`}>
+          <Button
+            type="text"
+            icon={<RiPencilFill />}
+            style={{
+              color: "var(--color-text-2)",
+            }}
+          />
+        </Link>
+        <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={handleDelete}>
+          <Button
+            type="text"
+            icon={<RiDeleteBin5Fill />}
+            loading={item.actionLoading}
+            style={{
+              color: "var(--color-text-2)",
+            }}
+          />
+        </Popconfirm>
+        {item.config && (
+          <Button
+            type="text"
+            icon={<RiSettings3Fill />}
+            onClick={handleConfig}
+            style={{
+              color: "var(--color-text-2)",
+            }}
+          />
+        )}
+        {item.type !== SCRIPT_TYPE_NORMAL && (
+          <Button
+            type="text"
+            icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
+            loading={item.actionLoading}
+            onClick={handleRunStop}
+            style={{
+              color: "var(--color-text-2)",
+            }}
+          />
+        )}
+        {item.metadata.cloudcat && (
+          <Button
+            type="text"
+            icon={<RiUploadCloudFill />}
+            onClick={handleCloud}
+            style={{
+              color: "var(--color-text-2)",
+            }}
+          />
+        )}
+      </Button.Group>
+    );
+  }
+);
+ActionCell.displayName = "ActionCell";
 
 const scriptListSortOrder = (
   scripts: ScriptLoading[],
@@ -339,15 +695,12 @@ function ScriptList() {
     scriptRunStatus(data: TScriptRunStatus) {
       const { uuid, runStatus } = data;
       setScriptList((list: ScriptLoading[]) => {
-        for (let i = 0, l = list.length; i < l; i++) {
-          const s = list[i];
-          if (s.uuid === uuid) {
-            s.runStatus = runStatus;
-            list[i] = { ...s };
-            return [...list];
-          }
-        }
-        return list;
+        const index = list.findIndex((s) => s.uuid === uuid);
+        if (index === -1) return list;
+
+        const newList = [...list];
+        newList[index] = { ...list[index], runStatus };
+        return newList;
       });
     },
 
@@ -356,15 +709,15 @@ function ScriptList() {
       if (!installedScript) return;
       const installedScriptUUID = installedScript.uuid;
       if (!installedScriptUUID) return;
+
       setScriptList((list: ScriptLoading[]) => {
-        for (let i = 0, l = list.length; i < l; i++) {
-          const s = list[i];
-          if (s.uuid === installedScriptUUID) {
-            Object.assign(s, installedScript);
-            list[i] = { ...s };
-            return { ...list };
-          }
+        const existingIndex = list.findIndex((s) => s.uuid === installedScriptUUID);
+        if (existingIndex !== -1) {
+          const newList = [...list];
+          newList[existingIndex] = { ...list[existingIndex], ...installedScript };
+          return newList;
         }
+
         // 放到第一
         const res = [{ ...installedScript }, ...list];
         for (let i = 0, l = res.length; i < l; i++) {
@@ -391,18 +744,24 @@ function ScriptList() {
       for (const { uuid, enable } of data) {
         map.set(uuid, enable);
       }
-      setScriptList((list: ScriptLoading[]) =>
-        list.map((script) => {
+
+      setScriptList((list: ScriptLoading[]) => {
+        let hasChanges = false;
+        const newList = list.map((script) => {
           if (map.has(script.uuid)) {
+            hasChanges = true;
             const enable = map.get(script.uuid);
-            script.enableLoading = false;
-            script.status = enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
-            return { ...script };
-          } else {
-            return script;
+            return {
+              ...script,
+              enableLoading: false,
+              status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+            };
           }
-        })
-      );
+          return script;
+        });
+
+        return hasChanges ? newList : list;
+      });
     },
 
     sortedScripts(data: TSortedScript[]) {
@@ -451,31 +810,64 @@ function ScriptList() {
     };
   });
 
-  const updateScriptList = (data: Partial<Script | ScriptLoading>) => {
+  const updateScriptList = React.useCallback((data: Partial<Script | ScriptLoading>) => {
     setScriptList((list) => {
-      for (const script of list) {
-        if (script.uuid === data.uuid) {
-          Object.assign(script, data);
-          return [...list];
-        }
-      }
-      return list;
-    });
-  };
+      const index = list.findIndex((script) => script.uuid === data.uuid);
+      if (index === -1) return list;
 
-  const updateEntry = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
+      const newList = [...list];
+      newList[index] = { ...list[index], ...data };
+      return newList;
+    });
+  }, []);
+
+  const updateEntry = React.useCallback((uuids: string[], data: Partial<Script | ScriptLoading>) => {
     const set = new Set(uuids);
-    setScriptList((list) =>
-      list.map((script) => {
+    setScriptList((list) => {
+      let hasChanges = false;
+      const newList = list.map((script) => {
         if (set.has(script.uuid)) {
-          Object.assign(script, data);
-          return { ...script };
-        } else {
-          return script;
+          hasChanges = true;
+          return { ...script, ...data };
         }
-      })
-    );
-  };
+        return script;
+      });
+
+      return hasChanges ? newList : list;
+    });
+  }, []);
+
+  // 创建稳定的render函数引用
+  const renderSort = React.useCallback((col: number) => <SortRender col={col} />, []);
+  const renderEnableSwitch = React.useCallback(
+    (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScriptList={updateScriptList} />,
+    [updateScriptList]
+  );
+  const renderName = React.useCallback((col: string, item: ListType) => <NameCell col={col} item={item} />, []);
+  const renderVersion = React.useCallback((col: any, item: ListType) => <VersionCell item={item} />, []);
+  const renderApplyToRunStatus = React.useCallback(
+    (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+    [navigate, t]
+  );
+  const renderSource = React.useCallback((col: any, item: ListType) => <SourceCell item={item} t={t} />, [t]);
+  const renderHome = React.useCallback((col: any, item: ListType) => <HomeCell item={item} />, []);
+  const renderUpdateTime = React.useCallback(
+    (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
+    [t]
+  );
+  const renderAction = React.useCallback(
+    (col: any, item: ScriptLoading) => (
+      <ActionCell
+        item={item}
+        updateScriptList={updateScriptList}
+        updateEntry={updateEntry}
+        setUserConfig={setUserConfig}
+        setCloudScript={setCloudScript}
+        t={t}
+      />
+    ),
+    [updateScriptList, updateEntry, setUserConfig, setCloudScript, t]
+  );
 
   const columns: ColumnProps[] = useMemo(
     () =>
@@ -486,12 +878,7 @@ function ScriptList() {
           width: 60,
           key: "#",
           sorter: (a, b) => a.sort - b.sort,
-          render(col) {
-            if (col < 0) {
-              return "-";
-            }
-            return col + 1;
-          },
+          render: renderSort,
         },
         {
           key: "title",
@@ -513,14 +900,7 @@ function ScriptList() {
             },
           ],
           onFilter: (value, row) => row.status === value,
-          render: (col, item: ScriptLoading) => {
-            const { uuid } = item;
-            const onChange = (checked: boolean) => {
-              updateScriptList({ uuid: uuid, enableLoading: true });
-              requestEnableScript({ uuid: uuid, enable: checked });
-            };
-            return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
-          },
+          render: renderEnableSwitch,
         },
         {
           key: "name",
@@ -615,31 +995,7 @@ function ScriptList() {
             }
           },
           className: "max-w-[240px] min-w-[100px]",
-          render: (col, item: ListType) => {
-            return (
-              <Tooltip content={col} position="tl">
-                <Link
-                  to={`/script/editor/${item.uuid}`}
-                  style={{
-                    textDecoration: "none",
-                  }}
-                >
-                  <Text
-                    style={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      lineHeight: "20px",
-                    }}
-                  >
-                    <ScriptIcons script={item} size={20} />
-                    {i18nName(item)}
-                  </Text>
-                </Link>
-              </Tooltip>
-            );
-          },
+          render: renderName,
         },
         {
           title: t("version"),
@@ -647,145 +1003,21 @@ function ScriptList() {
           key: "version",
           width: 120,
           align: "center",
-          render: (col: any, item: ListType, _index: number) => {
-            return item.metadata.version && item.metadata.version[0];
-          },
+          render: renderVersion,
         },
         {
           key: "apply_to_run_status",
           title: t("apply_to_run_status"),
           width: t("script_list_apply_to_run_status_width"),
           className: "apply_to_run_status",
-          render: (col: any, item: ListType, _index: number) => {
-            const toLogger = () => {
-              navigate({
-                pathname: "logger",
-                search: `query=${encodeURIComponent(
-                  JSON.stringify([
-                    { key: "uuid", value: item.uuid },
-                    {
-                      key: "component",
-                      value: "GM_log",
-                    },
-                  ])
-                )}`,
-              });
-            };
-            if (item.type === SCRIPT_TYPE_NORMAL) {
-              // 处理站点icon
-              return (
-                <>
-                  <Avatar.Group size={20}>
-                    {item.favorite &&
-                      // 排序并且只显示前4个
-                      // 排序将有icon的放在前面
-                      [...item.favorite]
-                        .sort((a, b) => {
-                          if (a.icon && !b.icon) return -1;
-                          if (!a.icon && b.icon) return 1;
-                          return a.match.localeCompare(b.match);
-                        })
-                        .slice(0, 4)
-                        .map((fav) => (
-                          <MemoizedAvatar
-                            key={`${fav.match}_${fav.icon}_${fav.website}`}
-                            {...fav}
-                            onClick={() => {
-                              if (fav.website) {
-                                window.open(fav.website, "_blank");
-                              }
-                            }}
-                          />
-                        ))}
-                    {item.favorite && item.favorite.length > 4 && "..."}
-                  </Avatar.Group>
-                </>
-              );
-            }
-            let tooltip = "";
-            if (item.type === SCRIPT_TYPE_BACKGROUND) {
-              tooltip = t("background_script_tooltip");
-            } else {
-              tooltip = `${t("scheduled_script_tooltip")} ${nextTime(item.metadata!.crontab![0])}`;
-            }
-            return (
-              <>
-                <Tooltip content={tooltip}>
-                  <Tag
-                    icon={<IconClockCircle />}
-                    color="blue"
-                    bordered
-                    style={{
-                      cursor: "pointer",
-                    }}
-                    onClick={toLogger}
-                  >
-                    {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("running") : t("completed")}
-                  </Tag>
-                </Tooltip>
-              </>
-            );
-          },
+          render: renderApplyToRunStatus,
         },
         {
           title: t("source"),
           dataIndex: "origin",
           key: "origin",
           width: 100,
-          render(col, item: ListType) {
-            if (item.subscribeUrl) {
-              return (
-                <Tooltip
-                  content={
-                    <p style={{ margin: 0 }}>{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
-                  }
-                >
-                  <Tag
-                    icon={<IconLink />}
-                    color="orange"
-                    bordered
-                    style={{
-                      cursor: "pointer",
-                    }}
-                  >
-                    {t("subscription_installation")}
-                  </Tag>
-                </Tooltip>
-              );
-            }
-            if (!item.origin) {
-              return (
-                <Tag
-                  icon={<IconEdit />}
-                  color="purple"
-                  bordered
-                  style={{
-                    cursor: "pointer",
-                  }}
-                >
-                  {t("manually_created")}
-                </Tag>
-              );
-            }
-            return (
-              <Tooltip
-                content={
-                  <p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>
-                }
-              >
-                <Tag
-                  icon={<IconUserAdd color="" />}
-                  color="green"
-                  bordered
-                  style={{
-                    cursor: "pointer",
-                  }}
-                >
-                  {t("user_installation")}
-                </Tag>
-              </Tooltip>
-            );
-          },
+          render: renderSource,
         },
         {
           title: t("home"),
@@ -793,9 +1025,7 @@ function ScriptList() {
           align: "center",
           key: "home",
           width: 100,
-          render(col, item: ListType) {
-            return <ListHomeRender script={item} />;
-          },
+          render: renderHome,
         },
         {
           title: t("last_updated"),
@@ -804,162 +1034,28 @@ function ScriptList() {
           key: "updatetime",
           width: t("script_list_last_updated_width"),
           sorter: (a, b) => a.updatetime - b.updatetime,
-          render(col, script: ListType) {
-            return (
-              <Tooltip content={t("check_update")} position="tl">
-                <Text
-                  style={{
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    if (!script.checkUpdateUrl) {
-                      Message.warning(t("update_not_supported")!);
-                      return;
-                    }
-                    Message.info({
-                      id: "checkupdate",
-                      content: t("checking_for_updates"),
-                    });
-                    scriptClient
-                      .requestCheckUpdate(script.uuid)
-                      .then((res) => {
-                        if (res) {
-                          Message.warning({
-                            id: "checkupdate",
-                            content: t("new_version_available"),
-                          });
-                        } else {
-                          Message.success({
-                            id: "checkupdate",
-                            content: t("latest_version"),
-                          });
-                        }
-                      })
-                      .catch((e) => {
-                        Message.error({
-                          id: "checkupdate",
-                          content: `${t("update_check_failed")}: ${e.message}`,
-                        });
-                      });
-                  }}
-                >
-                  {semTime(new Date(col))}
-                </Text>
-              </Tooltip>
-            );
-          },
+          render: renderUpdateTime,
         },
         {
           title: t("action"),
           dataIndex: "action",
           key: "action",
           width: 160,
-          render(col, item: ScriptLoading) {
-            return (
-              <Button.Group>
-                <Link to={`/script/editor/${item.uuid}`}>
-                  <Button
-                    type="text"
-                    icon={<RiPencilFill />}
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                  />
-                </Link>
-                <Popconfirm
-                  title={t("confirm_delete_script")}
-                  icon={<RiDeleteBin5Fill />}
-                  onOk={() => {
-                    const { uuid } = item;
-                    updateScriptList({ uuid, actionLoading: true });
-                    requestDeleteScripts([item.uuid]);
-                  }}
-                >
-                  <Button
-                    type="text"
-                    icon={<RiDeleteBin5Fill />}
-                    loading={item.actionLoading}
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                  />
-                </Popconfirm>
-                {item.config && (
-                  <Button
-                    type="text"
-                    icon={<RiSettings3Fill />}
-                    onClick={() => {
-                      new ValueClient(message).getScriptValue(item).then((newValues) => {
-                        setUserConfig({
-                          userConfig: { ...item.config! },
-                          script: item,
-                          values: newValues,
-                        });
-                      });
-                    }}
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                  />
-                )}
-                {item.type !== SCRIPT_TYPE_NORMAL && (
-                  <Button
-                    type="text"
-                    icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-                    loading={item.actionLoading}
-                    onClick={async () => {
-                      if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-                        // Stop script
-                        Message.loading({
-                          id: "script-stop",
-                          content: t("stopping_script"),
-                        });
-                        updateEntry([item.uuid], { actionLoading: true });
-                        await requestStopScript(item.uuid);
-                        updateEntry([item.uuid], { actionLoading: false });
-                        Message.success({
-                          id: "script-stop",
-                          content: t("script_stopped"),
-                          duration: 3000,
-                        });
-                      } else {
-                        Message.loading({
-                          id: "script-run",
-                          content: t("starting_script"),
-                        });
-                        updateEntry([item.uuid], { actionLoading: true });
-                        await requestRunScript(item.uuid);
-                        updateEntry([item.uuid], { actionLoading: false });
-                        Message.success({
-                          id: "script-run",
-                          content: t("script_started"),
-                          duration: 3000,
-                        });
-                      }
-                    }}
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                  />
-                )}
-                {item.metadata.cloudcat && (
-                  <Button
-                    type="text"
-                    icon={<RiUploadCloudFill />}
-                    onClick={() => {
-                      setCloudScript(item);
-                    }}
-                    style={{
-                      color: "var(--color-text-2)",
-                    }}
-                  />
-                )}
-              </Button.Group>
-            );
-          },
+          render: renderAction,
         },
       ] as ColumnProps[],
-    [t, dispatch, inputRef, navigate]
+    [
+      renderSort,
+      renderEnableSwitch,
+      renderName,
+      renderVersion,
+      renderApplyToRunStatus,
+      renderSource,
+      renderHome,
+      renderUpdateTime,
+      renderAction,
+      t,
+    ]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
@@ -1015,48 +1111,51 @@ function ScriptList() {
     }
   }, [newColumns, canShowList]);
 
-  const components: ComponentsProps = {
-    header: {
-      operations: ({ selectionNode, expandNode }) => [
-        {
-          node: <th className="script-sort" />,
-          width: 34,
-        },
-        {
-          name: "expandNode",
-          node: expandNode,
-        },
-        {
-          name: "selectionNode",
-          node: selectionNode,
-        },
-      ],
-    },
-    body: {
-      operations: ({ selectionNode, expandNode }) => [
-        {
-          node: (
-            <td>
-              <div className="arco-table-cell">
-                <DragHandle />
-              </div>
-            </td>
-          ),
-          width: 34,
-        },
-        {
-          name: "expandNode",
-          node: expandNode,
-        },
-        {
-          name: "selectionNode",
-          node: selectionNode,
-        },
-      ],
-      tbody: DraggableContainer,
-      row: DraggableRow,
-    },
-  };
+  const components: ComponentsProps = useMemo(
+    () => ({
+      header: {
+        operations: ({ selectionNode, expandNode }) => [
+          {
+            node: <th className="script-sort" />,
+            width: 34,
+          },
+          {
+            name: "expandNode",
+            node: expandNode,
+          },
+          {
+            name: "selectionNode",
+            node: selectionNode,
+          },
+        ],
+      },
+      body: {
+        operations: ({ selectionNode, expandNode }) => [
+          {
+            node: (
+              <td>
+                <div className="arco-table-cell">
+                  <DragHandle />
+                </div>
+              </td>
+            ),
+            width: 34,
+          },
+          {
+            name: "expandNode",
+            node: expandNode,
+          },
+          {
+            name: "selectionNode",
+            node: selectionNode,
+          },
+        ],
+        tbody: DraggableContainer,
+        row: DraggableRow,
+      },
+    }),
+    []
+  );
 
   const setWidth = (selectColumn: number, width: any) => {
     setNewColumns((cols) =>
