@@ -202,10 +202,8 @@ function App() {
                   // 检查位置，优化窗口过小，导致弹出菜单显示不全的问题
                   setTimeout(() => {
                     const dropdowns = document.getElementsByClassName("arco-dropdown");
-                    console.log(dropdowns);
                     if (dropdowns.length > 0) {
                       const dropdown = dropdowns[0] as HTMLElement;
-                      console.log(dropdowns, dropdown.style.top);
                       // 如果top是负数修改为0
                       if (parseInt(dropdown.style.top) < 0) {
                         dropdown.style.top = "0px";

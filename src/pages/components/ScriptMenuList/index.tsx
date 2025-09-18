@@ -356,12 +356,18 @@ const ScriptMenuList = React.memo(
 
     ListMenuItem.displayName = "ListMenuItem";
 
+    // 使用 useCallback 来缓存渲染函数，避免每次渲染都创建新的函数实例
+    const renderListItem = useCallback(
+      ({ item, index }: { item: ScriptMenu; index: number }) => (
+        <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
+      ),
+      []
+    );
+
     return (
       <>
         {list.length === 0 && <Empty description={t("no_data")} />}
-        {list.map((item, index) => (
-          <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
-        ))}
+        {list.map((item, index) => renderListItem({ item, index }))}
       </>
     );
   }
