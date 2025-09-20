@@ -109,6 +109,21 @@ const MainLayout: React.FC<{
             // 如果是，则打开安装页面
             const fileHandle = aFile.handle;
             if (!fileHandle) {
+              // 如果是file，直接使用blob的形式安装
+              if (aFile instanceof File) {
+                // 清理 import-local files 避免同文件不再触发onChange
+                (document.getElementById("import-local") as HTMLInputElement).value = "";
+                const blob = new Blob([aFile], { type: "application/javascript" });
+                const url = URL.createObjectURL(blob); // 生成一个临时的URL
+                const result = await scriptClient.importByUrl(url);
+                if (result.success) {
+                  stat.success++;
+                } else {
+                  stat.fail++;
+                  stat.msg.push(...result.msg);
+                }
+                return;
+              }
               throw new Error("Invalid Local File Access");
             }
             const file = await fileHandle.getFile();

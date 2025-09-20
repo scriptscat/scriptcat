@@ -16,6 +16,7 @@ import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import type { ScriptService } from "./script";
 
 export class ServiceWorkerClient extends Client {
   constructor(msg: MessageSend) {
@@ -88,8 +89,8 @@ export class ScriptClient extends Client {
     return this.do("sortScript", { active, over });
   }
 
-  importByUrl(url: string) {
-    return this.do("importByUrl", url);
+  importByUrl(url: string): ReturnType<ScriptService["importByUrl"]> {
+    return this.doThrow("importByUrl", url);
   }
 
   installByCode(uuid: string, code: string, upsertBy: InstallSource = "user") {
