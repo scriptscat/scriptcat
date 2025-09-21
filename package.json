@@ -44,7 +44,6 @@
     "react-joyride": "^2.9.3",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.3",
-    "semver": "^7.7.2",
     "uuid": "^11.1.0",
     "webdav": "^5.8.0",
     "yaml": "^2.8.0"
@@ -87,6 +86,7 @@
     "postcss-loader": "^8.1.1",
     "prettier": "^3.6.2",
     "react-refresh": "^0.17.0",
+    "semver": "^7.7.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.1",
