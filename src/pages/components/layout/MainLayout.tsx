@@ -96,65 +96,71 @@ const MainLayout: React.FC<{
     });
   }
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { "application/javascript": [".js"] },
-    onDrop: (acceptedFiles: FileWithPath[]) => {
-      // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
-      // 实现本地文件的监听
-      const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
-      Promise.all(
-        acceptedFiles.map(async (aFile) => {
-          try {
-            // 解析看看是不是一个标准的script文件
-            // 如果是，则打开安装页面
-            const fileHandle = aFile.handle;
-            if (!fileHandle) {
-              // 如果是file，直接使用blob的形式安装
-              if (aFile instanceof File) {
-                // 清理 import-local files 避免同文件不再触发onChange
-                (document.getElementById("import-local") as HTMLInputElement).value = "";
-                const blob = new Blob([aFile], { type: "application/javascript" });
-                const url = URL.createObjectURL(blob); // 生成一个临时的URL
-                const result = await scriptClient.importByUrl(url);
-                if (result.success) {
-                  stat.success++;
-                } else {
-                  stat.fail++;
-                  stat.msg.push(...result.msg);
-                }
-                return;
+  const onDrop = (acceptedFiles: FileWithPath[]) => {
+    console.log(acceptedFiles);
+    // 本地的文件在当前页面处理，打开安装页面，将FileSystemFileHandle传递过去
+    // 实现本地文件的监听
+    const stat: Awaited<ReturnType<ScriptClient["importByUrls"]>> = { success: 0, fail: 0, msg: [] };
+    Promise.all(
+      acceptedFiles.map(async (aFile) => {
+        try {
+          // 解析看看是不是一个标准的script文件
+          // 如果是，则打开安装页面
+          let fileHandle = aFile.handle;
+          if (!fileHandle) {
+            // 如果是file，直接使用blob的形式安装
+            if (aFile instanceof FileSystemFileHandle) {
+              fileHandle = aFile;
+            } else if (aFile instanceof File) {
+              // 清理 import-local files 避免同文件不再触发onChange
+              (document.getElementById("import-local") as HTMLInputElement).value = "";
+              const blob = new Blob([aFile], { type: "application/javascript" });
+              const url = URL.createObjectURL(blob); // 生成一个临时的URL
+              const result = await scriptClient.importByUrl(url);
+              if (result.success) {
+                stat.success++;
+              } else {
+                stat.fail++;
+                stat.msg.push(...result.msg);
               }
+              return;
+            } else {
               throw new Error("Invalid Local File Access");
             }
-            const file = await fileHandle.getFile();
-            if (!file.name || !file.size) {
-              throw new Error("No Read Access Right for File");
-            }
-            // 先检查内容，后弹出安装页面
-            const checkOk = await Promise.allSettled([
-              file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
-              simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
-            ]);
-            if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {
-              throw new Error(t("script_import_failed"));
-            }
-            const fid = checkOk[1].value;
-            await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
-            // 打开安装页面
-            const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
-            if (!installWindow) {
-              throw new Error(t("install_page_open_failed"));
-            }
-            stat.success++;
-          } catch (e: any) {
-            stat.fail++;
-            stat.msg.push(e.message);
           }
-        })
-      ).then(() => {
-        showImportResult(stat);
-      });
-    },
+          const file = await fileHandle.getFile();
+          if (!file.name || !file.size) {
+            throw new Error("No Read Access Right for File");
+          }
+          // 先检查内容，后弹出安装页面
+          const checkOk = await Promise.allSettled([
+            file.text().then((code) => prepareScriptByCode(code, `file:///*resp-check*/${file.name}`)),
+            simpleDigestMessage(`f=${file.name}\ns=${file.size},m=${file.lastModified}`),
+          ]);
+          if (checkOk[0].status === "rejected" || !checkOk[0].value || checkOk[1].status === "rejected") {
+            throw new Error(t("script_import_failed"));
+          }
+          const fid = checkOk[1].value;
+          await saveHandle(fid, fileHandle); // fileHandle以DB方式传送至安装页面
+          // 打开安装页面
+          const installWindow = window.open(`/src/install.html?file=${fid}`, "_blank");
+          if (!installWindow) {
+            throw new Error(t("install_page_open_failed"));
+          }
+          stat.success++;
+        } catch (e: any) {
+          stat.fail++;
+          stat.msg.push(e.message);
+        }
+      })
+    ).then(() => {
+      showImportResult(stat);
+    });
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { "application/javascript": [".js"] },
+    onDrop,
   });
 
   const languageList: { key: string; title: string }[] = [];
@@ -252,7 +258,26 @@ const MainLayout: React.FC<{
                     <Menu.Item
                       key="import_local"
                       onClick={() => {
-                        document.getElementById("import-local")?.click();
+                        if ("showOpenFilePicker" in window) {
+                          // 使用新的文件打开接口，解决无法监听本地文件的问题
+                          //@ts-ignore
+                          window
+                            .showOpenFilePicker({
+                              multiple: true,
+                              types: [
+                                {
+                                  description: "JavaScript",
+                                  accept: { "application/javascript": [".js"] },
+                                },
+                              ],
+                            })
+                            .then((handles: any) => {
+                              onDrop(handles as FileWithPath[]);
+                            });
+                        } else {
+                          // 旧的方式，无法监听本地文件变更
+                          document.getElementById("import-local")?.click();
+                        }
                       }}
                     >
                       <RiImportLine /> {t("import_by_local")}
