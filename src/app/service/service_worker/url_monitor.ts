@@ -48,7 +48,7 @@ const onUrlNavigated = (tab: chrome.tabs.Tab) => {
       ) {
         // new tab or change of domain
 
-        console.log("onUrlNavigated - Triggered with Domain Change Or New Tab", tab);
+        // console.log("onUrlNavigated - Triggered with Domain Change Or New Tab", tab);
 
         if (onUserActionDomainChanged) onUserActionDomainChanged(oldDomain, newDomain, previousUrl, navUrl, tab);
       }
