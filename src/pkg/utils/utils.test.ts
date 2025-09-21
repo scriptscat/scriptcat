@@ -103,7 +103,7 @@ describe("versionCompare", () => {
     expect(twoWayTest("2022/9/22", "2022-9-2", 1)).toBe(true);
     expect(twoWayTest("2022/9/2", "2022-9-11", -1)).toBe(true);
 
-    // semver 對比 (semver.compare)
+    // semver 对比 (semver.compare)
     expect(twoWayTest("3.2.01", "3.2.1", 0)).toBe(true); // equal
     expect(twoWayTest("3.02.1", "3.2.1", 0)).toBe(true); // equal
     expect(twoWayTest("3.02.0", "3.2.0", 0)).toBe(true); // equal
@@ -178,6 +178,20 @@ describe("versionCompare", () => {
     expect(twoWayTest("", "", 0)).toBe(true);
     expect(twoWayTest("", "0", 0)).toBe(true);
     expect(twoWayTest("", "1", -1)).toBe(true);
+
+    // 中文版本号测试 (简单)
+    expect(twoWayTest("第1版", "第2版", -1)).toBe(true);
+    expect(twoWayTest("第3版", "第9版", -1)).toBe(true);
+    expect(twoWayTest("第9版", "第11版", -1)).toBe(true);
+    expect(twoWayTest("第9版.2", "第9版.3", -1)).toBe(true);
+    expect(twoWayTest("第9版.3", "第9版.11", -1)).toBe(true);
+
+    // 中文版本号测试 (简单)
+    expect(twoWayTest("版1", "版2", -1)).toBe(true);
+    expect(twoWayTest("版3", "版9", -1)).toBe(true);
+    expect(twoWayTest("版9", "版11", -1)).toBe(true);
+    expect(twoWayTest("版9.2", "版9.3", -1)).toBe(true);
+    expect(twoWayTest("版9.3", "版9.11", -1)).toBe(true);
   });
 });
 
