@@ -744,6 +744,10 @@ export class ScriptService {
     return true;
   }
 
+  shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
+    return script.ignoreVersion === newMeta?.version?.[0];
+  }
+
   // 用于定时自动检查脚本更新
   async _checkScriptUpdate(opts: any): Promise<
     | {
@@ -810,7 +814,7 @@ export class ScriptService {
       const result = checkScriptsResult[i];
       if (result) {
         const withNewConnect = !checkSilenceUpdate(script.metadata, result.metadata);
-        if (executeSlienceUpdate && !withNewConnect) {
+        if (executeSlienceUpdate && !withNewConnect && !this.shouldIgnoreUpdate(script, result.metadata)) {
           slienceUpdates.push({
             uuid: script.uuid,
             script,
