@@ -103,8 +103,13 @@ describe("versionCompare", () => {
     expect(twoWayTest("2022/9/22", "2022-9-2", 1)).toBe(true);
     expect(twoWayTest("2022/9/2", "2022-9-11", -1)).toBe(true);
 
-    // semver 等价
+    // semver 對比 (semver.compare)
     expect(twoWayTest("3.2.01", "3.2.1", 0)).toBe(true); // equal
+    expect(twoWayTest("3.02.1", "3.2.1", 0)).toBe(true); // equal
+    expect(twoWayTest("3.02.0", "3.2.0", 0)).toBe(true); // equal
+    expect(twoWayTest("4.5.12", "4.5.15", -1)).toBe(true);
+    expect(twoWayTest("4.5.12", "4.5.12-alpha.1", 1)).toBe(true);
+    expect(twoWayTest("4.5.12", "4.5.12", 0)).toBe(true);
 
     // 其他 等价
     expect(twoWayTest("3.2", "3", 1)).toBe(true);
