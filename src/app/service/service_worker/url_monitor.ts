@@ -13,9 +13,9 @@ const getUrlDomain = (navUrl: string) => {
 
 let onUserActionDomainChanged: ((...args: any) => Promise<any>) | null = null;
 
-// 記錄所有Tab的網址 （只作內部暫存檢查之用）
+// 记录所有Tab的网址 （只作内部暂存检查之用）
 const lastNavs: Partial<Record<string, string>> = {};
-// 記錄最後的連接時間，判斷後台載入是否用戶操作
+// 记录最后的连接时间，判断后台载入是否用户操作
 let lastNavActionTimestamp = 0;
 
 const isRelatedDomain = (domainA: string, domainB: string) => {
@@ -26,19 +26,19 @@ const isRelatedDomain = (domainA: string, domainB: string) => {
 };
 
 const onUrlNavigated = (tab: chrome.tabs.Tab) => {
-  const navUrl: string | undefined = tab.pendingUrl || tab.url; // 打算連接的URL 或 已推送的URL
+  const navUrl: string | undefined = tab.pendingUrl || tab.url; // 打算连接的URL 或 已推送的URL
   if (!navUrl) return;
-  const previousUrl = lastNavs[`${tab.id}`]; // 上一次記錄
-  if (previousUrl === `${navUrl}`) return; // loading -> complete 不執行
-  lastNavs[`${tab.id}`] = `${navUrl}`; // 更新記錄至本次URL
+  const previousUrl = lastNavs[`${tab.id}`]; // 上一次记录
+  if (previousUrl === `${navUrl}`) return; // loading -> complete 不执行
+  lastNavs[`${tab.id}`] = `${navUrl}`; // 更新记录至本次URL
   // console.log("onUrlNavigated", navUrl, tab);
   if (!tab.frozen && !tab.incognito) {
-    // 正常Tab （ 非私隱模式 非省電 ）
+    // 正常Tab （ 非私隐模式 非省电 ）
     if (tab.active || (!previousUrl && Date.now() - lastNavActionTimestamp > 100)) {
-      // 用戶正在點擊的頁面，或新打開的頁面
+      // 用户正在点击的页面，或新打开的页面
 
-      lastNavActionTimestamp = Date.now(); // 記錄用戶操作時間（僅用於內部處理。不要永久記錄）
-      const oldDomain = previousUrl ? getUrlDomain(previousUrl) : ""; // 新分頁沒有oldDomain
+      lastNavActionTimestamp = Date.now(); // 记录用户操作时间（仅用于内部处理。不要永久记录）
+      const oldDomain = previousUrl ? getUrlDomain(previousUrl) : ""; // 新分页没有oldDomain
       const newDomain = getUrlDomain(navUrl);
       // !previousUrl - initial tab
       // !oldDomain - not initial tab but previously it is not http (e.g. chrome://newtab/)
