@@ -228,6 +228,7 @@ function App() {
 
   const onCheckUpdateClick = async () => {
     if (checkUpdateSpin) return;
+    setTimeClose(-1); // 用户操作，不再倒数，等用户按完用户自行关
     setCheckUpdateSpin(true);
     await requestCheckScriptUpdate({ checkType: "user" });
     setCheckUpdateSpin(false);
