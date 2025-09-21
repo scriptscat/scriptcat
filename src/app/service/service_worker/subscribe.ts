@@ -161,18 +161,22 @@ export class SubscribeService {
     return true;
   }
 
-  async _checkUpdateAvailable(subscribe: {
-    url: string;
-    name: string;
-    checkUpdateUrl?: string;
-    metadata: Partial<Record<string, any>>;
-  }): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
+  async _checkUpdateAvailable(
+    subscribe: {
+      url: string;
+      name: string;
+      checkUpdateUrl?: string;
+      metadata: Partial<Record<string, any>>;
+    },
+    delayFn?: () => Promise<any>
+  ): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
     const { url, name } = subscribe;
     const logger = this.logger.with({
       url,
       name,
     });
     try {
+      if (delayFn) await delayFn();
       const code = await fetchScriptBody(url);
       const metadata = parseMetadata(code);
       if (!metadata) {
@@ -305,12 +309,12 @@ export class SubscribeService {
       this.upsertScript(message.subscribe.url);
     });
 
-    // 定时检查更新, 每10分钟检查一次
+    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
     chrome.alarms.create(
       "checkSubscribeUpdate",
       {
-        delayInMinutes: 10,
-        periodInMinutes: 10,
+        delayInMinutes: 5,
+        periodInMinutes: 30,
       },
       () => {
         const lastError = chrome.runtime.lastError;

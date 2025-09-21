@@ -2,7 +2,14 @@ import type { EmitEventRequest, ScriptLoadInfo, TScriptMatchInfoEntry } from "./
 import type { MessageQueue, MessageQueueGroup } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type {
+  Script,
+  SCRIPT_STATUS,
+  ScriptDAO,
+  ScriptRunResource,
+  ScriptSite,
+  ScriptSiteDAO,
+} from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -82,6 +89,9 @@ export class RuntimeService {
 
   mq: MessageQueueGroup;
 
+  sitesLoaded: Set<string> = new Set<string>();
+  updateSitesBusy: boolean = false;
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
@@ -90,7 +100,8 @@ export class RuntimeService {
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
-    private scriptDAO: ScriptDAO
+    private scriptDAO: ScriptDAO,
+    private scriptSiteDAO: ScriptSiteDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
 
@@ -656,6 +667,30 @@ export class RuntimeService {
     return ret;
   }
 
+  async updateSites() {
+    if (this.sitesLoaded.size === 0 || this.updateSitesBusy) return;
+    this.updateSitesBusy = true;
+    const list = [...this.sitesLoaded];
+    this.sitesLoaded.clear();
+    const currentSites = (await this.scriptSiteDAO.get("sites")) || ({} as ScriptSite);
+    const sets: Partial<Record<string, Set<string>>> = {};
+    for (const str of list) {
+      const [uuid, domain] = str.split("|");
+      const s = sets[uuid] || (sets[uuid] = new Set([] as string[]));
+      s.add(domain);
+    }
+    for (const uuid in sets) {
+      const s = new Set([...sets[uuid]!, ...(currentSites[uuid] || ([] as string[]))]);
+      const arr = (currentSites[uuid] = [...s]);
+      if (arr.length > 50) arr.length = 50;
+    }
+    await this.scriptSiteDAO.saveSites(currentSites);
+    this.updateSitesBusy = false;
+    if (this.sitesLoaded.size > 0) {
+      Promise.resolve().then(() => this.updateSites());
+    }
+  }
+
   async pageLoad(_: any, sender: GetSender) {
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
@@ -813,6 +848,22 @@ export class RuntimeService {
       frameId: chromeSender.frameId,
       scripts: enableScript,
     });
+
+    let domain = "";
+    try {
+      const url = chromeSender.url ? new URL(chromeSender.url) : null;
+      if (url?.protocol?.startsWith("http")) {
+        domain = url.hostname;
+      }
+    } catch {
+      // ignore
+    }
+    if (domain) {
+      for (const script of enableScript) {
+        this.sitesLoaded.add(`${script.uuid}|${domain}`);
+      }
+      Promise.resolve().then(() => this.updateSites());
+    }
 
     return {
       flag: scriptFlag,

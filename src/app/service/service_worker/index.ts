@@ -11,11 +11,12 @@ import { SystemConfig } from "@App/pkg/config/config";
 import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
-import { ScriptDAO } from "@App/app/repo/scripts";
+import { ScriptDAO, ScriptSiteDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
+import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -43,7 +44,12 @@ export default class ServiceWorkerManager {
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
 
+    const scriptSiteDAO = new ScriptSiteDAO();
+
     const systemConfig = new SystemConfig(this.mq);
+
+    let updateChecked = false;
+    let targetSites: string[] = [];
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
     resource.init();
@@ -58,7 +64,8 @@ export default class ServiceWorkerManager {
       value,
       script,
       resource,
-      scriptDAO
+      scriptDAO,
+      scriptSiteDAO
     );
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig);
@@ -80,6 +87,13 @@ export default class ServiceWorkerManager {
     const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
     system.init();
 
+    const regularScriptUpdateCheck = async () => {
+      const res = await script.checkScriptUpdate({ checkType: "system" });
+      if (!res?.ok) return;
+      targetSites = res.targetSites;
+      updateChecked = true;
+    };
+
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
       const lastError = chrome.runtime.lastError;
@@ -89,7 +103,7 @@ export default class ServiceWorkerManager {
       }
       switch (alarm.name) {
         case "checkScriptUpdate":
-          script.checkScriptUpdate();
+          regularScriptUpdateCheck();
           break;
         case "cloudSync":
           // 进行一次云同步
@@ -187,6 +201,63 @@ export default class ServiceWorkerManager {
         }
       });
     }
+
+    let nextUpdateAfter = 0;
+    setOnUserActionDomainChanged(
+      async (
+        oldDomain: string,
+        newDomain: string,
+        _previousUrl: string | undefined,
+        _navUrl: string,
+        _tab: chrome.tabs.Tab
+      ) => {
+        // 已忽略後台換頁
+        // 在非私隱模式，正常Tab的操作下，用戶的打開新Tab，或在當時Tab轉至新網域時，會觸發此function
+        // 同一網域，SPA換頁等不觸發
+        if (updateChecked && Date.now() > nextUpdateAfter && targetSites.length > 0) {
+          // 有更新，可彈出
+          if (targetSites.includes(newDomain)) {
+            // 只針對該網域的有效腳本發現「有更新」進行彈出
+            // 如該網域沒有任何有效腳本則忽略
+            const domain = newDomain;
+            const anyOpened = await script.openBatchUpdatePage(domain ? `site=${domain}` : "");
+            if (anyOpened) {
+              nextUpdateAfter = Date.now() + 5 * 60000;
+            }
+          }
+        }
+      }
+    );
+
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
+        // 無視錯誤
+      }
+      // 只針對狀態改變及URL推送；addListener 不使用FF專有的 filter 參數
+      if (changeInfo.status === "loading" || changeInfo.status === "complete" || changeInfo.url) {
+        onUrlNavigated(tab);
+      }
+    });
+
+    chrome.tabs.onCreated.addListener((tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onCreated:", lastError);
+        // 無視錯誤
+      }
+      onUrlNavigated(tab);
+    });
+
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
+        // 無視錯誤
+      }
+      onTabRemoved(tabId);
+    });
   }
 
   checkUpdate() {

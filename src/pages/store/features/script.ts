@@ -10,7 +10,7 @@ import {
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
-import type { SearchType } from "@App/app/service/service_worker/types";
+import type { SearchType, TBatchUpdateListAction } from "@App/app/service/service_worker/types";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -51,6 +51,22 @@ export const requestDeleteScripts = async (uuids: string[]) => {
 
 export const requestFilterResult = async (req: { type: SearchType; value: string }) => {
   return await scriptClient.getFilterResult(req);
+};
+
+export const requestBatchUpdateListAction = async (action: TBatchUpdateListAction) => {
+  return await scriptClient.batchUpdateListAction(action);
+};
+
+export const requestOpenUpdatePageByUUID = async (uuid: string) => {
+  return await scriptClient.openUpdatePageByUUID(uuid);
+};
+
+export const requestOpenBatchUpdatePage = async (q: string) => {
+  return await scriptClient.openBatchUpdatePage(q);
+};
+
+export const requestCheckScriptUpdate = async (opts: any) => {
+  return await scriptClient.checkScriptUpdate(opts);
 };
 
 export type ScriptLoading = Script & {
