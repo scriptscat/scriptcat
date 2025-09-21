@@ -304,13 +304,13 @@ function App() {
                   <br />
                   <Space>
                     {item.script.status === 1 ? (
-                      <Tooltip mini content={`This script is enabled.`}>
+                      <Tooltip mini content={`${t("updatepage.tooltip_enabled")}`}>
                         <Tag color="orangered" bordered>
                           {t("updatepage.enabled")}
                         </Tag>
                       </Tooltip>
                     ) : item.script.status === 2 ? (
-                      <Tooltip mini content={`This script is disabled.`} color="gray">
+                      <Tooltip mini content={`${t("updatepage.tooltip_disabled")}`} color="gray">
                         <Tag color="gray" bordered>
                           {t("updatepage.disabled")}
                         </Tag>
