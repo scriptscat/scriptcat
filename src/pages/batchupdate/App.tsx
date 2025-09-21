@@ -86,9 +86,11 @@ function App() {
           t("updatepage.status_last_check").replace("$0", data.checktime ? dayFormat(new Date(data.checktime)) : "")
         );
         updateRecord();
+        setCheckUpdateSpin(false);
       } else if (((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
         setStatusText(t("updatepage.status_checking_updates"));
         setRecords(null);
+        setCheckUpdateSpin(true);
       } else if (mRecords !== null && data.refreshRecord === true) {
         updateRecord();
       }
