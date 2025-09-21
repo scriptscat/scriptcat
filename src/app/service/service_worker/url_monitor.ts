@@ -40,7 +40,6 @@ const onUrlNavigated = (tab: chrome.tabs.Tab) => {
       lastNavActionTimestamp = Date.now(); // 記錄用戶操作時間（僅用於內部處理。不要永久記錄）
       const oldDomain = previousUrl ? getUrlDomain(previousUrl) : ""; // 新分頁沒有oldDomain
       const newDomain = getUrlDomain(navUrl);
-      console.log(1288, tab, oldDomain, newDomain);
       // !previousUrl - initial tab
       // !oldDomain - not initial tab but previously it is not http (e.g. chrome://newtab/)
       if (
