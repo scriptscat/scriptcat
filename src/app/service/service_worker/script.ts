@@ -870,13 +870,11 @@ export class ScriptService {
       const uuid = entry.uuid;
       const { script } = await prepareScriptByCode(code, url, uuid);
       console.log("slienceUpdate", script.name);
-      /*
       await this.installScript({
         script,
         code,
         upsertBy: "system",
       });
-      */
     }
 
     const checkScriptsScores = await Promise.all(
