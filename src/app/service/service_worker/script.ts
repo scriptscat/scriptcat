@@ -755,6 +755,7 @@ export class ScriptService {
         targetSites: string[];
         err?: undefined;
         fresh: boolean;
+        checktime: number;
       }
     | {
         ok: false;
@@ -933,6 +934,7 @@ export class ScriptService {
       ok: true,
       targetSites: this.scriptUpdateCheck.getTargetSites(),
       fresh: true,
+      checktime: this.scriptUpdateCheck.lastCheck,
     };
   }
 
@@ -952,6 +954,7 @@ export class ScriptService {
         ok: true,
         targetSites: this.scriptUpdateCheck.getTargetSites(),
         fresh: false,
+        checktime: this.scriptUpdateCheck.lastCheck,
       };
     } else {
       // set CHECKING_UPDATE
@@ -1162,6 +1165,10 @@ export class ScriptService {
     this.scriptUpdateCheck.announceMessage(this.scriptUpdateCheck.state);
   }
 
+  async sendUpdatePageOpened() {
+    this.mq.publish<any>("msgUpdatePageOpened", {});
+  }
+
   async batchUpdateListAction(action: TBatchUpdateListAction) {
     if (action.actionCode === BatchUpdateListActionCode.IGNORE) {
       const map = new Map();
@@ -1267,6 +1274,7 @@ export class ScriptService {
     this.group.on("updateMetadata", this.updateMetadata.bind(this));
     this.group.on("getBatchUpdateRecordLite", this.getBatchUpdateRecordLite.bind(this));
     this.group.on("fetchCheckUpdateStatus", this.fetchCheckUpdateStatus.bind(this));
+    this.group.on("sendUpdatePageOpened", this.sendUpdatePageOpened.bind(this));
     this.group.on("batchUpdateListAction", this.batchUpdateListAction.bind(this));
     this.group.on("openUpdatePageByUUID", this.openUpdatePageByUUID.bind(this));
     this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));

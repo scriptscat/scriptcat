@@ -194,6 +194,10 @@ export class ScriptClient extends Client {
     return this.do<void>("fetchCheckUpdateStatus");
   }
 
+  async sendUpdatePageOpened() {
+    return this.do<void>("sendUpdatePageOpened");
+  }
+
   async batchUpdateListAction(action: TBatchUpdateListAction): Promise<any> {
     return this.do<any>("batchUpdateListAction", action);
   }

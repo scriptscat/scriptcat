@@ -48,7 +48,7 @@ export default class ServiceWorkerManager {
 
     const systemConfig = new SystemConfig(this.mq);
 
-    let updateChecked = false;
+    let pendingOpen = 0;
     let targetSites: string[] = [];
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
@@ -91,8 +91,12 @@ export default class ServiceWorkerManager {
       const res = await script.checkScriptUpdate({ checkType: "system" });
       if (!res?.ok) return;
       targetSites = res.targetSites;
-      updateChecked = true;
+      pendingOpen = res.checktime;
     };
+
+    this.mq.subscribe<any>("msgUpdatePageOpened", () => {
+      pendingOpen = 0;
+    });
 
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
@@ -202,7 +206,6 @@ export default class ServiceWorkerManager {
       });
     }
 
-    let nextUpdateAfter = 0;
     setOnUserActionDomainChanged(
       async (
         oldDomain: string,
@@ -211,18 +214,18 @@ export default class ServiceWorkerManager {
         _navUrl: string,
         _tab: chrome.tabs.Tab
       ) => {
-        // 已忽略後台換頁
-        // 在非私隱模式，正常Tab的操作下，用戶的打開新Tab，或在當時Tab轉至新網域時，會觸發此function
-        // 同一網域，SPA換頁等不觸發
-        if (updateChecked && Date.now() > nextUpdateAfter && targetSites.length > 0) {
-          // 有更新，可彈出
+        // 已忽略后台换页
+        // 在非私隐模式，正常Tab的操作下，用户的打开新Tab，或在当时Tab转至新网域时，会触发此function
+        // 同一网域，SPA换页等不触发
+        if (pendingOpen > 0 && targetSites.length > 0) {
+          // 有更新，可弹出
           if (targetSites.includes(newDomain)) {
-            // 只針對該網域的有效腳本發現「有更新」進行彈出
-            // 如該網域沒有任何有效腳本則忽略
+            // 只针对该网域的有效脚本发现「有更新」进行弹出
+            // 如该网域没有任何有效脚本则忽略
             const domain = newDomain;
             const anyOpened = await script.openBatchUpdatePage(domain ? `site=${domain}` : "");
             if (anyOpened) {
-              nextUpdateAfter = Date.now() + 5 * 60000;
+              pendingOpen = 0;
             }
           }
         }
@@ -233,9 +236,9 @@ export default class ServiceWorkerManager {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
-        // 無視錯誤
+        // 无视错误
       }
-      // 只針對狀態改變及URL推送；addListener 不使用FF專有的 filter 參數
+      // 只针对状态改变及URL推送；addListener 不使用FF专有的 filter 参数
       if (changeInfo.status === "loading" || changeInfo.status === "complete" || changeInfo.url) {
         onUrlNavigated(tab);
       }
@@ -245,7 +248,7 @@ export default class ServiceWorkerManager {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.tabs.onCreated:", lastError);
-        // 無視錯誤
+        // 无视错误
       }
       onUrlNavigated(tab);
     });
@@ -254,7 +257,7 @@ export default class ServiceWorkerManager {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
-        // 無視錯誤
+        // 无视错误
       }
       onTabRemoved(tabId);
     });

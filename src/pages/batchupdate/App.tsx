@@ -148,6 +148,7 @@ function App() {
     setInitial(true);
     scriptClient.fetchCheckUpdateStatus();
     // updateRecord();
+    scriptClient.sendUpdatePageOpened();
   };
 
   mInitial === false && doInitial();
