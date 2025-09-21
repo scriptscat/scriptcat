@@ -13,7 +13,7 @@ import {
 } from "@arco-design/web-react/icon";
 import { useEffect, useState, useCallback } from "react";
 import { RiMessage2Line } from "react-icons/ri";
-import semver from "semver";
+import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
@@ -300,7 +300,7 @@ function App() {
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
           <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
-          {semver.lt(ExtVersion, checkUpdate.version) && (
+          {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS && (
             <span
               onClick={() => {
                 window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
