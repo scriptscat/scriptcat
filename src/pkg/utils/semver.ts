@@ -17,20 +17,16 @@ export const versionCompare = (version1: string, version2: string): VersionCompa
   // 1 if version1 > version2
   const v1 = version1.split(".").map((e) => e.split(/(\D+)/g));
   const v2 = version2.split(".").map((e) => e.split(/(\D+)/g));
+  const maxI = Math.max(v1.length, v2.length) - 1;
   let i = -1;
-  while (true) {
-    i++;
-    let e1 = v1[i];
-    let e2 = v2[i];
-    if (e1 === undefined && e2 === undefined) break;
-    if (e1 === undefined) e1 = [];
-    if (e2 === undefined) e2 = [];
+  while (++i <= maxI) {
+    const e1 = v1[i] || [];
+    const e2 = v2[i] || [];
+    const maxJ = Math.max(e1.length, e2.length) - 1;
     let j = -1;
-    while (true) {
-      j++;
-      let w1: number | string = e1[j];
-      let w2: number | string = e2[j];
-      if (w1 === undefined && w2 === undefined) break;
+    while (++j <= maxJ) {
+      let w1: number | string = e1[j] || "";
+      let w2: number | string = e2[j] || "";
       if (+(w1 || "0") === 0 && +(w2 || "0") === 0) continue; // 空值与零值等价
       const isCharCmp = (j & 1) === 1;
       if (!isCharCmp) {
