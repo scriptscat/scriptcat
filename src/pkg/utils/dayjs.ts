@@ -58,47 +58,11 @@ export function semTime(time: Date, locale?: Locale | null) {
       roundingMethod: "ceil",
       unit: "second",
     });
-  } else if (dist <= 55 * 1000) {
-    return formatDistanceStrict(time, now, {
-      addSuffix: true,
-      locale,
-      roundingMethod: "round",
-      unit: "second",
-    });
-  } else if (dist <= 55 * 60 * 1000) {
-    return formatDistanceStrict(time, now, {
-      addSuffix: true,
-      locale,
-      roundingMethod: "round",
-      unit: "minute",
-    });
-  } else if (dist <= 22 * 60 * 60 * 1000) {
-    return formatDistanceStrict(time, now, {
-      addSuffix: true,
-      locale,
-      roundingMethod: "round",
-      unit: "hour",
-    });
-  } else if (dist <= 25 * 24 * 60 * 60 * 1000) {
-    return formatDistanceStrict(time, now, {
-      addSuffix: true,
-      locale,
-      roundingMethod: "round",
-      unit: "day",
-    });
-  } else if (dist <= 335 * 24 * 60 * 60 * 1000) {
-    return formatDistanceStrict(time, now, {
-      addSuffix: true,
-      locale,
-      roundingMethod: "round",
-      unit: "month",
-    });
   } else {
     return formatDistanceStrict(time, now, {
       addSuffix: true,
       locale,
       roundingMethod: "round",
-      unit: "year",
     });
   }
 }

@@ -14,10 +14,9 @@ describe("formatDistanceStrict", () => {
     const now = Date.now();
     // < 1 second = 1 second
     expect(semTimeFn(now - 1)).toBe("1 second ago");
-    // <= 55 seconds - round, force second
+    // round
     expect(semTimeFn(now - oneMin * 0.1)).toBe("6 seconds ago");
     expect(semTimeFn(now - oneMin * 0.8)).toBe("48 seconds ago");
-    // <= 55 minutes - round, force minute
     expect(semTimeFn(now - oneMin * 1 - 800)).toBe("1 minute ago");
     expect(semTimeFn(now - oneMin * 1.3 - 800)).toBe("1 minute ago");
     expect(semTimeFn(now - oneMin * 1.8 - 800)).toBe("2 minutes ago");
@@ -37,22 +36,19 @@ describe("formatDistanceStrict", () => {
     expect(semTimeFn(now - oneMin * 15.9 - 800)).toBe("16 minutes ago");
     expect(semTimeFn(now - oneMin * 45.1 - 800)).toBe("45 minutes ago");
     expect(semTimeFn(now - oneMin * 45.9 - 800)).toBe("46 minutes ago");
-    // <= 22 hours - round, force hours
     expect(semTimeFn(now - oneMin * 60 - 800)).toBe("1 hour ago");
     expect(semTimeFn(now - oneMin * 65 - 800)).toBe("1 hour ago");
     expect(semTimeFn(now - oneMin * 118 - 800)).toBe("2 hours ago");
     expect(semTimeFn(now - oneMin * 120 - 800)).toBe("2 hours ago");
     expect(semTimeFn(now - oneMin * 60 * 20 - 800)).toBe("20 hours ago");
     expect(semTimeFn(now - oneMin * 60 * 21.8 - 800)).toBe("22 hours ago");
-    // <= 25 days - round, force days
-    expect(semTimeFn(now - oneHour * 22.4 - 800)).toBe("1 day ago");
+    expect(semTimeFn(now - oneHour * 22.4 - 800)).toBe("22 hours ago"); // expect(semTimeFn(now - oneHour * 22.4 - 800)).toBe("1 day ago");
     expect(semTimeFn(now - oneHour * 24 - 800)).toBe("1 day ago");
     expect(semTimeFn(now - oneHour * 24 * 2 - 800)).toBe("2 days ago");
     expect(semTimeFn(now - oneHour * 24 * 5 - 800)).toBe("5 days ago");
     expect(semTimeFn(now - oneHour * 24 * 15 - 800)).toBe("15 days ago");
     expect(semTimeFn(now - oneHour * 24 * 24 - 800)).toBe("24 days ago");
-    // <= 335 days - round, force months
-    expect(semTimeFn(now - oneMonth * 0.96 - 800)).toBe("1 month ago");
+    expect(semTimeFn(now - oneMonth * 0.96 - 800)).toBe("29 days ago"); // expect(semTimeFn(now - oneMonth * 0.96 - 800)).toBe("1 month ago");
     expect(semTimeFn(now - oneMonth * 1 - 800)).toBe("1 month ago");
     expect(semTimeFn(now - oneMonth * 1.4 - 800)).toBe("1 month ago");
     expect(semTimeFn(now - oneMonth * 1.9 - 800)).toBe("2 months ago");
@@ -61,7 +57,6 @@ describe("formatDistanceStrict", () => {
     expect(semTimeFn(now - oneMonth * 10.9 - 800)).toBe("11 months ago");
     expect(semTimeFn(now - oneMonth * 11 - 800)).toBe("11 months ago");
     expect(semTimeFn(now - oneMonth * 11.1 - 800)).toBe("11 months ago");
-    // years
     expect(semTimeFn(now - oneMonth * 11.9 - 800)).toBe("1 year ago");
     expect(semTimeFn(now - oneMonth * 12 - 800)).toBe("1 year ago");
     expect(semTimeFn(now - oneMonth * 12.2 - 800)).toBe("1 year ago");
