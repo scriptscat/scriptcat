@@ -1,0 +1,125 @@
+import { enUS, zhCN } from "date-fns/locale";
+import { describe, expect, it } from "vitest";
+import { plainDayjs, semTime } from "./dayjs";
+
+const semTimeFn = (d: number, locale = enUS) => {
+  return semTime(new Date(Math.round(d)), locale);
+};
+
+describe("formatDistanceStrict", () => {
+  const oneMin = 60 * 1000;
+  const oneHour = oneMin * 60;
+  const oneMonth = oneMin * 60 * 24 * 30;
+  it("enUS", () => {
+    const now = Date.now();
+    // < 1 second = 1 second
+    expect(semTimeFn(now - 1)).toBe("1 second ago");
+    // <= 55 seconds - round, force second
+    expect(semTimeFn(now - oneMin * 0.1)).toBe("6 seconds ago");
+    expect(semTimeFn(now - oneMin * 0.8)).toBe("48 seconds ago");
+    // <= 55 minutes - round, force minute
+    expect(semTimeFn(now - oneMin * 1 - 800)).toBe("1 minute ago");
+    expect(semTimeFn(now - oneMin * 1.3 - 800)).toBe("1 minute ago");
+    expect(semTimeFn(now - oneMin * 1.8 - 800)).toBe("2 minutes ago");
+    expect(semTimeFn(now - oneMin * 2 - 800)).toBe("2 minutes ago");
+    expect(semTimeFn(now - oneMin * 2.3 - 800)).toBe("2 minutes ago");
+    expect(semTimeFn(now - oneMin * 2.8 - 800)).toBe("3 minutes ago");
+    expect(semTimeFn(now - oneMin * 3 - 800)).toBe("3 minutes ago");
+    expect(semTimeFn(now - oneMin * 4.8 - 800)).toBe("5 minutes ago");
+    expect(semTimeFn(now - oneMin * 5.2 - 800)).toBe("5 minutes ago");
+    expect(semTimeFn(now - oneMin * 5.8 - 800)).toBe("6 minutes ago");
+    expect(semTimeFn(now - oneMin * 5.9 - 800)).toBe("6 minutes ago");
+    expect(semTimeFn(now - oneMin * 6.1 - 800)).toBe("6 minutes ago");
+    expect(semTimeFn(now - oneMin * 6.9 - 800)).toBe("7 minutes ago");
+    expect(semTimeFn(now - oneMin * 7.1 - 800)).toBe("7 minutes ago");
+    expect(semTimeFn(now - oneMin * 7.9 - 800)).toBe("8 minutes ago");
+    expect(semTimeFn(now - oneMin * 15.1 - 800)).toBe("15 minutes ago");
+    expect(semTimeFn(now - oneMin * 15.9 - 800)).toBe("16 minutes ago");
+    expect(semTimeFn(now - oneMin * 45.1 - 800)).toBe("45 minutes ago");
+    expect(semTimeFn(now - oneMin * 45.9 - 800)).toBe("46 minutes ago");
+    // <= 22 hours - round, force hours
+    expect(semTimeFn(now - oneMin * 60 - 800)).toBe("1 hour ago");
+    expect(semTimeFn(now - oneMin * 65 - 800)).toBe("1 hour ago");
+    expect(semTimeFn(now - oneMin * 118 - 800)).toBe("2 hours ago");
+    expect(semTimeFn(now - oneMin * 120 - 800)).toBe("2 hours ago");
+    expect(semTimeFn(now - oneMin * 60 * 20 - 800)).toBe("20 hours ago");
+    expect(semTimeFn(now - oneMin * 60 * 21.8 - 800)).toBe("22 hours ago");
+    // <= 25 days - round, force days
+    expect(semTimeFn(now - oneHour * 22.4 - 800)).toBe("1 day ago");
+    expect(semTimeFn(now - oneHour * 24 - 800)).toBe("1 day ago");
+    expect(semTimeFn(now - oneHour * 24 * 2 - 800)).toBe("2 days ago");
+    expect(semTimeFn(now - oneHour * 24 * 5 - 800)).toBe("5 days ago");
+    expect(semTimeFn(now - oneHour * 24 * 15 - 800)).toBe("15 days ago");
+    expect(semTimeFn(now - oneHour * 24 * 24 - 800)).toBe("24 days ago");
+    // <= 335 days - round, force months
+    expect(semTimeFn(now - oneMonth * 0.96 - 800)).toBe("1 month ago");
+    expect(semTimeFn(now - oneMonth * 1 - 800)).toBe("1 month ago");
+    expect(semTimeFn(now - oneMonth * 1.4 - 800)).toBe("1 month ago");
+    expect(semTimeFn(now - oneMonth * 1.9 - 800)).toBe("2 months ago");
+    expect(semTimeFn(now - oneMonth * 9.4 - 800)).toBe("9 months ago");
+    expect(semTimeFn(now - oneMonth * 9.9 - 800)).toBe("10 months ago");
+    expect(semTimeFn(now - oneMonth * 10.9 - 800)).toBe("11 months ago");
+    expect(semTimeFn(now - oneMonth * 11 - 800)).toBe("11 months ago");
+    expect(semTimeFn(now - oneMonth * 11.1 - 800)).toBe("11 months ago");
+    // years
+    expect(semTimeFn(now - oneMonth * 11.9 - 800)).toBe("1 year ago");
+    expect(semTimeFn(now - oneMonth * 12 - 800)).toBe("1 year ago");
+    expect(semTimeFn(now - oneMonth * 12.2 - 800)).toBe("1 year ago");
+    expect(semTimeFn(now - oneMonth * 12.6 - 800)).toBe("1 year ago");
+    expect(semTimeFn(now - oneMonth * 22.8 - 800)).toBe("2 years ago");
+    expect(semTimeFn(now - oneMonth * 23.1 - 800)).toBe("2 years ago");
+    expect(semTimeFn(now - oneMonth * 23.9 - 800)).toBe("2 years ago");
+    expect(semTimeFn(now - oneMonth * 24 - 800)).toBe("2 years ago");
+    expect(semTimeFn(now - oneMonth * 48 - 800)).toBe("4 years ago");
+    expect(semTimeFn(now - oneMonth * 96 - 800)).toBe("8 years ago");
+    expect(semTimeFn(now - oneMonth * 192 - 800)).toBe("16 years ago");
+    expect(semTimeFn(now - oneMonth * 384 - 800)).toBe("32 years ago");
+  });
+  it("enUS", () => {
+    const now = Date.now();
+    expect(semTimeFn(now - 1, zhCN)).toBe("1 秒前");
+    expect(semTimeFn(now - 1 * 1000, zhCN)).toBe("1 秒前");
+    expect(semTimeFn(now - 10 * 1000, zhCN)).toBe("10 秒前");
+    expect(semTimeFn(now - 20 * 1000, zhCN)).toBe("20 秒前");
+    expect(semTimeFn(now - 30 * 1000, zhCN)).toBe("30 秒前");
+    expect(semTimeFn(now - 40 * 1000, zhCN)).toBe("40 秒前");
+    expect(semTimeFn(now - 50 * 1000, zhCN)).toBe("50 秒前");
+    expect(semTimeFn(now - 60 * 1000, zhCN)).toBe("1 分钟前");
+    expect(semTimeFn(now - 10 * 60 * 1000, zhCN)).toBe("10 分钟前");
+    expect(semTimeFn(now - 20 * 60 * 1000, zhCN)).toBe("20 分钟前");
+    expect(semTimeFn(now - 30 * 60 * 1000, zhCN)).toBe("30 分钟前");
+    expect(semTimeFn(now - 40 * 60 * 1000, zhCN)).toBe("40 分钟前");
+    expect(semTimeFn(now - 50 * 60 * 1000, zhCN)).toBe("50 分钟前");
+    expect(semTimeFn(now - 60 * 60 * 1000, zhCN)).toBe("1 小时前");
+    expect(semTimeFn(now - 4 * 60 * 60 * 1000, zhCN)).toBe("4 小时前");
+    expect(semTimeFn(now - 8 * 60 * 60 * 1000, zhCN)).toBe("8 小时前");
+    expect(semTimeFn(now - 16 * 60 * 60 * 1000, zhCN)).toBe("16 小时前");
+    expect(semTimeFn(now - 24 * 60 * 60 * 1000, zhCN)).toBe("1 天前");
+    expect(semTimeFn(now - 7 * 24 * 60 * 60 * 1000, zhCN)).toBe("7 天前");
+    expect(semTimeFn(now - 14 * 24 * 60 * 60 * 1000, zhCN)).toBe("14 天前");
+    expect(semTimeFn(now - 21 * 24 * 60 * 60 * 1000, zhCN)).toBe("21 天前");
+    expect(semTimeFn(now - 30 * 24 * 60 * 60 * 1000, zhCN)).toBe("1 个月前");
+    expect(semTimeFn(now - 4 * 30 * 24 * 60 * 60 * 1000, zhCN)).toBe("4 个月前");
+    expect(semTimeFn(now - 8 * 30 * 24 * 60 * 60 * 1000, zhCN)).toBe("8 个月前");
+    expect(semTimeFn(now - 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("1 年前");
+    expect(semTimeFn(now - 2 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("2 年前");
+    expect(semTimeFn(now - 5 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("5 年前");
+    expect(semTimeFn(now - 10 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("10 年前");
+    expect(semTimeFn(now - 20 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("20 年前");
+    expect(semTimeFn(now - 50 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("50 年前");
+    expect(semTimeFn(now - 100 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("100 年前");
+    expect(semTimeFn(now - 200 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("200 年前");
+    expect(semTimeFn(now - 500 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("500 年前");
+    expect(semTimeFn(now - 1000 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("1000 年前");
+    expect(semTimeFn(now - 2000 * 365 * 24 * 60 * 60 * 1000, zhCN)).toBe("2000 年前");
+  });
+});
+
+describe("plainDayjs", () => {
+  it("test", () => {
+    const d = new Date(1986, 4, 7, 10, 20, 30, 40);
+    const dj = plainDayjs(d);
+    expect(+dj.valueOf()).toBe(+d);
+    expect(dj.toString()).toBe(d.toString());
+  });
+});

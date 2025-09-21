@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { BackTop, Button, Card, DatePicker, Input, List, Message, Space } from "@arco-design/web-react";
-import dayjs from "dayjs";
 import Text from "@arco-design/web-react/es/Typography/text";
 import type { Logger } from "@App/app/repo/logger";
 import { LoggerDAO } from "@App/app/repo/logger";
@@ -10,6 +9,8 @@ import { IconPlus } from "@arco-design/web-react/icon";
 import { useSearchParams } from "react-router-dom";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { useTranslation } from "react-i18next";
+import { getUnixTime, subDays, subHours, subMinutes } from "date-fns";
+import { plainDayjs } from "@App/pkg/utils/dayjs";
 
 function LoggerPage() {
   const [labels, setLabels] = React.useState<Labels>({});
@@ -19,8 +20,8 @@ function LoggerPage() {
   const [logs, setLogs] = React.useState<Logger[]>([]);
   const [queryLogs, setQueryLogs] = React.useState<Logger[]>([]);
   const [search, setSearch] = React.useState<string>("");
-  const [startTime, setStartTime] = React.useState(dayjs().subtract(24, "hour").unix());
-  const [endTime, setEndTime] = React.useState(dayjs().unix());
+  const [startTime, setStartTime] = React.useState(getUnixTime(subHours(new Date(), 24))); // dayjs().subtract(24, "hour").unix()
+  const [endTime, setEndTime] = React.useState(getUnixTime(new Date())); // dayjs().unix()
   const loggerDAO = new LoggerDAO();
   const systemConfig = { logCleanCycle: 1 };
   const { t } = useTranslation();
@@ -142,39 +143,66 @@ function LoggerPage() {
                   shortcuts={[
                     {
                       text: t("last_5_minutes"),
-                      value: () => [dayjs(), dayjs().add(-5, "minute")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subMinutes(now, 5), now]);
+                      },
                     },
                     {
                       text: t("last_15_minutes"),
-                      value: () => [dayjs(), dayjs().add(-15, "minute")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subMinutes(now, 15), now]);
+                      },
                     },
                     {
                       text: t("last_30_minutes"),
-                      value: () => [dayjs(), dayjs().add(-30, "minute")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subMinutes(now, 30), now]);
+                      },
                     },
                     {
                       text: t("last_1_hour"),
-                      value: () => [dayjs(), dayjs().add(-1, "hour")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subHours(now, 1), now]);
+                      },
                     },
                     {
                       text: t("last_3_hours"),
-                      value: () => [dayjs(), dayjs().add(-3, "hour")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subHours(now, 3), now]);
+                      },
                     },
                     {
                       text: t("last_6_hours"),
-                      value: () => [dayjs(), dayjs().add(-6, "hour")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subHours(now, 6), now]);
+                      },
                     },
                     {
                       text: t("last_12_hours"),
-                      value: () => [dayjs(), dayjs().add(-12, "hour")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subHours(now, 12), now]);
+                      },
                     },
                     {
                       text: t("last_24_hours"),
-                      value: () => [dayjs(), dayjs().add(-24, "hour")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subHours(now, 24), now]);
+                      },
                     },
                     {
                       text: t("last_7_days"),
-                      value: () => [dayjs(), dayjs().add(-7, "day")],
+                      value: () => {
+                        const now = new Date();
+                        return plainDayjs([subDays(now, 7), now]);
+                      },
                     },
                   ]}
                 />
