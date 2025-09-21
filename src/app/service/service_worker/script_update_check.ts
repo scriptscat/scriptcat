@@ -115,6 +115,7 @@ class ScriptUpdateCheck {
 }
 
 const getSimilarityScore = (oldCode: string, newCode: string) => {
+  if (!oldCode.length || !newCode.length) return 0;
   // 转换 tab, 换行符，zero-width space, half-width space, full-width space 等为单一空格
   oldCode = oldCode.replace(
     /[\s\xA0\u2000-\u200D\u2028\u2029\u202F\u205F\u3000\u180E\u2060-\u2064\u3164\uFEFF\uFFA0]+/g,
@@ -136,8 +137,12 @@ const getSimilarityScore = (oldCode: string, newCode: string) => {
   // 单词长度最小为 2 (即计算库的预设值)
   if (p < 2 || Number.isNaN(p)) p = 2;
   else p = Math.floor(p / 2) * 2; // 取双数p
-  // 加 prefix 和 suffix 以保证最小长度为10
-  return stringSimilarity(`[[[[[${oldCode}]]]]]`, `[[[[[${newCode}]]]]]`, p, true);
+  // 重复使总长度大于 4096. 如果 oldCode 和 newCode 长度短而接近，两者会重复至 2048 长。如 oldCode 或 newCode 过短，则较长的会接近 4096 长。
+  const repeatN = Math.ceil(4096 / (oldCode.length + newCode.length + 4));
+  const oldCodeRepeated = new Array(repeatN + 1).join(`\n${oldCode}\n`);
+  const newCodeRepeated = new Array(repeatN + 1).join(`\n${newCode}\n`);
+  // 添加 prefix suffix 使最小长为 >6
+  return stringSimilarity(`\n\n${oldCodeRepeated}\n\n`, `\n\n${newCodeRepeated}\n\n`, p, true);
 };
 
 export { ScriptUpdateCheck, getSimilarityScore };
