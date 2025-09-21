@@ -222,6 +222,7 @@ function App() {
   };
 
   const openUpdatePage = async (uuid: string) => {
+    setTimeClose(-1); // 用户操作，不再倒数，等用户按完用户自行关
     // this.openUpdatePage(script, "system");
     await requestOpenUpdatePageByUUID(uuid);
   };
