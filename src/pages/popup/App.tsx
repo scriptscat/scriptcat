@@ -168,7 +168,7 @@ function App() {
 
   const doCheckUpdateInPopupMenu = async () => {
     const domain = getUrlDomain(currentUrl);
-    await requestOpenBatchUpdatePage(`autoclose=-1&${domain ? `&site=${domain}` : ""}`);
+    await requestOpenBatchUpdatePage(`autoclose=-1${domain ? `&site=${domain}` : ""}`);
   };
   const handleMenuClick = async (key: string) => {
     switch (key) {
