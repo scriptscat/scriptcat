@@ -6,7 +6,7 @@
   "license": "GPLv3",
   "private": true,
   "scripts": {
-    "preinstall": "npx -y only-allow pnpm",
+    "preinstall": "pnpm dlx only-allow pnpm",
     "test": "vitest",
     "coverage": "vitest run --coverage",
     "build": "cross-env NODE_ENV=production rspack build",
