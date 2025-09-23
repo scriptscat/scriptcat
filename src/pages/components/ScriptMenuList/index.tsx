@@ -166,13 +166,6 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleDeleteScript = useCallback((uuid: string) => {
-      setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
-      scriptClient.deletes([uuid]).catch((e) => {
-        Message.error(`{t('delete_failed')}: ${e}`);
-      });
-    }, []);
-
     const handleExpandMenu = useCallback((index: number) => {
       setExpandMenuIndex((prev) => ({
         ...prev,
@@ -272,6 +265,14 @@ const ScriptMenuList = React.memo(
         window.close();
       }, [item.uuid]);
 
+      const handleDeleteScript = useCallback(() => {
+        const uuid = item.uuid;
+        setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+        scriptClient.deletes([uuid]).catch((e) => {
+          Message.error(`{t('delete_failed')}: ${e}`);
+        });
+      }, [item.uuid]);
+
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
@@ -304,11 +305,7 @@ const ScriptMenuList = React.memo(
                   {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
-              <Popconfirm
-                title={t("confirm_delete_script")}
-                icon={<IconDelete />}
-                onOk={() => handleDeleteScript(item.uuid)}
-              >
+              <Popconfirm title={t("confirm_delete_script")} icon={<IconDelete />} onOk={handleDeleteScript}>
                 <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
                   {t("delete")}
                 </Button>
