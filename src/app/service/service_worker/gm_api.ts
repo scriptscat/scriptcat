@@ -995,7 +995,7 @@ export default class GMApi {
   async GM_download(request: Request, sender: GetSender) {
     const params = <GMTypes.DownloadDetails>request.params[0];
     // 替换掉windows下文件名的非法字符为 -
-    const fileName = params.name.replace(/(\\|\/|:|\*|\?|"|<|>|\|)/g, "-");
+    const fileName = params.name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     if (params.url.startsWith("blob:") || params.downloadMode === "browser") {
       chrome.downloads.download(
