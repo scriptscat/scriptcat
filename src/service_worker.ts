@@ -9,6 +9,7 @@ import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate from "./app/migrate";
 import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
+import type { RuntimeMessageSender } from "@Packages/message/types";
 
 migrate();
 
@@ -77,9 +78,9 @@ async function main() {
 }
 
 const apiActions: {
-  [key: string]: (message: any, _sender: chrome.runtime.MessageSender) => Promise<any> | any;
+  [key: string]: (message: any, _sender: RuntimeMessageSender) => Promise<any> | any;
 } = {
-  async "fetch-icon-by-domain"(message: any, _sender: chrome.runtime.MessageSender) {
+  async "fetch-icon-by-domain"(message: any, _sender: RuntimeMessageSender) {
     const { domain } = message;
     return await fetchIconByDomain(domain);
   },

@@ -1,4 +1,4 @@
-import type { Message, MessageConnect, MessageSend, TMessage } from "./types";
+import type { Message, MessageConnect, TMessage } from "./types";
 import EventEmitter from "eventemitter3";
 import { sleep } from "@App/pkg/utils/utils";
 
@@ -24,7 +24,7 @@ export class MockMessageConnect implements MessageConnect {
   }
 }
 
-export class MockMessageSend implements MessageSend {
+export class MockMessage implements Message {
   constructor(protected EE: EventEmitter<string, any>) {}
 
   connect(data: TMessage): Promise<MessageConnect> {
@@ -45,9 +45,7 @@ export class MockMessageSend implements MessageSend {
       });
     });
   }
-}
 
-export class MockMessage extends MockMessageSend implements Message {
   onConnect(callback: (data: any, con: MessageConnect) => void): void {
     this.EE.on("connect", (data: any, con: MessageConnect) => {
       callback(data, con);

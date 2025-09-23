@@ -128,7 +128,7 @@ export default class GMApi {
     private systemConfig: SystemConfig,
     private permissionVerify: PermissionVerify,
     private group: Group,
-    private send: MessageSend,
+    private msgSender: MessageSend,
     private mq: MessageQueueGroup,
     private value: ValueService,
     private gmExternalDependencies: IGMExternalDependencies
@@ -751,7 +751,7 @@ export default class GMApi {
       return this.CAT_fetch(params, sender, resultParam);
     }
     // 再发送到offscreen, 处理请求
-    const offscreenCon = await connect(this.send, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
+    const offscreenCon = await connect(this.msgSender, "offscreen/gmApi/xmlHttpRequest", request.params[0]);
     offscreenCon.onMessage((msg) => {
       // 发送到content
       // 替换msg.data.responseHeaders
@@ -801,7 +801,7 @@ export default class GMApi {
     const options = request.params[1] || {};
     if (options.useOpen === true) {
       // 发送给offscreen页面处理
-      const ok = await sendMessage(this.send, "offscreen/gmApi/openInTab", { url });
+      const ok = await sendMessage(this.msgSender, "offscreen/gmApi/openInTab", { url });
       if (ok) {
         // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
         const tab = await getCurrentTab();
@@ -1078,7 +1078,7 @@ export default class GMApi {
   async GM_setClipboard(request: Request) {
     const [data, type] = request.params;
     const clipboardType = type || "text/plain";
-    await sendMessage(this.send, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+    await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
   @PermissionVerify.API()
