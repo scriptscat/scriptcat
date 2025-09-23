@@ -166,11 +166,6 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleOpenUserConfig = useCallback((uuid: string) => {
-      window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
-      window.close();
-    }, []);
-
     const CollapseHeader = React.memo(({ item }: { item: ScriptMenu }) => {
       const handleEnableChange = useCallback(
         (checked: boolean) => {
@@ -273,6 +268,11 @@ const ScriptMenuList = React.memo(
         }));
       }, []);
 
+      const handleOpenUserConfig = useCallback(() => {
+        window.open(`/src/options.html#/?userConfig=${item.uuid}`, "_blank");
+        window.close();
+      }, [item.uuid]);
+
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
@@ -334,7 +334,7 @@ const ScriptMenuList = React.memo(
                 key="config"
                 type="secondary"
                 icon={<IconSettings />}
-                onClick={() => handleOpenUserConfig(item.uuid)}
+                onClick={handleOpenUserConfig}
               >
                 {t("user_config")}
               </Button>
