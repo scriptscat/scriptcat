@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { Server, GetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
-import type { MessageConnect, MessageSender } from "./types";
+import type { MessageConnect, RuntimeMessageSender } from "./types";
 
 describe("Server", () => {
   let contentMessage: CustomEventMessage;
@@ -504,7 +504,7 @@ describe("Server", () => {
   });
 
   describe("GetSender 功能测试", () => {
-    it("应该能够从 MessageSender 获取信息", async () => {
+    it("应该能够从 RuntimeMessageSender 获取信息", async () => {
       let capturedSender: GetSender;
 
       server.on("test", (params, sender) => {
@@ -512,11 +512,11 @@ describe("Server", () => {
       });
 
       // 模拟带有 sender 信息的消息
-      const mockSender: MessageSender = {
+      const mockSender: RuntimeMessageSender = {
         tab: { id: 123 },
         frameId: 456,
         documentId: "doc-123",
-      } as MessageSender;
+      } as RuntimeMessageSender;
 
       // 直接调用 messageHandle 来模拟带 sender 的消息
       const sendResponse = vi.fn();
@@ -538,9 +538,9 @@ describe("Server", () => {
         capturedSender = sender;
       });
 
-      const mockSender: MessageSender = {
+      const mockSender: RuntimeMessageSender = {
         frameId: 456,
-      } as MessageSender;
+      } as RuntimeMessageSender;
 
       const sendResponse = vi.fn();
       (server as any).messageHandle("test", { param: "value" }, sendResponse, mockSender);

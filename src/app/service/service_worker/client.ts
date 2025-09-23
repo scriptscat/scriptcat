@@ -19,8 +19,8 @@ import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService } from "./script";
 
 export class ServiceWorkerClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker");
   }
 
   preparationOffscreen() {
@@ -29,8 +29,8 @@ export class ServiceWorkerClient extends Client {
 }
 
 export class ScriptClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/script");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/script");
   }
 
   // 脚本数据量大的时候，options页要读取全部的数据，可能会导致options页卡顿，直接调用serviceWorker的接口从内存中读取数据
@@ -182,8 +182,8 @@ export class ScriptClient extends Client {
 }
 
 export class ResourceClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/resource");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/resource");
   }
 
   getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
@@ -196,8 +196,8 @@ export class ResourceClient extends Client {
 }
 
 export class ValueClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/value");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/value");
   }
 
   getScriptValue(script: Script): Promise<{ [key: string]: any }> {
@@ -214,8 +214,8 @@ export class ValueClient extends Client {
 }
 
 export class RuntimeClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/runtime");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/runtime");
   }
 
   runScript(uuid: string) {
@@ -248,8 +248,8 @@ export type GetPopupDataRes = {
 };
 
 export class PopupClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/popup");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/popup");
   }
 
   getPopupData(data: GetPopupDataReq): Promise<GetPopupDataRes> {
@@ -271,8 +271,8 @@ export class PopupClient extends Client {
 }
 
 export class PermissionClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/runtime/permission");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/runtime/permission");
   }
 
   confirm(uuid: string, userConfirm: UserConfirm): Promise<void> {
@@ -305,8 +305,8 @@ export class PermissionClient extends Client {
 }
 
 export class SynchronizeClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/synchronize");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/synchronize");
   }
 
   export(uuids?: string[]) {
@@ -344,8 +344,8 @@ export class SynchronizeClient extends Client {
 }
 
 export class SubscribeClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/subscribe");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/subscribe");
   }
 
   install(subscribe: Subscribe) {
@@ -366,8 +366,8 @@ export class SubscribeClient extends Client {
 }
 
 export class SystemClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "serviceWorker/system");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/system");
   }
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {

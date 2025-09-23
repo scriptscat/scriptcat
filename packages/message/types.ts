@@ -25,13 +25,20 @@ export type TMessageCommCode<T = any> = {
 
 export type TMessage<T = any> = TMessageQueue<T> | TMessageCommAction<T> | TMessageCommCode<T>;
 
-export type MessageSender = chrome.runtime.MessageSender;
+export type RuntimeMessageSender = chrome.runtime.MessageSender;
 
-export interface Message extends MessageSend {
-  onConnect(callback: (data: TMessage, con: MessageConnect) => void): void;
-  onMessage(
-    callback: (data: TMessage, sendResponse: (data: any) => void, sender?: MessageSender) => boolean | void
-  ): void;
+export type OnConnectCallback = (data: TMessage, con: MessageConnect) => void;
+export type OnMessageCallback = (
+  data: TMessage,
+  sendResponse: (data: any) => void,
+  sender?: RuntimeMessageSender
+) => boolean | void;
+
+export interface Message {
+  connect(data: TMessage): Promise<MessageConnect>;
+  sendMessage<T = any>(data: TMessage): Promise<T>;
+  onConnect(callback: OnConnectCallback): void;
+  onMessage(callback: OnMessageCallback): void;
 }
 
 export interface MessageSend {

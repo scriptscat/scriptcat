@@ -1,7 +1,7 @@
-import type { Message, MessageConnect, MessageSend, MessageSender, TMessage, TMessageCommAction } from "./types";
+import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
 
-export class ExtensionMessageSend implements MessageSend {
-  constructor() {}
+export class ExtensionMessage implements Message {
+  constructor(private backgroundPrimary = false) {}
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
@@ -27,19 +27,13 @@ export class ExtensionMessageSend implements MessageSend {
       });
     });
   }
-}
 
-export class ExtensionMessage extends ExtensionMessageSend implements Message {
   tryEnableUserScriptConnectionListener = (..._args: any) => {
     // empty function
   };
   tryEnableUserScriptMessageListener = (..._args: any) => {
     // empty function
   };
-
-  constructor(private backgroundPrimary = false) {
-    super();
-  }
 
   onConnect(callback: (data: TMessage, con: MessageConnect) => void) {
     chrome.runtime.onConnect.addListener((port: chrome.runtime.Port | null) => {
@@ -90,7 +84,11 @@ export class ExtensionMessage extends ExtensionMessageSend implements Message {
 
   // 注意chrome.runtime.onMessage.addListener的回调函数需要返回true才能处理异步请求
   onMessage(
-    callback: (data: TMessageCommAction, sendResponse: (data: any) => void, sender: MessageSender) => boolean | void
+    callback: (
+      data: TMessageCommAction,
+      sendResponse: (data: any) => void,
+      sender: RuntimeMessageSender
+    ) => boolean | void
   ): void {
     chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
       const lastError = chrome.runtime.lastError;
@@ -171,16 +169,14 @@ export class ExtensionMessageConnect implements MessageConnect {
   }
 }
 
-export class ExtensionContentMessageSend extends ExtensionMessageSend {
+export class ExtensionContentMessageSend implements MessageSend {
   constructor(
     private tabId: number,
     private options?: {
       frameId?: number;
       documentId?: string;
     }
-  ) {
-    super();
-  }
+  ) {}
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
