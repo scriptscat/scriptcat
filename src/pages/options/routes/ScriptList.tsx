@@ -431,10 +431,10 @@ const ActionCell = React.memo(
     t: any;
   }) => {
     const handleDelete = useCallback(() => {
-      const { uuid } = item;
+      const uuid = item.uuid;
       updateScriptList({ uuid, actionLoading: true });
-      requestDeleteScripts([item.uuid]);
-    }, [item]);
+      requestDeleteScripts([uuid]);
+    }, [item.uuid]);
 
     const handleConfig = useCallback(() => {
       new ValueClient(message).getScriptValue(item).then((newValues) => {
