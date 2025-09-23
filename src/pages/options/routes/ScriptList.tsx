@@ -808,7 +808,7 @@ function ScriptList() {
     return () => {
       for (const unhook of unhooks) unhook();
     };
-  });
+  }, []);
 
   const updateScriptList = useCallback((data: Partial<Script | ScriptLoading>) => {
     setScriptList((list) => {

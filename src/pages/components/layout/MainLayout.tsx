@@ -184,7 +184,7 @@ const MainLayout: React.FC<{
         setShowLanguage(true);
       }
     });
-  });
+  }, []);
 
   const handleImport = async () => {
     const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
