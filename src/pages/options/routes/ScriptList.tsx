@@ -475,7 +475,7 @@ const ActionCell = React.memo(
           duration: 3000,
         });
       }
-    }, [item.uuid]);
+    }, [item.uuid, item.runStatus]);
 
     const handleCloud = useCallback(() => {
       setCloudScript(item);
