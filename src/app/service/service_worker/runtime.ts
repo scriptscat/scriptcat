@@ -90,7 +90,8 @@ export class RuntimeService {
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
-    private scriptDAO: ScriptDAO
+    private scriptDAO: ScriptDAO,
+    private localStorageDAO: LocalStorageDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
 
@@ -427,16 +428,21 @@ export class RuntimeService {
     await Promise.allSettled([chrome.userScripts.unregister(), this.deleteMessageFlag()]);
   }
 
-  getAndGenMessageFlag() {
-    return cacheInstance.getOrSet<string>("scriptInjectMessageFlag", () => randomMessageFlag());
+  async getAndGenMessageFlag() {
+    let flag = await this.localStorageDAO.get("scriptInjectMessageFlag");
+    if (!flag) {
+      flag = { key: "scriptInjectMessageFlag", value: randomMessageFlag() };
+    }
+    await this.localStorageDAO.save(flag);
+    return flag.value;
   }
 
   deleteMessageFlag() {
-    return cacheInstance.del("scriptInjectMessageFlag");
+    return this.localStorageDAO.delete("scriptInjectMessageFlag");
   }
 
   getMessageFlag() {
-    return cacheInstance.get<string>("scriptInjectMessageFlag");
+    return this.localStorageDAO.get("scriptInjectMessageFlag").then((res) => res?.value);
   }
 
   async getParticularScriptList() {
@@ -553,10 +559,20 @@ export class RuntimeService {
     // messageFlag是用来判断是否已经注册过
     if (await this.getMessageFlag()) {
       // 异常情况
-      console.error("messageFlag exists");
-      await loadingScriptMatchInfo;
-      return;
+      // 检查scriptcat-content和scriptcat-inject是否存在
+      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
+      if (res.length === 2) {
+        await loadingScriptMatchInfo;
+        return;
+      }
+      // 理论上不应该出现messageFlag存在但scriptcat-content/scriptcat-inject不存在的情况
+      // 如果出现，走一次重新注册的流程
+      this.logger.warn(
+        "messageFlag exists but scriptcat-content/scriptcat-inject not exists, re-register userscripts."
+      );
     }
+    // 删除旧注册
+    await this.unregisterUserscripts();
     // 使注册时重新注入 chrome.runtime
     try {
       await chrome.userScripts.resetWorldConfiguration();
@@ -564,6 +580,8 @@ export class RuntimeService {
       console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
     }
 
+    // 只有early-start脚本需要使用userScript.register注册
+    // 其它脚本将源代码发送到content.js中由content.js注入
     const particularScriptList = await this.getParticularScriptList();
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
@@ -656,6 +674,7 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
+    console.log("pageLoad", this.isLoadScripts);
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
@@ -914,12 +933,21 @@ export class RuntimeService {
       const scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
       const loadingScript = cacheInstance
         .get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch")
-        .then((data) => {
+        .then(async (data) => {
           if (data) {
             const arr = Object.entries(data).sort(([, a], [, b]) => a.sort! - b.sort!);
             for (const [, matchInfoEntry] of arr) {
               this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
             }
+          } else {
+            // 如果没有缓存数据，则读取所有的页面脚本，处理@match等信息
+            // const list = (await this.scriptDAO.all()).filter((script) => script.type === SCRIPT_TYPE_NORMAL);
+            // for (const script of list) {
+            //   const res = await this.buildScriptMatchInfoEntry(script);
+            //   if (res) {
+            //     this.addScriptMatchEntry(scriptMatchCache, res);
+            //   }
+            // }
           }
         })
         .then(() => {
@@ -1007,8 +1035,8 @@ export class RuntimeService {
     };
   }
 
-  // 构建userScript注册信息
-  async getAndSetUserScriptRegister(script: Script) {
+  // 构建脚本匹配信息
+  async buildScriptMatchInfoEntry(script: Script) {
     const preDocumentStartScript = isEarlyStartScript(script);
     let scriptFlag: string | undefined;
     if (preDocumentStartScript) {
@@ -1048,18 +1076,41 @@ export class RuntimeService {
           ])
         : scriptUrlPatterns;
 
+    const scriptMatchInfo = Object.assign(
+      {
+        scriptUrlPatterns: scriptUrlPatterns,
+        originalUrlPatterns: originalUrlPatterns,
+      },
+      scriptRes
+    );
+
+    return scriptMatchInfo;
+  }
+
+  // 构建userScript注册信息
+  // 只有early-start脚本需要使用userScript.register注册
+  // 其它脚本保存@match等信息到缓存中，由content.js注入
+  async getAndSetUserScriptRegister(script: Script) {
+    const preDocumentStartScript = isEarlyStartScript(script);
+    const scriptRes = await this.buildScriptMatchInfoEntry(script);
+    if (!scriptRes) {
+      return undefined;
+    }
+
     if (preDocumentStartScript) {
       scriptRes.code = compilePreInjectScript(this.parseScriptLoadInfo(scriptRes), scriptRes.code);
     } else {
       scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
     }
 
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptRes.scriptUrlPatterns);
 
     const excludeMatches = toUniquePatternStrings(
-      scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
+      scriptRes.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
     );
-    const excludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
+    const excludeGlobs = toUniquePatternStrings(
+      scriptRes.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE)
+    );
 
     const registerScript: chrome.userScripts.RegisteredUserScript = {
       id: scriptRes.uuid,
@@ -1080,17 +1131,6 @@ export class RuntimeService {
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }
-
-    const scriptMatchInfo = Object.assign(
-      {
-        scriptUrlPatterns: scriptUrlPatterns,
-        originalUrlPatterns: originalUrlPatterns,
-      },
-      scriptRes
-    ) as TScriptMatchInfoEntry;
-
-    // 将脚本match信息放入缓存中
-    await this.addScriptMatch(scriptMatchInfo);
 
     return {
       registerScript,
