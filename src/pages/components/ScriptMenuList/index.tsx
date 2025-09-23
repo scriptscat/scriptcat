@@ -166,11 +166,6 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleEditScript = useCallback((uuid: string) => {
-      window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
-      window.close();
-    }, []);
-
     const handleDeleteScript = useCallback((uuid: string) => {
       setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
       scriptClient.deletes([uuid]).catch((e) => {
@@ -272,6 +267,11 @@ const ScriptMenuList = React.memo(
         }
       }, [item.runStatus, item.uuid]);
 
+      const handleEditScript = useCallback(() => {
+        window.open(`/src/options.html#/script/editor/${item.uuid}`, "_blank");
+        window.close();
+      }, [item.uuid]);
+
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
@@ -290,12 +290,7 @@ const ScriptMenuList = React.memo(
                   {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
                 </Button>
               )}
-              <Button
-                className="text-left"
-                type="secondary"
-                icon={<IconEdit />}
-                onClick={() => handleEditScript(item.uuid)}
-              >
+              <Button className="text-left" type="secondary" icon={<IconEdit />} onClick={handleEditScript}>
                 {t("edit")}
               </Button>
               {url && isEffective !== null && (
