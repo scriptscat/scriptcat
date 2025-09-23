@@ -110,17 +110,20 @@ const ScriptMenuList = React.memo(
     }>({});
     const { t } = useTranslation();
     const [menuExpandNum, setMenuExpandNum] = useState(5);
+    const url = useMemo(() => {
+      let url: URL;
+      try {
+        // 如果currentUrl为空或无效，使用默认URL
+        const urlToUse = currentUrl?.trim() || "https://example.com";
+        url = new URL(urlToUse);
+      } catch (e: any) {
+        console.error("Invalid URL:", e);
+        // 提供一个默认的URL，避免后续代码报错
+        url = new URL("https://example.com");
+      }
+      return url;
+    }, [currentUrl]);
 
-    let url: URL;
-    try {
-      // 如果currentUrl为空或无效，使用默认URL
-      const urlToUse = currentUrl?.trim() || "https://example.com";
-      url = new URL(urlToUse);
-    } catch (e: any) {
-      console.error("Invalid URL:", e);
-      // 提供一个默认的URL，避免后续代码报错
-      url = new URL("https://example.com");
-    }
     useEffect(() => {
       setList(script);
       // 注册菜单快捷键
@@ -356,18 +359,12 @@ const ScriptMenuList = React.memo(
 
     ListMenuItem.displayName = "ListMenuItem";
 
-    // 使用 useCallback 来缓存渲染函数，避免每次渲染都创建新的函数实例
-    const renderListItem = useCallback(
-      ({ item, index }: { item: ScriptMenu; index: number }) => (
-        <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
-      ),
-      []
-    );
-
     return (
       <>
         {list.length === 0 && <Empty description={t("no_data")} />}
-        {list.map((item, index) => renderListItem({ item, index }))}
+        {list.map((item, index) => (
+          <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
+        ))}
       </>
     );
   }

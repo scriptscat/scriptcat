@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Avatar,
   Button,
@@ -195,12 +195,12 @@ SortRender.displayName = "SortRender";
 
 const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
   const { uuid } = item;
-  const onChange = React.useCallback(
+  const onChange = useCallback(
     (checked: boolean) => {
       updateScriptList({ uuid: uuid, enableLoading: true });
       requestEnableScript({ uuid: uuid, enable: checked });
     },
-    [uuid, updateScriptList]
+    [uuid]
   );
 
   return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
@@ -240,7 +240,7 @@ const VersionCell = React.memo(({ item }: { item: ListType }) => {
 VersionCell.displayName = "VersionCell";
 
 const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
-  const toLogger = React.useCallback(() => {
+  const toLogger = useCallback(() => {
     navigate({
       pathname: "logger",
       search: `query=${encodeURIComponent(
@@ -253,7 +253,7 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
         ])
       )}`,
     });
-  }, [item.uuid, navigate]);
+  }, [item.uuid]);
 
   if (item.type === SCRIPT_TYPE_NORMAL) {
     return (
@@ -367,7 +367,7 @@ const HomeCell = React.memo(({ item }: { item: ListType }) => {
 HomeCell.displayName = "HomeCell";
 
 const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: ListType; t: any }) => {
-  const handleClick = React.useCallback(() => {
+  const handleClick = useCallback(() => {
     if (!script.checkUpdateUrl) {
       Message.warning(t("update_not_supported")!);
       return;
@@ -397,7 +397,7 @@ const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: Li
           content: `${t("update_check_failed")}: ${e.message}`,
         });
       });
-  }, [script.checkUpdateUrl, script.uuid, t]);
+  }, [script.checkUpdateUrl, script.uuid]);
 
   return (
     <Tooltip content={t("check_update")} position="tl">
@@ -430,13 +430,13 @@ const ActionCell = React.memo(
     setCloudScript: any;
     t: any;
   }) => {
-    const handleDelete = React.useCallback(() => {
+    const handleDelete = useCallback(() => {
       const { uuid } = item;
       updateScriptList({ uuid, actionLoading: true });
       requestDeleteScripts([item.uuid]);
-    }, [item, updateScriptList]);
+    }, [item]);
 
-    const handleConfig = React.useCallback(() => {
+    const handleConfig = useCallback(() => {
       new ValueClient(message).getScriptValue(item).then((newValues) => {
         setUserConfig({
           userConfig: { ...item.config! },
@@ -444,9 +444,9 @@ const ActionCell = React.memo(
           values: newValues,
         });
       });
-    }, [item, setUserConfig]);
+    }, [item]);
 
-    const handleRunStop = React.useCallback(async () => {
+    const handleRunStop = useCallback(async () => {
       if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
         // Stop script
         Message.loading({
@@ -475,11 +475,11 @@ const ActionCell = React.memo(
           duration: 3000,
         });
       }
-    }, [item, updateEntry, t]);
+    }, [item]);
 
-    const handleCloud = React.useCallback(() => {
+    const handleCloud = useCallback(() => {
       setCloudScript(item);
-    }, [item, setCloudScript]);
+    }, [item]);
 
     return (
       <Button.Group>
@@ -810,7 +810,7 @@ function ScriptList() {
     };
   });
 
-  const updateScriptList = React.useCallback((data: Partial<Script | ScriptLoading>) => {
+  const updateScriptList = useCallback((data: Partial<Script | ScriptLoading>) => {
     setScriptList((list) => {
       const index = list.findIndex((script) => script.uuid === data.uuid);
       if (index === -1) return list;
@@ -821,7 +821,7 @@ function ScriptList() {
     });
   }, []);
 
-  const updateEntry = React.useCallback((uuids: string[], data: Partial<Script | ScriptLoading>) => {
+  const updateEntry = useCallback((uuids: string[], data: Partial<Script | ScriptLoading>) => {
     const set = new Set(uuids);
     setScriptList((list) => {
       let hasChanges = false;
@@ -837,38 +837,6 @@ function ScriptList() {
     });
   }, []);
 
-  // 创建稳定的render函数引用
-  const renderSort = React.useCallback((col: number) => <SortRender col={col} />, []);
-  const renderEnableSwitch = React.useCallback(
-    (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScriptList={updateScriptList} />,
-    [updateScriptList]
-  );
-  const renderName = React.useCallback((col: string, item: ListType) => <NameCell col={col} item={item} />, []);
-  const renderVersion = React.useCallback((col: any, item: ListType) => <VersionCell item={item} />, []);
-  const renderApplyToRunStatus = React.useCallback(
-    (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
-    [navigate, t]
-  );
-  const renderSource = React.useCallback((col: any, item: ListType) => <SourceCell item={item} t={t} />, [t]);
-  const renderHome = React.useCallback((col: any, item: ListType) => <HomeCell item={item} />, []);
-  const renderUpdateTime = React.useCallback(
-    (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
-    [t]
-  );
-  const renderAction = React.useCallback(
-    (col: any, item: ScriptLoading) => (
-      <ActionCell
-        item={item}
-        updateScriptList={updateScriptList}
-        updateEntry={updateEntry}
-        setUserConfig={setUserConfig}
-        setCloudScript={setCloudScript}
-        t={t}
-      />
-    ),
-    [updateScriptList, updateEntry, setUserConfig, setCloudScript, t]
-  );
-
   const columns: ColumnProps[] = useMemo(
     () =>
       [
@@ -878,7 +846,7 @@ function ScriptList() {
           width: 60,
           key: "#",
           sorter: (a, b) => a.sort - b.sort,
-          render: renderSort,
+          render: (col: number) => <SortRender col={col} />,
         },
         {
           key: "title",
@@ -900,7 +868,9 @@ function ScriptList() {
             },
           ],
           onFilter: (value, row) => row.status === value,
-          render: renderEnableSwitch,
+          render: (col: any, item: ScriptLoading) => (
+            <EnableSwitchCell item={item} updateScriptList={updateScriptList} />
+          ),
         },
         {
           key: "name",
@@ -995,7 +965,7 @@ function ScriptList() {
             }
           },
           className: "max-w-[240px] min-w-[100px]",
-          render: renderName,
+          render: (col: string, item: ListType) => <NameCell col={col} item={item} />,
         },
         {
           title: t("version"),
@@ -1003,21 +973,21 @@ function ScriptList() {
           key: "version",
           width: 120,
           align: "center",
-          render: renderVersion,
+          render: (col: any, item: ListType) => <VersionCell item={item} />,
         },
         {
           key: "apply_to_run_status",
           title: t("apply_to_run_status"),
           width: t("script_list_apply_to_run_status_width"),
           className: "apply_to_run_status",
-          render: renderApplyToRunStatus,
+          render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
         },
         {
           title: t("source"),
           dataIndex: "origin",
           key: "origin",
           width: 100,
-          render: renderSource,
+          render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
         },
         {
           title: t("home"),
@@ -1025,7 +995,7 @@ function ScriptList() {
           align: "center",
           key: "home",
           width: 100,
-          render: renderHome,
+          render: (col: any, item: ListType) => <HomeCell item={item} />,
         },
         {
           title: t("last_updated"),
@@ -1034,28 +1004,26 @@ function ScriptList() {
           key: "updatetime",
           width: t("script_list_last_updated_width"),
           sorter: (a, b) => a.updatetime - b.updatetime,
-          render: renderUpdateTime,
+          render: (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
         },
         {
           title: t("action"),
           dataIndex: "action",
           key: "action",
           width: 160,
-          render: renderAction,
+          render: (col: any, item: ScriptLoading) => (
+            <ActionCell
+              item={item}
+              updateScriptList={updateScriptList}
+              updateEntry={updateEntry}
+              setUserConfig={setUserConfig}
+              setCloudScript={setCloudScript}
+              t={t}
+            />
+          ),
         },
       ] as ColumnProps[],
-    [
-      renderSort,
-      renderEnableSwitch,
-      renderName,
-      renderVersion,
-      renderApplyToRunStatus,
-      renderSource,
-      renderHome,
-      renderUpdateTime,
-      renderAction,
-      t,
-    ]
+    []
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);

@@ -22,7 +22,7 @@ const ScriptListItem = React.memo(
     item: ScriptData;
     index: number;
     t: (a: string) => string;
-    onToggle: (index: number) => () => void;
+    onToggle: (index: number) => void;
     onStatusToggle: (index: number, checked: boolean) => void;
   }) => {
     return (
@@ -34,7 +34,7 @@ const ScriptListItem = React.memo(
           borderBottom: "1px solid rgb(var(--gray-3))",
           cursor: "pointer",
         }}
-        onClick={onToggle(index)}
+        onClick={() => onToggle(index)}
       >
         <Space direction="vertical" size={1} style={{ overflow: "hidden" }}>
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
@@ -193,7 +193,7 @@ function App() {
     }
   };
 
-  const importScripts = useCallback(async (scripts: ScriptData[]) => {
+  const importScripts = async (scripts: ScriptData[]) => {
     const promises: Promise<any>[] = [];
     for (const item of scripts) {
       if (item.install && !item.error) {
@@ -201,18 +201,15 @@ function App() {
       }
     }
     return Promise.all(promises);
-  }, []);
+  };
 
-  const importButtonClick = useCallback(
-    (scripts: ScriptData[]) => async () => {
-      setInstallNum((prev) => [0, prev[1]]);
-      setLoading(true);
-      await importScripts(scripts);
-      setLoading(false);
-      Message.success(t("import_success")!);
-    },
-    [importScripts, t]
-  );
+  const importButtonClick = useCallback(async () => {
+    setInstallNum((prev) => [0, prev[1]]);
+    setLoading(true);
+    await importScripts(scripts);
+    setLoading(false);
+    Message.success(t("import_success")!);
+  }, []);
 
   const handleSelectAllScripts = useCallback(() => {
     setSelectAll((prev) => {
@@ -240,13 +237,6 @@ function App() {
     setSelectAll((prev) => [bool, prev[1]]);
   }, []);
 
-  const handleScriptToggleClick = useCallback(
-    (index: number) => () => {
-      handleScriptToggle(index);
-    },
-    [handleScriptToggle]
-  );
-
   const handleScriptStatusToggle = useCallback((index: number, checked: boolean) => {
     setScripts((prevScripts) =>
       prevScripts.map((prevScript, i) =>
@@ -271,7 +261,7 @@ function App() {
       <Card bordered={false} title={t("data_import")}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Space>
-            <Button type="primary" loading={loading} onClick={importButtonClick(scripts)}>
+            <Button type="primary" loading={loading} onClick={importButtonClick}>
               {t("import")}
             </Button>
             <Button type="primary" status="danger" loading={loading} onClick={() => window.close()}>
@@ -306,7 +296,7 @@ function App() {
                   item={item}
                   index={index}
                   t={t}
-                  onToggle={handleScriptToggleClick}
+                  onToggle={handleScriptToggle}
                   onStatusToggle={handleScriptStatusToggle}
                 />
               )}
