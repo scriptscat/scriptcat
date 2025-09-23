@@ -166,14 +166,6 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleRunScript = useCallback((item: ScriptMenu) => {
-      if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-        runtimeClient.runScript(item.uuid);
-      } else {
-        runtimeClient.stopScript(item.uuid);
-      }
-    }, []);
-
     const handleEditScript = useCallback((uuid: string) => {
       window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
       window.close();
@@ -272,6 +264,14 @@ const ScriptMenuList = React.memo(
         [item, isEffective]
       );
 
+      const handleRunScript = useCallback(() => {
+        if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+          runtimeClient.runScript(item.uuid);
+        } else {
+          runtimeClient.stopScript(item.uuid);
+        }
+      }, [item.runStatus, item.uuid]);
+
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
@@ -285,7 +285,7 @@ const ScriptMenuList = React.memo(
                   className="text-left"
                   type="secondary"
                   icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
-                  onClick={() => handleRunScript(item)}
+                  onClick={handleRunScript}
                 >
                   {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
                 </Button>
