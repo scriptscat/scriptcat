@@ -166,13 +166,6 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleExpandMenu = useCallback((index: number) => {
-      setExpandMenuIndex((prev) => ({
-        ...prev,
-        [index]: !prev[index],
-      }));
-    }, []);
-
     const handleOpenUserConfig = useCallback((uuid: string) => {
       window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
       window.close();
@@ -273,6 +266,13 @@ const ScriptMenuList = React.memo(
         });
       }, [item.uuid]);
 
+      const handleExpandMenu = useCallback(() => {
+        setExpandMenuIndex((prev) => ({
+          ...prev,
+          [index]: !prev[index],
+        }));
+      }, []);
+
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
@@ -323,7 +323,7 @@ const ScriptMenuList = React.memo(
                 key="expand"
                 type="secondary"
                 icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
-                onClick={() => handleExpandMenu(index)}
+                onClick={handleExpandMenu}
               >
                 {isExpand ? t("collapse") : t("expand")}
               </Button>
