@@ -485,7 +485,6 @@ export class RuntimeService {
   // 获取content.js和inject.js的脚本注册信息
   async getContentAndInjectScript() {
     // 黑名单排除
-
     const blacklist = this.blacklist;
     const excludeMatches = [];
     const excludeGlobs = [];
