@@ -232,12 +232,12 @@ const ScriptMenuList = React.memo(
       const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
 
       const handleExcludeUrl = useCallback(
-        (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+        (excludePattern: string, isExclude: boolean) => {
           scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
             setIsEffective(!isEffective);
           });
         },
-        [item, isEffective]
+        [item.uuid, isEffective]
       );
 
       const handleRunScript = useCallback(() => {
@@ -300,7 +300,7 @@ const ScriptMenuList = React.memo(
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
+                  onClick={() => handleExcludeUrl(`*://${url.host}/*`, !isEffective)}
                 >
                   {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
