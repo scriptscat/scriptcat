@@ -941,13 +941,13 @@ export class RuntimeService {
             }
           } else {
             // 如果没有缓存数据，则读取所有的页面脚本，处理@match等信息
-            // const list = (await this.scriptDAO.all()).filter((script) => script.type === SCRIPT_TYPE_NORMAL);
-            // for (const script of list) {
-            //   const res = await this.buildScriptMatchInfoEntry(script);
-            //   if (res) {
-            //     this.addScriptMatchEntry(scriptMatchCache, res);
-            //   }
-            // }
+            const list = (await this.scriptDAO.all()).filter((script) => script.type === SCRIPT_TYPE_NORMAL);
+            for (const script of list) {
+              const res = await this.buildScriptMatchInfoEntry(script);
+              if (res) {
+                this.addScriptMatchEntry(scriptMatchCache, res as TScriptMatchInfoEntry);
+              }
+            }
           }
         })
         .then(() => {
@@ -1037,13 +1037,7 @@ export class RuntimeService {
 
   // 构建脚本匹配信息
   async buildScriptMatchInfoEntry(script: Script) {
-    const preDocumentStartScript = isEarlyStartScript(script);
-    let scriptFlag: string | undefined;
-    if (preDocumentStartScript) {
-      //preDocumentStart脚本使用uuid作为flag
-      scriptFlag = script.uuid;
-    }
-    const scriptRes = await this.script.buildScriptRunResource(script, scriptFlag);
+    const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
     const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
     const metaInclude = metadata.include;
@@ -1131,6 +1125,8 @@ export class RuntimeService {
     if (scriptRes.metadata["run-at"]) {
       registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
     }
+
+    await this.addScriptMatch(scriptRes as TScriptMatchInfoEntry);
 
     return {
       registerScript,
