@@ -938,13 +938,15 @@ export class RuntimeService {
             }
           } else {
             // 如果没有缓存数据，则读取所有的页面脚本，处理@match等信息
-            const list = (await this.scriptDAO.all()).filter((script) => script.type === SCRIPT_TYPE_NORMAL);
-            for (const script of list) {
-              const res = await this.buildScriptMatchInfoEntry(script);
-              if (res) {
-                this.addScriptMatchEntry(scriptMatchCache, res as TScriptMatchInfoEntry);
-              }
-            }
+            const allScripts = await this.scriptDAO.all();
+            await Promise.all(
+              allScripts.map(async (script) => {
+                const res = await this.buildScriptMatchInfoEntry(script);
+                if (res) {
+                  this.addScriptMatchEntry(scriptMatchCache, res as TScriptMatchInfoEntry);
+                }
+              })
+            ); // 确保所有脚本都加入缓存
           }
         })
         .then(() => {
