@@ -13,6 +13,7 @@ import type { ValueService } from "./value";
 import type { ScriptService } from "./script";
 import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
 initTestEnv();
 
@@ -79,7 +80,10 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     } as unknown as MessageQueue;
     const mockValueService = {} as ValueService;
     const mockResourceService = {} as ResourceService;
-    const mockScriptDAO = {} as ScriptDAO;
+    const mockScriptDAO = {
+      all: vi.fn().mockResolvedValue([]),
+    } as unknown as ScriptDAO;
+    const mockLocalStorageDAO = new LocalStorageDAO();
 
     runtime = new RuntimeService(
       mockSystemConfig as unknown as SystemConfig,
@@ -89,7 +93,8 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockValueService,
       mockScriptService as unknown as ScriptService,
       mockResourceService,
-      mockScriptDAO
+      mockScriptDAO,
+      mockLocalStorageDAO
     );
   });
 
@@ -110,7 +115,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, undefined);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
       expect(result.has(script.uuid)).toBe(true);
 
       const matchInfo = result.get(script.uuid);
@@ -142,7 +147,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const allResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, undefined);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
 
       // 默认查询应该不包含被排除的脚本
       expect(defaultResult.has(script.uuid)).toBe(false);
