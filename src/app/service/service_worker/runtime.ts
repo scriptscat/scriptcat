@@ -432,8 +432,8 @@ export class RuntimeService {
     let flag = await this.localStorageDAO.get("scriptInjectMessageFlag");
     if (!flag) {
       flag = { key: "scriptInjectMessageFlag", value: randomMessageFlag() };
+      await this.localStorageDAO.save(flag);
     }
-    await this.localStorageDAO.save(flag);
     return flag.value;
   }
 
