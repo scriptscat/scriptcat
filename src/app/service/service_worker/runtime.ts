@@ -580,8 +580,6 @@ export class RuntimeService {
       console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
     }
 
-    // 只有early-start脚本需要使用userScript.register注册
-    // 其它脚本将源代码发送到content.js中由content.js注入
     const particularScriptList = await this.getParticularScriptList();
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
@@ -674,7 +672,6 @@ export class RuntimeService {
   }
 
   async pageLoad(_: any, sender: GetSender) {
-    console.log("pageLoad", this.isLoadScripts);
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
@@ -1082,8 +1079,6 @@ export class RuntimeService {
   }
 
   // 构建userScript注册信息
-  // 只有early-start脚本需要使用userScript.register注册
-  // 其它脚本保存@match等信息到缓存中，由content.js注入
   async getAndSetUserScriptRegister(script: Script) {
     const preDocumentStartScript = isEarlyStartScript(script);
     const scriptRes = await this.buildScriptMatchInfoEntry(script);
