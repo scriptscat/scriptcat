@@ -1,6 +1,6 @@
 import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
-import { type TMessageQueueGroup } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
@@ -22,7 +22,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 export default class ServiceWorkerManager {
   constructor(
     private api: Server,
-    private mq: TMessageQueueGroup,
+    private mq: IMessageQueue,
     private sender: ServiceWorkerMessageSend
   ) {}
 

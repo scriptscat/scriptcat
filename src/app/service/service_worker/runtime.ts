@@ -1,5 +1,5 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
-import type { TMessageQueueGroup } from "@Packages/message/message_queue";
+import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, RuntimeMessageSender } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
@@ -68,13 +68,13 @@ export class RuntimeService {
   // initReady
   initReady: Promise<boolean> | boolean = false;
 
-  mq: TMessageQueueGroup;
+  mq: IMessageQueue;
 
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
     private msgSender: MessageSend,
-    mq: TMessageQueueGroup,
+    mq: IMessageQueue,
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,

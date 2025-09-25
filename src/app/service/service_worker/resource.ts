@@ -3,7 +3,7 @@ import Logger from "@App/app/logger/logger";
 import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
 import { ResourceDAO } from "@App/app/repo/resource";
 import type { Script } from "@App/app/repo/scripts";
-import { type TMessageQueueGroup } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
@@ -19,7 +19,7 @@ export class ResourceService {
 
   constructor(
     private group: Group,
-    private mq: TMessageQueueGroup
+    private mq: IMessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "resource" });
     this.resourceDAO.enableCache();

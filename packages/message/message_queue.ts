@@ -10,9 +10,9 @@ type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void)
 // 消息处理函数类型
 type MessageHandler<T = any> = (message: T) => void;
 
-export interface TMessageQueueGroup {
+export interface IMessageQueue {
   // 创建子分组
-  group(name: string, middleware?: MiddlewareFunction): TMessageQueueGroupFull;
+  group(name: string, middleware?: MiddlewareFunction): IMessageQueueExtended;
 
   // 订阅消息
   subscribe<T>(topic: string, handler: MessageHandler<T>): () => void;
@@ -24,15 +24,15 @@ export interface TMessageQueueGroup {
   emit<T>(topic: string, message: NonNullable<T>): void;
 }
 
-export interface TMessageQueueCanMiddleware {
+export interface IMessageQueueExtra {
   // 创建子分组
-  use(middleware: MiddlewareFunction): TMessageQueueGroupFull;
+  use(middleware: MiddlewareFunction): IMessageQueueExtended;
 }
 
-export interface TMessageQueueGroupFull extends TMessageQueueGroup, TMessageQueueCanMiddleware {}
+export interface IMessageQueueExtended extends IMessageQueue, IMessageQueueExtra {}
 
 // 消息队列
-export class MessageQueue implements TMessageQueueGroup {
+export class MessageQueue implements IMessageQueue {
   private EE = new EventEmitter<string, any>();
 
   constructor() {
@@ -91,11 +91,11 @@ export class MessageQueue implements TMessageQueueGroup {
 }
 
 // 消息队列分组
-export class MessageQueueGroup implements TMessageQueueGroup {
+export class MessageQueueGroup implements IMessageQueue {
   private middlewares: MiddlewareFunction[] = [];
 
   constructor(
-    private messageQueue: TMessageQueueGroup,
+    private messageQueue: IMessageQueue,
     private name: string,
     middleware?: MiddlewareFunction
   ) {

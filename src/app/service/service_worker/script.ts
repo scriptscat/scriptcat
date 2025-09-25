@@ -16,7 +16,7 @@ import {
 import { ltever } from "@App/pkg/utils/semver";
 import type { SCMetadata, Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
-import { type TMessageQueueGroup } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
@@ -46,7 +46,7 @@ export class ScriptService {
   constructor(
     private readonly systemConfig: SystemConfig,
     private readonly group: Group,
-    private readonly mq: TMessageQueueGroup,
+    private readonly mq: IMessageQueue,
     private readonly valueService: ValueService,
     private readonly resourceService: ResourceService,
     private readonly scriptDAO: ScriptDAO
