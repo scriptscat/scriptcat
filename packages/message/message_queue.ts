@@ -95,7 +95,7 @@ export class MessageQueueGroup implements TMessageQueueGroup {
   private middlewares: MiddlewareFunction[] = [];
 
   constructor(
-    private messageQueue: MessageQueue,
+    private messageQueue: TMessageQueueGroup,
     private name: string,
     middleware?: MiddlewareFunction
   ) {
