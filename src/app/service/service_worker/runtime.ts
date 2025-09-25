@@ -940,6 +940,20 @@ export class RuntimeService {
             for (const [, matchInfoEntry] of arr) {
               this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
             }
+          } else {
+            // 如果没有缓存数据，则从数据库加载
+            const scripts = (await this.scriptDAO.all()).sort((a, b) => a.sort - b.sort);
+            Promise.all(
+              scripts.map(async (script) => {
+                if (script.type !== SCRIPT_TYPE_NORMAL) {
+                  return;
+                }
+                const scriptMatchInfoEntry = await this.buildScriptMatchInfo(script);
+                if (scriptMatchInfoEntry) {
+                  this.addScriptMatchEntry(scriptMatchCache, scriptMatchInfoEntry as TScriptMatchInfoEntry);
+                }
+              })
+            );
           }
         })
         .then(() => {
@@ -1018,7 +1032,7 @@ export class RuntimeService {
   }
 
   // 构建脚本匹配信息并存入缓存
-  async buildAndSetScriptMatchInfo(script: Script): Promise<ScriptMatchInfo | undefined> {
+  async buildScriptMatchInfo(script: Script): Promise<ScriptMatchInfo | undefined> {
     const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
     const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
@@ -1060,9 +1074,16 @@ export class RuntimeService {
       scriptRes
     );
 
+    return scriptMatchInfo;
+  }
+
+  async buildAndSetScriptMatchInfo(script: Script) {
+    const scriptMatchInfo = await this.buildScriptMatchInfo(script);
+    if (!scriptMatchInfo) {
+      return undefined;
+    }
     // 把脚本信息放入缓存中
     await this.addScriptMatch(scriptMatchInfo as TScriptMatchInfoEntry);
-
     return scriptMatchInfo;
   }
 

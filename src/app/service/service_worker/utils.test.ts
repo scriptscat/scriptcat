@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate, getUserScriptRegister } from "./utils";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
-import type { ScriptMatchInfo } from "../types";
+import type { ScriptMatchInfo } from "./types";
 
 describe("parseUrlSRI", () => {
   it("should parse URL SRI", () => {
