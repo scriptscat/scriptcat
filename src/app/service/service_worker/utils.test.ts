@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate } from "./utils";
+import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate, getUserScriptRegister } from "./utils";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
+import type { ScriptMatchInfo } from "../types";
 
 describe("parseUrlSRI", () => {
   it("should parse URL SRI", () => {
@@ -206,5 +207,50 @@ describe("selfMetadataUpdate", () => {
     const result = selfMetadataUpdate(script, "test", mixedValues);
 
     expect(result.selfMetadata?.test).toEqual(["valid", "another-valid"]);
+  });
+});
+
+describe("getUserScriptRegister", () => {
+  it("should return a valid RegisteredUserScript object", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "test-uuid",
+      name: "Test Script",
+      code: "console.log('test');",
+      metadata: {
+        "run-at": ["document-end"],
+        noframes: [],
+      },
+      scriptUrlPatterns: [
+        {
+          ruleType: 1, // MATCH_INCLUDE
+          ruleContent: "*://example.com/*",
+          ruleTag: "match",
+          patternString: "*://example.com/*",
+        },
+      ],
+      originalUrlPatterns: [],
+      // 其他必需字段
+      namespace: "test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "running",
+      createtime: Date.now(),
+      checktime: Date.now(),
+      value: {},
+      flag: "test",
+      resource: {},
+      originalMetadata: {},
+    };
+
+    const result = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(result).toHaveProperty("registerScript");
+    expect(result.registerScript.id).toBe("test-uuid");
+    expect(result.registerScript.js).toHaveLength(1);
+    expect(result.registerScript.matches).toContain("*://example.com/*");
+    expect(result.registerScript.allFrames).toBe(false);
+    expect(result.registerScript.world).toBe("MAIN");
+    expect(result.registerScript.runAt).toBe("document_end");
   });
 });
