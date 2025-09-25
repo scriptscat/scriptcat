@@ -943,7 +943,7 @@ export class RuntimeService {
           } else {
             // 如果没有缓存数据，则从数据库加载，解决浏览器重新启动后缓存丢失的问题
             const scripts = (await this.scriptDAO.all()).sort((a, b) => a.sort - b.sort);
-            Promise.all(
+            await Promise.all(
               scripts.map(async (script) => {
                 if (script.type !== SCRIPT_TYPE_NORMAL) {
                   return;
@@ -1027,7 +1027,7 @@ export class RuntimeService {
     this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
-    this.saveScriptMatchInfo();
+    await this.saveScriptMatchInfo();
   }
 
   // 构建脚本匹配信息并存入缓存
