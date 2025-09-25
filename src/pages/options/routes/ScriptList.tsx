@@ -1023,7 +1023,7 @@ function ScriptList() {
           ),
         },
       ] as ColumnProps[],
-    []
+    [t]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
