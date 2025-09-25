@@ -54,6 +54,10 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
 const cIdKey = `(cid_${Math.random()})`;
 
+export type TCheckScriptUpdateOption = Partial<
+  { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
+>;
+
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
@@ -750,7 +754,7 @@ export class ScriptService {
   }
 
   // 用于定时自动检查脚本更新
-  async _checkScriptUpdate(opts: any): Promise<
+  async _checkScriptUpdate(opts: TCheckScriptUpdateOption): Promise<
     | {
         ok: true;
         targetSites: string[];
@@ -939,7 +943,7 @@ export class ScriptService {
     };
   }
 
-  async checkScriptUpdate(opts: any) {
+  async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
     let res;
     if ((this.scriptUpdateCheck.state.status & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
       res = {

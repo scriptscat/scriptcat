@@ -11,6 +11,7 @@ import {
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
 import type { SearchType, TBatchUpdateListAction } from "@App/app/service/service_worker/types";
+import { type TCheckScriptUpdateOption } from "@App/app/service/service_worker/script";
 
 export const scriptClient = new ScriptClient(message);
 export const subscribeClient = new SubscribeClient(message);
@@ -65,7 +66,7 @@ export const requestOpenBatchUpdatePage = async (q: string) => {
   return await scriptClient.openBatchUpdatePage(q);
 };
 
-export const requestCheckScriptUpdate = async (opts: any) => {
+export const requestCheckScriptUpdate = async (opts: TCheckScriptUpdateOption) => {
   return await scriptClient.checkScriptUpdate(opts);
 };
 

@@ -6,6 +6,7 @@ import { type MessageQueue } from "@Packages/message/message_queue";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { type ScriptDAO } from "@App/app/repo/scripts";
+import { type TCheckScriptUpdateOption } from "./script";
 
 class ScriptUpdateCheck {
   constructor(
@@ -102,7 +103,7 @@ class ScriptUpdateCheck {
     this.mq.publish<any>("onScriptUpdateCheck", { myMessage: { ...message } });
   }
 
-  public canSkipScriptUpdateCheck(opts: any) {
+  public canSkipScriptUpdateCheck(opts: TCheckScriptUpdateOption) {
     const lastCheckTime = this.cacheFull?.checktime;
     const noUpdateCheck = opts?.noUpdateCheck;
     if (noUpdateCheck > 0 && lastCheckTime) {

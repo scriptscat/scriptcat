@@ -23,7 +23,7 @@ import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService } from "./script";
+import type { ScriptService, TCheckScriptUpdateOption } from "./script";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -210,7 +210,7 @@ export class ScriptClient extends Client {
     return this.do<boolean>("openBatchUpdatePage", q);
   }
 
-  async checkScriptUpdate(opts: any) {
+  async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
     return this.do<void>("checkScriptUpdate", opts);
   }
 }
