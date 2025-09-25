@@ -1,7 +1,7 @@
 import { Alert, Button } from "@arco-design/web-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
+import { checkUserScriptsAvailable, getBrowserType, BrowserType } from "@App/pkg/utils/utils";
 import edgeMobileQrCode from "@App/assets/images/edge_mobile_qrcode.png";
 
 interface PopupWarningsProps {
@@ -15,7 +15,7 @@ function PopupWarnings({ isBlacklist }: PopupWarningsProps) {
   const [permissionReqResult, setPermissionReqResult] = useState("");
 
   const updateIsUserScriptsAvailableState = async () => {
-    const flag = await isUserScriptsAvailable();
+    const flag = await checkUserScriptsAvailable();
     setIsUserScriptsAvailableState(flag);
   };
 

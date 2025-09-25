@@ -11,7 +11,7 @@ import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import { getUserScriptRegister } from "./utils";
 import {
-  isUserScriptsAvailable,
+  checkUserScriptsAvailable,
   randomMessageFlag,
   getMetadataStr,
   getUserConfigStr,
@@ -46,7 +46,7 @@ export class RuntimeService {
 
   // 当前扩充是否允许执行 UserScripts API (例如是否已打开开发者模式，或已给予 userScripts 权限)
   // 在未初始化前，预设 false。一般情况初始化值会很快被替换
-  boolUserScriptsAvailable = false;
+  isUserScriptsAvailable = false;
 
   // 当前扩充是否开启了启用脚本
   // 在未初始化前，预设 true。一般情况初始化值会很快被替换
@@ -321,7 +321,7 @@ export class RuntimeService {
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);
       await this.unregisterUserscripts();
-      if (this.boolUserScriptsAvailable && this.isLoadScripts) {
+      if (this.isUserScriptsAvailable && this.isLoadScripts) {
         // 重新注册用户脚本
         await this.registerUserscripts();
       }
@@ -332,7 +332,7 @@ export class RuntimeService {
     });
 
     const onUserScriptAPIGrantAdded = async () => {
-      this.boolUserScriptsAvailable = true;
+      this.isUserScriptsAvailable = true;
       // 注册脚本
       if (this.isLoadScripts) {
         await this.unregisterUserscripts();
@@ -341,7 +341,7 @@ export class RuntimeService {
     };
 
     const onUserScriptAPIGrantRemoved = async () => {
-      this.boolUserScriptsAvailable = false;
+      this.isUserScriptsAvailable = false;
       // 取消当前注册 （如有）
       await this.unregisterUserscripts();
     };
@@ -376,19 +376,19 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值
-      const [boolUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
-        isUserScriptsAvailable(),
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
+        checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
       ]);
 
       // 保存初始值
-      this.boolUserScriptsAvailable = boolUserScriptsAvailable;
+      this.isUserScriptsAvailable = isUserScriptsAvailable;
       this.isLoadScripts = isLoadScripts;
       this.blacklist = obtainBlackList(strBlacklist);
 
       // 检查是否开启了开发者模式
-      if (!this.boolUserScriptsAvailable) {
+      if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
         this.showNoDeveloperModeWarning();
       }
@@ -400,8 +400,8 @@ export class RuntimeService {
       await Promise.all([
         // 初始化：userAgentData
         this.initUserAgentData(),
-        // 如果初始化时开启了启用脚本，则注册脚本
-        boolUserScriptsAvailable && this.isLoadScripts && this.registerUserscripts(),
+        // 注册脚本
+        this.registerUserscripts(),
       ]);
 
       this.initReady = true;
@@ -555,10 +555,10 @@ export class RuntimeService {
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
   async registerUserscripts() {
-    // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts) return;
-
+    // 加载脚本匹配信息
     const loadingScriptMatchInfo = this.loadScriptMatchInfo();
+    // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
     // messageFlag是用来判断是否已经注册过
     if (await this.getMessageFlag()) {
@@ -901,7 +901,7 @@ export class RuntimeService {
   // 重新注册inject.js，主要是为了更新early-start的脚本flag
   async reRegisterInjectScript() {
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts) return;
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
     const [messageFlag, scripts, injectJs] = await Promise.all([
       this.getMessageFlag(),
@@ -924,7 +924,7 @@ export class RuntimeService {
   loadingScript: Promise<void> | null = null;
 
   // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
-  // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量使用此方法获取
+  // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量先使用此方法加载脚本匹配信息
   async loadScriptMatchInfo() {
     if (this.scriptMatchCache) {
       return;
@@ -941,7 +941,7 @@ export class RuntimeService {
               this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
             }
           } else {
-            // 如果没有缓存数据，则从数据库加载
+            // 如果没有缓存数据，则从数据库加载，解决浏览器重新启动后缓存丢失的问题
             const scripts = (await this.scriptDAO.all()).sort((a, b) => a.sort - b.sort);
             Promise.all(
               scripts.map(async (script) => {
@@ -981,8 +981,7 @@ export class RuntimeService {
     if (!this.scriptMatchCache) {
       await this.loadScriptMatchInfo();
     }
-    const scriptMatchCache = this.scriptMatchCache!;
-    this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
+    this.addScriptMatchEntry(this.scriptMatchCache!, matchInfoEntry);
     await this.saveScriptMatchInfo();
   }
 
@@ -1091,7 +1090,7 @@ export class RuntimeService {
   // 如果脚本开启, 则注册脚本
   async loadPageScript(scriptMatchInfo: ScriptMatchInfo) {
     // 如果脚本开启, 则注册脚本
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
     const resp = await getUserScriptRegister(scriptMatchInfo);
@@ -1130,7 +1129,7 @@ export class RuntimeService {
 
   async unregistryPageScript(uuid: string) {
     const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
       return;
     }
     // 删除缓存
