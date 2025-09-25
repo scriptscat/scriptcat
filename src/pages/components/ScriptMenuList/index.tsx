@@ -169,10 +169,11 @@ const ScriptMenuList = React.memo(
     const CollapseHeader = React.memo(({ item }: { item: ScriptMenu }) => {
       const handleEnableChange = useCallback(
         (checked: boolean) => {
+          const uuid = item.uuid;
           scriptClient
-            .enable(item.uuid, checked)
+            .enable(uuid, checked)
             .then(() => {
-              setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
+              setList((prevList) => prevList.map((i) => (i.uuid === uuid ? { ...i, enable: checked } : i)));
             })
             .catch((err) => {
               Message.error(err);
@@ -231,14 +232,17 @@ const ScriptMenuList = React.memo(
 
       const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
 
-      const handleExcludeUrl = useCallback(
-        (excludePattern: string, isExclude: boolean) => {
-          scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-            setIsEffective(!isEffective);
+      const handleExcludeUrl = useCallback(() => {
+        setIsEffective((prev) => {
+          const next = !prev;
+          const uuid = item.uuid;
+          const excludePattern = `*://${url.host}/*`;
+          scriptClient.excludeUrl(uuid, excludePattern, next).catch((err) => {
+            Message.error(err);
           });
-        },
-        [item.uuid, isEffective]
-      );
+          return next;
+        });
+      }, [item.uuid, isEffective]);
 
       const handleRunScript = useCallback(() => {
         if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
@@ -257,16 +261,16 @@ const ScriptMenuList = React.memo(
         const uuid = item.uuid;
         setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
         scriptClient.deletes([uuid]).catch((e) => {
-          Message.error(`{t('delete_failed')}: ${e}`);
+          Message.error(`${t("delete_failed")}: ${e}`);
         });
-      }, [item.uuid]);
+      }, [item.uuid, t]);
 
       const handleExpandMenu = useCallback(() => {
         setExpandMenuIndex((prev) => ({
           ...prev,
           [index]: !prev[index],
         }));
-      }, []);
+      }, [index]);
 
       const handleOpenUserConfig = useCallback(() => {
         window.open(`/src/options.html#/?userConfig=${item.uuid}`, "_blank");
@@ -300,7 +304,7 @@ const ScriptMenuList = React.memo(
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(`*://${url.host}/*`, !isEffective)}
+                  onClick={handleExcludeUrl}
                 >
                   {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>

@@ -332,7 +332,7 @@ function App() {
         Message.error(`${errorMessage}: ${e}`);
       }
     },
-    [mUpsertScript, scriptInfo, scriptCode, isUpdate]
+    [mUpsertScript, scriptInfo, scriptCode, isUpdate, t]
   );
 
   const handleStatusChange = useCallback(

@@ -209,7 +209,7 @@ function App() {
     await importScripts(scripts);
     setLoading(false);
     Message.success(t("import_success")!);
-  }, []);
+  }, [t]);
 
   const handleSelectAllScripts = useCallback(() => {
     setSelectAll((prev) => {

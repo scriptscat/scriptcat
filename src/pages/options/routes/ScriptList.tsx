@@ -200,7 +200,7 @@ const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptL
       updateScriptList({ uuid: uuid, enableLoading: true });
       requestEnableScript({ uuid: uuid, enable: checked });
     },
-    [uuid]
+    [uuid, updateScriptList]
   );
 
   return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
@@ -253,7 +253,7 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
         ])
       )}`,
     });
-  }, [item.uuid]);
+  }, [item.uuid, navigate]);
 
   if (item.type === SCRIPT_TYPE_NORMAL) {
     return (
@@ -397,7 +397,7 @@ const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: Li
           content: `${t("update_check_failed")}: ${e.message}`,
         });
       });
-  }, [script.checkUpdateUrl, script.uuid]);
+  }, [script.checkUpdateUrl, script.uuid, t]);
 
   return (
     <Tooltip content={t("check_update")} position="tl">
@@ -434,7 +434,7 @@ const ActionCell = React.memo(
       const uuid = item.uuid;
       updateScriptList({ uuid, actionLoading: true });
       requestDeleteScripts([uuid]);
-    }, [item.uuid]);
+    }, [item.uuid, updateScriptList]);
 
     const handleConfig = useCallback(() => {
       new ValueClient(message).getScriptValue(item).then((newValues) => {
@@ -475,11 +475,11 @@ const ActionCell = React.memo(
           duration: 3000,
         });
       }
-    }, [item.uuid, item.runStatus]);
+    }, [item.uuid, item.runStatus, updateEntry, t]);
 
     const handleCloud = useCallback(() => {
       setCloudScript(item);
-    }, [item]);
+    }, [item, setCloudScript]);
 
     return (
       <Button.Group>
