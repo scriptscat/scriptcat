@@ -11,7 +11,8 @@ import { SystemConfig } from "@App/pkg/config/config";
 import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
-import { ScriptDAO, ScriptSiteDAO } from "@App/app/repo/scripts";
+import { ScriptDAO } from "@App/app/repo/scripts";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
@@ -46,7 +47,7 @@ export default class ServiceWorkerManager {
     scriptDAO.enableCache();
     const localStorageDAO = new LocalStorageDAO();
 
-    const scriptSiteDAO = new ScriptSiteDAO();
+    const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
 
@@ -67,7 +68,6 @@ export default class ServiceWorkerManager {
       script,
       resource,
       scriptDAO,
-      scriptSiteDAO,
       localStorageDAO
     );
     runtime.init();

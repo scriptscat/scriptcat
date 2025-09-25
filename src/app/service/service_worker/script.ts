@@ -21,7 +21,7 @@ import type {
   ScriptRunResource,
   ScriptSite,
 } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO, ScriptSiteDAO } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type MessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
@@ -49,6 +49,7 @@ import {
   type TBatchUpdateRecord,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -56,7 +57,7 @@ const cIdKey = `(cid_${Math.random()})`;
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
-  scriptSiteDAO: ScriptSiteDAO = new ScriptSiteDAO();
+  localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
   private readonly scriptUpdateCheck;
 
   constructor(
@@ -891,7 +892,7 @@ export class ScriptService {
       })
     );
 
-    const currentSites: ScriptSite = (await this.scriptSiteDAO.getSites()) || ({} as ScriptSite);
+    const currentSites: ScriptSite = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
 
     const batchUpdateRecord = checkResults.map((entry, i) => {
       const script = entry.script;

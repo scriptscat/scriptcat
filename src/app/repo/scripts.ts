@@ -157,17 +157,3 @@ export class ScriptCodeDAO extends Repo<ScriptCode> {
     return super._save(val.uuid, val);
   }
 }
-
-export class ScriptSiteDAO extends Repo<ScriptSite> {
-  constructor() {
-    super("scriptSite");
-  }
-
-  getSites() {
-    return this.get("sites");
-  }
-
-  public saveSites(val: ScriptSite) {
-    return super._save("sites", val);
-  }
-}
