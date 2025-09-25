@@ -81,7 +81,7 @@ vi.mock("../store/global", () => ({
 
 // Mock utils
 vi.mock("@App/pkg/utils/utils", () => ({
-  isUserScriptsAvailable: vi.fn(() => true),
+  checkUserScriptsAvailable: vi.fn(() => true),
   getBrowserType: vi.fn(() => "chrome"),
   BrowserType: {
     Chrome: "chrome",

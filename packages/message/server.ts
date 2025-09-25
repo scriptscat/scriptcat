@@ -1,17 +1,17 @@
-import type { MessageSender, MessageConnect, ExtMessageSender, Message, MessageSend, TMessage } from "./types";
+import type { RuntimeMessageSender, MessageConnect, ExtMessageSender, Message, TMessage, MessageSend } from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
 import Logger from "@App/app/logger/logger";
 
 export class GetSender {
-  constructor(private sender: MessageConnect | MessageSender) {}
+  constructor(private sender: MessageConnect | RuntimeMessageSender) {}
 
-  getSender(): MessageSender {
+  getSender(): RuntimeMessageSender {
     if (this.sender instanceof ExtensionMessageConnect) {
-      return this.sender.getPort().sender as MessageSender;
+      return this.sender.getPort().sender as RuntimeMessageSender;
     }
-    return this.sender as MessageSender;
+    return this.sender as RuntimeMessageSender;
   }
 
   getExtMessageSender(): ExtMessageSender {
@@ -24,7 +24,7 @@ export class GetSender {
         documentId: con.sender?.documentId,
       };
     }
-    const sender = this.sender as MessageSender;
+    const sender = this.sender as RuntimeMessageSender;
     return {
       windowId: sender.tab?.windowId || -1, // -1表示后台脚本
       tabId: sender.tab?.id || -1, // -1表示后台脚本
@@ -49,11 +49,12 @@ export class Server {
 
   constructor(
     prefix: string,
-    message: Message | Message[],
+    msgReceiver: Message | Message[],
     private enableConnect: boolean = true
   ) {
+    const msgReceiverList = Array.isArray(msgReceiver) ? msgReceiver : [msgReceiver];
     if (this.enableConnect) {
-      (Array.isArray(message) ? message : [message]).forEach((msg) => {
+      msgReceiverList.forEach((msg) => {
         msg.onConnect((msg: TMessage, con: MessageConnect) => {
           if (typeof msg.action !== "string") return;
           this.logger.trace("server onConnect", { msg });
@@ -65,7 +66,7 @@ export class Server {
       });
     }
 
-    (Array.isArray(message) ? message : [message]).forEach((msg) => {
+    msgReceiverList.forEach((msg) => {
       msg.onMessage((msg: TMessage, sendResponse, sender) => {
         if (typeof msg.action !== "string") return;
         this.logger.trace("server onMessage", { msg: msg as any });
@@ -108,7 +109,12 @@ export class Server {
     }
   }
 
-  private messageHandle(action: string, params: any, sendResponse: (response: any) => void, sender?: MessageSender) {
+  private messageHandle(
+    action: string,
+    params: any,
+    sendResponse: (response: any) => void,
+    sender?: RuntimeMessageSender
+  ) {
     const func = this.apiFunctionMap.get(action);
     if (func) {
       try {
@@ -201,14 +207,14 @@ export class Group {
 export function forwardMessage(
   prefix: string,
   path: string,
-  from: Server,
-  to: MessageSend,
+  receiverFrom: Server,
+  senderTo: MessageSend,
   middleware?: ApiFunctionSync
 ) {
   const handler = (params: any, fromCon: GetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
-      connect(to, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
+      connect(senderTo, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
         fromConnect.onMessage((data) => {
           toCon.sendMessage(data);
         });
@@ -223,10 +229,10 @@ export function forwardMessage(
         });
       });
     } else {
-      return sendMessage(to, prefix + "/" + path, params);
+      return sendMessage(senderTo, prefix + "/" + path, params);
     }
   };
-  from.on(path, (params, sender) => {
+  receiverFrom.on(path, (params, sender) => {
     if (middleware) {
       // 此处是为了处理CustomEventMessage的同步消息情况
       const resp = middleware(params, sender) as any;

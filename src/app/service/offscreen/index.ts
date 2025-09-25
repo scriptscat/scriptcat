@@ -17,9 +17,9 @@ export class OffscreenManager {
 
   private messageQueue: MessageQueue = new MessageQueue();
 
-  private serviceWorker = new ServiceWorkerClient(this.extensionMessage);
+  private serviceWorker = new ServiceWorkerClient(this.extMsgSender);
 
-  constructor(private extensionMessage: MessageSend) {}
+  constructor(private extMsgSender: MessageSend) {}
 
   logger(data: Logger) {
     // 发送日志消息
@@ -35,7 +35,7 @@ export class OffscreenManager {
   }
 
   sendMessageToServiceWorker(data: { action: string; data: any }) {
-    return sendMessage(this.extensionMessage, `serviceWorker/${data.action}`, data.data);
+    return sendMessage(this.extMsgSender, `serviceWorker/${data.action}`, data.data);
   }
 
   async initManager() {
@@ -45,20 +45,20 @@ export class OffscreenManager {
     this.windowServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
     const script = new ScriptService(
       this.windowServer.group("script"),
-      this.extensionMessage,
+      this.extMsgSender,
       this.windowMessage,
       this.messageQueue
     );
     script.init();
     // 转发从sandbox来的gm api请求
-    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extensionMessage);
+    forwardMessage("serviceWorker", "runtime/gmApi", this.windowServer, this.extMsgSender);
     // 转发valueUpdate与emitEvent
     forwardMessage("sandbox", "runtime/valueUpdate", this.windowServer, this.windowMessage);
     forwardMessage("sandbox", "runtime/emitEvent", this.windowServer, this.windowMessage);
 
     const gmApi = new GMApi(this.windowServer.group("gmApi"));
     gmApi.init();
-    const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extensionMessage);
+    const vscodeConnect = new VSCodeConnect(this.windowServer.group("vscodeConnect"), this.extMsgSender);
     vscodeConnect.init();
 
     this.windowServer.on("createObjectURL", async (params: { data: Blob; persistence: boolean }) => {

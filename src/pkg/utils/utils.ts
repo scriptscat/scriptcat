@@ -172,7 +172,7 @@ export function errorMsg(e: any): string {
 }
 
 // 预计报错有机会在异步Promise裡发生，不一定是 chrome.userScripts.getScripts
-export async function isUserScriptsAvailable() {
+export async function checkUserScriptsAvailable() {
   try {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
@@ -312,4 +312,9 @@ export const obtainBlackList = (strBlacklist: string | null | undefined) => {
 // 将蛇形的 key 转换为驼峰的函数名
 export function toCamelCase(key: SystemConfigKey) {
   return key.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace(/^([a-z])/, (g) => g.toUpperCase());
+}
+
+export function cleanFileName(name: string): string {
+  // eslint-disable-next-line no-control-regex, no-useless-escape
+  return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }

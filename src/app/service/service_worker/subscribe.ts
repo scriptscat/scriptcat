@@ -193,7 +193,7 @@ export class SubscribeService {
         oldVersion = "0.0.0";
       }
       // 对比版本大小
-      if (ltever(newVersion, oldVersion, logger)) {
+      if (ltever(newVersion, oldVersion)) {
         return false;
       }
       return { updateAvailable: true, code, metadata };

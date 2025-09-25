@@ -17,6 +17,7 @@ import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -43,6 +44,7 @@ export default class ServiceWorkerManager {
 
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
+    const localStorageDAO = new LocalStorageDAO();
 
     const scriptSiteDAO = new ScriptSiteDAO();
 
@@ -65,7 +67,8 @@ export default class ServiceWorkerManager {
       script,
       resource,
       scriptDAO,
-      scriptSiteDAO
+      scriptSiteDAO,
+      localStorageDAO
     );
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig);

@@ -11,7 +11,7 @@ export class SystemService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private sender: MessageSend
+    private msgSender: MessageSend
   ) {}
 
   getFaviconFromDomain(domain: string) {
@@ -19,7 +19,7 @@ export class SystemService {
   }
 
   async init() {
-    const vscodeConnect = new VscodeConnectClient(this.sender);
+    const vscodeConnect = new VscodeConnectClient(this.msgSender);
     // 如果开启了自动连接vscode，则自动连接
     // 使用tx来确保service_worker恢复时不会再执行
     cacheInstance.tx("vscodeReconnect", async (init) => {
@@ -44,7 +44,7 @@ export class SystemService {
       return cacheInstance.getOrSet(cacheKey, async () => {
         return fetch(url)
           .then((response) => response.blob())
-          .then((blob) => createObjectURL(this.sender, blob, true))
+          .then((blob) => createObjectURL(this.msgSender, blob, true))
           .catch(() => {
             return "";
           });

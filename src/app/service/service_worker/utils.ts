@@ -1,5 +1,9 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
-import type { SCMetadata, Script } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
+import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
+import { compileInjectScript, compilePreInjectScript, isEarlyStartScript, isInjectIntoContent } from "../content/utils";
+import { getApiMatchesAndGlobs, RuleType, toUniquePatternStrings } from "@App/pkg/utils/url_matcher";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -150,4 +154,58 @@ export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<st
     }
   }
   return script;
+}
+
+export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
+  const metadataStr = getMetadataStr(script.code) || "";
+  const userConfigStr = getUserConfigStr(script.code) || "";
+  return {
+    ...script,
+    metadataStr,
+    userConfigStr,
+  };
+}
+
+// 构建userScript注册信息
+export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
+  const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo);
+
+  if (preDocumentStartScript) {
+    scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code);
+  } else {
+    scriptMatchInfo.code = compileInjectScript(scriptMatchInfo, scriptMatchInfo.code);
+  }
+
+  const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
+
+  const excludeMatches = toUniquePatternStrings(
+    scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
+  );
+  const excludeGlobs = toUniquePatternStrings(
+    scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE)
+  );
+
+  const registerScript: chrome.userScripts.RegisteredUserScript = {
+    id: scriptMatchInfo.uuid,
+    js: [{ code: scriptMatchInfo.code }],
+    matches: matches, // primary
+    includeGlobs: includeGlobs, // includeGlobs applied after matches
+    excludeMatches: excludeMatches,
+    excludeGlobs: excludeGlobs,
+    allFrames: !scriptMatchInfo.metadata["noframes"],
+    world: "MAIN",
+  };
+
+  if (isInjectIntoContent(scriptMatchInfo)) {
+    // 需要注入到content script的脚本
+    registerScript.world = "USER_SCRIPT";
+  }
+
+  if (scriptMatchInfo.metadata["run-at"]) {
+    registerScript.runAt = getRunAt(scriptMatchInfo.metadata["run-at"]);
+  }
+
+  return {
+    registerScript,
+  };
 }
