@@ -1,5 +1,5 @@
 import { describe, test, expect, it } from "vitest";
-import { checkSilenceUpdate } from "./utils";
+import { checkSilenceUpdate, cleanFileName } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -239,5 +239,26 @@ describe("checkSilenceUpdate", () => {
         }
       )
     ).toBe(false);
+  });
+});
+
+describe("cleanFileName", () => {
+  it("should replace illegal characters with dashes", () => {
+    expect(cleanFileName("file/name")).toBe("file-name");
+    expect(cleanFileName("file\\name")).toBe("file-name");
+    expect(cleanFileName("file:name")).toBe("file-name");
+    expect(cleanFileName("file*name")).toBe("file-name");
+  });
+
+  it("should trim spaces", () => {
+    expect(cleanFileName("  file  ")).toBe("file");
+  });
+
+  it("should handle empty string", () => {
+    expect(cleanFileName("")).toBe("");
+  });
+
+  it("should handle valid filename", () => {
+    expect(cleanFileName("valid_file.txt")).toBe("valid_file.txt");
   });
 });
