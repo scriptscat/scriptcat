@@ -1,17 +1,17 @@
-import type { EmitEventRequest, ScriptLoadInfo, TScriptMatchInfoEntry } from "./types";
+import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
 import type { MessageQueue, MessageQueueGroup } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
-import type { ExtMessageSender, RuntimeMessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type { ExtMessageSender, MessageSend, RuntimeMessageSender } from "@Packages/message/types";
+import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
-import { getRunAt } from "./utils";
+import { getUserScriptRegister } from "./utils";
 import {
-  isUserScriptsAvailable,
+  checkUserScriptsAvailable,
   randomMessageFlag,
   getMetadataStr,
   getUserConfigStr,
@@ -21,13 +21,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import {
-  compileInjectScript,
-  compilePreInjectScript,
-  compileScriptCode,
-  isEarlyStartScript,
-  isInjectIntoContent,
-} from "../content/utils";
+import { compileInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -38,13 +32,7 @@ import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
-import {
-  getApiMatchesAndGlobs,
-  extractUrlPatterns,
-  RuleType,
-  toUniquePatternStrings,
-  type URLRuleEntry,
-} from "@App/pkg/utils/url_matcher";
+import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
@@ -58,7 +46,7 @@ export class RuntimeService {
 
   // 当前扩充是否允许执行 UserScripts API (例如是否已打开开发者模式，或已给予 userScripts 权限)
   // 在未初始化前，预设 false。一般情况初始化值会很快被替换
-  boolUserScriptsAvailable = false;
+  isUserScriptsAvailable = false;
 
   // 当前扩充是否开启了启用脚本
   // 在未初始化前，预设 true。一般情况初始化值会很快被替换
@@ -90,7 +78,8 @@ export class RuntimeService {
     private value: ValueService,
     private script: ScriptService,
     private resource: ResourceService,
-    private scriptDAO: ScriptDAO
+    private scriptDAO: ScriptDAO,
+    private localStorageDAO: LocalStorageDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
 
@@ -173,7 +162,11 @@ export class RuntimeService {
       return;
     }
     // 如果是预加载脚本，需要更新脚本代码重新注册
-    await this.loadPageScript(data.script);
+    const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(data.script);
+    if (!scriptMatchInfo) {
+      return;
+    }
+    await this.loadPageScript(scriptMatchInfo);
   }
 
   async getInjectJsCode() {
@@ -210,7 +203,7 @@ export class RuntimeService {
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
       for (const { uuid, enable } of data) {
-        const script = await this.scriptDAO.getAndCode(uuid);
+        const script = await this.scriptDAO.get(uuid);
         if (!script) {
           this.logger.error("script enable failed, script not found", {
             uuid: uuid,
@@ -221,9 +214,14 @@ export class RuntimeService {
         // 如果是后台脚本, 在offscreen中进行处理
         if (script.type === SCRIPT_TYPE_NORMAL) {
           // 加载页面脚本
-          // 不管开没开启都要加载一次脚本信息
-          await this.loadPageScript(script);
-          if (!enable) {
+          // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存
+          const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+          if (!scriptMatchInfo) {
+            return;
+          }
+          if (enable) {
+            await this.loadPageScript(scriptMatchInfo);
+          } else {
             await this.unregistryPageScript(script.uuid);
           }
         }
@@ -240,7 +238,11 @@ export class RuntimeService {
         return;
       }
       if (script.type === SCRIPT_TYPE_NORMAL) {
-        await this.loadPageScript(script);
+        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+        if (!scriptMatchInfo) {
+          return;
+        }
+        await this.loadPageScript(scriptMatchInfo);
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
         await this.reRegisterInjectScript();
       }
@@ -319,7 +321,7 @@ export class RuntimeService {
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);
       await this.unregisterUserscripts();
-      if (this.boolUserScriptsAvailable && this.isLoadScripts) {
+      if (this.isUserScriptsAvailable && this.isLoadScripts) {
         // 重新注册用户脚本
         await this.registerUserscripts();
       }
@@ -330,7 +332,7 @@ export class RuntimeService {
     });
 
     const onUserScriptAPIGrantAdded = async () => {
-      this.boolUserScriptsAvailable = true;
+      this.isUserScriptsAvailable = true;
       // 注册脚本
       if (this.isLoadScripts) {
         await this.unregisterUserscripts();
@@ -339,7 +341,7 @@ export class RuntimeService {
     };
 
     const onUserScriptAPIGrantRemoved = async () => {
-      this.boolUserScriptsAvailable = false;
+      this.isUserScriptsAvailable = false;
       // 取消当前注册 （如有）
       await this.unregisterUserscripts();
     };
@@ -374,19 +376,19 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值
-      const [boolUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
-        isUserScriptsAvailable(),
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
+        checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
       ]);
 
       // 保存初始值
-      this.boolUserScriptsAvailable = boolUserScriptsAvailable;
+      this.isUserScriptsAvailable = isUserScriptsAvailable;
       this.isLoadScripts = isLoadScripts;
       this.blacklist = obtainBlackList(strBlacklist);
 
       // 检查是否开启了开发者模式
-      if (!this.boolUserScriptsAvailable) {
+      if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
         this.showNoDeveloperModeWarning();
       }
@@ -398,8 +400,8 @@ export class RuntimeService {
       await Promise.all([
         // 初始化：userAgentData
         this.initUserAgentData(),
-        // 如果初始化时开启了启用脚本，则注册脚本
-        boolUserScriptsAvailable && this.isLoadScripts && this.registerUserscripts(),
+        // 注册脚本
+        this.registerUserscripts(),
       ]);
 
       this.initReady = true;
@@ -427,16 +429,21 @@ export class RuntimeService {
     await Promise.allSettled([chrome.userScripts.unregister(), this.deleteMessageFlag()]);
   }
 
-  getAndGenMessageFlag() {
-    return cacheInstance.getOrSet<string>("scriptInjectMessageFlag", () => randomMessageFlag());
+  async getAndGenMessageFlag() {
+    let flag = await this.localStorageDAO.get("scriptInjectMessageFlag");
+    if (!flag) {
+      flag = { key: "scriptInjectMessageFlag", value: randomMessageFlag() };
+      await this.localStorageDAO.save(flag);
+    }
+    return flag.value;
   }
 
   deleteMessageFlag() {
-    return cacheInstance.del("scriptInjectMessageFlag");
+    return this.localStorageDAO.delete("scriptInjectMessageFlag");
   }
 
   getMessageFlag() {
-    return cacheInstance.get<string>("scriptInjectMessageFlag");
+    return this.localStorageDAO.get("scriptInjectMessageFlag").then((res) => res?.value);
   }
 
   async getParticularScriptList() {
@@ -444,29 +451,32 @@ export class RuntimeService {
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
     const registerScripts = await Promise.all(
-      list.map((script) => {
+      list.map(async (script) => {
         if (script.type !== SCRIPT_TYPE_NORMAL) {
           return undefined;
         }
-        return this.getAndSetUserScriptRegister(script).then((res) => {
-          if (!res) {
-            return undefined;
-          }
-          const { registerScript } = res!;
-          // 如果没开启, 则不注册
-          if (script.status !== SCRIPT_STATUS_ENABLE) {
-            return undefined;
-          }
-          // 过滤掉matches为空的脚本
-          if (!registerScript.matches || registerScript.matches.length === 0) {
-            this.logger.error("registerScript matches is empty", {
-              script: script.name,
-              uuid: script.uuid,
-            });
-            return undefined;
-          }
-          return registerScript;
-        });
+        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+        if (!scriptMatchInfo) {
+          return undefined;
+        }
+        // 如果没开启, 则不注册
+        if (scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
+          return undefined;
+        }
+        const res = await getUserScriptRegister(scriptMatchInfo);
+        if (!res) {
+          return undefined;
+        }
+        const { registerScript } = res!;
+        // 过滤掉matches为空的脚本
+        if (!registerScript.matches || registerScript.matches.length === 0) {
+          this.logger.error("registerScript matches is empty", {
+            script: script.name,
+            uuid: script.uuid,
+          });
+          return undefined;
+        }
+        return registerScript;
       })
     ).then(async (res) => {
       // 过滤掉undefined和未开启的
@@ -545,18 +555,28 @@ export class RuntimeService {
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
   async registerUserscripts() {
-    // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts) return;
-
+    // 加载脚本匹配信息
     const loadingScriptMatchInfo = this.loadScriptMatchInfo();
+    // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
     // messageFlag是用来判断是否已经注册过
     if (await this.getMessageFlag()) {
       // 异常情况
-      console.error("messageFlag exists");
-      await loadingScriptMatchInfo;
-      return;
+      // 检查scriptcat-content和scriptcat-inject是否存在
+      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
+      if (res.length === 2) {
+        await loadingScriptMatchInfo;
+        return;
+      }
+      // 理论上不应该出现messageFlag存在但scriptcat-content/scriptcat-inject不存在的情况
+      // 如果出现，走一次重新注册的流程
+      this.logger.warn(
+        "messageFlag exists but scriptcat-content/scriptcat-inject not exists, re-register userscripts."
+      );
     }
+    // 删除旧注册
+    await this.unregisterUserscripts();
     // 使注册时重新注入 chrome.runtime
     try {
       await chrome.userScripts.resetWorldConfiguration();
@@ -881,7 +901,7 @@ export class RuntimeService {
   // 重新注册inject.js，主要是为了更新early-start的脚本flag
   async reRegisterInjectScript() {
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts) return;
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
     const [messageFlag, scripts, injectJs] = await Promise.all([
       this.getMessageFlag(),
@@ -904,7 +924,7 @@ export class RuntimeService {
   loadingScript: Promise<void> | null = null;
 
   // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
-  // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量使用此方法获取
+  // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量先使用此方法加载脚本匹配信息
   async loadScriptMatchInfo() {
     if (this.scriptMatchCache) {
       return;
@@ -914,12 +934,26 @@ export class RuntimeService {
       const scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
       const loadingScript = cacheInstance
         .get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch")
-        .then((data) => {
+        .then(async (data) => {
           if (data) {
             const arr = Object.entries(data).sort(([, a], [, b]) => a.sort! - b.sort!);
             for (const [, matchInfoEntry] of arr) {
               this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
             }
+          } else {
+            // 如果没有缓存数据，则从数据库加载，解决浏览器重新启动后缓存丢失的问题
+            const scripts = (await this.scriptDAO.all()).sort((a, b) => a.sort - b.sort);
+            await Promise.all(
+              scripts.map(async (script) => {
+                if (script.type !== SCRIPT_TYPE_NORMAL) {
+                  return;
+                }
+                const scriptMatchInfoEntry = await this.buildScriptMatchInfo(script);
+                if (scriptMatchInfoEntry) {
+                  this.addScriptMatchEntry(scriptMatchCache, scriptMatchInfoEntry as TScriptMatchInfoEntry);
+                }
+              })
+            );
           }
         })
         .then(() => {
@@ -947,8 +981,7 @@ export class RuntimeService {
     if (!this.scriptMatchCache) {
       await this.loadScriptMatchInfo();
     }
-    const scriptMatchCache = this.scriptMatchCache!;
-    this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
+    this.addScriptMatchEntry(this.scriptMatchCache!, matchInfoEntry);
     await this.saveScriptMatchInfo();
   }
 
@@ -983,7 +1016,7 @@ export class RuntimeService {
     const script = this.scriptMatchCache!.get(uuid);
     if (script) {
       script.status = status;
-      this.saveScriptMatchInfo();
+      await this.saveScriptMatchInfo();
     }
   }
 
@@ -994,28 +1027,12 @@ export class RuntimeService {
     this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
-    this.saveScriptMatchInfo();
+    await this.saveScriptMatchInfo();
   }
 
-  parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
-    const metadataStr = getMetadataStr(script.code) || "";
-    const userConfigStr = getUserConfigStr(script.code) || "";
-    return {
-      ...script,
-      metadataStr,
-      userConfigStr,
-    };
-  }
-
-  // 构建userScript注册信息
-  async getAndSetUserScriptRegister(script: Script) {
-    const preDocumentStartScript = isEarlyStartScript(script);
-    let scriptFlag: string | undefined;
-    if (preDocumentStartScript) {
-      //preDocumentStart脚本使用uuid作为flag
-      scriptFlag = script.uuid;
-    }
-    const scriptRes = await this.script.buildScriptRunResource(script, scriptFlag);
+  // 构建脚本匹配信息并存入缓存
+  async buildScriptMatchInfo(script: Script): Promise<ScriptMatchInfo | undefined> {
+    const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
     const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
     const metaInclude = metadata.include;
@@ -1048,60 +1065,36 @@ export class RuntimeService {
           ])
         : scriptUrlPatterns;
 
-    if (preDocumentStartScript) {
-      scriptRes.code = compilePreInjectScript(this.parseScriptLoadInfo(scriptRes), scriptRes.code);
-    } else {
-      scriptRes.code = compileInjectScript(scriptRes, scriptRes.code);
-    }
-
-    const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
-
-    const excludeMatches = toUniquePatternStrings(
-      scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
-    );
-    const excludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE));
-
-    const registerScript: chrome.userScripts.RegisteredUserScript = {
-      id: scriptRes.uuid,
-      js: [{ code: scriptRes.code }],
-      matches: matches, // primary
-      includeGlobs: includeGlobs, // includeGlobs applied after matches
-      excludeMatches: excludeMatches,
-      excludeGlobs: excludeGlobs,
-      allFrames: !scriptRes.metadata["noframes"],
-      world: "MAIN",
-    };
-
-    if (isInjectIntoContent(script)) {
-      // 需要注入到content script的脚本
-      registerScript.world = "USER_SCRIPT";
-    }
-
-    if (scriptRes.metadata["run-at"]) {
-      registerScript.runAt = getRunAt(scriptRes.metadata["run-at"]);
-    }
-
     const scriptMatchInfo = Object.assign(
       {
         scriptUrlPatterns: scriptUrlPatterns,
         originalUrlPatterns: originalUrlPatterns,
       },
       scriptRes
-    ) as TScriptMatchInfoEntry;
+    );
 
-    // 将脚本match信息放入缓存中
-    await this.addScriptMatch(scriptMatchInfo);
+    return scriptMatchInfo;
+  }
 
-    return {
-      registerScript,
-    };
+  async buildAndSetScriptMatchInfo(script: Script) {
+    const scriptMatchInfo = await this.buildScriptMatchInfo(script);
+    if (!scriptMatchInfo) {
+      return undefined;
+    }
+    // 把脚本信息放入缓存中
+    await this.addScriptMatch(scriptMatchInfo as TScriptMatchInfoEntry);
+    return scriptMatchInfo;
   }
 
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
-  async loadPageScript(script: Script) {
-    const resp = await this.getAndSetUserScriptRegister(script);
-    const { name, uuid } = script;
+  async loadPageScript(scriptMatchInfo: ScriptMatchInfo) {
+    // 如果脚本开启, 则注册脚本
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
+      return;
+    }
+    const resp = await getUserScriptRegister(scriptMatchInfo);
+    const { name, uuid } = scriptMatchInfo;
     if (!resp) {
       this.logger.error("getAndSetUserScriptRegister error", {
         script: name,
@@ -1110,37 +1103,33 @@ export class RuntimeService {
       return;
     }
     const { registerScript } = resp;
-
-    // 如果脚本开启, 则注册脚本
-    if (this.boolUserScriptsAvailable && this.isLoadScripts && script.status === SCRIPT_STATUS_ENABLE) {
-      const res = await chrome.userScripts.getScripts({ ids: [uuid] });
-      const logger = LoggerCore.logger({
-        name,
-        registerMatch: {
-          matches: registerScript.matches,
-          excludeMatches: registerScript.excludeMatches,
-        },
-      });
-      if (res.length > 0) {
-        try {
-          await chrome.userScripts.update([registerScript]);
-        } catch (e) {
-          logger.error("update registerScript error", Logger.E(e));
-        }
-      } else {
-        try {
-          await chrome.userScripts.register([registerScript]);
-        } catch (e) {
-          logger.error("registerScript error", Logger.E(e));
-        }
+    const res = await chrome.userScripts.getScripts({ ids: [uuid] });
+    const logger = LoggerCore.logger({
+      name,
+      registerMatch: {
+        matches: registerScript.matches,
+        excludeMatches: registerScript.excludeMatches,
+      },
+    });
+    if (res.length > 0) {
+      try {
+        await chrome.userScripts.update([registerScript]);
+      } catch (e) {
+        logger.error("update registerScript error", Logger.E(e));
       }
-      await cacheInstance.set(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`, true);
+    } else {
+      try {
+        await chrome.userScripts.register([registerScript]);
+      } catch (e) {
+        logger.error("registerScript error", Logger.E(e));
+      }
     }
+    await cacheInstance.set(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`, true);
   }
 
   async unregistryPageScript(uuid: string) {
     const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.boolUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
       return;
     }
     // 删除缓存

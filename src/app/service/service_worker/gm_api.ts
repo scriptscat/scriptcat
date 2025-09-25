@@ -12,7 +12,7 @@ import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
-import { getIcon, isFirefox, getCurrentTab, openInCurrentTab } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, getCurrentTab, openInCurrentTab, cleanFileName } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -995,7 +995,7 @@ export default class GMApi {
   async GM_download(request: Request, sender: GetSender) {
     const params = <GMTypes.DownloadDetails>request.params[0];
     // 替换掉windows下文件名的非法字符为 -
-    const fileName = params.name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
+    const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     if (params.url.startsWith("blob:") || params.downloadMode === "browser") {
       chrome.downloads.download(
