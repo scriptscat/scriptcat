@@ -31,7 +31,7 @@ export type OnConnectCallback = (data: TMessage, con: MessageConnect) => void;
 export type OnMessageCallback = (
   data: TMessage,
   sendResponse: (data: any) => void,
-  sender?: RuntimeMessageSender
+  sender: RuntimeMessageSender
 ) => boolean | void;
 
 export interface Message {
