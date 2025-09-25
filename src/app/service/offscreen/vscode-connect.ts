@@ -20,9 +20,9 @@ export class VSCodeConnect {
 
   constructor(
     private group: Group,
-    private send: MessageSend
+    private msgSender: MessageSend
   ) {
-    this.scriptClient = new ScriptClient(this.send);
+    this.scriptClient = new ScriptClient(this.msgSender);
   }
 
   connect({ url, reconnect }: { url: string; reconnect: boolean }) {

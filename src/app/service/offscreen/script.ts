@@ -18,13 +18,13 @@ import type { TDeleteScript, TInstallScript, TEnableScript } from "../queue";
 export class ScriptService {
   logger: Logger;
 
-  scriptClient: ScriptClient = new ScriptClient(this.extensionMessage);
-  resourceClient: ResourceClient = new ResourceClient(this.extensionMessage);
-  valueClient: ValueClient = new ValueClient(this.extensionMessage);
+  scriptClient: ScriptClient = new ScriptClient(this.extMsgSender);
+  resourceClient: ResourceClient = new ResourceClient(this.extMsgSender);
+  valueClient: ValueClient = new ValueClient(this.extMsgSender);
 
   constructor(
     private group: Group,
-    private extensionMessage: MessageSend,
+    private extMsgSender: MessageSend,
     private windowMessage: WindowMessage,
     private messageQueue: MessageQueue
   ) {

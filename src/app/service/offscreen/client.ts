@@ -4,42 +4,42 @@ import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnect } from "./vscode-connect";
 
-export function preparationSandbox(msg: WindowMessage) {
-  return sendMessage(msg, "offscreen/preparationSandbox");
+export function preparationSandbox(windowMessage: WindowMessage) {
+  return sendMessage(windowMessage, "offscreen/preparationSandbox");
 }
 
 // 代理发送消息到ServiceWorker
-export function sendMessageToServiceWorker(msg: WindowMessage, action: string, data?: any) {
-  return sendMessage(msg, "offscreen/sendMessageToServiceWorker", { action, data });
+export function sendMessageToServiceWorker(windowMessage: WindowMessage, action: string, data?: any) {
+  return sendMessage(windowMessage, "offscreen/sendMessageToServiceWorker", { action, data });
 }
 
 // 代理连接ServiceWorker
-export function connectServiceWorker(msg: WindowMessage) {
-  return sendMessage(msg, "offscreen/connectServiceWorker");
+export function connectServiceWorker(windowMessage: WindowMessage) {
+  return sendMessage(windowMessage, "offscreen/connectServiceWorker");
 }
 
 export function proxyUpdateRunStatus(
-  msg: WindowMessage,
+  windowMessage: WindowMessage,
   data: { uuid: string; runStatus: SCRIPT_RUN_STATUS; error?: any; nextruntime?: number }
 ) {
-  return sendMessageToServiceWorker(msg, "script/updateRunStatus", data);
+  return sendMessageToServiceWorker(windowMessage, "script/updateRunStatus", data);
 }
 
-export function runScript(msg: MessageSend, data: ScriptRunResource) {
-  return sendMessage(msg, "offscreen/script/runScript", data);
+export function runScript(msgSender: MessageSend, data: ScriptRunResource) {
+  return sendMessage(msgSender, "offscreen/script/runScript", data);
 }
 
-export function stopScript(msg: MessageSend, uuid: string) {
-  return sendMessage(msg, "offscreen/script/stopScript", uuid);
+export function stopScript(msgSender: MessageSend, uuid: string) {
+  return sendMessage(msgSender, "offscreen/script/stopScript", uuid);
 }
 
-export function createObjectURL(msg: MessageSend, data: Blob, persistence: boolean = false) {
-  return sendMessage(msg, "offscreen/createObjectURL", { data, persistence });
+export function createObjectURL(msgSender: MessageSend, data: Blob, persistence: boolean = false) {
+  return sendMessage(msgSender, "offscreen/createObjectURL", { data, persistence });
 }
 
 export class VscodeConnectClient extends Client {
-  constructor(msg: MessageSend) {
-    super(msg, "offscreen/vscodeConnect");
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "offscreen/vscodeConnect");
   }
 
   connect(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {

@@ -64,7 +64,7 @@ export class SynchronizeService {
   storage: ChromeStorage = new ChromeStorage("sync", true);
 
   constructor(
-    private send: MessageSend,
+    private msgSender: MessageSend,
     private group: Group,
     private script: ScriptService,
     private value: ValueService,
@@ -251,7 +251,7 @@ export class SynchronizeService {
       },
       comment: "Created by Scriptcat",
     });
-    const url = await createObjectURL(this.send, files);
+    const url = await createObjectURL(this.msgSender, files);
     chrome.downloads.download({
       url,
       saveAs: true,

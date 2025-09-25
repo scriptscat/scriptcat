@@ -1,7 +1,7 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
 import type { MessageQueue, MessageQueueGroup } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSender, MessageSend } from "@Packages/message/types";
+import type { ExtMessageSender, MessageSend, RuntimeMessageSender } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
@@ -73,7 +73,7 @@ export class RuntimeService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private sender: MessageSend,
+    private msgSender: MessageSend,
     mq: MessageQueue,
     private value: ValueService,
     private script: ScriptService,
@@ -188,7 +188,7 @@ export class RuntimeService {
       this.systemConfig,
       permission,
       this.group,
-      this.sender,
+      this.msgSender,
       this.mq,
       this.value,
       new GMExternalDependencies(this)
@@ -621,7 +621,7 @@ export class RuntimeService {
   sendMessageToTab(to: ExtMessageSender, action: string, data: any) {
     if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/" + action, data);
+      return sendMessage(this.msgSender, "offscreen/runtime/" + action, data);
     }
     return sendMessage(
       new ExtensionContentMessageSend(to.tabId, {
@@ -637,7 +637,7 @@ export class RuntimeService {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
     if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
-      return sendMessage(this.sender, "offscreen/runtime/emitEvent", req);
+      return sendMessage(this.msgSender, "offscreen/runtime/emitEvent", req);
     }
     return sendMessage(
       new ExtensionContentMessageSend(to.tabId, {
@@ -679,7 +679,7 @@ export class RuntimeService {
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
-    const chromeSender = sender.getSender() as MessageSender;
+    const chromeSender = sender.getSender() as RuntimeMessageSender;
 
     // 判断是否黑名单（针对网址，与个别脚本设定无关）
     if (this.isUrlBlacklist(chromeSender.url!)) {
@@ -846,7 +846,7 @@ export class RuntimeService {
 
   // 停止脚本
   async stopScript(uuid: string) {
-    return await stopScript(this.sender, uuid);
+    return await stopScript(this.msgSender, uuid);
   }
 
   // 运行脚本
@@ -856,7 +856,7 @@ export class RuntimeService {
       return;
     }
     const res = await this.script.buildScriptRunResource(script);
-    return await runScript(this.sender, res);
+    return await runScript(this.msgSender, res);
   }
 
   compileInjectUserScript(injectJs: string, messageFlag: string, o: Record<string, any>) {

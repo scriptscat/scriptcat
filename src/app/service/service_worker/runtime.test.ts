@@ -7,13 +7,14 @@ import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts"
 import { getCombinedMeta } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { Group } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
 import type { MessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
 import type { ScriptService } from "./script";
 import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import type { MessageConnect, TMessage } from "@Packages/message/types";
 
 initTestEnv();
 
@@ -74,7 +75,16 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     const mockGroup = {
       use: vi.fn().mockReturnThis(),
     } as unknown as Group;
-    const mockSender = {} as MessageSend;
+    const mockSender = {
+      async init() {},
+      messageHandle(_data: WindowMessageBody) {},
+      async connect(_data: TMessage): Promise<MessageConnect> {
+        return {} as MessageConnect;
+      },
+      async sendMessage<T = any>(_data: TMessage): Promise<T> {
+        return {} as T;
+      },
+    } as ServiceWorkerMessageSend;
     const mockMessageQueue = {
       group: vi.fn().mockReturnValue(mockGroup),
     } as unknown as MessageQueue;

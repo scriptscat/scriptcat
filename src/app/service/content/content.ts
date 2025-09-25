@@ -1,7 +1,7 @@
 import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
-import type { Message, MessageSend } from "@Packages/message/types";
+import type { MessageSend } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
@@ -18,11 +18,11 @@ export default class ContentRuntime {
     // 监听来自inject的消息
     private server: Server,
     // 发送给扩展service_worker的通信接口
-    private extSend: MessageSend,
+    private senderToExt: MessageSend,
     // 发送给inject的消息接口
-    private msg: Message,
+    private senderToInject: CustomEventMessage,
     // 脚本执行器消息接口
-    private scriptExecutorMsg: Message,
+    private scriptExecutorMsg: CustomEventMessage,
     private scriptExecutor: ScriptExecutor
   ) {}
 
@@ -30,19 +30,19 @@ export default class ContentRuntime {
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject和scriptExecutor
       this.scriptExecutor.emitEvent(data);
-      return sendMessage(this.msg, "inject/runtime/emitEvent", data);
+      return sendMessage(this.senderToInject, "inject/runtime/emitEvent", data);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
       // 转发给inject和scriptExecutor
       this.scriptExecutor.valueUpdate(data);
-      return sendMessage(this.msg, "inject/runtime/valueUpdate", data);
+      return sendMessage(this.senderToInject, "inject/runtime/valueUpdate", data);
     });
-    forwardMessage("serviceWorker", "script/isInstalled", this.server, this.extSend);
+    forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
     forwardMessage(
       "serviceWorker",
       "runtime/gmApi",
       this.server,
-      this.extSend,
+      this.senderToExt,
       (data: { api: string; params: any; uuid: string }) => {
         // 拦截关注的api
         switch (data.api) {
@@ -63,7 +63,7 @@ export default class ContentRuntime {
               xhr.responseType = "document";
               xhr.open("GET", data.params[0]);
               xhr.onload = () => {
-                const nodeId = (this.msg as CustomEventMessage).sendRelatedTarget(xhr.response);
+                const nodeId = (this.senderToInject as CustomEventMessage).sendRelatedTarget(xhr.response);
                 resolve(nodeId);
               };
               xhr.send();
@@ -74,14 +74,14 @@ export default class ContentRuntime {
             let attr = { ...tmpAttr };
             let parentNode: EventTarget | undefined;
             // 判断是不是content脚本发过来的
-            let msg: Message;
+            let msg: CustomEventMessage;
             if (this.contentScript.has(data.uuid)) {
               msg = this.scriptExecutorMsg;
             } else {
-              msg = this.msg;
+              msg = this.senderToInject;
             }
             if (parentNodeId) {
-              parentNode = (msg as CustomEventMessage).getAndDelRelatedTarget(parentNodeId);
+              parentNode = msg.getAndDelRelatedTarget(parentNodeId);
             }
             const el = <Element>document.createElement(tagName);
 
@@ -101,7 +101,7 @@ export default class ContentRuntime {
               el.textContent = textContent;
             }
             (<Element>parentNode || document.head || document.body || document.querySelector("*")).appendChild(el);
-            const nodeId = (msg as CustomEventMessage).sendRelatedTarget(el);
+            const nodeId = msg.sendRelatedTarget(el);
             return nodeId;
           }
           case "GM_log":
@@ -127,7 +127,7 @@ export default class ContentRuntime {
 
   start(scripts: ScriptLoadInfo[], envInfo: GMInfoEnv) {
     // 启动脚本
-    const client = new Client(this.msg, "inject");
+    const client = new Client(this.senderToInject, "inject");
     // 根据@inject-into content过滤脚本
     const injectScript: ScriptLoadInfo[] = [];
     const contentScript: ScriptLoadInfo[] = [];

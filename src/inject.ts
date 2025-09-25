@@ -6,10 +6,11 @@ import type { ScriptLoadInfo } from "./app/service/service_worker/types";
 import type { GMInfoEnv } from "./app/service/content/types";
 import { InjectRuntime } from "./app/service/content/inject";
 import { ScriptExecutor } from "./app/service/content/script_executor";
+import type { Message } from "@Packages/message/types";
 
 /* global MessageFlag, EarlyScriptFlag */
 
-const msg = new CustomEventMessage(MessageFlag, false);
+const msg: Message = new CustomEventMessage(MessageFlag, false);
 
 // 加载logger组件
 const logger = new LoggerCore({
