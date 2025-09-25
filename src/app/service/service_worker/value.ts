@@ -10,7 +10,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
 import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type TMessageQueueGroup } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 
 export class ValueService {
@@ -22,7 +22,7 @@ export class ValueService {
 
   constructor(
     private group: Group,
-    private mq: MessageQueue
+    private mq: TMessageQueueGroup
   ) {
     this.logger = LoggerCore.logger().with({ service: "value" });
     this.valueDAO.enableCache();

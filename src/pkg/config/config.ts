@@ -2,7 +2,7 @@ import ChromeStorage from "./chrome_storage";
 import { defaultConfig } from "../../../packages/eslint/linter-config";
 import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
-import type { MessageQueue, TKeyValue } from "@Packages/message/message_queue";
+import type { TMessageQueueGroup, TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage, matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
@@ -74,7 +74,7 @@ export class SystemConfig {
 
   private readonly storage = new ChromeStorage("system", true);
 
-  constructor(private mq: MessageQueue) {
+  constructor(private mq: TMessageQueueGroup) {
     this.mq.subscribe<TKeyValue>(SystemConfigChange, ({ key, value }) => {
       this.cache.set(key, value);
     });

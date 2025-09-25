@@ -10,8 +10,29 @@ type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void)
 // 消息处理函数类型
 type MessageHandler<T = any> = (message: T) => void;
 
+export interface TMessageQueueGroup {
+  // 创建子分组
+  group(name: string, middleware?: MiddlewareFunction): TMessageQueueGroupFull;
+
+  // 订阅消息
+  subscribe<T>(topic: string, handler: MessageHandler<T>): () => void;
+
+  // 发布消息
+  publish<T>(topic: string, message: NonNullable<T>): void;
+
+  // 只发布给当前环境
+  emit<T>(topic: string, message: NonNullable<T>): void;
+}
+
+export interface TMessageQueueCanMiddleware {
+  // 创建子分组
+  use(middleware: MiddlewareFunction): TMessageQueueGroupFull;
+}
+
+export interface TMessageQueueGroupFull extends TMessageQueueGroup, TMessageQueueCanMiddleware {}
+
 // 消息队列
-export class MessageQueue {
+export class MessageQueue implements TMessageQueueGroup {
   private EE = new EventEmitter<string, any>();
 
   constructor() {
@@ -70,7 +91,7 @@ export class MessageQueue {
 }
 
 // 消息队列分组
-export class MessageQueueGroup {
+export class MessageQueueGroup implements TMessageQueueGroup {
   private middlewares: MiddlewareFunction[] = [];
 
   constructor(

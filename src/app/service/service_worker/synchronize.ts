@@ -11,7 +11,7 @@ import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/fac
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type TMessageQueueGroup } from "@Packages/message/message_queue";
 import JSZip from "jszip";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
@@ -69,7 +69,7 @@ export class SynchronizeService {
     private script: ScriptService,
     private value: ValueService,
     private resource: ResourceService,
-    private mq: MessageQueue,
+    private mq: TMessageQueueGroup,
     private systemConfig: SystemConfig,
     private scriptDAO: ScriptDAO
   ) {

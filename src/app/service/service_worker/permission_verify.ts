@@ -3,7 +3,7 @@ import type { Script } from "@App/app/repo/scripts";
 import { type Permission, PermissionDAO } from "@App/app/repo/permission";
 import type { GetSender } from "@Packages/message/server";
 import { type Group } from "@Packages/message/server";
-import type { MessageQueueGroup } from "@Packages/message/message_queue";
+import type { TMessageQueueGroup } from "@Packages/message/message_queue";
 import type { Api, Request } from "./types";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
@@ -106,7 +106,7 @@ export default class PermissionVerify {
 
   constructor(
     private group: Group,
-    private mq: MessageQueueGroup
+    private mq: TMessageQueueGroup
   ) {
     this.permissionDAO.enableCache();
   }

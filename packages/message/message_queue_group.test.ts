@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { MessageQueue, MessageQueueGroup } from "./message_queue";
+import { MessageQueue, MessageQueueGroup, type TMessageQueueGroup } from "./message_queue";
 
 // Mock chrome.runtime
 global.chrome = {
@@ -24,7 +24,7 @@ vi.mock("@App/app/logger/core", () => ({
 }));
 
 describe("MessageQueueGroup", () => {
-  let messageQueue: MessageQueue;
+  let messageQueue: TMessageQueueGroup;
 
   beforeEach(() => {
     messageQueue = new MessageQueue();

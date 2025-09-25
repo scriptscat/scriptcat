@@ -4,7 +4,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type TMessageQueueGroup } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
 import { createScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -24,7 +24,7 @@ export class SubscribeService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private mq: MessageQueue,
+    private mq: TMessageQueueGroup,
     private scriptService: ScriptService
   ) {
     this.logger = LoggerCore.logger().with({ service: "subscribe" });
