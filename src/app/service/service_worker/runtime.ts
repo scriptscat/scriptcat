@@ -681,7 +681,7 @@ export class RuntimeService {
     }
     const chromeSender = sender.getSender();
     if (!chromeSender?.url) {
-      // 異常載入
+      // 异常加载
       return { flag: "", scripts: [] };
     }
 
