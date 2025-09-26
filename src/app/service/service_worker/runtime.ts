@@ -1,6 +1,6 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
 import type { MessageQueue, MessageQueueGroup } from "@Packages/message/message_queue";
-import type { TGetSender, Group } from "@Packages/message/server";
+import type { IGetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -675,7 +675,7 @@ export class RuntimeService {
     return ret;
   }
 
-  async pageLoad(_: any, sender: TGetSender) {
+  async pageLoad(_: any, sender: IGetSender) {
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }

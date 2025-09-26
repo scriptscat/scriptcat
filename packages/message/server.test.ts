@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
-import { GetSenderType, SenderConnect, SenderRuntime, Server, type TGetSender } from "./server";
+import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 
@@ -503,9 +503,9 @@ describe("Server", () => {
     });
   });
 
-  describe("TGetSender 功能测试", () => {
+  describe("IGetSender 功能测试", () => {
     it("应该能够从 RuntimeMessageSender 获取信息", async () => {
-      let capturedSender: TGetSender;
+      let capturedSender: IGetSender;
 
       server.on("test", (params, sender) => {
         capturedSender = sender;
@@ -532,7 +532,7 @@ describe("Server", () => {
     });
 
     it("应该为没有 tab 的 sender 返回 -1 tabId", async () => {
-      let capturedSender: TGetSender;
+      let capturedSender: IGetSender;
 
       server.on("test", (params, sender) => {
         capturedSender = sender;

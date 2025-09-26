@@ -1,6 +1,6 @@
 import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
-import { type TGetSender } from "@Packages/message/server";
+import { type IGetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 export type SearchType = "auto" | "name" | "script_code";
@@ -60,7 +60,7 @@ export type NotificationMessageOption = {
   };
 };
 
-export type Api = (request: Request, con: TGetSender) => Promise<any>;
+export type Api = (request: Request, con: IGetSender) => Promise<any>;
 
 // popup
 

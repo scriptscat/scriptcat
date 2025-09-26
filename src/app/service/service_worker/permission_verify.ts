@@ -1,7 +1,7 @@
 // gm api 权限验证
 import type { Script } from "@App/app/repo/scripts";
 import { type Permission, PermissionDAO } from "@App/app/repo/permission";
-import type { TGetSender } from "@Packages/message/server";
+import type { IGetSender } from "@Packages/message/server";
 import { type Group } from "@Packages/message/server";
 import type { MessageQueueGroup } from "@Packages/message/message_queue";
 import type { Api, Request } from "./types";
@@ -99,7 +99,7 @@ export default class PermissionVerify {
     confirm: ConfirmParam | boolean;
     resolve: (value: boolean) => void;
     reject: (reason: any) => void;
-    sender: TGetSender;
+    sender: IGetSender;
   }> = new Queue();
 
   private permissionDAO: PermissionDAO = new PermissionDAO();
@@ -112,7 +112,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify(request: Request, api: ApiValue, sender: TGetSender): Promise<boolean> {
+  async verify(request: Request, api: ApiValue, sender: IGetSender): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -160,7 +160,7 @@ export default class PermissionVerify {
   }
 
   // 确认队列,为了防止一次性打开过多的窗口
-  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn, sender: TGetSender): Promise<boolean> {
+  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn, sender: IGetSender): Promise<boolean> {
     const confirm = await confirmFn(request);
     if (confirm === true) {
       return true;
@@ -170,7 +170,7 @@ export default class PermissionVerify {
     });
   }
 
-  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: TGetSender): Promise<boolean> {
+  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: IGetSender): Promise<boolean> {
     if (typeof confirm === "boolean") {
       return confirm;
     }
@@ -251,7 +251,7 @@ export default class PermissionVerify {
   > = new Map();
 
   // 弹出窗口让用户进行确认
-  async confirmWindow(script: Script, confirm: ConfirmParam, sender: TGetSender): Promise<UserConfirm> {
+  async confirmWindow(script: Script, confirm: ConfirmParam, sender: IGetSender): Promise<UserConfirm> {
     return new Promise((resolve, reject) => {
       const uuid = uuidv4();
       // 超时处理

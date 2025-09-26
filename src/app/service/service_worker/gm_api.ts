@@ -1,7 +1,7 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import { SenderConnect, type TGetSender, type Group, GetSenderType } from "@Packages/message/server";
+import { SenderConnect, type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import type { MessageQueueGroup } from "@Packages/message/message_queue";
@@ -138,7 +138,7 @@ export default class GMApi {
 
   // PermissionVerify.API
   // sendMessage from Content Script, etc
-  async handlerRequest(data: MessageRequest, sender: TGetSender) {
+  async handlerRequest(data: MessageRequest, sender: IGetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
@@ -205,7 +205,7 @@ export default class GMApi {
       };
     },
   })
-  async GM_cookie(request: Request, sender: TGetSender) {
+  async GM_cookie(request: Request, sender: IGetSender) {
     const param = request.params;
     if (param.length !== 2) {
       throw new Error("there must be two parameters");
@@ -289,7 +289,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_log(request: Request, _sender: TGetSender): Promise<boolean> {
+  async GM_log(request: Request, _sender: IGetSender): Promise<boolean> {
     const message = request.params[0];
     const level = request.params[1] || "info";
     const labels = request.params[2] || {};
@@ -302,7 +302,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
-  async GM_setValue(request: Request, sender: TGetSender) {
+  async GM_setValue(request: Request, sender: IGetSender) {
     if (!request.params || request.params.length < 1) {
       throw new Error("param is failed");
     }
@@ -314,7 +314,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  CAT_userConfig(request: Request, sender: TGetSender): void {
+  CAT_userConfig(request: Request, sender: IGetSender): void {
     const { tabId } = sender.getExtMessageSender();
     openInCurrentTab(`/src/options.html#/?userConfig=${request.uuid}`, tabId === -1 ? undefined : tabId);
   }
@@ -339,7 +339,7 @@ export default class GMApi {
       } as ConfirmParam;
     },
   })
-  async CAT_fileStorage(request: Request, sender: TGetSender): Promise<{ action: string; data: any } | boolean> {
+  async CAT_fileStorage(request: Request, sender: IGetSender): Promise<{ action: string; data: any } | boolean> {
     const [action, details] = request.params;
     if (action === "config") {
       const { tabId, windowId } = sender.getExtMessageSender();
@@ -435,7 +435,7 @@ export default class GMApi {
   async buildDNRRule(
     reqeustId: number,
     params: GMSend.XHRDetails,
-    sender: TGetSender
+    sender: IGetSender
   ): Promise<{ [key: string]: string }> {
     const headers = params.headers || {};
     // 如果header中没有origin就设置为空字符串，如果有origin就不做处理，注意处理大小写
@@ -594,7 +594,7 @@ export default class GMApi {
     return respond;
   }
 
-  CAT_fetch(config: GMSend.XHRDetails, con: TGetSender, resultParam: RequestResultParams) {
+  CAT_fetch(config: GMSend.XHRDetails, con: IGetSender, resultParam: RequestResultParams) {
     const { url } = config;
     const msgConn = con.getConnect();
     if (!msgConn) {
@@ -706,7 +706,7 @@ export default class GMApi {
     },
     alias: ["GM.xmlHttpRequest"],
   })
-  async GM_xmlhttpRequest(request: Request, sender: TGetSender) {
+  async GM_xmlhttpRequest(request: Request, sender: IGetSender) {
     if (request.params.length === 0) {
       throw new Error("param is failed");
     }
@@ -781,7 +781,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
-  GM_registerMenuCommand(request: Request, sender: TGetSender) {
+  GM_registerMenuCommand(request: Request, sender: IGetSender) {
     const [id, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
     this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
@@ -796,7 +796,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({ alias: ["CAT_unregisterMenuInput"] })
-  GM_unregisterMenuCommand(request: Request, sender: TGetSender) {
+  GM_unregisterMenuCommand(request: Request, sender: IGetSender) {
     const [id] = request.params;
     // 触发菜单取消注册, 在popup中处理
     this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
@@ -808,7 +808,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({})
-  async GM_openInTab(request: Request, sender: TGetSender) {
+  async GM_openInTab(request: Request, sender: IGetSender) {
     const url = request.params[0];
     const options = request.params[1] || {};
     if (options.useOpen === true) {
@@ -846,7 +846,7 @@ export default class GMApi {
   @PermissionVerify.API({
     link: ["GM_openInTab"],
   })
-  async GM_closeInTab(request: Request, _sender: TGetSender): Promise<boolean> {
+  async GM_closeInTab(request: Request, _sender: IGetSender): Promise<boolean> {
     try {
       await chrome.tabs.remove(<number>request.params[0]);
     } catch (e) {
@@ -856,7 +856,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({})
-  GM_getTab(request: Request, sender: TGetSender) {
+  GM_getTab(request: Request, sender: IGetSender) {
     return cacheInstance
       .tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
         return tabData || {};
@@ -867,7 +867,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_saveTab(request: Request, sender: TGetSender) {
+  async GM_saveTab(request: Request, sender: IGetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
     await cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
@@ -879,14 +879,14 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  GM_getTabs(request: Request, _sender: TGetSender) {
+  GM_getTabs(request: Request, _sender: IGetSender) {
     return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
       return tabData || {};
     });
   }
 
   @PermissionVerify.API({})
-  async GM_notification(request: Request, sender: TGetSender) {
+  async GM_notification(request: Request, sender: IGetSender) {
     if (request.params.length === 0) {
       throw new Error("param is failed");
     }
@@ -973,7 +973,7 @@ export default class GMApi {
   @PermissionVerify.API({
     link: ["GM_notification"],
   })
-  GM_closeNotification(request: Request, _sender: TGetSender) {
+  GM_closeNotification(request: Request, _sender: IGetSender) {
     if (request.params.length === 0) {
       throw new Error("param is failed");
     }
@@ -985,7 +985,7 @@ export default class GMApi {
   @PermissionVerify.API({
     link: ["GM_notification"],
   })
-  GM_updateNotification(request: Request, _sender: TGetSender) {
+  GM_updateNotification(request: Request, _sender: IGetSender) {
     if (typeof chrome.notifications?.update !== "function") {
       // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/update#browser_compatibility
       throw new Error("Your browser does not support GM_updateNotification");
@@ -1004,7 +1004,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_download(request: Request, sender: TGetSender) {
+  async GM_download(request: Request, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_download ERROR: sender is not MessageConnect");
     }
@@ -1096,14 +1096,14 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_setClipboard(request: Request, _sender: TGetSender) {
+  async GM_setClipboard(request: Request, _sender: IGetSender) {
     const [data, type] = request.params;
     const clipboardType = type || "text/plain";
     await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
   }
 
   @PermissionVerify.API()
-  async ["window.close"](request: Request, sender: TGetSender) {
+  async ["window.close"](request: Request, sender: IGetSender) {
     /*
      * Note: for security reasons it is not allowed to close the last tab of a window.
      * https://www.tampermonkey.net/documentation.php#api:window.close
@@ -1117,7 +1117,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async ["window.focus"](request: Request, sender: TGetSender) {
+  async ["window.focus"](request: Request, sender: IGetSender) {
     const tabId = sender.getSender()?.tab?.id;
     if (Number.isFinite(tabId)) {
       await chrome.tabs.update(tabId as number, {

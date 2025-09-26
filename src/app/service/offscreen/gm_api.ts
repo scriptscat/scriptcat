@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { TGetSender, Group } from "@Packages/message/server";
+import type { IGetSender, Group } from "@Packages/message/server";
 import type { MessageConnect } from "@Packages/message/types";
 
 export default class GMApi {
@@ -87,7 +87,7 @@ export default class GMApi {
     return response;
   }
 
-  async xmlHttpRequest(details: GMSend.XHRDetails, sender: TGetSender) {
+  async xmlHttpRequest(details: GMSend.XHRDetails, sender: IGetSender) {
     if (details.responseType === "stream") {
       // 只有fetch支持ReadableStream
       throw new Error("Method not implemented.");

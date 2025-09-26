@@ -9,7 +9,7 @@ export const enum GetSenderType {
   EXTCONNECT = 1 | 2,
   RUNTIME = 4,
 }
-export interface TGetSender {
+export interface IGetSender {
   getType(): number;
   isType(type: GetSenderType): boolean;
   getSender(): RuntimeMessageSender | undefined;
@@ -100,9 +100,9 @@ export class SenderRuntime {
   }
 }
 
-type ApiFunction = (params: any, con: TGetSender) => Promise<any> | void;
-type ApiFunctionSync = (params: any, con: TGetSender) => any;
-type MiddlewareFunction = (params: any, con: TGetSender, next: () => Promise<any> | any) => Promise<any> | any;
+type ApiFunction = (params: any, con: IGetSender) => Promise<any> | void;
+type ApiFunctionSync = (params: any, con: IGetSender) => any;
+type MiddlewareFunction = (params: any, con: IGetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
@@ -246,7 +246,7 @@ export class Group {
       this.server.on(fullName, func);
     } else {
       // 有中间件，需要包装处理函数
-      this.server.on(fullName, async (params: any, con: TGetSender) => {
+      this.server.on(fullName, async (params: any, con: IGetSender) => {
         let index = 0;
 
         const next = async (): Promise<any> => {
@@ -273,7 +273,7 @@ export function forwardMessage(
   senderTo: MessageSend,
   middleware?: ApiFunctionSync
 ) {
-  const handler = (params: any, fromCon: TGetSender) => {
+  const handler = (params: any, fromCon: IGetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
       connect(senderTo, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
