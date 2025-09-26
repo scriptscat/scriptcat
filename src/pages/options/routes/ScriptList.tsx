@@ -21,9 +21,8 @@ import { TbWorldWww } from "react-icons/tb";
 import { messageQueue } from "@App/pages/store/global";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, UserConfig } from "@App/app/repo/scripts";
 import {
-  type SCRIPT_STATUS,
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -94,6 +93,24 @@ import type {
   TScriptRunStatus,
   TSortedScript,
 } from "@App/app/service/queue";
+
+type THandlers = {
+  enableSwitchCell: {
+    onChange: (uuid: string) => (checked: boolean) => void;
+  };
+  applyToRunStatusCell: {
+    toLogger: (uuid: string) => () => void;
+  };
+  updateTimeCell: {
+    onClick: (uuid: string, checkUpdateUrl: string | undefined) => () => void;
+  };
+  actionCell: {
+    handleDelete: (uuid: string) => () => void;
+    handleConfig: (item: ScriptLoading) => () => void;
+    handleRunStop: (uuid: string, runStatus: SCRIPT_RUN_STATUS) => () => Promise<void>;
+    handleCloud: (item: ScriptLoading) => () => void;
+  };
+};
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -193,18 +210,60 @@ const SortRender = React.memo(({ col }: { col: number }) => {
 });
 SortRender.displayName = "SortRender";
 
-const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
-  const { uuid } = item;
-  const onChange = useCallback(
-    (checked: boolean) => {
-      updateScriptList({ uuid: uuid, enableLoading: true });
-      requestEnableScript({ uuid: uuid, enable: checked });
-    },
-    [uuid, updateScriptList]
-  );
+function useStableFunction<K extends any[], T extends (...args: any[]) => any>(factory: (...keys: K) => T, keys: K): T {
+  // useMemo will only recompute when factory or any key changes
+  return useMemo(() => factory(...keys), [factory, ...keys]);
+}
 
-  return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
-});
+/**
+ * Creates a "static" object, but ensures any function dependencies stay fresh.
+ * @param factory - a function that receives "live" dependencies and returns the object
+ * @param deps - object of functions (or values) that should always stay fresh
+ */
+export function useStaticObject<T extends object, D extends Record<string, (...args: any[]) => any>>(
+  factory: (deps: D) => T,
+  deps: D
+): T {
+  // Store latest deps in refs
+  const depRefs = useRef<Record<string, (...args: any[]) => any>>({});
+  useEffect(() => {
+    for (const key of Object.keys(deps)) {
+      depRefs.current[key] = deps[key];
+    }
+  }, Object.values(deps));
+
+  // Build static object only once
+  const objectRef = useRef<T>();
+  if (!objectRef.current) {
+    // Instead of getters, we create live proxies that call latest ref value
+    const liveDeps: Record<string, (...args: any[]) => any> = {};
+    for (const key of Object.keys(deps)) {
+      liveDeps[key] = (...args: any[]) => depRefs.current[key]?.(...args);
+    }
+    objectRef.current = factory(liveDeps as D);
+  }
+
+  return objectRef.current!;
+}
+
+const EnableSwitchCell = React.memo(
+  ({
+    uuid,
+    status,
+    enableLoading,
+    handlers,
+  }: { handlers: THandlers } & Pick<ScriptLoading, "uuid" | "status" | "enableLoading">) => {
+    const onChange = useStableFunction(handlers.enableSwitchCell.onChange, [uuid]);
+    return (
+      <Switch
+        checked={status === SCRIPT_STATUS_ENABLE}
+        loading={enableLoading}
+        disabled={enableLoading}
+        onChange={onChange}
+      />
+    );
+  }
+);
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
@@ -239,46 +298,32 @@ const VersionCell = React.memo(({ item }: { item: ListType }) => {
 });
 VersionCell.displayName = "VersionCell";
 
-const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
-  const toLogger = useCallback(() => {
-    navigate({
-      pathname: "logger",
-      search: `query=${encodeURIComponent(
-        JSON.stringify([
-          { key: "uuid", value: item.uuid },
-          {
-            key: "component",
-            value: "GM_log",
-          },
-        ])
-      )}`,
-    });
-  }, [item.uuid, navigate]);
+const ApplyToRunStatusCell = React.memo(({ item, handlers, t }: { item: ListType; handlers: any; t: any }) => {
+  const toLogger = useStableFunction(handlers.applyToRunStatusCell.toLogger, [item.uuid]);
+
+  const favoriteMemo = useMemo(() => {
+    if (!item.favorite) return [];
+    return [...item.favorite]
+      .sort((a, b) => (a.icon && !b.icon ? -1 : !a.icon && b.icon ? 1 : a.match.localeCompare(b.match)))
+      .slice(0, 4);
+  }, [item.favorite]);
 
   if (item.type === SCRIPT_TYPE_NORMAL) {
     return (
       <>
         <Avatar.Group size={20}>
-          {item.favorite &&
-            [...item.favorite]
-              .sort((a, b) => {
-                if (a.icon && !b.icon) return -1;
-                if (!a.icon && b.icon) return 1;
-                return a.match.localeCompare(b.match);
-              })
-              .slice(0, 4)
-              .map((fav) => (
-                <MemoizedAvatar
-                  key={`${fav.match}_${fav.icon}_${fav.website}`}
-                  {...fav}
-                  onClick={() => {
-                    if (fav.website) {
-                      window.open(fav.website, "_blank");
-                    }
-                  }}
-                />
-              ))}
-          {item.favorite && item.favorite.length > 4 && "..."}
+          {favoriteMemo.map((fav) => (
+            <MemoizedAvatar
+              key={`${fav.match}_${fav.icon}_${fav.website}`}
+              {...fav}
+              onClick={() => {
+                if (fav.website) {
+                  window.open(fav.website, "_blank");
+                }
+              }}
+            />
+          ))}
+          {favoriteMemo.length > 4 && "..."}
         </Avatar.Group>
       </>
     );
@@ -366,177 +411,86 @@ const HomeCell = React.memo(({ item }: { item: ListType }) => {
 });
 HomeCell.displayName = "HomeCell";
 
-const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: ListType; t: any }) => {
-  const handleClick = useCallback(() => {
-    if (!script.checkUpdateUrl) {
-      Message.warning(t("update_not_supported")!);
-      return;
-    }
-    Message.info({
-      id: "checkupdate",
-      content: t("checking_for_updates"),
-    });
-    scriptClient
-      .requestCheckUpdate(script.uuid)
-      .then((res) => {
-        if (res) {
-          Message.warning({
-            id: "checkupdate",
-            content: t("new_version_available"),
-          });
-        } else {
-          Message.success({
-            id: "checkupdate",
-            content: t("latest_version"),
-          });
-        }
-      })
-      .catch((e) => {
-        Message.error({
-          id: "checkupdate",
-          content: `${t("update_check_failed")}: ${e.message}`,
-        });
-      });
-  }, [script.checkUpdateUrl, script.uuid, t]);
-
-  return (
-    <Tooltip content={t("check_update")} position="tl">
-      <Text
-        style={{
-          cursor: "pointer",
-        }}
-        onClick={handleClick}
-      >
-        {semTime(new Date(col))}
-      </Text>
-    </Tooltip>
-  );
-});
-UpdateTimeCell.displayName = "UpdateTimeCell";
-
-const ActionCell = React.memo(
-  ({
-    item,
-    updateScriptList,
-    updateEntry,
-    setUserConfig,
-    setCloudScript,
-    t,
-  }: {
-    item: ScriptLoading;
-    updateScriptList: any;
-    updateEntry: any;
-    setUserConfig: any;
-    setCloudScript: any;
-    t: any;
-  }) => {
-    const handleDelete = useCallback(() => {
-      const uuid = item.uuid;
-      updateScriptList({ uuid, actionLoading: true });
-      requestDeleteScripts([uuid]);
-    }, [item.uuid, updateScriptList]);
-
-    const handleConfig = useCallback(() => {
-      new ValueClient(message).getScriptValue(item).then((newValues) => {
-        setUserConfig({
-          userConfig: { ...item.config! },
-          script: item,
-          values: newValues,
-        });
-      });
-    }, [item]);
-
-    const handleRunStop = useCallback(async () => {
-      if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-        // Stop script
-        Message.loading({
-          id: "script-stop",
-          content: t("stopping_script"),
-        });
-        updateEntry([item.uuid], { actionLoading: true });
-        await requestStopScript(item.uuid);
-        updateEntry([item.uuid], { actionLoading: false });
-        Message.success({
-          id: "script-stop",
-          content: t("script_stopped"),
-          duration: 3000,
-        });
-      } else {
-        Message.loading({
-          id: "script-run",
-          content: t("starting_script"),
-        });
-        updateEntry([item.uuid], { actionLoading: true });
-        await requestRunScript(item.uuid);
-        updateEntry([item.uuid], { actionLoading: false });
-        Message.success({
-          id: "script-run",
-          content: t("script_started"),
-          duration: 3000,
-        });
-      }
-    }, [item.uuid, item.runStatus, updateEntry, t]);
-
-    const handleCloud = useCallback(() => {
-      setCloudScript(item);
-    }, [item, setCloudScript]);
+const UpdateTimeCell = React.memo(
+  ({ col, script, t, handlers }: { col: number; script: ListType; t: any; handlers: any }) => {
+    const handleClick = useStableFunction(handlers.updateTimeCell.onClick, [script.uuid, script.checkUpdateUrl]);
 
     return (
-      <Button.Group>
-        <Link to={`/script/editor/${item.uuid}`}>
-          <Button
-            type="text"
-            icon={<RiPencilFill />}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        </Link>
-        <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={handleDelete}>
-          <Button
-            type="text"
-            icon={<RiDeleteBin5Fill />}
-            loading={item.actionLoading}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        </Popconfirm>
-        {item.config && (
-          <Button
-            type="text"
-            icon={<RiSettings3Fill />}
-            onClick={handleConfig}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-        {item.type !== SCRIPT_TYPE_NORMAL && (
-          <Button
-            type="text"
-            icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
-            loading={item.actionLoading}
-            onClick={handleRunStop}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-        {item.metadata.cloudcat && (
-          <Button
-            type="text"
-            icon={<RiUploadCloudFill />}
-            onClick={handleCloud}
-            style={{
-              color: "var(--color-text-2)",
-            }}
-          />
-        )}
-      </Button.Group>
+      <Tooltip content={t("check_update")} position="tl">
+        <Text
+          style={{
+            cursor: "pointer",
+          }}
+          onClick={handleClick}
+        >
+          {semTime(new Date(col))}
+        </Text>
+      </Tooltip>
     );
   }
 );
+UpdateTimeCell.displayName = "UpdateTimeCell";
+
+const ActionCell = React.memo(({ item, handlers, t }: { item: ScriptLoading; handlers: THandlers; t: any }) => {
+  const handleDelete = useStableFunction(handlers.actionCell.handleDelete, [item.uuid]);
+  const handleConfig = useStableFunction(handlers.actionCell.handleConfig, [item]);
+  const handleRunStop = useStableFunction(handlers.actionCell.handleRunStop, [item.uuid, item.runStatus]);
+  const handleCloud = useStableFunction(handlers.actionCell.handleCloud, [item]);
+  return (
+    <Button.Group>
+      <Link to={`/script/editor/${item.uuid}`}>
+        <Button
+          type="text"
+          icon={<RiPencilFill />}
+          style={{
+            color: "var(--color-text-2)",
+          }}
+        />
+      </Link>
+      <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={handleDelete}>
+        <Button
+          type="text"
+          icon={<RiDeleteBin5Fill />}
+          loading={item.actionLoading}
+          style={{
+            color: "var(--color-text-2)",
+          }}
+        />
+      </Popconfirm>
+      {item.config && (
+        <Button
+          type="text"
+          icon={<RiSettings3Fill />}
+          onClick={handleConfig}
+          style={{
+            color: "var(--color-text-2)",
+          }}
+        />
+      )}
+      {item.type !== SCRIPT_TYPE_NORMAL && (
+        <Button
+          type="text"
+          icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
+          loading={item.actionLoading}
+          onClick={handleRunStop}
+          style={{
+            color: "var(--color-text-2)",
+          }}
+        />
+      )}
+      {item.metadata.cloudcat && (
+        <Button
+          type="text"
+          icon={<RiUploadCloudFill />}
+          onClick={handleCloud}
+          style={{
+            color: "var(--color-text-2)",
+          }}
+        />
+      )}
+    </Button.Group>
+  );
+});
 ActionCell.displayName = "ActionCell";
 
 const scriptListSortOrder = (
@@ -596,23 +550,6 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
 
 DraggableContainer.displayName = "DraggableContainer";
 
-const EnableSwitch = React.memo(
-  ({
-    status,
-    enableLoading,
-    ...props
-  }: {
-    status: SCRIPT_STATUS;
-    enableLoading: boolean | undefined;
-    [key: string]: any;
-  }) => {
-    return (
-      <Switch checked={status === SCRIPT_STATUS_ENABLE} loading={enableLoading} disabled={enableLoading} {...props} />
-    );
-  }
-);
-EnableSwitch.displayName = "EnableSwitch";
-
 function ScriptList() {
   const [userConfig, setUserConfig] = useState<{
     script: Script;
@@ -654,16 +591,12 @@ function ScriptList() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-  // Provide context for DraggableContainer
-  const draggableContextValue = useMemo(
-    () => ({
-      sensors,
-      scriptList,
-      setScriptList,
-      dispatch,
-    }),
-    [sensors, scriptList, setScriptList, dispatch]
-  );
+
+  const draggableCtxRef = useRef({ sensors, scriptList, setScriptList, dispatch });
+  draggableCtxRef.current.sensors = sensors;
+  draggableCtxRef.current.scriptList = scriptList;
+  draggableCtxRef.current.setScriptList = setScriptList;
+  draggableCtxRef.current.dispatch = dispatch;
 
   const doInitial = async () => {
     setInitial(true);
@@ -837,6 +770,135 @@ function ScriptList() {
     });
   }, []);
 
+  const handlers = useStaticObject(
+    ({ t, navigate, updateEntry, updateScriptList }) => {
+      return {
+        enableSwitchCell: {
+          onChange: (uuid: string) => {
+            return (checked: boolean) => {
+              updateScriptList({ uuid: uuid, enableLoading: true });
+              requestEnableScript({ uuid: uuid, enable: checked });
+            };
+          },
+        },
+        applyToRunStatusCell: {
+          toLogger: (uuid: string) => {
+            return () => {
+              const queryValue = encodeURIComponent(
+                JSON.stringify([
+                  { key: "uuid", value: uuid },
+                  {
+                    key: "component",
+                    value: "GM_log",
+                  },
+                ])
+              );
+              navigate({
+                pathname: "logger",
+                search: `query=${queryValue}`,
+              });
+            };
+          },
+        },
+        updateTimeCell: {
+          onClick: (uuid: string, checkUpdateUrl: string | undefined) => {
+            return () => {
+              if (!checkUpdateUrl) {
+                Message.warning(t("update_not_supported")!);
+                return;
+              }
+              Message.info({
+                id: "checkupdate",
+                content: t("checking_for_updates"),
+              });
+              scriptClient
+                .requestCheckUpdate(uuid)
+                .then((res) => {
+                  if (res) {
+                    Message.warning({
+                      id: "checkupdate",
+                      content: t("new_version_available"),
+                    });
+                  } else {
+                    Message.success({
+                      id: "checkupdate",
+                      content: t("latest_version"),
+                    });
+                  }
+                })
+                .catch((e) => {
+                  Message.error({
+                    id: "checkupdate",
+                    content: `${t("update_check_failed")}: ${e.message}`,
+                  });
+                });
+            };
+          },
+        },
+        actionCell: {
+          handleDelete: (uuid: string) => {
+            return () => {
+              updateScriptList({ uuid, actionLoading: true });
+              requestDeleteScripts([uuid]);
+            };
+          },
+
+          handleConfig: (item: ScriptLoading) => {
+            return () => {
+              new ValueClient(message).getScriptValue(item).then((newValues) => {
+                setUserConfig({
+                  userConfig: { ...item.config! },
+                  script: item,
+                  values: newValues,
+                });
+              });
+            };
+          },
+
+          handleRunStop: (uuid: string, runStatus: SCRIPT_RUN_STATUS) => {
+            return async () => {
+              if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+                // Stop script
+                Message.loading({
+                  id: "script-stop",
+                  content: t("stopping_script"),
+                });
+                updateEntry([uuid], { actionLoading: true });
+                await requestStopScript(uuid);
+                updateEntry([uuid], { actionLoading: false });
+                Message.success({
+                  id: "script-stop",
+                  content: t("script_stopped"),
+                  duration: 3000,
+                });
+              } else {
+                Message.loading({
+                  id: "script-run",
+                  content: t("starting_script"),
+                });
+                updateEntry([uuid], { actionLoading: true });
+                await requestRunScript(uuid);
+                updateEntry([uuid], { actionLoading: false });
+                Message.success({
+                  id: "script-run",
+                  content: t("script_started"),
+                  duration: 3000,
+                });
+              }
+            };
+          },
+
+          handleCloud: (item: ScriptLoading) => {
+            return () => {
+              setCloudScript(item);
+            };
+          },
+        },
+      };
+    },
+    { updateScriptList, updateEntry, navigate, t, setCloudScript }
+  );
+
   const columns: ColumnProps[] = useMemo(
     () =>
       [
@@ -869,7 +931,12 @@ function ScriptList() {
           ],
           onFilter: (value, row) => row.status === value,
           render: (col: any, item: ScriptLoading) => (
-            <EnableSwitchCell item={item} updateScriptList={updateScriptList} />
+            <EnableSwitchCell
+              status={item.status}
+              enableLoading={item.enableLoading}
+              uuid={item.uuid}
+              handlers={handlers}
+            />
           ),
         },
         {
@@ -980,7 +1047,7 @@ function ScriptList() {
           title: t("apply_to_run_status"),
           width: t("script_list_apply_to_run_status_width"),
           className: "apply_to_run_status",
-          render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} navigate={navigate} t={t} />,
+          render: (col: any, item: ListType) => <ApplyToRunStatusCell item={item} t={t} handlers={handlers} />,
         },
         {
           title: t("source"),
@@ -1004,23 +1071,16 @@ function ScriptList() {
           key: "updatetime",
           width: t("script_list_last_updated_width"),
           sorter: (a, b) => a.updatetime - b.updatetime,
-          render: (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
+          render: (col: number, script: ListType) => (
+            <UpdateTimeCell col={col} script={script} t={t} handlers={handlers} />
+          ),
         },
         {
           title: t("action"),
           dataIndex: "action",
           key: "action",
           width: 160,
-          render: (col: any, item: ScriptLoading) => (
-            <ActionCell
-              item={item}
-              updateScriptList={updateScriptList}
-              updateEntry={updateEntry}
-              setUserConfig={setUserConfig}
-              setCloudScript={setCloudScript}
-              t={t}
-            />
-          ),
+          render: (col: any, item: ScriptLoading) => <ActionCell item={item} handlers={handlers} t={t} />,
         },
       ] as ColumnProps[],
     [t]
@@ -1140,7 +1200,7 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
-      <DraggableContext.Provider value={draggableContextValue}>
+      <DraggableContext.Provider value={draggableCtxRef.current}>
         <Space direction="vertical">
           {showAction && (
             <Card>
