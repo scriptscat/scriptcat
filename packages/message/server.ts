@@ -96,7 +96,7 @@ export class SenderRuntime {
   }
 
   getConnect(): undefined {
-    throw undefined;
+    throw new Error('SenderRuntime does not have MessageConnect');
   }
 }
 
