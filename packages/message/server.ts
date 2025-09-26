@@ -39,7 +39,7 @@ export class SenderConnect {
     if (this.sender instanceof ExtensionMessageConnect) {
       return this.sender.getPort().sender;
     } else {
-      throw undefined;
+      throw new Error('SenderConnect does not have RuntimeMessageSender');
     }
   }
 
