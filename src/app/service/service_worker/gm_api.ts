@@ -596,12 +596,9 @@ export default class GMApi {
 
   CAT_fetch(config: GMSend.XHRDetails, con: TGetSender, resultParam: RequestResultParams) {
     const { url } = config;
-    if (!con.isType(GetSenderType.CONNECT)) {
-      console.error("CAT_fetch ERROR: con is not MessageConnect");
-    }
     const msgConn = con.getConnect();
     if (!msgConn) {
-      console.error("CAT_fetch ERROR: msgConn is undefinded");
+      throw new Error("CAT_fetch ERROR: msgConn is undefinded");
     }
     return fetch(url, {
       method: config.method || "GET",
@@ -614,25 +611,25 @@ export default class GMApi {
       switch (resp.type) {
         case "opaqueredirect":
           // 处理manual重定向
-          msgConn?.sendMessage({
+          msgConn.sendMessage({
             action: "onloadstart",
             data: send,
           });
           send = this.dealFetch(config, resp, 2, resultParam);
-          msgConn?.sendMessage({
+          msgConn.sendMessage({
             action: "onreadystatechange",
             data: send,
           });
           send.readyState = 4;
-          msgConn?.sendMessage({
+          msgConn.sendMessage({
             action: "onreadystatechange",
             data: send,
           });
-          msgConn?.sendMessage({
+          msgConn.sendMessage({
             action: "onload",
             data: send,
           });
-          msgConn?.sendMessage({
+          msgConn.sendMessage({
             action: "onloadend",
             data: send,
           });
