@@ -4,14 +4,43 @@ import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
 import Logger from "@App/app/logger/logger";
 
-export class GetSender {
-  constructor(private sender: MessageConnect | RuntimeMessageSender) {}
+export const enum GetSenderType {
+  CONNECT = 1,
+  EXTCONNECT = 1 | 2,
+  RUNTIME = 4,
+}
+export interface IGetSender {
+  getType(): number;
+  isType(type: GetSenderType): boolean;
+  getSender(): RuntimeMessageSender | undefined;
+  getExtMessageSender(): ExtMessageSender;
+  getConnect(): MessageConnect | undefined;
+}
 
-  getSender(): RuntimeMessageSender {
+export class SenderConnect {
+  private readonly mType;
+  constructor(private sender: MessageConnect) {
     if (this.sender instanceof ExtensionMessageConnect) {
-      return this.sender.getPort().sender as RuntimeMessageSender;
+      this.mType = GetSenderType.EXTCONNECT;
+    } else {
+      this.mType = GetSenderType.CONNECT;
     }
-    return this.sender as RuntimeMessageSender;
+  }
+
+  getType() {
+    return this.mType;
+  }
+
+  isType(type: GetSenderType): boolean {
+    return (this.mType & type) === type;
+  }
+
+  getSender(): RuntimeMessageSender | undefined {
+    if (this.sender instanceof ExtensionMessageConnect) {
+      return this.sender.getPort().sender;
+    } else {
+      return undefined;
+    }
   }
 
   getExtMessageSender(): ExtMessageSender {
@@ -23,7 +52,40 @@ export class GetSender {
         frameId: con.sender?.frameId,
         documentId: con.sender?.documentId,
       };
+    } else {
+      return {
+        windowId: -1, // -1表示后台脚本
+        tabId: -1, // -1表示后台脚本
+        frameId: undefined,
+        documentId: undefined,
+      };
     }
+  }
+
+  getConnect(): MessageConnect {
+    return this.sender;
+  }
+}
+
+export class SenderRuntime {
+  private readonly mType;
+  constructor(private sender: RuntimeMessageSender) {
+    this.mType = GetSenderType.RUNTIME;
+  }
+
+  getType() {
+    return this.mType;
+  }
+
+  isType(type: GetSenderType): boolean {
+    return (this.mType & type) === type;
+  }
+
+  getSender(): RuntimeMessageSender {
+    return this.sender;
+  }
+
+  getExtMessageSender(): ExtMessageSender {
     const sender = this.sender as RuntimeMessageSender;
     return {
       windowId: sender.tab?.windowId || -1, // -1表示后台脚本
@@ -33,14 +95,14 @@ export class GetSender {
     };
   }
 
-  getConnect(): MessageConnect {
-    return this.sender as MessageConnect;
+  getConnect(): undefined {
+    return undefined;
   }
 }
 
-type ApiFunction = (params: any, con: GetSender) => Promise<any> | void;
-type ApiFunctionSync = (params: any, con: GetSender) => any;
-type MiddlewareFunction = (params: any, con: GetSender, next: () => Promise<any> | any) => Promise<any> | any;
+type ApiFunction = (params: any, con: IGetSender) => Promise<any> | void;
+type ApiFunctionSync = (params: any, con: IGetSender) => any;
+type MiddlewareFunction = (params: any, con: IGetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
@@ -89,7 +151,7 @@ export class Server {
   private connectHandle(msg: string, params: any, con: MessageConnect) {
     const func = this.apiFunctionMap.get(msg);
     if (func) {
-      const ret = func(params, new GetSender(con));
+      const ret = func(params, new SenderConnect(con));
       if (ret) {
         if (ret instanceof Promise) {
           ret
@@ -113,12 +175,12 @@ export class Server {
     action: string,
     params: any,
     sendResponse: (response: any) => void,
-    sender?: RuntimeMessageSender
+    sender: RuntimeMessageSender
   ) {
     const func = this.apiFunctionMap.get(action);
     if (func) {
       try {
-        const ret = func(params, new GetSender(sender!));
+        const ret = func(params, new SenderRuntime(sender));
         if (ret instanceof Promise) {
           ret
             .then((data) => {
@@ -184,7 +246,7 @@ export class Group {
       this.server.on(fullName, func);
     } else {
       // 有中间件，需要包装处理函数
-      this.server.on(fullName, async (params: any, con: GetSender) => {
+      this.server.on(fullName, async (params: any, con: IGetSender) => {
         let index = 0;
 
         const next = async (): Promise<any> => {
@@ -211,7 +273,7 @@ export function forwardMessage(
   senderTo: MessageSend,
   middleware?: ApiFunctionSync
 ) {
-  const handler = (params: any, fromCon: GetSender) => {
+  const handler = (params: any, fromCon: IGetSender) => {
     const fromConnect = fromCon.getConnect();
     if (fromConnect) {
       connect(senderTo, `${prefix}/${path}`, params).then((toCon: MessageConnect) => {
