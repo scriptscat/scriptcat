@@ -596,7 +596,7 @@ export default class GMApi {
 
   CAT_fetch(config: GMSend.XHRDetails, con: TGetSender, resultParam: RequestResultParams) {
     const { url } = config;
-    if (con.getType() & GetSenderType.CONNECT) {
+    if (!con.isType(GetSenderType.CONNECT)) {
       console.error("CAT_fetch ERROR: con is not MessageConnect");
     }
     const msgConn = con.getConnect();
