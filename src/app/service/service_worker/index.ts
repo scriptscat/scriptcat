@@ -12,7 +12,6 @@ import { systemConfig } from "@App/pages/store/global";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
@@ -45,7 +44,6 @@ export default class ServiceWorkerManager {
 
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
-    const localStorageDAO = new LocalStorageDAO();
 
     const localStorageDAO = new LocalStorageDAO();
 
