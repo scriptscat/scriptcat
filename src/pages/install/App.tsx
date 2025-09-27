@@ -60,6 +60,7 @@ function App() {
   const { t } = useTranslation();
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
+    if (newScript.ignoreVersion) newScript.ignoreVersion = "";
     await scriptClient.install(newScript, code);
     const metadata = newScript.metadata;
     setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
@@ -311,6 +312,7 @@ function App() {
             // 这里可以设置脚本禁用自动更新的逻辑
             (mUpsertScript as Script).checkUpdate = false;
           }
+          if ((mUpsertScript as Script).ignoreVersion) (mUpsertScript as Script).ignoreVersion = "";
           // 故意只安装或执行，不改变显示内容
           await scriptClient.install(mUpsertScript as Script, scriptCode);
           if (isUpdate) {

@@ -14,4 +14,12 @@ export class LocalStorageDAO extends Repo<LocalStorageItem> {
   save(value: LocalStorageItem) {
     return super._save(value.key, value);
   }
+
+  async getValue<T>(key: string) {
+    return (await super.get(key))?.value as T | undefined;
+  }
+
+  saveValue<T>(key: string, value: T) {
+    return super._save(key, { key, value });
+  }
 }

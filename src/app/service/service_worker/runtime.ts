@@ -2,7 +2,7 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInf
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { GetSender, Group } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, RuntimeMessageSender } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -26,7 +26,7 @@ import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { type ResourceService } from "./resource";
-import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { type LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
@@ -69,6 +69,9 @@ export class RuntimeService {
   initReady: Promise<boolean> | boolean = false;
 
   mq: IMessageQueue;
+
+  sitesLoaded: Set<string> = new Set<string>();
+  updateSitesBusy: boolean = false;
 
   constructor(
     private systemConfig: SystemConfig,
@@ -114,10 +117,9 @@ export class RuntimeService {
 
   showNoDeveloperModeWarning() {
     // 判断是否首次
-    const localStorage = new LocalStorageDAO();
-    localStorage.get("firstShowDeveloperMode").then((res) => {
+    this.localStorageDAO.get("firstShowDeveloperMode").then((res) => {
       if (!res) {
-        localStorage.save({
+        this.localStorageDAO.save({
           key: "firstShowDeveloperMode",
           value: true,
         });
@@ -675,6 +677,30 @@ export class RuntimeService {
     return ret;
   }
 
+  async updateSites() {
+    if (this.sitesLoaded.size === 0 || this.updateSitesBusy) return;
+    this.updateSitesBusy = true;
+    const list = [...this.sitesLoaded];
+    this.sitesLoaded.clear();
+    const currentSites = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
+    const sets: Partial<Record<string, Set<string>>> = {};
+    for (const str of list) {
+      const [uuid, domain] = str.split("|");
+      const s = sets[uuid] || (sets[uuid] = new Set([] as string[]));
+      s.add(domain);
+    }
+    for (const uuid in sets) {
+      const s = new Set([...sets[uuid]!, ...(currentSites[uuid] || ([] as string[]))]);
+      const arr = (currentSites[uuid] = [...s]);
+      if (arr.length > 50) arr.length = 50;
+    }
+    await this.localStorageDAO.saveValue("sites", currentSites);
+    this.updateSitesBusy = false;
+    if (this.sitesLoaded.size > 0) {
+      Promise.resolve().then(() => this.updateSites());
+    }
+  }
+
   async pageLoad(_: any, sender: GetSender) {
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
@@ -832,6 +858,22 @@ export class RuntimeService {
       frameId: chromeSender.frameId,
       scripts: enableScript,
     });
+
+    let domain = "";
+    try {
+      const url = chromeSender.url ? new URL(chromeSender.url) : null;
+      if (url?.protocol?.startsWith("http")) {
+        domain = url.hostname;
+      }
+    } catch {
+      // ignore
+    }
+    if (domain) {
+      for (const script of enableScript) {
+        this.sitesLoaded.add(`${script.uuid}|${domain}`);
+      }
+      Promise.resolve().then(() => this.updateSites());
+    }
 
     return {
       flag: scriptFlag,

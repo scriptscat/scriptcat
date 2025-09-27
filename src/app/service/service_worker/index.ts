@@ -16,6 +16,7 @@ import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
+import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 
 // service worker的管理器
@@ -43,9 +44,13 @@ export default class ServiceWorkerManager {
 
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
+
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+
+    let pendingOpen = 0;
+    let targetSites: string[] = [];
 
     const resource = new ResourceService(this.api.group("resource"), this.mq);
     resource.init();
@@ -83,6 +88,17 @@ export default class ServiceWorkerManager {
     const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
     system.init();
 
+    const regularScriptUpdateCheck = async () => {
+      const res = await script.checkScriptUpdate({ checkType: "system" });
+      if (!res?.ok) return;
+      targetSites = res.targetSites;
+      pendingOpen = res.checktime;
+    };
+
+    this.mq.subscribe<any>("msgUpdatePageOpened", () => {
+      pendingOpen = 0;
+    });
+
     // 定时器处理
     chrome.alarms.onAlarm.addListener((alarm) => {
       const lastError = chrome.runtime.lastError;
@@ -92,7 +108,7 @@ export default class ServiceWorkerManager {
       }
       switch (alarm.name) {
         case "checkScriptUpdate":
-          script.checkScriptUpdate();
+          regularScriptUpdateCheck();
           break;
         case "cloudSync":
           // 进行一次云同步
@@ -190,6 +206,62 @@ export default class ServiceWorkerManager {
         }
       });
     }
+
+    setOnUserActionDomainChanged(
+      async (
+        oldDomain: string,
+        newDomain: string,
+        _previousUrl: string | undefined,
+        _navUrl: string,
+        _tab: chrome.tabs.Tab
+      ) => {
+        // 已忽略后台换页
+        // 在非私隐模式，正常Tab的操作下，用户的打开新Tab，或在当时Tab转至新网域时，会触发此function
+        // 同一网域，SPA换页等不触发
+        if (pendingOpen > 0 && targetSites.length > 0) {
+          // 有更新，可弹出
+          if (targetSites.includes(newDomain)) {
+            // 只针对该网域的有效脚本发现「有更新」进行弹出
+            // 如该网域没有任何有效脚本则忽略
+            const domain = newDomain;
+            const anyOpened = await script.openBatchUpdatePage(domain ? `site=${domain}` : "");
+            if (anyOpened) {
+              pendingOpen = 0;
+            }
+          }
+        }
+      }
+    );
+
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
+        // 无视错误
+      }
+      // 只针对状态改变及URL推送；addListener 不使用FF专有的 filter 参数
+      if (changeInfo.status === "loading" || changeInfo.status === "complete" || changeInfo.url) {
+        onUrlNavigated(tab);
+      }
+    });
+
+    chrome.tabs.onCreated.addListener((tab) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onCreated:", lastError);
+        // 无视错误
+      }
+      onUrlNavigated(tab);
+    });
+
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
+        // 无视错误
+      }
+      onTabRemoved(tabId);
+    });
   }
 
   checkUpdate() {

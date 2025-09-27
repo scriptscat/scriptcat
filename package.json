@@ -44,6 +44,7 @@
     "react-joyride": "^2.9.3",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.3",
+    "string-similarity-js": "^2.1.4",
     "uuid": "^11.1.0",
     "webdav": "^5.8.0",
     "yaml": "^2.8.0"

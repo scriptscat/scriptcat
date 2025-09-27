@@ -75,13 +75,10 @@ export type Token = {
 
 export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
   let token: Token | undefined = undefined;
-  const localStorageDao = new LocalStorageDAO();
+  const localStorageDAO = new LocalStorageDAO();
   const key = `netdisk:token:${netDiskType}`;
   try {
-    const resp = await localStorageDao.get(key);
-    if (resp) {
-      token = resp.value;
-    }
+    token = await localStorageDAO.getValue<Token>(key);
   } catch (_) {
     // ignore
   }
@@ -99,10 +96,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
       createtime: Date.now(),
     };
     invalid = false;
-    await localStorageDao.save({
-      key,
-      value: token,
-    });
+    await localStorageDAO.saveValue(key, token);
   }
   // token过期或者失效
   if (Date.now() >= token.createtime + 3600000 || invalid) {
@@ -110,7 +104,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
     try {
       const resp = await RefreshToken(netDiskType, token.refreshToken);
       if (resp.code !== 0) {
-        await localStorageDao.delete(key);
+        await localStorageDAO.delete(key);
         // 刷新失败,并且标记失效,尝试重新获取token
         if (invalid) {
           return await AuthVerify(netDiskType);
@@ -123,10 +117,7 @@ export async function AuthVerify(netDiskType: NetDiskType, invalid?: boolean) {
         createtime: Date.now(),
       };
       // 更新token
-      await localStorageDao.save({
-        key,
-        value: token,
-      });
+      await localStorageDAO.saveValue(key, token);
     } catch (_) {
       // 报错返回原token
       return token.accessToken;

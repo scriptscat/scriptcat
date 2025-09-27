@@ -37,6 +37,7 @@ export default defineConfig({
     inject: `${src}/inject.ts`,
     popup: `${src}/pages/popup/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
+    batchupdate: `${src}/pages/batchupdate/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
     import: `${src}/pages/import/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
@@ -149,6 +150,14 @@ export default defineConfig({
       title: "Install - ScriptCat",
       minify: true,
       chunks: ["install"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/batchupdate.html`,
+      template: `${src}/pages/template.html`,
+      inject: "head",
+      title: "BatchUpdate - ScriptCat",
+      minify: true,
+      chunks: ["batchupdate"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/confirm.html`,
