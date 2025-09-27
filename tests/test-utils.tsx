@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { render, type RenderOptions, cleanup } from "@testing-library/react";
-import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { AppProvider } from "@App/pages/store/AppContext";
 import { vi, afterEach } from "vitest";
 
 // Mock monaco-editor
@@ -19,28 +18,13 @@ afterEach(() => {
   cleanup();
 });
 
-// 创建一个基础的mock store
-const createMockStore = (initialState = {}) => {
-  return configureStore({
-    reducer: {
-      script: (state = { scripts: [], backScripts: [] }) => state,
-      config: (state = { theme: "light" }) => state,
-    },
-    preloadedState: initialState,
-  });
-};
-
 // 自定义render函数，包装Redux Provider
 const customRender = (
   ui: ReactElement,
-  {
-    initialState = {},
-    store = createMockStore(initialState),
-    ...renderOptions
-  }: { initialState?: any; store?: any } & Omit<RenderOptions, "wrapper"> = {}
+  { _initialState = {}, ...renderOptions }: { _initialState?: any; store?: any } & Omit<RenderOptions, "wrapper"> = {}
 ) => {
   const Wrapper = ({ children }: { children: React.ReactNode }) => {
-    return <Provider store={store}>{children}</Provider>;
+    return <AppProvider>{children}</AppProvider>;
   };
 
   return render(ui, { wrapper: Wrapper, ...renderOptions });
@@ -54,8 +38,14 @@ export const setupGlobalMocks = () => {
   Object.assign(global, {
     open: vi.fn(),
     location: { href: "https://example.com" },
+    matchMedia: () => {
+      return {
+        matches: false,
+        addEventListener: vi.fn(),
+      };
+    },
   });
 };
 
 export * from "@testing-library/react";
-export { customRender as render, createMockStore };
+export { customRender as render };

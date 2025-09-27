@@ -23,10 +23,9 @@ import {
   IconSunFill,
 } from "@arco-design/web-react/icon";
 import type { ReactNode } from "react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAppDispatch, useAppSelector } from "@App/pages/store/hooks";
-import { selectThemeMode, setDarkMode } from "@App/pages/store/features/config";
+import { AppContext } from "@App/pages/store/AppContext";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
 import { useDropzone, type FileWithPath } from "react-dropzone";
@@ -43,8 +42,12 @@ const MainLayout: React.FC<{
   className: string;
   pageName?: string;
 }> = ({ children, className, pageName }) => {
-  const lightMode = useAppSelector(selectThemeMode);
-  const dispatch = useAppDispatch();
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("AppProvider is not found");
+  }
+  const { colorThemeState, updateColorTheme } = context;
+
   const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
@@ -184,7 +187,7 @@ const MainLayout: React.FC<{
         setShowLanguage(true);
       }
     });
-  });
+  }, []);
 
   const handleImport = async () => {
     const urls = importRef.current!.dom.value.split("\n").filter((v) => v);
@@ -309,9 +312,10 @@ const MainLayout: React.FC<{
               droplist={
                 <Menu
                   onClickMenuItem={(key) => {
-                    dispatch(setDarkMode(key as "light" | "dark" | "auto"));
+                    const theme = key as "auto" | "light" | "dark";
+                    updateColorTheme(theme);
                   }}
-                  selectedKeys={[lightMode]}
+                  selectedKeys={[colorThemeState]}
                 >
                   <Menu.Item key="light">
                     <IconSunFill /> {t("light")}
@@ -331,9 +335,9 @@ const MainLayout: React.FC<{
                 size="small"
                 icon={
                   <>
-                    {lightMode === "auto" && <IconDesktop />}
-                    {lightMode === "light" && <IconSunFill />}
-                    {lightMode === "dark" && <IconMoonFill />}
+                    {colorThemeState === "auto" && <IconDesktop />}
+                    {colorThemeState === "light" && <IconSunFill />}
+                    {colorThemeState === "dark" && <IconMoonFill />}
                   </>
                 }
                 style={{

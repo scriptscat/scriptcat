@@ -2,8 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import MainLayout from "../components/layout/MainLayout.tsx";
 import Sider from "../components/layout/Sider.tsx";
-import { Provider } from "react-redux";
-import { store } from "@App/pages/store/store.ts";
+import { AppProvider } from "../store/AppContext.tsx";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
@@ -27,11 +26,11 @@ const loggerCore = new LoggerCore({
 loggerCore.logger().debug("options page start");
 
 const Root = (
-  <Provider store={store}>
+  <AppProvider>
     <MainLayout className="!flex-row" pageName="options">
       <Sider />
     </MainLayout>
-  </Provider>
+  </AppProvider>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
