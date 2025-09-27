@@ -649,11 +649,27 @@ const FilterDropdown = React.memo(
     t: TFunction<"translation", undefined>;
     inputRef: React.RefObject<RefInputType>;
   }) => {
+    // 执行 setFilterKeys([...filterKeys]) 后 FilterDropdown 会发生重绘。（正常）
     if (!filterKeys.length) {
       filterKeys = [{ type: "auto", value: "" }];
     }
-    const { onChange, onSearch } = useStableCallbacks({
-      onChange: (value) => {
+    const { onTypeChange, onSearchChange } = useStableCallbacks({
+      onTypeChange: (value: any, _option: any) => {
+        if (value !== filterKeys[0].type) {
+          filterKeys[0].type = value;
+          if (!filterKeys[0].value) {
+            setFilterCache(null);
+            setFilterKeys([...filterKeys]);
+            return;
+          }
+          requestFilterResult({ type: value, value: filterKeys[0].value }).then((res) => {
+            if (filterKeys[0].type !== value) return;
+            setFilterCache(res as any);
+            setFilterKeys([...filterKeys]);
+          });
+        }
+      },
+      onSearchChange: (value: string, _e: any) => {
         if (value !== filterKeys[0].value) {
           filterKeys[0].value = value;
           if (!filterKeys[0].value) {
@@ -668,10 +684,11 @@ const FilterDropdown = React.memo(
           });
         }
       },
-      onSearch: () => {
-        confirm!();
-      },
     });
+    // onSearch 不能使用 useCallback / useMemo / useStableCallbacks
+    const onSearch = () => {
+      confirm();
+    };
     return (
       <div className="arco-table-custom-filter flex flex-row gap-2">
         <Select
@@ -679,21 +696,7 @@ const FilterDropdown = React.memo(
           triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
           size="small"
           value={filterKeys[0].type || "auto"}
-          onChange={(value) => {
-            if (value !== filterKeys[0].type) {
-              filterKeys[0].type = value;
-              if (!filterKeys[0].value) {
-                setFilterCache(null);
-                setFilterKeys([...filterKeys]);
-                return;
-              }
-              requestFilterResult({ type: value, value: filterKeys[0].value }).then((res) => {
-                if (filterKeys[0].type !== value) return;
-                setFilterCache(res as any);
-                setFilterKeys([...filterKeys]);
-              });
-            }
-          }}
+          onChange={onTypeChange}
         >
           <Select.Option value="auto">{t("auto")}</Select.Option>
           <Select.Option value="name">{t("name")}</Select.Option>
@@ -710,7 +713,7 @@ const FilterDropdown = React.memo(
             })!
           }
           value={filterKeys[0].value || ""}
-          onChange={onChange}
+          onChange={onSearchChange}
           onSearch={onSearch}
         />
       </div>
