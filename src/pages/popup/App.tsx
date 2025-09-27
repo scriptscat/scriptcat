@@ -30,12 +30,14 @@ const iconStyle = {
   fontSize: 16,
 };
 
+type TCheckUpdate = Parameters<typeof systemConfig.setCheckUpdate>[0];
+
 function App() {
   const [loading, setLoading] = useState(true);
   const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
-  const [checkUpdate, setCheckUpdate] = useState<Parameters<typeof systemConfig.setCheckUpdate>[0]>({
+  const [checkUpdate, setCheckUpdate] = useState<TCheckUpdate>({
     version: ExtVersion,
     notice: "",
     isRead: false,
@@ -151,10 +153,12 @@ function App() {
 
   const handleNotificationClick = useCallback(() => {
     setShowAlert((prev) => !prev);
-    const updatedCheckUpdate = { ...checkUpdate, isRead: true };
-    setCheckUpdate(updatedCheckUpdate);
-    systemConfig.setCheckUpdate(updatedCheckUpdate);
-  }, [checkUpdate]);
+    setCheckUpdate((checkUpdate) => {
+      const updatedCheckUpdate = { ...checkUpdate, isRead: true };
+      systemConfig.setCheckUpdate(updatedCheckUpdate);
+      return updatedCheckUpdate;
+    });
+  }, []);
 
   const handleMenuClick = useCallback(async (key: string) => {
     switch (key) {
