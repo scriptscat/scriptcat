@@ -156,7 +156,7 @@ function App() {
     systemConfig.setCheckUpdate(updatedCheckUpdate);
   }, [checkUpdate]);
 
-  const handleMenuClick = async (key: string) => {
+  const handleMenuClick = useCallback(async (key: string) => {
     switch (key) {
       case "newScript":
         await chrome.storage.local.set({
@@ -181,7 +181,7 @@ function App() {
         window.open(key, "_blank");
         break;
     }
-  };
+  }, []);
 
   return (
     <>
