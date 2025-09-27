@@ -106,9 +106,6 @@ MenuItem.displayName = "MenuItem";
 const ScriptMenuList = React.memo(
   ({ script, isBackscript, currentUrl }: { script: ScriptMenu[]; isBackscript: boolean; currentUrl: string }) => {
     const [list, setList] = useState([] as ScriptMenu[]);
-    const [expandMenuIndex, setExpandMenuIndex] = useState<{
-      [key: string]: boolean;
-    }>({});
     const { t } = useTranslation();
     const [menuExpandNum, setMenuExpandNum] = useState(5);
 
@@ -167,56 +164,44 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const {
-      handleEnableChange,
-      handleRunScript,
-      handleEditScript,
-      handleDeleteScript,
-      handleExpandMenu,
-      handleOpenUserConfig,
-    } = useStableCallbacks({
-      handleEnableChange: (item: ScriptMenu, checked: boolean) => {
-        scriptClient
-          .enable(item.uuid, checked)
-          .then(() => {
-            setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
-          })
-          .catch((err) => {
-            Message.error(err);
+    const { handleEnableChange, handleRunScript, handleEditScript, handleDeleteScript, handleOpenUserConfig } =
+      useStableCallbacks({
+        handleEnableChange: (item: ScriptMenu, checked: boolean) => {
+          scriptClient
+            .enable(item.uuid, checked)
+            .then(() => {
+              setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
+            })
+            .catch((err) => {
+              Message.error(err);
+            });
+        },
+
+        handleRunScript: (item: ScriptMenu) => {
+          if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+            runtimeClient.runScript(item.uuid);
+          } else {
+            runtimeClient.stopScript(item.uuid);
+          }
+        },
+
+        handleEditScript: (uuid: string) => {
+          window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
+          window.close();
+        },
+
+        handleDeleteScript: (uuid: string) => {
+          setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+          scriptClient.deletes([uuid]).catch((e) => {
+            Message.error(`{t('delete_failed')}: ${e}`);
           });
-      },
+        },
 
-      handleRunScript: (item: ScriptMenu) => {
-        if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-          runtimeClient.runScript(item.uuid);
-        } else {
-          runtimeClient.stopScript(item.uuid);
-        }
-      },
-
-      handleEditScript: (uuid: string) => {
-        window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
-        window.close();
-      },
-
-      handleDeleteScript: (uuid: string) => {
-        setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
-        scriptClient.deletes([uuid]).catch((e) => {
-          Message.error(`{t('delete_failed')}: ${e}`);
-        });
-      },
-      handleExpandMenu: (index: number) => {
-        setExpandMenuIndex((prev) => ({
-          ...prev,
-          [index]: !prev[index],
-        }));
-      },
-
-      handleOpenUserConfig: (uuid: string) => {
-        window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
-        window.close();
-      },
-    });
+        handleOpenUserConfig: (uuid: string) => {
+          window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
+          window.close();
+        },
+      });
 
     const CollapseHeader = React.memo(
       ({
@@ -267,16 +252,19 @@ const ScriptMenuList = React.memo(
     );
     CollapseHeader.displayName = "CollapseHeader";
 
-    const ListMenuItem = React.memo(({ item, index }: { item: ScriptMenu; index: number }) => {
+    const ListMenuItem = React.memo(({ item }: { item: ScriptMenu }) => {
       const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
 
-      const visibleMenus = useMemo(() => {
-        return item.menus.length > menuExpandNum && !expandMenuIndex[index]
-          ? item.menus.slice(0, menuExpandNum)
-          : item.menus;
-      }, [item.menus, expandMenuIndex, index, menuExpandNum]);
+      const [isExpand, setIsExpand] = useState<boolean>(false);
 
-      const isExpand = useMemo(() => expandMenuIndex[index], [expandMenuIndex, index]);
+      const handleExpandMenu = () => {
+        setIsExpand((e) => !e);
+      };
+
+      const visibleMenus = useMemo(() => {
+        const m = item.menus;
+        return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
+      }, [item.menus, isExpand, menuExpandNum]);
 
       const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
 
@@ -298,7 +286,7 @@ const ScriptMenuList = React.memo(
         handleClickEditScript: () => handleEditScript(item.uuid),
         handleClickExcludeUrl: () => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective),
         handleClickDeleteScript: () => handleDeleteScript(item.uuid),
-        handleClickExpandMenu: () => handleExpandMenu(index),
+        handleClickExpandMenu: () => handleExpandMenu(),
         handleClickOpenUserConfig: () => handleOpenUserConfig(item.uuid),
       });
 
@@ -380,7 +368,7 @@ const ScriptMenuList = React.memo(
         {list.length === 0 ? (
           <Empty description={t("no_data")} />
         ) : (
-          list.map((item, index) => <ListMenuItem key={`${item.uuid}`} item={item} index={index} />)
+          list.map((item, _index) => <ListMenuItem key={`${item.uuid}`} item={item} />)
         )}
       </>
     );
