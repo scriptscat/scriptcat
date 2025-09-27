@@ -256,30 +256,36 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
       }),
   });
 
+  const favoriteMemo = useMemo(() => {
+    const fav1 = item.favorite;
+    const fav2 = !fav1
+      ? []
+      : fav1
+          .slice()
+          .sort((a, b) => (a.icon && !b.icon ? -1 : !a.icon && b.icon ? 1 : a.match.localeCompare(b.match)))
+          .slice(0, 4);
+    return {
+      trimmed: fav2,
+      originalLen: fav1?.length ?? 0,
+    };
+  }, [item.favorite]);
+
   if (item.type === SCRIPT_TYPE_NORMAL) {
     return (
       <>
         <Avatar.Group size={20}>
-          {item.favorite &&
-            [...item.favorite]
-              .sort((a, b) => {
-                if (a.icon && !b.icon) return -1;
-                if (!a.icon && b.icon) return 1;
-                return a.match.localeCompare(b.match);
-              })
-              .slice(0, 4)
-              .map((fav) => (
-                <MemoizedAvatar
-                  key={`${fav.match}_${fav.icon}_${fav.website}`}
-                  {...fav}
-                  onClick={() => {
-                    if (fav.website) {
-                      window.open(fav.website, "_blank");
-                    }
-                  }}
-                />
-              ))}
-          {item.favorite && item.favorite.length > 4 && "..."}
+          {favoriteMemo.trimmed.map((fav) => (
+            <MemoizedAvatar
+              key={`${fav.match}_${fav.icon}_${fav.website}`}
+              {...fav}
+              onClick={() => {
+                if (fav.website) {
+                  window.open(fav.website, "_blank");
+                }
+              }}
+            />
+          ))}
+          {favoriteMemo.originalLen > 4 && "..."}
         </Avatar.Group>
       </>
     );
