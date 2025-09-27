@@ -574,8 +574,8 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
     // compute once, even if context is null (keeps hook order legal)
     const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
 
-    const handleDragEnd = useCallback(
-      (event: DragEndEvent) => {
+    const { handleDragEnd } = useStableCallbacks({
+      handleDragEnd: (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) {
           return;
@@ -584,8 +584,7 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
           scriptListSortOrder(scriptList!, setScriptList!, { active: active.id as string, over: over.id as string });
         }
       },
-      [scriptList, setScriptList]
-    );
+    });
 
     return !sortableIds?.length ? (
       // render a plain tbody to keep the table structure intact
