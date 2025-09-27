@@ -17,7 +17,7 @@ import {
   IconSubscribe,
   IconTool,
 } from "@arco-design/web-react/icon";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RiFileCodeLine, RiGuideLine, RiLinkM } from "react-icons/ri";
@@ -25,6 +25,7 @@ import SiderGuide from "./SiderGuide";
 import CustomLink from "../CustomLink";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
+import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -40,9 +41,11 @@ const Sider: React.FC = () => {
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
 
-  const handleMenuClick = useCallback((key: string) => {
-    setMenuSelect(key);
-  }, []);
+  const { handleMenuClick } = useStableCallbacks({
+    handleMenuClick: (key: string) => {
+      setMenuSelect(key);
+    },
+  });
 
   return (
     <HashRouter>

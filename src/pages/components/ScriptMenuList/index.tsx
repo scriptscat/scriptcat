@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Collapse,
@@ -29,6 +29,7 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
+import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -111,16 +112,19 @@ const ScriptMenuList = React.memo(
     const { t } = useTranslation();
     const [menuExpandNum, setMenuExpandNum] = useState(5);
 
-    let url: URL;
-    try {
-      // 如果currentUrl为空或无效，使用默认URL
-      const urlToUse = currentUrl?.trim() || "https://example.com";
-      url = new URL(urlToUse);
-    } catch (e: any) {
-      console.error("Invalid URL:", e);
-      // 提供一个默认的URL，避免后续代码报错
-      url = new URL("https://example.com");
-    }
+    const url = useMemo(() => {
+      let url: URL;
+      try {
+        // 如果currentUrl为空或无效，使用默认URL
+        const urlToUse = currentUrl?.trim() || "https://example.com";
+        url = new URL(urlToUse);
+      } catch (e: any) {
+        console.error("Invalid URL:", e);
+        // 提供一个默认的URL，避免后续代码报错
+        url = new URL("https://example.com");
+      }
+      return url;
+    }, [currentUrl]);
     useEffect(() => {
       setList(script);
       // 注册菜单快捷键
@@ -163,48 +167,56 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleEnableChange = useCallback((item: ScriptMenu, checked: boolean) => {
-      scriptClient
-        .enable(item.uuid, checked)
-        .then(() => {
-          setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
-        })
-        .catch((err) => {
-          Message.error(err);
+    const {
+      handleEnableChange,
+      handleRunScript,
+      handleEditScript,
+      handleDeleteScript,
+      handleExpandMenu,
+      handleOpenUserConfig,
+    } = useStableCallbacks({
+      handleEnableChange: (item: ScriptMenu, checked: boolean) => {
+        scriptClient
+          .enable(item.uuid, checked)
+          .then(() => {
+            setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
+          })
+          .catch((err) => {
+            Message.error(err);
+          });
+      },
+
+      handleRunScript: (item: ScriptMenu) => {
+        if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+          runtimeClient.runScript(item.uuid);
+        } else {
+          runtimeClient.stopScript(item.uuid);
+        }
+      },
+
+      handleEditScript: (uuid: string) => {
+        window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
+        window.close();
+      },
+
+      handleDeleteScript: (uuid: string) => {
+        setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+        scriptClient.deletes([uuid]).catch((e) => {
+          Message.error(`{t('delete_failed')}: ${e}`);
         });
-    }, []);
+      },
+      handleExpandMenu: (index: number) => {
+        setExpandMenuIndex((prev) => ({
+          ...prev,
+          [index]: !prev[index],
+        }));
+      },
 
-    const handleRunScript = useCallback((item: ScriptMenu) => {
-      if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-        runtimeClient.runScript(item.uuid);
-      } else {
-        runtimeClient.stopScript(item.uuid);
-      }
-    }, []);
-
-    const handleEditScript = useCallback((uuid: string) => {
-      window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
-      window.close();
-    }, []);
-
-    const handleDeleteScript = useCallback((uuid: string) => {
-      setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
-      scriptClient.deletes([uuid]).catch((e) => {
-        Message.error(`{t('delete_failed')}: ${e}`);
-      });
-    }, []);
-
-    const handleExpandMenu = useCallback((index: number) => {
-      setExpandMenuIndex((prev) => ({
-        ...prev,
-        [index]: !prev[index],
-      }));
-    }, []);
-
-    const handleOpenUserConfig = useCallback((uuid: string) => {
-      window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
-      window.close();
-    }, []);
+      handleOpenUserConfig: (uuid: string) => {
+        window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
+        window.close();
+      },
+    });
 
     const CollapseHeader = React.memo(
       ({
@@ -214,6 +226,9 @@ const ScriptMenuList = React.memo(
         item: ScriptMenu;
         onEnableChange: (item: ScriptMenu, checked: boolean) => void;
       }) => {
+        const { onChange } = useStableCallbacks({
+          onChange: (checked) => onEnableChange(item, checked),
+        });
         return (
           <div
             onClick={(e) => {
@@ -231,7 +246,7 @@ const ScriptMenuList = React.memo(
             }
           >
             <Space>
-              <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
+              <Switch size="small" checked={item.enable} onChange={onChange} />
               <span
                 style={{
                   display: "block",
@@ -265,14 +280,27 @@ const ScriptMenuList = React.memo(
 
       const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
 
-      const handleExcludeUrl = useCallback(
-        (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
-          scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-            setIsEffective(!isEffective);
-          });
-        },
-        [item, isEffective]
-      );
+      const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+        scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
+          setIsEffective(!isEffective);
+        });
+      };
+
+      const {
+        handleClickRunScript,
+        handleClickEditScript,
+        handleClickExcludeUrl,
+        handleClickDeleteScript,
+        handleClickExpandMenu,
+        handleClickOpenUserConfig,
+      } = useStableCallbacks({
+        handleClickRunScript: () => handleRunScript(item),
+        handleClickEditScript: () => handleEditScript(item.uuid),
+        handleClickExcludeUrl: () => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective),
+        handleClickDeleteScript: () => handleDeleteScript(item.uuid),
+        handleClickExpandMenu: () => handleExpandMenu(index),
+        handleClickOpenUserConfig: () => handleOpenUserConfig(item.uuid),
+      });
 
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
@@ -287,17 +315,12 @@ const ScriptMenuList = React.memo(
                   className="text-left"
                   type="secondary"
                   icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
-                  onClick={() => handleRunScript(item)}
+                  onClick={handleClickRunScript}
                 >
                   {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
                 </Button>
               )}
-              <Button
-                className="text-left"
-                type="secondary"
-                icon={<IconEdit />}
-                onClick={() => handleEditScript(item.uuid)}
-              >
+              <Button className="text-left" type="secondary" icon={<IconEdit />} onClick={handleClickEditScript}>
                 {t("edit")}
               </Button>
               {url && isEffective !== null && (
@@ -306,16 +329,12 @@ const ScriptMenuList = React.memo(
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
+                  onClick={handleClickExcludeUrl}
                 >
                   {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
-              <Popconfirm
-                title={t("confirm_delete_script")}
-                icon={<IconDelete />}
-                onOk={() => handleDeleteScript(item.uuid)}
-              >
+              <Popconfirm title={t("confirm_delete_script")} icon={<IconDelete />} onOk={handleClickDeleteScript}>
                 <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
                   {t("delete")}
                 </Button>
@@ -333,7 +352,7 @@ const ScriptMenuList = React.memo(
                 key="expand"
                 type="secondary"
                 icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
-                onClick={() => handleExpandMenu(index)}
+                onClick={handleClickExpandMenu}
               >
                 {isExpand ? t("collapse") : t("expand")}
               </Button>
@@ -344,7 +363,7 @@ const ScriptMenuList = React.memo(
                 key="config"
                 type="secondary"
                 icon={<IconSettings />}
-                onClick={() => handleOpenUserConfig(item.uuid)}
+                onClick={handleClickOpenUserConfig}
               >
                 {t("user_config")}
               </Button>
@@ -356,18 +375,13 @@ const ScriptMenuList = React.memo(
 
     ListMenuItem.displayName = "ListMenuItem";
 
-    // 使用 useCallback 来缓存渲染函数，避免每次渲染都创建新的函数实例
-    const renderListItem = useCallback(
-      ({ item, index }: { item: ScriptMenu; index: number }) => (
-        <ListMenuItem key={`${item.uuid}`} item={item} index={index} />
-      ),
-      []
-    );
-
     return (
       <>
-        {list.length === 0 && <Empty description={t("no_data")} />}
-        {list.map((item, index) => renderListItem({ item, index }))}
+        {list.length === 0 ? (
+          <Empty description={t("no_data")} />
+        ) : (
+          list.map((item, index) => <ListMenuItem key={`${item.uuid}`} item={item} index={index} />)
+        )}
       </>
     );
   }
