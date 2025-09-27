@@ -11,7 +11,7 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
@@ -46,12 +46,15 @@ function App() {
   const [collapseActiveKey, setCollapseActiveKey] = useState<string[]>(["script"]);
   const { t } = useTranslation();
 
-  let url: URL | undefined;
-  try {
-    url = new URL(currentUrl);
-  } catch (_: any) {
-    // ignore error
-  }
+  const urlHost = useMemo(() => {
+    let url: URL | undefined;
+    try {
+      url = new URL(currentUrl);
+    } catch (_: any) {
+      // ignore error
+    }
+    return url?.hostname;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -223,7 +226,7 @@ function App() {
                       {t("create_script")}
                     </Menu.Item>
                     <Menu.Item
-                      key={`https://scriptcat.org/search?domain=${url && url.host}`}
+                      key={`https://scriptcat.org/search?domain=${urlHost}`}
                       className="flex flex-row items-center"
                     >
                       <IconSearch style={iconStyle} />
