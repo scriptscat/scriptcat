@@ -542,28 +542,31 @@ const ActionCell = React.memo(
 ActionCell.displayName = "ActionCell";
 
 const scriptListSortOrder = (
-  scripts: ScriptLoading[],
   setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>,
   { active, over }: { active: string; over: string }
 ) => {
-  let oldIndex = -1;
-  let newIndex = -1;
-  scripts.forEach((item, index) => {
-    if (item.uuid === active) {
-      oldIndex = index;
-    } else if (item.uuid === over) {
-      newIndex = index;
+  setScriptList((scripts) => {
+    let oldIndex = -1;
+    let newIndex = -1;
+    scripts.forEach((item, index) => {
+      if (item.uuid === active) {
+        oldIndex = index;
+      } else if (item.uuid === over) {
+        newIndex = index;
+      }
+    });
+    if (oldIndex >= 0 && newIndex >= 0) {
+      const newItems = arrayMove(scripts, oldIndex, newIndex);
+      for (let i = 0, l = newItems.length; i < l; i += 1) {
+        if (newItems[i].sort !== i) {
+          newItems[i].sort = i;
+        }
+      }
+      return newItems;
+    } else {
+      return scripts;
     }
   });
-  if (oldIndex >= 0 && newIndex >= 0) {
-    const newItems = arrayMove(scripts, oldIndex, newIndex);
-    for (let i = 0, l = newItems.length; i < l; i += 1) {
-      if (newItems[i].sort !== i) {
-        newItems[i].sort = i;
-      }
-    }
-    setScriptList(newItems);
-  }
   sortScript({ active, over });
 };
 
@@ -581,7 +584,7 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
           return;
         }
         if (active.id !== over.id) {
-          scriptListSortOrder(scriptList!, setScriptList!, { active: active.id as string, over: over.id as string });
+          scriptListSortOrder(setScriptList!, { active: active.id as string, over: over.id as string });
         }
       },
     });
