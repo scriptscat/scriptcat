@@ -8,7 +8,7 @@ import { getCombinedMeta } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { Group } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
-import type { MessageQueue } from "@Packages/message/message_queue";
+import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
 import type { ScriptService } from "./script";
 import type { ResourceService } from "./resource";
@@ -87,7 +87,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     } as ServiceWorkerMessageSend;
     const mockMessageQueue = {
       group: vi.fn().mockReturnValue(mockGroup),
-    } as unknown as MessageQueue;
+    } as unknown as IMessageQueue;
     const mockValueService = {} as ValueService;
     const mockResourceService = {} as ResourceService;
     const mockScriptDAO = {
