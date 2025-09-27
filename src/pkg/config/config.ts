@@ -106,14 +106,14 @@ export class SystemConfig {
     });
   }
 
-  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any> | Promise<any[]> {
+  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any> | Promise<any[]> | any | any[] {
     if (Array.isArray(key)) {
       const promises = key.map((key) => {
         const funcName = `get${toCamelCase(key)}`;
         // @ts-ignore
         if (typeof this[funcName] === "function") {
           // @ts-ignore
-          return this[funcName]();
+          return this[funcName]() as Promise<any> | Promise<any[]> | any | any[];
         } else {
           throw new Error(`Method ${funcName} does not exist on SystemConfig`);
         }
@@ -124,7 +124,7 @@ export class SystemConfig {
     // @ts-ignore
     if (typeof this[funcName] === "function") {
       // @ts-ignore
-      return this[funcName]();
+      return this[funcName]() as Promise<any> | Promise<any[]> | any | any[];
     } else {
       throw new Error(`Method ${funcName} does not exist on SystemConfig`);
     }
