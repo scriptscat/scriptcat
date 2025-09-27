@@ -215,35 +215,12 @@ function useStableFunction<K extends any[], T extends (...args: any[]) => any>(f
   return useMemo(() => factory(...keys), [factory, ...keys]);
 }
 
-/**
- * Creates a "static" object, but ensures any function dependencies stay fresh.
- * @param factory - a function that receives "live" dependencies and returns the object
- * @param deps - object of functions (or values) that should always stay fresh
- */
-export function useStaticObject<T extends object, D extends Record<string, (...args: any[]) => any>>(
-  factory: (deps: D) => T,
-  deps: D
-): T {
-  // Store latest deps in refs
-  const depRefs = useRef<Record<string, (...args: any[]) => any>>({});
-  useEffect(() => {
-    for (const key of Object.keys(deps)) {
-      depRefs.current[key] = deps[key];
-    }
-  }, Object.values(deps));
-
-  // Build static object only once
-  const objectRef = useRef<T>();
-  if (!objectRef.current) {
-    // Instead of getters, we create live proxies that call latest ref value
-    const liveDeps: Record<string, (...args: any[]) => any> = {};
-    for (const key of Object.keys(deps)) {
-      liveDeps[key] = (...args: any[]) => depRefs.current[key]?.(...args);
-    }
-    objectRef.current = factory(liveDeps as D);
+export function useStableObject<D extends Record<string, any>>(deps: D) {
+  const objectRef = useRef<D>({} as D);
+  for (const key of Object.keys(deps) as (keyof D)[]) {
+    objectRef.current[key] = deps[key]; // keep fields fresh
   }
-
-  return objectRef.current!;
+  return objectRef.current; // stable identity container
 }
 
 const EnableSwitchCell = React.memo(
@@ -522,25 +499,37 @@ const scriptListSortOrder = (
 const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   (props, ref) => {
     const context = useContext(DraggableContext);
-    if (!context) return <></>;
-    const { sensors, scriptList, setScriptList } = context;
+    const { sensors, scriptList, setScriptList } = context || {};
+    // compute once, even if context is null (keeps hook order legal)
+    const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
+
+    const handleDragEnd = useCallback(
+      (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over) {
+          return;
+        }
+        if (active.id !== over.id) {
+          scriptListSortOrder(scriptList!, setScriptList!, { active: active.id as string, over: over.id as string });
+        }
+      },
+      [scriptList, setScriptList]
+    );
+
+    if (!sortableIds?.length) {
+      // render a plain tbody to keep the table structure intact
+      return <tbody ref={ref} {...props} />;
+    }
+
     return (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis]}
         accessibility={{ container: document.body }}
-        onDragEnd={(event: DragEndEvent) => {
-          const { active, over } = event;
-          if (!over) {
-            return;
-          }
-          if (active.id !== over.id) {
-            scriptListSortOrder(scriptList, setScriptList, { active: active.id as string, over: over.id as string });
-          }
-        }}
+        onDragEnd={handleDragEnd}
       >
-        <SortableContext items={scriptList.map((s) => ({ ...s, id: s.uuid }))} strategy={verticalListSortingStrategy}>
+        <SortableContext items={sortableIds!} strategy={verticalListSortingStrategy}>
           <tbody ref={ref} {...props} />
         </SortableContext>
       </DndContext>
@@ -592,11 +581,7 @@ function ScriptList() {
     })
   );
 
-  const draggableCtxRef = useRef({ sensors, scriptList, setScriptList, dispatch });
-  draggableCtxRef.current.sensors = sensors;
-  draggableCtxRef.current.scriptList = scriptList;
-  draggableCtxRef.current.setScriptList = setScriptList;
-  draggableCtxRef.current.dispatch = dispatch;
+  const draggableCtx = useStableObject({ sensors, scriptList, setScriptList, dispatch });
 
   const doInitial = async () => {
     setInitial(true);
@@ -770,133 +755,139 @@ function ScriptList() {
     });
   }, []);
 
-  const handlers = useStaticObject(
-    ({ t, navigate, updateEntry, updateScriptList }) => {
-      return {
-        enableSwitchCell: {
-          onChange: (uuid: string) => {
-            return (checked: boolean) => {
-              updateScriptList({ uuid: uuid, enableLoading: true });
-              requestEnableScript({ uuid: uuid, enable: checked });
-            };
-          },
+  // fresh never changes but its components always latest.
+  const stableShell = useStableObject({ t, navigate, updateEntry, updateScriptList });
+
+  const handlers = useMemo(
+    () => ({
+      enableSwitchCell: {
+        onChange: (uuid: string) => {
+          return (checked: boolean) => {
+            const { updateScriptList } = stableShell;
+            updateScriptList({ uuid: uuid, enableLoading: true });
+            requestEnableScript({ uuid: uuid, enable: checked });
+          };
         },
-        applyToRunStatusCell: {
-          toLogger: (uuid: string) => {
-            return () => {
-              const queryValue = encodeURIComponent(
-                JSON.stringify([
-                  { key: "uuid", value: uuid },
-                  {
-                    key: "component",
-                    value: "GM_log",
-                  },
-                ])
-              );
-              navigate({
-                pathname: "logger",
-                search: `query=${queryValue}`,
-              });
-            };
-          },
+      },
+      applyToRunStatusCell: {
+        toLogger: (uuid: string) => {
+          return () => {
+            const { navigate } = stableShell;
+            const queryValue = encodeURIComponent(
+              JSON.stringify([
+                { key: "uuid", value: uuid },
+                {
+                  key: "component",
+                  value: "GM_log",
+                },
+              ])
+            );
+            navigate({
+              pathname: "logger",
+              search: `query=${queryValue}`,
+            });
+          };
         },
-        updateTimeCell: {
-          onClick: (uuid: string, checkUpdateUrl: string | undefined) => {
-            return () => {
-              if (!checkUpdateUrl) {
-                Message.warning(t("update_not_supported")!);
-                return;
-              }
-              Message.info({
-                id: "checkupdate",
-                content: t("checking_for_updates"),
-              });
-              scriptClient
-                .requestCheckUpdate(uuid)
-                .then((res) => {
-                  if (res) {
-                    Message.warning({
-                      id: "checkupdate",
-                      content: t("new_version_available"),
-                    });
-                  } else {
-                    Message.success({
-                      id: "checkupdate",
-                      content: t("latest_version"),
-                    });
-                  }
-                })
-                .catch((e) => {
-                  Message.error({
+      },
+      updateTimeCell: {
+        onClick: (uuid: string, checkUpdateUrl: string | undefined) => {
+          return () => {
+            const { t } = stableShell;
+            if (!checkUpdateUrl) {
+              Message.warning(t("update_not_supported")!);
+              return;
+            }
+            Message.info({
+              id: "checkupdate",
+              content: t("checking_for_updates"),
+            });
+            scriptClient
+              .requestCheckUpdate(uuid)
+              .then((res) => {
+                if (res) {
+                  Message.warning({
                     id: "checkupdate",
-                    content: `${t("update_check_failed")}: ${e.message}`,
+                    content: t("new_version_available"),
                   });
-                });
-            };
-          },
-        },
-        actionCell: {
-          handleDelete: (uuid: string) => {
-            return () => {
-              updateScriptList({ uuid, actionLoading: true });
-              requestDeleteScripts([uuid]);
-            };
-          },
-
-          handleConfig: (item: ScriptLoading) => {
-            return () => {
-              new ValueClient(message).getScriptValue(item).then((newValues) => {
-                setUserConfig({
-                  userConfig: { ...item.config! },
-                  script: item,
-                  values: newValues,
+                } else {
+                  Message.success({
+                    id: "checkupdate",
+                    content: t("latest_version"),
+                  });
+                }
+              })
+              .catch((e) => {
+                Message.error({
+                  id: "checkupdate",
+                  content: `${t("update_check_failed")}: ${e.message}`,
                 });
               });
-            };
-          },
-
-          handleRunStop: (uuid: string, runStatus: SCRIPT_RUN_STATUS) => {
-            return async () => {
-              if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-                // Stop script
-                Message.loading({
-                  id: "script-stop",
-                  content: t("stopping_script"),
-                });
-                updateEntry([uuid], { actionLoading: true });
-                await requestStopScript(uuid);
-                updateEntry([uuid], { actionLoading: false });
-                Message.success({
-                  id: "script-stop",
-                  content: t("script_stopped"),
-                  duration: 3000,
-                });
-              } else {
-                Message.loading({
-                  id: "script-run",
-                  content: t("starting_script"),
-                });
-                updateEntry([uuid], { actionLoading: true });
-                await requestRunScript(uuid);
-                updateEntry([uuid], { actionLoading: false });
-                Message.success({
-                  id: "script-run",
-                  content: t("script_started"),
-                  duration: 3000,
-                });
-              }
-            };
-          },
-
-          handleCloud: (item: ScriptLoading) => {
-            return () => {
-              setCloudScript(item);
-            };
-          },
+          };
         },
-      };
-    },
-    { updateScriptList, updateEntry, navigate, t, setCloudScript }
+      },
+      actionCell: {
+        handleDelete: (uuid: string) => {
+          return () => {
+            const { updateScriptList } = stableShell;
+            updateScriptList({ uuid, actionLoading: true });
+            requestDeleteScripts([uuid]);
+          };
+        },
+
+        handleConfig: (item: ScriptLoading) => {
+          return () => {
+            new ValueClient(message).getScriptValue(item).then((newValues) => {
+              setUserConfig({
+                userConfig: { ...item.config! },
+                script: item,
+                values: newValues,
+              });
+            });
+          };
+        },
+
+        handleRunStop: (uuid: string, runStatus: SCRIPT_RUN_STATUS) => {
+          return async () => {
+            const { t, updateEntry } = stableShell;
+            if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+              // Stop script
+              Message.loading({
+                id: "script-stop",
+                content: t("stopping_script"),
+              });
+              updateEntry([uuid], { actionLoading: true });
+              await requestStopScript(uuid);
+              updateEntry([uuid], { actionLoading: false });
+              Message.success({
+                id: "script-stop",
+                content: t("script_stopped"),
+                duration: 3000,
+              });
+            } else {
+              Message.loading({
+                id: "script-run",
+                content: t("starting_script"),
+              });
+              updateEntry([uuid], { actionLoading: true });
+              await requestRunScript(uuid);
+              updateEntry([uuid], { actionLoading: false });
+              Message.success({
+                id: "script-run",
+                content: t("script_started"),
+                duration: 3000,
+              });
+            }
+          };
+        },
+
+        handleCloud: (item: ScriptLoading) => {
+          return () => {
+            setCloudScript(item);
+          };
+        },
+      },
+    }),
+    []
   );
 
   const columns: ColumnProps[] = useMemo(
@@ -1200,7 +1191,7 @@ function ScriptList() {
         overflowY: "auto",
       }}
     >
-      <DraggableContext.Provider value={draggableCtxRef.current}>
+      <DraggableContext.Provider value={draggableCtx}>
         <Space direction="vertical">
           {showAction && (
             <Card>
