@@ -2,8 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import MainLayout from "../components/layout/MainLayout.tsx";
-import { Provider } from "react-redux";
-import { store } from "@App/pages/store/store.ts";
+import { AppProvider } from "../store/AppContext.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
@@ -20,11 +19,11 @@ const loggerCore = new LoggerCore({
 loggerCore.logger().debug("confirm page start");
 
 const Root = (
-  <Provider store={store}>
+  <AppProvider>
     <MainLayout className="!flex-col !px-4 box-border">
       <App />
     </MainLayout>
-  </Provider>
+  </AppProvider>
 );
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
