@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -919,32 +919,33 @@ function ScriptList() {
     };
   });
 
-  const updateScriptList = useCallback((data: Partial<Script | ScriptLoading>) => {
-    setScriptList((list) => {
-      const index = list.findIndex((script) => script.uuid === data.uuid);
-      if (index === -1) return list;
+  const { updateScriptList, updateEntry } = useStableCallbacks({
+    updateScriptList: (data: Partial<Script | ScriptLoading>) => {
+      setScriptList((list) => {
+        const index = list.findIndex((script) => script.uuid === data.uuid);
+        if (index === -1) return list;
 
-      const newList = [...list];
-      newList[index] = { ...list[index], ...data };
-      return newList;
-    });
-  }, []);
-
-  const updateEntry = useCallback((uuids: string[], data: Partial<Script | ScriptLoading>) => {
-    const set = new Set(uuids);
-    setScriptList((list) => {
-      let hasChanges = false;
-      const newList = list.map((script) => {
-        if (set.has(script.uuid)) {
-          hasChanges = true;
-          return { ...script, ...data };
-        }
-        return script;
+        const newList = [...list];
+        newList[index] = { ...list[index], ...data };
+        return newList;
       });
+    },
+    updateEntry: (uuids: string[], data: Partial<Script | ScriptLoading>) => {
+      const set = new Set(uuids);
+      setScriptList((list) => {
+        let hasChanges = false;
+        const newList = list.map((script) => {
+          if (set.has(script.uuid)) {
+            hasChanges = true;
+            return { ...script, ...data };
+          }
+          return script;
+        });
 
-      return hasChanges ? newList : list;
-    });
-  }, []);
+        return hasChanges ? newList : list;
+      });
+    },
+  });
 
   const columns: ColumnProps[] = useMemo(
     () =>
