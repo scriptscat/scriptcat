@@ -30,6 +30,18 @@ export interface ResourceHash {
   };
 }
 
+export interface CompliedResource {
+  uuid: string;
+  code: string;
+  matches: string[]; // primary
+  includeGlobs: string[]; // includeGlobs applied after matches
+  excludeMatches: string[];
+  excludeGlobs: string[];
+  allFrames: boolean;
+  world: string;
+  runAt: string;
+}
+
 const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";
 
 export class ResourceDAO extends Repo<Resource> {
@@ -43,5 +55,51 @@ export class ResourceDAO extends Repo<Resource> {
 
   save(resource: Resource) {
     return super._save(resource.url, resource);
+  }
+}
+
+// SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
+const CompliedResourceNamespace = "ffdb74e1-b1f7-4840-b61d-4fc174b4f9f5";
+
+export class CompliedResourceDAO extends Repo<CompliedResource> {
+  constructor() {
+    super(`complied_resource##${CompliedResourceNamespace}##`);
+    Promise.resolve().then(() => this.deferredCleanup());
+  }
+
+  protected deferredCleanup() {
+    chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+        // 无视storage API错误，继续执行
+      }
+      if (result) {
+        const u = [];
+        for (const key in result) {
+          if (
+            key.startsWith("complied_resource##") &&
+            !key.startsWith(`complied_resource##${CompliedResourceNamespace}##`)
+          ) {
+            u.push(key);
+          }
+        }
+        chrome.storage.local.remove(u, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
+            // 无视storage API错误，继续执行
+          }
+        });
+      }
+    });
+  }
+
+  protected joinKey(key: string) {
+    return this.prefix + key;
+  }
+
+  save(resource: CompliedResource) {
+    return super._save(resource.uuid, resource);
   }
 }

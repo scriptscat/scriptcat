@@ -168,7 +168,7 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
 
 // 构建userScript注册信息
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-  const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo);
+  const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
 
   if (preDocumentStartScript) {
     scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code);
@@ -196,7 +196,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     world: "MAIN",
   };
 
-  if (isInjectIntoContent(scriptMatchInfo)) {
+  if (isInjectIntoContent(scriptMatchInfo.metadata)) {
     // 需要注入到content script的脚本
     registerScript.world = "USER_SCRIPT";
   }

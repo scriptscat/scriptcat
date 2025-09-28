@@ -1,4 +1,4 @@
-import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
@@ -92,12 +92,10 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
-export function isEarlyStartScript(script: Script) {
-  return (
-    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["early-start"]
-  );
+export function isEarlyStartScript(metadata: SCMetadata) {
+  return metadata["run-at"] && metadata["run-at"][0] === "document-start" && metadata["early-start"];
 }
 
-export function isInjectIntoContent(script: Script) {
-  return script.metadata["inject-into"] && script.metadata["inject-into"][0] === "content";
+export function isInjectIntoContent(metadata: SCMetadata) {
+  return metadata["inject-into"] && metadata["inject-into"][0] === "content";
 }

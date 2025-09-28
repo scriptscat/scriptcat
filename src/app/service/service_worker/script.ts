@@ -36,12 +36,14 @@ import type {
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
 import type { SearchType } from "./types";
+import { CompliedResourceDAO } from "@App/app/repo/resource";
 
 const cIdKey = `(cid_${Math.random()})`;
 
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
+  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
 
   constructor(
     private readonly systemConfig: SystemConfig,
@@ -236,6 +238,8 @@ export class ScriptService {
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
+    // 刪 storage cache
+    this.compliedResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,

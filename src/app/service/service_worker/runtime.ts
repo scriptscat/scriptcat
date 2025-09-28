@@ -34,6 +34,7 @@ import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
+import { type CompliedResource, CompliedResourceDAO } from "@App/app/repo/resource";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -78,6 +79,8 @@ export class RuntimeService {
   loadingInitFlagPromise: Promise<any> | any;
   loadingInitRegisteredPromise: Promise<any> | any;
 
+  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
@@ -107,7 +110,7 @@ export class RuntimeService {
         })
         .finally(() => {
           runtimeGlobal.registered = result;
-          // 考慮 API 不可使用情況，使用 finally
+          // 考虑 API 不可使用情况，使用 finally
           resolve();
         });
     }).catch(console.error);
@@ -188,7 +191,7 @@ export class RuntimeService {
   }
 
   async valueUpdate(data: TScriptValueUpdate) {
-    if (!isEarlyStartScript(data.script)) {
+    if (!isEarlyStartScript(data.script.metadata)) {
       return;
     }
     // 如果是预加载脚本，需要更新脚本代码重新注册
@@ -281,6 +284,7 @@ export class RuntimeService {
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
       for (const { uuid } of data) {
+        await this.compliedResourceDAO.delete(uuid);
         await this.unregistryPageScript(uuid);
         await this.deleteScriptMatch(uuid);
       }
@@ -458,10 +462,10 @@ export class RuntimeService {
 
   // 取消脚本注册
   async unregisterUserscripts() {
-    // 檢查 registered 避免重覆操作增加系統開支
+    // 检查 registered 避免重复操作增加系统开支
     if (runtimeGlobal.registered) {
       runtimeGlobal.registered = false;
-      // 重置 flag 避免取消注冊失敗
+      // 重置 flag 避免取消注册失败
       runtimeGlobal.messageFlag = randomMessageFlag();
       await Promise.allSettled([
         chrome.userScripts.unregister(),
@@ -483,26 +487,78 @@ export class RuntimeService {
         if (script.type !== SCRIPT_TYPE_NORMAL) {
           return undefined;
         }
-        // 如果没开启, 则不注册
-        if (script.status !== SCRIPT_STATUS_ENABLE) {
-          return undefined;
+
+        let result = await this.compliedResourceDAO.get(script.uuid);
+        if (!result) {
+          const apiScript = await (async () => {
+            // 如果没开启, 则不注册
+            if (script.status !== SCRIPT_STATUS_ENABLE) {
+              return undefined;
+            }
+            const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+            if (!scriptMatchInfo) {
+              return undefined;
+            }
+            const res = await getUserScriptRegister(scriptMatchInfo);
+            if (!res) {
+              return undefined;
+            }
+            const { registerScript } = res!;
+            // 过滤掉matches为空的脚本
+            if (!registerScript.matches || registerScript.matches.length === 0) {
+              this.logger.error("registerScript matches is empty", {
+                script: script.name,
+                uuid: script.uuid,
+              });
+              return undefined;
+            }
+
+            return registerScript;
+          })();
+
+          if (!apiScript) {
+            result = {
+              uuid: script.uuid,
+              code: "",
+              matches: [],
+              includeGlobs: [],
+              excludeMatches: [],
+              excludeGlobs: [],
+              allFrames: false,
+              world: "",
+              runAt: "",
+            } as CompliedResource;
+          } else {
+            result = {
+              uuid: script.uuid,
+              code: apiScript.js[0].code || "",
+              matches: apiScript.matches || [],
+              includeGlobs: apiScript.includeGlobs || [],
+              excludeMatches: apiScript.excludeMatches || [],
+              excludeGlobs: apiScript.excludeGlobs || [],
+              allFrames: apiScript.allFrames || false,
+              world: apiScript.world || "",
+              runAt: apiScript.runAt || "",
+            } as CompliedResource;
+          }
+
+          this.compliedResourceDAO.save(result);
         }
-        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-        if (!scriptMatchInfo) {
-          return undefined;
-        }
-        const res = await getUserScriptRegister(scriptMatchInfo);
-        if (!res) {
-          return undefined;
-        }
-        const { registerScript } = res!;
-        // 过滤掉matches为空的脚本
-        if (!registerScript.matches || registerScript.matches.length === 0) {
-          this.logger.error("registerScript matches is empty", {
-            script: script.name,
-            uuid: script.uuid,
-          });
-          return undefined;
+
+        if (!result.code) return undefined;
+
+        const registerScript = {
+          id: result.uuid,
+          js: [{ code: result.code }],
+          matches: result.matches,
+          includeGlobs: result.includeGlobs,
+          excludeMatches: result.excludeMatches,
+          excludeGlobs: result.excludeGlobs,
+          allFrames: result.allFrames,
+          world: result.world,
+        } as chrome.userScripts.RegisteredUserScript;
+        if (result.runAt) {
+          registerScript.runAt = result.runAt as "document_start" | "document_end" | "document_idle";
         }
         return registerScript;
       })
@@ -511,11 +567,9 @@ export class RuntimeService {
       return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
     });
 
-    const batchData: { [key: string]: boolean } = {};
     for (const script of registerScripts) {
-      batchData[`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`] = true;
+      cacheInstance.del(`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`);
     }
-    cacheInstance.batchSet(batchData);
 
     return registerScripts;
   }
@@ -583,7 +637,6 @@ export class RuntimeService {
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
   async registerUserscripts() {
-    console.log("runtime.ts.init.registerUserscripts.1");
     // 加载脚本匹配信息
     const loadingScriptMatchInfo = this.loadScriptMatchInfo();
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
@@ -892,7 +945,7 @@ export class RuntimeService {
     const earlyScriptFlag: string[] = [];
     // 遍历early-start的脚本
     this.scriptMatchCache?.forEach((script) => {
-      if (isEarlyStartScript(script)) {
+      if (isEarlyStartScript(script.metadata)) {
         earlyScriptFlag.push(script.flag);
       }
     });
@@ -1152,20 +1205,24 @@ export class RuntimeService {
         logger.error("registerScript error", Logger.E(e));
       }
     }
-    await cacheInstance.set(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`, true);
+    // 删除缓存
+    await cacheInstance.del(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`);
   }
 
   async unregistryPageScript(uuid: string) {
     const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.isUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
+    }
+    const result = await chrome.userScripts.getScripts({ ids: [uuid] });
+    if (result.length === 1) {
+      // 修改脚本状态为disable，浏览器取消注册该脚本
+      await Promise.all([
+        this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
+        chrome.userScripts.unregister({ ids: [uuid] }),
+      ]);
     }
     // 删除缓存
     await cacheInstance.del(cacheKey);
-    // 修改脚本状态为disable，浏览器取消注册该脚本
-    await Promise.all([
-      this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
-      chrome.userScripts.unregister({ ids: [uuid] }),
-    ]);
   }
 }
