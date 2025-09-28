@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
@@ -149,16 +149,8 @@ export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
   style = style || {};
   style.display = style.display || "inline-block";
   style.marginRight = style.marginRight || "8px";
-  let icon = "";
-  if (script.metadata.icon) {
-    [icon] = script.metadata.icon;
-  } else if (script.metadata.iconurl) {
-    [icon] = script.metadata.iconurl;
-  } else if (script.metadata.icon64) {
-    [icon] = script.metadata.icon64;
-  } else if (script.metadata.icon64url) {
-    [icon] = script.metadata.icon64url;
-  }
+  const m = script.metadata;
+  const [icon] = m.icon || m.iconurl || m.icon64 || m.icon64url || [];
   if (icon) {
     return (
       <Avatar size={size || 32} shape="square" style={style}>
@@ -171,34 +163,30 @@ export function ScriptIcons({ script, size = 32, style }: ScriptIconsProps) {
 
 // 系统配置hooks
 // 返回3个数组，第一个是值，第二个是设置值的函数，第三个提交值的函数
+// key 为不变的字串值
 export function useSystemConfig<T extends SystemConfigKey>(key: T) {
   const [value, setValue] = useState<SystemConfigValueType<T>>(() => {
-    const funcName = `default${toCamelCase(key)}`;
-    if (typeof (systemConfig as any)[funcName] === "function") {
-      // @ts-ignore
-      return (systemConfig as any)[funcName]();
-    }
-    return undefined;
+    const defFnName = `default${toCamelCase(key)}`;
+    const maybeFn = (systemConfig as any)[defFnName];
+    const defVal =
+      typeof maybeFn === "function"
+        ? (maybeFn as () => SystemConfigValueType<T>)()
+        : (undefined as SystemConfigValueType<T>);
+    // 异步读取后setValue
+    Promise.resolve(systemConfig.get(key)).then((v) => setValue(v));
+    return defVal;
   });
-  useEffect(() => {
-    (async () => {
-      const v = await systemConfig.get(key);
+  // 以 useRef 建立不变 submitValue
+  const submitValue = (v?: SystemConfigValueType<T>) => {
+    if (v === undefined) {
+      setValue((old) => {
+        systemConfig.set(key, old);
+        return old;
+      });
+    } else {
+      systemConfig.set(key, v);
       setValue(v);
-    })();
-  }, [key]);
-  const submitValue = useCallback(
-    (v?: SystemConfigValueType<T>) => {
-      if (v === undefined) {
-        setValue((old) => {
-          systemConfig.set(key, old);
-          return old;
-        });
-      } else {
-        systemConfig.set(key, v);
-        setValue(v);
-      }
-    },
-    [key]
-  );
+    }
+  };
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
