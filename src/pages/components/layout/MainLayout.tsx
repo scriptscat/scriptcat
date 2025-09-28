@@ -23,9 +23,9 @@ import {
   IconSunFill,
 } from "@arco-design/web-react/icon";
 import type { ReactNode } from "react";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AppContext } from "@App/pages/store/AppContext";
+import { useAppContext } from "@App/pages/store/AppContext";
 import { RiFileCodeLine, RiImportLine, RiPlayListAddLine, RiTerminalBoxLine, RiTimerLine } from "react-icons/ri";
 import { scriptClient } from "@App/pages/store/features/script";
 import { useDropzone, type FileWithPath } from "react-dropzone";
@@ -42,11 +42,7 @@ const MainLayout: React.FC<{
   className: string;
   pageName?: string;
 }> = ({ children, className, pageName }) => {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error("AppProvider is not found");
-  }
-  const { colorThemeState, updateColorTheme } = context;
+  const { colorThemeState, updateColorTheme } = useAppContext();
 
   const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);

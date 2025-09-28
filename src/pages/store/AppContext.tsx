@@ -1,4 +1,4 @@
-import React, { useState, createContext, type ReactNode, useEffect } from "react";
+import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
 import { editor } from "monaco-editor";
 
@@ -92,3 +92,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     </AppContext.Provider>
   );
 };
+
+export function useAppContext() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("useAppContext must be used within an AppProvider");
+  }
+  return context;
+}

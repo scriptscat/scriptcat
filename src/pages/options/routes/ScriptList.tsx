@@ -92,7 +92,7 @@ import type {
   TScriptRunStatus,
   TSortedScript,
 } from "@App/app/service/queue";
-import { AppContext } from "@App/pages/store/AppContext";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -612,11 +612,7 @@ const EnableSwitch = React.memo(
 EnableSwitch.displayName = "EnableSwitch";
 
 function ScriptList() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error("AppProvider is not found");
-  }
-  const { subscribeMessage } = context;
+  const { subscribeMessage } = useAppContext();
 
   const [userConfig, setUserConfig] = useState<{
     script: Script;
