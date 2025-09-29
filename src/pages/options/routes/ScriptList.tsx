@@ -687,7 +687,7 @@ const FilterDropdown = React.memo(
         }
       },
     };
-    // onSearch 不能使用 useCallback / useMemo / useStableCallbacks
+    // onSearch 不能使用 useCallback / useMemo
     const onSearch = () => {
       confirm();
     };
