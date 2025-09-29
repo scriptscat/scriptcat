@@ -18,7 +18,6 @@ import {
   Typography,
 } from "@arco-design/web-react";
 import { TbWorldWww } from "react-icons/tb";
-import { messageQueue } from "@App/pages/store/global";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
@@ -69,7 +68,6 @@ import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { ListHomeRender, ScriptIcons } from "./utils";
-import { useAppDispatch } from "@App/pages/store/hooks";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
@@ -95,6 +93,7 @@ import type {
   TSortedScript,
 } from "@App/app/service/queue";
 import { type TFunction } from "i18next";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -105,7 +104,6 @@ interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
   scriptList: ScriptLoading[];
   setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>;
-  dispatch: ReturnType<typeof useAppDispatch>;
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
 
@@ -743,13 +741,14 @@ const FilterDropdown = React.memo(
 FilterDropdown.displayName = "FilterDropdown";
 
 function ScriptList() {
+  const { subscribeMessage } = useAppContext();
+
   const [userConfig, setUserConfig] = useState<{
     script: Script;
     userConfig: UserConfig;
     values: { [key: string]: any };
   }>();
   const [cloudScript, setCloudScript] = useState<Script>();
-  const dispatch = useAppDispatch();
   const [mInitial, setInitial] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
@@ -789,9 +788,8 @@ function ScriptList() {
       sensors,
       scriptList,
       setScriptList,
-      dispatch,
     }),
-    [sensors, scriptList, setScriptList, dispatch]
+    [sensors, scriptList, setScriptList]
   );
 
   const doInitial = async () => {
@@ -913,17 +911,6 @@ function ScriptList() {
         return res;
       });
     },
-  };
-
-  const subscribeMessageConsumed = new WeakSet();
-  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data: any) => {
-      const message = data?.myMessage || data;
-      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
-        subscribeMessageConsumed.add(message);
-        handler(message);
-      }
-    });
   };
 
   useEffect(() => {

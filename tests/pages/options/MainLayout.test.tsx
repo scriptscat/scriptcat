@@ -17,35 +17,10 @@ vi.mock("react-router-dom", () => ({
   Outlet: () => <div data-testid="outlet">{"Options Content"}</div>,
 }));
 
-vi.mock("@App/pages/store/hooks", () => ({
-  useAppSelector: vi.fn().mockImplementation((selector: any) => {
-    const mockState = {
-      config: { theme: "light", lightMode: true },
-      script: { scripts: [] },
-    };
-    if (typeof selector === "function") {
-      return selector(mockState);
-    }
-    return mockState;
-  }),
-  useAppDispatch: () => vi.fn(),
-  createAppSlice: vi.fn(() => ({
-    name: "mock",
-    reducer: vi.fn(),
-    actions: {},
-    selectors: {},
-  })),
-}));
-
 vi.mock("../store/features/script", () => ({
   scriptClient: {
     list: vi.fn().mockResolvedValue([]),
   },
-}));
-
-vi.mock("@App/pages/store/features/config", () => ({
-  selectThemeMode: vi.fn((state: any) => state.lightMode),
-  setDarkMode: vi.fn(),
 }));
 
 describe("Options MainLayout Component", () => {

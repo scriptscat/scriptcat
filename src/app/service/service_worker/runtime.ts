@@ -1,7 +1,7 @@
 import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { GetSender, Group } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend, RuntimeMessageSender } from "@Packages/message/types";
+import type { Group, IGetSender } from "@Packages/message/server";
+import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
@@ -701,11 +701,15 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(_: any, sender: GetSender) {
+  async pageLoad(_: any, sender: IGetSender) {
     if (!this.isLoadScripts) {
       return { flag: "", scripts: [] };
     }
-    const chromeSender = sender.getSender() as RuntimeMessageSender;
+    const chromeSender = sender.getSender();
+    if (!chromeSender?.url) {
+      // 异常加载
+      return { flag: "", scripts: [] };
+    }
 
     // 判断是否黑名单（针对网址，与个别脚本设定无关）
     if (this.isUrlBlacklist(chromeSender.url!)) {
@@ -854,7 +858,7 @@ export class RuntimeService {
       }
     }
     this.mq.emit("pageLoad", {
-      tabId: chromeSender.tab?.id,
+      tabId: chromeSender.tab?.id || -1,
       frameId: chromeSender.frameId,
       scripts: enableScript,
     });
