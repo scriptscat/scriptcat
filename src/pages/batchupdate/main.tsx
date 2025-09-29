@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
-import MainLayout from "../components/layout/MainLayout.tsx";
 import { AppProvider } from "../store/AppContext.tsx";
+import MainLayout from "../components/layout/MainLayout.tsx";
 import LoggerCore from "@App/app/logger/core.ts";
 import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
