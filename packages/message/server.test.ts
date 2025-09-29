@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
-import { Server, GetSender } from "./server";
+import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 
@@ -86,7 +86,7 @@ describe("Server", () => {
         data: { param: "value" },
       });
 
-      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("test response");
     });
@@ -101,7 +101,7 @@ describe("Server", () => {
         data: { param: "value" },
       });
 
-      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("sync response");
     });
@@ -116,7 +116,7 @@ describe("Server", () => {
         data: { param: "value" },
       });
 
-      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ param: "value" }, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("async response");
     });
@@ -200,7 +200,7 @@ describe("Server", () => {
         data: { userId: 123 },
       });
 
-      expect(mockHandler).toHaveBeenCalledWith({ userId: 123 }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ userId: 123 }, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("group response");
     });
@@ -217,7 +217,7 @@ describe("Server", () => {
         data: { userId: 123 },
       });
 
-      expect(mockHandler).toHaveBeenCalledWith({ userId: 123 }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ userId: 123 }, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("nested response");
     });
@@ -503,9 +503,9 @@ describe("Server", () => {
     });
   });
 
-  describe("GetSender 功能测试", () => {
+  describe("IGetSender 功能测试", () => {
     it("应该能够从 RuntimeMessageSender 获取信息", async () => {
-      let capturedSender: GetSender;
+      let capturedSender: IGetSender;
 
       server.on("test", (params, sender) => {
         capturedSender = sender;
@@ -522,7 +522,7 @@ describe("Server", () => {
       const sendResponse = vi.fn();
       (server as any).messageHandle("test", { param: "value" }, sendResponse, mockSender);
 
-      expect(capturedSender!).toBeInstanceOf(GetSender);
+      expect(capturedSender!).toBeInstanceOf(SenderRuntime);
       expect(capturedSender!.getSender()).toBe(mockSender);
 
       const extSender = capturedSender!.getExtMessageSender();
@@ -532,7 +532,7 @@ describe("Server", () => {
     });
 
     it("应该为没有 tab 的 sender 返回 -1 tabId", async () => {
-      let capturedSender: GetSender;
+      let capturedSender: IGetSender;
 
       server.on("test", (params, sender) => {
         capturedSender = sender;
@@ -556,7 +556,10 @@ describe("Server", () => {
       let capturedConnection: MessageConnect;
 
       server.on("connect", (params, sender) => {
-        capturedConnection = sender.getConnect();
+        if (!sender.isType(GetSenderType.CONNECT)) {
+          throw new Error("sender type error");
+        }
+        capturedConnection = sender.getConnect()!;
         mockHandler(params, sender);
       });
 
@@ -571,7 +574,7 @@ describe("Server", () => {
       // 直接调用 connectHandle
       (server as any).connectHandle("connect", { param: "connect data" }, mockConnect);
 
-      expect(mockHandler).toHaveBeenCalledWith({ param: "connect data" }, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith({ param: "connect data" }, expect.any(SenderConnect));
       expect(capturedConnection!).toBeDefined();
     });
 
@@ -580,7 +583,10 @@ describe("Server", () => {
       const serverMessageHandler = vi.fn();
 
       server.on("connect", (params, sender) => {
-        serverConnection = sender.getConnect();
+        if (!sender.isType(GetSenderType.CONNECT)) {
+          throw new Error("sender type error");
+        }
+        serverConnection = sender.getConnect()!;
         serverConnection.onMessage(serverMessageHandler);
       });
 
@@ -625,7 +631,7 @@ describe("Server", () => {
         data: null,
       });
 
-      expect(mockHandler).toHaveBeenCalledWith(null, expect.any(GetSender));
+      expect(mockHandler).toHaveBeenCalledWith(null, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("empty response");
     });

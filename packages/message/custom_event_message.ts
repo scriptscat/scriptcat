@@ -1,4 +1,4 @@
-import type { Message, MessageConnect, TMessage } from "./types";
+import type { Message, MessageConnect, RuntimeMessageSender, TMessage } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
 import LoggerCore from "@App/app/logger/core";
@@ -65,7 +65,9 @@ export class CustomEventMessage implements Message {
     this.EE.addListener("connect", callback);
   }
 
-  onMessage(callback: (data: TMessage, sendResponse: (data: any) => void) => void): void {
+  onMessage(
+    callback: (data: TMessage, sendResponse: (data: any) => void, _sender: RuntimeMessageSender) => void
+  ): void {
     this.EE.addListener("message", callback);
   }
 
