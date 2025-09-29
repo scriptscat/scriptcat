@@ -76,8 +76,8 @@ export class RuntimeService {
 
   mq: IMessageQueue;
 
-  loadingInitFlagPromise: Promise<any> | any;
-  loadingInitRegisteredPromise: Promise<any> | any;
+  loadingInitFlagPromise: Promise<any> | undefined;
+  loadingInitRegisteredPromise: Promise<any> | undefined;
 
   compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
 
@@ -466,6 +466,7 @@ export class RuntimeService {
     if (runtimeGlobal.registered) {
       runtimeGlobal.registered = false;
       // 重置 flag 避免取消注册失败
+      // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
       runtimeGlobal.messageFlag = randomMessageFlag();
       await Promise.allSettled([
         chrome.userScripts.unregister(),

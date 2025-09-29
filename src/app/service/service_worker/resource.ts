@@ -29,22 +29,27 @@ export class ResourceService {
     uuid: string,
     url: string,
     type: ResourceType,
-    load: boolean
+    loadNow: boolean
   ): Promise<Resource | undefined> {
     const res = await this.getResourceModel(url);
     if (res) {
+      // 读取过但失败的资源加载也会被放在缓存，避免再加载资源
+      // 因此 getResource 时不会再加载资源，直接返回 undefined 表示没有资源
       if (!res.contentType) return undefined;
       return res;
     }
-    if (load) {
-      // 如果没有缓存，则尝试加载资源
+    // 缓存中无资源加载纪录
+    if (loadNow) {
+      // 立即尝试加载资源
       try {
         return await this.updateResource(uuid, url, type);
       } catch (e: any) {
         this.logger.error("load resource error", { url }, Logger.E(e));
       }
     } else {
-      // 如果没有缓存则不加载，则返回undefined，但是会在后台异步加载
+      // 等一下尝试加载资源 （在后台异步加载）
+      // 先返回 undefined 表示没有资源
+      // 避免所有资源立即同一时间加载, delay设为 1.2s ~ 2.4s
       setTimeout(
         () => {
           this.updateResource(uuid, url, type);
@@ -198,22 +203,26 @@ export class ResourceService {
         });
       }
     } catch (e) {
-      this.resourceDAO.save({
-        url: u.url,
-        content: "",
-        contentType: "",
-        hash: {
-          md5: "",
-          sha1: "",
-          sha256: "",
-          sha384: "",
-          sha512: "",
-        },
-        base64: "",
-        link: { [uuid]: true },
-        type,
-        createtime: Date.now(),
-      });
+      // 资源错误时保存一个空纪录以防止再度尝试加载
+      // this.resourceDAO.save 自身出错的话忽略
+      await this.resourceDAO
+        .save({
+          url: u.url,
+          content: "",
+          contentType: "",
+          hash: {
+            md5: "",
+            sha1: "",
+            sha256: "",
+            sha384: "",
+            sha512: "",
+          },
+          base64: "",
+          link: { [uuid]: true },
+          type,
+          createtime: Date.now(),
+        })
+        .catch(console.warn);
       this.logger.error("load resource error", { url: u.url }, Logger.E(e));
       throw e;
     }
