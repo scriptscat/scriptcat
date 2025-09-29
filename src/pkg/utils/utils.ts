@@ -330,8 +330,8 @@ export const stringMatching = (main: string, sub: string): boolean => {
 
   // Convert glob pattern to regex
   let pattern = escapeRegex(sub)
-    .replace(/\*/g, ".*") // * matches zero or more characters
-    .replace(/\?/g, "."); // ? matches exactly one character
+    .replace(/\*/g, "\\S*") // * matches zero or more non-space characters
+    .replace(/\?/g, "\\S"); // ? matches exactly one non-space character
 
   // Anchor the pattern to match entire string
   pattern = `\\b${pattern}\\b`;
