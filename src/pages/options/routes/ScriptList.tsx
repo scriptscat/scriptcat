@@ -123,7 +123,14 @@ const MemoizedAvatar = React.memo(
     >
       {icon ? <img title={match} src={icon} /> : <TbWorldWww title={match} color="#aaa" size={24} />}
     </Avatar>
-  )
+  ),
+  (prevProps, nextProps) => {
+    return (
+      prevProps.match === nextProps.match &&
+      prevProps.icon === nextProps.icon &&
+      prevProps.website === nextProps.website
+    );
+  }
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
@@ -194,19 +201,24 @@ const SortRender = React.memo(({ col }: { col: number }) => {
 });
 SortRender.displayName = "SortRender";
 
-const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
-  const { uuid } = item;
-  return (
-    <EnableSwitch
-      status={item.status}
-      enableLoading={item.enableLoading}
-      onChange={(checked: boolean) => {
-        updateScriptList({ uuid: uuid, enableLoading: true });
-        requestEnableScript({ uuid: uuid, enable: checked });
-      }}
-    />
-  );
-});
+const EnableSwitchCell = React.memo(
+  ({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
+    const { uuid } = item;
+    return (
+      <EnableSwitch
+        status={item.status}
+        enableLoading={item.enableLoading}
+        onChange={(checked: boolean) => {
+          updateScriptList({ uuid: uuid, enableLoading: true });
+          requestEnableScript({ uuid: uuid, enable: checked });
+        }}
+      />
+    );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.item === nextProps.item;
+  }
+);
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
@@ -545,6 +557,9 @@ const ActionCell = React.memo(
         )}
       </Button.Group>
     );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.item === nextProps.item && prevProps.t === nextProps.t;
   }
 );
 ActionCell.displayName = "ActionCell";
@@ -631,6 +646,9 @@ const EnableSwitch = React.memo(
     return (
       <Switch checked={status === SCRIPT_STATUS_ENABLE} loading={enableLoading} disabled={enableLoading} {...props} />
     );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.status === nextProps.status && prevProps.enableLoading === nextProps.enableLoading;
   }
 );
 EnableSwitch.displayName = "EnableSwitch";

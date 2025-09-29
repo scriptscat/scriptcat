@@ -67,6 +67,9 @@ const ScriptListItem = React.memo(
         </div>
       </div>
     );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.index === nextProps.index && prevProps.item === nextProps.item && prevProps.t === nextProps.t;
   }
 );
 
