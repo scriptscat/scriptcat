@@ -22,7 +22,6 @@ import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
-import { useStableCallbacks } from "../utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -140,7 +139,7 @@ function App() {
     };
   }, []);
 
-  const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = useStableCallbacks({
+  const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
     handleEnableScriptChange: (val: boolean) => {
       setIsEnableScript(val);
       systemConfig.setEnableScript(val);
@@ -157,7 +156,7 @@ function App() {
         return updatedCheckUpdate;
       });
     },
-  });
+  };
 
   const handleMenuClick = async (key: string) => {
     switch (key) {

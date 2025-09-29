@@ -94,7 +94,6 @@ import type {
   TScriptRunStatus,
   TSortedScript,
 } from "@App/app/service/queue";
-import { useStableCallbacks } from "@App/pages/utils/utils";
 import { type TFunction } from "i18next";
 
 type ListType = ScriptLoading;
@@ -197,13 +196,16 @@ SortRender.displayName = "SortRender";
 
 const EnableSwitchCell = React.memo(({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
   const { uuid } = item;
-  const { onChange } = useStableCallbacks({
-    onChange: (checked: boolean) => {
-      updateScriptList({ uuid: uuid, enableLoading: true });
-      requestEnableScript({ uuid: uuid, enable: checked });
-    },
-  });
-  return <EnableSwitch status={item.status} enableLoading={item.enableLoading} onChange={onChange} />;
+  return (
+    <EnableSwitch
+      status={item.status}
+      enableLoading={item.enableLoading}
+      onChange={(checked: boolean) => {
+        updateScriptList({ uuid: uuid, enableLoading: true });
+        requestEnableScript({ uuid: uuid, enable: checked });
+      }}
+    />
+  );
 });
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
@@ -240,7 +242,7 @@ const VersionCell = React.memo(({ item }: { item: ListType }) => {
 VersionCell.displayName = "VersionCell";
 
 const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType; navigate: any; t: any }) => {
-  const { toLogger } = useStableCallbacks({
+  const { toLogger } = {
     toLogger: () =>
       navigate({
         pathname: "logger",
@@ -254,7 +256,7 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
           ])
         )}`,
       }),
-  });
+  };
 
   const favoriteMemo = useMemo(() => {
     const fav1 = item.favorite;
@@ -374,7 +376,7 @@ const HomeCell = React.memo(({ item }: { item: ListType }) => {
 HomeCell.displayName = "HomeCell";
 
 const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: ListType; t: any }) => {
-  const { handleClick } = useStableCallbacks({
+  const { handleClick } = {
     handleClick: () => {
       if (!script.checkUpdateUrl) {
         Message.warning(t("update_not_supported")!);
@@ -406,7 +408,7 @@ const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: Li
           });
         });
     },
-  });
+  };
 
   return (
     <Tooltip content={t("check_update")} position="tl">
@@ -439,7 +441,7 @@ const ActionCell = React.memo(
     setCloudScript: any;
     t: any;
   }) => {
-    const { handleDelete, handleConfig, handleRunStop, handleCloud } = useStableCallbacks({
+    const { handleDelete, handleConfig, handleRunStop, handleCloud } = {
       handleDelete: () => {
         const { uuid } = item;
         updateScriptList({ uuid, actionLoading: true });
@@ -487,7 +489,7 @@ const ActionCell = React.memo(
       handleCloud: () => {
         setCloudScript(item);
       },
-    });
+    };
 
     return (
       <Button.Group>
@@ -583,7 +585,7 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
     // compute once, even if context is null (keeps hook order legal)
     const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
 
-    const { handleDragEnd } = useStableCallbacks({
+    const { handleDragEnd } = {
       handleDragEnd: (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) {
@@ -593,7 +595,7 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
           scriptListSortOrder(setScriptList!, { active: active.id as string, over: over.id as string });
         }
       },
-    });
+    };
 
     return !sortableIds?.length ? (
       // render a plain tbody to keep the table structure intact
@@ -653,7 +655,7 @@ const FilterDropdown = React.memo(
     if (!filterKeys.length) {
       filterKeys = [{ type: "auto", value: "" }];
     }
-    const { onTypeChange, onSearchChange } = useStableCallbacks({
+    const { onTypeChange, onSearchChange } = {
       onTypeChange: (value: any, _option: any) => {
         if (value !== filterKeys[0].type) {
           filterKeys[0].type = value;
@@ -684,7 +686,7 @@ const FilterDropdown = React.memo(
           });
         }
       },
-    });
+    };
     // onSearch 不能使用 useCallback / useMemo / useStableCallbacks
     const onSearch = () => {
       confirm();
@@ -919,7 +921,7 @@ function ScriptList() {
     };
   });
 
-  const { updateScriptList, updateEntry } = useStableCallbacks({
+  const { updateScriptList, updateEntry } = {
     updateScriptList: (data: Partial<Script | ScriptLoading>) => {
       setScriptList((list) => {
         const index = list.findIndex((script) => script.uuid === data.uuid);
@@ -945,7 +947,7 @@ function ScriptList() {
         return hasChanges ? newList : list;
       });
     },
-  });
+  };
 
   const columns: ColumnProps[] = useMemo(
     () =>

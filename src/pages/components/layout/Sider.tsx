@@ -25,7 +25,6 @@ import SiderGuide from "./SiderGuide";
 import CustomLink from "../CustomLink";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const MenuItem = Menu.Item;
 let { hash } = window.location;
@@ -41,11 +40,11 @@ const Sider: React.FC = () => {
   const { t } = useTranslation();
   const guideRef = useRef<{ open: () => void }>(null);
 
-  const { handleMenuClick } = useStableCallbacks({
+  const { handleMenuClick } = {
     handleMenuClick: (key: string) => {
       setMenuSelect(key);
     },
-  });
+  };
 
   return (
     <HashRouter>

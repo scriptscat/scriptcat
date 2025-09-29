@@ -10,7 +10,6 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { parseBackupZipFile } from "@App/pkg/backup/utils";
 import { scriptClient, synchronizeClient, valueClient } from "../store/features/script";
 import { sleep } from "@App/pkg/utils/utils";
-import { useStableCallbacks } from "../utils/utils";
 
 const ScriptListItem = React.memo(
   ({
@@ -26,10 +25,6 @@ const ScriptListItem = React.memo(
     onToggle: (index: number) => void;
     onStatusToggle: (index: number, checked: boolean) => void;
   }) => {
-    const { onClickToggle, onSwitchChange } = useStableCallbacks({
-      onClickToggle: () => onToggle(index),
-      onSwitchChange: (checked) => onStatusToggle(index, checked),
-    });
     return (
       <div
         className="flex flex-row justify-between p-2"
@@ -39,7 +34,7 @@ const ScriptListItem = React.memo(
           borderBottom: "1px solid rgb(var(--gray-3))",
           cursor: "pointer",
         }}
-        onClick={onClickToggle}
+        onClick={() => onToggle(index)}
       >
         <Space direction="vertical" size={1} style={{ overflow: "hidden" }}>
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
@@ -66,7 +61,7 @@ const ScriptListItem = React.memo(
             <Switch
               size="small"
               checked={item.script?.script?.status === SCRIPT_STATUS_ENABLE}
-              onChange={onSwitchChange}
+              onChange={(checked) => onStatusToggle(index, checked)}
             />
           </div>
         </div>
@@ -225,7 +220,7 @@ function App() {
     handleSelectAllSubscribes,
     handleScriptToggleClick,
     handleScriptStatusToggle,
-  } = useStableCallbacks({
+  } = {
     importButtonClick: async () => {
       setInstallNum((prev) => [0, prev[1]]);
       setLoading(true);
@@ -267,7 +262,7 @@ function App() {
         )
       );
     },
-  });
+  };
 
   return (
     <div>

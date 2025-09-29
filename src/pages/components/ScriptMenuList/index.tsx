@@ -29,7 +29,6 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
-import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -197,9 +196,6 @@ const ScriptMenuList = React.memo(
         item: ScriptMenu;
         onEnableChange: (item: ScriptMenu, checked: boolean) => void;
       }) => {
-        const { onChange } = useStableCallbacks({
-          onChange: (checked) => onEnableChange(item, checked),
-        });
         return (
           <div
             onClick={(e) => {
@@ -217,7 +213,7 @@ const ScriptMenuList = React.memo(
             }
           >
             <Space>
-              <Switch size="small" checked={item.enable} onChange={onChange} />
+              <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
               <span
                 style={{
                   display: "block",
