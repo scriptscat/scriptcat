@@ -16,9 +16,10 @@ export function useStableCallbacks<T extends (...args: any[]) => any, D extends 
 }
 
 export function useFnState<T>(initialValue: T) {
+  type Updater<U> = U | ((old: U) => U);
   const { state, setter } = useRef({
     state: { val: initialValue },
-    setter: (s: T | ((old: T) => T)) => {
+    setter: (s: Updater<T>) => {
       setValFn((prev) => {
         const next = typeof s === "function" ? (s as (old: T) => T)(state.val) : s;
         // avoid re-render if value didn't change
@@ -30,5 +31,5 @@ export function useFnState<T>(initialValue: T) {
   }).current;
   const [valFn, setValFn] = useState<() => T>(() => () => state.val);
 
-  return [valFn, setter] as [() => T, (s: T) => void];
+  return [valFn, setter] as const;
 }

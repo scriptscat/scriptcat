@@ -29,7 +29,7 @@ import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/fi
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
-import { useStableCallbacks } from "../utils/utils";
+import { useFnState, useStableCallbacks } from "../utils/utils";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -53,7 +53,7 @@ function App() {
   const [btnText, setBtnText] = useState<string>("");
   const [scriptCode, setScriptCode] = useState<string>("");
   const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  const [mUpsertScript, setUpsertScript] = useState<ScriptOrSubscribe>();
+  const [mUpsertScript, setUpsertScript] = useFnState<ScriptOrSubscribe | undefined>(undefined);
   const [diffCode, setDiffCode] = useState<string>();
   const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
@@ -280,20 +280,20 @@ function App() {
     } else {
       setBtnText(isUpdate ? t("update_script")! : t("install_script"));
     }
-    if (mUpsertScript) {
-      document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(mUpsertScript)} - ScriptCat`;
+    if (mUpsertScript()) {
+      document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(mUpsertScript()!)} - ScriptCat`;
     }
   }, [isUpdate, scriptInfo, mUpsertScript]);
 
   // 设置脚本状态
   useEffect(() => {
-    if (mUpsertScript) {
-      setEnable(mUpsertScript.status === SCRIPT_STATUS_ENABLE);
+    if (mUpsertScript()) {
+      setEnable(mUpsertScript()!.status === SCRIPT_STATUS_ENABLE);
     }
   }, [mUpsertScript]);
 
   const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
-    if (!mUpsertScript) {
+    if (!mUpsertScript()) {
       Message.error(t("script_info_load_failed")!);
       return;
     }
@@ -302,17 +302,17 @@ function App() {
 
     try {
       if (scriptInfo?.userSubscribe) {
-        await subscribeClient.install(mUpsertScript as Subscribe);
+        await subscribeClient.install(mUpsertScript() as Subscribe);
         Message.success(t("subscribe_success")!);
         setBtnText(t("subscribe_success")!);
       } else {
         // 如果选择不再检查更新，可以在这里设置脚本的更新配置
         if (disableUpdates && mUpsertScript) {
           // 这里可以设置脚本禁用自动更新的逻辑
-          (mUpsertScript as Script).checkUpdate = false;
+          (mUpsertScript() as Script).checkUpdate = false;
         }
         // 故意只安装或执行，不改变显示内容
-        await scriptClient.install(mUpsertScript as Script, scriptCode);
+        await scriptClient.install(mUpsertScript() as Script, scriptCode);
         if (isUpdate) {
           Message.success(t("install.update_success")!);
           setBtnText(t("install.update_success")!);
@@ -376,7 +376,7 @@ function App() {
     if (this.uuid !== scriptInfo?.uuid) return;
     if (this.fileName !== localFileHandle?.name) return;
     setScriptCode(code);
-    const uuid = (mUpsertScript as Script)?.uuid;
+    const uuid = (mUpsertScript() as Script)?.uuid;
     if (!uuid) {
       throw new Error("uuid is undefined");
     }
@@ -410,7 +410,7 @@ function App() {
       // 如没有安装纪录，将进行安装。
       // 如已经安装，在FileSystemObserver检查更改前，先进行更新。
       const code = `${scriptCode}`;
-      await installOrUpdateScript(mUpsertScript as Script, code);
+      await installOrUpdateScript(mUpsertScript() as Script, code);
       // setScriptCode(`${code}`);
       setDiffCode(`${code}`);
       const ftInfo: FTInfo = {
@@ -457,13 +457,13 @@ function App() {
         <Grid.Col flex={1} className="flex-col p-8px">
           <Space direction="vertical" className="w-full">
             <div>
-              {mUpsertScript?.metadata.icon && (
+              {mUpsertScript()?.metadata.icon && (
                 <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                  <img src={mUpsertScript.metadata.icon[0]} alt={mUpsertScript?.name} />
+                  <img src={mUpsertScript()!.metadata.icon![0]} alt={mUpsertScript()!.name} />
                 </Avatar>
               )}
               <Typography.Text bold className="text-size-lg">
-                {mUpsertScript && i18nName(mUpsertScript)}
+                {mUpsertScript() && i18nName(mUpsertScript()!)}
                 <Tooltip
                   content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
                 >
@@ -472,7 +472,7 @@ function App() {
               </Typography.Text>
             </div>
             <div>
-              <Typography.Text bold>{mUpsertScript && i18nDescription(mUpsertScript)}</Typography.Text>
+              <Typography.Text bold>{mUpsertScript() && i18nDescription(mUpsertScript()!)}</Typography.Text>
             </div>
             <div>
               <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
