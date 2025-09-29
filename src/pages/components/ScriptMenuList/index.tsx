@@ -29,7 +29,7 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
-import { useFnState, useStableCallbacks } from "@App/pages/utils/utils";
+import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -164,44 +164,30 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const { handleEnableChange, handleRunScript, handleEditScript, handleDeleteScript, handleOpenUserConfig } =
-      useStableCallbacks({
-        handleEnableChange: (item: ScriptMenu, checked: boolean) => {
-          scriptClient
-            .enable(item.uuid, checked)
-            .then(() => {
-              setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
-            })
-            .catch((err) => {
-              Message.error(err);
-            });
-        },
+    const handleRunScript = (item: ScriptMenu) => {
+      if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+        runtimeClient.runScript(item.uuid);
+      } else {
+        runtimeClient.stopScript(item.uuid);
+      }
+    };
 
-        handleRunScript: (item: ScriptMenu) => {
-          if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-            runtimeClient.runScript(item.uuid);
-          } else {
-            runtimeClient.stopScript(item.uuid);
-          }
-        },
+    const handleEditScript = (uuid: string) => {
+      window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
+      window.close();
+    };
 
-        handleEditScript: (uuid: string) => {
-          window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
-          window.close();
-        },
-
-        handleDeleteScript: (uuid: string) => {
-          setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
-          scriptClient.deletes([uuid]).catch((e) => {
-            Message.error(`{t('delete_failed')}: ${e}`);
-          });
-        },
-
-        handleOpenUserConfig: (uuid: string) => {
-          window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
-          window.close();
-        },
+    const handleDeleteScript = (uuid: string) => {
+      setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+      scriptClient.deletes([uuid]).catch((e) => {
+        Message.error(`{t('delete_failed')}: ${e}`);
       });
+    };
+
+    const handleOpenUserConfig = (uuid: string) => {
+      window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
+      window.close();
+    };
 
     const CollapseHeader = React.memo(
       ({
@@ -253,7 +239,7 @@ const ScriptMenuList = React.memo(
     CollapseHeader.displayName = "CollapseHeader";
 
     const ListMenuItem = React.memo(({ item }: { item: ScriptMenu }) => {
-      const [isEffective, setIsEffective] = useFnState<boolean | null>(item.isEffective);
+      const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
 
       const [isExpand, setIsExpand] = useState<boolean>(false);
 
@@ -270,30 +256,30 @@ const ScriptMenuList = React.memo(
 
       const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
         scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-          setIsEffective(!isEffective());
+          setIsEffective(!isEffective);
         });
       };
-
-      const {
-        handleClickRunScript,
-        handleClickEditScript,
-        handleClickExcludeUrl,
-        handleClickDeleteScript,
-        handleClickExpandMenu,
-        handleClickOpenUserConfig,
-      } = useStableCallbacks({
-        handleClickRunScript: () => handleRunScript(item),
-        handleClickEditScript: () => handleEditScript(item.uuid),
-        handleClickExcludeUrl: () => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective()),
-        handleClickDeleteScript: () => handleDeleteScript(item.uuid),
-        handleClickExpandMenu: () => handleExpandMenu(),
-        handleClickOpenUserConfig: () => handleOpenUserConfig(item.uuid),
-      });
 
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
-            header={<CollapseHeader item={item} onEnableChange={handleEnableChange} />}
+            header={
+              <CollapseHeader
+                item={item}
+                onEnableChange={(item: ScriptMenu, checked: boolean) => {
+                  scriptClient
+                    .enable(item.uuid, checked)
+                    .then(() => {
+                      setList((prevList) =>
+                        prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1))
+                      );
+                    })
+                    .catch((err) => {
+                      Message.error(err);
+                    });
+                }}
+              />
+            }
             name={item.uuid}
             contentStyle={{ padding: "0 0 0 40px" }}
           >
@@ -303,26 +289,35 @@ const ScriptMenuList = React.memo(
                   className="text-left"
                   type="secondary"
                   icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
-                  onClick={handleClickRunScript}
+                  onClick={() => handleRunScript(item)}
                 >
                   {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
                 </Button>
               )}
-              <Button className="text-left" type="secondary" icon={<IconEdit />} onClick={handleClickEditScript}>
+              <Button
+                className="text-left"
+                type="secondary"
+                icon={<IconEdit />}
+                onClick={() => handleEditScript(item.uuid)}
+              >
                 {t("edit")}
               </Button>
-              {url && isEffective() !== null && (
+              {url && isEffective !== null && (
                 <Button
                   className="text-left"
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={handleClickExcludeUrl}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
                 >
-                  {(!isEffective() ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
+                  {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
-              <Popconfirm title={t("confirm_delete_script")} icon={<IconDelete />} onOk={handleClickDeleteScript}>
+              <Popconfirm
+                title={t("confirm_delete_script")}
+                icon={<IconDelete />}
+                onOk={() => handleDeleteScript(item.uuid)}
+              >
                 <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
                   {t("delete")}
                 </Button>
@@ -340,7 +335,7 @@ const ScriptMenuList = React.memo(
                 key="expand"
                 type="secondary"
                 icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
-                onClick={handleClickExpandMenu}
+                onClick={handleExpandMenu}
               >
                 {isExpand ? t("collapse") : t("expand")}
               </Button>
@@ -351,7 +346,7 @@ const ScriptMenuList = React.memo(
                 key="config"
                 type="secondary"
                 icon={<IconSettings />}
-                onClick={handleClickOpenUserConfig}
+                onClick={() => handleOpenUserConfig(item.uuid)}
               >
                 {t("user_config")}
               </Button>
