@@ -318,3 +318,31 @@ export function cleanFileName(name: string): string {
   // eslint-disable-next-line no-control-regex, no-useless-escape
   return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
 }
+
+export const stringMatching = (main: string, sub: string): boolean => {
+  // If no wildcards, use simple includes check
+  if (!sub.includes("*") && !sub.includes("?")) {
+    return main.includes(sub);
+  }
+
+  // Escape special regex characters except * and ?
+  const escapeRegex = (str: string) => str.replace(/[-[\]{}()+.,\\^$|#\s]/g, "\\$&");
+
+  // Convert glob pattern to regex
+  let pattern = escapeRegex(sub)
+    .replace(/\*/g, ".*") // * matches zero or more characters
+    .replace(/\?/g, "."); // ? matches exactly one character
+
+  // Anchor the pattern to match entire string
+  pattern = `\\b${pattern}\\b`;
+
+  try {
+    // Create regex and test against main string
+    const regex = new RegExp(pattern);
+    return regex.test(main);
+  } catch (e) {
+    console.error(e);
+    // Handle invalid regex patterns
+    return false;
+  }
+};

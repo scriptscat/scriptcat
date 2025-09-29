@@ -11,6 +11,7 @@ import {
   getStorageName,
   openInCurrentTab,
   randomMessageFlag,
+  stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type {
@@ -452,9 +453,9 @@ export class ScriptService {
 
       const searchName = (keyword: string) => {
         if (OPTION_CASE_INSENSITIVE) {
-          return script.name.toLowerCase().includes(keyword.toLowerCase());
+          return stringMatching(script.name.toLowerCase(), keyword.toLowerCase());
         }
-        return script.name.includes(keyword);
+        return stringMatching(script.name, keyword);
       };
       const searchCode = (keyword: string) => {
         let c = codeCache[script.uuid];
@@ -467,9 +468,9 @@ export class ScriptService {
         }
         if (c) {
           if (OPTION_CASE_INSENSITIVE) {
-            return c.toLowerCase().includes(keyword.toLowerCase());
+            return stringMatching(c.toLowerCase(), keyword.toLowerCase());
           }
-          return c.includes(keyword);
+          return stringMatching(c, keyword);
         }
         return false;
       };
