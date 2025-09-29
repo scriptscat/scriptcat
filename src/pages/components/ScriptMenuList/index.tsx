@@ -18,6 +18,7 @@ import {
   IconEdit,
   IconMenu,
   IconMinus,
+  IconPlus,
   IconSettings,
 } from "@arco-design/web-react/icon";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
@@ -290,7 +291,7 @@ const ScriptMenuList = React.memo(
                   className="text-left"
                   status="warning"
                   type="secondary"
-                  icon={<IconMinus />}
+                  icon={!isEffective ? <IconPlus /> : <IconMinus />}
                   onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
                 >
                   {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
