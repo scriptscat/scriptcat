@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
@@ -186,19 +186,16 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
       setValue(v);
     })();
   }, [key]);
-  const submitValue = useCallback(
-    (v?: SystemConfigValueType<T>) => {
-      if (v === undefined) {
-        setValue((old) => {
-          systemConfig.set(key, old);
-          return old;
-        });
-      } else {
-        systemConfig.set(key, v);
-        setValue(v);
-      }
-    },
-    [key]
-  );
+  const submitValue = useRef((v?: SystemConfigValueType<T>) => {
+    if (v === undefined) {
+      setValue((old) => {
+        systemConfig.set(key, old);
+        return old;
+      });
+    } else {
+      systemConfig.set(key, v);
+      setValue(v);
+    }
+  }).current;
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
