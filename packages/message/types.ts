@@ -1,4 +1,4 @@
-export type TMessageQueue<T = any> = {
+export type TMessagQueueUnit<T = any> = {
   msgQueue: string;
   data: {
     action: string;
@@ -23,7 +23,7 @@ export type TMessageCommCode<T = any> = {
   message?: NonNullable<string>;
 };
 
-export type TMessage<T = any> = TMessageQueue<T> | TMessageCommAction<T> | TMessageCommCode<T>;
+export type TMessage<T = any> = TMessagQueueUnit<T> | TMessageCommAction<T> | TMessageCommCode<T>;
 
 export type RuntimeMessageSender = chrome.runtime.MessageSender;
 

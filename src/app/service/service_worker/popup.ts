@@ -1,4 +1,4 @@
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
@@ -34,7 +34,7 @@ const cIdKey = `(cid_${Math.random()})`;
 export class PopupService {
   constructor(
     private group: Group,
-    private mq: MessageQueue,
+    private mq: IMessageQueue,
     private runtime: RuntimeService,
     private scriptDAO: ScriptDAO,
     private systemConfig: SystemConfig

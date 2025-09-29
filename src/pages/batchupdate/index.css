@@ -1,0 +1,25 @@
+.batchupdate-mainlayout {
+    min-height: max-content;
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+body .text-clickable {
+    color: inherit;
+    cursor: pointer;
+}
+
+body .text-clickable:hover {
+    color: inherit;
+    text-decoration: underline;
+}
+
+body .card-enabled {
+    background-color: rgba(var(--gray-1),.6);
+    opacity: .95
+}
+
+body .card-disabled {
+    background-color: rgba(var(--gray-1),.4);
+    opacity: .65
+}

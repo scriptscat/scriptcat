@@ -4,7 +4,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import type { SCMetadata, Subscribe, SubscribeScript } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_DISABLE, SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { type SystemConfig } from "@App/pkg/config/config";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type ScriptService } from "./script";
 import { createScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -24,7 +24,7 @@ export class SubscribeService {
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
-    private mq: MessageQueue,
+    private mq: IMessageQueue,
     private scriptService: ScriptService
   ) {
     this.logger = LoggerCore.logger().with({ service: "subscribe" });
@@ -161,18 +161,22 @@ export class SubscribeService {
     return true;
   }
 
-  async _checkUpdateAvailable(subscribe: {
-    url: string;
-    name: string;
-    checkUpdateUrl?: string;
-    metadata: Partial<Record<string, any>>;
-  }): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
+  async _checkUpdateAvailable(
+    subscribe: {
+      url: string;
+      name: string;
+      checkUpdateUrl?: string;
+      metadata: Partial<Record<string, any>>;
+    },
+    delayFn?: () => Promise<any>
+  ): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
     const { url, name } = subscribe;
     const logger = this.logger.with({
       url,
       name,
     });
     try {
+      if (delayFn) await delayFn();
       const code = await fetchScriptBody(url);
       const metadata = parseMetadata(code);
       if (!metadata) {
@@ -305,12 +309,12 @@ export class SubscribeService {
       this.upsertScript(message.subscribe.url);
     });
 
-    // 定时检查更新, 每10分钟检查一次
+    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
     chrome.alarms.create(
       "checkSubscribeUpdate",
       {
-        delayInMinutes: 10,
-        periodInMinutes: 10,
+        delayInMinutes: 5,
+        periodInMinutes: 30,
       },
       () => {
         const lastError = chrome.runtime.lastError;

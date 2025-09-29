@@ -15,7 +15,7 @@ export class OffscreenManager {
 
   private windowServer: Server = new Server("offscreen", this.windowMessage);
 
-  private messageQueue: MessageQueue = new MessageQueue();
+  private messageQueue = new MessageQueue();
 
   private serviceWorker = new ServiceWorkerClient(this.extMsgSender);
 

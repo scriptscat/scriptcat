@@ -17,7 +17,7 @@ import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
-import { popupClient, scriptClient } from "../store/features/script";
+import { popupClient, requestOpenBatchUpdatePage } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
@@ -153,6 +153,23 @@ function App() {
     systemConfig.setCheckUpdate(updatedCheckUpdate);
   }, [checkUpdate]);
 
+  const getUrlDomain = (navUrl: string) => {
+    let domain = "";
+    try {
+      const url = new URL(navUrl);
+      if (url.protocol.startsWith("http")) {
+        domain = url.hostname;
+      }
+    } catch {
+      // ignore
+    }
+    return domain;
+  };
+
+  const doCheckUpdateInPopupMenu = async () => {
+    const domain = getUrlDomain(currentUrl);
+    await requestOpenBatchUpdatePage(`autoclose=-1${domain ? `&site=${domain}` : ""}`);
+  };
   const handleMenuClick = async (key: string) => {
     switch (key) {
       case "newScript":
@@ -162,8 +179,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await scriptClient.requestCheckUpdate("");
-        window.close();
+        await doCheckUpdateInPopupMenu(); // 在service_worker打開新tab及進行檢查。
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;
