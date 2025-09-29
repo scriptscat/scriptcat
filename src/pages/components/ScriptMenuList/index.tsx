@@ -252,7 +252,7 @@ const ScriptMenuList = React.memo(
 
       const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
         scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-          setIsEffective(!isEffective);
+          setIsEffective(isExclude);
         });
       };
 
