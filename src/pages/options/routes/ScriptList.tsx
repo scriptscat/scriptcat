@@ -795,7 +795,7 @@ function ScriptList() {
     return () => {
       for (const unhook of unhooks) unhook();
     };
-  });
+  }, []);
 
   const updateScriptList = React.useCallback((data: Partial<Script | ScriptLoading>) => {
     setScriptList((list) => {

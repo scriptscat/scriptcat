@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { messageQueue } from "../store/global";
 import {
   requestBatchUpdateListAction,
   requestCheckScriptUpdate,
@@ -18,6 +17,7 @@ import {
 } from "@App/app/service/service_worker/types";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
+import { useAppContext } from "../store/AppContext";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -25,6 +25,8 @@ const { GridItem } = Grid;
 const { Text } = Typography;
 
 function App() {
+  const { subscribeMessage } = useAppContext();
+
   const AUTO_CLOSE_PAGE = 8000; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
@@ -128,20 +130,9 @@ function App() {
     });
   };
 
-  const subscribeMessageConsumed = new WeakSet();
-  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data) => {
-      const message = data?.myMessage || data;
-      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
-        subscribeMessageConsumed.add(message);
-        handler(message);
-      }
-    });
-  };
-
   useEffect(() => {
     return subscribeMessage("onScriptUpdateCheck", pageApi.onScriptUpdateCheck);
-  });
+  }, []);
 
   const doInitial = () => {
     // faster than useEffect
