@@ -302,7 +302,7 @@ export class SystemConfig {
   }
 
   // 获取typescript类型定义
-  getEditorTypeDefinition() {
+  getEditorTypeDefinition(): string {
     return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
   }
 
