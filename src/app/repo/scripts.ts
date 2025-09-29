@@ -65,12 +65,17 @@ export interface Script {
   checktime: number; // 脚本检查更新时间戳
   lastruntime?: number; // 脚本最后一次运行时间戳
   nextruntime?: number; // 脚本下一次运行时间戳
+  ignoreVersion?: string; // 忽略單一版本的更新檢查
 }
 
 // 分开存储脚本代码
 export interface ScriptCode {
   uuid: string;
   code: string; // 脚本执行代码
+}
+
+export interface ScriptSite {
+  [uuid: string]: string[] | undefined;
 }
 
 export type ScriptAndCode = Script & ScriptCode;

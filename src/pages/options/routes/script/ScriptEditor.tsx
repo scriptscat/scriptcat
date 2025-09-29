@@ -243,6 +243,7 @@ function ScriptEditor() {
           Message.warning(t("script_name_cannot_be_set_to_empty"));
           return Promise.reject(new Error("script name cannot be empty"));
         }
+        if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
           .install(script, code)
           .then((update): Script => {

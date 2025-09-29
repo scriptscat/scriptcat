@@ -60,6 +60,7 @@ function App() {
   const { t } = useTranslation();
 
   const installOrUpdateScript = async (newScript: Script, code: string) => {
+    if (newScript.ignoreVersion) newScript.ignoreVersion = "";
     await scriptClient.install(newScript, code);
     const metadata = newScript.metadata;
     setScriptInfo((prev) => (prev ? { ...prev, code, metadata } : prev));
@@ -316,8 +317,21 @@ function App() {
           Message.success(t("install.update_success")!);
           setBtnText(t("install.update_success")!);
         } else {
-          Message.success(t("install_success")!);
-          setBtnText(t("install_success")!);
+          // 如果选择不再检查更新，可以在这里设置脚本的更新配置
+          if (disableUpdates && upsertScript) {
+            // 这里可以设置脚本禁用自动更新的逻辑
+            (upsertScript as Script).checkUpdate = false;
+          }
+          if ((upsertScript as Script).ignoreVersion) (upsertScript as Script).ignoreVersion = "";
+          // 故意只安装或执行，不改变显示内容
+          await scriptClient.install(upsertScript as Script, scriptCode);
+          if (isUpdate) {
+            Message.success(t("install.update_success")!);
+            setBtnText(t("install.update_success")!);
+          } else {
+            Message.success(t("install_success")!);
+            setBtnText(t("install_success")!);
+          }
         }
       }
 

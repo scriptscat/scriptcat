@@ -2,7 +2,14 @@ import type { Script, ScriptCode, ScriptRunResource } from "@App/app/repo/script
 import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptLoadInfo, ScriptMenu, ScriptMenuItem, SearchType } from "./types";
+import type {
+  InstallSource,
+  ScriptLoadInfo,
+  ScriptMenu,
+  ScriptMenuItem,
+  SearchType,
+  TBatchUpdateListAction,
+} from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -16,7 +23,7 @@ import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService } from "./script";
+import type { ScriptService, TCheckScriptUpdateOption } from "./script";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -178,6 +185,33 @@ export class ScriptClient extends Client {
 
   updateMetadata(uuid: string, key: string, value: string[]) {
     return this.do("updateMetadata", { uuid, key, value });
+  }
+  async getBatchUpdateRecordLite(i: number) {
+    return this.do<any>("getBatchUpdateRecordLite", i);
+  }
+
+  async fetchCheckUpdateStatus() {
+    return this.do<void>("fetchCheckUpdateStatus");
+  }
+
+  async sendUpdatePageOpened() {
+    return this.do<void>("sendUpdatePageOpened");
+  }
+
+  async batchUpdateListAction(action: TBatchUpdateListAction): Promise<any> {
+    return this.do<any>("batchUpdateListAction", action);
+  }
+
+  async openUpdatePageByUUID(uuid: string) {
+    return this.do<void>("openUpdatePageByUUID", uuid);
+  }
+
+  async openBatchUpdatePage(q: string) {
+    return this.do<boolean>("openBatchUpdatePage", q);
+  }
+
+  async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
+    return this.do<void>("checkScriptUpdate", opts);
   }
 }
 

@@ -161,6 +161,9 @@ function App() {
 
   const scriptImportAsync = async (item: ScriptData) => {
     try {
+      if (item.script?.script) {
+        if (item.script.script.ignoreVersion) item.script.script.ignoreVersion = "";
+      }
       await scriptClient.install(item.script!.script!, item.code);
       await Promise.all([
         (async () => {
