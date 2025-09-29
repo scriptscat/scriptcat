@@ -713,7 +713,7 @@ const FilterDropdown = React.memo(
           className="flex-1"
           triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
           size="small"
-          value={filterKeys[0].type || "auto"}
+          defaultValue={filterKeys[0].type || "auto"}
           onChange={onTypeChange}
         >
           <Select.Option value="auto">{t("auto")}</Select.Option>
@@ -730,7 +730,7 @@ const FilterDropdown = React.memo(
               search: filterKeys[0].type == "auto" ? `${t("name")}/${t("script_code")}` : t(""),
             })!
           }
-          value={filterKeys[0].value || ""}
+          defaultValue={filterKeys[0].value || ""}
           onChange={onSearchChange}
           onSearch={onSearch}
         />
