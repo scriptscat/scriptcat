@@ -188,50 +188,53 @@ const ScriptMenuList = React.memo(
       window.close();
     };
 
-    const CollapseHeader = React.memo(
-      ({
-        item,
-        onEnableChange,
-      }: {
-        item: ScriptMenu;
-        onEnableChange: (item: ScriptMenu, checked: boolean) => void;
-      }) => {
-        return (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            title={
-              item.enable
-                ? item.runNumByIframe
-                  ? t("script_total_runs", {
-                      runNum: item.runNum,
-                      runNumByIframe: item.runNumByIframe,
-                    })!
-                  : t("script_total_runs_single", { runNum: item.runNum })!
-                : t("script_disabled")!
-            }
-          >
-            <Space>
-              <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
-              <span
-                style={{
-                  display: "block",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
-                  lineHeight: "20px",
-                }}
-              >
-                <ScriptIcons script={item} size={20} />
-                {i18nName(item)}
-              </span>
-            </Space>
-          </div>
-        );
-      }
-    );
+    const onEnableChange = (item: ScriptMenu, checked: boolean) => {
+      scriptClient
+        .enable(item.uuid, checked)
+        .then(() => {
+          setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
+        })
+        .catch((err) => {
+          Message.error(err);
+        });
+    };
+
+    const CollapseHeader = React.memo(({ item }: { item: ScriptMenu }) => {
+      return (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          title={
+            item.enable
+              ? item.runNumByIframe
+                ? t("script_total_runs", {
+                    runNum: item.runNum,
+                    runNumByIframe: item.runNumByIframe,
+                  })!
+                : t("script_total_runs_single", { runNum: item.runNum })!
+              : t("script_disabled")!
+          }
+        >
+          <Space>
+            <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
+            <span
+              style={{
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
+                lineHeight: "20px",
+              }}
+            >
+              <ScriptIcons script={item} size={20} />
+              {i18nName(item)}
+            </span>
+          </Space>
+        </div>
+      );
+    });
     CollapseHeader.displayName = "CollapseHeader";
 
     const ListMenuItem = React.memo(({ item }: { item: ScriptMenu }) => {
@@ -259,23 +262,7 @@ const ScriptMenuList = React.memo(
       return (
         <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
           <CollapseItem
-            header={
-              <CollapseHeader
-                item={item}
-                onEnableChange={(item: ScriptMenu, checked: boolean) => {
-                  scriptClient
-                    .enable(item.uuid, checked)
-                    .then(() => {
-                      setList((prevList) =>
-                        prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1))
-                      );
-                    })
-                    .catch((err) => {
-                      Message.error(err);
-                    });
-                }}
-              />
-            }
+            header={<CollapseHeader item={item} />}
             name={item.uuid}
             contentStyle={{ padding: "0 0 0 40px" }}
           >
