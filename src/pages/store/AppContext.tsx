@@ -2,6 +2,8 @@ import React, { useState, createContext, type ReactNode, useEffect, useContext }
 import { messageQueue } from "./global";
 import { editor } from "monaco-editor";
 
+const SUBSCRIBE_HANDLER_ID = `SUBSCRIBE_HANDLER_ID`;
+
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
@@ -63,12 +65,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     },
   };
 
-  const subscribeMessageConsumed = new WeakSet();
-  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data: any) => {
+  const subscribeMessageConsumed = new WeakMap();
+  const subscribeMessage = (topic: string, handler: ((msg: any) => void) & { [SUBSCRIBE_HANDLER_ID]?: string }) => {
+    const handlerId =
+      handler[SUBSCRIBE_HANDLER_ID] || (handler[SUBSCRIBE_HANDLER_ID] = `${Date.now() + Math.random()}`);
+    return messageQueue.subscribe<any>(topic, (data) => {
       const message = data?.myMessage || data;
-      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
-        subscribeMessageConsumed.add(message);
+      let messageConsumed = subscribeMessageConsumed.get(message) as Record<string, boolean> | undefined;
+      if (!messageConsumed) {
+        subscribeMessageConsumed.set(message, (messageConsumed = {} as Record<string, boolean>));
+      }
+      if (typeof message === "object" && !messageConsumed[handlerId]) {
+        messageConsumed[handlerId] = true;
         handler(message);
       }
     });
