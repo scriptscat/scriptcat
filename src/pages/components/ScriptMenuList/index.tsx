@@ -29,7 +29,7 @@ import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/featu
 import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { type TScriptRunStatus } from "@App/app/service/queue";
-import { useFnState, useStableCallbacks } from "@App/pages/utils/utils";
+import { useStableCallbacks } from "@App/pages/utils/utils";
 
 const CollapseItem = Collapse.Item;
 
@@ -253,7 +253,7 @@ const ScriptMenuList = React.memo(
     CollapseHeader.displayName = "CollapseHeader";
 
     const ListMenuItem = React.memo(({ item }: { item: ScriptMenu }) => {
-      const [isEffective, setIsEffective] = useFnState<boolean | null>(item.isEffective);
+      const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
 
       const [isExpand, setIsExpand] = useState<boolean>(false);
 
@@ -270,21 +270,19 @@ const ScriptMenuList = React.memo(
 
       const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
         scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-          setIsEffective(!isEffective());
+          setIsEffective(!isEffective);
         });
       };
 
       const {
         handleClickRunScript,
         handleClickEditScript,
-        handleClickExcludeUrl,
         handleClickDeleteScript,
         handleClickExpandMenu,
         handleClickOpenUserConfig,
       } = useStableCallbacks({
         handleClickRunScript: () => handleRunScript(item),
         handleClickEditScript: () => handleEditScript(item.uuid),
-        handleClickExcludeUrl: () => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective()),
         handleClickDeleteScript: () => handleDeleteScript(item.uuid),
         handleClickExpandMenu: () => handleExpandMenu(),
         handleClickOpenUserConfig: () => handleOpenUserConfig(item.uuid),
@@ -311,15 +309,15 @@ const ScriptMenuList = React.memo(
               <Button className="text-left" type="secondary" icon={<IconEdit />} onClick={handleClickEditScript}>
                 {t("edit")}
               </Button>
-              {url && isEffective() !== null && (
+              {url && isEffective !== null && (
                 <Button
                   className="text-left"
                   status="warning"
                   type="secondary"
                   icon={<IconMinus />}
-                  onClick={handleClickExcludeUrl}
+                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
                 >
-                  {(!isEffective() ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
+                  {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
                 </Button>
               )}
               <Popconfirm title={t("confirm_delete_script")} icon={<IconDelete />} onOk={handleClickDeleteScript}>
