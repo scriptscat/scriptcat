@@ -5,7 +5,6 @@ import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
 import i18n from "i18next";
-import { changeLanguage } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -69,10 +68,7 @@ function Setting() {
   // only string / number / boolean
   const autoRefresh = useRef({
     editor_config: setEditorConfig,
-    language: (v: string) => {
-      setLanguage(v);
-      changeLanguage(v);
-    },
+    language: setLanguage,
     menu_expand_num: setMenuExpandNum,
     check_script_update_cycle: setCheckScriptUpdateCycle,
     update_disable_script: setUpdateDisableScript,

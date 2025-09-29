@@ -3,7 +3,7 @@ import { defaultConfig } from "../../../packages/eslint/linter-config";
 import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import type { IMessageQueue, TKeyValue } from "@Packages/message/message_queue";
-import { changeLanguage, matchLanguage } from "@App/locales/locales";
+import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
@@ -371,7 +371,6 @@ export class SystemConfig {
 
   setLanguage(value: string) {
     this._set("language", value);
-    changeLanguage(value);
     if (globalThis.localStorage) {
       localStorage.setItem("language", value);
     }
