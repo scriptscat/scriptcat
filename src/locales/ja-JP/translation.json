@@ -298,7 +298,6 @@
     "main_header": "更新を確認",
     "header_site_specific": "このサイトに利用可能な更新があります（$0）",
     "header_site_all": "利用可能な更新があります",
-    "header_other": "その他の利用可能な更新",
     "header_ignored": "利用可能な更新（無視済み）",
     "update_all": "すべて更新",
     "ignore_all": "すべて無視",
@@ -321,7 +320,8 @@
     "status_no_update": "更新は不要です",
     "status_n_update": "$0 件の更新が必要です",
     "status_n_ignored": "$0 件の更新が無視されました",
-    "status_autoclose": "$0 秒後に自動的に閉じます"
+    "status_autoclose": "$0 秒後に自動的に閉じます",
+    "header_other_update": "その他の利用可能な更新"
   },
   "background_script_tag": "これはバックグラウンドスクリプトです",
   "scheduled_script_tag": "これはスケジュールスクリプトです",

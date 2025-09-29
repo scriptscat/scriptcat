@@ -298,7 +298,6 @@
     "main_header": "Nach Updates suchen",
     "header_site_specific": "Updates für diese Website verfügbar ($0)",
     "header_site_all": "Updates verfügbar",
-    "header_other": "Andere verfügbare Updates",
     "header_ignored": "Verfügbare, aber ignorierte Updates",
     "update_all": "Alle aktualisieren",
     "ignore_all": "Alle ignorieren",
@@ -321,7 +320,8 @@
     "status_no_update": "Keine Updates erforderlich",
     "status_n_update": "$0 Updates erforderlich",
     "status_n_ignored": "$0 Updates ignoriert",
-    "status_autoclose": "Automatisches Schließen in $0 Sekunden"
+    "status_autoclose": "Automatisches Schließen in $0 Sekunden",
+    "header_other_update": "Andere verfügbare Updates"
   },
   "background_script_tag": "Dies ist ein Hintergrundskript",
   "scheduled_script_tag": "Dies ist ein geplantes Skript",

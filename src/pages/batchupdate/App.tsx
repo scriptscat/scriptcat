@@ -476,7 +476,7 @@ function App() {
                     {makeGrids(mRecords?.site)}
                   </CollapseItem>
                   <CollapseItem
-                    header={`${t("updatepage.header_other")}`}
+                    header={`${t("updatepage.header_other_update")}`}
                     name="list-other"
                     className={[paramSite ? "" : "hidden"]}
                     disabled={!mRecords?.other?.length || isDoingTask}

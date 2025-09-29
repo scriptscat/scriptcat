@@ -298,7 +298,6 @@
     "main_header": "Kiểm tra Cập nhật",
     "header_site_specific": "Có bản cập nhật cho trang web này ($0)",
     "header_site_all": "Có bản cập nhật",
-    "header_other": "Các bản cập nhật khác",
     "header_ignored": "Có bản cập nhật nhưng đã bỏ qua",
     "update_all": "Cập nhật tất cả",
     "ignore_all": "Bỏ qua tất cả",
@@ -321,7 +320,8 @@
     "status_no_update": "Không cần cập nhật",
     "status_n_update": "Có $0 bản cần cập nhật",
     "status_n_ignored": "Có $0 bản cập nhật bị bỏ qua",
-    "status_autoclose": "Tự đóng trong $0 giây"
+    "status_autoclose": "Tự đóng trong $0 giây",
+    "header_other_update": "Các bản cập nhật khác"
   },
   "background_script_tag": "Đây là một script nền",
   "scheduled_script_tag": "Đây là một script hẹn giờ",
