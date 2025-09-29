@@ -1,5 +1,5 @@
 import { describe, test, expect, it } from "vitest";
-import { checkSilenceUpdate, cleanFileName } from "./utils";
+import { checkSilenceUpdate, cleanFileName, stringMatching } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
@@ -260,5 +260,69 @@ describe("cleanFileName", () => {
 
   it("should handle valid filename", () => {
     expect(cleanFileName("valid_file.txt")).toBe("valid_file.txt");
+  });
+});
+
+describe("stringMatching", () => {
+  describe("无通配符的情况", () => {
+    it("应该使用 includes 检查", () => {
+      expect(stringMatching("hello world", "hello")).toBe(true);
+      expect(stringMatching("hello world", "world")).toBe(true);
+      expect(stringMatching("hello world", "test")).toBe(false);
+    });
+  });
+
+  describe("星号通配符 (*) - 匹配零个或多个字符", () => {
+    it("go*le search 示例", () => {
+      // 基于需求：go*le search 能找到 gole search, google search, goule search, gommarle search
+      expect(stringMatching("gole search", "go*le search")).toBe(true);
+      expect(stringMatching("google search", "go*le search")).toBe(true);
+      expect(stringMatching("goule search", "go*le search")).toBe(true);
+      expect(stringMatching("gommarle search", "go*le search")).toBe(true);
+      expect(stringMatching("ga search", "go*le search")).toBe(false);
+    });
+
+    it("其他星号匹配场景", () => {
+      expect(stringMatching("test file", "test*")).toBe(true);
+      expect(stringMatching("filename.txt", "*file*")).toBe(true);
+      expect(stringMatching("hello", "h*o")).toBe(true);
+    });
+  });
+
+  describe("问号通配符 (?) - 匹配单个字符", () => {
+    it("goog?e search 示例", () => {
+      // 基于需求：goog?e search 能找到 googae search, googbe search, google search
+      expect(stringMatching("googae search", "goog?e search")).toBe(true);
+      expect(stringMatching("googbe search", "goog?e search")).toBe(true);
+      expect(stringMatching("google search", "goog?e search")).toBe(true);
+      expect(stringMatching("goog search", "goog?e search")).toBe(false); // 缺少一个字符
+      expect(stringMatching("googlle search", "goog?e search")).toBe(false); // 多了一个字符
+    });
+
+    it("其他问号匹配场景", () => {
+      expect(stringMatching("test", "t?st")).toBe(true);
+      expect(stringMatching("file.txt", "file.?xt")).toBe(true);
+      expect(stringMatching("hello", "h?llo")).toBe(true);
+    });
+  });
+
+  describe("混合通配符", () => {
+    it("星号和问号组合", () => {
+      expect(stringMatching("google search result", "go*g?e search*")).toBe(true);
+      expect(stringMatching("test file name", "t?st * name")).toBe(true);
+    });
+  });
+
+  describe("边界情况", () => {
+    it("空字符串和空模式", () => {
+      expect(stringMatching("", "")).toBe(true);
+      expect(stringMatching("test", "")).toBe(true);
+      expect(stringMatching("", "test")).toBe(false);
+    });
+
+    it("特殊字符", () => {
+      expect(stringMatching("file.txt", "file.*")).toBe(true);
+      expect(stringMatching("user@domain.com", "user@*")).toBe(true);
+    });
   });
 });

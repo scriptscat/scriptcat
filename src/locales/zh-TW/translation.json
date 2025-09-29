@@ -298,7 +298,6 @@
     "main_header": "檢查更新",
     "header_site_specific": "此網站有可用更新（$0）",
     "header_site_all": "有可用更新",
-    "header_other": "其他可用更新",
     "header_ignored": "有可用更新但已忽略",
     "update_all": "全部更新",
     "ignore_all": "全部忽略",
@@ -321,7 +320,8 @@
     "status_no_update": "沒有需要更新的內容",
     "status_n_update": "有 $0 個需要更新的內容",
     "status_n_ignored": "有 $0 個已忽略的更新",
-    "status_autoclose": "$0 秒後自動關閉"
+    "status_autoclose": "$0 秒後自動關閉",
+    "header_other_update": "其他可用更新"
   },
   "background_script_tag": "這是一個背景腳本",
   "scheduled_script_tag": "這是一個排程腳本",

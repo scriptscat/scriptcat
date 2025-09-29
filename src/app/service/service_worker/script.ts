@@ -11,6 +11,7 @@ import {
   getStorageName,
   openInCurrentTab,
   randomMessageFlag,
+  stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type {
@@ -439,10 +440,11 @@ export class ScriptService {
     const keyword = req.value.toLocaleLowerCase();
 
     // 空格分开关键字搜索
-    const keys = keyword.split(" ");
+    const keys = keyword.split(/\s+/).filter((e) => e.length);
 
     const results: Partial<Record<string, string | boolean>>[] = [];
     const codeCache: Partial<Record<string, string>> = {}; // temp cache
+    if (!keys.length) return results;
     for (let i = 0, l = scripts.length; i < l; i++) {
       const script = scripts[i];
       const scriptCode = scriptCodes[i];
@@ -451,9 +453,9 @@ export class ScriptService {
 
       const searchName = (keyword: string) => {
         if (OPTION_CASE_INSENSITIVE) {
-          return script.name.toLowerCase().includes(keyword.toLowerCase());
+          return stringMatching(script.name.toLowerCase(), keyword.toLowerCase());
         }
-        return script.name.includes(keyword);
+        return stringMatching(script.name, keyword);
       };
       const searchCode = (keyword: string) => {
         let c = codeCache[script.uuid];
@@ -466,21 +468,26 @@ export class ScriptService {
         }
         if (c) {
           if (OPTION_CASE_INSENSITIVE) {
-            return c.toLowerCase().includes(keyword.toLowerCase());
+            return stringMatching(c.toLowerCase(), keyword.toLowerCase());
           }
-          return c.includes(keyword);
+          return stringMatching(c, keyword);
         }
         return false;
       };
 
+      let codeMatched = true;
+      let nameMatched = true;
       for (const key of keys) {
-        if (result.code === undefined && searchCode(key)) {
-          result.code = true;
+        if (codeMatched && !searchCode(key)) {
+          codeMatched = false;
         }
-        if (result.name === undefined && searchName(key)) {
-          result.name = true;
+        if (nameMatched && !searchName(key)) {
+          nameMatched = false;
         }
+        if (!codeMatched && !nameMatched) break;
       }
+      result.code = codeMatched;
+      result.name = nameMatched;
       if (result.name || result.code) {
         result.auto = true;
       }
