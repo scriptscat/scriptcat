@@ -61,18 +61,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return localStorage.lightMode || "auto";
   });
 
-  const subscribeMessageConsumed = new WeakMap();
-  const subscribeMessage = (topic: string, handler: ((msg: any) => void) & { [SUBSCRIBE_HANDLER_ID]?: string }) => {
-    const handlerId =
-      handler[SUBSCRIBE_HANDLER_ID] || (handler[SUBSCRIBE_HANDLER_ID] = `${Date.now() + Math.random()}`);
+  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
     return messageQueue.subscribe<any>(topic, (data) => {
       const message = data?.myMessage || data;
-      let messageConsumed = subscribeMessageConsumed.get(message) as Record<string, boolean> | undefined;
-      if (!messageConsumed) {
-        subscribeMessageConsumed.set(message, (messageConsumed = {} as Record<string, boolean>));
-      }
-      if (typeof message === "object" && !messageConsumed[handlerId]) {
-        messageConsumed[handlerId] = true;
+      if (typeof message === "object") {
         handler(message);
       }
     });
