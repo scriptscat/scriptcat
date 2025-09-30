@@ -34,7 +34,9 @@ import { DocumentationSite } from "@App/app/const";
 import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
-import { type CompliedResource, CompliedResourceDAO } from "@App/app/repo/resource";
+import type { CompliedResource, Resource } from "@App/app/repo/resource";
+import { CompliedResourceDAO, CompliedResourceNamespace, ResourceNamespace } from "@App/app/repo/resource";
+import { v5 as uuidv5 } from "uuid";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -480,6 +482,7 @@ export class RuntimeService {
   }
 
   async getParticularScriptList() {
+    const re = new RegExp(`\\{\\{${CompliedResourceNamespace}:resource:([^:{}\\[\\]\\s]+)\\}\\}`, "g");
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
@@ -488,7 +491,7 @@ export class RuntimeService {
         if (script.type !== SCRIPT_TYPE_NORMAL) {
           return undefined;
         }
-
+        let resultCode = "";
         let result = await this.compliedResourceDAO.get(script.uuid);
         if (!result) {
           const apiScript = await (async () => {
@@ -520,7 +523,7 @@ export class RuntimeService {
           if (!apiScript) {
             result = {
               uuid: script.uuid,
-              code: "",
+              storeCode: "",
               matches: [],
               includeGlobs: [],
               excludeMatches: [],
@@ -530,9 +533,37 @@ export class RuntimeService {
               runAt: "",
             } as CompliedResource;
           } else {
+            resultCode = apiScript.js[0].code || "";
+            let storeCode = resultCode;
+            if (!storeCode.includes(`{{${CompliedResourceNamespace}:`)) {
+              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+              if (originalCode && originalCode.code && storeCode.includes(originalCode.code)) {
+                storeCode = storeCode.replace(originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
+              }
+              const urls = [
+                ...(script.metadata["require"] || []),
+                ...(script.metadata["require-css"] || []),
+                ...(script.metadata["resource"] || []),
+              ];
+              if (urls.length > 0) {
+                const resourceUUIDs = urls.map((url) => uuidv5(url, ResourceNamespace));
+                const resources = await this.resource.resourceDAO.gets(urls);
+                let idx = -1;
+                for (const resource of resources) {
+                  idx++;
+                  const content = resource?.content;
+                  if (content && typeof content === "string" && storeCode.includes(content)) {
+                    storeCode = storeCode.replace(
+                      content,
+                      `{{${CompliedResourceNamespace}:resource:${resourceUUIDs[idx]}}}`
+                    );
+                  }
+                }
+              }
+            }
             result = {
               uuid: script.uuid,
-              code: apiScript.js[0].code || "",
+              storeCode: storeCode,
               matches: apiScript.matches || [],
               includeGlobs: apiScript.includeGlobs || [],
               excludeMatches: apiScript.excludeMatches || [],
@@ -544,13 +575,36 @@ export class RuntimeService {
           }
 
           this.compliedResourceDAO.save(result);
+        } else {
+          if (result.storeCode) {
+            let storeCode = result.storeCode;
+            if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
+              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+              if (originalCode && originalCode.code) {
+                storeCode = storeCode.replace(`{{${CompliedResourceNamespace}:code}}`, originalCode.code);
+              }
+            }
+            const resourceUUIDs = [] as string[];
+            storeCode.replace(re, (_a: string, b: string) => {
+              resourceUUIDs.push(b);
+              return "";
+            });
+            if (resourceUUIDs.length > 0) {
+              const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
+              const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
+              storeCode = storeCode.replace(re, (_a: string, b: string) => {
+                return resources[`resource:${b}`]?.content || "";
+              });
+            }
+            resultCode = storeCode;
+          }
         }
 
-        if (!result.code) return undefined;
+        if (!resultCode) return undefined;
 
         const registerScript = {
           id: result.uuid,
-          js: [{ code: result.code }],
+          js: [{ code: resultCode }],
           matches: result.matches,
           includeGlobs: result.includeGlobs,
           excludeMatches: result.excludeMatches,
