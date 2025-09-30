@@ -65,25 +65,24 @@ function Setting() {
     return languageList;
   }, [t]);
 
-  // only string / number / boolean
-  const autoRefresh = useRef({
-    editor_config: setEditorConfig,
-    language: setLanguage,
-    menu_expand_num: setMenuExpandNum,
-    check_script_update_cycle: setCheckScriptUpdateCycle,
-    update_disable_script: setUpdateDisableScript,
-    silence_update_script: setSilenceUpdateScript,
-    enable_eslint: setEnableEslint,
-    eslint_config: setEslintConfig,
-    blacklist: setBlacklist,
-    badge_number_type: setBadgeNumberType,
-    badge_background_color: setBadgeBackgroundColor,
-    badge_text_color: setBadgeTextColor,
-    script_menu_display_type: setScriptMenuDisplayType,
-    editor_type_definition: setEditorTypeDefinition,
-  }).current;
-
   useEffect(() => {
+    // only string / number / boolean
+    const autoRefresh = {
+      editor_config: setEditorConfig,
+      language: setLanguage,
+      menu_expand_num: setMenuExpandNum,
+      check_script_update_cycle: setCheckScriptUpdateCycle,
+      update_disable_script: setUpdateDisableScript,
+      silence_update_script: setSilenceUpdateScript,
+      enable_eslint: setEnableEslint,
+      eslint_config: setEslintConfig,
+      blacklist: setBlacklist,
+      badge_number_type: setBadgeNumberType,
+      badge_background_color: setBadgeBackgroundColor,
+      badge_text_color: setBadgeTextColor,
+      script_menu_display_type: setScriptMenuDisplayType,
+      editor_type_definition: setEditorTypeDefinition,
+    };
     const unhooks = [
       subscribeMessage(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
         const setter = autoRefresh[key as keyof typeof autoRefresh];
