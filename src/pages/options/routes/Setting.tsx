@@ -80,7 +80,7 @@ function Setting() {
     badge_background_color: setBadgeBackgroundColor,
     badge_text_color: setBadgeTextColor,
     script_menu_display_type: setScriptMenuDisplayType,
-    editorTypeDefinition: setEditorTypeDefinition,
+    editor_type_definition: setEditorTypeDefinition,
   }).current;
 
   useEffect(() => {
