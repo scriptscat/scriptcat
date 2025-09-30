@@ -86,7 +86,7 @@ function Setting() {
   useEffect(() => {
     const unhooks = [
       subscribeMessage(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
-        const setter = (autoRefresh as any)[key];
+        const setter = autoRefresh[key as keyof typeof autoRefresh];
         if (typeof setter === "function") {
           // 异步方式，先让 systemConfig.cache 更新，再在下一个 microTask 读取 systemConfig.get 使页面的设定更新
           // 考虑React更新会对值进行新旧对比，只更新 string/number/boolean，不更新 array/object。 array/object 的话需另外处理避免过度更新。
