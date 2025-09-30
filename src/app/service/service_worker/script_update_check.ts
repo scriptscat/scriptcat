@@ -2,7 +2,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import type { TBatchUpdateRecordObject } from "./types";
 import stringSimilarity from "string-similarity-js";
 import { type Group } from "@Packages/message/server";
-import { type MessageQueue } from "@Packages/message/message_queue";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { type ScriptDAO } from "@App/app/repo/scripts";
@@ -12,7 +12,7 @@ class ScriptUpdateCheck {
   constructor(
     private readonly systemConfig: SystemConfig,
     private readonly group: Group,
-    private readonly mq: MessageQueue,
+    private readonly mq: IMessageQueue,
     private readonly valueService: ValueService,
     private readonly resourceService: ResourceService,
     private readonly scriptDAO: ScriptDAO

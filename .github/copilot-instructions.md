@@ -53,7 +53,7 @@ Services follow a consistent pattern with dependency injection:
 export class ExampleService {
   constructor(
     private group: Group,           // Message handling group
-    private messageQueue: MessageQueue,  // Event broadcasting
+    private messageQueue: IMessageQueue,  // Event broadcasting (MessageQueue's interface)
     private dataDAO: DataDAO        // Data access
   ) {}
   
