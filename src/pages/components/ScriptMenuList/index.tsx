@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Collapse,
@@ -107,44 +107,49 @@ interface CollapseHeaderProps {
   onEnableChange: (item: ScriptMenu, checked: boolean) => void;
 }
 
-const CollapseHeader = React.memo(({ item, onEnableChange }: CollapseHeaderProps) => {
-  const { t } = useTranslation();
+const CollapseHeader = React.memo(
+  ({ item, onEnableChange }: CollapseHeaderProps) => {
+    const { t } = useTranslation();
 
-  return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-      }}
-      title={
-        item.enable
-          ? item.runNumByIframe
-            ? t("script_total_runs", {
-                runNum: item.runNum,
-                runNumByIframe: item.runNumByIframe,
-              })!
-            : t("script_total_runs_single", { runNum: item.runNum })!
-          : t("script_disabled")!
-      }
-    >
-      <Space>
-        <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
-        <span
-          style={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
-            lineHeight: "20px",
-          }}
-        >
-          <ScriptIcons script={item} size={20} />
-          {i18nName(item)}
-        </span>
-      </Space>
-    </div>
-  );
-});
+    return (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+        title={
+          item.enable
+            ? item.runNumByIframe
+              ? t("script_total_runs", {
+                  runNum: item.runNum,
+                  runNumByIframe: item.runNumByIframe,
+                })!
+              : t("script_total_runs_single", { runNum: item.runNum })!
+            : t("script_disabled")!
+        }
+      >
+        <Space>
+          <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
+          <span
+            style={{
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
+              lineHeight: "20px",
+            }}
+          >
+            <ScriptIcons script={item} size={20} />
+            {i18nName(item)}
+          </span>
+        </Space>
+      </div>
+    );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.item === nextProps.item;
+  }
+);
 CollapseHeader.displayName = "CollapseHeader";
 
 interface ListMenuItemProps {
@@ -271,6 +276,14 @@ const ListMenuItem = React.memo(
         </div>
       </Collapse>
     );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.url?.href === nextProps.url?.href &&
+      prevProps.item === nextProps.item &&
+      prevProps.isBackscript === nextProps.isBackscript &&
+      prevProps.menuExpandNum === nextProps.menuExpandNum
+    );
   }
 );
 
@@ -339,14 +352,14 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleDeleteScript = useCallback((uuid: string) => {
+    const handleDeleteScript = (uuid: string) => {
       setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
       scriptClient.deletes([uuid]).catch((e) => {
         Message.error(`{t('delete_failed')}: ${e}`);
       });
-    }, []);
+    };
 
-    const onEnableChange = useCallback((item: ScriptMenu, checked: boolean) => {
+    const onEnableChange = (item: ScriptMenu, checked: boolean) => {
       scriptClient
         .enable(item.uuid, checked)
         .then(() => {
@@ -355,7 +368,7 @@ const ScriptMenuList = React.memo(
         .catch((err) => {
           Message.error(err);
         });
-    }, []);
+    };
 
     return (
       <>
