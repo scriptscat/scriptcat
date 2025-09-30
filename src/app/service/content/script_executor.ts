@@ -113,7 +113,11 @@ export class ScriptExecutor {
         exec.exec();
       });
     } else {
-      exec.exec();
+      try {
+        exec.exec();
+      } catch {
+        // 屏蔽错误，防止脚本报错导致后续脚本无法执行
+      }
     }
   }
 
