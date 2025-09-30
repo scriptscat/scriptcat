@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Collapse,
@@ -102,6 +102,180 @@ const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
 });
 MenuItem.displayName = "MenuItem";
 
+interface CollapseHeaderProps {
+  item: ScriptMenu;
+  onEnableChange: (item: ScriptMenu, checked: boolean) => void;
+}
+
+const CollapseHeader = React.memo(({ item, onEnableChange }: CollapseHeaderProps) => {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
+      title={
+        item.enable
+          ? item.runNumByIframe
+            ? t("script_total_runs", {
+                runNum: item.runNum,
+                runNumByIframe: item.runNumByIframe,
+              })!
+            : t("script_total_runs_single", { runNum: item.runNum })!
+          : t("script_disabled")!
+      }
+    >
+      <Space>
+        <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
+        <span
+          style={{
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
+            lineHeight: "20px",
+          }}
+        >
+          <ScriptIcons script={item} size={20} />
+          {i18nName(item)}
+        </span>
+      </Space>
+    </div>
+  );
+});
+CollapseHeader.displayName = "CollapseHeader";
+
+interface ListMenuItemProps {
+  item: ScriptMenu;
+  menuExpandNum: number;
+  isBackscript: boolean;
+  url: URL | null;
+  onEnableChange: (item: ScriptMenu, checked: boolean) => void;
+  handleDeleteScript: (uuid: string) => void;
+}
+
+const ListMenuItem = React.memo(
+  ({ item, menuExpandNum, isBackscript, url, onEnableChange, handleDeleteScript }: ListMenuItemProps) => {
+    const { t } = useTranslation();
+    const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
+
+    const [isExpand, setIsExpand] = useState<boolean>(false);
+
+    const handleExpandMenu = () => {
+      setIsExpand((e) => !e);
+    };
+
+    const visibleMenus = useMemo(() => {
+      const m = item.menus;
+      return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
+    }, [item.menus, isExpand, menuExpandNum]);
+
+    const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
+
+    const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
+      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
+        setIsEffective(isExclude);
+      });
+    };
+
+    return (
+      <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
+        <CollapseItem
+          header={<CollapseHeader item={item} onEnableChange={onEnableChange} />}
+          name={item.uuid}
+          contentStyle={{ padding: "0 0 0 40px" }}
+        >
+          <div className="flex flex-col">
+            {isBackscript && (
+              <Button
+                className="text-left"
+                type="secondary"
+                icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
+                onClick={() => {
+                  // 运行或停止脚本
+                  if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
+                    runtimeClient.runScript(item.uuid);
+                  } else {
+                    runtimeClient.stopScript(item.uuid);
+                  }
+                }}
+              >
+                {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
+              </Button>
+            )}
+            <Button
+              className="text-left"
+              type="secondary"
+              icon={<IconEdit />}
+              onClick={() => {
+                window.open(`/src/options.html#/script/editor/${item.uuid}`, "_blank");
+                window.close();
+              }}
+            >
+              {t("edit")}
+            </Button>
+            {url && isEffective !== null && (
+              <Button
+                className="text-left"
+                status="warning"
+                type="secondary"
+                icon={!isEffective ? <IconPlus /> : <IconMinus />}
+                onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
+              >
+                {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
+              </Button>
+            )}
+            <Popconfirm
+              title={t("confirm_delete_script")}
+              icon={<IconDelete />}
+              onOk={() => handleDeleteScript(item.uuid)}
+            >
+              <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
+                {t("delete")}
+              </Button>
+            </Popconfirm>
+          </div>
+        </CollapseItem>
+        <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
+          {/* 判断菜单数量，再判断是否展开 */}
+          {visibleMenus.map((menu) => {
+            return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
+          })}
+          {shouldShowMore && (
+            <Button
+              className="text-left"
+              key="expand"
+              type="secondary"
+              icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
+              onClick={handleExpandMenu}
+            >
+              {isExpand ? t("collapse") : t("expand")}
+            </Button>
+          )}
+          {item.hasUserConfig && (
+            <Button
+              className="text-left"
+              key="config"
+              type="secondary"
+              icon={<IconSettings />}
+              onClick={() => {
+                window.open(`/src/options.html#/?userConfig=${item.uuid}`, "_blank");
+                window.close();
+              }}
+            >
+              {t("user_config")}
+            </Button>
+          )}
+        </div>
+      </Collapse>
+    );
+  }
+);
+
+ListMenuItem.displayName = "ListMenuItem";
+
 // 用于popup页的脚本操作列表
 const ScriptMenuList = React.memo(
   ({ script, isBackscript, currentUrl }: { script: ScriptMenu[]; isBackscript: boolean; currentUrl: string }) => {
@@ -122,6 +296,7 @@ const ScriptMenuList = React.memo(
       }
       return url;
     }, [currentUrl]);
+
     useEffect(() => {
       setList(script);
       // 注册菜单快捷键
@@ -164,32 +339,14 @@ const ScriptMenuList = React.memo(
       };
     }, []);
 
-    const handleRunScript = (item: ScriptMenu) => {
-      if (item.runStatus !== SCRIPT_RUN_STATUS_RUNNING) {
-        runtimeClient.runScript(item.uuid);
-      } else {
-        runtimeClient.stopScript(item.uuid);
-      }
-    };
-
-    const handleEditScript = (uuid: string) => {
-      window.open(`/src/options.html#/script/editor/${uuid}`, "_blank");
-      window.close();
-    };
-
-    const handleDeleteScript = (uuid: string) => {
+    const handleDeleteScript = useCallback((uuid: string) => {
       setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
       scriptClient.deletes([uuid]).catch((e) => {
         Message.error(`{t('delete_failed')}: ${e}`);
       });
-    };
+    }, []);
 
-    const handleOpenUserConfig = (uuid: string) => {
-      window.open(`/src/options.html#/?userConfig=${uuid}`, "_blank");
-      window.close();
-    };
-
-    const onEnableChange = (item: ScriptMenu, checked: boolean) => {
+    const onEnableChange = useCallback((item: ScriptMenu, checked: boolean) => {
       scriptClient
         .enable(item.uuid, checked)
         .then(() => {
@@ -198,156 +355,24 @@ const ScriptMenuList = React.memo(
         .catch((err) => {
           Message.error(err);
         });
-    };
-
-    const CollapseHeader = React.memo(({ item }: { item: ScriptMenu }) => {
-      return (
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          title={
-            item.enable
-              ? item.runNumByIframe
-                ? t("script_total_runs", {
-                    runNum: item.runNum,
-                    runNumByIframe: item.runNumByIframe,
-                  })!
-                : t("script_total_runs_single", { runNum: item.runNum })!
-              : t("script_disabled")!
-          }
-        >
-          <Space>
-            <Switch size="small" checked={item.enable} onChange={(checked) => onEnableChange(item, checked)} />
-            <span
-              style={{
-                display: "block",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                color: item.runNum === 0 ? "rgb(var(--gray-5))" : "",
-                lineHeight: "20px",
-              }}
-            >
-              <ScriptIcons script={item} size={20} />
-              {i18nName(item)}
-            </span>
-          </Space>
-        </div>
-      );
-    });
-    CollapseHeader.displayName = "CollapseHeader";
-
-    const ListMenuItem = React.memo(({ item }: { item: ScriptMenu }) => {
-      const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
-
-      const [isExpand, setIsExpand] = useState<boolean>(false);
-
-      const handleExpandMenu = () => {
-        setIsExpand((e) => !e);
-      };
-
-      const visibleMenus = useMemo(() => {
-        const m = item.menus;
-        return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-      }, [item.menus, isExpand, menuExpandNum]);
-
-      const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
-
-      const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
-        scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
-          setIsEffective(isExclude);
-        });
-      };
-
-      return (
-        <Collapse bordered={false} expandIconPosition="right" key={item.uuid}>
-          <CollapseItem
-            header={<CollapseHeader item={item} />}
-            name={item.uuid}
-            contentStyle={{ padding: "0 0 0 40px" }}
-          >
-            <div className="flex flex-col">
-              {isBackscript && (
-                <Button
-                  className="text-left"
-                  type="secondary"
-                  icon={item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? <RiPlayFill /> : <RiStopFill />}
-                  onClick={() => handleRunScript(item)}
-                >
-                  {item.runStatus !== SCRIPT_RUN_STATUS_RUNNING ? t("run_once") : t("stop")}
-                </Button>
-              )}
-              <Button
-                className="text-left"
-                type="secondary"
-                icon={<IconEdit />}
-                onClick={() => handleEditScript(item.uuid)}
-              >
-                {t("edit")}
-              </Button>
-              {url && isEffective !== null && (
-                <Button
-                  className="text-left"
-                  status="warning"
-                  type="secondary"
-                  icon={!isEffective ? <IconPlus /> : <IconMinus />}
-                  onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
-                >
-                  {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
-                </Button>
-              )}
-              <Popconfirm
-                title={t("confirm_delete_script")}
-                icon={<IconDelete />}
-                onOk={() => handleDeleteScript(item.uuid)}
-              >
-                <Button className="text-left" status="danger" type="secondary" icon={<IconDelete />}>
-                  {t("delete")}
-                </Button>
-              </Popconfirm>
-            </div>
-          </CollapseItem>
-          <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
-            {/* 判断菜单数量，再判断是否展开 */}
-            {visibleMenus.map((menu) => {
-              return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
-            })}
-            {shouldShowMore && (
-              <Button
-                className="text-left"
-                key="expand"
-                type="secondary"
-                icon={isExpand ? <IconCaretUp /> : <IconCaretDown />}
-                onClick={handleExpandMenu}
-              >
-                {isExpand ? t("collapse") : t("expand")}
-              </Button>
-            )}
-            {item.hasUserConfig && (
-              <Button
-                className="text-left"
-                key="config"
-                type="secondary"
-                icon={<IconSettings />}
-                onClick={() => handleOpenUserConfig(item.uuid)}
-              >
-                {t("user_config")}
-              </Button>
-            )}
-          </div>
-        </Collapse>
-      );
-    });
-
-    ListMenuItem.displayName = "ListMenuItem";
+    }, []);
 
     return (
       <>
         {list.length === 0 ? (
           <Empty description={t("no_data")} />
         ) : (
-          list.map((item, _index) => <ListMenuItem key={`${item.uuid}`} item={item} />)
+          list.map((item, _index) => (
+            <ListMenuItem
+              key={`${item.uuid}`}
+              url={url}
+              item={item}
+              isBackscript={isBackscript}
+              onEnableChange={onEnableChange}
+              handleDeleteScript={handleDeleteScript}
+              menuExpandNum={menuExpandNum}
+            />
+          ))
         )}
       </>
     );
