@@ -61,16 +61,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return localStorage.lightMode || "auto";
   });
 
-  const pageApi = {
-    onColorThemeUpdated({ theme }: { theme: "auto" | "light" | "dark" }) {
-      setAppColorTheme(theme);
-      setColorThemeState(theme);
-    },
-    systemConfigChanged({ key, value }: TKeyValue) {
-      if (key === "language") changeLanguage(value);
-    },
-  };
-
   const subscribeMessageConsumed = new WeakMap();
   const subscribeMessage = (topic: string, handler: ((msg: any) => void) & { [SUBSCRIBE_HANDLER_ID]?: string }) => {
     const handlerId =
@@ -87,7 +77,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
     });
   };
+
   useEffect(() => {
+    const pageApi = {
+      onColorThemeUpdated({ theme }: { theme: "auto" | "light" | "dark" }) {
+        setAppColorTheme(theme);
+        setColorThemeState(theme);
+      },
+      systemConfigChanged({ key, value }: TKeyValue) {
+        if (key === "language") changeLanguage(value);
+      },
+    };
+
     const unhooks = [
       subscribeMessage("onColorThemeUpdated", pageApi.onColorThemeUpdated),
       subscribeMessage(SystemConfigChange, pageApi.systemConfigChanged),
