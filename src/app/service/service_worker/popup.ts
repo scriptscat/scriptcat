@@ -49,6 +49,7 @@ export class PopupService {
         // 如果是带输入框的菜单则不在页面内注册
         if (options?.inputType) continue;
         let level = 3;
+        if (options?.nested === false) level = 2;
         if (name[0] === "\xA7") {
           // section sign (§)
           level = 2;

@@ -64,20 +64,23 @@ export type Api = (request: Request, con: IGetSender) => Promise<any>;
 
 // popup
 
+export type ScriptMenuItemOption = {
+  id?: number;
+  autoClose?: boolean; // default true
+  title?: string;
+  accessKey?: string;
+  nested?: boolean; // default true
+  // 可选输入框
+  inputType?: "text" | "number" | "boolean";
+  inputLabel?: string;
+  inputDefaultValue?: string | number | boolean;
+  inputPlaceholder?: string;
+};
+
 export type ScriptMenuItem = {
   id: number;
   name: string;
-  options?: {
-    id?: number;
-    autoClose?: boolean;
-    title?: string;
-    accessKey?: string;
-    // 可选输入框
-    inputType?: "text" | "number" | "boolean";
-    inputLabel?: string;
-    inputDefaultValue?: string | number | boolean;
-    inputPlaceholder?: string;
-  };
+  options?: ScriptMenuItemOption;
   tabId: number; //-1表示后台脚本
   frameId?: number;
   documentId?: string;
