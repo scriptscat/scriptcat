@@ -542,7 +542,7 @@ export default class GMApi {
       requestHeaders: requestHeaders,
     };
     rule.priority = 1;
-    const tabs = await chrome.tabs.query({});
+    const tabs = await chrome.tabs.query({ windowType: "normal" });
     const excludedTabIds: number[] = [];
     for (const tab of tabs) {
       if (tab.id) {
