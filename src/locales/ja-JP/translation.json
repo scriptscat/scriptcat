@@ -136,7 +136,7 @@
   "source_local_script": "ローカルスクリプト",
   "script_link": "スクリプトリンク",
   "source_script_link": "スクリプトリンク",
-  "by_manual_creation": "コード編集によってローカルで作成",
+  "by_manual_creation": "コード編集によってローカルで作成された",
   "confirm_delete_script": "このスクリプトを削除してもよろしいですか？",
   "confirm_delete_script_content": "スクリプト\"{{name}}\"を削除しますか？これは元に戻すことはできません。",
   "delete_failed": "削除に失敗しました",

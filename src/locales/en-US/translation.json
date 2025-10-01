@@ -136,7 +136,7 @@
   "source_local_script": "Local Script",
   "script_link": "Script Link",
   "source_script_link": "Script Link",
-  "by_manual_creation": "Create locally via code editing",
+  "by_manual_creation": "Created locally through code editing",
   "confirm_delete_script": "Are you sure you want to delete this script?",
   "confirm_delete_script_content": "Are you sure you want to delete the script \"{{name}}\"? This action cannot be undone.",
   "delete_failed": "Deletion Failed",

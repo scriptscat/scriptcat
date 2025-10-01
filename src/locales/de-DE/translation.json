@@ -136,7 +136,7 @@
   "source_local_script": "Lokales Skript",
   "script_link": "Skript-Link",
   "source_script_link": "Skript-Link",
-  "by_manual_creation": "Lokal über Code-Bearbeitung erstellen",
+  "by_manual_creation": "Lokal durch Code-Bearbeitung erstellt",
   "confirm_delete_script": "Möchten Sie dieses Skript wirklich löschen?",
   "confirm_delete_script_content": "Möchten Sie das Skript „{{name}}“ wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
   "delete_failed": "Löschen fehlgeschlagen",

@@ -136,7 +136,7 @@
   "source_local_script": "Tập lệnh cục bộ",
   "script_link": "Liên kết script",
   "source_script_link": "Liên kết script",
-  "by_manual_creation": "Tạo cục bộ thông qua chỉnh sửa mã",
+  "by_manual_creation": "Được tạo cục bộ thông qua chỉnh sửa mã",
   "confirm_delete_script": "Bạn có chắc chắn muốn xóa script này không?",
   "confirm_delete_script_content": "Bạn có chắc chắn muốn xóa script \"{{name}}\" không? Hành động này không thể hoàn tác.",
   "delete_failed": "Xóa thất bại",

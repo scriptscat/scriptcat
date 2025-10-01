@@ -136,7 +136,7 @@
   "source_local_script": "Локальный скрипт",
   "script_link": "Ссылка скрипта",
   "source_script_link": "Ссылка скрипта",
-  "by_manual_creation": "Создать локально через редактирование кода",
+  "by_manual_creation": "Создан локально через редактирование кода",
   "confirm_delete_script": "Вы уверены, что хотите удалить этот скрипт?",
   "confirm_delete_script_content": "Вы уверены, что хотите удалить скрипт \"{{name}}\"? Эта операция необратима.",
   "delete_failed": "Ошибка удаления",
