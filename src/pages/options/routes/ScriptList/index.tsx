@@ -777,28 +777,8 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(localStorage.getItem("script-list-sidebar") === "1");
   const { t } = useTranslation();
-
-  // 侧边栏菜单点击处理
-  const handleSidebarMenuClick = (key: string) => {
-    switch (key) {
-      case "filter":
-        // TODO: 打开过滤器面板
-        console.log("打开过滤器");
-        break;
-      case "settings":
-        // TODO: 打开设置面板
-        console.log("打开设置");
-        break;
-      case "stats":
-        // TODO: 显示统计信息
-        console.log("显示统计信息");
-        break;
-      default:
-        break;
-    }
-  };
 
   const filterCache: Map<string, any> = new Map<string, any>();
 
@@ -1123,7 +1103,13 @@ function ScriptList() {
                     style={{
                       color: "var(--color-text-2)",
                     }}
-                    onClick={() => setSidebarOpen((v) => !v)}
+                    onClick={() => {
+                      setSidebarOpen((sidebarOpen) => {
+                        const newState = !sidebarOpen;
+                        localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                        return newState;
+                      });
+                    }}
                   />
                 </Tooltip>
                 <Tooltip content="切换到卡片模式">
