@@ -133,7 +133,7 @@
   "completed": "Completed",
   "subscription_link": "Subscription Link",
   "source_subscribe_link": "Subscribe Link",
-  "source_local_script": "Manual",
+  "source_local_script": "Local Script",
   "script_link": "Script Link",
   "source_script_link": "Link",
   "by_manual_creation": "Create locally via code editing",
