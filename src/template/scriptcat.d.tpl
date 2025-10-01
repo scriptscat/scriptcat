@@ -383,13 +383,87 @@ declare namespace GMTypes {
   ) => unknown;
 
   interface OpenTabOptions {
-    active?: boolean; // FM & TM & VM; TM default false
-    insert?: boolean; // FM & TM & VM; TM default true
-    setParent?: boolean; // FM & TM
-    incognito?: boolean; // FM & TM
-    loadInBackground?: boolean; // TM - A boolean value has the opposite meaning of active (just for TM. Not Recommended)
-    pinned?: boolean; // FM & VM
-    useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 表示使用window.open打开新窗口 #178
+    /**
+     * 决定新标签页是否在打开时获得焦点。
+     *
+     * - `true` → 新标签页会立即切换到前台。
+     * - `false` → 新标签页在后台打开，不会打断当前页面的焦点。
+     *
+     * 支持环境：FM、TM、VM
+     * 默认值：TM = false，SC/VM = true
+     */
+    active?: boolean;
+
+    /**
+     * 决定新标签页插入位置。
+     *
+     * - 如果是 `boolean`：
+     *   - `true` → 插入在当前标签页之后。
+     *   - `false` → 插入到窗口末尾。
+     * - 如果是 `number`（仅 ScriptCat 扩展）：
+     *   - `0` → 插入到当前标签前一格。
+     *   - `1` → 插入到当前标签后一格。
+     *
+     * 支持环境：FM、TM、VM
+     * 默认值：TM = true
+     */
+    insert?: boolean | number;
+
+    /**
+     * 决定是否设置父标签页（即 `openerTabId`）。
+     *
+     * - `true` → 浏览器能追踪由哪个标签打开的子标签，
+     *   有助于某些扩展（如标签树管理器）识别父子关系。
+     *
+     * 支持环境：FM、TM
+     * 默认值：TM = false，SC = true（因兼容性问题）
+     */
+    setParent?: boolean;
+
+    /**
+     * 是否在隐私窗口（无痕模式）中打开标签页。
+     *
+     * 注意：ScriptCat 的 manifest.json 配置了 `"incognito": "split"`，
+     * 在 normal window 中执行时，tabId/windowId 将不可用，
+     * 只能执行「打开新标签页」动作。
+     *
+     * 支持环境：FM、TM
+     */
+    incognito?: boolean;
+
+    /**
+     * 历史兼容字段，仅 TM 支持。
+     * 语义与 `active` **相反**：
+     *
+     * - `true` → 等价于 `active = false`（后台加载）。
+     * - `false` → 等价于 `active = true`（前台加载）。
+     *
+     * ⚠️ 不推荐使用：与 `active` 功能重复且容易混淆。
+     *
+     * 支持环境：TM
+     */
+    loadInBackground?: boolean;
+
+    /**
+     * 是否将新标签页固定（pin）在浏览器标签栏左侧。
+     *
+     * - `true` → 新标签页为固定状态。
+     * - `false` → 普通标签页。
+     *
+     * 支持环境：FM、VM
+     */
+    pinned?: boolean;
+
+    /**
+     * 实验性功能，仅 ScriptCat 支持。
+     *
+     * 使用 `window.open` 打开新窗口，而不是浏览器 API。
+     * - 优点：在部分受限环境下依然可用。
+     * - 缺点：不兼容 Firefox，也可能与其他脚本管理器不兼容。
+     *
+     * 相关：#178
+     */
+    useOpen?: boolean;
   }
 
   interface XHRResponse {
