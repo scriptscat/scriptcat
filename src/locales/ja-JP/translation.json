@@ -131,7 +131,7 @@
   "scheduled_script_tooltip": "スケジュールスクリプト、次回実行時間：",
   "running": "実行中",
   "completed": "実行完了",
-  "subscription_link": "サブスクライブリンク",
+  "the_subscribe_link": "サブスクライブリンク",
   "source_subscribe_link": "サブスクライブリンク",
   "source_local_script": "ローカルスクリプト",
   "script_link": "スクリプトリンク",

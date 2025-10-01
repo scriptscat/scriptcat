@@ -131,7 +131,7 @@
   "scheduled_script_tooltip": "排程腳本，下一次執行時間：",
   "running": "執行中",
   "completed": "執行完畢",
-  "subscription_link": "訂閱連結",
+  "the_subscribe_link": "訂閱連結",
   "source_subscribe_link": "訂閱連結",
   "source_local_script": "本地腳本",
   "script_link": "腳本連結",

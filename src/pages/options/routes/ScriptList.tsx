@@ -315,7 +315,7 @@ const SourceCell = React.memo(
           content={
             <p
               style={{ margin: 0, padding: 0 }}
-            >{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
+            >{`${t("the_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
           }
         >
           <Tag

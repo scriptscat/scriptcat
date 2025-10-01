@@ -131,7 +131,7 @@
   "scheduled_script_tooltip": "Script hẹn giờ, thời gian chạy tiếp theo:",
   "running": "Đang chạy",
   "completed": "Hoàn thành",
-  "subscription_link": "Liên kết đăng ký",
+  "the_subscribe_link": "Liên kết đăng ký",
   "source_subscribe_link": "Liên kết đăng ký",
   "source_local_script": "Tập lệnh cục bộ",
   "script_link": "Liên kết script",

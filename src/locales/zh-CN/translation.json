@@ -131,7 +131,7 @@
   "scheduled_script_tooltip": "定时脚本，下一次运行时间：",
   "running": "运行中",
   "completed": "运行完毕",
-  "subscription_link": "订阅链接",
+  "the_subscribe_link": "订阅链接",
   "source_subscribe_link": "订阅链接",
   "source_local_script": "本地脚本",
   "script_link": "脚本链接",
