@@ -16,7 +16,7 @@ import { useSystemConfig } from "./utils";
 import { useAppContext } from "@App/pages/store/AppContext";
 import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
 import { type TKeyValue } from "@Packages/message/message_queue";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { systemConfig } from "@App/pages/store/global";
 
 function Setting() {

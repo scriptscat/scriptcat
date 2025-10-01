@@ -5,8 +5,6 @@ import { type TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage } from "@App/locales/locales";
 import { SystemConfigChange } from "@App/pkg/config/config";
 
-const SUBSCRIBE_HANDLER_ID = `SUBSCRIBE_HANDLER_ID`;
-
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
