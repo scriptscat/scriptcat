@@ -383,9 +383,12 @@ declare namespace GMTypes {
   ) => unknown;
 
   interface OpenTabOptions {
-    active?: boolean;
-    insert?: boolean;
-    setParent?: boolean;
+    active?: boolean; // FM & TM & VM; TM default false
+    insert?: boolean; // FM & TM & VM; TM default true
+    setParent?: boolean; // FM & TM
+    incognito?: boolean; // FM & TM
+    loadInBackground?: boolean; // TM - A boolean value has the opposite meaning of active (just for TM. Not Recommended)
+    pinned?: boolean; // FM & VM
     useOpen?: boolean; // 这是一个实验性/不兼容其他管理器/不兼容Firefox的功能 表示使用window.open打开新窗口 #178
   }
 

@@ -809,38 +809,76 @@ export default class GMApi {
 
   @PermissionVerify.API({})
   async GM_openInTab(request: Request, sender: IGetSender) {
-    const url = request.params[0];
-    const options = request.params[1] || {};
-    if (options.useOpen === true) {
-      // 发送给offscreen页面处理
-      const ok = await sendMessage(this.msgSender, "offscreen/gmApi/openInTab", { url });
-      if (ok) {
-        // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
-        const tab = await getCurrentTab();
-        await cacheInstance.set(`GM_openInTab:${tab.id}`, {
-          uuid: request.uuid,
-          sender: sender.getExtMessageSender(),
-        });
-        return tab.id;
+    const url = request.params[0] as string;
+    const options = (request.params[1] || {}) as GMTypes.OpenTabOptions;
+    const getNewTabId = async () => {
+      if (options.useOpen === true) {
+        // 发送给offscreen页面处理 （使用window.open）
+        const ok = await sendMessage(this.msgSender, "offscreen/gmApi/openInTab", { url });
+        if (ok) {
+          // 由于window.open强制在前台打开标签，因此获取状态为{ active:true }的标签即为新标签
+          const tab = await getCurrentTab();
+          return tab.id;
+        } else {
+          // 当新tab被浏览器阻止时window.open()会返回null 视为已经关闭
+          // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
+          return false;
+        }
       } else {
-        // 当新tab被浏览器阻止时window.open()会返回null 视为已经关闭
-        // 似乎在Firefox中禁止在background页面使用window.open()，强制返回null
-        return false;
+        const { tabId, windowId } = sender.getExtMessageSender();
+        const active = options.active;
+        const currentTab = await chrome.tabs.get(tabId);
+        let newTabIndex = -1;
+        if (options.incognito && !currentTab.incognito) {
+          // incognito: "split" 在 normal 里不会看到 incognito
+          // 只能创建新 incognito window
+          // pinned 无效
+          // insert 不重要
+          await chrome.windows.create({
+            url,
+            incognito: true,
+            focused: active,
+          });
+          return 0;
+        }
+        if ((typeof options.insert === "number" || options.insert === true) && currentTab && currentTab.index >= 0) {
+          // insert 为 boolean 时，插入至当前Tab下一格 (TM行为)
+          // insert 为 number 时，插入至相对位置 （SC独自）
+          const insert = +options.insert;
+          newTabIndex = currentTab.index + insert;
+          if (newTabIndex < 0) newTabIndex = 0;
+        }
+        const createProperties = {
+          url,
+          active: active,
+        } as chrome.tabs.CreateProperties;
+        if (options.setParent) {
+          // SC 预设 setParent: true 以避免不可预计的问题
+          createProperties.openerTabId = tabId === -1 ? undefined : tabId;
+          createProperties.windowId = windowId === -1 ? undefined : windowId;
+        }
+        if (options.pinned) {
+          // VM/FM行为
+          createProperties.pinned = true;
+        } else if (newTabIndex >= 0) {
+          // insert option; pinned 情况下无效
+          createProperties.index = newTabIndex;
+        }
+        const tab = await chrome.tabs.create(createProperties);
+        return tab.id;
       }
-    } else {
-      const { tabId, windowId } = sender.getExtMessageSender();
-      const tab = await chrome.tabs.create({
-        url,
-        active: options.active,
-        openerTabId: tabId === -1 ? undefined : tabId,
-        windowId: windowId === -1 ? undefined : windowId,
-      });
-      await cacheInstance.set(`GM_openInTab:${tab.id}`, {
+    };
+    const tabId = await getNewTabId();
+    if (tabId) {
+      // 有 tab 创建的话
+      await cacheInstance.set(`GM_openInTab:${tabId}`, {
         uuid: request.uuid,
         sender: sender.getExtMessageSender(),
       });
-      return tab.id;
+      return tabId;
     }
+    // 创建失败时返回 0
+    return 0;
   }
 
   @PermissionVerify.API({
