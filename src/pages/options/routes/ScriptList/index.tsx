@@ -21,6 +21,8 @@ import { TbWorldWww } from "react-icons/tb";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
+import { FaThLarge } from "react-icons/fa";
+import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
   type SCRIPT_STATUS,
   SCRIPT_RUN_STATUS_RUNNING,
@@ -62,12 +64,13 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
+import ScriptListSidebar from "./Sidebar";
 import { useTranslation } from "react-i18next";
 import { nextTime } from "@App/pkg/utils/cron";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { ListHomeRender, ScriptIcons } from "./utils";
+import { ListHomeRender, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
@@ -774,7 +777,28 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { t } = useTranslation();
+
+  // 侧边栏菜单点击处理
+  const handleSidebarMenuClick = (key: string) => {
+    switch (key) {
+      case "filter":
+        // TODO: 打开过滤器面板
+        console.log("打开过滤器");
+        break;
+      case "settings":
+        // TODO: 打开设置面板
+        console.log("打开设置");
+        break;
+      case "stats":
+        // TODO: 显示统计信息
+        console.log("显示统计信息");
+        break;
+      default:
+        break;
+    }
+  };
 
   const filterCache: Map<string, any> = new Map<string, any>();
 
@@ -1086,7 +1110,36 @@ function ScriptList() {
           render: (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
         },
         {
-          title: t("action"),
+          title: (
+            <div className="flex flex-row justify-between items-center">
+              <span>{t("action")}</span>
+              <Space size={4}>
+                <Tooltip content="打开侧边栏">
+                  <Button
+                    icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                    iconOnly
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-2)",
+                    }}
+                    onClick={() => setSidebarOpen((v) => !v)}
+                  />
+                </Tooltip>
+                <Tooltip content="切换到卡片模式">
+                  <Button
+                    icon={<FaThLarge />}
+                    iconOnly
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-2)",
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+            </div>
+          ),
           dataIndex: "action",
           key: "action",
           width: 160,
@@ -1102,7 +1155,7 @@ function ScriptList() {
           ),
         },
       ] as ColumnProps[],
-    [t]
+    [t, sidebarOpen]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
@@ -1132,12 +1185,15 @@ function ScriptList() {
 
   useEffect(() => {
     if (savedWidths === null) return;
-
     setNewColumns((nColumns) => {
       const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
+        if (i === 8) {
+          // 第8列特殊处理，因为可能涉及到操作图的显示
+          return { ...columns[8], width };
+        }
         return width === item.width
           ? item
           : {
@@ -1147,7 +1203,7 @@ function ScriptList() {
       });
     });
     setCanShowList(true);
-  }, [savedWidths]);
+  }, [savedWidths, columns]);
 
   const dealColumns = useMemo(() => {
     if (!canShowList) {
@@ -1163,7 +1219,7 @@ function ScriptList() {
       header: {
         operations: ({ selectionNode, expandNode }) => [
           {
-            node: <th className="script-sort" />,
+            node: <th className="script-sort" style={{ borderRadius: 0 }} />,
             width: 34,
           },
           {
@@ -1467,30 +1523,41 @@ function ScriptList() {
               </div>
             </Card>
           )}
-          {canShowList && (
-            <Table
-              key="script-list-table"
-              className="arco-drag-table-container"
-              components={components}
-              rowKey="uuid"
-              tableLayoutFixed
-              columns={dealColumns}
-              data={scriptList}
-              pagination={false}
-              style={
-                {
-                  // minWidth: "1200px",
-                }
-              }
-              rowSelection={{
-                type: "checkbox",
-                onChange(_, selectedRows) {
-                  setShowAction(true);
-                  setSelect(selectedRows);
-                },
-              }}
-            />
-          )}
+
+          {/* 主要内容区域 */}
+          <div className="flex flex-row relative">
+            {/* 侧边栏 */}
+            <ScriptListSidebar open={sidebarOpen} />
+
+            {/* 主要表格区域 */}
+            <div className="flex-1">
+              {canShowList && (
+                <Table
+                  key="script-list-table"
+                  className="arco-drag-table-container"
+                  components={components}
+                  rowKey="uuid"
+                  tableLayoutFixed
+                  columns={dealColumns}
+                  data={scriptList}
+                  pagination={false}
+                  style={
+                    {
+                      // minWidth: "1200px",
+                    }
+                  }
+                  rowSelection={{
+                    type: "checkbox",
+                    onChange(_, selectedRows) {
+                      setShowAction(true);
+                      setSelect(selectedRows);
+                    },
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
           {userConfig && (
             <UserConfigPanel script={userConfig.script} userConfig={userConfig.userConfig} values={userConfig.values} />
           )}
