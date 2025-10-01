@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Card, Checkbox, Divider, List, Message, Space, Switch, Typography } from "@arco-design/web-react";
 import { useTranslation } from "react-i18next"; // 导入react-i18next的useTranslation钩子
 import JSZip from "jszip";
@@ -22,7 +22,7 @@ const ScriptListItem = React.memo(
     item: ScriptData;
     index: number;
     t: (a: string) => string;
-    onToggle: (index: number) => () => void;
+    onToggle: (index: number) => void;
     onStatusToggle: (index: number, checked: boolean) => void;
   }) => {
     return (
@@ -34,7 +34,7 @@ const ScriptListItem = React.memo(
           borderBottom: "1px solid rgb(var(--gray-3))",
           cursor: "pointer",
         }}
-        onClick={onToggle(index)}
+        onClick={() => onToggle(index)}
       >
         <Space direction="vertical" size={1} style={{ overflow: "hidden" }}>
           <Typography.Title heading={6} style={{ color: "rgb(var(--blue-5))" }}>
@@ -67,6 +67,9 @@ const ScriptListItem = React.memo(
         </div>
       </div>
     );
+  },
+  (prevProps, nextProps) => {
+    return prevProps.index === nextProps.index && prevProps.item === nextProps.item && prevProps.t === nextProps.t;
   }
 );
 
@@ -196,7 +199,7 @@ function App() {
     }
   };
 
-  const importScripts = useCallback(async (scripts: ScriptData[]) => {
+  const importScripts = async (scripts: ScriptData[]) => {
     const promises: Promise<any>[] = [];
     for (const item of scripts) {
       if (item.install && !item.error) {
@@ -204,36 +207,9 @@ function App() {
       }
     }
     return Promise.all(promises);
-  }, []);
+  };
 
-  const importButtonClick = useCallback(
-    (scripts: ScriptData[]) => async () => {
-      setInstallNum((prev) => [0, prev[1]]);
-      setLoading(true);
-      await importScripts(scripts);
-      setLoading(false);
-      Message.success(t("import_success")!);
-    },
-    [importScripts, t]
-  );
-
-  const handleSelectAllScripts = useCallback(() => {
-    setSelectAll((prev) => {
-      const newValue = !prev[0];
-      setScripts((prevScripts) => prevScripts.map((script) => ({ ...script, install: newValue })));
-      return [newValue, prev[1]];
-    });
-  }, []);
-
-  const handleSelectAllSubscribes = useCallback(() => {
-    setSelectAll((prev) => {
-      const newValue = !prev[1];
-      setSubscribes((prevSubscribes) => prevSubscribes.map((subscribe) => ({ ...subscribe, install: newValue })));
-      return [prev[0], newValue];
-    });
-  }, []);
-
-  const handleScriptToggle = useCallback((index: number) => {
+  const handleScriptToggle = (index: number) => {
     let bool: boolean;
     setScripts((prevScripts) => {
       prevScripts = prevScripts.map((script, i) => (i === index ? { ...script, install: !script.install } : script));
@@ -241,43 +217,68 @@ function App() {
       return prevScripts;
     });
     setSelectAll((prev) => [bool, prev[1]]);
-  }, []);
+  };
 
-  const handleScriptToggleClick = useCallback(
-    (index: number) => () => {
-      handleScriptToggle(index);
+  const {
+    importButtonClick,
+    closeButtonClick,
+    handleSelectAllScripts,
+    handleSelectAllSubscribes,
+    handleScriptToggleClick,
+    handleScriptStatusToggle,
+  } = {
+    importButtonClick: async () => {
+      setInstallNum((prev) => [0, prev[1]]);
+      setLoading(true);
+      await importScripts(scripts);
+      setLoading(false);
+      Message.success(t("import_success")!);
     },
-    [handleScriptToggle]
-  );
-
-  const handleScriptStatusToggle = useCallback((index: number, checked: boolean) => {
-    setScripts((prevScripts) =>
-      prevScripts.map((prevScript, i) =>
-        i === index
-          ? {
-              ...prevScript,
-              script: {
-                ...prevScript.script!,
+    closeButtonClick: () => window.close(),
+    handleSelectAllScripts: () => {
+      setSelectAll((prev) => {
+        const newValue = !prev[0];
+        setScripts((prevScripts) => prevScripts.map((script) => ({ ...script, install: newValue })));
+        return [newValue, prev[1]];
+      });
+    },
+    handleSelectAllSubscribes: () => {
+      setSelectAll((prev) => {
+        const newValue = !prev[1];
+        setSubscribes((prevSubscribes) => prevSubscribes.map((subscribe) => ({ ...subscribe, install: newValue })));
+        return [prev[0], newValue];
+      });
+    },
+    handleScriptToggleClick: handleScriptToggle,
+    handleScriptStatusToggle: (index: number, checked: boolean) => {
+      setScripts((prevScripts) =>
+        prevScripts.map((prevScript, i) =>
+          i === index
+            ? {
+                ...prevScript,
                 script: {
-                  ...prevScript.script!.script,
-                  status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+                  ...prevScript.script!,
+                  script: {
+                    ...prevScript.script!.script,
+                    status: checked ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+                  },
                 },
-              },
-            }
-          : prevScript
-      )
-    );
-  }, []);
+              }
+            : prevScript
+        )
+      );
+    },
+  };
 
   return (
     <div>
       <Card bordered={false} title={t("data_import")}>
         <Space direction="vertical" style={{ width: "100%" }}>
           <Space>
-            <Button type="primary" loading={loading} onClick={importButtonClick(scripts)}>
+            <Button type="primary" loading={loading} onClick={importButtonClick}>
               {t("import")}
             </Button>
-            <Button type="primary" status="danger" loading={loading} onClick={() => window.close()}>
+            <Button type="primary" status="danger" loading={loading} onClick={closeButtonClick}>
               {t("close")}
             </Button>
           </Space>

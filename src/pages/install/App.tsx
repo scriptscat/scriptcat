@@ -15,7 +15,7 @@ import {
 import { IconDown } from "@arco-design/web-react/icon";
 import { v4 as uuidv4 } from "uuid";
 import CodeEditor from "../components/CodeEditor";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
@@ -52,7 +52,7 @@ function App() {
   const [btnText, setBtnText] = useState<string>("");
   const [scriptCode, setScriptCode] = useState<string>("");
   const [scriptInfo, setScriptInfo] = useState<ScriptInfo>();
-  const [mUpsertScript, setUpsertScript] = useState<ScriptOrSubscribe>();
+  const [upsertScript, setUpsertScript] = useState<ScriptOrSubscribe | undefined>(undefined);
   const [diffCode, setDiffCode] = useState<string>();
   const [oldScriptVersion, setOldScriptVersion] = useState<string | null>(null);
   const [isUpdate, setIsUpdate] = useState<boolean>(false);
@@ -280,41 +280,51 @@ function App() {
     } else {
       setBtnText(isUpdate ? t("update_script")! : t("install_script"));
     }
-    if (mUpsertScript) {
-      document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(mUpsertScript)} - ScriptCat`;
+    if (upsertScript) {
+      document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, mUpsertScript]);
+  }, [isUpdate, scriptInfo, upsertScript]);
 
   // 设置脚本状态
   useEffect(() => {
-    if (mUpsertScript) {
-      setEnable(mUpsertScript.status === SCRIPT_STATUS_ENABLE);
+    if (upsertScript) {
+      setEnable(upsertScript.status === SCRIPT_STATUS_ENABLE);
     }
-  }, [mUpsertScript]);
+  }, [upsertScript]);
 
-  const handleInstall = useCallback(
-    async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
-      if (!mUpsertScript) {
-        Message.error(t("script_info_load_failed")!);
-        return;
-      }
+  const handleInstall = async (options: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
+    if (!upsertScript) {
+      Message.error(t("script_info_load_failed")!);
+      return;
+    }
 
-      const { closeAfterInstall: shouldClose = true, noMoreUpdates: disableUpdates = false } = options;
+    const { closeAfterInstall: shouldClose = true, noMoreUpdates: disableUpdates = false } = options;
 
-      try {
-        if (scriptInfo?.userSubscribe) {
-          await subscribeClient.install(mUpsertScript as Subscribe);
-          Message.success(t("subscribe_success")!);
-          setBtnText(t("subscribe_success")!);
+    try {
+      if (scriptInfo?.userSubscribe) {
+        await subscribeClient.install(upsertScript as Subscribe);
+        Message.success(t("subscribe_success")!);
+        setBtnText(t("subscribe_success")!);
+      } else {
+        // 如果选择不再检查更新，可以在这里设置脚本的更新配置
+        if (disableUpdates && upsertScript) {
+          // 这里可以设置脚本禁用自动更新的逻辑
+          (upsertScript as Script).checkUpdate = false;
+        }
+        // 故意只安装或执行，不改变显示内容
+        await scriptClient.install(upsertScript as Script, scriptCode);
+        if (isUpdate) {
+          Message.success(t("install.update_success")!);
+          setBtnText(t("install.update_success")!);
         } else {
           // 如果选择不再检查更新，可以在这里设置脚本的更新配置
-          if (disableUpdates && mUpsertScript) {
+          if (disableUpdates && upsertScript) {
             // 这里可以设置脚本禁用自动更新的逻辑
-            (mUpsertScript as Script).checkUpdate = false;
+            (upsertScript as Script).checkUpdate = false;
           }
-          if ((mUpsertScript as Script).ignoreVersion) (mUpsertScript as Script).ignoreVersion = "";
+          if ((upsertScript as Script).ignoreVersion) (upsertScript as Script).ignoreVersion = "";
           // 故意只安装或执行，不改变显示内容
-          await scriptClient.install(mUpsertScript as Script, scriptCode);
+          await scriptClient.install(upsertScript as Script, scriptCode);
           if (isUpdate) {
             Message.success(t("install.update_success")!);
             setBtnText(t("install.update_success")!);
@@ -323,22 +333,40 @@ function App() {
             setBtnText(t("install_success")!);
           }
         }
-
-        if (shouldClose) {
-          setTimeout(() => {
-            closeWindow();
-          }, 500);
-        }
-      } catch (e) {
-        const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
-        Message.error(`${errorMessage}: ${e}`);
       }
-    },
-    [mUpsertScript, scriptInfo, scriptCode, isUpdate]
-  );
 
-  const handleStatusChange = useCallback(
-    (checked: boolean) => {
+      if (shouldClose) {
+        setTimeout(() => {
+          closeWindow();
+        }, 500);
+      }
+    } catch (e) {
+      const errorMessage = scriptInfo?.userSubscribe ? t("subscribe_failed") : t("install_failed");
+      Message.error(`${errorMessage}: ${e}`);
+    }
+  };
+
+  const handleClose = (options?: { noMoreUpdates: boolean }) => {
+    const { noMoreUpdates = false } = options || {};
+    if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
+      scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
+    }
+    closeWindow();
+  };
+
+  const {
+    handleInstallBasic,
+    handleInstallCloseAfterInstall,
+    handleInstallNoMoreUpdates,
+    handleStatusChange,
+    handleCloseBasic,
+    handleCloseNoMoreUpdates,
+    setWatchFileClick,
+  } = {
+    handleInstallBasic: () => handleInstall(),
+    handleInstallCloseAfterInstall: () => handleInstall({ closeAfterInstall: false }),
+    handleInstallNoMoreUpdates: () => handleInstall({ noMoreUpdates: true }),
+    handleStatusChange: (checked: boolean) => {
       setUpsertScript((script) => {
         if (!script) {
           return script;
@@ -348,19 +376,12 @@ function App() {
         return script;
       });
     },
-    [setUpsertScript]
-  );
-
-  const handleClose = useCallback(
-    (options?: { noMoreUpdates: boolean }) => {
-      const { noMoreUpdates = false } = options || {};
-      if (noMoreUpdates && scriptInfo && !scriptInfo.userSubscribe) {
-        scriptClient.setCheckUpdateUrl(scriptInfo.uuid, false);
-      }
-      closeWindow();
+    handleCloseBasic: () => handleClose(),
+    handleCloseNoMoreUpdates: () => handleClose({ noMoreUpdates: true }),
+    setWatchFileClick: () => {
+      setWatchFile((prev) => !prev);
     },
-    [scriptInfo]
-  );
+  };
 
   const fileWatchMessageId = `id_${Math.random()}`;
 
@@ -368,7 +389,7 @@ function App() {
     if (this.uuid !== scriptInfo?.uuid) return;
     if (this.fileName !== localFileHandle?.name) return;
     setScriptCode(code);
-    const uuid = (mUpsertScript as Script)?.uuid;
+    const uuid = (upsertScript as Script)?.uuid;
     if (!uuid) {
       throw new Error("uuid is undefined");
     }
@@ -402,7 +423,7 @@ function App() {
       // 如没有安装纪录，将进行安装。
       // 如已经安装，在FileSystemObserver检查更改前，先进行更新。
       const code = `${scriptCode}`;
-      await installOrUpdateScript(mUpsertScript as Script, code);
+      await installOrUpdateScript(upsertScript as Script, code);
       // setScriptCode(`${code}`);
       setDiffCode(`${code}`);
       const ftInfo: FTInfo = {
@@ -449,13 +470,13 @@ function App() {
         <Grid.Col flex={1} className="flex-col p-8px">
           <Space direction="vertical" className="w-full">
             <div>
-              {mUpsertScript?.metadata.icon && (
+              {upsertScript?.metadata.icon && (
                 <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                  <img src={mUpsertScript.metadata.icon[0]} alt={mUpsertScript?.name} />
+                  <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
                 </Avatar>
               )}
               <Typography.Text bold className="text-size-lg">
-                {mUpsertScript && i18nName(mUpsertScript)}
+                {upsertScript && i18nName(upsertScript)}
                 <Tooltip
                   content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}
                 >
@@ -464,7 +485,7 @@ function App() {
               </Typography.Text>
             </div>
             <div>
-              <Typography.Text bold>{mUpsertScript && i18nDescription(mUpsertScript)}</Typography.Text>
+              <Typography.Text bold>{upsertScript && i18nDescription(upsertScript!)}</Typography.Text>
             </div>
             <div>
               <Typography.Text bold>{`${t("author")}: ${metadataLive.author}`}</Typography.Text>
@@ -486,17 +507,17 @@ function App() {
             <div className="text-end">
               <Space>
                 <Button.Group>
-                  <Button type="primary" size="small" onClick={() => handleInstall()} disabled={watchFile}>
+                  <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
                     {btnText}
                   </Button>
                   <Dropdown
                     droplist={
                       <Menu>
-                        <Menu.Item key="install-no-close" onClick={() => handleInstall({ closeAfterInstall: false })}>
+                        <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
                           {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
                         </Menu.Item>
                         {!scriptInfo?.userSubscribe && (
-                          <Menu.Item key="install-no-updates" onClick={() => handleInstall({ noMoreUpdates: true })}>
+                          <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
                             {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
                           </Menu.Item>
                         )}
@@ -510,27 +531,21 @@ function App() {
                 </Button.Group>
                 {localFileHandle && (
                   <Popover content={t("watch_file_description")}>
-                    <Button
-                      type="secondary"
-                      size="small"
-                      onClick={() => {
-                        setWatchFile((prev) => !prev);
-                      }}
-                    >
+                    <Button type="secondary" size="small" onClick={setWatchFileClick}>
                       {watchFile ? t("stop_watch_file") : t("watch_file")}
                     </Button>
                   </Popover>
                 )}
                 {isUpdate ? (
                   <Button.Group>
-                    <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                    <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
                       {t("close")}
                     </Button>
                     <Dropdown
                       droplist={
                         <Menu>
                           {!scriptInfo?.userSubscribe && (
-                            <Menu.Item key="install-no-updates" onClick={() => handleClose({ noMoreUpdates: true })}>
+                            <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
                               {t("close_update_script_no_more_update")}
                             </Menu.Item>
                           )}
@@ -542,7 +557,7 @@ function App() {
                     </Dropdown>
                   </Button.Group>
                 ) : (
-                  <Button type="primary" status="danger" size="small" onClick={() => handleClose()}>
+                  <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
                     {t("close")}
                   </Button>
                 )}
