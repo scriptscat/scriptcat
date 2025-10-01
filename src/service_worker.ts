@@ -10,8 +10,10 @@ import migrate from "./app/migrate";
 import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
 import type { RuntimeMessageSender } from "@Packages/message/types";
+import { cleanInvalidCompliedResources } from "./app/repo/resource";
 
 migrate();
+cleanInvalidCompliedResources();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 

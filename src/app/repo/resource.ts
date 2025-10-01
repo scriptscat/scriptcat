@@ -59,40 +59,11 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "216d81f5-5e02-4f68-8983-85f11221bee7";
+export const CompliedResourceNamespace = "200bf956-5afc-480a-8d69-300f07754bf2";
 
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {
-    super(`complied_resource##${CompliedResourceNamespace}##`);
-    Promise.resolve().then(() => this.deferredCleanup());
-  }
-
-  protected deferredCleanup() {
-    chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
-      }
-      if (result) {
-        const u = [];
-        for (const key in result) {
-          if (
-            key.startsWith("complied_resource##") &&
-            !key.startsWith(`complied_resource##${CompliedResourceNamespace}##`)
-          ) {
-            u.push(key);
-          }
-        }
-        chrome.storage.local.remove(u, () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
-            // 无视storage API错误，继续执行
-          }
-        });
-      }
-    });
+    super(`complied_resource`);
   }
 
   protected joinKey(key: string) {
@@ -103,3 +74,27 @@ export class CompliedResourceDAO extends Repo<CompliedResource> {
     return super._save(resource.uuid, resource);
   }
 }
+
+export const cleanInvalidCompliedResources = async () => {
+  const storedKey = (await chrome.storage.local.get("complied_resource_key"))["complied_resource_key"];
+  if (storedKey === CompliedResourceNamespace) return;
+  const invalidKeys = await new Promise<string[]>((resolve) => {
+    chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
+        // 无视storage API错误，继续执行
+      }
+      if (result) {
+        resolve(
+          Object.keys(result).filter(
+            (key) => key.startsWith("complied_resource:") || key.startsWith("complied_resource##")
+          )
+        );
+      }
+      resolve([] as string[]);
+    });
+  });
+  await chrome.storage.local.remove(invalidKeys);
+  await chrome.storage.local.set({ complied_resource_key: CompliedResourceNamespace });
+};
