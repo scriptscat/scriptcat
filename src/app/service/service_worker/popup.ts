@@ -40,32 +40,59 @@ export class PopupService {
     private systemConfig: SystemConfig
   ) {}
 
-  genScriptMenuByTabMap(menu: ScriptMenu[]) {
-    let n = 0;
+  genScriptMenuByTabMap(menuEntries: chrome.contextMenus.CreateProperties[], menu: ScriptMenu[]) {
     for (const { uuid, name, menus } of menu) {
-      // 如果是带输入框的菜单则不在页面内注册
-      const nonInputMenus = menus.filter((item) => !item.options?.inputType);
-      // 创建脚本菜单
-      if (nonInputMenus.length) {
-        n += nonInputMenus.length;
-        chrome.contextMenus.create({
-          id: `scriptMenu_${uuid}`,
-          title: name,
-          contexts: ["all"],
-          parentId: "scriptMenu",
-        });
-        nonInputMenus.forEach((menu) => {
-          // 创建菜单
-          chrome.contextMenus.create({
-            id: `scriptMenu_menu_${uuid}_${menu.id}`,
-            title: menu.name,
+      const subMenuEntries = [] as chrome.contextMenus.CreateProperties[];
+      let withMenuItem = false;
+      // eslint-disable-next-line prefer-const
+      for (let { id, name, options } of menus) {
+        // 如果是带输入框的菜单则不在页面内注册
+        if (options?.inputType) return;
+        let level = 3;
+        if (name[0] === "\xA7") {
+          // section sign (§)
+          level = 2;
+          name = name.substring(1);
+          // chrome.contextMenus的API限制：不支持一级菜单创建 (不支持 §§)
+        }
+        let createProperties: chrome.contextMenus.CreateProperties;
+        name = name.trim();
+        if (!name.length) {
+          // 创建菜单分隔线
+          createProperties = {
+            id: `scriptMenu_menu_${uuid}_${id}`,
+            type: "separator",
             contexts: ["all"],
-            parentId: `scriptMenu_${uuid}`,
-          });
-        });
+          };
+        } else {
+          // 创建菜单项目
+          createProperties = {
+            id: `scriptMenu_menu_${uuid}_${id}`,
+            title: name,
+            contexts: ["all"],
+          };
+          withMenuItem = true;
+        }
+        if (level === 3) {
+          createProperties.parentId = `scriptMenu_${uuid}`;
+        } else if (level === 2) {
+          createProperties.parentId = `scriptMenu`;
+        }
+        subMenuEntries.push(createProperties);
+      }
+      if (withMenuItem) {
+        menuEntries.push(
+          {
+            // 创建脚本菜单
+            id: `scriptMenu_${uuid}`,
+            title: name,
+            contexts: ["all"],
+            parentId: "scriptMenu",
+          },
+          ...subMenuEntries
+        );
       }
     }
-    return n;
   }
 
   // 生成chrome菜单
@@ -81,23 +108,24 @@ export class PopupService {
     if (!menu.length && !backgroundMenu.length) {
       return;
     }
-    let n = 0;
-    // 创建根菜单
-    chrome.contextMenus.create({
-      id: "scriptMenu",
-      title: "ScriptCat",
-      contexts: ["all"],
-    });
+    const menuEntries = [] as chrome.contextMenus.CreateProperties[];
     if (menu) {
-      n += this.genScriptMenuByTabMap(menu);
+      this.genScriptMenuByTabMap(menuEntries, menu);
     }
     // 后台脚本的菜单
     if (backgroundMenu) {
-      n += this.genScriptMenuByTabMap(backgroundMenu);
+      this.genScriptMenuByTabMap(menuEntries, backgroundMenu);
     }
-    if (n === 0) {
-      // 如果没有菜单，删除菜单
-      await chrome.contextMenus.remove("scriptMenu");
+    if (menuEntries.length > 0) {
+      // 创建根菜单
+      menuEntries.unshift({
+        id: "scriptMenu",
+        title: "ScriptCat",
+        contexts: ["all"],
+      });
+      for (const menuEntry of menuEntries) {
+        chrome.contextMenus.create(menuEntry);
+      }
     }
   }
 

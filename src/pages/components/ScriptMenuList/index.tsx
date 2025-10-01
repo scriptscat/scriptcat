@@ -62,7 +62,8 @@ const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
         return null;
     }
   })();
-
+  const menuName = menu.name.replace(/^\xA7+/, "").trim();
+  if (!menuName) return <></>;
   return (
     <Form
       initialValues={{ inputValue: initialValue }}
@@ -84,7 +85,7 @@ const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
         title={menu.options?.title}
         style={{ display: "block", width: "100%" }}
       >
-        {menu.name}
+        {menuName}
         {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
       </Button>
       {InputMenu && (
