@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { Avatar, Button, Space, Tooltip } from "@arco-design/web-react";
 import { IconBug, IconCode, IconGithub, IconHome } from "@arco-design/web-react/icon";
@@ -177,7 +177,7 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
     return defVal;
   });
   // 以 useRef 建立不变 submitValue
-  const submitValue = (v?: SystemConfigValueType<T>) => {
+  const submitValue = useRef((v?: SystemConfigValueType<T>) => {
     if (v === undefined) {
       setValue((old) => {
         systemConfig.set(key, old);
@@ -187,6 +187,6 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
       systemConfig.set(key, v);
       setValue(v);
     }
-  };
+  }).current;
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
