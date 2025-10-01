@@ -1017,6 +1017,7 @@ function ScriptList() {
           dataIndex: "origin",
           key: "origin",
           width: 100,
+          className: "source_cell",
           render: renderSource,
         },
         {
