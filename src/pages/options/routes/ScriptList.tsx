@@ -328,56 +328,71 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
 });
 ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
 
-const SourceCell = React.memo(({ item, t }: { item: ListType; t: any }) => {
-  if (item.subscribeUrl) {
+const SourceCell = React.memo(
+  ({ item, t }: { item: ListType; t: any }) => {
+    if (item.subscribeUrl) {
+      return (
+        <Tooltip
+          content={
+            <p
+              style={{ margin: 0, padding: 0 }}
+            >{`${t("source_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
+          }
+        >
+          <Tag
+            icon={<IconLink />}
+            color="orange"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+          >
+            {t("source_subscribe_link")}
+          </Tag>
+        </Tooltip>
+      );
+    }
+    if (!item.origin) {
+      return (
+        <Tooltip content={<p style={{ margin: 0, padding: 0 }}>{`${t("by_manual_creation")}`}</p>}>
+          <Tag
+            icon={<IconEdit />}
+            color="purple"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+          >
+            {t("source_local_script")}
+          </Tag>
+        </Tooltip>
+      );
+    }
     return (
       <Tooltip
-        content={<p style={{ margin: 0 }}>{`${t("subscription_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>}
+        content={
+          <p style={{ margin: 0, padding: 0 }}>{`${t("source_script_link")}: ${decodeURIComponent(item.origin)}`}</p>
+        }
       >
         <Tag
-          icon={<IconLink />}
-          color="orange"
+          icon={<IconUserAdd color="" />}
+          color="green"
           bordered
           style={{
             cursor: "pointer",
           }}
         >
-          {t("subscription_installation")}
+          {t("source_script_link")}
         </Tag>
       </Tooltip>
     );
-  }
-  if (!item.origin) {
+  },
+  (prevProps, nextProps) => {
     return (
-      <Tag
-        icon={<IconEdit />}
-        color="purple"
-        bordered
-        style={{
-          cursor: "pointer",
-        }}
-      >
-        {t("manually_created")}
-      </Tag>
+      prevProps.item.subscribeUrl === nextProps.item.subscribeUrl && prevProps.item.origin === nextProps.item.origin
     );
   }
-  return (
-    <Tooltip
-      content={<p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>}
-    >
-      <Tag
-        icon={<IconUserAdd color="" />}
-        color="green"
-        bordered
-        style={{
-          cursor: "pointer",
-        }}
-      >
-        {t("user_installation")}
-      </Tag>
-    </Tooltip>
-  );
-});
+);
 SourceCell.displayName = "SourceCell";
 
 const HomeCell = React.memo(({ item }: { item: ListType }) => {
@@ -1050,6 +1065,7 @@ function ScriptList() {
           dataIndex: "origin",
           key: "origin",
           width: 100,
+          className: "source_cell",
           render: (col: any, item: ListType) => <SourceCell item={item} t={t} />,
         },
         {
