@@ -818,102 +818,102 @@ function ScriptList() {
 
   mInitial === false && doInitial();
 
-  const pageApi = {
-    scriptRunStatus(data: TScriptRunStatus) {
-      const { uuid, runStatus } = data;
-      setScriptList((list: ScriptLoading[]) => {
-        const index = list.findIndex((s) => s.uuid === uuid);
-        if (index === -1) return list;
-
-        const newList = [...list];
-        newList[index] = { ...list[index], runStatus };
-        return newList;
-      });
-    },
-
-    async installScript(message: TInstallScript) {
-      const installedScript = await fetchScript(message.script.uuid);
-      if (!installedScript) return;
-      const installedScriptUUID = installedScript.uuid;
-      if (!installedScriptUUID) return;
-
-      setScriptList((list: ScriptLoading[]) => {
-        const existingIndex = list.findIndex((s) => s.uuid === installedScriptUUID);
-        if (existingIndex !== -1) {
-          const newList = [...list];
-          newList[existingIndex] = { ...list[existingIndex], ...installedScript };
-          return newList;
-        }
-
-        // 放到第一
-        const res = [{ ...installedScript }, ...list];
-        for (let i = 0, l = res.length; i < l; i++) {
-          res[i].sort = i;
-        }
-        return res;
-      });
-    },
-
-    deleteScripts(data: TDeleteScript[]) {
-      const uuids = data.map(({ uuid }) => uuid);
-      const set = new Set(uuids);
-      setScriptList((list: ScriptLoading[]) => {
-        const res = list.filter((s) => !set.has(s.uuid));
-        for (let i = 0, l = res.length; i < l; i++) {
-          res[i].sort = i;
-        }
-        return res;
-      });
-    },
-
-    enableScripts(data: TEnableScript[]) {
-      const map = new Map();
-      for (const { uuid, enable } of data) {
-        map.set(uuid, enable);
-      }
-
-      setScriptList((list: ScriptLoading[]) => {
-        let hasChanges = false;
-        const newList = list.map((script) => {
-          if (map.has(script.uuid)) {
-            hasChanges = true;
-            const enable = map.get(script.uuid);
-            return {
-              ...script,
-              enableLoading: false,
-              status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
-            };
-          }
-          return script;
-        });
-
-        return hasChanges ? newList : list;
-      });
-    },
-
-    sortedScripts(data: TSortedScript[]) {
-      setScriptList((list: ScriptLoading[]) => {
-        const listEntries = new Map<string, ScriptLoading>();
-        for (const item of list) {
-          listEntries.set(item.uuid, item);
-        }
-        let j = 0;
-        const res = new Array(data.length);
-        for (const { uuid } of data) {
-          const item = listEntries.get(uuid);
-          if (item) {
-            res[j] = item;
-            item.sort = j;
-            j++;
-          }
-        }
-        res.length = j;
-        return res;
-      });
-    },
-  };
-
   useEffect(() => {
+    const pageApi = {
+      scriptRunStatus(data: TScriptRunStatus) {
+        const { uuid, runStatus } = data;
+        setScriptList((list: ScriptLoading[]) => {
+          const index = list.findIndex((s) => s.uuid === uuid);
+          if (index === -1) return list;
+
+          const newList = [...list];
+          newList[index] = { ...list[index], runStatus };
+          return newList;
+        });
+      },
+
+      async installScript(message: TInstallScript) {
+        const installedScript = await fetchScript(message.script.uuid);
+        if (!installedScript) return;
+        const installedScriptUUID = installedScript.uuid;
+        if (!installedScriptUUID) return;
+
+        setScriptList((list: ScriptLoading[]) => {
+          const existingIndex = list.findIndex((s) => s.uuid === installedScriptUUID);
+          if (existingIndex !== -1) {
+            const newList = [...list];
+            newList[existingIndex] = { ...list[existingIndex], ...installedScript };
+            return newList;
+          }
+
+          // 放到第一
+          const res = [{ ...installedScript }, ...list];
+          for (let i = 0, l = res.length; i < l; i++) {
+            res[i].sort = i;
+          }
+          return res;
+        });
+      },
+
+      deleteScripts(data: TDeleteScript[]) {
+        const uuids = data.map(({ uuid }) => uuid);
+        const set = new Set(uuids);
+        setScriptList((list: ScriptLoading[]) => {
+          const res = list.filter((s) => !set.has(s.uuid));
+          for (let i = 0, l = res.length; i < l; i++) {
+            res[i].sort = i;
+          }
+          return res;
+        });
+      },
+
+      enableScripts(data: TEnableScript[]) {
+        const map = new Map();
+        for (const { uuid, enable } of data) {
+          map.set(uuid, enable);
+        }
+
+        setScriptList((list: ScriptLoading[]) => {
+          let hasChanges = false;
+          const newList = list.map((script) => {
+            if (map.has(script.uuid)) {
+              hasChanges = true;
+              const enable = map.get(script.uuid);
+              return {
+                ...script,
+                enableLoading: false,
+                status: enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE,
+              };
+            }
+            return script;
+          });
+
+          return hasChanges ? newList : list;
+        });
+      },
+
+      sortedScripts(data: TSortedScript[]) {
+        setScriptList((list: ScriptLoading[]) => {
+          const listEntries = new Map<string, ScriptLoading>();
+          for (const item of list) {
+            listEntries.set(item.uuid, item);
+          }
+          let j = 0;
+          const res = new Array(data.length);
+          for (const { uuid } of data) {
+            const item = listEntries.get(uuid);
+            if (item) {
+              res[j] = item;
+              item.sort = j;
+              j++;
+            }
+          }
+          res.length = j;
+          return res;
+        });
+      },
+    };
+
     const unhooks = [
       subscribeMessage("scriptRunStatus", pageApi.scriptRunStatus),
       subscribeMessage("installScript", pageApi.installScript),
@@ -924,7 +924,7 @@ function ScriptList() {
     return () => {
       for (const unhook of unhooks) unhook();
     };
-  });
+  }, []);
 
   const { updateScriptList, updateEntry } = {
     updateScriptList: (data: Partial<Script | ScriptLoading>) => {

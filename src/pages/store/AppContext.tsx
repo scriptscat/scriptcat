@@ -1,6 +1,9 @@
 import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
 import { messageQueue } from "./global";
 import { editor } from "monaco-editor";
+import { type TKeyValue } from "@Packages/message/message_queue";
+import { changeLanguage } from "@App/locales/locales";
+import { SystemConfigChange } from "@App/pkg/config/config";
 
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
@@ -56,26 +59,30 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return localStorage.lightMode || "auto";
   });
 
-  const pageApi = {
-    onColorThemeUpdated({ theme }: { theme: "auto" | "light" | "dark" }) {
-      setAppColorTheme(theme);
-      setColorThemeState(theme);
-    },
-  };
-
-  const subscribeMessageConsumed = new WeakSet();
   const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data: any) => {
+    return messageQueue.subscribe<any>(topic, (data) => {
       const message = data?.myMessage || data;
-      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
-        subscribeMessageConsumed.add(message);
+      if (typeof message === "object") {
         handler(message);
       }
     });
   };
 
   useEffect(() => {
-    const unhooks = [subscribeMessage("onColorThemeUpdated", pageApi.onColorThemeUpdated)];
+    const pageApi = {
+      onColorThemeUpdated({ theme }: { theme: "auto" | "light" | "dark" }) {
+        setAppColorTheme(theme);
+        setColorThemeState(theme);
+      },
+      systemConfigChanged({ key, value }: TKeyValue) {
+        if (key === "language") changeLanguage(value);
+      },
+    };
+
+    const unhooks = [
+      subscribeMessage("onColorThemeUpdated", pageApi.onColorThemeUpdated),
+      subscribeMessage(SystemConfigChange, pageApi.systemConfigChanged),
+    ];
     return () => {
       for (const unhook of unhooks) unhook();
     };
