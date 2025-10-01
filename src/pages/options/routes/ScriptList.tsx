@@ -315,7 +315,7 @@ const SourceCell = React.memo(
           content={
             <p
               style={{ margin: 0, padding: 0 }}
-            >{`${t("the_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
+            >{`${t("source_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
           }
         >
           <Tag
@@ -349,7 +349,9 @@ const SourceCell = React.memo(
     }
     return (
       <Tooltip
-        content={<p style={{ margin: 0, padding: 0 }}>{`${t("script_link")}: ${decodeURIComponent(item.origin)}`}</p>}
+        content={
+          <p style={{ margin: 0, padding: 0 }}>{`${t("source_script_link")}: ${decodeURIComponent(item.origin)}`}</p>
+        }
       >
         <Tag
           icon={<IconUserAdd color="" />}
