@@ -65,3 +65,7 @@ h6.arco-typography {
   max-width: 240px;
   min-width: 100px;
 }
+
+.source_cell .arco-table-cell-wrap-value, .source_cell .arco-tag {
+  max-width: 100%;
+}

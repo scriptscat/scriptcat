@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { messageQueue } from "../store/global";
 import {
   requestBatchUpdateListAction,
   requestCheckScriptUpdate,
@@ -18,6 +17,7 @@ import {
 } from "@App/app/service/service_worker/types";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
+import { useAppContext } from "../store/AppContext";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -25,6 +25,8 @@ const { GridItem } = Grid;
 const { Text } = Typography;
 
 function App() {
+  const { subscribeMessage } = useAppContext();
+
   const AUTO_CLOSE_PAGE = 8000; // after 8s, auto close
   const getUrlParam = (key: string): string => {
     return (location.search?.includes(`${key}=`) ? new URLSearchParams(location.search).get(`${key}`) : "") || "";
@@ -60,88 +62,77 @@ function App() {
     }, 1000);
   }, [mTimeClose]);
 
-  const getBatchUpdateRecord = async (): Promise<TBatchUpdateRecordObject | null> => {
-    let resultText = "";
-    let r;
-    let i = 0;
-    while (true) {
-      r = await scriptClient.getBatchUpdateRecordLite(i++);
-      if (!r) break;
-      const chunk = r.chunk;
-      if (typeof chunk !== "string") break;
-      resultText += chunk;
-      if (r.ended) break;
-    }
-    return resultText ? JSON.parse(resultText) : null;
-  };
-
-  const pageApi = {
-    onScriptUpdateCheck(data: any) {
-      if (
-        mRecords === null &&
-        ((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === 0 &&
-        ((data.status ?? 0) & UpdateStatusCode.CHECKED_BEFORE) === UpdateStatusCode.CHECKED_BEFORE
-      ) {
-        setStatusText(
-          t("updatepage.status_last_check").replace("$0", data.checktime ? dayFormat(new Date(data.checktime)) : "")
-        );
-        updateRecord();
-        setCheckUpdateSpin(false);
-      } else if (((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
-        setStatusText(t("updatepage.status_checking_updates"));
-        setRecords(null);
-        setCheckUpdateSpin(true);
-      } else if (mRecords !== null && data.refreshRecord === true) {
-        updateRecord();
+  useEffect(() => {
+    const getBatchUpdateRecord = async (): Promise<TBatchUpdateRecordObject | null> => {
+      let resultText = "";
+      let r;
+      let i = 0;
+      while (true) {
+        r = await scriptClient.getBatchUpdateRecordLite(i++);
+        if (!r) break;
+        const chunk = r.chunk;
+        if (typeof chunk !== "string") break;
+        resultText += chunk;
+        if (r.ended) break;
       }
-    },
-  };
+      return resultText ? JSON.parse(resultText) : null;
+    };
 
-  const updateRecord = () => {
-    getBatchUpdateRecord().then((batchUpdateRecordObjectLite) => {
-      const list = batchUpdateRecordObjectLite?.list || [];
-      const site = [] as TBatchUpdateRecord[];
-      const other = [] as TBatchUpdateRecord[];
-      const ignored = [] as TBatchUpdateRecord[];
-      for (const entry of list) {
-        let mEntry = entry;
-        if (!entry.checkUpdate) {
-          site.push(entry);
-          continue;
-        }
-        const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
-        mEntry = {
-          ...entry,
-        };
+    const updateRecord = () => {
+      getBatchUpdateRecord().then((batchUpdateRecordObjectLite) => {
+        const list = batchUpdateRecordObjectLite?.list || [];
+        const site = [] as TBatchUpdateRecord[];
+        const other = [] as TBatchUpdateRecord[];
+        const ignored = [] as TBatchUpdateRecord[];
+        for (const entry of list) {
+          let mEntry = entry;
+          if (!entry.checkUpdate) {
+            site.push(entry);
+            continue;
+          }
+          const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
+          mEntry = {
+            ...entry,
+          };
 
-        if (isIgnored) {
-          ignored.push(mEntry);
-        } else {
-          if (!paramSite || mEntry.sites?.includes(paramSite)) {
-            site.push(mEntry);
+          if (isIgnored) {
+            ignored.push(mEntry);
           } else {
-            other.push(mEntry);
+            if (!paramSite || mEntry.sites?.includes(paramSite)) {
+              site.push(mEntry);
+            } else {
+              other.push(mEntry);
+            }
           }
         }
-      }
-      setRecords({ site, other, ignored });
-    });
-  };
+        setRecords({ site, other, ignored });
+      });
+    };
 
-  const subscribeMessageConsumed = new WeakSet();
-  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data) => {
-      const message = data?.myMessage || data;
-      if (typeof message === "object" && !subscribeMessageConsumed.has(message)) {
-        subscribeMessageConsumed.add(message);
-        handler(message);
-      }
-    });
-  };
+    const pageApi = {
+      onScriptUpdateCheck(data: any) {
+        if (
+          mRecords === null &&
+          ((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === 0 &&
+          ((data.status ?? 0) & UpdateStatusCode.CHECKED_BEFORE) === UpdateStatusCode.CHECKED_BEFORE
+        ) {
+          setStatusText(
+            t("updatepage.status_last_check").replace("$0", data.checktime ? dayFormat(new Date(data.checktime)) : "")
+          );
+          updateRecord();
+          setCheckUpdateSpin(false);
+        } else if (((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
+          setStatusText(t("updatepage.status_checking_updates"));
+          setRecords(null);
+          setCheckUpdateSpin(true);
+        } else if (mRecords !== null && data.refreshRecord === true) {
+          updateRecord();
+        }
+      },
+    };
 
-  useEffect(() => {
     return subscribeMessage("onScriptUpdateCheck", pageApi.onScriptUpdateCheck);
-  });
+  }, []);
 
   const doInitial = () => {
     // faster than useEffect
