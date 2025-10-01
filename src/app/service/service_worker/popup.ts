@@ -47,7 +47,7 @@ export class PopupService {
       // eslint-disable-next-line prefer-const
       for (let { id, name, options } of menus) {
         // 如果是带输入框的菜单则不在页面内注册
-        if (options?.inputType) return;
+        if (options?.inputType) continue;
         let level = 3;
         if (name[0] === "\xA7") {
           // section sign (§)
