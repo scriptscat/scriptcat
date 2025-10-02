@@ -1147,7 +1147,7 @@ function ScriptList() {
       });
     });
     setCanShowList(true);
-  }, [savedWidths]);
+  }, [savedWidths, columns]);
 
   const dealColumns = useMemo(() => {
     if (!canShowList) {
@@ -1156,7 +1156,7 @@ function ScriptList() {
       const filtered = newColumns.filter((item) => item.width !== -1);
       return filtered.length === 0 ? columns : filtered;
     }
-  }, [newColumns, canShowList]);
+  }, [newColumns, canShowList, columns]);
 
   const components: ComponentsProps = useMemo(
     () => ({
@@ -1201,7 +1201,7 @@ function ScriptList() {
         row: DraggableRow,
       },
     }),
-    []
+    [t]
   );
 
   const setWidth = (selectColumn: number, width: any) => {
