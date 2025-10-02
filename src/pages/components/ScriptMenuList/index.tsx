@@ -21,7 +21,7 @@ import {
   IconPlus,
   IconSettings,
 } from "@arco-design/web-react/icon";
-import { type SCRIPT_RUN_STATUS, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import { useTranslation } from "react-i18next";
 import { ScriptIcons } from "@App/pages/options/routes/utils";
@@ -308,6 +308,8 @@ const ListMenuItem = React.memo(
 
 ListMenuItem.displayName = "ListMenuItem";
 
+type TGrouppedMenus = Record<string, GroupScriptMenuItemsProp> & { __length__?: number };
+
 // Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
   ({
@@ -330,79 +332,47 @@ const ScriptMenuList = React.memo(
     );
     const { t } = useTranslation();
 
-    // menusList[x].uuid 对应 list[x].uuid
-    // menusList[x].menus 对应 list[x].menus
-    // 仅在 uuid 或 menus 的「引用」变更时更新，避免无关属性变动造成不必要重算与重渲染。
-    const [menusList, setMenusList] = useState<
-      {
-        uuid: string;
-        menus: ScriptMenuItem[];
-        menuUpdated: number;
-      }[]
-    >([]);
-
-    const [grouppedMenus, setGrouppedMenus] = useState<Record<string, GroupScriptMenuItemsProp>>({});
-
-    // 将 list 的必要栏位（uuid/menus）同步到 menusList；若无引用变更则维持原物件以降低重渲染。
-    useEffect(() => {
-      setMenusList((prev) => {
-        let changed = false;
-        const map = new Map<
-          string,
-          {
-            uuid: string;
-            menus: ScriptMenuItem[];
-            menuUpdated: number;
-          }
-        >();
-        for (const item of prev) {
-          map.set(item.uuid, item);
-        }
-        for (const item of list) {
-          const r = map.get(item.uuid);
-          if (r && r.uuid === item.uuid && r.menuUpdated === item.menuUpdated) {
-            //
-          } else {
-            map.set(item.uuid, { uuid: item.uuid, menus: item.menus, menuUpdated: item.menuUpdated ?? 1 });
-            changed = true;
-          }
-        }
-        if (!changed && list.length === map.size) return prev;
-        return list.map((item) => map.get(item.uuid)!);
-      });
-    }, [list]);
+    const [grouppedMenus, setGrouppedMenus] = useState<TGrouppedMenus>({});
 
     // 依 groupKey 进行聚合：将同语义（mainframe/subframe）命令合并为单一分组以供 UI 呈现。
     useEffect(() => {
-      const menusList_ = menusList;
+      const list_ = list;
       setGrouppedMenus((prev) => {
-        const ret = {} as Record<string, GroupScriptMenuItemsProp>;
-        menusList_.forEach(({ uuid, menus, menuUpdated }) => {
-          if (prev[uuid]?.menuUpdated === menuUpdated && menuUpdated) {
+        const ret = {} as TGrouppedMenus;
+        let changed = false;
+        let retLen = 0;
+        for (const { uuid, menus, menuUpdated: m } of list_) {
+          retLen++;
+          const menuUpdated = m || 0;
+          if (prev[uuid]?.menuUpdated === menuUpdated) {
             ret[uuid] = prev[uuid];
-          } else {
-            const resultMap = new Map<string, ScriptMenuItem[]>();
-            for (const menu of menus) {
-              const groupKey = menu.groupKey;
-              let m = resultMap.get(groupKey);
-              if (!m) resultMap.set(groupKey, (m = []));
-              m.push(menu);
-            }
-            const result = [] as GroupScriptMenuItem[];
-            for (const [groupKey, arr] of resultMap) {
-              result.push({
-                uuid: uuid,
-                groupKey: groupKey,
-                menus: arr,
-              } as GroupScriptMenuItem);
-            }
-            ret[uuid] = { group: result, menuUpdated };
+            continue; // Skip if unchanged
           }
-        });
-        // 输出以 uuid 分组存放；不依赖 list 的迭代顺序以避免不稳定渲染。
-        return ret;
+
+          const resultMap = new Map<string, ScriptMenuItem[]>();
+          for (const menu of menus) {
+            const groupKey = menu.groupKey;
+            let m = resultMap.get(groupKey);
+            if (!m) resultMap.set(groupKey, (m = []));
+            m.push(menu);
+          }
+
+          const result = [];
+          for (const [groupKey, arr] of resultMap) {
+            result.push({ uuid, groupKey, menus: arr } as GroupScriptMenuItem);
+          }
+
+          // 输出以 uuid 分组存放；不依赖 list 的迭代顺序以避免不稳定渲染。
+          ret[uuid] = { group: result, menuUpdated };
+          changed = true;
+        }
+        ret.__length__ = retLen;
+        if (!changed && ret.__length__ !== prev.__length__) changed = true;
+
+        // 若无引用变更则维持原物件以降低重渲染
+        return changed ? ret : prev;
       });
-    }, [menusList]);
+    }, [list]);
 
     const url = useMemo(() => {
       let url: URL;
@@ -423,6 +393,7 @@ const ScriptMenuList = React.memo(
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
       const checkItems = new Map();
       for (const [_uuid, menus] of Object.entries(grouppedMenus)) {
+        if (typeof menus !== "object") continue;
         for (const menu of menus.group) {
           const menuItem = menu.menus[0]; // 同一分组的语义一致，取首项即可读取 accessKey / name 等共用属性。
           const { name, options } = menuItem;
