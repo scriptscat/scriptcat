@@ -96,8 +96,9 @@ function App() {
 
       // 订阅背景脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
-        if (!isMounted) return;
-        setScriptList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
+        setScriptList((prevList) =>
+          prevList.map((item) => (item.uuid === uuid && item.runStatus !== runStatus ? { ...item, runStatus } : item))
+        );
       }),
 
       subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuid }: TPopupScript) => {
