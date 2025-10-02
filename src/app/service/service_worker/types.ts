@@ -64,24 +64,71 @@ export type Api = (request: Request, con: IGetSender) => Promise<any>;
 
 // popup
 
+export type ScriptMenuItemOption = {
+  id?: number;
+  autoClose?: boolean;
+  title?: string;
+  accessKey?: string;
+  // 可选输入框
+  inputType?: "text" | "number" | "boolean";
+  inputLabel?: string;
+  inputDefaultValue?: string | number | boolean;
+  inputPlaceholder?: string;
+};
+
+// 根据 TM (Tampermonkey) 定义：
+// GM_registerMenuCommand 会回传一个「累计数字 ID」，由系统自动生成。
+// 如透过 options.id 传入自订的 ID，则回传型别为 string 或 number。
+// 注意：这个 ID 主要是「脚本执行环境内部使用」，而不是用来直接显示。
+export type TScriptMenuItemID = number | string;
+
+// 为了语意清楚：用于 menu item 显示名称的型别
+// 显示在右键选单上的「文字名称」。
+// 例如「开启设定」、「清除快取」。
+export type TScriptMenuItemName = string;
+
+// 为了语意清楚：用于 menu item 唯一键值的型别
+// 每个 menu item 的「唯一键」，用来辨识是否同一个命令。
+// 即使名称一样，key 也必须唯一。
+// 通常由 GM_registerMenuCommand 信息传递时传入。
+export type TScriptMenuItemKey = string;
+
+// 单一的选单项目结构。
+// - groupKey：用来把「相同性质」的项目合并（例如 mainframe / subframe 都注册相同命令）。
+// - key：唯一键，对应 GM_registerMenuCommand 信息传递的第一个参数。
+// - name：显示文字。
+// - options：选单的额外设定，例如是否是输入框、是否自动关闭等。
+// - tabId：表示来自哪个分页，-1 表示背景脚本。
+// - frameId / documentId：用于区分 iframe 或特定文件。
 export type ScriptMenuItem = {
-  id: number;
-  name: string;
-  options?: {
-    id?: number;
-    autoClose?: boolean;
-    title?: string;
-    accessKey?: string;
-    // 可选输入框
-    inputType?: "text" | "number" | "boolean";
-    inputLabel?: string;
-    inputDefaultValue?: string | number | boolean;
-    inputPlaceholder?: string;
-  };
+  groupKey: string;
+  key: TScriptMenuItemKey;
+  name: TScriptMenuItemName;
+  options?: ScriptMenuItemOption;
   tabId: number; //-1表示后台脚本
   frameId?: number;
   documentId?: string;
 };
+
+// 一组选单项目，对应到一个脚本 (uuid)。
+// - uuid：脚本唯一 ID。
+// - groupKey：分组键，确保 UI 显示时不重复。
+// - menus：此脚本在当前分页的所有选单项目。
+export type GroupScriptMenuItem = {
+  uuid: string;
+  groupKey: string;
+  menus: ScriptMenuItem[];
+};
+
+// GM_registerMenuCommand 信息传递的呼叫参数型别：
+// [唯一键, 显示名称, options(不包含 id 属性)]
+// 使用范例：GM_registerMenuCommand信息传递("myKey", "开启设定", { autoClose: true });
+export type GMRegisterMenuCommandParam = [TScriptMenuItemKey, TScriptMenuItemName, Omit<ScriptMenuItemOption, "id">];
+
+// GM_unregisterMenuCommand 信息传递的呼叫参数型别：
+// [唯一键]
+// 使用范例：GM_unregisterMenuCommand信息传递("myKey");
+export type GMUnRegisterMenuCommandParam = [TScriptMenuItemKey];
 
 export type ScriptMenu = {
   uuid: string; // 脚本uuid
@@ -95,7 +142,7 @@ export type ScriptMenu = {
   runNum: number; // 脚本运行次数
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
-  isEffective: boolean | null; // 是否在当前网址啟动
+  isEffective: boolean | null; // 是否在当前网址启动
 };
 
 export type TBatchUpdateRecord =
