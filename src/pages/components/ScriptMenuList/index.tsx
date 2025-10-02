@@ -21,7 +21,7 @@ import {
   IconPlus,
   IconSettings,
 } from "@arco-design/web-react/icon";
-import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
+import { type SCRIPT_RUN_STATUS, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import { useTranslation } from "react-i18next";
 import { ScriptIcons } from "@App/pages/options/routes/utils";
@@ -32,9 +32,7 @@ import type {
   ScriptMenuItemOption,
 } from "@App/app/service/service_worker/types";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
-import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { type TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
 
@@ -56,6 +54,8 @@ type MenuItemProps = {
   menuItems: ScriptMenuItem[];
   uuid: string;
 };
+
+type GroupScriptMenuItemsProp = { group: GroupScriptMenuItem[]; menuUpdated: number };
 
 const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
   const menuItem = menuItems[0];
@@ -167,7 +167,7 @@ CollapseHeader.displayName = "CollapseHeader";
 
 interface ListMenuItemProps {
   item: ScriptMenu;
-  scriptMenus: GroupScriptMenuItem[];
+  scriptMenus: GroupScriptMenuItemsProp;
   menuExpandNum: number;
   isBackscript: boolean;
   url: URL | null;
@@ -187,11 +187,14 @@ const ListMenuItem = React.memo(
     };
 
     const visibleMenus = useMemo(() => {
-      const m = scriptMenus;
+      const m = scriptMenus?.group || [];
       return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-    }, [scriptMenus, isExpand, menuExpandNum]);
+    }, [scriptMenus?.group, isExpand, menuExpandNum]);
 
-    const shouldShowMore = useMemo(() => scriptMenus.length > menuExpandNum, [scriptMenus, menuExpandNum]);
+    const shouldShowMore = useMemo(
+      () => scriptMenus?.group?.length > menuExpandNum,
+      [scriptMenus?.group, menuExpandNum]
+    );
 
     const handleExcludeUrl = (uuid: string, excludePattern: string, isExclude: boolean) => {
       scriptClient.excludeUrl(uuid, excludePattern, isExclude).finally(() => {
@@ -298,7 +301,7 @@ const ListMenuItem = React.memo(
       prevProps.item === nextProps.item &&
       prevProps.isBackscript === nextProps.isBackscript &&
       prevProps.menuExpandNum === nextProps.menuExpandNum &&
-      prevProps.scriptMenus === nextProps.scriptMenus
+      prevProps.scriptMenus?.menuUpdated === nextProps.scriptMenus?.menuUpdated
     );
   }
 );
@@ -307,10 +310,25 @@ ListMenuItem.displayName = "ListMenuItem";
 
 // Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
-  ({ script, isBackscript, currentUrl }: { script: ScriptMenu[]; isBackscript: boolean; currentUrl: string }) => {
-    const [list, setList] = useState([] as ScriptMenu[]);
+  ({
+    script,
+    isBackscript,
+    currentUrl,
+    menuExpandNum,
+  }: {
+    script: (ScriptMenu & {
+      menuUpdated?: number;
+    })[];
+    isBackscript: boolean;
+    currentUrl: string;
+    menuExpandNum: number;
+  }) => {
+    const [list, setList] = useState(
+      [] as (ScriptMenu & {
+        menuUpdated?: number;
+      })[]
+    );
     const { t } = useTranslation();
-    const [menuExpandNum, setMenuExpandNum] = useState(5);
 
     // menusList[x].uuid 对应 list[x].uuid
     // menusList[x].menus 对应 list[x].menus
@@ -319,43 +337,71 @@ const ScriptMenuList = React.memo(
       {
         uuid: string;
         menus: ScriptMenuItem[];
+        menuUpdated: number;
       }[]
     >([]);
+
+    const [grouppedMenus, setGrouppedMenus] = useState<Record<string, GroupScriptMenuItemsProp>>({});
 
     // 将 list 的必要栏位（uuid/menus）同步到 menusList；若无引用变更则维持原物件以降低重渲染。
     useEffect(() => {
       setMenusList((prev) => {
-        const menusList = list.map((item) => ({ uuid: item.uuid, menus: item.menus }));
-        if (menusList.length !== prev.length) return menusList;
-        if (menusList.some((item, idx) => item.uuid !== prev[idx].uuid || item.menus !== prev[idx].menus))
-          return menusList;
-        return prev; // 不变化
+        let changed = false;
+        const map = new Map<
+          string,
+          {
+            uuid: string;
+            menus: ScriptMenuItem[];
+            menuUpdated: number;
+          }
+        >();
+        for (const item of prev) {
+          map.set(item.uuid, item);
+        }
+        for (const item of list) {
+          const r = map.get(item.uuid);
+          if (r && r.uuid === item.uuid && r.menuUpdated === item.menuUpdated) {
+            //
+          } else {
+            map.set(item.uuid, { uuid: item.uuid, menus: item.menus, menuUpdated: item.menuUpdated ?? 1 });
+            changed = true;
+          }
+        }
+        if (!changed && list.length === map.size) return prev;
+        return list.map((item) => map.get(item.uuid)!);
       });
     }, [list]);
 
     // 依 groupKey 进行聚合：将同语义（mainframe/subframe）命令合并为单一分组以供 UI 呈现。
-    const grouppedMenus = useMemo(() => {
-      const ret = {} as Record<string, GroupScriptMenuItem[]>;
-      menusList.forEach(({ uuid, menus }) => {
-        const resultMap = new Map<string, ScriptMenuItem[]>();
-        for (const menu of menus) {
-          const groupKey = menu.groupKey;
-          let m = resultMap.get(groupKey);
-          if (!m) resultMap.set(groupKey, (m = []));
-          m.push(menu);
-        }
-        const result = [] as GroupScriptMenuItem[];
-        for (const [groupKey, arr] of resultMap) {
-          result.push({
-            uuid: uuid,
-            groupKey: groupKey,
-            menus: arr,
-          } as GroupScriptMenuItem);
-        }
-        ret[uuid] = result;
+    useEffect(() => {
+      const menusList_ = menusList;
+      setGrouppedMenus((prev) => {
+        const ret = {} as Record<string, GroupScriptMenuItemsProp>;
+        menusList_.forEach(({ uuid, menus, menuUpdated }) => {
+          if (prev[uuid]?.menuUpdated === menuUpdated && menuUpdated) {
+            ret[uuid] = prev[uuid];
+          } else {
+            const resultMap = new Map<string, ScriptMenuItem[]>();
+            for (const menu of menus) {
+              const groupKey = menu.groupKey;
+              let m = resultMap.get(groupKey);
+              if (!m) resultMap.set(groupKey, (m = []));
+              m.push(menu);
+            }
+            const result = [] as GroupScriptMenuItem[];
+            for (const [groupKey, arr] of resultMap) {
+              result.push({
+                uuid: uuid,
+                groupKey: groupKey,
+                menus: arr,
+              } as GroupScriptMenuItem);
+            }
+            ret[uuid] = { group: result, menuUpdated };
+          }
+        });
+        // 输出以 uuid 分组存放；不依赖 list 的迭代顺序以避免不稳定渲染。
+        return ret;
       });
-      // 输出以 uuid 分组存放；不依赖 list 的迭代顺序以避免不稳定渲染。
-      return ret;
     }, [menusList]);
 
     const url = useMemo(() => {
@@ -377,7 +423,7 @@ const ScriptMenuList = React.memo(
       // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
       const checkItems = new Map();
       for (const [_uuid, menus] of Object.entries(grouppedMenus)) {
-        for (const menu of menus) {
+        for (const menu of menus.group) {
           const menuItem = menu.menus[0]; // 同一分组的语义一致，取首项即可读取 accessKey / name 等共用属性。
           const { name, options } = menuItem;
           const accessKey = options?.accessKey;
@@ -403,41 +449,17 @@ const ScriptMenuList = React.memo(
       };
     }, [script]);
 
-    useEffect(() => {
-      let isMounted = true;
-      // 订阅脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
-      const unsub = messageQueue.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
-        if (!isMounted) return;
-        setList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
-      });
-      // 读取使用者设定的清单展开上限（menuExpandNum）。
-      systemConfig.getMenuExpandNum().then((num) => {
-        if (!isMounted) return;
-        setMenuExpandNum(num);
-      });
-      return () => {
-        isMounted = false;
-        unsub();
-      };
-    }, []);
-
     const handleDeleteScript = (uuid: string) => {
       // 本地先行移除列表项（乐观更新）；若删除失败会显示错误讯息。
-      setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
       scriptClient.deletes([uuid]).catch((e) => {
         Message.error(`{t('delete_failed')}: ${e}`);
       });
     };
 
     const onEnableChange = (item: ScriptMenu, checked: boolean) => {
-      scriptClient
-        .enable(item.uuid, checked)
-        .then(() => {
-          setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
-        })
-        .catch((err) => {
-          Message.error(err);
-        });
+      scriptClient.enable(item.uuid, checked).catch((err) => {
+        Message.error(err);
+      });
     };
 
     return (
@@ -450,7 +472,7 @@ const ScriptMenuList = React.memo(
               key={`${item.uuid}`}
               url={url}
               item={item}
-              scriptMenus={grouppedMenus[item.uuid] || []}
+              scriptMenus={grouppedMenus[item.uuid] || {}}
               isBackscript={isBackscript}
               onEnableChange={onEnableChange}
               handleDeleteScript={handleDeleteScript}

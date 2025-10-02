@@ -18,11 +18,12 @@ import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
 import { popupClient, requestOpenBatchUpdatePage } from "../store/features/script";
-import type { ScriptMenu } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
 import { useAppContext } from "../store/AppContext";
+import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
 
@@ -41,7 +42,7 @@ const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
 
 function App() {
   const [loading, setLoading] = useState(true);
-  const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
+  const [scriptList, setScriptList] = useState<(ScriptMenu & { menuUpdated?: number })[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
   const [checkUpdate, setCheckUpdate] = useState<Parameters<typeof systemConfig.setCheckUpdate>[0]>({
@@ -70,44 +71,75 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const unhook = subscribeMessage("popupMenuRecordUpdated", ({ tabId, uuid }: { tabId: number; uuid: string }) => {
-      // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
-      if (pageTabIdRef.current !== tabId) return;
-      let url: string = "";
-      // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
-      setCurrentUrl((v) => {
-        url = v || "";
-        return v;
-      });
-      if (!url) return;
-      popupClient.getPopupData({ url, tabId }).then((resp) => {
-        if (!isMounted) return;
-
-        // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
-        if (!resp || !resp.scriptList) {
-          console.warn("Invalid popup data response:", resp);
-          return;
-        }
-
-        // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
-        const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
-        if (!newMenus) return;
-        setScriptList((prev) => {
-          // 只针对 uuid 进行更新。其他项目保持参考一致
-          const list = prev.map((item) => {
-            return item.uuid !== uuid
-              ? item
-              : {
-                  ...item,
-                  menus: [...newMenus],
-                };
-          });
-          // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
-          list.sort(scriptListSorter);
-          return list;
+    const unhooks = [
+      // 订阅脚本啟用状态变更（enableScripts），即时更新对应项目的 enable。
+      subscribeMessage<TEnableScript[]>("enableScripts", (data) => {
+        setScriptList((prevList) => {
+          for (const { uuid, enable } of data) {
+            prevList = prevList.map((item) =>
+              item.uuid === uuid && item.enable !== enable ? { ...item, enable } : item
+            );
+          }
+          return prevList;
         });
-      });
-    });
+      }),
+
+      // 订阅脚本刪除（deleteScripts），即时刪除对应项目。
+      subscribeMessage<TDeleteScript[]>("deleteScripts", (data) => {
+        setScriptList((prevList) => {
+          for (const { uuid } of data) {
+            prevList = prevList.filter((item) => item.uuid !== uuid);
+          }
+          return prevList;
+        });
+      }),
+
+      // 订阅背景脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
+      subscribeMessage<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
+        if (!isMounted) return;
+        setScriptList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
+      }),
+
+      subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuid }: TPopupScript) => {
+        // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
+        if (pageTabIdRef.current !== tabId) return;
+        let url: string = "";
+        // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
+        setCurrentUrl((v) => {
+          url = v || "";
+          return v;
+        });
+        if (!url) return;
+        popupClient.getPopupData({ url, tabId }).then((resp) => {
+          if (!isMounted) return;
+
+          // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
+          if (!resp || !resp.scriptList) {
+            console.warn("Invalid popup data response:", resp);
+            return;
+          }
+
+          // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
+          const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
+          if (!newMenus) return;
+          setScriptList((prev) => {
+            // 只针对 uuid 进行更新。其他项目保持参考一致
+            const list = prev.map((item) => {
+              return item.uuid !== uuid
+                ? item
+                : {
+                    ...item,
+                    menus: [...newMenus],
+                    menuUpdated: Date.now(),
+                  };
+            });
+            // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
+            list.sort(scriptListSorter);
+            return list;
+          });
+        });
+      }),
+    ];
 
     const onCurrentUrlUpdated = (url: string, tabId: number) => {
       pageTabIdRef.current = tabId;
@@ -179,7 +211,8 @@ function App() {
     queryTabInfo();
     return () => {
       isMounted = false;
-      unhook();
+      for (const unhook of unhooks) unhook();
+      unhooks.length = 0;
     };
   }, []);
 
@@ -244,6 +277,12 @@ function App() {
         break;
     }
   };
+
+  const [menuExpandNum, setMenuExpandNum] = useState(() => {
+    // 读取使用者设定的清单展开上限（menuExpandNum）。
+    systemConfig.getMenuExpandNum().then((val) => setMenuExpandNum(val));
+    return 5;
+  });
 
   return (
     <>
@@ -347,7 +386,12 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
+            <ScriptMenuList
+              script={scriptList}
+              isBackscript={false}
+              currentUrl={currentUrl}
+              menuExpandNum={menuExpandNum}
+            />
           </CollapseItem>
 
           <CollapseItem
@@ -360,7 +404,12 @@ function App() {
             }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={backScriptList} isBackscript={true} currentUrl={currentUrl} />
+            <ScriptMenuList
+              script={backScriptList}
+              isBackscript={true}
+              currentUrl={currentUrl}
+              menuExpandNum={menuExpandNum}
+            />
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">

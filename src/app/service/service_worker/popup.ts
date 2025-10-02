@@ -1,7 +1,7 @@
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
-import type { TScriptMatchInfoEntry, ScriptMenu, ScriptMenuItem } from "./types";
+import type { TScriptMatchInfoEntry, ScriptMenu, ScriptMenuItem, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
@@ -194,7 +194,7 @@ export class PopupService {
       return data;
     });
     if (retUpdated) {
-      this.mq.publish("popupMenuRecordUpdated", { tabId, uuid });
+      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
     }
     return retUpdated;
   }

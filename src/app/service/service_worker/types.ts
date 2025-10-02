@@ -201,3 +201,5 @@ export type TBatchUpdateListAction =
         ignoreVersion: string;
       }[];
     };
+
+export type TPopupScript = { tabId: number; uuid: string };
