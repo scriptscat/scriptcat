@@ -359,7 +359,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
     const filtered = [...scriptList];
     // 过滤器方法变量
     const filterFuncs: Array<(script: Script) => boolean> = [];
-    Object.entries(selectedFilters).forEach(([groupKey, itemKey]) => {
+    for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
       switch (groupKey) {
         case "status":
           switch (itemKey) {
