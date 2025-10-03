@@ -9,18 +9,19 @@ import MessageWriter from "@App/app/logger/message_writer.ts";
 import "@arco-design/web-react/dist/css/arco.css";
 import "@App/locales/locales";
 import "@App/index.css";
+import "./index.css";
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   writer: new MessageWriter(message),
-  labels: { env: "confirm" },
+  labels: { env: "batchupdate" },
 });
 
-loggerCore.logger().debug("confirm page start");
+loggerCore.logger().debug("batchupdate page start");
 
 const Root = (
   <AppProvider>
-    <MainLayout className="!flex-col !px-4 box-border">
+    <MainLayout className="!flex-col !px-4 box-border batchupdate-mainlayout">
       <App />
     </MainLayout>
   </AppProvider>

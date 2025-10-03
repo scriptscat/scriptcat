@@ -4,7 +4,7 @@ import prettier from "prettier/standalone";
 import * as babel from "prettier/parser-babel";
 import prettierPluginEstree from "prettier/plugins/estree";
 import GMApiSetting from "@App/pages/components/GMApiSetting";
-import i18n from "@App/locales/locales";
+import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 import Logger from "@App/app/logger/logger";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -13,39 +13,97 @@ import { blackListSelfCheck } from "@App/pkg/utils/match";
 import { obtainBlackList } from "@App/pkg/utils/utils";
 import CustomTrans from "@App/pages/components/CustomTrans";
 import { useSystemConfig } from "./utils";
+import { useAppContext } from "@App/pages/store/AppContext";
+import { SystemConfigChange, type SystemConfigKey } from "@App/pkg/config/config";
+import { type TKeyValue } from "@Packages/message/message_queue";
+import { useEffect, useMemo } from "react";
+import { systemConfig } from "@App/pages/store/global";
 
 function Setting() {
+  const { subscribeMessage } = useAppContext();
+
   const [editorConfig, setEditorConfig, submitEditorConfig] = useSystemConfig("editor_config");
   const [cloudSync, setCloudSync, submitCloudSync] = useSystemConfig("cloud_sync");
-  const [language, , submitLanguage] = useSystemConfig("language");
-  const [menuExpandNum, , submitMenuExpandNum] = useSystemConfig("menu_expand_num");
-  const [checkScriptUpdateCycle, , submitCheckScriptUpdateCycle] = useSystemConfig("check_script_update_cycle");
-  const [updateDisableScript, , submitUpdateDisableScript] = useSystemConfig("update_disable_script");
-  const [silenceUpdateScript, , submitSilenceUpdateScript] = useSystemConfig("silence_update_script");
-  const [enableEslint, , submitEnableEslint] = useSystemConfig("enable_eslint");
+  const [language, setLanguage, submitLanguage] = useSystemConfig("language");
+  const [menuExpandNum, setMenuExpandNum, submitMenuExpandNum] = useSystemConfig("menu_expand_num");
+  const [checkScriptUpdateCycle, setCheckScriptUpdateCycle, submitCheckScriptUpdateCycle] =
+    useSystemConfig("check_script_update_cycle");
+  const [updateDisableScript, setUpdateDisableScript, submitUpdateDisableScript] =
+    useSystemConfig("update_disable_script");
+  const [silenceUpdateScript, setSilenceUpdateScript, submitSilenceUpdateScript] =
+    useSystemConfig("silence_update_script");
+  const [enableEslint, setEnableEslint, submitEnableEslint] = useSystemConfig("enable_eslint");
   const [eslintConfig, setEslintConfig, submitEslintConfig] = useSystemConfig("eslint_config");
   const [blacklist, setBlacklist, submitBlacklist] = useSystemConfig("blacklist");
-  const [badgeNumberType, , submitBadgeNumberType] = useSystemConfig("badge_number_type");
-  const [badgeBackgroundColor, , submitBadgeBackgroundColor] = useSystemConfig("badge_background_color");
-  const [badgeTextColor, , submitBadgeTextColor] = useSystemConfig("badge_text_color");
-  const [scriptMenuDisplayType, , submitScriptMenuDisplayType] = useSystemConfig("script_menu_display_type");
+  const [badgeNumberType, setBadgeNumberType, submitBadgeNumberType] = useSystemConfig("badge_number_type");
+  const [badgeBackgroundColor, setBadgeBackgroundColor, submitBadgeBackgroundColor] =
+    useSystemConfig("badge_background_color");
+  const [badgeTextColor, setBadgeTextColor, submitBadgeTextColor] = useSystemConfig("badge_text_color");
+  const [scriptMenuDisplayType, setScriptMenuDisplayType, submitScriptMenuDisplayType] =
+    useSystemConfig("script_menu_display_type");
+
   const [editorTypeDefinition, setEditorTypeDefinition, submitEditorTypeDefinition] =
     useSystemConfig("editor_type_definition");
-  const languageList: { key: string; title: string }[] = [];
+
   const { t } = useTranslation();
-  for (const key of Object.keys(i18n.store.data)) {
-    if (key === "ach-UG") {
-      continue;
+  const languageList = useMemo(() => {
+    const languageList: { key: string; title: string }[] = [];
+    const i18nStoreData = i18n.store.data;
+    for (const key of Object.keys(i18nStoreData)) {
+      if (key === "ach-UG") {
+        continue;
+      }
+      languageList.push({
+        key,
+        title: `${i18nStoreData[key].title}`,
+      });
     }
     languageList.push({
-      key,
-      title: i18n.store.data[key].title as string,
+      key: "help",
+      title: t("help_translate"),
     });
-  }
-  languageList.push({
-    key: "help",
-    title: t("help_translate"),
-  });
+    return languageList;
+  }, [t]);
+
+  useEffect(() => {
+    // only string / number / boolean
+    const autoRefresh = {
+      editor_config: setEditorConfig,
+      language: setLanguage,
+      menu_expand_num: setMenuExpandNum,
+      check_script_update_cycle: setCheckScriptUpdateCycle,
+      update_disable_script: setUpdateDisableScript,
+      silence_update_script: setSilenceUpdateScript,
+      enable_eslint: setEnableEslint,
+      eslint_config: setEslintConfig,
+      blacklist: setBlacklist,
+      badge_number_type: setBadgeNumberType,
+      badge_background_color: setBadgeBackgroundColor,
+      badge_text_color: setBadgeTextColor,
+      script_menu_display_type: setScriptMenuDisplayType,
+      editor_type_definition: setEditorTypeDefinition,
+    };
+    const unhooks = [
+      subscribeMessage(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
+        const setter = autoRefresh[key as keyof typeof autoRefresh];
+        if (typeof setter === "function") {
+          // 异步方式，先让 systemConfig.cache 更新，再在下一个 microTask 读取 systemConfig.get 使页面的设定更新
+          // 考虑React更新会对值进行新旧对比，只更新 string/number/boolean，不更新 array/object。 array/object 的话需另外处理避免过度更新。
+          Promise.resolve()
+            .then(() => systemConfig.get(key as SystemConfigKey))
+            .then((v) => {
+              const type = typeof v;
+              if (type === "string" || type === "number" || type === "boolean") {
+                setter(v);
+              }
+            });
+        }
+      }),
+    ];
+    return () => {
+      for (const unhook of unhooks) unhook();
+    };
+  }, []);
 
   return (
     <Space className="setting w-full h-full overflow-auto relative" direction="vertical">
@@ -84,7 +142,7 @@ function Setting() {
             <Checkbox
               checked={cloudSync.syncDelete}
               onChange={(checked) => {
-                setCloudSync({ ...cloudSync, syncDelete: checked });
+                setCloudSync((cloudSync) => ({ ...cloudSync, syncDelete: checked }));
               }}
             >
               {t("sync_delete")}
@@ -92,7 +150,7 @@ function Setting() {
             <Checkbox
               checked={cloudSync.syncStatus}
               onChange={(checked) => {
-                setCloudSync({ ...cloudSync, syncStatus: checked });
+                setCloudSync((cloudSync) => ({ ...cloudSync, syncStatus: checked }));
               }}
             >
               {t("sync_status")}
@@ -103,7 +161,7 @@ function Setting() {
               <Checkbox
                 checked={cloudSync.enable}
                 onChange={(checked) => {
-                  setCloudSync({ ...cloudSync, enable: checked });
+                  setCloudSync((cloudSync) => ({ ...cloudSync, enable: checked }));
                 }}
               >
                 {t("enable_script_sync_to")}
@@ -135,10 +193,13 @@ function Setting() {
             fileSystemType={cloudSync.filesystem}
             fileSystemParams={cloudSync.params[cloudSync.filesystem] || {}}
             onChangeFileSystemType={(type) => {
-              setCloudSync({ ...cloudSync, filesystem: type });
+              setCloudSync((cloudSync) => ({ ...cloudSync, filesystem: type }));
             }}
             onChangeFileSystemParams={(params) => {
-              setCloudSync({ ...cloudSync, params: { ...cloudSync.params, [cloudSync.filesystem]: params } });
+              setCloudSync((cloudSync) => ({
+                ...cloudSync,
+                params: { ...cloudSync.params, [cloudSync.filesystem]: params },
+              }));
             }}
           />
         </Space>

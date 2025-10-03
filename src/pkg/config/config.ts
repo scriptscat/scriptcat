@@ -3,7 +3,7 @@ import { defaultConfig } from "../../../packages/eslint/linter-config";
 import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 import type { FileSystemType } from "@Packages/filesystem/factory";
 import type { IMessageQueue, TKeyValue } from "@Packages/message/message_queue";
-import { changeLanguage, matchLanguage } from "@App/locales/locales";
+import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
@@ -106,14 +106,14 @@ export class SystemConfig {
     });
   }
 
-  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any> | Promise<any[]> {
+  public get(key: SystemConfigKey | SystemConfigKey[]): Promise<any | any[]> {
     if (Array.isArray(key)) {
       const promises = key.map((key) => {
         const funcName = `get${toCamelCase(key)}`;
         // @ts-ignore
         if (typeof this[funcName] === "function") {
           // @ts-ignore
-          return this[funcName]();
+          return this[funcName]() as Promise<any>;
         } else {
           throw new Error(`Method ${funcName} does not exist on SystemConfig`);
         }
@@ -124,7 +124,7 @@ export class SystemConfig {
     // @ts-ignore
     if (typeof this[funcName] === "function") {
       // @ts-ignore
-      return this[funcName]();
+      return this[funcName]() as Promise<any>;
     } else {
       throw new Error(`Method ${funcName} does not exist on SystemConfig`);
     }
@@ -302,7 +302,7 @@ export class SystemConfig {
   }
 
   // 获取typescript类型定义
-  getEditorTypeDefinition() {
+  getEditorTypeDefinition(): string {
     return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
   }
 
@@ -371,7 +371,6 @@ export class SystemConfig {
 
   setLanguage(value: string) {
     this._set("language", value);
-    changeLanguage(value);
     if (globalThis.localStorage) {
       localStorage.setItem("language", value);
     }

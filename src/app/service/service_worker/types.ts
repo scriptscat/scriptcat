@@ -1,6 +1,6 @@
 import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
-import { type GetSender } from "@Packages/message/server";
+import { type IGetSender } from "@Packages/message/server";
 
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
 export type SearchType = "auto" | "name" | "script_code";
@@ -60,7 +60,7 @@ export type NotificationMessageOption = {
   };
 };
 
-export type Api = (request: Request, con: GetSender) => Promise<any>;
+export type Api = (request: Request, con: IGetSender) => Promise<any>;
 
 // popup
 
@@ -97,3 +97,60 @@ export type ScriptMenu = {
   menus: ScriptMenuItem[]; // 脚本菜单
   isEffective: boolean | null; // 是否在当前网址啟动
 };
+
+export type TBatchUpdateRecord =
+  | {
+      uuid: string;
+      checkUpdate: false;
+      oldCode?: undefined;
+      newCode?: undefined;
+      newMeta?: undefined;
+      script?: undefined;
+      codeSimilarity?: undefined;
+      sites?: undefined;
+      withNewConnect?: undefined;
+    }
+  | {
+      uuid: string;
+      checkUpdate: true;
+      oldCode: any;
+      newCode: any;
+      newMeta: {
+        version: string[];
+        connect: string[];
+      };
+      script: Script;
+      codeSimilarity: number;
+      sites: string[];
+      withNewConnect: boolean;
+    };
+
+export type TBatchUpdateRecordObject = {
+  checktime?: number;
+  list?: TBatchUpdateRecord[];
+};
+
+export const enum UpdateStatusCode {
+  CHECKING_UPDATE = 1,
+  CHECKED_BEFORE = 2,
+}
+
+export const enum BatchUpdateListActionCode {
+  UPDATE = 1,
+  IGNORE = 2,
+}
+
+export type TBatchUpdateListAction =
+  | {
+      actionCode: BatchUpdateListActionCode.UPDATE;
+      actionPayload: {
+        uuid: string;
+      }[];
+    }
+  | {
+      actionCode: BatchUpdateListActionCode.IGNORE;
+      actionPayload: {
+        uuid: string;
+        ignoreVersion: string;
+      }[];
+    };

@@ -120,7 +120,6 @@ const eventDescs: Record<string, PropertyDescriptor> = {};
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
 getAllPropertyDescriptors(global, ([key, desc]) => {
   if (!desc || descsCache.has(key) || typeof key !== "string") return;
-  descsCache.add(key);
 
   if (desc.writable) {
     // 属性 value

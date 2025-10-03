@@ -8,13 +8,20 @@ import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import {
   checkSilenceUpdate,
   getBrowserType,
-  InfoNotification,
   getStorageName,
   openInCurrentTab,
   randomMessageFlag,
+  stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
-import type { SCMetadata, Script, SCRIPT_RUN_STATUS, ScriptDAO, ScriptRunResource } from "@App/app/repo/scripts";
+import type {
+  SCMetadata,
+  Script,
+  SCRIPT_RUN_STATUS,
+  ScriptDAO,
+  ScriptRunResource,
+  ScriptSite,
+} from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
@@ -35,15 +42,30 @@ import type {
 } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { getCombinedMeta, selfMetadataUpdate } from "./utils";
-import type { SearchType } from "./types";
+import {
+  BatchUpdateListActionCode,
+  type TBatchUpdateListAction,
+  UpdateStatusCode,
+  type SearchType,
+  type TBatchUpdateRecord,
+} from "./types";
+import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
+import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompliedResourceDAO } from "@App/app/repo/resource";
+// import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
+
+export type TCheckScriptUpdateOption = Partial<
+  { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
+>;
 
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
+  localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
   compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
+  private readonly scriptUpdateCheck;
 
   constructor(
     private readonly systemConfig: SystemConfig,
@@ -55,6 +77,7 @@ export class ScriptService {
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
     this.scriptCodeDAO.enableCache();
+    this.scriptUpdateCheck = new ScriptUpdateCheck(systemConfig, group, mq, valueService, resourceService, scriptDAO);
   }
 
   listenerScriptInstall() {
@@ -202,7 +225,7 @@ export class ScriptService {
     const code = await fetchScriptBody(url);
     const { script } = await prepareScriptByCode(code, url, uuid);
     script.subscribeUrl = subscribeUrl;
-    this.installScript({
+    await this.installScript({
       script,
       code,
       upsertBy: source,
@@ -214,7 +237,7 @@ export class ScriptService {
   async installByCode(param: { uuid: string; code: string; upsertBy: InstallSource }) {
     const { code, upsertBy, uuid } = param;
     const { script } = await prepareScriptByCode(code, "", uuid, true);
-    this.installScript({
+    await this.installScript({
       script,
       code,
       upsertBy,
@@ -254,6 +277,7 @@ export class ScriptService {
       update = true;
       script.selfMetadata = oldScript.selfMetadata;
     }
+    if (script.ignoreVersion) script.ignoreVersion = "";
     return this.scriptDAO
       .save(script)
       .then(async () => {
@@ -420,10 +444,11 @@ export class ScriptService {
     const keyword = req.value.toLocaleLowerCase();
 
     // 空格分开关键字搜索
-    const keys = keyword.split(" ");
+    const keys = keyword.split(/\s+/).filter((e) => e.length);
 
     const results: Partial<Record<string, string | boolean>>[] = [];
     const codeCache: Partial<Record<string, string>> = {}; // temp cache
+    if (!keys.length) return results;
     for (let i = 0, l = scripts.length; i < l; i++) {
       const script = scripts[i];
       const scriptCode = scriptCodes[i];
@@ -432,9 +457,9 @@ export class ScriptService {
 
       const searchName = (keyword: string) => {
         if (OPTION_CASE_INSENSITIVE) {
-          return script.name.toLowerCase().includes(keyword.toLowerCase());
+          return stringMatching(script.name.toLowerCase(), keyword.toLowerCase());
         }
-        return script.name.includes(keyword);
+        return stringMatching(script.name, keyword);
       };
       const searchCode = (keyword: string) => {
         let c = codeCache[script.uuid];
@@ -447,21 +472,26 @@ export class ScriptService {
         }
         if (c) {
           if (OPTION_CASE_INSENSITIVE) {
-            return c.toLowerCase().includes(keyword.toLowerCase());
+            return stringMatching(c.toLowerCase(), keyword.toLowerCase());
           }
-          return c.includes(keyword);
+          return stringMatching(c, keyword);
         }
         return false;
       };
 
+      let codeMatched = true;
+      let nameMatched = true;
       for (const key of keys) {
-        if (result.code === undefined && searchCode(key)) {
-          result.code = true;
+        if (codeMatched && !searchCode(key)) {
+          codeMatched = false;
         }
-        if (result.name === undefined && searchName(key)) {
-          result.name = true;
+        if (nameMatched && !searchName(key)) {
+          nameMatched = false;
         }
+        if (!codeMatched && !nameMatched) break;
       }
+      result.code = codeMatched;
+      result.name = nameMatched;
       if (result.name || result.code) {
         result.auto = true;
       }
@@ -580,12 +610,50 @@ export class ScriptService {
       });
   }
 
-  async _checkUpdateAvailable(script: {
-    uuid: string;
-    name: string;
-    checkUpdateUrl?: string;
-    metadata: Partial<Record<string, any>>;
-  }): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
+  async checkUpdatesAvailable(
+    uuids: string[],
+    opts: {
+      MIN_DELAY: number;
+      MAX_DELAY: number;
+    }
+  ) {
+    // 检查更新有无
+
+    // 更新 checktime 并返回 script资料列表
+    const scripts = await this.scriptDAO.updates(uuids, { checktime: Date.now() });
+    const checkScripts = scripts.filter((script) => script && typeof script === "object" && script.checkUpdateUrl);
+    if (checkScripts.length === 0) return [];
+    const n = checkScripts.length;
+    let i = 0;
+    const { MIN_DELAY, MAX_DELAY } = opts;
+
+    const delayFn = () =>
+      new Promise((resolve) =>
+        setTimeout(resolve, Math.round(MIN_DELAY + ((++i / n + Math.random()) / 2) * (MAX_DELAY - MIN_DELAY)))
+      );
+
+    return Promise.all(
+      (uuids as string[]).map(async (uuid, _idx) => {
+        const script = scripts[_idx];
+        const res =
+          !script || script.uuid !== uuid || !checkScripts.includes(script)
+            ? false
+            : await this._checkUpdateAvailable(script, delayFn);
+        if (!res) return false;
+        return res;
+      })
+    );
+  }
+
+  async _checkUpdateAvailable(
+    script: {
+      uuid: string;
+      name: string;
+      checkUpdateUrl?: string;
+      metadata: Partial<Record<string, any>>;
+    },
+    delayFn?: () => Promise<any>
+  ): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
     const { uuid, name, checkUpdateUrl } = script;
 
     if (!checkUpdateUrl) {
@@ -596,6 +664,7 @@ export class ScriptService {
       name,
     });
     try {
+      if (delayFn) await delayFn();
       const code = await fetchScriptBody(checkUpdateUrl);
       const metadata = parseMetadata(code);
       if (!metadata) {
@@ -622,7 +691,7 @@ export class ScriptService {
     }
   }
 
-  async checkUpdate(uuid_: string, source: "user" | "system") {
+  async checkUpdateAvailable(uuid_: string) {
     // 检查更新
     const script = await this.scriptDAO.get(uuid_);
     if (!script || !script.checkUpdateUrl) {
@@ -631,9 +700,7 @@ export class ScriptService {
     await this.scriptDAO.update(uuid_, { checktime: Date.now() });
     const res = await this._checkUpdateAvailable(script);
     if (!res) return false;
-    // 进行更新
-    this.openUpdatePage(script, source);
-    return true;
+    return script;
   }
 
   async openUpdateOrInstallPage(uuid: string, url: string, upsertBy: InstallSource, update: boolean, logger?: Logger) {
@@ -643,7 +710,7 @@ export class ScriptService {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
         if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
           logger?.info("silence update script");
-          this.installScript({
+          await this.installScript({
             script,
             code,
             upsertBy,
@@ -685,48 +752,303 @@ export class ScriptService {
     }
   }
 
-  async checkScriptUpdate() {
+  // 定时自动检查脚本更新後，彈出頁面
+  async openBatchUpdatePage(q: string) {
+    const p = q ? `?${q}` : "";
+    await openInCurrentTab(`/src/batchupdate.html${p}`);
+    await this.checkScriptUpdate({ checkType: "user", noUpdateCheck: 10 * 60 * 1000 });
+    return true;
+  }
+
+  shouldIgnoreUpdate(script: Script, newMeta: Partial<Record<string, string[]>> | null) {
+    return script.ignoreVersion === newMeta?.version?.[0];
+  }
+
+  // 用于定时自动检查脚本更新
+  async _checkScriptUpdate(opts: TCheckScriptUpdateOption): Promise<
+    | {
+        ok: true;
+        targetSites: string[];
+        err?: undefined;
+        fresh: boolean;
+        checktime: number;
+      }
+    | {
+        ok: false;
+        targetSites?: undefined;
+        err?: string | Error;
+      }
+  > {
+    // const executeSlienceUpdate = opts.checkType === "system";
+    const executeSlienceUpdate = opts.checkType === "system" && (await this.systemConfig.getSilenceUpdateScript());
+    // const executeSlienceUpdate = true;
     const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
     if (!checkCycle) {
-      return;
+      return {
+        ok: false,
+        err: "checkCycle is undefined.",
+      };
     }
-    this.scriptDAO.all().then(async (scripts) => {
-      const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
-      const now = Date.now();
-      scripts.forEach(async (script) => {
-        // 不检查更新
-        if (script.checkUpdate === false) {
-          return;
-        }
-        // 是否检查禁用脚本
-        if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
-          return;
-        }
-        // 检查是否符合
-        if (script.checktime + checkCycle * 1000 > now) {
-          return;
-        }
-        this.checkUpdate(script.uuid, "system");
-      });
+    const checkDisableScript = await this.systemConfig.getUpdateDisableScript();
+    const scripts = await this.scriptDAO.all();
+    // const now = Date.now();
+
+    const checkScripts = scripts.filter((script) => {
+      // 不检查更新
+      if (script.checkUpdate === false || !script.checkUpdateUrl) {
+        return false;
+      }
+      // 是否检查禁用脚本
+      if (!checkDisableScript && script.status === SCRIPT_STATUS_DISABLE) {
+        return false;
+      }
+      // 检查是否符合
+      // if (script.checktime + checkCycle * 1000 > now) {
+      //   return false;
+      // }
+      return true;
     });
+
+    const checkDelay =
+      opts?.checkType === "user"
+        ? {
+            MIN_DELAY: 250,
+            MAX_DELAY: 1600,
+          }
+        : {
+            MIN_DELAY: 400,
+            MAX_DELAY: 4200,
+          };
+
+    const checkScriptsResult = await this.checkUpdatesAvailable(
+      checkScripts.map((script) => script.uuid),
+      checkDelay
+    );
+    const checkResults = [];
+    const slienceUpdates = [];
+    for (let i = 0, l = checkScripts.length; i < l; i++) {
+      const script = checkScripts[i];
+      const result = checkScriptsResult[i];
+      if (result) {
+        const withNewConnect = !checkSilenceUpdate(script.metadata, result.metadata);
+        if (executeSlienceUpdate && !withNewConnect && !this.shouldIgnoreUpdate(script, result.metadata)) {
+          slienceUpdates.push({
+            uuid: script.uuid,
+            script,
+            result,
+            withNewConnect,
+          });
+        } else {
+          checkResults.push({
+            uuid: script.uuid,
+            script,
+            result,
+            withNewConnect,
+          });
+        }
+        // this.openUpdatePage(script, "system");
+      }
+    }
+
+    const checkScriptsOldCode = await this.scriptCodeDAO.gets(checkResults.map((entry) => entry.uuid));
+
+    const checkScriptsNewCode = await Promise.all(
+      checkResults.map(async (entry) => {
+        const script = entry.script;
+        const url = script.downloadUrl || script.checkUpdateUrl;
+        try {
+          return url
+            ? url === script.checkUpdateUrl
+              ? (entry.result.code as string)
+              : await fetchScriptBody(url)
+            : "";
+        } catch (_e) {
+          return "";
+        }
+      })
+    );
+
+    const slienceUpdatesNewCode = await Promise.all(
+      slienceUpdates.map(async (entry) => {
+        const script = entry.script;
+        const url = script.downloadUrl || script.checkUpdateUrl;
+        try {
+          return url
+            ? url === script.checkUpdateUrl
+              ? (entry.result.code as string)
+              : await fetchScriptBody(url)
+            : "";
+        } catch (_e) {
+          return "";
+        }
+      })
+    );
+
+    for (let i = 0, l = slienceUpdates.length; i < l; i++) {
+      const entry = slienceUpdates[i];
+      const url = entry.script.downloadUrl || entry.script.checkUpdateUrl || "";
+      const code = slienceUpdatesNewCode[i];
+      const uuid = entry.uuid;
+      const { script } = await prepareScriptByCode(code, url, uuid);
+      console.log("slienceUpdate", script.name);
+      await this.installScript({
+        script,
+        code,
+        upsertBy: "system",
+      });
+    }
+
+    const checkScriptsScores = await Promise.all(
+      checkResults.map(async (entry, i) => {
+        let oldCode: any = checkScriptsOldCode[i];
+        if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
+        const score = await getSimilarityScore(oldCode, checkScriptsNewCode[i]);
+        return +(Math.floor(score * 1000) / 1000);
+      })
+    );
+
+    const currentSites: ScriptSite = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
+
+    const batchUpdateRecord = checkResults.map((entry, i) => {
+      const script = entry.script;
+      const result = entry.result;
+      // const uuid = entry.uuid;
+      if (!result || !script.downloadUrl) {
+        return {
+          uuid: script.uuid,
+          checkUpdate: false,
+        } as TBatchUpdateRecord;
+      }
+      let oldCode: any = checkScriptsOldCode[i];
+      if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
+      const newCode = checkScriptsNewCode[i];
+      return {
+        uuid: script.uuid,
+        checkUpdate: true,
+        oldCode: oldCode,
+        newCode: newCode,
+        codeSimilarity: checkScriptsScores[i],
+        newMeta: {
+          ...(result.metadata || {}),
+        },
+        script: script,
+        sites: currentSites[script.uuid] || ([] as string[]),
+        withNewConnect: entry.withNewConnect,
+      } as TBatchUpdateRecord;
+    });
+
+    this.scriptUpdateCheck.setCacheFull({
+      checktime: Date.now(),
+      list: batchUpdateRecord,
+    });
+
+    // set CHECKED_BEFORE
+    this.scriptUpdateCheck.state.status |= UpdateStatusCode.CHECKED_BEFORE;
+    this.scriptUpdateCheck.state.checktime = this.scriptUpdateCheck.cacheFull?.checktime;
+
+    return {
+      ok: true,
+      targetSites: this.scriptUpdateCheck.getTargetSites(),
+      fresh: true,
+      checktime: this.scriptUpdateCheck.lastCheck,
+    };
+  }
+
+  async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
+    let res;
+    if ((this.scriptUpdateCheck.state.status & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
+      res = {
+        ok: false,
+        err: "checkScriptUpdate is busy. Please try again later.",
+      } as {
+        ok: false;
+        targetSites?: undefined;
+        err?: string | Error;
+      };
+    } else if (this.scriptUpdateCheck.canSkipScriptUpdateCheck(opts)) {
+      return {
+        ok: true,
+        targetSites: this.scriptUpdateCheck.getTargetSites(),
+        fresh: false,
+        checktime: this.scriptUpdateCheck.lastCheck,
+      };
+    } else {
+      // set CHECKING_UPDATE
+      this.scriptUpdateCheck.state.status |= UpdateStatusCode.CHECKING_UPDATE;
+      this.scriptUpdateCheck.announceMessage(this.scriptUpdateCheck.state);
+      try {
+        res = await this._checkScriptUpdate(opts);
+      } catch (e) {
+        console.error(e);
+        res = {
+          ok: false,
+          err: e,
+        } as {
+          ok: false;
+          targetSites?: undefined;
+          err?: string | Error;
+        };
+      }
+      // clear CHECKING_UPDATE
+      this.scriptUpdateCheck.state.status &= ~UpdateStatusCode.CHECKING_UPDATE;
+      this.scriptUpdateCheck.state.checktime = this.scriptUpdateCheck.cacheFull?.checktime;
+      this.scriptUpdateCheck.announceMessage(this.scriptUpdateCheck.state);
+    }
+    return res;
   }
 
   requestCheckUpdate(uuid: string) {
+    // src/pages/options/routes/ScriptList.tsx
+    return this.checkUpdateAvailable(uuid).then((script) => {
+      if (script) {
+        // 如有更新则打开更新画面进行更新
+        this.openUpdatePage(script, "user");
+        return true;
+      }
+      return false;
+    });
+
+    // 沒有空值 case
+    /*
     if (uuid) {
-      return this.checkUpdate(uuid, "user");
+      return this.checkUpdateAvailable(uuid).then((script) => {
+        if (script) {
+          // 如有更新则打开更新画面进行更新
+          this.openUpdatePage(script, "user");
+          return true;
+        }
+        return false;
+      });
     } else {
       // 批量检查更新
       InfoNotification("检查更新", "正在检查所有的脚本更新");
       this.scriptDAO
         .all()
-        .then((scripts) => {
-          return Promise.all(scripts.map((script) => this.checkUpdate(script.uuid, "user")));
+        .then(async (scripts) => {
+          // 检查是否有更新
+          const results = await this.checkUpdatesAvailable(
+            scripts.map((script) => script.uuid),
+            {
+              MIN_DELAY: 300,
+              MAX_DELAY: 800,
+            }
+          );
+          return Promise.all(
+            scripts.map((script, i) => {
+              const result = results[i];
+              if (result) {
+                // 如有更新则打开更新画面进行更新
+                this.openUpdatePage(script, "user");
+              }
+            })
+          );
         })
         .then(() => {
           InfoNotification("检查更新", "所有脚本检查完成");
         });
       return Promise.resolve(true); // 无视检查结果，立即回传true
     }
+    */
   }
 
   isInstalled({ name, namespace }: { name: string; namespace: string }): Promise<App.IsInstalledResponse> {
@@ -851,6 +1173,95 @@ export class ScriptService {
       });
   }
 
+  async getBatchUpdateRecordLite(i: number) {
+    return this.scriptUpdateCheck.makeDeliveryPacket(i);
+  }
+
+  async fetchCheckUpdateStatus() {
+    this.scriptUpdateCheck.announceMessage(this.scriptUpdateCheck.state);
+  }
+
+  async sendUpdatePageOpened() {
+    this.mq.publish<any>("msgUpdatePageOpened", {});
+  }
+
+  async batchUpdateListAction(action: TBatchUpdateListAction) {
+    if (action.actionCode === BatchUpdateListActionCode.IGNORE) {
+      const map = new Map();
+      await Promise.allSettled(
+        action.actionPayload.map(async (script) => {
+          const { uuid, ignoreVersion } = script;
+          const updatedScript = await this.scriptDAO.update(uuid, { ignoreVersion });
+          if (!updatedScript || updatedScript.uuid !== uuid) return;
+          map.set(uuid, updatedScript);
+        })
+      );
+      if (this.scriptUpdateCheck.cacheFull) {
+        this.scriptUpdateCheck.cacheFull.list?.forEach((entry) => {
+          const uuid = entry.uuid;
+          const script = map.get(entry.uuid);
+          if (script && entry.script?.uuid === uuid && script.uuid === uuid) {
+            entry.script = script;
+          }
+        });
+        this.scriptUpdateCheck.setCacheFull(this.scriptUpdateCheck.cacheFull);
+        this.scriptUpdateCheck.announceMessage({ refreshRecord: true });
+      }
+    } else if (action.actionCode === BatchUpdateListActionCode.UPDATE) {
+      const uuids = action.actionPayload.map((entry) => entry.uuid);
+      const list = this.scriptUpdateCheck.cacheFull?.list;
+      if (!list) return;
+      const data = new Map<string, TBatchUpdateRecord>();
+      const set = new Set(uuids);
+      for (const entry of list) {
+        if (set.has(entry.uuid)) {
+          if (!entry.newCode) continue;
+          data.set(entry.uuid, entry);
+        }
+      }
+      const res = [];
+      const updated = new Set();
+      for (const uuid of set) {
+        const entry = data.get(uuid);
+        try {
+          await this.installByCode({ uuid, code: entry?.newCode, upsertBy: "user" });
+          res.push({
+            uuid,
+            success: true,
+          });
+          updated.add(uuid);
+        } catch (e) {
+          console.error(e);
+          res.push({
+            uuid,
+            success: false,
+          });
+        }
+      }
+      if (this.scriptUpdateCheck.cacheFull?.list) {
+        this.scriptUpdateCheck.cacheFull = {
+          ...this.scriptUpdateCheck.cacheFull,
+          list: this.scriptUpdateCheck.cacheFull.list.filter((entry) => {
+            return !updated.has(entry.uuid);
+          }),
+        };
+        this.scriptUpdateCheck.setCacheFull(this.scriptUpdateCheck.cacheFull);
+        this.scriptUpdateCheck.announceMessage({ refreshRecord: true });
+      }
+      return res;
+    }
+  }
+
+  async openUpdatePageByUUID(uuid: string) {
+    const source = "user"; // TBC
+    const oldScript = await this.scriptDAO.get(uuid);
+    if (!oldScript || oldScript.uuid !== uuid) return;
+    const { name, downloadUrl, checkUpdateUrl } = oldScript;
+    //@ts-ignore
+    const script = { uuid, name, downloadUrl, checkUpdateUrl } as Script;
+    await this.openUpdatePage(script, source);
+  }
+
   init() {
     this.listenerScriptInstall();
 
@@ -877,13 +1288,20 @@ export class ScriptService {
     this.group.on("installByCode", this.installByCode.bind(this));
     this.group.on("setCheckUpdateUrl", this.setCheckUpdateUrl.bind(this));
     this.group.on("updateMetadata", this.updateMetadata.bind(this));
+    this.group.on("getBatchUpdateRecordLite", this.getBatchUpdateRecordLite.bind(this));
+    this.group.on("fetchCheckUpdateStatus", this.fetchCheckUpdateStatus.bind(this));
+    this.group.on("sendUpdatePageOpened", this.sendUpdatePageOpened.bind(this));
+    this.group.on("batchUpdateListAction", this.batchUpdateListAction.bind(this));
+    this.group.on("openUpdatePageByUUID", this.openUpdatePageByUUID.bind(this));
+    this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
+    this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 每10分钟检查一次
+    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
     chrome.alarms.create(
       "checkScriptUpdate",
       {
-        delayInMinutes: 10,
-        periodInMinutes: 10,
+        delayInMinutes: 5,
+        periodInMinutes: 30,
       },
       () => {
         const lastError = chrome.runtime.lastError;

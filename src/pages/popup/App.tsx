@@ -11,13 +11,13 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
-import { popupClient, scriptClient } from "../store/features/script";
+import { popupClient, requestOpenBatchUpdatePage } from "../store/features/script";
 import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
@@ -46,12 +46,15 @@ function App() {
   const [collapseActiveKey, setCollapseActiveKey] = useState<string[]>(["script"]);
   const { t } = useTranslation();
 
-  let url: URL | undefined;
-  try {
-    url = new URL(currentUrl);
-  } catch (_: any) {
-    // ignore error
-  }
+  const urlHost = useMemo(() => {
+    let url: URL | undefined;
+    try {
+      url = new URL(currentUrl);
+    } catch (_: any) {
+      // ignore error
+    }
+    return url?.hostname ?? "";
+  }, [currentUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -136,23 +139,42 @@ function App() {
     };
   }, []);
 
-  const handleEnableScriptChange = useCallback((val: boolean) => {
-    setIsEnableScript(val);
-    systemConfig.setEnableScript(val);
-  }, []);
+  const { handleEnableScriptChange, handleSettingsClick, handleNotificationClick } = {
+    handleEnableScriptChange: (val: boolean) => {
+      setIsEnableScript(val);
+      systemConfig.setEnableScript(val);
+    },
+    handleSettingsClick: () => {
+      // 用a链接的方式,vivaldi竟然会直接崩溃
+      window.open("/src/options.html", "_blank");
+    },
+    handleNotificationClick: () => {
+      setShowAlert((prev) => !prev);
+      setCheckUpdate((checkUpdate) => {
+        const updatedCheckUpdate = { ...checkUpdate, isRead: true };
+        systemConfig.setCheckUpdate(updatedCheckUpdate);
+        return updatedCheckUpdate;
+      });
+    },
+  };
 
-  const handleSettingsClick = useCallback(() => {
-    // 用a链接的方式,vivaldi竟然会直接崩溃
-    window.open("/src/options.html", "_blank");
-  }, []);
+  const getUrlDomain = (navUrl: string) => {
+    let domain = "";
+    try {
+      const url = new URL(navUrl);
+      if (url.protocol.startsWith("http")) {
+        domain = url.hostname;
+      }
+    } catch {
+      // ignore
+    }
+    return domain;
+  };
 
-  const handleNotificationClick = useCallback(() => {
-    setShowAlert((prev) => !prev);
-    const updatedCheckUpdate = { ...checkUpdate, isRead: true };
-    setCheckUpdate(updatedCheckUpdate);
-    systemConfig.setCheckUpdate(updatedCheckUpdate);
-  }, [checkUpdate]);
-
+  const doCheckUpdateInPopupMenu = async () => {
+    const domain = getUrlDomain(currentUrl);
+    await requestOpenBatchUpdatePage(`autoclose=-1${domain ? `&site=${domain}` : ""}`);
+  };
   const handleMenuClick = async (key: string) => {
     switch (key) {
       case "newScript":
@@ -162,8 +184,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await scriptClient.requestCheckUpdate("");
-        window.close();
+        await doCheckUpdateInPopupMenu(); // 在service_worker打開新tab及進行檢查。
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;
@@ -223,7 +244,7 @@ function App() {
                       {t("create_script")}
                     </Menu.Item>
                     <Menu.Item
-                      key={`https://scriptcat.org/search?domain=${url && url.host}`}
+                      key={`https://scriptcat.org/search?domain=${urlHost}`}
                       className="flex flex-row items-center"
                     >
                       <IconSearch style={iconStyle} />

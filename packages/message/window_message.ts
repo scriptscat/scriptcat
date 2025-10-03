@@ -1,4 +1,4 @@
-import type { Message, MessageConnect, MessageSend, TMessage } from "./types";
+import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import EventEmitter from "eventemitter3";
 
@@ -94,7 +94,9 @@ export class WindowMessage implements Message {
     });
   }
 
-  onMessage(callback: (data: TMessage, sendResponse: (data: any) => void) => void): void {
+  onMessage(
+    callback: (data: TMessage, sendResponse: (data: any) => void, sender: RuntimeMessageSender) => boolean | void
+  ): void {
     this.EE.addListener("message", callback);
   }
 

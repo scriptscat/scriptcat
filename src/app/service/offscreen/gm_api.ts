@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { GetSender, Group } from "@Packages/message/server";
+import type { IGetSender, Group } from "@Packages/message/server";
 import type { MessageConnect } from "@Packages/message/types";
 
 export default class GMApi {
@@ -9,12 +9,13 @@ export default class GMApi {
   constructor(private group: Group) {}
 
   async dealXhrResponse(
-    con: MessageConnect,
+    con: MessageConnect | undefined,
     details: GMSend.XHRDetails,
     event: string,
     xhr: XMLHttpRequest,
     data?: any
   ) {
+    if (!con) return;
     const finalUrl = xhr.responseURL || details.url;
     let response: GMTypes.XHRResponse = {
       finalUrl,
@@ -86,13 +87,13 @@ export default class GMApi {
     return response;
   }
 
-  async xmlHttpRequest(details: GMSend.XHRDetails, sender: GetSender) {
+  async xmlHttpRequest(details: GMSend.XHRDetails, sender: IGetSender) {
     if (details.responseType === "stream") {
       // 只有fetch支持ReadableStream
       throw new Error("Method not implemented.");
     }
     const xhr = new XMLHttpRequest();
-    const con = sender.getConnect();
+    const con = sender.getConnect(); // con can be undefined
     xhr.open(details.method || "GET", details.url, true, details.user || "", details.password || "");
     // 添加header
     if (details.headers) {
@@ -116,16 +117,16 @@ export default class GMApi {
       this.dealXhrResponse(con, details, "onload", xhr);
     };
     xhr.onloadstart = () => {
-      this.dealXhrResponse(con!, details, "onloadstart", xhr);
+      this.dealXhrResponse(con, details, "onloadstart", xhr);
     };
     xhr.onloadend = () => {
-      this.dealXhrResponse(con!, details, "onloadend", xhr);
+      this.dealXhrResponse(con, details, "onloadend", xhr);
     };
     xhr.onabort = () => {
-      this.dealXhrResponse(con!, details, "onabort", xhr);
+      this.dealXhrResponse(con, details, "onabort", xhr);
     };
     xhr.onerror = () => {
-      this.dealXhrResponse(con!, details, "onerror", xhr);
+      this.dealXhrResponse(con, details, "onerror", xhr);
     };
     xhr.onprogress = (event) => {
       const respond: GMTypes.XHRProgress = {
@@ -135,10 +136,10 @@ export default class GMApi {
         total: event.total,
         totalSize: event.total,
       };
-      this.dealXhrResponse(con!, details, "onprogress", xhr, respond);
+      this.dealXhrResponse(con, details, "onprogress", xhr, respond);
     };
     xhr.onreadystatechange = () => {
-      this.dealXhrResponse(con!, details, "onreadystatechange", xhr);
+      this.dealXhrResponse(con, details, "onreadystatechange", xhr);
     };
     xhr.ontimeout = () => {
       con?.sendMessage({ action: "ontimeout", data: {} });

@@ -103,7 +103,7 @@ export class PopupService {
 
   async registerMenuCommand(message: TScriptMenuRegister) {
     // 给脚本添加菜单
-    return this.txUpdateScriptMenu(message.tabId, async (data) => {
+    await this.txUpdateScriptMenu(message.tabId, async (data) => {
       const script = data.find((item) => item.uuid === message.uuid);
       if (script) {
         const menu = script.menus.find((item) => item.id === message.id);
@@ -122,21 +122,22 @@ export class PopupService {
           menu.options = message.options;
         }
       }
-      await this.updateScriptMenu();
       return data;
     });
+    // 更新数据后再更新菜单
+    await this.updateScriptMenu();
   }
 
   async unregisterMenuCommand({ id, uuid, tabId }: TScriptMenuUnregister) {
-    return this.txUpdateScriptMenu(tabId, async (data) => {
+    await this.txUpdateScriptMenu(tabId, async (data) => {
       // 删除脚本菜单
       const script = data.find((item) => item.uuid === uuid);
       if (script) {
         script.menus = script.menus.filter((item) => item.id !== id);
       }
-      await this.updateScriptMenu();
       return data;
     });
+    await this.updateScriptMenu();
   }
 
   async updateScriptMenu() {
