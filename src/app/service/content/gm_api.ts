@@ -1040,7 +1040,7 @@ export default class GMApi extends GM_Base {
       option.active = true; // TM 预设 active: false；VM 预设 active: true；旧SC 预设 active: true；GM 依从 浏览器
     }
     if (option.insert === undefined) {
-      option.insert = true; // TM 预设 insert: true；VM 预设 active: true；旧SC 无此设计 (false)
+      option.insert = true; // TM 预设 insert: true；VM 预设 insert: true；旧SC 无此设计 (false)
     }
     if (option.setParent === undefined) {
       option.setParent = true; // TM 预设 setParent: false; 旧SC 预设 setParent: true;
