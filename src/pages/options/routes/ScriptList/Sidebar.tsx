@@ -299,10 +299,8 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
         } else {
           statusItems[4].count++;
         }
-        if (script.type === SCRIPT_TYPE_BACKGROUND) {
-          typeItems[2].count++;
-        } else {
-          typeItems[2].count++;
+        typeItems[2].count++;
+        if (script.type === SCRIPT_TYPE_CRONTAB) {
           typeItems[3].count++;
         }
       }
