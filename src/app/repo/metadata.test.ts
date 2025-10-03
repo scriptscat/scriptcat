@@ -6,7 +6,7 @@ describe("parseTags", () => {
   it("解析tags", () => {
     // 过滤空标签和去除重复
     const metadata: SCMetadata = {
-      tags: [
+      tag: [
         "tag1,tag2 tag3",
         "tag4，tag5",
         " tag6 , tag7 ，",

@@ -25,6 +25,7 @@ import {
 import { parseTags } from "@App/app/repo/metadata";
 import { hashColor } from "../utils";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { useTranslation } from "react-i18next";
 
 interface SidebarProps {
   /**
@@ -169,6 +170,7 @@ FilterGroup.displayName = "FilterGroup";
  * 脚本列表侧边栏组件
  */
 const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter }) => {
+  const { t } = useTranslation();
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string | number>>({
     status: "all",
     type: "all",
@@ -200,7 +202,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
   const { statusItems, typeItems, tagItems, sourceItems } = useMemo(() => {
     // 状态过滤选项
     const statusItems: FilterItem[] = [
-      { key: "all", label: "全部", icon: <IconCode style={{ fontSize: 14 }} />, count: scriptList.length },
+      { key: "all", label: t("all"), icon: <IconCode style={{ fontSize: 14 }} />, count: scriptList.length },
       {
         key: SCRIPT_STATUS_ENABLE,
         label: "开启",
