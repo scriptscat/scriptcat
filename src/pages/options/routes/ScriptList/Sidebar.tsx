@@ -356,7 +356,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       })
     );
     return { statusItems, typeItems, tagItems, sourceItems };
-  }, [scriptList]);
+  }, [scriptList, t]);
 
   useEffect(() => {
     // 计算过滤后的脚本列表
