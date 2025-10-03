@@ -1138,16 +1138,20 @@ function ScriptList() {
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
-        return width === item.width
-          ? item
-          : {
-              ...item,
-              width,
-            };
+        let m =
+          width === item.width
+            ? item
+            : {
+                ...item,
+                width,
+              };
+        // 处理语言更新
+        if (m.title !== columns[i].title) m = { ...m, title: columns[i].title };
+        return m;
       });
     });
     setCanShowList(true);
-  }, [savedWidths]);
+  }, [savedWidths, columns]);
 
   const dealColumns = useMemo(() => {
     if (!canShowList) {
@@ -1156,7 +1160,7 @@ function ScriptList() {
       const filtered = newColumns.filter((item) => item.width !== -1);
       return filtered.length === 0 ? columns : filtered;
     }
-  }, [newColumns, canShowList]);
+  }, [newColumns, canShowList, columns]);
 
   const components: ComponentsProps = useMemo(
     () => ({
@@ -1201,7 +1205,7 @@ function ScriptList() {
         row: DraggableRow,
       },
     }),
-    []
+    [t]
   );
 
   const setWidth = (selectColumn: number, width: any) => {
