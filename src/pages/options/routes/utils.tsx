@@ -190,3 +190,36 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
   }).current;
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
+
+export function hashColor(text: string): string {
+  if (!text) {
+    return "gray"; // 默认颜色
+  }
+  // 预定义颜色
+  const colors = [
+    "red",
+    "orangered",
+    "orange",
+    "gold",
+    "lime",
+    "green",
+    "cyan",
+    "arcoblue",
+    "purple",
+    "pinkpurple",
+    "magenta",
+    "gray",
+  ];
+
+  // 简单的哈希函数
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // 转换为32位整数
+  }
+
+  // 确保哈希值为正数并取模得到颜色索引
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}

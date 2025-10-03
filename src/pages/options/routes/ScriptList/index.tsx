@@ -70,7 +70,7 @@ import { nextTime } from "@App/pkg/utils/cron";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { ListHomeRender, ScriptIcons } from "../utils";
+import { hashColor, ListHomeRender, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
@@ -97,6 +97,8 @@ import type {
 } from "@App/app/service/queue";
 import { type TFunction } from "i18next";
 import { useAppContext } from "@App/pages/store/AppContext";
+import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { parseTags } from "@App/app/repo/metadata";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -223,6 +225,13 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
+  const { tag } = useMemo(() => {
+    let metadata = item.metadata;
+    if (item.selfMetadata) {
+      metadata = getCombinedMeta(metadata, item.selfMetadata);
+    }
+    return { tag: parseTags(metadata) || [] };
+  }, [item]);
   return (
     <Tooltip content={col} position="tl">
       <Link
@@ -242,6 +251,15 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
         >
           <ScriptIcons script={item} size={20} />
           {i18nName(item)}
+          {tag && (
+            <Space style={{ marginLeft: 8 }}>
+              {tag.map((t) => (
+                <Tag key={t} color={hashColor(t)}>
+                  {t}
+                </Tag>
+              ))}
+            </Space>
+          )}
         </Text>
       </Link>
     </Tooltip>
@@ -769,6 +787,7 @@ function ScriptList() {
   const [cloudScript, setCloudScript] = useState<Script>();
   const [mInitial, setInitial] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
+  const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
@@ -1266,7 +1285,7 @@ function ScriptList() {
       }}
     >
       <DraggableContext.Provider value={draggableContextValue}>
-        <Space direction="vertical">
+        <div className="flex flex-col">
           {showAction && (
             <Card>
               <div
@@ -1517,7 +1536,13 @@ function ScriptList() {
           {/* 主要内容区域 */}
           <div className="flex flex-row relative">
             {/* 侧边栏 */}
-            <ScriptListSidebar open={sidebarOpen} />
+            <ScriptListSidebar
+              open={sidebarOpen}
+              scriptList={scriptList}
+              onFilter={(data) => {
+                setFilterScriptList(data);
+              }}
+            />
 
             {/* 主要表格区域 */}
             <div className="flex-1">
@@ -1529,7 +1554,7 @@ function ScriptList() {
                   rowKey="uuid"
                   tableLayoutFixed
                   columns={dealColumns}
-                  data={scriptList}
+                  data={filterScriptList}
                   pagination={false}
                   style={
                     {
@@ -1557,7 +1582,7 @@ function ScriptList() {
               setCloudScript(undefined);
             }}
           />
-        </Space>
+        </div>
       </DraggableContext.Provider>
     </Card>
   );
