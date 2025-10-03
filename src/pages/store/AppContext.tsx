@@ -5,10 +5,11 @@ import { type TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage } from "@App/locales/locales";
 import { SystemConfigChange } from "@App/pkg/config/config";
 
+export type ThemeParam = { theme: "auto" | "light" | "dark" };
 export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
-  subscribeMessage: (topic: string, handler: (msg: any) => void) => () => void;
+  subscribeMessage: <T>(topic: string, handler: (msg: T) => void) => () => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -59,18 +60,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return localStorage.lightMode || "auto";
   });
 
-  const subscribeMessage = (topic: string, handler: (msg: any) => void) => {
-    return messageQueue.subscribe<any>(topic, (data) => {
+  const subscribeMessage = <T,>(topic: string, handler: (msg: T) => void) => {
+    return messageQueue.subscribe<T & { myMessage?: T }>(topic, (data) => {
       const message = data?.myMessage || data;
       if (typeof message === "object") {
-        handler(message);
+        handler(message as T);
       }
     });
   };
 
   useEffect(() => {
     const pageApi = {
-      onColorThemeUpdated({ theme }: { theme: "auto" | "light" | "dark" }) {
+      onColorThemeUpdated({ theme }: ThemeParam) {
         setAppColorTheme(theme);
         setColorThemeState(theme);
       },
@@ -80,17 +81,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
 
     const unhooks = [
-      subscribeMessage("onColorThemeUpdated", pageApi.onColorThemeUpdated),
-      subscribeMessage(SystemConfigChange, pageApi.systemConfigChanged),
+      subscribeMessage<ThemeParam>("onColorThemeUpdated", pageApi.onColorThemeUpdated),
+      subscribeMessage<TKeyValue>(SystemConfigChange, pageApi.systemConfigChanged),
     ];
     return () => {
       for (const unhook of unhooks) unhook();
+      unhooks.length = 0;
     };
   }, []);
 
   const updateColorTheme = (theme: "auto" | "light" | "dark") => {
     localStorage.lightMode = theme;
-    messageQueue.publish<{ theme: "auto" | "light" | "dark" }>("onColorThemeUpdated", { theme });
+    messageQueue.publish<ThemeParam>("onColorThemeUpdated", { theme });
   };
 
   return (

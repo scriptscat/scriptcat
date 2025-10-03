@@ -159,7 +159,7 @@ class Cache extends ExtCache {
         }
       });
     unlock();
-    return newValue!;
+    return newValue!; // 必须注意当 value 为 「undefined, null, "", 0」 时，newValue 是 undefined
   }
 
   incr(key: string, increase: number): Promise<number> {

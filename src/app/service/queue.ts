@@ -1,5 +1,10 @@
 import type { Script, SCRIPT_RUN_STATUS, SCRIPT_STATUS, SCRIPT_TYPE } from "../repo/scripts";
-import type { InstallSource, ScriptMenuItem } from "./service_worker/types";
+import type {
+  InstallSource,
+  ScriptMenuItemOption,
+  TScriptMenuItemKey,
+  TScriptMenuItemName,
+} from "./service_worker/types";
 import type { Subscribe } from "../repo/subscribe";
 
 export type TInstallScriptParams = {
@@ -29,17 +34,18 @@ export type TScriptValueUpdate = { script: Script };
 
 export type TScriptMenuRegister = {
   uuid: string;
-  id: number;
-  name: string;
-  options?: ScriptMenuItem["options"];
+  key: TScriptMenuItemKey;
+  name: TScriptMenuItemName;
+  options?: Omit<ScriptMenuItemOption, "id">;
   tabId: number;
   frameId?: number;
   documentId?: string;
 };
 
 export type TScriptMenuUnregister = {
-  id: number;
+  key: TScriptMenuItemKey;
   uuid: string;
   tabId: number;
   frameId?: number;
+  documentId?: string;
 };

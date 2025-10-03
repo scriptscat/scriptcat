@@ -9,9 +9,10 @@ import type {
   ScriptMenuItem,
   SearchType,
   TBatchUpdateListAction,
+  TScriptMenuItemKey,
 } from "./types";
 import { Client } from "@Packages/message/client";
-import type { MessageSend } from "@Packages/message/types";
+import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
@@ -281,6 +282,13 @@ export type GetPopupDataRes = {
   backScriptList: ScriptMenu[];
 };
 
+export type MenuClickParams = {
+  uuid: string;
+  key: TScriptMenuItemKey;
+  sender: ExtMessageSender;
+  inputValue?: any;
+};
+
 export class PopupClient extends Client {
   constructor(msgSender: MessageSend) {
     super(msgSender, "serviceWorker/popup");
@@ -293,14 +301,14 @@ export class PopupClient extends Client {
   menuClick(uuid: string, data: ScriptMenuItem, inputValue?: any) {
     return this.do("menuClick", {
       uuid,
-      id: data.id,
+      key: data.key,
       inputValue,
       sender: {
         tabId: data.tabId,
         frameId: data.frameId,
         documentId: data.documentId,
       },
-    });
+    } as MenuClickParams);
   }
 }
 
