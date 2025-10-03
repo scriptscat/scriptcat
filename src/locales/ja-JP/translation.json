@@ -512,5 +512,9 @@
   },
   "tags": "タグ",
   "install_source": "インストール元",
-  "input_tags_placeholder": "タグを入力し、Enterを押して確認"
+  "input_tags_placeholder": "タグを入力し、Enterを押して確認",
+  "switch_to_card_mode": "カードモードに切り替え",
+  "switch_to_table_mode": "テーブルモードに切り替え",
+  "open_sidebar": "サイドバーを開く",
+  "close_sidebar": "サイドバーを閉じる"
 }

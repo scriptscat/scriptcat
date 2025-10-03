@@ -1113,7 +1113,7 @@ function ScriptList() {
             <div className="flex flex-row justify-between items-center">
               <span>{t("action")}</span>
               <Space size={4}>
-                <Tooltip content="打开侧边栏">
+                <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
                   <Button
                     icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
                     iconOnly
@@ -1131,7 +1131,7 @@ function ScriptList() {
                     }}
                   />
                 </Tooltip>
-                <Tooltip content="切换到卡片模式">
+                <Tooltip content={t("switch_to_card_mode")}>
                   <Button
                     icon={<FaThLarge />}
                     iconOnly

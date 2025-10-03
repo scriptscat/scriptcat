@@ -512,5 +512,9 @@
   },
   "tags": "標籤",
   "install_source": "安裝來源",
-  "input_tags_placeholder": "輸入標籤，按回車確認"
+  "input_tags_placeholder": "輸入標籤，按回車確認",
+  "switch_to_card_mode": "切換到卡片模式",
+  "switch_to_table_mode": "切換到表格模式",
+  "open_sidebar": "打開側邊欄",
+  "close_sidebar": "關閉側邊欄"
 }

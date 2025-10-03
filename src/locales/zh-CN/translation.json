@@ -512,5 +512,9 @@
   },
   "tags": "标签",
   "install_source": "安装来源",
-  "input_tags_placeholder": "输入标签，按回车确认"
+  "input_tags_placeholder": "输入标签，按回车确认",
+  "switch_to_card_mode": "切换到卡片模式",
+  "switch_to_table_mode": "切换到表格模式",
+  "open_sidebar": "打开侧边栏",
+  "close_sidebar": "关闭侧边栏"
 }

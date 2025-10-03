@@ -512,5 +512,9 @@
   },
   "tags": "Tags",
   "install_source": "Installationsquelle",
-  "input_tags_placeholder": "Tags eingeben, Enter drücken um zu bestätigen"
+  "input_tags_placeholder": "Tags eingeben, Enter drücken um zu bestätigen",
+  "switch_to_card_mode": "Wechseln Sie in den Kartenmodus",
+  "switch_to_table_mode": "In den Tabellenmodus wechseln",
+  "open_sidebar": "Öffne die Seitenleiste",
+  "close_sidebar": "Schließe die Seitenleiste"
 }

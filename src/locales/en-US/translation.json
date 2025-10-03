@@ -512,5 +512,9 @@
   },
   "tags": "Tags",
   "install_source": "Install Source",
-  "input_tags_placeholder": "Enter tags, press Enter to confirm"
+  "input_tags_placeholder": "Enter tags, press Enter to confirm",
+  "switch_to_card_mode": "Switch to Card Mode",
+  "switch_to_table_mode": "Switch to Table Mode",
+  "open_sidebar": "Open Sidebar",
+  "close_sidebar": "Close Sidebar"
 }

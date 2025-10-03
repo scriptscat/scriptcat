@@ -512,5 +512,9 @@
   },
   "tags": "Теги",
   "install_source": "Источник установки",
-  "input_tags_placeholder": "Введите теги, нажмите Enter для подтверждения"
+  "input_tags_placeholder": "Введите теги, нажмите Enter для подтверждения",
+  "switch_to_card_mode": "Переключиться в режим карточек",
+  "switch_to_table_mode": "Переключиться в табличный режим",
+  "open_sidebar": "Открыть боковую панель",
+  "close_sidebar": "Закрыть боковую панель"
 }
