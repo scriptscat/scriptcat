@@ -76,10 +76,25 @@ export type ScriptMenuItemOption = {
   inputPlaceholder?: string;
 };
 
-// 根据 TM (Tampermonkey) 定义：
-// GM_registerMenuCommand 会回传一个「累计数字 ID」，由系统自动生成。
-// 如透过 options.id 传入自订的 ID，则回传型别为 string 或 number。
-// 注意：这个 ID 主要是「脚本执行环境内部使用」，而不是用来直接显示。
+/**
+ * 脚本菜单命令的「原始 ID」型别。
+ *
+ * 来源：
+ * - 根据 Tampermonkey (TM) 定义，GM_registerMenuCommand 会回传一个「累计数字 ID」，由系统自动生成。
+ * - 若透过 options.id 传入自订的 ID，则可能是 string 或 number。
+ *
+ * 使用方式：
+ * - 内部首先会读取 options.id，若不存在则由内部计数器 menuIdCounter 累加生成新的数字 ID。
+ * - 取得后，统一先转成字符串以利后续处理：
+ *   - 原始设计：数字 ID → `n{ID}`，字串 ID → `t{ID}`
+ *   - 目前实现：无论数字或字串，统一转成 `t{ID}`。
+ *     （日后如有需要，可再恢复区分）
+ *
+ * 注意：
+ * - 此 ID 只是注册时取得的原始识别符。
+ * - 不保证在不同 frame (mainframe / subframe) 间唯一。
+ * - 因此这个 ID 仅供「脚本执行环境内部使用」，不是最终的唯一键。
+ */
 export type TScriptMenuItemID = number | string;
 
 // 为了语意清楚：用于 menu item 显示名称的型别
@@ -87,10 +102,19 @@ export type TScriptMenuItemID = number | string;
 // 例如「开启设定」、「清除快取」。
 export type TScriptMenuItemName = string;
 
-// 为了语意清楚：用于 menu item 唯一键值的型别
-// 每个 menu item 的「唯一键」，用来辨识是否同一个命令。
-// 即使名称一样，key 也必须唯一。
-// 通常由 GM_registerMenuCommand 信息传递时传入。
+/**
+ * 菜单命令的「最终唯一键」型别。
+ *
+ * 来源：
+ * - 由 TScriptMenuItemID 转换而来，并附加上环境识别符 (contentEnvKey)。
+ * - 生成规则：`{contentEnvKey}.t{ID}`
+ *   - 例如：`main.t1`、`sub.t5`。
+ *
+ * 特点：
+ * - menuKey 必须在整个执行环境中唯一。
+ * - 即使命令名称相同，只要 key 不同，就能区分为不同的命令。
+ * - 这个唯一键是脚本内部判定「是否同一个 menu item」的依据。
+ */
 export type TScriptMenuItemKey = string;
 
 // 单一的选单项目结构。
