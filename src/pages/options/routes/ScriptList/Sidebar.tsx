@@ -355,8 +355,6 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
   }, [scriptList, t]);
 
   useEffect(() => {
-    // 计算过滤后的脚本列表
-    const filtered = [...scriptList];
     // 过滤器方法变量
     const filterFuncs: Array<(script: Script) => boolean> = [];
     for (const [groupKey, itemKey] of Object.entries(selectedFilters)) {
@@ -413,8 +411,8 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           break;
       }
     }
-    onFilter(filtered.filter((script) => filterFuncs.every((fn) => fn(script))));
-  }, [scriptList, selectedFilters]);
+    onFilter(scriptList.filter((script) => filterFuncs.every((fn) => fn(script))));
+  }, [onFilter, scriptList, selectedFilters]);
 
   if (!open) {
     return null;
