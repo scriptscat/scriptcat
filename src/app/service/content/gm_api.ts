@@ -486,10 +486,10 @@ export default class GMApi extends GM_Base {
     let providedId: string | number | undefined = options.id;
     delete options.id; // id不直接储存在options (id 影响 groupKey 操作)
     if (providedId === undefined) providedId = this.menuIdCounter! += 1; // 如无指定，使用累计器id
-    const ret = providedId;
+    const ret = providedId as TScriptMenuItemID;
     providedId = `t${providedId}`; // 见 TScriptMenuItemID 注释
-    providedId = `${this.contentEnvKey!}.${providedId}`; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
-    const menuKey = providedId as TScriptMenuItemKey; // menuKey为唯一键：{环境识别符}.t{注册ID}
+    providedId = `${this.contentEnvKey!}.${providedId}` as TScriptMenuItemKey; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
+    const menuKey = providedId; // menuKey为唯一键：{环境识别符}.t{注册ID}
     // 检查之前有否注册
     if (menuKey && this.menuKeyRegistered!.has(menuKey)) {
       // 有注册过，先移除 listeners
@@ -568,7 +568,7 @@ export default class GMApi extends GM_Base {
   GM_unregisterMenuCommand(menuId: TScriptMenuItemID): void {
     execEnvInit(this);
     let menuKey = `t${menuId}`; // 见 TScriptMenuItemID 注释
-    menuKey = `${this.contentEnvKey!}.${menuKey}`; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
+    menuKey = `${this.contentEnvKey!}.${menuKey}` as TScriptMenuItemKey; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
     this.menuKeyRegistered!.delete(menuKey);
     this.EE.removeAllListeners("menuClick:" + menuKey);
     // 发送至 service worker 处理（唯一键）
