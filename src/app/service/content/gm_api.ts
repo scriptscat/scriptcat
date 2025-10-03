@@ -6,6 +6,7 @@ import type {
   NotificationMessageOption,
   ScriptMenuItemOption,
   TScriptMenuItemID,
+  TScriptMenuItemKey,
 } from "../service_worker/types";
 import { base64ToBlob, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -486,10 +487,9 @@ export default class GMApi extends GM_Base {
     delete options.id; // id不直接储存在options (id 影响 groupKey 操作)
     if (providedId === undefined) providedId = this.menuIdCounter! += 1; // 如无指定，使用累计器id
     const ret = providedId;
-    // providedId = (typeof providedId === "number" ? `n${providedId}` : `t${providedId}`) as string;
-    providedId = `t${providedId}`; // 先跟随 TM 数字id跟字串id视为一致。日后有需要再使用 options 区分两者
-    providedId = `${this.contentEnvKey!}.${providedId}`; // 区分 subframe mainframe
-    const menuKey = providedId as string; // menuKey为唯一键：{环境识别符}.t{注册ID}
+    providedId = `t${providedId}`; // 见 TScriptMenuItemID 注释
+    providedId = `${this.contentEnvKey!}.${providedId}`; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
+    const menuKey = providedId as TScriptMenuItemKey; // menuKey为唯一键：{环境识别符}.t{注册ID}
     // 检查之前有否注册
     if (menuKey && this.menuKeyRegistered!.has(menuKey)) {
       // 有注册过，先移除 listeners
@@ -567,9 +567,8 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ alias: "GM.unregisterMenuCommand" })
   GM_unregisterMenuCommand(menuId: TScriptMenuItemID): void {
     execEnvInit(this);
-    // let menuKey = (typeof menuId === "number" ? `n${menuId}` : `t${menuId}`) as string;
-    let menuKey = `t${menuId}`; // 先跟随 TM 数字id跟字串id视为一致。日后有需要再使用 options 区分两者
-    menuKey = `${this.contentEnvKey!}.${menuKey}`; // 区分 subframe mainframe // menuKey为唯一键：{环境识别符}.t{注册ID}
+    let menuKey = `t${menuId}`; // 见 TScriptMenuItemID 注释
+    menuKey = `${this.contentEnvKey!}.${menuKey}`; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
     this.menuKeyRegistered!.delete(menuKey);
     this.EE.removeAllListeners("menuClick:" + menuKey);
     // 发送至 service worker 处理（唯一键）
