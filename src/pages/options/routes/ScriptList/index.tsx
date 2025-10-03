@@ -1180,12 +1180,16 @@ function ScriptList() {
           // 第8列特殊处理，因为可能涉及到操作图的显示
           return { ...columns[8], width };
         }
-        return width === item.width
-          ? item
-          : {
-              ...item,
-              width,
-            };
+        let m =
+          width === item.width
+            ? item
+            : {
+                ...item,
+                width,
+              };
+        // 处理语言更新
+        if (m.title !== columns[i].title) m = { ...m, title: columns[i].title };
+        return m;
       });
     });
     setCanShowList(true);
@@ -1198,7 +1202,7 @@ function ScriptList() {
       const filtered = newColumns.filter((item) => item.width !== -1);
       return filtered.length === 0 ? columns : filtered;
     }
-  }, [newColumns, canShowList]);
+  }, [newColumns, canShowList, columns]);
 
   const components: ComponentsProps = useMemo(
     () => ({
@@ -1243,7 +1247,7 @@ function ScriptList() {
         row: DraggableRow,
       },
     }),
-    []
+    [t]
   );
 
   const setWidth = (selectColumn: number, width: any) => {
