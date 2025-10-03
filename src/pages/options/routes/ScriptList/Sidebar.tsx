@@ -189,13 +189,11 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
   };
 
   const toggleGroupCollapse = (groupKey: string) => {
-    const newCollapsed = new Set(collapsedGroups);
-    if (newCollapsed.has(groupKey)) {
-      newCollapsed.delete(groupKey);
-    } else {
-      newCollapsed.add(groupKey);
-    }
-    setCollapsedGroups(newCollapsed);
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(groupKey) ? next.delete(groupKey) : next.add(groupKey);
+      return next;
+    });
   };
 
   // 计算数据量
