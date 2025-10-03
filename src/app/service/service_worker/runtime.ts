@@ -585,6 +585,9 @@ export class RuntimeService {
               }
             }
             const resourceUUIDs = [] as string[];
+            for (const m of storeCode.matchAll(re)) {
+              resourceUUIDs.push(m[1]);
+            }
             storeCode.replace(re, (_a: string, b: string) => {
               resourceUUIDs.push(b);
               return "";
