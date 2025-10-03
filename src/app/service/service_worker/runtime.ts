@@ -45,6 +45,8 @@ const runtimeGlobal = {
   messageFlag: "PENDING",
 };
 
+const reCompliedResource = new RegExp(`\\{\\{${CompliedResourceNamespace}:resource:([^:{}\\[\\]\\s]+)\\}\\}`, "g");
+
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -482,7 +484,6 @@ export class RuntimeService {
   }
 
   async getParticularScriptList() {
-    const re = new RegExp(`\\{\\{${CompliedResourceNamespace}:resource:([^:{}\\[\\]\\s]+)\\}\\}`, "g");
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
@@ -585,17 +586,17 @@ export class RuntimeService {
               }
             }
             const resourceUUIDs = [] as string[];
-            for (const m of storeCode.matchAll(re)) {
+            for (const m of storeCode.matchAll(reCompliedResource)) {
               resourceUUIDs.push(m[1]);
             }
-            storeCode.replace(re, (_a: string, b: string) => {
+            storeCode.replace(reCompliedResource, (_a: string, b: string) => {
               resourceUUIDs.push(b);
               return "";
             });
             if (resourceUUIDs.length > 0) {
               const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
               const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
-              storeCode = storeCode.replace(re, (_a: string, b: string) => {
+              storeCode = storeCode.replace(reCompliedResource, (_a: string, b: string) => {
                 return resources[`resource:${b}`]?.content || "";
               });
             }
