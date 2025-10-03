@@ -115,7 +115,7 @@ export class RuntimeService {
           // 考虑 API 不可使用情况，使用 finally
           resolve();
         });
-    }).catch(console.error);
+    });
     this.logger = LoggerCore.logger({ component: "runtime" });
 
     // 使用中间件
