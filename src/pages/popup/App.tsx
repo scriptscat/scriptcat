@@ -1,5 +1,5 @@
 import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
-import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
+import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch, Tooltip } from "@arco-design/web-react";
 import {
   IconBook,
   IconBug,
@@ -344,41 +344,37 @@ function App() {
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
-          <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
           {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
-            <span
-              onClick={() => {
-                window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
-              }}
-              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
-            >
-              {t("popup.new_version_available")}
-            </span>
+            <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
+              <span
+                onClick={() => {
+                  window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
+                }}
+                className={`text-[12px] font-500 cursor-pointer underline underline-offset-2 text-blue-500 dark:text-blue-400`}
+              >{`v${ExtVersion}`}</span>
+            </Tooltip>
           ) : checkUpdateStatus === 0 ? (
-            <span
-              onClick={() => {
-                setCheckUpdateStatus(1);
-              }}
-              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
-            >
-              {t("check_update")}
-            </span>
+            <Tooltip content={t("check_update")}>
+              <span
+                onClick={() => {
+                  setCheckUpdateStatus(1);
+                }}
+                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+              >{`v${ExtVersion}`}</span>
+            </Tooltip>
           ) : checkUpdateStatus === 1 ? (
-            <span
-              onClick={() => {}}
-              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
-            >
-              {t("checking_for_updates")}
-            </span>
+            <Tooltip content={t("checking_for_updates")}>
+              <span className="text-[12px] font-500">{`${t("checking_for_updates")}`}</span>
+            </Tooltip>
           ) : checkUpdateStatus === 2 ? (
-            <span
-              onClick={() => {
-                setCheckUpdateStatus(1);
-              }}
-              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
-            >
-              {t("latest_version")}
-            </span>
+            <Tooltip content={t("latest_version")}>
+              <span
+                onClick={() => {
+                  setCheckUpdateStatus(1);
+                }}
+                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+              >{`${t("latest_version")}`}</span>
+            </Tooltip>
           ) : (
             <></>
           )}
