@@ -412,7 +412,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           }
           break;
       }
-    });
+    }
     onFilter(filtered.filter((script) => filterFuncs.every((fn) => fn(script))));
   }, [scriptList, selectedFilters]);
 
