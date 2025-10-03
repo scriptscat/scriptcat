@@ -85,14 +85,12 @@ export const cleanInvalidCompliedResources = async () => {
         console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
         // 无视storage API错误，继续执行
       }
-      if (result) {
-        resolve(
-          Object.keys(result).filter(
+      const ret = result
+        ? Object.keys(result).filter(
             (key) => key.startsWith("complied_resource:") || key.startsWith("complied_resource##")
           )
-        );
-      }
-      resolve([] as string[]);
+        : ([] as string[]);
+      resolve(ret);
     });
   });
   await chrome.storage.local.remove(invalidKeys);
