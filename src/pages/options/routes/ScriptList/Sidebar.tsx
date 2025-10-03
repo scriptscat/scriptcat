@@ -282,7 +282,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
     tagMap.current.clear();
     originMap.current.clear();
 
-    scriptList.forEach((script) => {
+    for (const script of scriptList) {
       // 状态统计
       if (script.status === SCRIPT_STATUS_ENABLE) {
         statusItems[1].count++;
