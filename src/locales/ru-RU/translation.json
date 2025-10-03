@@ -475,5 +475,31 @@
   "blacklist_pages_desc": "Запретить запуск скриптов на указанных страницах, поддерживает подстановочные знаки",
   "development_tools": "Инструменты разработки",
   "check_script_code_quality": "Проверить качество кода скрипта и ошибки",
-  "custom_eslint_rules_config": "Пользовательская конфигурация правил ESLint (формат JSON)"
+  "custom_eslint_rules_config": "Пользовательская конфигурация правил ESLint (формат JSON)",
+  "light": "Светлый режим",
+  "dark": "Темный режим",
+  "individual_edit": "Индивидуальное редактирование",
+  "batch_edit": "Пакетное редактирование",
+  "script_code": "Код скрипта",
+  "enter_search_value": "Введите {{search}} для поиска",
+  "script_run_env": {
+    "title": "Среда выполнения",
+    "default": "По умолчанию",
+    "all": "Все вкладки",
+    "normal-tabs": "Обычные вкладки",
+    "incognito-tabs": "Приватные вкладки"
+  },
+  "editor_config": "Конфигурация редактора",
+  "editor_config_description": "Вы можете настроить compilerOptions, ссылаясь на <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>",
+  "editor_type_definition": "Определения типов редактора",
+  "editor_type_definition_description": "Вы можете настроить собственные определения типов, которые редактор скриптов будет автоматически загружать",
+  "eslint_rules_reset": "Правила ESLint сброшены",
+  "eslint_rules_saved": "Правила ESLint сохранены",
+  "editor_config_reset": "Конфигурация редактора сброшена",
+  "editor_config_saved": "Конфигурация редактора сохранена",
+  "editor_config_format_error": "Ошибка формата конфигурации редактора",
+  "editor_type_definition_reset": "Определения типов редактора сброшены",
+  "editor_type_definition_saved": "Определения типов редактора сохранены",
+  "layout": "Макет",
+  "hide_script_list": "Скрыть список скриптов"
 }

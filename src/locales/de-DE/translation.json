@@ -475,5 +475,31 @@
   "blacklist_pages_desc": "Verbietet Skripts auf bestimmten Seiten zu laufen, unterstützt Wildcards",
   "development_tools": "Entwicklertools",
   "check_script_code_quality": "Skriptcode-Qualität und Fehler prüfen",
-  "custom_eslint_rules_config": "Benutzerdefinierte ESLint-Regelkonfiguration (JSON-Format)"
+  "custom_eslint_rules_config": "Benutzerdefinierte ESLint-Regelkonfiguration (JSON-Format)",
+  "light": "Heller Modus",
+  "dark": "Dunkler Modus",
+  "individual_edit": "Einzeln bearbeiten",
+  "batch_edit": "Bulk edit",
+  "script_code": "Skriptcode",
+  "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
+  "script_run_env": {
+    "title": "Laufzeitumgebung",
+    "default": "default",
+    "all": "Alle Bezeichnungen",
+    "normal-tabs": "Normale Tabs",
+    "incognito-tabs": "Inkognito-Tabs"
+  },
+  "editor_config": "Editor-Konfiguration",
+  "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",
+  "editor_type_definition": "Editor-Typdefinitionen",
+  "editor_type_definition_description": "Sie können Ihre eigenen Typdefinitionen anpassen, der Skript-Editor wird diese automatisch laden",
+  "eslint_rules_reset": "ESLint-Regeln wurden zurückgesetzt",
+  "eslint_rules_saved": "ESLint-Regeln wurden gespeichert",
+  "editor_config_reset": "Editor-Konfiguration wurde zurückgesetzt",
+  "editor_config_saved": "Editor-Konfiguration wurde gespeichert",
+  "editor_config_format_error": "Editor-Konfiguration Formatfehler",
+  "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
+  "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
+  "layout": "Layout",
+  "hide_script_list": "Skriptliste ausblenden"
 }
