@@ -327,7 +327,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
         }
         originMapSet.add(script.uuid);
       }
-    });
+    }
     tagItems.push(
       ...Array.from(tagMap.current.keys()).map((tag) => {
         // 标签过滤选项
