@@ -87,7 +87,7 @@ export class RuntimeService {
   loadingInitRegisteredPromise: Promise<any> | undefined;
 
   compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
-  
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
