@@ -16,7 +16,6 @@ const tagRender: React.FC<{ value: any; label: ReactNode; closable: boolean; onC
   props
 ) => {
   const { label, value, closable, onClose } = props;
-  console.log(value);
   return (
     <Tag color={hashColor(value)} closable={closable} onClose={onClose} style={{ margin: "2px 6px 2px 0" }}>
       {label}
