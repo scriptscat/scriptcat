@@ -501,5 +501,16 @@
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
   "layout": "Layout",
-  "hide_script_list": "Skriptliste ausblenden"
+  "hide_script_list": "Skriptliste ausblenden",
+  "script_list": {
+    "sidebar": {
+      "stopped": "Gestoppt",
+      "all": "Alle",
+      "normal_script": "Normales Skript",
+      "status": "Status"
+    }
+  },
+  "tags": "Tags",
+  "install_source": "Installationsquelle",
+  "input_tags_placeholder": "Tags eingeben, Enter drücken um zu bestätigen"
 }

@@ -501,5 +501,16 @@
   "editor_type_definition_reset": "Định nghĩa kiểu trình soạn thảo đã được đặt lại",
   "editor_type_definition_saved": "Định nghĩa kiểu trình soạn thảo đã được lưu",
   "layout": "Bố cục",
-  "hide_script_list": "Ẩn danh sách script"
+  "hide_script_list": "Ẩn danh sách script",
+  "script_list": {
+    "sidebar": {
+      "stopped": "Đã dừng",
+      "all": "Tất cả",
+      "normal_script": "Script bình thường",
+      "status": "Trạng thái"
+    }
+  },
+  "tags": "Thẻ",
+  "install_source": "Nguồn cài đặt",
+  "input_tags_placeholder": "Nhập thẻ, nhấn Enter để xác nhận"
 }

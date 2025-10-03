@@ -202,50 +202,60 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
   const { statusItems, typeItems, tagItems, sourceItems } = useMemo(() => {
     // 状态过滤选项
     const statusItems: FilterItem[] = [
-      { key: "all", label: t("all"), icon: <IconCode style={{ fontSize: 14 }} />, count: scriptList.length },
+      {
+        key: "all",
+        label: t("script_list.sidebar.all"),
+        icon: <IconCode style={{ fontSize: 14 }} />,
+        count: scriptList.length,
+      },
       {
         key: SCRIPT_STATUS_ENABLE,
-        label: "开启",
+        label: t("enable"),
         icon: <IconPlayArrow style={{ fontSize: 14, color: "#52c41a" }} />,
         count: 0,
       },
       {
         key: SCRIPT_STATUS_DISABLE,
-        label: "关闭",
+        label: t("disable"),
         icon: <IconPause style={{ fontSize: 14, color: "#ff4d4f" }} />,
         count: 0,
       },
       {
         key: SCRIPT_RUN_STATUS_RUNNING,
-        label: "运行中",
+        label: t("running"),
         icon: <IconPlayArrow style={{ fontSize: 14, color: "#1890ff" }} />,
         count: 0,
       },
       {
         key: SCRIPT_RUN_STATUS_COMPLETE,
-        label: "停止",
+        label: t("script_list.sidebar.stopped"),
         icon: <IconStop style={{ fontSize: 14, color: "#8c8c8c" }} />,
         count: 0,
       },
     ];
     // 类型过滤选项
     const typeItems: FilterItem[] = [
-      { key: "all", label: "全部", icon: <IconCode style={{ fontSize: 14 }} />, count: scriptList.length },
+      {
+        key: "all",
+        label: t("script_list.sidebar.all"),
+        icon: <IconCode style={{ fontSize: 14 }} />,
+        count: scriptList.length,
+      },
       {
         key: SCRIPT_TYPE_NORMAL,
-        label: "普通脚本",
+        label: t("script_list.sidebar.normal_script"),
         icon: <IconCode style={{ fontSize: 14, color: "#1890ff" }} />,
         count: 0,
       },
       {
         key: SCRIPT_TYPE_BACKGROUND,
-        label: "后台脚本",
+        label: t("background_script"),
         icon: <IconDesktop style={{ fontSize: 14, color: "#722ed1" }} />,
         count: 0,
       },
       {
         key: SCRIPT_TYPE_CRONTAB,
-        label: "定时脚本",
+        label: t("scheduled_script"),
         icon: <IconClockCircle style={{ fontSize: 14, color: "#fa8c16" }} />,
         count: 0,
       },
@@ -253,12 +263,22 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
 
     // 标签过滤选项
     const tagItems: FilterItem[] = [
-      { key: "all", label: "全部", icon: <IconTags style={{ fontSize: 14 }} />, count: scriptList.length },
+      {
+        key: "all",
+        label: t("script_list.sidebar.all"),
+        icon: <IconTags style={{ fontSize: 14 }} />,
+        count: scriptList.length,
+      },
     ];
 
     // 安装来源过滤选项
     const sourceItems: FilterItem[] = [
-      { key: "all", label: "全部", icon: <IconLink style={{ fontSize: 14 }} />, count: scriptList.length },
+      {
+        key: "all",
+        label: t("script_list.sidebar.all"),
+        icon: <IconLink style={{ fontSize: 14 }} />,
+        count: scriptList.length,
+      },
     ];
 
     tagMap.current.clear();
@@ -417,7 +437,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
     >
       <div className="space-y-4">
         <FilterGroup
-          title="状态"
+          title={t("script_list.sidebar.status")}
           items={statusItems}
           groupKey="status"
           collapsedGroups={collapsedGroups}
@@ -426,7 +446,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           onToggleCollapse={toggleGroupCollapse}
         />
         <FilterGroup
-          title="类型"
+          title={t("type")}
           items={typeItems}
           groupKey="type"
           collapsedGroups={collapsedGroups}
@@ -435,7 +455,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           onToggleCollapse={toggleGroupCollapse}
         />
         <FilterGroup
-          title="标签"
+          title={t("tags")}
           items={tagItems}
           groupKey="tags"
           collapsedGroups={collapsedGroups}
@@ -444,7 +464,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           onToggleCollapse={toggleGroupCollapse}
         />
         <FilterGroup
-          title="安装来源"
+          title={t("install_source")}
           items={sourceItems}
           groupKey="source"
           collapsedGroups={collapsedGroups}

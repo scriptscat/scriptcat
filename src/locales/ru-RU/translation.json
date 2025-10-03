@@ -501,5 +501,16 @@
   "editor_type_definition_reset": "Определения типов редактора сброшены",
   "editor_type_definition_saved": "Определения типов редактора сохранены",
   "layout": "Макет",
-  "hide_script_list": "Скрыть список скриптов"
+  "hide_script_list": "Скрыть список скриптов",
+  "script_list": {
+    "sidebar": {
+      "stopped": "Остановлено",
+      "all": "Все",
+      "normal_script": "Обычный скрипт",
+      "status": "Статус"
+    }
+  },
+  "tags": "Теги",
+  "install_source": "Источник установки",
+  "input_tags_placeholder": "Введите теги, нажмите Enter для подтверждения"
 }

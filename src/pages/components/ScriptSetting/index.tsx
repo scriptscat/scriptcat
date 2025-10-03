@@ -87,11 +87,11 @@ const ScriptSetting: React.FC<{
             value: script?.uuid,
           },
           {
-            label: "标签",
+            label: t("tags"),
             value: (
               <InputTag
                 allowClear
-                placeholder="请输入标签，回车确认"
+                placeholder={t("input_tags_placeholder")}
                 value={scriptTags}
                 renderTag={tagRender}
                 style={{ maxWidth: 350 }}
