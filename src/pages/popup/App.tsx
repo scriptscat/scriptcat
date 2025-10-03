@@ -191,7 +191,7 @@ function App() {
       setCheckUpdate(checkUpdate);
     };
     const queryTabInfo = async () => {
-      // 仅在挂载时读取一次页签资讯；不绑定 currentUrl 以避免重复查询
+      // 仅在挂载时读取一次页签信息；不绑定 currentUrl 以避免重复查询
       try {
         const tab = await getCurrentTab();
         if (!isMounted || !tab) return;
