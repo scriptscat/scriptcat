@@ -102,7 +102,6 @@ export class PopupService {
         const menuUid = `scriptMenu_menu_${uuid}_${groupKey}`;
         const createProperties = {
           id: menuUid,
-          // id: `id${Math.floor(Math.random() * 9000 + 9000).toString(32)}`,
           title: name,
           contexts: ["all"],
           parentId: `scriptMenu_${uuid}`, // 上层是 `scriptMenu_${uuid}`
