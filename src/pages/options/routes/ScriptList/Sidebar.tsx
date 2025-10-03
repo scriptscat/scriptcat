@@ -316,7 +316,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
             tagMap.current.set(tag, tagMapSet);
           }
           tagMapSet.add(script.uuid);
-        });
+        }
       }
       // 来源统计
       if (script.originDomain) {
