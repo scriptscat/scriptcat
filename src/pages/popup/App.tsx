@@ -1,4 +1,4 @@
-import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
+import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
 import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
 import {
   IconBook,
@@ -40,6 +40,7 @@ function App() {
     notice: "",
     isRead: false,
   });
+  const [checkUpdateStatus, setCheckUpdateStatus] = useState(0);
   const [currentUrl, setCurrentUrl] = useState("");
   const [isEnableScript, setIsEnableScript] = useState(true);
   const [isBlacklist, setIsBlacklist] = useState(false);
@@ -184,7 +185,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await doCheckUpdateInPopupMenu(); // 在service_worker打開新tab及進行檢查。
+        await doCheckUpdateInPopupMenu(); // 在service_worker打开新tab及进行检查。
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;
@@ -200,6 +201,29 @@ function App() {
         break;
     }
   };
+
+  useEffect(() => {
+    if (checkUpdateStatus === 1) {
+      Promise.all([
+        fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`).then((resp) => resp.json()),
+        // 加 800ms delay 避免过快显示
+        new Promise((resolve) => setTimeout(resolve, 800)),
+      ]).then(([resp]: [{ data: { notice: string; version: string } }, any]) => {
+        let newCheckUpdateState = 0;
+        setCheckUpdate((items) => {
+          if (resp.data.version === items.version) {
+            newCheckUpdateState = 2;
+            return items;
+          }
+          const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+          const newCheckUpdate = Object.assign(resp.data, { isRead: isRead });
+          systemConfig.setCheckUpdate(newCheckUpdate);
+          return newCheckUpdate;
+        });
+        setCheckUpdateStatus(() => newCheckUpdateState);
+      });
+    }
+  }, [checkUpdateStatus]);
 
   return (
     <>
@@ -321,7 +345,7 @@ function App() {
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
           <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
-          {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS && (
+          {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
             <span
               onClick={() => {
                 window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
@@ -330,6 +354,33 @@ function App() {
             >
               {t("popup.new_version_available")}
             </span>
+          ) : checkUpdateStatus === 0 ? (
+            <span
+              onClick={() => {
+                setCheckUpdateStatus(1);
+              }}
+              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
+            >
+              {t("check_update")}
+            </span>
+          ) : checkUpdateStatus === 1 ? (
+            <span
+              onClick={() => {}}
+              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
+            >
+              {t("checking_for_updates")}
+            </span>
+          ) : checkUpdateStatus === 2 ? (
+            <span
+              onClick={() => {
+                setCheckUpdateStatus(1);
+              }}
+              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
+            >
+              {t("latest_version")}
+            </span>
+          ) : (
+            <></>
           )}
         </div>
       </Card>
