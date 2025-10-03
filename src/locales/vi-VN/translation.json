@@ -479,5 +479,27 @@
   "light": "Sáng",
   "dark": "Tối",
   "individual_edit": "Chỉnh sửa riêng lẻ",
-  "batch_edit": "Chỉnh sửa hàng loạt"
+  "batch_edit": "Chỉnh sửa hàng loạt",
+  "script_code": "Mã script",
+  "enter_search_value": "Nhập {{search}} để tìm kiếm",
+  "script_run_env": {
+    "title": "Môi trường chạy",
+    "default": "Mặc định",
+    "all": "Tất cả tab",
+    "normal-tabs": "Tab thường",
+    "incognito-tabs": "Tab ẩn danh"
+  },
+  "editor_config": "Cấu hình trình soạn thảo",
+  "editor_config_description": "Bạn có thể tham khảo compilerOptions trong <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> để cấu hình",
+  "editor_type_definition": "Định nghĩa kiểu trình soạn thảo",
+  "editor_type_definition_description": "Bạn có thể tự định nghĩa các kiểu của riêng mình, trình soạn thảo script sẽ tự động tải những định nghĩa kiểu này",
+  "eslint_rules_reset": "Quy tắc ESLint đã được đặt lại",
+  "eslint_rules_saved": "Quy tắc ESLint đã được lưu",
+  "editor_config_reset": "Cấu hình trình soạn thảo đã được đặt lại",
+  "editor_config_saved": "Cấu hình trình soạn thảo đã được lưu",
+  "editor_config_format_error": "Lỗi định dạng cấu hình trình soạn thảo",
+  "editor_type_definition_reset": "Định nghĩa kiểu trình soạn thảo đã được đặt lại",
+  "editor_type_definition_saved": "Định nghĩa kiểu trình soạn thảo đã được lưu",
+  "layout": "Bố cục",
+  "hide_script_list": "Ẩn danh sách script"
 }
