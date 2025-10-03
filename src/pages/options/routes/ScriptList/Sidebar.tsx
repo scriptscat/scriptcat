@@ -309,7 +309,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       }
       if (metadata.tag) {
         const tags = parseTags(metadata);
-        tags.forEach((tag) => {
+        for (const tag of tags) {
           let tagMapSet = tagMap.current.get(tag);
           if (!tagMapSet) {
             tagMapSet = new Set();
