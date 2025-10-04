@@ -389,8 +389,7 @@ declare namespace GMTypes {
      * - `true` → 新标签页会立即切换到前台。
      * - `false` → 新标签页在后台打开，不会打断当前页面的焦点。
      *
-     * 支持环境：FM、TM、VM
-     * 默认值：TM = false，SC/VM = true
+     * 默认值：true
      */
     active?: boolean;
 
@@ -400,12 +399,11 @@ declare namespace GMTypes {
      * - 如果是 `boolean`：
      *   - `true` → 插入在当前标签页之后。
      *   - `false` → 插入到窗口末尾。
-     * - 如果是 `number`（仅 ScriptCat 扩展）：
+     * - 如果是 `number`：
      *   - `0` → 插入到当前标签前一格。
      *   - `1` → 插入到当前标签后一格。
      *
-     * 支持环境：FM、TM、VM
-     * 默认值：TM = true
+     * 默认值：true
      */
     insert?: boolean | number;
 
@@ -415,8 +413,7 @@ declare namespace GMTypes {
      * - `true` → 浏览器能追踪由哪个标签打开的子标签，
      *   有助于某些扩展（如标签树管理器）识别父子关系。
      *
-     * 支持环境：FM、TM
-     * 默认值：TM = false，SC = true（因兼容性问题）
+     * 默认值：true
      */
     setParent?: boolean;
 
@@ -427,7 +424,7 @@ declare namespace GMTypes {
      * 在 normal window 中执行时，tabId/windowId 将不可用，
      * 只能执行「打开新标签页」动作。
      *
-     * 支持环境：FM、TM
+     * 默认值：false
      */
     incognito?: boolean;
 
@@ -440,7 +437,8 @@ declare namespace GMTypes {
      *
      * ⚠️ 不推荐使用：与 `active` 功能重复且容易混淆。
      *
-     * 支持环境：TM
+     * 默认值：false
+     * @deprecated 请使用 `active` 替代
      */
     loadInBackground?: boolean;
 
@@ -450,18 +448,16 @@ declare namespace GMTypes {
      * - `true` → 新标签页为固定状态。
      * - `false` → 普通标签页。
      *
-     * 支持环境：FM、VM
+     * 默认值：false
      */
     pinned?: boolean;
 
     /**
-     * 实验性功能，仅 ScriptCat 支持。
-     *
      * 使用 `window.open` 打开新窗口，而不是浏览器 API。
-     * - 优点：在部分受限环境下依然可用。
-     * - 缺点：不兼容 Firefox，也可能与其他脚本管理器不兼容。
+     * 可以打开某些特殊的链接
      *
-     * 相关：#178
+     * 相关：Issue #178
+     * 默认值：false
      */
     useOpen?: boolean;
   }
