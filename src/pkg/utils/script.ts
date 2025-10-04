@@ -120,7 +120,7 @@ export async function prepareScriptByCode(
   if (origin.includes("/")) {
     urlSplit = origin.split("/");
     if (urlSplit[2]) {
-      [, domain] = urlSplit;
+      domain = urlSplit[2];
     }
   }
   const newUUID = uuid || uuidv4();

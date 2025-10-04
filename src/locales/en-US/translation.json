@@ -501,5 +501,20 @@
   "editor_type_definition_reset": "Editor Type Definition Reset",
   "editor_type_definition_saved": "Editor Type Definition Saved",
   "layout": "Layout",
-  "hide_script_list": "Hide Script List"
+  "hide_script_list": "Hide Script List",
+  "script_list": {
+    "sidebar": {
+      "stopped": "Stopped",
+      "all": "All",
+      "normal_script": "Normal Script",
+      "status": "Status"
+    }
+  },
+  "tags": "Tags",
+  "install_source": "Install Source",
+  "input_tags_placeholder": "Enter tags, press Enter to confirm",
+  "switch_to_card_mode": "Switch to Card Mode",
+  "switch_to_table_mode": "Switch to Table Mode",
+  "open_sidebar": "Open Sidebar",
+  "close_sidebar": "Close Sidebar"
 }
