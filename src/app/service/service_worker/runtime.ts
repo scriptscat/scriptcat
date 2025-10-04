@@ -31,7 +31,6 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompliedResource, Resource } from "@App/app/repo/resource";
@@ -627,10 +626,6 @@ export class RuntimeService {
       // 过滤掉undefined和未开启的
       return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
     });
-
-    for (const script of registerScripts) {
-      cacheInstance.del(`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`);
-    }
 
     return registerScripts;
   }
@@ -1310,12 +1305,9 @@ export class RuntimeService {
         logger.error("registerScript error", Logger.E(e));
       }
     }
-    // 删除缓存
-    await cacheInstance.del(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`);
   }
 
   async unregistryPageScript(uuid: string) {
-    const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
@@ -1327,7 +1319,5 @@ export class RuntimeService {
         chrome.userScripts.unregister({ ids: [uuid] }),
       ]);
     }
-    // 删除缓存
-    await cacheInstance.del(cacheKey);
   }
 }
