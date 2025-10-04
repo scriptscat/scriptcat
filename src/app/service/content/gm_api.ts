@@ -19,7 +19,7 @@ export interface IGM_Base {
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
-const integrity = {}; // 僅防止非法实例化
+const integrity = {}; // 仅防止非法实例化
 
 // GM_Base 定义内部用变量和函数。均使用@protected
 // 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
@@ -1026,17 +1026,25 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_closeInTab"], alias: "GM.openInTab" })
-  public GM_openInTab(url: string, options?: GMTypes.OpenTabOptions | boolean): GMTypes.Tab {
-    let option: GMTypes.OpenTabOptions = {};
-    if (arguments.length === 1) {
-      option.active = true;
-    } else if (typeof options === "boolean") {
-      option.active = !options;
-    } else {
-      option = <GMTypes.OpenTabOptions>options;
+  public GM_openInTab(url: string, param?: GMTypes.OpenTabOptions | boolean): GMTypes.Tab {
+    let option = {} as GMTypes.OpenTabOptions;
+    if (typeof param === "boolean") {
+      option.active = !param; // Greasemonkey 3.x loadInBackground
+    } else if (param) {
+      option = { ...param } as GMTypes.OpenTabOptions;
     }
-    if (option.active === undefined) {
-      option.active = true;
+    if (typeof option.active !== "boolean" && typeof option.loadInBackground === "boolean") {
+      // TM 同时兼容 active 和 loadInBackground ( active 优先 )
+      option.active = !option.loadInBackground;
+    } else if (option.active === undefined) {
+      option.active = true; // TM 预设 active: false；VM 预设 active: true；旧SC 预设 active: true；GM 依从 浏览器
+    }
+    if (option.insert === undefined) {
+      option.insert = true; // TM 预设 insert: true；VM 预设 insert: true；旧SC 无此设计 (false)
+    }
+    if (option.setParent === undefined) {
+      option.setParent = true; // TM 预设 setParent: false; 旧SC 预设 setParent: true;
+      // SC 预设 setParent: true 以避免不可预计的问题
     }
     let tabid: any;
 
@@ -1213,8 +1221,8 @@ export default class GMApi extends GM_Base {
   }
 }
 
-// 從 GM_Base 對象中解構出 createGMBase 函数並導出（可供其他模塊使用）
+// 从 GM_Base 对象中解构出 createGMBase 函数并导出（可供其他模块使用）
 export const { createGMBase } = GM_Base;
 
-// 從 GMApi 對象中解構出內部函數，用於後續本地使用，不導出
+// 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
 const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_xmlhttpRequest } = GMApi;
