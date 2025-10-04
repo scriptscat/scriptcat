@@ -810,7 +810,8 @@ export default class GMApi {
   @PermissionVerify.API({})
   async GM_openInTab(request: Request, sender: IGetSender) {
     const url = request.params[0] as string;
-    const options = (request.params[1] || {}) as GMTypes.OpenTabOptions;
+    const options = (request.params[1] || {}) as GMTypes.OpenTabOptions &
+      Required<Pick<GMTypes.OpenTabOptions, "active">>;
     const getNewTabId = async () => {
       if (options.useOpen === true) {
         // 发送给offscreen页面处理 （使用window.open）
