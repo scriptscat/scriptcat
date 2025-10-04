@@ -178,8 +178,6 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
     source: "all",
   });
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const tagMap = useRef<Map<string, Set<string>>>(new Map());
-  const originMap = useRef<Map<string, Set<string>>>(new Map());
 
   const handleFilterClick = (groupKey: string, itemKey: string | number) => {
     setSelectedFilters((prev) => ({
@@ -197,7 +195,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
   };
 
   // 计算数据量
-  const { statusItems, typeItems, tagItems, sourceItems } = useMemo(() => {
+  const { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap } = useMemo(() => {
     // 状态过滤选项
     const statusItems: FilterItem[] = [
       {
@@ -279,8 +277,8 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       },
     ];
 
-    tagMap.current.clear();
-    originMap.current.clear();
+    const tagMap = {} as Record<string, Set<string>>;
+    const originMap = {} as Record<string, Set<string>>;
 
     for (const script of scriptList) {
       // 状态统计
@@ -310,28 +308,20 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       if (metadata.tag) {
         const tags = parseTags(metadata);
         for (const tag of tags) {
-          let tagMapSet = tagMap.current.get(tag);
-          if (!tagMapSet) {
-            tagMapSet = new Set();
-            tagMap.current.set(tag, tagMapSet);
-          }
+          const tagMapSet = tagMap[tag] || (tagMap[tag] = new Set());
           tagMapSet.add(script.uuid);
         }
       }
       // 来源统计
       if (script.originDomain) {
-        let originMapSet = originMap.current.get(script.originDomain);
-        if (!originMapSet) {
-          originMapSet = new Set();
-          originMap.current.set(script.originDomain, originMapSet);
-        }
+        const originMapSet = originMap[script.originDomain] || (originMap[script.originDomain] = new Set());
         originMapSet.add(script.uuid);
       }
     }
     tagItems.push(
-      ...Array.from(tagMap.current.keys()).map((tag) => {
+      ...Object.keys(tagMap).map((tag) => {
         // 标签过滤选项
-        const count = tagMap.current.get(tag)?.size || 0;
+        const count = tagMap[tag]?.size || 0;
         return {
           key: tag,
           label: tag,
@@ -341,8 +331,8 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       })
     );
     sourceItems.push(
-      ...Array.from(originMap.current.keys()).map((source) => {
-        const count = originMap.current.get(source)?.size || 0;
+      ...Object.keys(originMap).map((source) => {
+        const count = originMap[source]?.size || 0;
         return {
           key: source,
           label: source,
@@ -351,7 +341,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
         };
       })
     );
-    return { statusItems, typeItems, tagItems, sourceItems };
+    return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
   }, [scriptList, t]);
 
   useEffect(() => {
@@ -395,7 +385,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           break;
         case "tags":
           if (itemKey !== "all") {
-            const scriptSet = tagMap.current.get(itemKey as string);
+            const scriptSet = tagMap[itemKey as string];
             if (scriptSet) {
               filterFuncs.push((script) => scriptSet.has(script.uuid));
             }
@@ -403,7 +393,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
           break;
         case "source":
           if (itemKey !== "all") {
-            const scriptSet = originMap.current.get(itemKey as string);
+            const scriptSet = originMap[itemKey as string];
             if (scriptSet) {
               filterFuncs.push((script) => scriptSet.has(script.uuid));
             }
@@ -412,7 +402,7 @@ const ScriptListSidebar: React.FC<SidebarProps> = ({ open, scriptList, onFilter 
       }
     }
     onFilter(scriptList.filter((script) => filterFuncs.every((fn) => fn(script))));
-  }, [onFilter, scriptList, selectedFilters]);
+  }, [onFilter, originMap, scriptList, selectedFilters, tagMap]);
 
   if (!open) {
     return null;

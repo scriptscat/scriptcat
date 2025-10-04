@@ -211,15 +211,13 @@ export function hashColor(text: string): string {
     "gray",
   ];
 
-  // 简单的哈希函数
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    const char = text.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // 转换为32位整数
+  // djb2 哈希函数
+  let hash = 5381;
+  for (let i = 0, l = text.length; i < l; i++) {
+    hash = (hash * 33) ^ text.charCodeAt(i);
   }
+  hash = hash >>> 0; // 确保正整数
 
-  // 确保哈希值为正数并取模得到颜色索引
-  const index = Math.abs(hash) % colors.length;
+  const index = hash % colors.length;
   return colors[index];
 }
