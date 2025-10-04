@@ -51,6 +51,7 @@ import {
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { CompliedResourceDAO } from "@App/app/repo/resource";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -63,6 +64,7 @@ export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
+  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
   private readonly scriptUpdateCheck;
 
   constructor(
@@ -259,6 +261,8 @@ export class ScriptService {
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
+    // 刪 storage cache
+    this.compliedResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,

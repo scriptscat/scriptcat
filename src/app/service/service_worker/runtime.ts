@@ -9,7 +9,7 @@ import GMApi, { GMExternalDependencies } from "./gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
-import { getUserScriptRegister } from "./utils";
+import { getUserScriptRegister, parseScriptLoadInfo } from "./utils";
 import {
   checkUserScriptsAvailable,
   randomMessageFlag,
@@ -21,7 +21,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -31,11 +31,20 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv } from "../content/types";
 import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { CACHE_KEY_REGISTRY_SCRIPT } from "@App/app/cache_key";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
+import type { CompliedResource, Resource } from "@App/app/repo/resource";
+import { CompliedResourceDAO, CompliedResourceNamespace, ResourceNamespace } from "@App/app/repo/resource";
+import { v5 as uuidv5 } from "uuid";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
+
+const runtimeGlobal = {
+  registered: false,
+  messageFlag: "PENDING",
+};
+
+const reCompliedResource = new RegExp(`\\{\\{${CompliedResourceNamespace}:resource:([^:{}\\[\\]\\s]+)\\}\\}`, "g");
 
 export class RuntimeService {
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -73,6 +82,11 @@ export class RuntimeService {
   sitesLoaded: Set<string> = new Set<string>();
   updateSitesBusy: boolean = false;
 
+  loadingInitFlagPromise: Promise<any> | undefined;
+  loadingInitRegisteredPromise: Promise<any> | undefined;
+
+  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
+
   constructor(
     private systemConfig: SystemConfig,
     private group: Group,
@@ -84,6 +98,28 @@ export class RuntimeService {
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
   ) {
+    this.loadingInitFlagPromise = this.localStorageDAO
+      .get("scriptInjectMessageFlag")
+      .then((res) => {
+        runtimeGlobal.messageFlag = res?.value || randomMessageFlag();
+        return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
+      })
+      .catch(console.error);
+    this.loadingInitRegisteredPromise = new Promise<void>((resolve) => {
+      let result = false;
+      chrome.userScripts
+        .getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] })
+        .then((res) => {
+          if (res.length === 2) {
+            result = true;
+          }
+        })
+        .finally(() => {
+          runtimeGlobal.registered = result;
+          // 考虑 API 不可使用情况，使用 finally
+          resolve();
+        });
+    });
     this.logger = LoggerCore.logger({ component: "runtime" });
 
     // 使用中间件
@@ -160,7 +196,7 @@ export class RuntimeService {
   }
 
   async valueUpdate(data: TScriptValueUpdate) {
-    if (!isEarlyStartScript(data.script)) {
+    if (!isEarlyStartScript(data.script.metadata)) {
       return;
     }
     // 如果是预加载脚本，需要更新脚本代码重新注册
@@ -253,6 +289,7 @@ export class RuntimeService {
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
       for (const { uuid } of data) {
+        await this.compliedResourceDAO.delete(uuid);
         await this.unregistryPageScript(uuid);
         await this.deleteScriptMatch(uuid);
       }
@@ -378,10 +415,12 @@ export class RuntimeService {
 
     this.initReady = (async () => {
       // 取得初始值
-      const [isUserScriptsAvailable, isLoadScripts, strBlacklist] = await Promise.all([
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
+        this.loadingInitFlagPromise,
+        this.loadingInitRegisteredPromise,
       ]);
 
       // 保存初始值
@@ -428,24 +467,66 @@ export class RuntimeService {
 
   // 取消脚本注册
   async unregisterUserscripts() {
-    await Promise.allSettled([chrome.userScripts.unregister(), this.deleteMessageFlag()]);
-  }
-
-  async getAndGenMessageFlag() {
-    let flag = await this.localStorageDAO.get("scriptInjectMessageFlag");
-    if (!flag) {
-      flag = { key: "scriptInjectMessageFlag", value: randomMessageFlag() };
-      await this.localStorageDAO.save(flag);
+    // 检查 registered 避免重复操作增加系统开支
+    if (runtimeGlobal.registered) {
+      runtimeGlobal.registered = false;
+      // 重置 flag 避免取消注册失败
+      // 即使注册失败，通过重置 flag 可避免错误地呼叫已取消注册的Script
+      runtimeGlobal.messageFlag = randomMessageFlag();
+      await Promise.allSettled([
+        chrome.userScripts.unregister(),
+        this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag }),
+      ]);
     }
-    return flag.value;
-  }
-
-  deleteMessageFlag() {
-    return this.localStorageDAO.delete("scriptInjectMessageFlag");
   }
 
   getMessageFlag() {
-    return this.localStorageDAO.get("scriptInjectMessageFlag").then((res) => res?.value);
+    return runtimeGlobal.messageFlag;
+  }
+
+  async complieInjectionCodeByLoadInfo(scriptRes: ScriptLoadInfo) {
+    let scriptResCode = scriptRes.code;
+    if (scriptResCode === "") {
+      scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
+    }
+    const scriptCode = compileScriptCode(scriptRes, scriptResCode);
+    const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+    let scriptInjectCode;
+    if (preDocumentStartScript) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+    }
+    return scriptInjectCode;
+  }
+
+  complieInjectionCodeByMatchInfo(scriptMatchInfo: ScriptMatchInfo) {
+    const scriptCode = scriptMatchInfo.code;
+    const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
+    let scriptInjectCode;
+    if (preDocumentStartScript) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptCode, true);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptMatchInfo, scriptCode, true);
+    }
+    return scriptInjectCode;
+  }
+
+  getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
+    const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
+    if (!res) {
+      return undefined;
+    }
+    const { registerScript } = res!;
+    // 过滤掉matches为空的脚本
+    if (!registerScript.matches || registerScript.matches.length === 0) {
+      this.logger.error("registerScript matches is empty", {
+        script: scriptMatchInfo.name,
+        uuid: scriptMatchInfo.uuid,
+      });
+      return undefined;
+    }
+    return registerScript;
   }
 
   async getParticularScriptList() {
@@ -457,26 +538,128 @@ export class RuntimeService {
         if (script.type !== SCRIPT_TYPE_NORMAL) {
           return undefined;
         }
-        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-        if (!scriptMatchInfo) {
-          return undefined;
+        let resultCode = "";
+        let result = await this.compliedResourceDAO.get(script.uuid);
+        if (!result) {
+          const apiScript = await (async () => {
+            // 如果没开启, 则不注册
+            if (script.status !== SCRIPT_STATUS_ENABLE) {
+              return undefined;
+            }
+            const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+            if (!scriptMatchInfo) {
+              return undefined;
+            }
+            const registerScript = this.getUserScriptRegister(scriptMatchInfo);
+
+            return registerScript;
+          })();
+
+          if (!apiScript) {
+            result = {
+              uuid: script.uuid,
+              storeCode: "",
+              matches: [],
+              includeGlobs: [],
+              excludeMatches: [],
+              excludeGlobs: [],
+              allFrames: false,
+              world: "",
+              runAt: "",
+            } as CompliedResource;
+          } else {
+            resultCode = apiScript.js[0].code || "";
+            let storeCode = resultCode;
+            if (!storeCode.includes(`{{${CompliedResourceNamespace}:`)) {
+              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+              if (originalCode && originalCode.code && storeCode.includes(originalCode.code)) {
+                storeCode = storeCode.replace(originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
+              }
+              const urls = [
+                ...(script.metadata["require"] || []),
+                ...(script.metadata["require-css"] || []),
+                ...(script.metadata["resource"] || []),
+              ];
+              if (urls.length > 0) {
+                const resourceUUIDs = urls.map((url) => uuidv5(url, ResourceNamespace));
+                const resources = await this.resource.resourceDAO.gets(urls);
+                let idx = -1;
+                for (const resource of resources) {
+                  idx++;
+                  const content = resource?.content;
+                  if (content && typeof content === "string" && storeCode.includes(content)) {
+                    storeCode = storeCode.replace(
+                      content,
+                      `{{${CompliedResourceNamespace}:resource:${resourceUUIDs[idx]}}}`
+                    );
+                  }
+                }
+              }
+            }
+            result = {
+              uuid: script.uuid,
+              storeCode: storeCode,
+              matches: apiScript.matches || [],
+              includeGlobs: apiScript.includeGlobs || [],
+              excludeMatches: apiScript.excludeMatches || [],
+              excludeGlobs: apiScript.excludeGlobs || [],
+              allFrames: apiScript.allFrames || false,
+              world: apiScript.world || "",
+              runAt: apiScript.runAt || "",
+            } as CompliedResource;
+          }
+
+          this.compliedResourceDAO.save(result);
+        } else {
+          if (result.storeCode) {
+            const replacing = (s: string, a: string, b: string) => {
+              // built-in replace cannot handle long text.
+              const i = s.indexOf(a);
+              if (i >= 0) {
+                return `${s.substring(0, i)}${b}${s.substring(i + a.length)}`;
+              }
+              return s;
+            };
+            let storeCode = result.storeCode;
+            const resourceUUIDs = [] as string[];
+            for (const m of storeCode.matchAll(reCompliedResource)) {
+              resourceUUIDs.push(m[1]);
+            }
+            if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
+              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+              if (originalCode && originalCode.code) {
+                storeCode = replacing(storeCode, `{{${CompliedResourceNamespace}:code}}`, originalCode.code);
+              }
+            }
+            if (resourceUUIDs.length > 0) {
+              const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
+              const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
+              for (const resourceUUID of resourceUUIDs) {
+                storeCode = replacing(
+                  storeCode,
+                  `{{${CompliedResourceNamespace}:resource:${resourceUUID}}}`,
+                  resources[`resource:${resourceUUID}`]?.content || ""
+                );
+              }
+            }
+            resultCode = storeCode;
+          }
         }
-        // 如果没开启, 则不注册
-        if (scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
-          return undefined;
-        }
-        const res = await getUserScriptRegister(scriptMatchInfo);
-        if (!res) {
-          return undefined;
-        }
-        const { registerScript } = res!;
-        // 过滤掉matches为空的脚本
-        if (!registerScript.matches || registerScript.matches.length === 0) {
-          this.logger.error("registerScript matches is empty", {
-            script: script.name,
-            uuid: script.uuid,
-          });
-          return undefined;
+
+        if (!resultCode) return undefined;
+
+        const registerScript = {
+          id: result.uuid,
+          js: [{ code: resultCode }],
+          matches: result.matches,
+          includeGlobs: result.includeGlobs,
+          excludeMatches: result.excludeMatches,
+          excludeGlobs: result.excludeGlobs,
+          allFrames: result.allFrames,
+          world: result.world,
+        } as chrome.userScripts.RegisteredUserScript;
+        if (result.runAt) {
+          registerScript.runAt = result.runAt as "document_start" | "document_end" | "document_idle";
         }
         return registerScript;
       })
@@ -484,12 +667,6 @@ export class RuntimeService {
       // 过滤掉undefined和未开启的
       return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
     });
-
-    const batchData: { [key: string]: boolean } = {};
-    for (const script of registerScripts) {
-      batchData[`${CACHE_KEY_REGISTRY_SCRIPT}${script.id}`] = true;
-    }
-    cacheInstance.batchSet(batchData);
 
     return registerScripts;
   }
@@ -511,7 +688,7 @@ export class RuntimeService {
       }
     }
 
-    const messageFlag = await this.getAndGenMessageFlag();
+    const messageFlag = runtimeGlobal.messageFlag;
     // 配置脚本运行环境: 注册时前先准备 chrome.runtime 等设定
     // Firefox MV3 只提供 runtime.sendMessage 及 runtime.connect
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts/WorldProperties#messaging
@@ -562,8 +739,8 @@ export class RuntimeService {
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
-    // messageFlag是用来判断是否已经注册过
-    if (await this.getMessageFlag()) {
+    // 判断是否已经注册过
+    if (runtimeGlobal.registered) {
       // 异常情况
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
@@ -571,11 +748,9 @@ export class RuntimeService {
         await loadingScriptMatchInfo;
         return;
       }
-      // 理论上不应该出现messageFlag存在但scriptcat-content/scriptcat-inject不存在的情况
-      // 如果出现，走一次重新注册的流程
-      this.logger.warn(
-        "messageFlag exists but scriptcat-content/scriptcat-inject not exists, re-register userscripts."
-      );
+      // scriptcat-content/scriptcat-inject不存在的情况
+      // 走一次重新注册的流程
+      this.logger.warn("registered = true but scriptcat-content/scriptcat-inject not exists, re-register userscripts.");
     }
     // 删除旧注册
     await this.unregisterUserscripts();
@@ -593,6 +768,7 @@ export class RuntimeService {
 
     const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...generalScriptList];
 
+    runtimeGlobal.registered = true;
     try {
       await chrome.userScripts.register(list);
     } catch (e: any) {
@@ -791,49 +967,32 @@ export class RuntimeService {
     );
 
     // 更新资源使用了file协议的脚本
-    const needUpdateRegisteredUserScripts = enableScript.filter((script) => {
-      let uriList: string[] = [];
-      // @require
-      if (Array.isArray(script.metadata.require)) {
-        uriList = uriList.concat(script.metadata.require);
+    const scriptsWithFileScheme = enableScript.filter((script) => {
+      const checker = (url: string) => url.startsWith("file://");
+      if (script.metadata.require) {
+        for (const url of script.metadata.require) {
+          if (checker(url)) return true;
+        }
       }
-      // @resource
-      if (Array.isArray(script.metadata.resource)) {
-        uriList = uriList.concat(
-          script.metadata.resource
-            .map((resourceInfo) => {
-              const split = resourceInfo.trim().split(/\s+/);
-              if (split.length >= 2) {
-                const resourceUri = split[1];
-                return resourceUri;
-              }
-            })
-            .filter((it) => it !== undefined)
-        );
+      if (script.metadata.resource) {
+        for (const resourceInfo of script.metadata.resource) {
+          // @resource abc https://domain/abc
+          const split = resourceInfo.trim().split(/\s+/);
+          if (split[1] && checker(split[1])) return true;
+        }
       }
-      return uriList.some((uri) => {
-        return uri.startsWith("file://");
-      });
     });
-    if (needUpdateRegisteredUserScripts.length) {
-      // this.logger.info("update registered userscripts", {
-      //   needReloadScript: needUpdateRegisteredUserScripts,
-      // });
+    if (scriptsWithFileScheme.length) {
       let scriptRegisterInfoList = await chrome.userScripts.getScripts({
-        ids: needUpdateRegisteredUserScripts.map((script) => script.uuid),
+        ids: scriptsWithFileScheme.map((script) => script.uuid),
       });
       scriptRegisterInfoList = (
         await Promise.all(
           scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
-            const scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+            const scriptRes = scriptsWithFileScheme.find((script) => script.uuid === scriptRegisterInfo.id);
             if (scriptRes) {
               const originScriptCode = scriptRegisterInfo.js[0]["code"];
-              let scriptResCode = scriptRes.code;
-              if (scriptResCode === "") {
-                scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
-              }
-              const scriptCode = compileScriptCode(scriptRes, scriptResCode);
-              const scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+              const scriptInjectCode = await this.complieInjectionCodeByLoadInfo(scriptRes);
               // 若代码一致，则不更新
               if (originScriptCode === scriptInjectCode) {
                 return;
@@ -910,7 +1069,7 @@ export class RuntimeService {
     const earlyScriptFlag: string[] = [];
     // 遍历early-start的脚本
     this.scriptMatchCache?.forEach((script) => {
-      if (isEarlyStartScript(script)) {
+      if (isEarlyStartScript(script.metadata)) {
         earlyScriptFlag.push(script.flag);
       }
     });
@@ -1139,16 +1298,9 @@ export class RuntimeService {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
-    const resp = await getUserScriptRegister(scriptMatchInfo);
     const { name, uuid } = scriptMatchInfo;
-    if (!resp) {
-      this.logger.error("getAndSetUserScriptRegister error", {
-        script: name,
-        uuid,
-      });
-      return;
-    }
-    const { registerScript } = resp;
+    const registerScript = this.getUserScriptRegister(scriptMatchInfo);
+    if (!registerScript) return;
     const res = await chrome.userScripts.getScripts({ ids: [uuid] });
     const logger = LoggerCore.logger({
       name,
@@ -1170,20 +1322,19 @@ export class RuntimeService {
         logger.error("registerScript error", Logger.E(e));
       }
     }
-    await cacheInstance.set(`${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`, true);
   }
 
   async unregistryPageScript(uuid: string) {
-    const cacheKey = `${CACHE_KEY_REGISTRY_SCRIPT}${uuid}`;
-    if (!this.isUserScriptsAvailable || !this.isLoadScripts || !(await cacheInstance.get(cacheKey))) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
-    // 删除缓存
-    await cacheInstance.del(cacheKey);
-    // 修改脚本状态为disable，浏览器取消注册该脚本
-    await Promise.all([
-      this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
-      chrome.userScripts.unregister({ ids: [uuid] }),
-    ]);
+    const result = await chrome.userScripts.getScripts({ ids: [uuid] });
+    if (result.length === 1) {
+      // 修改脚本状态为disable，浏览器取消注册该脚本
+      await Promise.all([
+        this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
+        chrome.userScripts.unregister({ ids: [uuid] }),
+      ]);
+    }
   }
 }
