@@ -205,21 +205,25 @@ function App() {
   useEffect(() => {
     if (checkUpdateStatus === 1) {
       Promise.all([
-        fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`).then((resp) => resp.json()),
+        fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+          .then((resp) => resp.json())
+          .catch(console.warn), // 加 catch 避免 网络请求失败或API返回错误
         // 加 800ms delay 避免过快显示
         new Promise((resolve) => setTimeout(resolve, 800)),
-      ]).then(([resp]: [{ data: { notice: string; version: string } }, any]) => {
+      ]).then(([resp]: [{ data: { notice: string; version: string } } | null | undefined, any]) => {
         let newCheckUpdateState = 0;
-        setCheckUpdate((items) => {
-          if (resp.data.version === items.version) {
-            newCheckUpdateState = 2;
-            return items;
-          }
-          const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-          const newCheckUpdate = { ...resp.data, isRead };
-          systemConfig.setCheckUpdate(newCheckUpdate);
-          return newCheckUpdate;
-        });
+        if (resp?.data) {
+          setCheckUpdate((items) => {
+            if (resp.data.version === items.version) {
+              newCheckUpdateState = 2;
+              return items;
+            }
+            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+            const newCheckUpdate = { ...resp.data, isRead };
+            systemConfig.setCheckUpdate(newCheckUpdate);
+            return newCheckUpdate;
+          });
+        }
         setCheckUpdateStatus(() => newCheckUpdateState);
       });
     }
