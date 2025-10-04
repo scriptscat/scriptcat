@@ -579,27 +579,35 @@ export class RuntimeService {
           this.compliedResourceDAO.save(result);
         } else {
           if (result.storeCode) {
-            let storeCode = result.storeCode;
-            if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
-              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
-              if (originalCode && originalCode.code) {
-                storeCode = storeCode.replace(`{{${CompliedResourceNamespace}:code}}`, originalCode.code);
+            const replacing = (s: string, a: string, b: string) => {
+              // built-in replace cannot handle long text.
+              const i = s.indexOf(a);
+              if (i >= 0) {
+                return `${s.substring(0, i)}${b}${s.substring(i + a.length)}`;
               }
-            }
+              return s;
+            };
+            let storeCode = result.storeCode;
             const resourceUUIDs = [] as string[];
             for (const m of storeCode.matchAll(reCompliedResource)) {
               resourceUUIDs.push(m[1]);
             }
-            storeCode.replace(reCompliedResource, (_a: string, b: string) => {
-              resourceUUIDs.push(b);
-              return "";
-            });
+            if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
+              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+              if (originalCode && originalCode.code) {
+                storeCode = replacing(storeCode, `{{${CompliedResourceNamespace}:code}}`, originalCode.code);
+              }
+            }
             if (resourceUUIDs.length > 0) {
               const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
               const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
-              storeCode = storeCode.replace(reCompliedResource, (_a: string, b: string) => {
-                return resources[`resource:${b}`]?.content || "";
-              });
+              for (const resourceUUID of resourceUUIDs) {
+                storeCode = replacing(
+                  storeCode,
+                  `{{${CompliedResourceNamespace}:resource:${resourceUUID}}}`,
+                  resources[`resource:${resourceUUID}`]?.content || ""
+                );
+              }
             }
             resultCode = storeCode;
           }
