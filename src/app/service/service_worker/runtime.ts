@@ -512,6 +512,23 @@ export class RuntimeService {
     return scriptInjectCode;
   }
 
+  getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
+    const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
+    if (!res) {
+      return undefined;
+    }
+    const { registerScript } = res!;
+    // 过滤掉matches为空的脚本
+    if (!registerScript.matches || registerScript.matches.length === 0) {
+      this.logger.error("registerScript matches is empty", {
+        script: scriptMatchInfo.name,
+        uuid: scriptMatchInfo.uuid,
+      });
+      return undefined;
+    }
+    return registerScript;
+  }
+
   async getParticularScriptList() {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
@@ -533,19 +550,7 @@ export class RuntimeService {
             if (!scriptMatchInfo) {
               return undefined;
             }
-            const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
-            if (!res) {
-              return undefined;
-            }
-            const { registerScript } = res!;
-            // 过滤掉matches为空的脚本
-            if (!registerScript.matches || registerScript.matches.length === 0) {
-              this.logger.error("registerScript matches is empty", {
-                script: script.name,
-                uuid: script.uuid,
-              });
-              return undefined;
-            }
+            const registerScript = this.getUserScriptRegister(scriptMatchInfo);
 
             return registerScript;
           })();
@@ -1293,16 +1298,9 @@ export class RuntimeService {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
-    const resp = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
     const { name, uuid } = scriptMatchInfo;
-    if (!resp) {
-      this.logger.error("getAndSetUserScriptRegister error", {
-        script: name,
-        uuid,
-      });
-      return;
-    }
-    const { registerScript } = resp;
+    const registerScript = this.getUserScriptRegister(scriptMatchInfo);
+    if (!registerScript) return;
     const res = await chrome.userScripts.getScripts({ ids: [uuid] });
     const logger = LoggerCore.logger({
       name,
