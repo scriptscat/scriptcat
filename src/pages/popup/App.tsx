@@ -216,7 +216,7 @@ function App() {
             return items;
           }
           const isRead = items.notice !== resp.data.notice ? false : items.isRead;
-          const newCheckUpdate = Object.assign(resp.data, { isRead: isRead });
+          const newCheckUpdate = { ...resp.data, isRead };
           systemConfig.setCheckUpdate(newCheckUpdate);
           return newCheckUpdate;
         });
