@@ -484,6 +484,34 @@ export class RuntimeService {
     return runtimeGlobal.messageFlag;
   }
 
+  async complieInjectionCodeByLoadInfo(scriptRes: ScriptLoadInfo) {
+    let scriptResCode = scriptRes.code;
+    if (scriptResCode === "") {
+      scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
+    }
+    const scriptCode = compileScriptCode(scriptRes, scriptResCode);
+    const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+    let scriptInjectCode;
+    if (preDocumentStartScript) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+    }
+    return scriptInjectCode;
+  }
+
+  complieInjectionCodeByMatchInfo(scriptMatchInfo: ScriptMatchInfo) {
+    const scriptCode = scriptMatchInfo.code;
+    const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
+    let scriptInjectCode;
+    if (preDocumentStartScript) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptCode, true);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptMatchInfo, scriptCode, true);
+    }
+    return scriptInjectCode;
+  }
+
   async getParticularScriptList() {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
@@ -505,7 +533,7 @@ export class RuntimeService {
             if (!scriptMatchInfo) {
               return undefined;
             }
-            const res = await getUserScriptRegister(scriptMatchInfo);
+            const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
             if (!res) {
               return undefined;
             }
@@ -959,21 +987,7 @@ export class RuntimeService {
             const scriptRes = scriptsWithFileScheme.find((script) => script.uuid === scriptRegisterInfo.id);
             if (scriptRes) {
               const originScriptCode = scriptRegisterInfo.js[0]["code"];
-              let scriptResCode = scriptRes.code;
-              if (scriptResCode === "") {
-                scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
-              }
-              const scriptCode = compileScriptCode(scriptRes, scriptResCode);
-
-              const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
-
-              let scriptInjectCode;
-              if (preDocumentStartScript) {
-                scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
-              } else {
-                scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
-              }
-
+              const scriptInjectCode = await this.complieInjectionCodeByLoadInfo(scriptRes);
               // 若代码一致，则不更新
               if (originScriptCode === scriptInjectCode) {
                 return;
@@ -1279,7 +1293,7 @@ export class RuntimeService {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
-    const resp = await getUserScriptRegister(scriptMatchInfo);
+    const resp = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
     const { name, uuid } = scriptMatchInfo;
     if (!resp) {
       this.logger.error("getAndSetUserScriptRegister error", {

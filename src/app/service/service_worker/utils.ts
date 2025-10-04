@@ -2,7 +2,7 @@ export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import { compileInjectScript, compilePreInjectScript, isEarlyStartScript, isInjectIntoContent } from "../content/utils";
+import { isInjectIntoContent } from "../content/utils";
 import { getApiMatchesAndGlobs, RuleType, toUniquePatternStrings } from "@App/pkg/utils/url_matcher";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
@@ -167,15 +167,7 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
 }
 
 // 构建userScript注册信息
-export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-  const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
-
-  if (preDocumentStartScript) {
-    scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code, true);
-  } else {
-    scriptMatchInfo.code = compileInjectScript(scriptMatchInfo, scriptMatchInfo.code, true);
-  }
-
+export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo, code: string) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
 
   const excludeMatches = toUniquePatternStrings(
@@ -187,7 +179,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 
   const registerScript: chrome.userScripts.RegisteredUserScript = {
     id: scriptMatchInfo.uuid,
-    js: [{ code: scriptMatchInfo.code }],
+    js: [{ code: code }],
     matches: matches, // primary
     includeGlobs: includeGlobs, // includeGlobs applied after matches
     excludeMatches: excludeMatches,
