@@ -171,9 +171,9 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
 
   if (preDocumentStartScript) {
-    scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code);
+    scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code, true);
   } else {
-    scriptMatchInfo.code = compileInjectScript(scriptMatchInfo, scriptMatchInfo.code);
+    scriptMatchInfo.code = compileInjectScript(scriptMatchInfo, scriptMatchInfo.code, true);
   }
 
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);

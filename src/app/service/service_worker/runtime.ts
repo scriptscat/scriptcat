@@ -9,7 +9,7 @@ import GMApi, { GMExternalDependencies } from "./gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
-import { getUserScriptRegister } from "./utils";
+import { getUserScriptRegister, parseScriptLoadInfo } from "./utils";
 import {
   checkUserScriptsAvailable,
   randomMessageFlag,
@@ -21,7 +21,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -934,41 +934,29 @@ export class RuntimeService {
     );
 
     // 更新资源使用了file协议的脚本
-    const needUpdateRegisteredUserScripts = enableScript.filter((script) => {
-      let uriList: string[] = [];
-      // @require
-      if (Array.isArray(script.metadata.require)) {
-        uriList = uriList.concat(script.metadata.require);
+    const scriptsWithFileScheme = enableScript.filter((script) => {
+      const checker = (url: string) => url.startsWith("file://");
+      if (script.metadata.require) {
+        for (const url of script.metadata.require) {
+          if (checker(url)) return true;
+        }
       }
-      // @resource
-      if (Array.isArray(script.metadata.resource)) {
-        uriList = uriList.concat(
-          script.metadata.resource
-            .map((resourceInfo) => {
-              const split = resourceInfo.trim().split(/\s+/);
-              if (split.length >= 2) {
-                const resourceUri = split[1];
-                return resourceUri;
-              }
-            })
-            .filter((it) => it !== undefined)
-        );
+      if (script.metadata.resource) {
+        for (const resourceInfo of script.metadata.resource) {
+          // @resource abc https://domain/abc
+          const split = resourceInfo.trim().split(/\s+/);
+          if (split[1] && checker(split[1])) return true;
+        }
       }
-      return uriList.some((uri) => {
-        return uri.startsWith("file://");
-      });
     });
-    if (needUpdateRegisteredUserScripts.length) {
-      // this.logger.info("update registered userscripts", {
-      //   needReloadScript: needUpdateRegisteredUserScripts,
-      // });
+    if (scriptsWithFileScheme.length) {
       let scriptRegisterInfoList = await chrome.userScripts.getScripts({
-        ids: needUpdateRegisteredUserScripts.map((script) => script.uuid),
+        ids: scriptsWithFileScheme.map((script) => script.uuid),
       });
       scriptRegisterInfoList = (
         await Promise.all(
           scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
-            const scriptRes = needUpdateRegisteredUserScripts.find((script) => (script.uuid = scriptRegisterInfo.id));
+            const scriptRes = scriptsWithFileScheme.find((script) => script.uuid === scriptRegisterInfo.id);
             if (scriptRes) {
               const originScriptCode = scriptRegisterInfo.js[0]["code"];
               let scriptResCode = scriptRes.code;
@@ -976,7 +964,16 @@ export class RuntimeService {
                 scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
               }
               const scriptCode = compileScriptCode(scriptRes, scriptResCode);
-              const scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+
+              const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+
+              let scriptInjectCode;
+              if (preDocumentStartScript) {
+                scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
+              } else {
+                scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+              }
+
               // 若代码一致，则不更新
               if (originScriptCode === scriptInjectCode) {
                 return;
