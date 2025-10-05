@@ -486,12 +486,42 @@ export class RuntimeService {
 
     this.systemConfig.addListener("blacklist", async (blacklist: string) => {
       this.blacklist = obtainBlackList(blacklist);
+      this.loadBlacklist();
+      // 更新 scriptMatchCache
+      this.scriptMatchCache!.forEach(async (matchInfo, uuid) => {
+        const o = this.scriptURLPatternResults({
+          metadata: matchInfo.metadata,
+          originalMetadata: matchInfo.originalMetadata,
+          selfMetadata: matchInfo.selfMetadata,
+        });
+        if (o) {
+          matchInfo.scriptUrlPatterns = o.scriptUrlPatterns;
+          matchInfo.originalUrlPatterns = o.originalUrlPatterns;
+          this.scriptMatchCache!.set(uuid, matchInfo);
+        }
+      });
+      await this.saveScriptMatchInfo();
+      // 更新 CompliedResources
+      const compliedResources = await this.compliedResourceDAO.gets([...this.scriptMatchCache!.keys()]);
+      await Promise.all(
+        compliedResources.map((compliedResource) => {
+          if (compliedResource) {
+            const matchInfo = this.scriptMatchCache!.get(compliedResource.uuid);
+            if (matchInfo) {
+              const { scriptUrlPatterns, originalUrlPatterns } = matchInfo;
+              compliedResource.scriptUrlPatterns = scriptUrlPatterns;
+              compliedResource.originalUrlPatterns =
+                scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns;
+              return this.compliedResourceDAO.save(compliedResource);
+            }
+          }
+        })
+      );
       await this.unregisterUserscripts();
       if (this.isUserScriptsAvailable && this.isLoadScripts) {
         // 重新注册用户脚本
         await this.registerUserscripts();
       }
-      this.loadBlacklist();
       this.logger.info("blacklist updated", {
         blacklist,
       });
@@ -1323,14 +1353,14 @@ export class RuntimeService {
     await this.saveScriptMatchInfo();
   }
 
-  async scriptURLPatternResults(scriptRes: {
+  scriptURLPatternResults(scriptRes: {
     metadata: SCMetadata;
     originalMetadata: SCMetadata;
     selfMetadata?: SCMetadata;
-  }): Promise<{
+  }): {
     scriptUrlPatterns: URLRuleEntry[];
     originalUrlPatterns: URLRuleEntry[];
-  } | null> {
+  } | null {
     const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
     const metaInclude = metadata.include;
@@ -1340,8 +1370,7 @@ export class RuntimeService {
     }
 
     // 黑名单排除
-    const strBlacklist = (await this.systemConfig.getBlacklist()) as string | undefined;
-    const blacklist = obtainBlackList(strBlacklist);
+    const blacklist = this.blacklist;
 
     const scriptUrlPatterns = extractUrlPatterns([
       ...(metaMatch || []).map((e) => `@match ${e}`),
@@ -1369,7 +1398,7 @@ export class RuntimeService {
 
   async buildAndSetScriptMatchInfo(script: Script, scriptRes_?: ScriptRunResource) {
     const scriptRes = scriptRes_ || (await this.script.buildScriptRunResource(script, script.uuid));
-    const o = await this.scriptURLPatternResults(scriptRes);
+    const o = this.scriptURLPatternResults(scriptRes);
     if (!o) {
       return undefined;
     }

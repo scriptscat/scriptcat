@@ -16,6 +16,7 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import type { TScriptMatchInfoEntry } from "./types";
+import { obtainBlackList } from "@App/pkg/utils/utils";
 
 initTestEnv();
 
@@ -156,10 +157,10 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试默认查询（不包含无效匹配）
-      const defaultResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const defaultResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // 测试包含无效匹配的查询
-      const allResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
+      const allResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
 
       // Assert
       expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
@@ -254,7 +255,9 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
 
     it("应该正确处理黑名单规则", async () => {
       // Arrange
-      mockSystemConfig.getBlacklist.mockReturnValue("*://www.blacklisted.com/*");
+      const blacklistString = "*://www.blacklisted.com/*";
+      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
+      runtime.blacklist = obtainBlackList(blacklistString); //  this.systemConfig.addListener("blacklist", ... ) 裡自動更新 blacklist
 
       const script = createMockScript({
         metadata: {
@@ -270,14 +273,11 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试正常URL
-      const normalResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/page");
+      const normalResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/page");
       // 测试黑名单URL
-      const blacklistResult = await runtime.getPageScriptMatchingResultByUrl("http://www.blacklisted.com/page");
+      const blacklistResult = runtime.getPageScriptMatchingResultByUrl("http://www.blacklisted.com/page");
       // 黑名单中的无效匹配
-      const blacklistAllResult = await runtime.getPageScriptMatchingResultByUrl(
-        "http://www.blacklisted.com/page",
-        true
-      );
+      const blacklistAllResult = runtime.getPageScriptMatchingResultByUrl("http://www.blacklisted.com/page", true);
 
       // Assert
       expect(normalResult.has(script.uuid)).toBe(true);
@@ -313,7 +313,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       // Act
       const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
       expect(scriptMatchInfo).toBeUndefined();
-      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
       expect(result.has(script.uuid)).toBe(false);
