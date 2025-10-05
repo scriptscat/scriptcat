@@ -311,6 +311,7 @@ export class ScriptService {
       .delete(uuid)
       .then(async () => {
         await this.scriptCodeDAO.delete(uuid);
+        await this.compliedResourceDAO.delete(uuid);
         logger.info("delete success");
         const data = [{ uuid, storageName, type: script.type }];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
@@ -333,6 +334,7 @@ export class ScriptService {
       .deletes(uuids)
       .then(async () => {
         await this.scriptCodeDAO.deletes(uuids);
+        await this.compliedResourceDAO.deletes(uuids);
         logger.info("delete success");
         const data = scripts.map((script) => ({
           uuid: script.uuid,

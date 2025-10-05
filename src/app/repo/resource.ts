@@ -33,7 +33,7 @@ export interface ResourceHash {
 
 export interface CompliedResource {
   uuid: string;
-  storeCode: string;
+  storeCodeArr: string[] | null;
   matches: string[]; // primary
   includeGlobs: string[]; // includeGlobs applied after matches
   excludeMatches: string[];
@@ -62,7 +62,7 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "9a897b46-7d1c-46a0-808e-f20fc43f0ac6";
+export const CompliedResourceNamespace = "811eada2-695f-4deb-8b90-2e67b81fa704";
 
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {
