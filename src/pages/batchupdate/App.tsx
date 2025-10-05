@@ -251,9 +251,12 @@ function App() {
               <GridItem className={`card-grid-item`} key={item.uuid}>
                 <Card
                   size="small"
-                  className={`script-card card-${item.script.status === 1 ? "enabled" : "disabled"}`}
+                  className={`script-card card-${item.script.status === 1 ? "enabled" : "disabled"} bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700`}
                   title={
-                    <span onClick={() => openUpdatePage(item.uuid)} className="text-clickable">
+                    <span
+                      onClick={() => openUpdatePage(item.uuid)}
+                      className="text-clickable text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                    >
                       <Typography.Ellipsis rows={1} expandable={false} showTooltip={{ mini: true }}>
                         {item.script?.name}
                       </Typography.Ellipsis>
@@ -373,15 +376,19 @@ function App() {
   return (
     <>
       {
-        <div className="mb-2">
+        <div className="mb-2 text-gray-800 dark:text-gray-200">
           <div className="flex flex-row items-center gap-2">
-            <Typography.Title heading={6} className="!m-0">
+            <Typography.Title heading={6} className="!m-0 text-gray-900 dark:text-gray-100">
               {t("updatepage.main_header")}
             </Typography.Title>
-            <IconSync spin={checkUpdateSpin} onClick={() => onCheckUpdateClick()} className="cursor-pointer" />
+            <IconSync
+              spin={checkUpdateSpin}
+              onClick={() => onCheckUpdateClick()}
+              className="cursor-pointer text-gray-700 dark:text-gray-300"
+            />
           </div>
           <div className="flex flex-row indent-4">
-            <Typography.Text>{mStatusText}</Typography.Text>
+            <Typography.Text className="text-gray-700 dark:text-gray-300">{mStatusText}</Typography.Text>
           </div>
           {mRecords === null ? (
             <></>
@@ -389,11 +396,11 @@ function App() {
             <>
               {mRecords.site.length === 0 && mRecords.other.length === 0 ? (
                 <div className="flex flex-row indent-4">
-                  <Text>{t("updatepage.status_no_update")}</Text>
+                  <Text className="text-gray-700 dark:text-gray-300">{t("updatepage.status_no_update")}</Text>
                 </div>
               ) : (
                 <div className="flex flex-row indent-4">
-                  <Text>
+                  <Text className="text-gray-700 dark:text-gray-300">
                     {t("updatepage.status_n_update").replace("$0", `${mRecords.site.length + mRecords.other.length}`)}
                   </Text>
                 </div>
@@ -403,12 +410,16 @@ function App() {
                 <></>
               ) : (
                 <div className="flex flex-row indent-4">
-                  <Text>{t("updatepage.status_n_ignored").replace("$0", `${mRecords.ignored.length}`)}</Text>
+                  <Text className="text-gray-700 dark:text-gray-300">
+                    {t("updatepage.status_n_ignored").replace("$0", `${mRecords.ignored.length}`)}
+                  </Text>
                 </div>
               )}
               {mTimeClose >= 0 ? (
                 <div className="flex flex-row indent-4">
-                  <Text>{t("updatepage.status_autoclose").replace("$0", `${mTimeClose}`)}</Text>
+                  <Text className="text-gray-700 dark:text-gray-300">
+                    {t("updatepage.status_autoclose").replace("$0", `${mTimeClose}`)}
+                  </Text>
                 </div>
               ) : (
                 <></>
