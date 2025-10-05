@@ -20,7 +20,7 @@ import {
 import { TbWorldWww } from "react-icons/tb";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { SCMetadata, Script, UserConfig } from "@App/app/repo/scripts";
+import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { FaThLarge } from "react-icons/fa";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
