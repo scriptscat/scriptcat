@@ -750,9 +750,15 @@ export class ScriptService {
 
   // 定时自动检查脚本更新後，彈出頁面
   async openBatchUpdatePage(q: string) {
+    return await this.openBatchUpdatePage_(q, false);
+  }
+
+  async openBatchUpdatePage_(q: string, dontCheckNow: boolean) {
     const p = q ? `?${q}` : "";
     await openInCurrentTab(`/src/batchupdate.html${p}`);
-    await this.checkScriptUpdate({ checkType: "user", noUpdateCheck: 10 * 60 * 1000 });
+    if (!dontCheckNow) {
+      await this.checkScriptUpdate({ checkType: "user", noUpdateCheck: 10 * 60 * 1000 });
+    }
     return true;
   }
 
