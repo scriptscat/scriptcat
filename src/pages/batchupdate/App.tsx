@@ -132,7 +132,7 @@ function App() {
     };
 
     return subscribeMessage("onScriptUpdateCheck", pageApi.onScriptUpdateCheck);
-  }, []);
+  }, [mRecords, paramSite, subscribeMessage, t]);
 
   const doInitial = () => {
     // faster than useEffect
