@@ -1184,7 +1184,7 @@ function ScriptList() {
           ),
         },
       ] as ColumnProps[],
-    [t]
+    [t, sidebarOpen]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
@@ -1212,6 +1212,8 @@ function ScriptList() {
 
   const [canShowList, setCanShowList] = useState(false);
 
+
+
   useEffect(() => {
     if (savedWidths === null) return;
 
@@ -1220,11 +1222,18 @@ function ScriptList() {
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
+        let dest;
+        if (i === 8) {
+          // 第8列特殊处理，因为可能涉及到操作图的显示
+          dest = item.render === columns[i].render && item.title === columns[i].title ? item : columns[i];
+        } else {
+          dest = item;
+        }
         let m =
-          width === item.width
-            ? item
+          width === dest.width
+            ? dest
             : {
-                ...item,
+                ...dest,
                 width,
               };
         // 处理语言更新
