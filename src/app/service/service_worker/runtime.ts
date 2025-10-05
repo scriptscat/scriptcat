@@ -203,18 +203,6 @@ export class RuntimeService {
     });
   }
 
-  async valueUpdate(data: TScriptValueUpdate) {
-    if (!isEarlyStartScript(data.script.metadata)) {
-      return;
-    }
-    // 如果是预加载脚本，需要更新脚本代码重新注册
-    const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(data.script);
-    if (!scriptMatchInfo) {
-      return;
-    }
-    await this.loadPageScript(scriptMatchInfo);
-  }
-
   async getInjectJsCode() {
     if (!this.injectJsCodePromise) {
       this.injectJsCodePromise = fetch("/src/inject.js")
@@ -302,6 +290,19 @@ export class RuntimeService {
       }
       await this.saveScriptMatchInfo();
     }
+
+    // compliedResourceDAO是新功能。如果安装时未有建立compliedResource，则在初始化时建立
+    await Promise.allSettled(
+      allScripts.map(async (script) => {
+        if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
+          return undefined;
+        }
+        const result = await this.compliedResourceDAO.get(script.uuid);
+        if (!result) {
+          await this.buildAndSaveCompliedResource(script);
+        }
+      })
+    );
   }
 
   init() {
@@ -333,19 +334,31 @@ export class RuntimeService {
           });
           continue;
         }
+        if (enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+          // 防止启用停止状态冲突
+          this.logger.error("script enable status conflicts", {
+            uuid: uuid,
+          });
+          continue;
+        }
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
         if (script.type === SCRIPT_TYPE_NORMAL) {
           // 加载页面脚本
-          // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存
-          const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-          if (!scriptMatchInfo) {
-            return;
-          }
           if (enable) {
-            await this.loadPageScript(scriptMatchInfo);
+            const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+            if (scriptMatchInfo) {
+              const { apiScript } = await this.buildAndSaveCompliedResource(script, scriptMatchInfo);
+              await this.loadPageScript(scriptMatchInfo, apiScript);
+            }
           } else {
             await this.unregistryPageScript(script.uuid);
+            try {
+              // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
+              this.buildAndSetScriptMatchInfo(script);
+            } catch {
+              // 忽略
+            }
           }
         }
       }
@@ -360,14 +373,24 @@ export class RuntimeService {
         });
         return;
       }
+      const needReRegisterInjectJS = isEarlyStartScript(script.metadata);
       if (script.type === SCRIPT_TYPE_NORMAL) {
-        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-        if (!scriptMatchInfo) {
-          return;
+        if (script.status === SCRIPT_STATUS_ENABLE) {
+          const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+          if (scriptMatchInfo) {
+            const { apiScript } = await this.buildAndSaveCompliedResource(script, scriptMatchInfo);
+            await this.loadPageScript(scriptMatchInfo, apiScript);
+          }
+          // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+          // 不是 earlyStart 的不用重新注入 （没有改变）
+          if (needReRegisterInjectJS) await this.reRegisterInjectScript();
+        } else {
+          // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
+          const _scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+          // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+          // 不是 earlyStart 的不用重新注入 （没有改变）
+          if (needReRegisterInjectJS) await this.reRegisterInjectScript();
         }
-        await this.loadPageScript(scriptMatchInfo);
-        // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
-        await this.reRegisterInjectScript();
       }
     });
 
@@ -415,7 +438,28 @@ export class RuntimeService {
     });
 
     // 监听脚本值变更
-    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", this.valueUpdate.bind(this));
+    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script }: TScriptValueUpdate) => {
+      if (!isEarlyStartScript(script.metadata)) {
+        return;
+      }
+      if (script.status === SCRIPT_STATUS_ENABLE) {
+        // 如果是预加载脚本，需要更新脚本代码重新注册
+        // scriptMatchInfo 里的 value 改变
+        const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+        if (scriptMatchInfo) {
+          // complieInjectionCode -> injectionCode 改变
+          const { apiScript } = await this.buildAndSaveCompliedResource(script, scriptMatchInfo);
+          await this.loadPageScript(scriptMatchInfo, apiScript);
+        }
+      } else {
+        try {
+          // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
+          this.buildAndSetScriptMatchInfo(script);
+        } catch {
+          // 忽略
+        }
+      }
+    });
 
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
@@ -583,122 +627,135 @@ export class RuntimeService {
     return registerScript;
   }
 
+  async buildAndSaveCompliedResource(script: Script, scriptMatchInfo_?: TScriptMatchInfoEntry) {
+    let resultCode = "";
+    let result;
+    let scriptUrlPatterns = null;
+    let originalUrlPatterns = null;
+    let apiScript: chrome.userScripts.RegisteredUserScript | undefined = undefined;
+
+    // 如果没开启, 则不注册
+    if (script.status === SCRIPT_STATUS_ENABLE) {
+      const scriptMatchInfo = scriptMatchInfo_ || (await this.buildAndSetScriptMatchInfo(script));
+      if (scriptMatchInfo) {
+        scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
+        originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
+        const registerScript = this.getUserScriptRegister(scriptMatchInfo);
+        apiScript = registerScript;
+      }
+    }
+
+    if (!apiScript) {
+      result = {
+        uuid: script.uuid,
+        storeCode: "",
+        matches: [],
+        includeGlobs: [],
+        excludeMatches: [],
+        excludeGlobs: [],
+        allFrames: false,
+        world: "",
+        runAt: "",
+        scriptUrlPatterns: [],
+        originalUrlPatterns: null,
+      } as CompliedResource;
+    } else {
+      resultCode = apiScript.js[0].code || "";
+      let storeCode = resultCode;
+      if (!storeCode.includes(`{{${CompliedResourceNamespace}:`)) {
+        const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
+        if (originalCode && originalCode.code && storeCode.includes(originalCode.code)) {
+          storeCode = replacing(storeCode, originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
+        }
+        const urls = [
+          ...(script.metadata["require"] || []),
+          ...(script.metadata["require-css"] || []),
+          ...(script.metadata["resource"] || []),
+        ];
+        if (urls.length > 0) {
+          const resourceUUIDs = urls.map((url) => uuidv5(url, ResourceNamespace));
+          const resources = await this.resource.resourceDAO.gets(urls);
+          let idx = -1;
+          for (const resource of resources) {
+            idx++;
+            const content = resource?.content;
+            if (content && typeof content === "string" && storeCode.includes(content)) {
+              storeCode = replacing(
+                storeCode,
+                content,
+                `{{${CompliedResourceNamespace}:resource:${resourceUUIDs[idx]}}}`
+              );
+            }
+          }
+        }
+      }
+      result = {
+        uuid: script.uuid,
+        storeCode: storeCode,
+        matches: apiScript.matches || [],
+        includeGlobs: apiScript.includeGlobs || [],
+        excludeMatches: apiScript.excludeMatches || [],
+        excludeGlobs: apiScript.excludeGlobs || [],
+        allFrames: apiScript.allFrames || false,
+        world: apiScript.world || "",
+        runAt: apiScript.runAt || "",
+        scriptUrlPatterns: scriptUrlPatterns!,
+        originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
+      } as CompliedResource;
+    }
+
+    this.compliedResourceDAO.save(result);
+    return { compliedResource: result, jsCode: resultCode, apiScript };
+  }
+
+  async restoreJSCodeFromCompliedResource(result: CompliedResource) {
+    let resultCode = "";
+    if (result.storeCode) {
+      let storeCode = result.storeCode;
+      const resourceUUIDs = [] as string[];
+      for (const m of storeCode.matchAll(reCompliedResource)) {
+        resourceUUIDs.push(m[1]);
+      }
+      if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
+        const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
+        if (originalCode && originalCode.code) {
+          storeCode = replacing(storeCode, `{{${CompliedResourceNamespace}:code}}`, originalCode.code);
+        }
+      }
+      if (resourceUUIDs.length > 0) {
+        const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
+        const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
+        for (const resourceUUID of resourceUUIDs) {
+          storeCode = replacing(
+            storeCode,
+            `{{${CompliedResourceNamespace}:resource:${resourceUUID}}}`,
+            resources[`resource:${resourceUUID}`]?.content || ""
+          );
+        }
+      }
+      resultCode = storeCode;
+    }
+    return resultCode;
+  }
+
   async getParticularScriptList() {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
     const registerScripts = await Promise.all(
       list.map(async (script) => {
-        if (script.type !== SCRIPT_TYPE_NORMAL) {
+        if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
           return undefined;
         }
         let resultCode = "";
         let result = await this.compliedResourceDAO.get(script.uuid);
         if (!result) {
-          let scriptUrlPatterns = null;
-          let originalUrlPatterns = null;
-          const apiScript = await (async () => {
-            // 如果没开启, 则不注册
-            if (script.status !== SCRIPT_STATUS_ENABLE) {
-              return undefined;
-            }
-            const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-            if (!scriptMatchInfo) {
-              return undefined;
-            }
-            scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
-            originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
-            const registerScript = this.getUserScriptRegister(scriptMatchInfo);
-
-            return registerScript;
-          })();
-
-          if (!apiScript) {
-            result = {
-              uuid: script.uuid,
-              storeCode: "",
-              matches: [],
-              includeGlobs: [],
-              excludeMatches: [],
-              excludeGlobs: [],
-              allFrames: false,
-              world: "",
-              runAt: "",
-              scriptUrlPatterns: [],
-              originalUrlPatterns: null,
-            } as CompliedResource;
-          } else {
-            resultCode = apiScript.js[0].code || "";
-            let storeCode = resultCode;
-            if (!storeCode.includes(`{{${CompliedResourceNamespace}:`)) {
-              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
-              if (originalCode && originalCode.code && storeCode.includes(originalCode.code)) {
-                storeCode = replacing(storeCode, originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
-              }
-              const urls = [
-                ...(script.metadata["require"] || []),
-                ...(script.metadata["require-css"] || []),
-                ...(script.metadata["resource"] || []),
-              ];
-              if (urls.length > 0) {
-                const resourceUUIDs = urls.map((url) => uuidv5(url, ResourceNamespace));
-                const resources = await this.resource.resourceDAO.gets(urls);
-                let idx = -1;
-                for (const resource of resources) {
-                  idx++;
-                  const content = resource?.content;
-                  if (content && typeof content === "string" && storeCode.includes(content)) {
-                    storeCode = replacing(
-                      storeCode,
-                      content,
-                      `{{${CompliedResourceNamespace}:resource:${resourceUUIDs[idx]}}}`
-                    );
-                  }
-                }
-              }
-            }
-            result = {
-              uuid: script.uuid,
-              storeCode: storeCode,
-              matches: apiScript.matches || [],
-              includeGlobs: apiScript.includeGlobs || [],
-              excludeMatches: apiScript.excludeMatches || [],
-              excludeGlobs: apiScript.excludeGlobs || [],
-              allFrames: apiScript.allFrames || false,
-              world: apiScript.world || "",
-              runAt: apiScript.runAt || "",
-              scriptUrlPatterns: scriptUrlPatterns!,
-              originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
-            } as CompliedResource;
-          }
-
-          this.compliedResourceDAO.save(result);
+          // 按常理不会跑这个
+          const ret = await this.buildAndSaveCompliedResource(script);
+          result = ret.compliedResource;
+          resultCode = ret.jsCode;
         } else {
-          if (result.storeCode) {
-            let storeCode = result.storeCode;
-            const resourceUUIDs = [] as string[];
-            for (const m of storeCode.matchAll(reCompliedResource)) {
-              resourceUUIDs.push(m[1]);
-            }
-            if (storeCode.includes(`{{${CompliedResourceNamespace}:code}}`)) {
-              const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
-              if (originalCode && originalCode.code) {
-                storeCode = replacing(storeCode, `{{${CompliedResourceNamespace}:code}}`, originalCode.code);
-              }
-            }
-            if (resourceUUIDs.length > 0) {
-              const resourceIds = resourceUUIDs.map((uuid) => `resource:${uuid}`) as string[];
-              const resources = (await chrome.storage.local.get(resourceIds)) as Record<string, Resource>;
-              for (const resourceUUID of resourceUUIDs) {
-                storeCode = replacing(
-                  storeCode,
-                  `{{${CompliedResourceNamespace}:resource:${resourceUUID}}}`,
-                  resources[`resource:${resourceUUID}`]?.content || ""
-                );
-              }
-            }
-            resultCode = storeCode;
-          }
+          resultCode = await this.restoreJSCodeFromCompliedResource(result);
         }
 
         if (!resultCode) return undefined;
@@ -777,11 +834,11 @@ export class RuntimeService {
     // inject.js
     const injectJs = await this.getInjectJsCode();
     if (injectJs) {
-      const script = this.compileInjectUserScript(injectJs, messageFlag, {
+      const apiScripts = this.compileInjectUserScript(injectJs, messageFlag, {
         excludeMatches,
         excludeGlobs,
       });
-      retScript.push(...script);
+      retScript.push(...apiScripts);
     }
 
     return retScript;
@@ -1186,19 +1243,18 @@ export class RuntimeService {
   async reRegisterInjectScript() {
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
-
-    const [messageFlag, scripts, injectJs] = await Promise.all([
-      this.getMessageFlag(),
+    const messageFlag = this.getMessageFlag();
+    const [scripts, injectJs] = await Promise.all([
       chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] }),
       this.getInjectJsCode(),
     ]);
 
-    if (!messageFlag || !scripts || !injectJs) {
+    if (!messageFlag || !scripts?.[0] || !injectJs) {
       return;
     }
-    const script = this.compileInjectUserScript(injectJs, messageFlag, scripts[0]);
+    const apiScripts = this.compileInjectUserScript(injectJs, messageFlag, scripts[0]);
     try {
-      await chrome.userScripts.update(script);
+      await chrome.userScripts.update(apiScripts);
     } catch (e: any) {
       this.logger.error("register inject.js error", Logger.E(e));
     }
@@ -1313,15 +1369,20 @@ export class RuntimeService {
 
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
-  async loadPageScript(scriptMatchInfo: ScriptMatchInfo) {
+  async loadPageScript(
+    scriptMatchInfo: ScriptMatchInfo,
+    registerScript_?: chrome.userScripts.RegisteredUserScript | undefined
+  ) {
     // 如果脚本开启, 则注册脚本
     if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
     const { name, uuid } = scriptMatchInfo;
-    const registerScript = this.getUserScriptRegister(scriptMatchInfo);
+    const registerScript = registerScript_ || this.getUserScriptRegister(scriptMatchInfo);
     if (!registerScript) return;
-    const res = await chrome.userScripts.getScripts({ ids: [uuid] });
+    const res: chrome.userScripts.RegisteredUserScript | undefined = (
+      await chrome.userScripts.getScripts({ ids: [uuid] })
+    )?.[0];
     const logger = LoggerCore.logger({
       name,
       registerMatch: {
@@ -1329,7 +1390,7 @@ export class RuntimeService {
         excludeMatches: registerScript.excludeMatches,
       },
     });
-    if (res.length > 0) {
+    if (res) {
       try {
         await chrome.userScripts.update([registerScript]);
       } catch (e) {
