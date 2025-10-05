@@ -86,8 +86,7 @@ const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
       autoComplete="off"
       onSubmit={(v) => {
         const inputValue = v.inputValue;
-        console.log(v);
-        sendMenuAction(uuid, menu, inputValue);
+        sendMenuAction(uuid, name, options, menuItems, inputValue);
       }}
     >
       <Button
