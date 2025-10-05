@@ -21,6 +21,8 @@ import { TbWorldWww } from "react-icons/tb";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
+import { FaThLarge } from "react-icons/fa";
+import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
   type SCRIPT_STATUS,
   SCRIPT_RUN_STATUS_RUNNING,
@@ -62,12 +64,13 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
+import ScriptListSidebar from "./Sidebar";
 import { useTranslation } from "react-i18next";
 import { nextTime } from "@App/pkg/utils/cron";
 import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { ListHomeRender, ScriptIcons } from "./utils";
+import { hashColor, ListHomeRender, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
@@ -94,6 +97,8 @@ import type {
 } from "@App/app/service/queue";
 import { type TFunction } from "i18next";
 import { useAppContext } from "@App/pages/store/AppContext";
+import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { parseTags } from "@App/app/repo/metadata";
 
 type ListType = ScriptLoading;
 type RowCtx = ReturnType<typeof useSortable> | null;
@@ -220,6 +225,13 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
+  const { tag } = useMemo(() => {
+    let metadata = item.metadata;
+    if (item.selfMetadata) {
+      metadata = getCombinedMeta(metadata, item.selfMetadata);
+    }
+    return { tag: parseTags(metadata) || [] };
+  }, [item]);
   return (
     <Tooltip content={col} position="tl">
       <Link
@@ -239,6 +251,15 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
         >
           <ScriptIcons script={item} size={20} />
           {i18nName(item)}
+          {tag && (
+            <Space style={{ marginLeft: 8 }}>
+              {tag.map((t) => (
+                <Tag key={t} color={hashColor(t)}>
+                  {t}
+                </Tag>
+              ))}
+            </Space>
+          )}
         </Text>
       </Link>
     </Tooltip>
@@ -766,6 +787,7 @@ function ScriptList() {
   const [cloudScript, setCloudScript] = useState<Script>();
   const [mInitial, setInitial] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
+  const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
@@ -774,6 +796,7 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(localStorage.getItem("script-list-sidebar") === "1");
   const { t } = useTranslation();
 
   const filterCache: Map<string, any> = new Map<string, any>();
@@ -1087,7 +1110,42 @@ function ScriptList() {
           render: (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
         },
         {
-          title: t("action"),
+          title: (
+            <div className="flex flex-row justify-between items-center">
+              <span>{t("action")}</span>
+              <Space size={4}>
+                <Tooltip content={sidebarOpen ? t("open_sidebar") : t("close_sidebar")}>
+                  <Button
+                    icon={sidebarOpen ? <VscLayoutSidebarLeft /> : <VscLayoutSidebarLeftOff />}
+                    iconOnly
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-2)",
+                    }}
+                    onClick={() => {
+                      setSidebarOpen((sidebarOpen) => {
+                        const newState = !sidebarOpen;
+                        localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
+                        return newState;
+                      });
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip content={t("switch_to_card_mode")}>
+                  <Button
+                    icon={<FaThLarge />}
+                    iconOnly
+                    type="text"
+                    size="small"
+                    style={{
+                      color: "var(--color-text-2)",
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+            </div>
+          ),
           dataIndex: "action",
           key: "action",
           width: 160,
@@ -1103,7 +1161,7 @@ function ScriptList() {
           ),
         },
       ] as ColumnProps[],
-    [t]
+    [t, sidebarOpen]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
@@ -1133,22 +1191,29 @@ function ScriptList() {
 
   useEffect(() => {
     if (savedWidths === null) return;
-
     setNewColumns((nColumns) => {
       const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
-        return width === item.width
-          ? item
-          : {
-              ...item,
-              width,
-            };
+        if (i === 8) {
+          // 第8列特殊处理，因为可能涉及到操作图的显示
+          return { ...columns[8], width };
+        }
+        let m =
+          width === item.width
+            ? item
+            : {
+                ...item,
+                width,
+              };
+        // 处理语言更新
+        if (m.title !== columns[i].title) m = { ...m, title: columns[i].title };
+        return m;
       });
     });
     setCanShowList(true);
-  }, [savedWidths]);
+  }, [savedWidths, columns]);
 
   const dealColumns = useMemo(() => {
     if (!canShowList) {
@@ -1157,14 +1222,14 @@ function ScriptList() {
       const filtered = newColumns.filter((item) => item.width !== -1);
       return filtered.length === 0 ? columns : filtered;
     }
-  }, [newColumns, canShowList]);
+  }, [newColumns, canShowList, columns]);
 
   const components: ComponentsProps = useMemo(
     () => ({
       header: {
         operations: ({ selectionNode, expandNode }) => [
           {
-            node: <th className="script-sort" />,
+            node: <th className="script-sort" style={{ borderRadius: 0 }} />,
             width: 34,
           },
           {
@@ -1202,7 +1267,7 @@ function ScriptList() {
         row: DraggableRow,
       },
     }),
-    []
+    [t]
   );
 
   const setWidth = (selectColumn: number, width: any) => {
@@ -1221,7 +1286,7 @@ function ScriptList() {
       }}
     >
       <DraggableContext.Provider value={draggableContextValue}>
-        <Space direction="vertical">
+        <div className="flex flex-col">
           {showAction && (
             <Card>
               <div
@@ -1468,30 +1533,47 @@ function ScriptList() {
               </div>
             </Card>
           )}
-          {canShowList && (
-            <Table
-              key="script-list-table"
-              className="arco-drag-table-container"
-              components={components}
-              rowKey="uuid"
-              tableLayoutFixed
-              columns={dealColumns}
-              data={scriptList}
-              pagination={false}
-              style={
-                {
-                  // minWidth: "1200px",
-                }
-              }
-              rowSelection={{
-                type: "checkbox",
-                onChange(_, selectedRows) {
-                  setShowAction(true);
-                  setSelect(selectedRows);
-                },
+
+          {/* 主要内容区域 */}
+          <div className="flex flex-row relative">
+            {/* 侧边栏 */}
+            <ScriptListSidebar
+              open={sidebarOpen}
+              scriptList={scriptList}
+              onFilter={(data) => {
+                setFilterScriptList(data);
               }}
             />
-          )}
+
+            {/* 主要表格区域 */}
+            <div className="flex-1">
+              {canShowList && (
+                <Table
+                  key="script-list-table"
+                  className="arco-drag-table-container"
+                  components={components}
+                  rowKey="uuid"
+                  tableLayoutFixed
+                  columns={dealColumns}
+                  data={filterScriptList}
+                  pagination={false}
+                  style={
+                    {
+                      // minWidth: "1200px",
+                    }
+                  }
+                  rowSelection={{
+                    type: "checkbox",
+                    onChange(_, selectedRows) {
+                      setShowAction(true);
+                      setSelect(selectedRows);
+                    },
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
           {userConfig && (
             <UserConfigPanel script={userConfig.script} userConfig={userConfig.userConfig} values={userConfig.values} />
           )}
@@ -1501,7 +1583,7 @@ function ScriptList() {
               setCloudScript(undefined);
             }}
           />
-        </Space>
+        </div>
       </DraggableContext.Provider>
     </Card>
   );

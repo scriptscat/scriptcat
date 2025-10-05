@@ -476,6 +476,45 @@
   "development_tools": "開発ツール",
   "check_script_code_quality": "スクリプトコードの品質とエラーをチェック",
   "custom_eslint_rules_config": "カスタムESLintルール設定（JSON形式）",
+  "light": "ライトモード",
+  "dark": "ダークモード",
   "individual_edit": "個別編集",
-  "batch_edit": "一括編集"
+  "batch_edit": "一括編集",
+  "script_code": "スクリプトコード",
+  "enter_search_value": "{{search}}を入力して検索してください",
+  "script_run_env": {
+    "title": "実行環境",
+    "default": "デフォルト",
+    "all": "すべてのタブ",
+    "normal-tabs": "通常のタブ",
+    "incognito-tabs": "シークレットタブ"
+  },
+  "editor_config": "エディタ設定",
+  "editor_config_description": "<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>のcompilerOptionsを参考に設定できます",
+  "editor_type_definition": "エディタ型定義",
+  "editor_type_definition_description": "独自の型定義をカスタマイズでき、スクリプトエディタがこれらの型定義を自動的に読み込みます",
+  "eslint_rules_reset": "ESLintルールがリセットされました",
+  "eslint_rules_saved": "ESLintルールが保存されました",
+  "editor_config_reset": "エディタ設定がリセットされました",
+  "editor_config_saved": "エディタ設定が保存されました",
+  "editor_config_format_error": "エディタ設定のフォーマットエラー",
+  "editor_type_definition_reset": "エディタ型定義がリセットされました",
+  "editor_type_definition_saved": "エディタ型定義が保存されました",
+  "layout": "レイアウト",
+  "hide_script_list": "スクリプトリストを非表示",
+  "script_list": {
+    "sidebar": {
+      "stopped": "停止済み",
+      "all": "すべて",
+      "normal_script": "通常スクリプト",
+      "status": "状態"
+    }
+  },
+  "tags": "タグ",
+  "install_source": "インストール元",
+  "input_tags_placeholder": "タグを入力し、Enterを押して確認",
+  "switch_to_card_mode": "カードモードに切り替え",
+  "switch_to_table_mode": "テーブルモードに切り替え",
+  "open_sidebar": "サイドバーを開く",
+  "close_sidebar": "サイドバーを閉じる"
 }

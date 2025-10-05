@@ -87,7 +87,7 @@ const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
       onSubmit={(v) => {
         const inputValue = v.inputValue;
         console.log(v);
-        sendMenuAction(uuid, name, options, menuItems, inputValue);
+        sendMenuAction(uuid, menu, inputValue);
       }}
     >
       <Button

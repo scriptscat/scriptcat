@@ -1,13 +1,27 @@
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
-import { Checkbox, Descriptions, Divider, Drawer, Input, Message, Select } from "@arco-design/web-react";
+import { Checkbox, Descriptions, Divider, Drawer, Input, InputTag, Message, Select, Tag } from "@arco-design/web-react";
+import type { ReactNode } from "react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
 import { scriptClient } from "@App/pages/store/features/script";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
+import { parseTags } from "@App/app/repo/metadata";
+import { hashColor } from "@App/pages/options/routes/utils";
+
+const tagRender: React.FC<{ value: any; label: ReactNode; closable: boolean; onClose: (event: any) => void }> = (
+  props
+) => {
+  const { label, value, closable, onClose } = props;
+  return (
+    <Tag color={hashColor(value)} closable={closable} onClose={onClose} style={{ margin: "2px 6px 2px 0" }}>
+      {label}
+    </Tag>
+  );
+};
 
 const ScriptSetting: React.FC<{
   script: Script;
@@ -16,6 +30,7 @@ const ScriptSetting: React.FC<{
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
   const scriptDAO = new ScriptDAO();
+  const [scriptTags, setScriptTags] = useState<string[]>([]);
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
   const [checkUpdate, setCheckUpdate] = useState<boolean>(false);
   const [scriptRunEnv, setScriptRunEnv] = useState<string>("all");
@@ -35,6 +50,7 @@ const ScriptSetting: React.FC<{
           metadata = getCombinedMeta(metadata, v.selfMetadata);
         }
         setScriptRunEnv(metadata["run-in"]?.[0] || "all");
+        setScriptTags(parseTags(metadata) || []);
       });
     }
   }, [script]);
@@ -68,6 +84,24 @@ const ScriptSetting: React.FC<{
           {
             label: "UUID",
             value: script?.uuid,
+          },
+          {
+            label: t("tags"),
+            value: (
+              <InputTag
+                allowClear
+                placeholder={t("input_tags_placeholder")}
+                value={scriptTags}
+                renderTag={tagRender}
+                style={{ maxWidth: 350 }}
+                onChange={(tags) => {
+                  setScriptTags(tags);
+                  scriptClient.updateMetadata(script.uuid, "tag", tags).then(() => {
+                    Message.success(t("update_success")!);
+                  });
+                }}
+              />
+            ),
           },
         ]}
         style={{ marginBottom: 20 }}

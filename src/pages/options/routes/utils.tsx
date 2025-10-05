@@ -190,3 +190,34 @@ export function useSystemConfig<T extends SystemConfigKey>(key: T) {
   }).current;
   return [value as SystemConfigValueType<T>, setValue, submitValue] as const;
 }
+
+export function hashColor(text: string): string {
+  if (!text) {
+    return "gray"; // 默认颜色
+  }
+  // 预定义颜色
+  const colors = [
+    "red",
+    "orangered",
+    "orange",
+    "gold",
+    "lime",
+    "green",
+    "cyan",
+    "arcoblue",
+    "purple",
+    "pinkpurple",
+    "magenta",
+    "gray",
+  ];
+
+  // djb2 哈希函数
+  let hash = 5381;
+  for (let i = 0, l = text.length; i < l; i++) {
+    hash = (hash * 33) ^ text.charCodeAt(i);
+  }
+  hash = hash >>> 0; // 确保正整数
+
+  const index = hash % colors.length;
+  return colors[index];
+}
