@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -20,7 +20,7 @@ import {
 import { TbWorldWww } from "react-icons/tb";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { SCMetadata, Script, UserConfig } from "@App/app/repo/scripts";
 import { FaThLarge } from "react-icons/fa";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
@@ -137,6 +137,13 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
+const MemoizedScriptListSidebar = React.memo(
+  ({ open, scriptList, onFilter }: { open: any; scriptList: any; onFilter: any }) => (
+    <ScriptListSidebar open={open} scriptList={scriptList} onFilter={onFilter} />
+  )
+);
+MemoizedScriptListSidebar.displayName = "MemoizedScriptListSidebar";
+
 function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   return (node) => {
     for (const ref of refs) {
@@ -225,13 +232,22 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
-  const { tag } = useMemo(() => {
-    let metadata = item.metadata;
-    if (item.selfMetadata) {
-      metadata = getCombinedMeta(metadata, item.selfMetadata);
-    }
-    return { tag: parseTags(metadata) || [] };
+  const [taggingState, setTaggingState] = useState<[string[], SCMetadata, SCMetadata | undefined]>([
+    [],
+    {},
+    undefined,
+  ] as [string[], SCMetadata, SCMetadata | undefined]);
+  useEffect(() => {
+    setTaggingState((prev) => {
+      if (prev[1] === item.metadata && prev[2] === item.selfMetadata) return prev;
+      let metadata = item.metadata;
+      if (item.selfMetadata) {
+        metadata = getCombinedMeta(metadata, item.selfMetadata);
+      }
+      return [parseTags(metadata) || ([] as string[]), item.metadata, item.selfMetadata];
+    });
   }, [item]);
+  const tag = taggingState[0];
   return (
     <Tooltip content={col} position="tl">
       <Link
@@ -787,6 +803,7 @@ function ScriptList() {
   const [cloudScript, setCloudScript] = useState<Script>();
   const [mInitial, setInitial] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
@@ -796,22 +813,25 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(localStorage.getItem("script-list-sidebar") === "1");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
   const { t } = useTranslation();
 
-  const filterCache: Map<string, any> = new Map<string, any>();
+  const [_filterCache, setFilterCache_] = useState(() => new Map<string, any>());
 
-  const setFilterCache = (res: Partial<Record<string, any>>[] | null) => {
-    filterCache.clear();
-    if (res === null) return;
-    for (const entry of res) {
-      filterCache.set(entry.uuid, {
-        code: entry.code === true,
-        name: entry.name === true,
-        auto: entry.auto === true,
-      });
-    }
-  };
+  const setFilterCache = useCallback((res: Partial<Record<string, any>>[] | null) => {
+    setFilterCache_((filterCache) => {
+      filterCache.clear();
+      if (res === null) return new Map<string, any>(filterCache);
+      for (const entry of res) {
+        filterCache.set(entry.uuid, {
+          code: entry.code === true,
+          name: entry.name === true,
+          auto: entry.auto === true,
+        });
+      }
+      return new Map<string, any>(filterCache);
+    });
+  }, []);
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -1047,7 +1067,11 @@ function ScriptList() {
             if (!value || !value.value) {
               return true;
             }
-            const result = filterCache.get(row.uuid);
+            let result: any;
+            setFilterCache_((filterCache) => {
+              result = filterCache.get(row.uuid);
+              return filterCache;
+            });
             if (!result) return false;
             switch (value.type) {
               case "auto":
@@ -1160,7 +1184,7 @@ function ScriptList() {
           ),
         },
       ] as ColumnProps[],
-    [t, sidebarOpen]
+    [t]
   );
 
   const [newColumns, setNewColumns] = useState<ColumnProps[]>([]);
@@ -1190,15 +1214,12 @@ function ScriptList() {
 
   useEffect(() => {
     if (savedWidths === null) return;
+
     setNewColumns((nColumns) => {
       const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
-        if (i === 8) {
-          // 第8列特殊处理，因为可能涉及到操作图的显示
-          return { ...columns[8], width };
-        }
         let m =
           width === item.width
             ? item
@@ -1426,7 +1447,7 @@ function ScriptList() {
                     style={{ minWidth: "80px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                     size="mini"
-                    value={newColumns[selectColumn].title?.toString()}
+                    value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
                     onChange={(val) => {
                       const index = parseInt(val as string, 10);
                       setSelectColumn(index);
@@ -1434,7 +1455,7 @@ function ScriptList() {
                   >
                     {newColumns.map((column, index) => (
                       <Select.Option key={index} value={index}>
-                        {column.title}
+                        {index === 8 ? t("action") : column.title}
                       </Select.Option>
                     ))}
                   </Select>
@@ -1536,13 +1557,7 @@ function ScriptList() {
           {/* 主要内容区域 */}
           <div className="flex flex-row relative">
             {/* 侧边栏 */}
-            <ScriptListSidebar
-              open={sidebarOpen}
-              scriptList={scriptList}
-              onFilter={(data) => {
-                setFilterScriptList(data);
-              }}
-            />
+            <MemoizedScriptListSidebar open={sidebarOpen} scriptList={scriptList} onFilter={setFilterScriptList} />
 
             {/* 主要表格区域 */}
             <div className="flex-1">
