@@ -13,33 +13,3 @@ body .text-clickable:hover {
     color: inherit;
     text-decoration: underline;
 }
-
-body .card-enabled {
-    background-color: rgba(var(--gray-1),.6);
-    opacity: .95
-}
-
-body .card-disabled {
-    background-color: rgba(var(--gray-1),.4);
-    opacity: .65
-}
-
-.script-card.card-enabled {
-    background-color: #bfd8f2;
-    border: 1px solid #bfd8f2;
-}
-
-.script-card.card-disabled {
-    background-color: #bbdbf2;
-    border: 1px solid #bbdbf2;
-}
-
-.dark .script-card.card-enabled {
-  background-color: rgb(17 24 39);     /* gray-900 */
-  border: 1px solid rgb(55 65 81);     /* gray-700 */
-}
-
-.dark .script-card.card-disabled {
-  background-color: rgba(17,24,39,0.6); /* gray-900/60 */
-  border: 1px solid rgb(55 65 81);      /* gray-700 */
-}

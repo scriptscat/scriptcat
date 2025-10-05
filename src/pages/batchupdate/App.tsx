@@ -251,11 +251,11 @@ function App() {
               <GridItem className={`card-grid-item`} key={item.uuid}>
                 <Card
                   size="small"
-                  className={`script-card card-${item.script.status === 1 ? "enabled" : "disabled"} bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700`}
+                  className={`script-card card-${item.script.status === 1 ? "enabled" : "disabled"}`}
                   title={
                     <span
                       onClick={() => openUpdatePage(item.uuid)}
-                      className="text-clickable text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                      className="text-clickable text-gray-900 dark:text-gray-100 !hover:text-blue-600 dark:hover:text-blue-400"
                     >
                       <Typography.Ellipsis rows={1} expandable={false} showTooltip={{ mini: true }}>
                         {item.script?.name}
