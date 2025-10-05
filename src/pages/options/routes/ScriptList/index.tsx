@@ -232,22 +232,18 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
-  const [taggingState, setTaggingState] = useState<[string[], SCMetadata, SCMetadata | undefined]>([
-    [],
-    {},
-    undefined,
-  ] as [string[], SCMetadata, SCMetadata | undefined]);
+  const [tags, setTags] = useState<string[]>([]);
   useEffect(() => {
-    setTaggingState((prev) => {
-      if (prev[1] === item.metadata && prev[2] === item.selfMetadata) return prev;
-      let metadata = item.metadata;
-      if (item.selfMetadata) {
-        metadata = getCombinedMeta(metadata, item.selfMetadata);
-      }
-      return [parseTags(metadata) || ([] as string[]), item.metadata, item.selfMetadata];
+    let metadata = item.metadata;
+    if (item.selfMetadata) {
+      metadata = getCombinedMeta(item.metadata, item.selfMetadata);
+    }
+    const newTags = parseTags(metadata) || [];
+    setTags((prev) => {
+      if (prev.length === 0 && newTags.length === 0) return prev;
+      return newTags;
     });
-  }, [item]);
-  const tag = taggingState[0];
+  }, [item.metadata, item.selfMetadata]);
   return (
     <Tooltip content={col} position="tl">
       <Link
@@ -267,9 +263,9 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
         >
           <ScriptIcons script={item} size={20} />
           {i18nName(item)}
-          {tag && (
+          {tags && (
             <Space style={{ marginLeft: 8 }}>
-              {tag.map((t) => (
+              {tags.map((t) => (
                 <Tag key={t} color={hashColor(t)}>
                   {t}
                 </Tag>
