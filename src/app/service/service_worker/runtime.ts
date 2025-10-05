@@ -365,6 +365,7 @@ export class RuntimeService {
             await this.updateResourceOnScriptChange(script);
           } else {
             await this.unregistryPageScript(script.uuid);
+            await this.compliedResourceDAO.delete(uuid); // 没启用的删一下, 节省compliedResourceDAO空间
             try {
               // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
               await this.buildAndSetScriptMatchInfo(script);
