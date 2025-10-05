@@ -417,7 +417,7 @@ const ScriptMenuList = React.memo(
         checkItems.clear();
         document.removeEventListener("keypress", sharedKeyPressListner);
       };
-    }, [script]);
+    }, [script, grouppedMenus]);
 
     const handleDeleteScript = (uuid: string) => {
       // 本地先行移除列表项（乐观更新）；若删除失败会显示错误讯息。
