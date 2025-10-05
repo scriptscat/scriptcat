@@ -96,7 +96,7 @@ export class ResourceService {
           }
         }
         if (path) {
-          if (uri.startsWith("file://")) {
+          if (uri.startsWith("file:///")) {
             // 如果是file://协议，则每次请求更新一下文件
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;

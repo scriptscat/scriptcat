@@ -1,3 +1,4 @@
+import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { Repo } from "./repo";
 import { v5 as uuidv5 } from "uuid";
 
@@ -40,6 +41,8 @@ export interface CompliedResource {
   allFrames: boolean;
   world: string;
   runAt: string;
+  scriptUrlPatterns: URLRuleEntry[];
+  originalUrlPatterns: URLRuleEntry[] | null;
 }
 
 export const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";
@@ -59,7 +62,7 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "200bf956-5afc-480a-8d69-300f07754bf2";
+export const CompliedResourceNamespace = "9a897b46-7d1c-46a0-808e-f20fc43f0ac6";
 
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {

@@ -1,3 +1,4 @@
+import { type ResourceType } from "@App/app/repo/resource";
 import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
@@ -14,6 +15,7 @@ export interface ScriptLoadInfo extends ScriptRunResource {
   metadataStr: string; // 脚本元数据字符串
   userConfigStr: string; // 用户配置字符串
   userConfig?: UserConfig;
+  resourceCheck?: Record<string, [string, ResourceType]>;
 }
 
 // 为了优化性能，存储到缓存时删除了code、value与resource

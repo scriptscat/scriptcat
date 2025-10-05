@@ -68,6 +68,7 @@ export default class ServiceWorkerManager {
       scriptDAO,
       localStorageDAO
     );
+    await runtime.waitInit();
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig);
     popup.init();

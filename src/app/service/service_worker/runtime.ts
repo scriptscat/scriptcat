@@ -2,7 +2,7 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInf
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptSite } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -16,6 +16,7 @@ import {
   getMetadataStr,
   getUserConfigStr,
   obtainBlackList,
+  replacing,
 } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
@@ -33,7 +34,7 @@ import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
-import type { CompliedResource, Resource } from "@App/app/repo/resource";
+import type { CompliedResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompliedResourceDAO, CompliedResourceNamespace, ResourceNamespace } from "@App/app/repo/resource";
 import { v5 as uuidv5 } from "uuid";
 
@@ -219,7 +220,84 @@ export class RuntimeService {
     return this.injectJsCodePromise;
   }
 
-  async init() {
+  createMatchInfoEntry(
+    scriptRes: ScriptRunResource,
+    o: { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] | null }
+  ) {
+    const resourceCheck = {} as Record<string, [string, ResourceType]>;
+
+    for (const [_key, res] of Object.entries(scriptRes.resource)) {
+      if (res.url.startsWith("file:///")) {
+        resourceCheck[res.url] = [res.hash.sha512, res.type];
+      }
+    }
+
+    // 优化性能，将不需要的信息去掉
+    // 而且可能会超过缓存的存储限制
+    const matchInfo = {
+      ...scriptRes,
+      scriptUrlPatterns: o.scriptUrlPatterns,
+      originalUrlPatterns: o.originalUrlPatterns === null ? o.scriptUrlPatterns : o.originalUrlPatterns,
+      code: "",
+      value: {},
+      resource: {},
+      resourceCheck,
+    } as TScriptMatchInfoEntry;
+    return matchInfo;
+  }
+
+  async waitInit() {
+    const cScriptMatch = await cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch");
+    const scriptMatchCache = (this.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>());
+    if (cScriptMatch) {
+      for (const [key, value] of Object.entries(cScriptMatch)) {
+        scriptMatchCache.set(key, value);
+      }
+    }
+    const isColdStart = cScriptMatch ? false : true;
+    const [compliedResources, allScripts] = await Promise.all([this.compliedResourceDAO.all(), this.scriptDAO.all()]);
+    const scriptResPromises = [] as Promise<[ScriptRunResource, URLRuleEntry[], URLRuleEntry[] | null]>[];
+    allScripts.forEach((script) => {
+      if (script.type !== SCRIPT_TYPE_NORMAL) {
+        return;
+      }
+      const uuid = script.uuid;
+      const compliedResource = compliedResources.find((res) => res.uuid === uuid);
+      if (!compliedResource || !compliedResource.storeCode || !compliedResource.scriptUrlPatterns?.length) return;
+
+      const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
+      const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
+      // 添加新的数据
+      this.scriptMatch.addRules(uuid, scriptUrlPatterns);
+      if (originalUrlPatterns !== null && originalUrlPatterns !== scriptUrlPatterns) {
+        this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
+      }
+      if (isColdStart) {
+        scriptResPromises.push(
+          this.script
+            .buildScriptRunResource(script, uuid)
+            .then(
+              (scriptRes) =>
+                [scriptRes, scriptUrlPatterns, originalUrlPatterns] as [
+                  ScriptRunResource,
+                  URLRuleEntry[],
+                  URLRuleEntry[] | null,
+                ]
+            )
+        );
+      }
+    });
+    if (scriptResPromises.length) {
+      const scriptResList = await Promise.all(scriptResPromises);
+      for (const [scriptRes, scriptUrlPatterns, originalUrlPatterns] of scriptResList) {
+        const matchInfo = this.createMatchInfoEntry(scriptRes, { scriptUrlPatterns, originalUrlPatterns });
+        scriptMatchCache.set(matchInfo.uuid, matchInfo);
+      }
+      await this.saveScriptMatchInfo();
+    }
+  }
+
+  init() {
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     const gmApi = new GMApi(
@@ -484,12 +562,7 @@ export class RuntimeService {
     return runtimeGlobal.messageFlag;
   }
 
-  async complieInjectionCodeByLoadInfo(scriptRes: ScriptLoadInfo) {
-    let scriptResCode = scriptRes.code;
-    if (scriptResCode === "") {
-      scriptResCode = (await this.scriptDAO.scriptCodeDAO.get(scriptRes.uuid))!.code;
-    }
-    const scriptCode = compileScriptCode(scriptRes, scriptResCode);
+  complieInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
     const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
     let scriptInjectCode;
     if (preDocumentStartScript) {
@@ -500,20 +573,9 @@ export class RuntimeService {
     return scriptInjectCode;
   }
 
-  complieInjectionCodeByMatchInfo(scriptMatchInfo: ScriptMatchInfo) {
-    const scriptCode = scriptMatchInfo.code;
-    const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo.metadata);
-    let scriptInjectCode;
-    if (preDocumentStartScript) {
-      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptCode, true);
-    } else {
-      scriptInjectCode = compileInjectScript(scriptMatchInfo, scriptCode, true);
-    }
-    return scriptInjectCode;
-  }
-
   getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-    const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCodeByMatchInfo(scriptMatchInfo));
+    const scriptCode = scriptMatchInfo.code;
+    const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCode(scriptMatchInfo, scriptCode));
     if (!res) {
       return undefined;
     }
@@ -541,6 +603,8 @@ export class RuntimeService {
         let resultCode = "";
         let result = await this.compliedResourceDAO.get(script.uuid);
         if (!result) {
+          let scriptUrlPatterns = null;
+          let originalUrlPatterns = null;
           const apiScript = await (async () => {
             // 如果没开启, 则不注册
             if (script.status !== SCRIPT_STATUS_ENABLE) {
@@ -550,6 +614,8 @@ export class RuntimeService {
             if (!scriptMatchInfo) {
               return undefined;
             }
+            scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
+            originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
             const registerScript = this.getUserScriptRegister(scriptMatchInfo);
 
             return registerScript;
@@ -566,6 +632,8 @@ export class RuntimeService {
               allFrames: false,
               world: "",
               runAt: "",
+              scriptUrlPatterns: [],
+              originalUrlPatterns: null,
             } as CompliedResource;
           } else {
             resultCode = apiScript.js[0].code || "";
@@ -573,7 +641,7 @@ export class RuntimeService {
             if (!storeCode.includes(`{{${CompliedResourceNamespace}:`)) {
               const originalCode = await this.script.scriptCodeDAO.get(script.uuid);
               if (originalCode && originalCode.code && storeCode.includes(originalCode.code)) {
-                storeCode = storeCode.replace(originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
+                storeCode = replacing(storeCode, originalCode.code, `{{${CompliedResourceNamespace}:code}}`);
               }
               const urls = [
                 ...(script.metadata["require"] || []),
@@ -588,7 +656,8 @@ export class RuntimeService {
                   idx++;
                   const content = resource?.content;
                   if (content && typeof content === "string" && storeCode.includes(content)) {
-                    storeCode = storeCode.replace(
+                    storeCode = replacing(
+                      storeCode,
                       content,
                       `{{${CompliedResourceNamespace}:resource:${resourceUUIDs[idx]}}}`
                     );
@@ -606,20 +675,14 @@ export class RuntimeService {
               allFrames: apiScript.allFrames || false,
               world: apiScript.world || "",
               runAt: apiScript.runAt || "",
+              scriptUrlPatterns: scriptUrlPatterns!,
+              originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
             } as CompliedResource;
           }
 
           this.compliedResourceDAO.save(result);
         } else {
           if (result.storeCode) {
-            const replacing = (s: string, a: string, b: string) => {
-              // built-in replace cannot handle long text.
-              const i = s.indexOf(a);
-              if (i >= 0) {
-                return `${s.substring(0, i)}${b}${s.substring(i + a.length)}`;
-              }
-              return s;
-            };
             let storeCode = result.storeCode;
             const resourceUUIDs = [] as string[];
             for (const m of storeCode.matchAll(reCompliedResource)) {
@@ -734,8 +797,6 @@ export class RuntimeService {
 
   // 如果是重复注册，需要先调用 unregisterUserscripts
   async registerUserscripts() {
-    // 加载脚本匹配信息
-    const loadingScriptMatchInfo = this.loadScriptMatchInfo();
     // 若 UserScript API 不可使用 或 ScriptCat设定为不启用脚本 则退出
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
 
@@ -745,7 +806,6 @@ export class RuntimeService {
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
       if (res.length === 2) {
-        await loadingScriptMatchInfo;
         return;
       }
       // scriptcat-content/scriptcat-inject不存在的情况
@@ -791,8 +851,6 @@ export class RuntimeService {
         }
       }
     }
-
-    await this.loadScriptMatchInfo();
   }
 
   // 给指定tab发送消息
@@ -827,14 +885,13 @@ export class RuntimeService {
     );
   }
 
-  async getPageScriptMatchingResultByUrl(url: string, includeNonEffective: boolean = false) {
-    await this.loadScriptMatchInfo();
+  getPageScriptMatchingResultByUrl(url: string, includeNonEffective: boolean = false) {
     // 返回当前页面匹配的uuids
     // 如果有使用自定义排除，原本脚本定义的会返回 uuid{Ori}
     // 因此基于自定义排除页面被排除的情况下，结果只包含 uuid{Ori} 而不包含 uuid
     const matchedUuids = this.scriptMatch.urlMatch(url!);
     const ret = new Map<string, { uuid: string; effective: boolean; matchInfo?: TScriptMatchInfoEntry }>();
-    const scriptMatchCache = this.scriptMatchCache;
+    const scriptMatchCache = this.scriptMatchCache!;
     for (const e of matchedUuids) {
       const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -ORIGINAL_URLMATCH_SUFFIX.length) : e;
       if (!includeNonEffective && uuid !== e) continue;
@@ -844,9 +901,7 @@ export class RuntimeService {
         o.effective = true;
       }
       // 把匹配脚本的资料从 cache 取出来
-      if (scriptMatchCache) {
-        o.matchInfo = scriptMatchCache.get(uuid);
-      }
+      o.matchInfo = scriptMatchCache.get(uuid);
       ret.set(uuid, o);
     }
     // ret 只包含 uuid 为键的 matchingResult
@@ -893,10 +948,10 @@ export class RuntimeService {
       return { flag: "", scripts: [] };
     }
 
-    const [scriptFlag] = await Promise.all([this.getMessageFlag(), this.loadScriptMatchInfo()]); // loadScriptMatchInfo 不产生结果
+    const scriptFlag = this.getMessageFlag();
 
     // 匹配当前页面的脚本（只包含有效脚本。自定义排除了的不包含）
-    const matchingResult = await this.getPageScriptMatchingResultByUrl(chromeSender.url!);
+    const matchingResult = this.getPageScriptMatchingResultByUrl(chromeSender.url!);
 
     const enableScript = [] as ScriptLoadInfo[];
 
@@ -933,6 +988,55 @@ export class RuntimeService {
       enableScript.push(scriptRes);
     }
 
+    const scriptCodes = {} as Record<string, string>;
+    // 更新资源使用了file协议的脚本
+    const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
+    for (const scriptRes of enableScript) {
+      if (scriptRes.resourceCheck) {
+        let resourceUpdated = false;
+        for (const [url, [sha512, type]] of Object.entries(scriptRes.resourceCheck)) {
+          const resourceList = scriptRes.metadata[type];
+          if (!resourceList) continue;
+          const updatedResource = await this.resource.updateResource(scriptRes.uuid, url, type);
+          if (updatedResource.hash?.sha512 !== sha512) {
+            for (const uri of resourceList) {
+              /** 资源键名 */
+              let resourceKey = uri;
+              /** 文件路径 */
+              let path: string | null = uri;
+              if (type === "resource") {
+                // @resource xxx https://...
+                const split = uri.split(/\s+/);
+                if (split.length === 2) {
+                  resourceKey = split[0];
+                  path = split[1].trim();
+                } else {
+                  path = null;
+                }
+              }
+              if (path === url) {
+                const r = scriptRes.resource[resourceKey];
+                if (r) {
+                  resourceUpdated = true;
+                  r.content = updatedResource.content;
+                  r.contentType = updatedResource.contentType;
+                  r.createtime = updatedResource.createtime;
+                  r.hash = updatedResource.hash;
+                  r.link = updatedResource.link;
+                  r.type = updatedResource.type;
+                  r.updatetime = updatedResource.updatetime;
+                }
+              }
+            }
+          }
+        }
+        if (resourceUpdated) {
+          scriptsWithUpdatedResources.set(scriptRes.uuid, scriptRes);
+          scriptCodes[scriptRes.uuid] = scriptRes.code || "";
+        }
+      }
+    }
+
     const { value, resource, scriptDAO } = this;
     await Promise.all(
       enableScript.flatMap((script) => [
@@ -961,52 +1065,35 @@ export class RuntimeService {
             script.metadataStr = metadataStr;
             script.userConfigStr = userConfigStr;
             script.userConfig = userConfig;
+            if (scriptCodes[script.uuid] === "") {
+              scriptCodes[script.uuid] = code.code;
+            }
           }
         }),
       ])
     );
 
-    // 更新资源使用了file协议的脚本
-    const scriptsWithFileScheme = enableScript.filter((script) => {
-      const checker = (url: string) => url.startsWith("file://");
-      if (script.metadata.require) {
-        for (const url of script.metadata.require) {
-          if (checker(url)) return true;
+    if (scriptsWithUpdatedResources.size) {
+      const scriptRegisterInfoList = (
+        await chrome.userScripts.getScripts({
+          ids: [...scriptsWithUpdatedResources.keys()],
+        })
+      ).filter((scriptRegisterInfo) => {
+        const targetUUID = scriptRegisterInfo.id;
+        const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
+        const scriptDAOCode = scriptCodes[targetUUID];
+        if (scriptRes && scriptDAOCode) {
+          const scriptCode = compileScriptCode(scriptRes, scriptDAOCode);
+          const scriptInjectCode = this.complieInjectionCode(scriptRes, scriptCode);
+          scriptRegisterInfo.js = [
+            {
+              code: scriptInjectCode,
+            },
+          ];
+          return true;
         }
-      }
-      if (script.metadata.resource) {
-        for (const resourceInfo of script.metadata.resource) {
-          // @resource abc https://domain/abc
-          const split = resourceInfo.trim().split(/\s+/);
-          if (split[1] && checker(split[1])) return true;
-        }
-      }
-    });
-    if (scriptsWithFileScheme.length) {
-      let scriptRegisterInfoList = await chrome.userScripts.getScripts({
-        ids: scriptsWithFileScheme.map((script) => script.uuid),
+        return false;
       });
-      scriptRegisterInfoList = (
-        await Promise.all(
-          scriptRegisterInfoList.map(async (scriptRegisterInfo) => {
-            const scriptRes = scriptsWithFileScheme.find((script) => script.uuid === scriptRegisterInfo.id);
-            if (scriptRes) {
-              const originScriptCode = scriptRegisterInfo.js[0]["code"];
-              const scriptInjectCode = await this.complieInjectionCodeByLoadInfo(scriptRes);
-              // 若代码一致，则不更新
-              if (originScriptCode === scriptInjectCode) {
-                return;
-              }
-              scriptRegisterInfo.js = [
-                {
-                  code: scriptInjectCode,
-                },
-              ];
-              return scriptRegisterInfo;
-            }
-          })
-        )
-      ).filter((it) => it !== undefined);
       // 批量更新
       if (scriptRegisterInfoList.length) {
         try {
@@ -1068,7 +1155,7 @@ export class RuntimeService {
     // 替换ScriptFlag
     const earlyScriptFlag: string[] = [];
     // 遍历early-start的脚本
-    this.scriptMatchCache?.forEach((script) => {
+    this.scriptMatchCache!.forEach((script) => {
       if (isEarlyStartScript(script.metadata)) {
         earlyScriptFlag.push(script.flag);
       }
@@ -1128,96 +1215,31 @@ export class RuntimeService {
   // 一般情况下请不要直接访问 loadingScript 此变数 （私有变数）
   loadingScript: Promise<void> | null = null;
 
-  // 加载脚本匹配信息，由于service_worker的机制，如果由不活动状态恢复过来时，会优先触发事件
-  // 可能当时会没有脚本匹配信息，所以使用脚本信息时，尽量先使用此方法加载脚本匹配信息
-  async loadScriptMatchInfo() {
-    if (this.scriptMatchCache) {
-      return;
-    }
-    if (!this.loadingScript) {
-      // 如果没有缓存, 则创建一个新的缓存
-      const scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
-      const loadingScript = cacheInstance
-        .get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch")
-        .then(async (data) => {
-          if (data) {
-            const arr = Object.entries(data).sort(([, a], [, b]) => a.sort! - b.sort!);
-            for (const [, matchInfoEntry] of arr) {
-              this.addScriptMatchEntry(scriptMatchCache, matchInfoEntry);
-            }
-          } else {
-            // 如果没有缓存数据，则从数据库加载，解决浏览器重新启动后缓存丢失的问题
-            const scripts = (await this.scriptDAO.all()).sort((a, b) => a.sort - b.sort);
-            await Promise.all(
-              scripts.map(async (script) => {
-                if (script.type !== SCRIPT_TYPE_NORMAL) {
-                  return;
-                }
-                const scriptMatchInfoEntry = await this.buildScriptMatchInfo(script);
-                if (scriptMatchInfoEntry) {
-                  this.addScriptMatchEntry(scriptMatchCache, scriptMatchInfoEntry as TScriptMatchInfoEntry);
-                }
-              })
-            );
-          }
-        })
-        .then(() => {
-          if (loadingScript !== this.loadingScript) {
-            console.error("invalid loadScriptMatchInfo() calling");
-            return;
-          }
-          this.scriptMatchCache = scriptMatchCache;
-          this.loadingScript = null;
-        });
-      this.loadingScript = loadingScript;
-    }
-    await this.loadingScript;
-  }
-
   // 保存脚本匹配信息
   async saveScriptMatchInfo() {
-    if (!this.scriptMatchCache) {
-      return;
-    }
-    return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache));
-  }
-
-  async addScriptMatch(matchInfoEntry: TScriptMatchInfoEntry) {
-    if (!this.scriptMatchCache) {
-      await this.loadScriptMatchInfo();
-    }
-    this.addScriptMatchEntry(this.scriptMatchCache!, matchInfoEntry);
-    await this.saveScriptMatchInfo();
+    return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache!));
   }
 
   addScriptMatchEntry(scriptMatchCache: Map<string, TScriptMatchInfoEntry>, matchInfoEntry: TScriptMatchInfoEntry) {
-    // 优化性能，将不需要的信息去掉
-    // 而且可能会超过缓存的存储限制
-    matchInfoEntry = {
-      ...matchInfoEntry,
-      ...{
-        code: "",
-        value: {},
-        resource: {},
-      },
-    };
-    const uuid = matchInfoEntry.uuid;
+    const { uuid, scriptUrlPatterns, originalUrlPatterns } = matchInfoEntry;
+
+    matchInfoEntry = this.createMatchInfoEntry(matchInfoEntry, {
+      scriptUrlPatterns: scriptUrlPatterns,
+      originalUrlPatterns: originalUrlPatterns === scriptUrlPatterns ? null : originalUrlPatterns,
+    });
     scriptMatchCache.set(uuid, matchInfoEntry);
-    const uuidOri = `${matchInfoEntry.uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
+    const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
     // 清理一下老数据
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(uuidOri);
     // 添加新的数据
-    this.scriptMatch.addRules(uuid, matchInfoEntry.scriptUrlPatterns);
-    if (matchInfoEntry.originalUrlPatterns !== matchInfoEntry.scriptUrlPatterns) {
-      this.scriptMatch.addRules(uuidOri, matchInfoEntry.originalUrlPatterns);
+    this.scriptMatch.addRules(uuid, scriptUrlPatterns);
+    if (matchInfoEntry.originalUrlPatterns && originalUrlPatterns !== scriptUrlPatterns) {
+      this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
     }
   }
 
   async updateScriptStatus(uuid: string, status: SCRIPT_STATUS) {
-    if (!this.scriptMatchCache) {
-      await this.loadScriptMatchInfo();
-    }
     const script = this.scriptMatchCache!.get(uuid);
     if (script) {
       script.status = status;
@@ -1226,9 +1248,6 @@ export class RuntimeService {
   }
 
   async deleteScriptMatch(uuid: string) {
-    if (!this.scriptMatchCache) {
-      await this.loadScriptMatchInfo();
-    }
     this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
@@ -1287,7 +1306,8 @@ export class RuntimeService {
       return undefined;
     }
     // 把脚本信息放入缓存中
-    await this.addScriptMatch(scriptMatchInfo as TScriptMatchInfoEntry);
+    this.addScriptMatchEntry(this.scriptMatchCache!, scriptMatchInfo as TScriptMatchInfoEntry);
+    await this.saveScriptMatchInfo();
     return scriptMatchInfo;
   }
 
