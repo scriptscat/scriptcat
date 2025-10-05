@@ -2,7 +2,14 @@ import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInf
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import type { Script, SCRIPT_STATUS, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
+import type {
+  SCMetadata,
+  Script,
+  SCRIPT_STATUS,
+  ScriptDAO,
+  ScriptRunResource,
+  ScriptSite,
+} from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -380,16 +387,12 @@ export class RuntimeService {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
       // 更新缓存
-      const scriptMatchCache = await cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch");
-      if (!scriptMatchCache) {
-        console.warn("scriptMatchCache is undefined.");
-        return;
-      }
-      const keys = Object.keys(scriptMatchCache);
-      for (const uuid of keys) {
-        scriptMatchCache[uuid].sort = uuidSort[uuid];
-      }
-      await cacheInstance.set("scriptMatch", scriptMatchCache);
+      this.scriptMatchCache!.forEach((matchInfo, uuid) => {
+        if (uuid in uuidSort) {
+          matchInfo.sort = uuidSort[uuid];
+        }
+      });
+      await this.saveScriptMatchInfo();
     });
 
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
@@ -1220,14 +1223,20 @@ export class RuntimeService {
     return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache!));
   }
 
-  addScriptMatchEntry(scriptMatchCache: Map<string, TScriptMatchInfoEntry>, matchInfoEntry: TScriptMatchInfoEntry) {
-    const { uuid, scriptUrlPatterns, originalUrlPatterns } = matchInfoEntry;
+  scriptMatchEntry(
+    scriptRes: ScriptRunResource,
+    o: {
+      scriptUrlPatterns: URLRuleEntry[];
+      originalUrlPatterns: URLRuleEntry[];
+    }
+  ) {
+    const { uuid } = scriptRes;
+    const { scriptUrlPatterns, originalUrlPatterns } = o;
 
-    matchInfoEntry = this.createMatchInfoEntry(matchInfoEntry, {
+    const matchInfoEntry = this.createMatchInfoEntry(scriptRes, {
       scriptUrlPatterns: scriptUrlPatterns,
       originalUrlPatterns: originalUrlPatterns === scriptUrlPatterns ? null : originalUrlPatterns,
     });
-    scriptMatchCache.set(uuid, matchInfoEntry);
     const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
     // 清理一下老数据
     this.scriptMatch.clearRules(uuid);
@@ -1237,6 +1246,7 @@ export class RuntimeService {
     if (matchInfoEntry.originalUrlPatterns && originalUrlPatterns !== scriptUrlPatterns) {
       this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
     }
+    return matchInfoEntry;
   }
 
   async updateScriptStatus(uuid: string, status: SCRIPT_STATUS) {
@@ -1254,15 +1264,20 @@ export class RuntimeService {
     await this.saveScriptMatchInfo();
   }
 
-  // 构建脚本匹配信息并存入缓存
-  async buildScriptMatchInfo(script: Script): Promise<ScriptMatchInfo | undefined> {
-    const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
+  async scriptURLPatternResults(scriptRes: {
+    metadata: SCMetadata;
+    originalMetadata: SCMetadata;
+    selfMetadata?: SCMetadata;
+  }): Promise<{
+    scriptUrlPatterns: URLRuleEntry[];
+    originalUrlPatterns: URLRuleEntry[];
+  } | null> {
     const { metadata, originalMetadata } = scriptRes;
     const metaMatch = metadata.match;
     const metaInclude = metadata.include;
     const metaExclude = metadata.exclude;
     if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
-      return undefined;
+      return null;
     }
 
     // 黑名单排除
@@ -1279,8 +1294,9 @@ export class RuntimeService {
     // 如果使用了自定义排除，无法在脚本原有的网域看到匹配情况
     // 所有统一把原本的pattern都解析一下
 
+    const selfMetadata = scriptRes.selfMetadata;
     const originalUrlPatterns: URLRuleEntry[] | null =
-      script.selfMetadata?.match || script.selfMetadata?.include || script.selfMetadata?.exclude
+      selfMetadata?.match || selfMetadata?.include || selfMetadata?.exclude
         ? extractUrlPatterns([
             ...(originalMetadata.match || []).map((e) => `@match ${e}`),
             ...(originalMetadata.include || []).map((e) => `@include ${e}`),
@@ -1289,24 +1305,19 @@ export class RuntimeService {
           ])
         : scriptUrlPatterns;
 
-    const scriptMatchInfo = Object.assign(
-      {
-        scriptUrlPatterns: scriptUrlPatterns,
-        originalUrlPatterns: originalUrlPatterns,
-      },
-      scriptRes
-    );
-
-    return scriptMatchInfo;
+    return { scriptUrlPatterns, originalUrlPatterns };
   }
 
   async buildAndSetScriptMatchInfo(script: Script) {
-    const scriptMatchInfo = await this.buildScriptMatchInfo(script);
-    if (!scriptMatchInfo) {
+    const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
+    const o = await this.scriptURLPatternResults(scriptRes);
+    if (!o) {
       return undefined;
     }
+    // 构建脚本匹配信息
+    const scriptMatchInfo = this.scriptMatchEntry(scriptRes, o);
     // 把脚本信息放入缓存中
-    this.addScriptMatchEntry(this.scriptMatchCache!, scriptMatchInfo as TScriptMatchInfoEntry);
+    this.scriptMatchCache!.set(scriptRes.uuid, scriptMatchInfo);
     await this.saveScriptMatchInfo();
     return scriptMatchInfo;
   }
