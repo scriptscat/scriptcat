@@ -18,6 +18,7 @@ import {
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { IconSync } from "@arco-design/web-react/icon";
 import { useAppContext } from "../store/AppContext";
+import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 
 const CollapseItem = Collapse.Item;
 const { GridItem } = Grid;
@@ -251,7 +252,7 @@ function App() {
               <GridItem className={`card-grid-item`} key={item.uuid}>
                 <Card
                   size="small"
-                  className={`script-card card-${item.script.status === 1 ? "enabled" : "disabled"}`}
+                  className={`script-card card-${item.script.status === SCRIPT_STATUS_ENABLE ? "enabled" : "disabled"}`}
                   title={
                     <span
                       onClick={() => openUpdatePage(item.uuid)}

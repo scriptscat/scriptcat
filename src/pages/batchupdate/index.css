@@ -13,3 +13,7 @@ body .text-clickable:hover {
     color: inherit;
     text-decoration: underline;
 }
+
+.script-card.card-disabled {
+    filter: contrast(0.9);
+}
