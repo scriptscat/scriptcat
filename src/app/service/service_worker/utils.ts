@@ -2,7 +2,7 @@ export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import { isInjectIntoContent } from "../content/utils";
+import { compileInjectScript, compilePreInjectScript, isEarlyStartScript, isInjectIntoContent } from "../content/utils";
 import { getApiMatchesAndGlobs, RuleType, toUniquePatternStrings } from "@App/pkg/utils/url_matcher";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
@@ -164,6 +164,17 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
     metadataStr,
     userConfigStr,
   };
+}
+
+export function complieInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
+  const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+  let scriptInjectCode;
+  if (preDocumentStartScript) {
+    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
+  } else {
+    scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+  }
+  return scriptInjectCode;
 }
 
 // 构建userScript注册信息

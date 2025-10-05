@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate, getUserScriptRegister } from "./utils";
+import {
+  isBase64,
+  parseUrlSRI,
+  getCombinedMeta,
+  selfMetadataUpdate,
+  getUserScriptRegister,
+  complieInjectionCode,
+} from "./utils";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
@@ -243,7 +250,10 @@ describe("getUserScriptRegister", () => {
       originalMetadata: {},
     };
 
-    const result = getUserScriptRegister(mockScriptMatchInfo);
+    const result = getUserScriptRegister(
+      mockScriptMatchInfo,
+      complieInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code)
+    );
 
     expect(result).toHaveProperty("registerScript");
     expect(result.registerScript.id).toBe("test-uuid");

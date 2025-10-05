@@ -16,7 +16,7 @@ import GMApi, { GMExternalDependencies } from "./gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
-import { getUserScriptRegister, parseScriptLoadInfo } from "./utils";
+import { complieInjectionCode, getUserScriptRegister } from "./utils";
 import {
   checkUserScriptsAvailable,
   randomMessageFlag,
@@ -29,7 +29,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import { compileInjectScript, compilePreInjectScript, compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode, isEarlyStartScript } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -565,20 +565,9 @@ export class RuntimeService {
     return runtimeGlobal.messageFlag;
   }
 
-  complieInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
-    const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
-    let scriptInjectCode;
-    if (preDocumentStartScript) {
-      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
-    } else {
-      scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
-    }
-    return scriptInjectCode;
-  }
-
   getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     const scriptCode = scriptMatchInfo.code;
-    const res = getUserScriptRegister(scriptMatchInfo, this.complieInjectionCode(scriptMatchInfo, scriptCode));
+    const res = getUserScriptRegister(scriptMatchInfo, complieInjectionCode(scriptMatchInfo, scriptCode));
     if (!res) {
       return undefined;
     }
@@ -1087,7 +1076,7 @@ export class RuntimeService {
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
           const scriptCode = compileScriptCode(scriptRes, scriptDAOCode);
-          const scriptInjectCode = this.complieInjectionCode(scriptRes, scriptCode);
+          const scriptInjectCode = complieInjectionCode(scriptRes, scriptCode);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,
