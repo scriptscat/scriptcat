@@ -30,17 +30,21 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected prefix!: string;
 
+  // Extension Context 無效時釋放 scriptRes
   @GMContext.protected()
-  protected message!: Message;
+  protected message?: Message | null;
 
+  // Extension Context 無效時釋放 scriptRes
   @GMContext.protected()
-  protected scriptRes!: ScriptRunResource;
+  protected scriptRes?: ScriptRunResource | null;
 
+  // Extension Context 無效時釋放 valueChangeListener
   @GMContext.protected()
-  protected valueChangeListener!: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>;
+  protected valueChangeListener?: Map<number, { name: string; listener: GMTypes.ValueChangeListener }> | null;
 
+  // Extension Context 無效時釋放 EE
   @GMContext.protected()
-  protected EE!: EventEmitter;
+  protected EE?: EventEmitter | null;
 
   @GMContext.protected()
   public context!: any;
@@ -67,23 +71,42 @@ class GM_Base implements IGM_Base {
     return new GM_Base(options, integrity) as GM_Base & { [key: string]: any };
   }
 
+  @GMContext.protected()
+  public isInvalidContext!: () => boolean;
+
+  @GMContext.protected()
+  public setInvalidContext!: () => void;
+
   // 单次回调使用
   @GMContext.protected()
   public async sendMessage(api: string, params: any[]) {
+    if (!this.message || !this.scriptRes) return;
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
     }
-    return sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
-      uuid: this.scriptRes.uuid,
-      api,
-      params,
-      runFlag: this.runFlag,
-    } as MessageRequest);
+    let ret;
+    try {
+      ret = await sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
+        uuid: this.scriptRes.uuid,
+        api,
+        params,
+        runFlag: this.runFlag,
+      } as MessageRequest);
+    } catch (e: any) {
+      if (`${e?.message || e}`.includes("Extension context invalidated.")) {
+        this.setInvalidContext(); // 之後不再進行 sendMessage 跟 EE操作
+        console.error(e);
+      } else {
+        throw e;
+      }
+    }
+    return ret;
   }
 
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public connect(api: string, params: any[]) {
+    if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
     return connect(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
@@ -94,6 +117,7 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   public valueUpdate(data: ValueUpdateData) {
+    if (!this.scriptRes || !this.valueChangeListener) return;
     if (data.uuid === this.scriptRes.uuid || data.storageName === getStorageName(this.scriptRes)) {
       // 触发,并更新值
       if (data.value === undefined) {
@@ -113,6 +137,7 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
+    if (!this.EE) return;
     this.EE.emit(`${event}:${eventId}`, data);
   }
 }
@@ -126,12 +151,13 @@ export default class GMApi extends GM_Base {
 
   constructor(
     public prefix: string,
-    public message: Message,
-    public scriptRes: ScriptRunResource
+    public message: Message | undefined,
+    public scriptRes: ScriptRunResource | undefined
   ) {
     // testing only 仅供测试用
     const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
     const EE = new EventEmitter<string, any>();
+    let invalid = false;
     super(
       {
         prefix,
@@ -141,12 +167,27 @@ export default class GMApi extends GM_Base {
         EE,
         notificationTagMap: new Map(),
         eventId: 0,
+        setInvalidContext() {
+          if (invalid) return;
+          invalid = true;
+          this.valueChangeListener.clear();
+          this.EE.removeAllListeners();
+          // 釋放記憶
+          this.message = null;
+          this.scriptRes = null;
+          this.valueChangeListener = null;
+          this.EE = null;
+        },
+        isInvalidContext() {
+          return invalid;
+        },
       },
       integrity
     );
   }
 
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
+    if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
     if (ret !== undefined) {
       return ret;
@@ -170,6 +211,7 @@ export default class GMApi extends GM_Base {
   }
 
   static _GM_setValue(a: GMApi, key: string, value: any) {
+    if (!a.scriptRes) return;
     // 对object的value进行一次转化
     if (typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
@@ -213,20 +255,20 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_listValues(): string[] {
+    if (!this.scriptRes) return [];
     return Object.keys(this.scriptRes.value);
   }
 
   @GMContext.API()
   public ["GM.listValues"](): Promise<string[]> {
+    if (!this.scriptRes) return Promise.resolve([]);
     // Asynchronous wrapper for GM_listValues to support GM.listValues
-    return new Promise((resolve) => {
-      const ret = Object.keys(this.scriptRes.value);
-      resolve(ret);
-    });
+    return Promise.resolve(Object.keys(this.scriptRes.value));
   }
 
   @GMContext.API()
   public GM_setValues(values: { [key: string]: any }) {
+    if (!this.scriptRes) return;
     if (values == null) {
       throw new Error("GM_setValues: values must not be null or undefined");
     }
@@ -241,6 +283,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
+    if (!this.scriptRes) return {};
     if (keysOrDefaults == null) {
       // Returns all values
       return this.scriptRes.value;
@@ -271,6 +314,7 @@ export default class GMApi extends GM_Base {
   public ["GM.getValues"](
     keysOrDefaults: { [key: string]: any } | string[] | null | undefined
   ): Promise<{ [key: string]: any }> {
+    if (!this.scriptRes) return new Promise<{ [key: string]: any }>(() => {});
     return new Promise((resolve) => {
       const ret = this.GM_getValues(keysOrDefaults);
       resolve(ret);
@@ -279,6 +323,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ depend: ["GM_setValues"] })
   public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
+    if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
       this.GM_setValues(values);
       resolve();
@@ -287,6 +332,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_deleteValues(keys: string[]) {
+    if (!this.scriptRes) return;
     if (!Array.isArray(keys)) {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
@@ -299,6 +345,7 @@ export default class GMApi extends GM_Base {
   // Asynchronous wrapper for GM.deleteValues
   @GMContext.API({ depend: ["GM_deleteValues"] })
   public ["GM.deleteValues"](keys: string[]): Promise<void> {
+    if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
       this.GM_deleteValues(keys);
       resolve();
@@ -307,6 +354,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addValueChangeListener" })
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
+    if (!this.valueChangeListener) return 0;
     this.eventId += 1;
     this.valueChangeListener.set(this.eventId, { name, listener });
     return this.eventId;
@@ -314,11 +362,13 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.removeValueChangeListener" })
   public GM_removeValueChangeListener(listenerId: number): void {
+    if (!this.valueChangeListener) return;
     this.valueChangeListener.delete(listenerId);
   }
 
   @GMContext.API({ alias: "GM.log" })
   GM_log(message: string, level: GMTypes.LoggerLevel = "info", ...labels: GMTypes.LoggerLabel[]) {
+    if (this.isInvalidContext()) return;
     if (typeof message !== "string") {
       message = JSON.stringify(message);
     }
@@ -448,6 +498,7 @@ export default class GMApi extends GM_Base {
     listener: (inputValue?: any) => void,
     options_or_accessKey?: ScriptMenuItem["options"] | string
   ): number {
+    if (!this.EE) return 0;
     if (!this.menuMap) {
       this.menuMap = new Map();
     }
@@ -491,6 +542,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addStyle" })
   GM_addStyle(css: string) {
+    if (!this.message || !this.scriptRes) return;
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
@@ -515,6 +567,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.addElement" })
   GM_addElement(parentNode: EventTarget | string, tagName: any, attrs?: any) {
+    if (!this.message || !this.scriptRes) return;
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
     let parentNodeId: any = parentNode;
@@ -544,6 +597,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.unregisterMenuCommand" })
   GM_unregisterMenuCommand(id: number): void {
+    if (!this.EE) return;
     if (!this.menuMap) {
       this.menuMap = new Map();
     }
@@ -606,6 +660,11 @@ export default class GMApi extends GM_Base {
   }
 
   static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
+    if (a.isInvalidContext()) {
+      return {
+        abort: () => {},
+      };
+    }
     const u = new URL(details.url, window.location.href);
     const headers = details.headers;
     if (headers) {
@@ -839,6 +898,11 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.download" })
   GM_download(url: GMTypes.DownloadDetails | string, filename?: string): GMTypes.AbortHandle<void> {
+    if (this.isInvalidContext()) {
+      return {
+        abort: () => {},
+      };
+    }
     let details: GMTypes.DownloadDetails;
     if (typeof url === "string") {
       details = {
@@ -906,6 +970,7 @@ export default class GMApi extends GM_Base {
     image?: string,
     onclick?: GMTypes.NotificationOnClick
   ) {
+    if (this.isInvalidContext()) return;
     const notificationTagMap: Map<string, string> = this.notificationTagMap || (this.notificationTagMap = new Map());
     this.eventId += 1;
     let data: GMTypes.NotificationDetails;
@@ -949,6 +1014,7 @@ export default class GMApi extends GM_Base {
       notificationId = notificationTagMap.get(data.tag);
     }
     this.sendMessage("GM_notification", [data, notificationId]).then((id) => {
+      if (!this.EE) return;
       if (create) {
         create.apply({ id }, [id]);
       }
@@ -957,6 +1023,7 @@ export default class GMApi extends GM_Base {
       }
       let isPreventDefault = false;
       this.EE.addListener("GM_notification:" + id, (resp: NotificationMessageOption) => {
+        if (!this.EE) return;
         /**
          * 清除保存的通知的tag
          */
@@ -1026,7 +1093,8 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_closeInTab"], alias: "GM.openInTab" })
-  public GM_openInTab(url: string, param?: GMTypes.OpenTabOptions | boolean): GMTypes.Tab {
+  public GM_openInTab(url: string, param?: GMTypes.OpenTabOptions | boolean): GMTypes.Tab | undefined {
+    if (this.isInvalidContext()) return undefined;
     let option = {} as GMTypes.OpenTabOptions;
     if (typeof param === "boolean") {
       option.active = !param; // Greasemonkey 3.x loadInBackground
@@ -1058,9 +1126,11 @@ export default class GMApi extends GM_Base {
     };
 
     this.sendMessage("GM_openInTab", [url, option]).then((id) => {
+      if (!this.EE) return;
       if (id) {
         tabid = id;
         this.EE.addListener("GM_openInTab:" + id, (resp: any) => {
+          if (!this.EE) return;
           switch (resp.event) {
             case "oncreate":
               tabid = resp.tabId;
@@ -1088,11 +1158,13 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.closeInTab" })
   public GM_closeInTab(tabid: string) {
+    if (this.isInvalidContext()) return;
     return this.sendMessage("GM_closeInTab", [tabid]);
   }
 
   @GMContext.API()
   GM_getTab(callback: (data: any) => void) {
+    if (this.isInvalidContext()) return;
     this.sendMessage("GM_getTab", []).then((data) => {
       callback(data ?? {});
     });
@@ -1109,6 +1181,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.saveTab" })
   GM_saveTab(obj: object) {
+    if (this.isInvalidContext()) return;
     if (typeof obj === "object") {
       obj = JSON.parse(JSON.stringify(obj));
     }
@@ -1117,6 +1190,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   GM_getTabs(callback: (objs: { [key: string | number]: object }) => any) {
+    if (this.isInvalidContext()) return;
     this.sendMessage("GM_getTabs", []).then((resp) => {
       callback(resp);
     });
@@ -1133,6 +1207,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({})
   GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
+    if (this.isInvalidContext()) return;
     this.sendMessage("GM_setClipboard", [data, info])
       .then(() => {
         if (typeof cb === "function") {
@@ -1147,16 +1222,14 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_setClipboard"] })
-  ["GM.setClipboard"](data: string, info?: string | { type?: string; minetype?: string }) {
+  ["GM.setClipboard"](data: string, info?: string | { type?: string; minetype?: string }): Promise<void> {
+    if (this.isInvalidContext()) return new Promise<void>(() => {});
     return this.sendMessage("GM_setClipboard", [data, info]);
   }
 
   @GMContext.API()
   GM_getResourceText(name: string): string | undefined {
-    if (!this.scriptRes.resource) {
-      return undefined;
-    }
-    const r = this.scriptRes.resource[name];
+    const r = this.scriptRes?.resource?.[name];
     if (r) {
       return r.content;
     }
@@ -1174,10 +1247,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined {
-    if (!this.scriptRes.resource) {
-      return undefined;
-    }
-    const r = this.scriptRes.resource[name];
+    const r = this.scriptRes?.resource?.[name];
     if (r) {
       let base64 = r.base64;
       if (!base64) {

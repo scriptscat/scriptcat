@@ -26,6 +26,7 @@ export const createContext = (
       loadScriptResolve = resolve;
     });
   }
+  let invalid = false;
   const context = createGMBase({
     prefix: envPrefix,
     message,
@@ -42,6 +43,21 @@ export const createContext = (
     grantSet: new Set(),
     loadScriptPromise,
     loadScriptResolve,
+    setInvalidContext() {
+      if (invalid) return;
+      invalid = true;
+      this.valueChangeListener.clear();
+      this.EE.removeAllListeners();
+      this.runFlag = `${uuidv4()}(invalid)`; // 更改 uuid 防止 runFlag 相關操作
+      // 釋放記憶
+      this.message = null;
+      this.scriptRes = null;
+      this.valueChangeListener = null;
+      this.EE = null;
+    },
+    isInvalidContext() {
+      return invalid;
+    },
   });
   const grantedAPIs: { [key: string]: any } = {};
   const __methodInject__ = (grant: string): boolean => {
