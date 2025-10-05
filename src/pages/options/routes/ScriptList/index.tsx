@@ -803,7 +803,6 @@ function ScriptList() {
   const [cloudScript, setCloudScript] = useState<Script>();
   const [mInitial, setInitial] = useState<boolean>(false);
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const inputRef = useRef<RefInputType>(null);
   const navigate = useNavigate();
@@ -1211,8 +1210,6 @@ function ScriptList() {
   }, []);
 
   const [canShowList, setCanShowList] = useState(false);
-
-
 
   useEffect(() => {
     if (savedWidths === null) return;
