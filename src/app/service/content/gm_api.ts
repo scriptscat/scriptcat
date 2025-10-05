@@ -30,19 +30,19 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected prefix!: string;
 
-  // Extension Context 無效時釋放 scriptRes
+  // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
   protected message?: Message | null;
 
-  // Extension Context 無效時釋放 scriptRes
+  // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
   protected scriptRes?: ScriptRunResource | null;
 
-  // Extension Context 無效時釋放 valueChangeListener
+  // Extension Context 无效时释放 valueChangeListener
   @GMContext.protected()
   protected valueChangeListener?: Map<number, { name: string; listener: GMTypes.ValueChangeListener }> | null;
 
-  // Extension Context 無效時釋放 EE
+  // Extension Context 无效时释放 EE
   @GMContext.protected()
   protected EE?: EventEmitter | null;
 
@@ -94,7 +94,7 @@ class GM_Base implements IGM_Base {
       } as MessageRequest);
     } catch (e: any) {
       if (`${e?.message || e}`.includes("Extension context invalidated.")) {
-        this.setInvalidContext(); // 之後不再進行 sendMessage 跟 EE操作
+        this.setInvalidContext(); // 之后不再进行 sendMessage 跟 EE操作
         console.error(e);
       } else {
         throw e;
@@ -172,7 +172,7 @@ export default class GMApi extends GM_Base {
           invalid = true;
           this.valueChangeListener.clear();
           this.EE.removeAllListeners();
-          // 釋放記憶
+          // 释放记忆
           this.message = null;
           this.scriptRes = null;
           this.valueChangeListener = null;
