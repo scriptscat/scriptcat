@@ -33,6 +33,10 @@ describe("encodeMessage / decodeMessage", () => {
     const decoded = decodeMessage(encoded) as any[];
     expect(decoded).toEqual(input);
     expect(1 in decoded).toBe(true);
+    expect(4 in decoded).toBe(true);
+    expect(5 in decoded).toBe(false);
+    expect(decoded.length).toBe(5);
+    expect(Array.isArray(decoded)).toBe(true);
   });
 
   it("原始类型应能保持相等", () => {
