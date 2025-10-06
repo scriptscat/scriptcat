@@ -234,7 +234,7 @@ export default class GMApi extends GM_Base {
         valueStore[key] = value_;
       }
     }
-    // 避免undefined 等空值流失，先進行映射處理
+    // 避免undefined 等空值流失，先进行映射处理
     const valuesNew = encodeMessage(values);
     a.sendMessage("GM_setValues", [id, valuesNew]);
     return id;
@@ -268,15 +268,18 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_listValues(): string[] {
-    return Object.keys(this.scriptRes.value);
+    const keys = Object.keys(this.scriptRes.value);
+    keys.sort(); // TM 有根据key做排序
+    return keys;
   }
 
   @GMContext.API()
   public ["GM.listValues"](): Promise<string[]> {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
     return new Promise((resolve) => {
-      const ret = Object.keys(this.scriptRes.value);
-      resolve(ret);
+      const keys = Object.keys(this.scriptRes.value);
+      keys.sort(); // TM 有根据key做排序
+      resolve(keys);
     });
   }
 

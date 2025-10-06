@@ -140,6 +140,22 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
+  it("GM_listValues Sorted", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
+    script.value.test5 = "30";
+    script.value.test2 = "70";
+    script.value.test3 = "75";
+    script.value.test1 = "40";
+    script.metadata.grant = ["GM_listValues"];
+    script.code = `return GM_listValues().join("-");`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual("test1-test2-test3-test5");
+  });
+
   it("GM.listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
@@ -150,6 +166,22 @@ describe("GM Api", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
+  });
+
+  it("GM.listValues Sorted", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
+    script.value.test5 = "30";
+    script.value.test2 = "70";
+    script.value.test3 = "75";
+    script.value.test1 = "40";
+    script.metadata.grant = ["GM.listValues"];
+    script.code = `return GM.listValues().then(v=>v.join("-"));`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual("test1-test2-test3-test5");
   });
 
   it("GM_getValues", async () => {
