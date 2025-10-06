@@ -140,7 +140,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
-  it("GM_listValues Sorted", async () => {
+  it("GM_listValues No Sort", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};
     script.value.test5 = "30";
@@ -153,7 +153,7 @@ describe("GM Api", () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test1-test2-test3-test5"); // new test
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
   it("GM.listValues", async () => {
@@ -168,7 +168,7 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
-  it("GM.listValues Sorted", async () => {
+  it("GM.listValues No Sort", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};
     script.value.test5 = "30";
@@ -181,7 +181,7 @@ describe("GM Api", () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test1-test2-test3-test5"); // new test
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
   it("GM_getValues", async () => {
