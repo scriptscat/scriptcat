@@ -13,11 +13,12 @@ import { CronJob } from "cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
-import type { ValueUpdateData } from "../content/types";
+import type { ValueUpdateData, ValueUpdateDataEncoded } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
+import { decodeMessage } from "@App/pkg/utils/message_value";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -322,7 +323,8 @@ export class Runtime {
     return this.execScript(loadScript, true);
   }
 
-  valueUpdate(data: ValueUpdateData) {
+  valueUpdate(data: ValueUpdateDataEncoded) {
+    const dataNew = { ...data, entries: decodeMessage(data.entries) } as ValueUpdateData;
     // 转发给脚本
     this.execScripts.forEach((val) => {
       if (val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName) {
@@ -330,13 +332,13 @@ export class Runtime {
       }
     });
     // 更新crontabScripts中的脚本值
-    this.crontabSripts.forEach((script) => {
+    for (const script of this.crontabSripts) {
       if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
-        for (const [key, value, _oldValue] of data.entries) {
+        for (const [key, value, _oldValue] of dataNew.entries) {
           script.value[key] = value;
         }
       }
-    });
+    }
   }
 
   emitEvent(data: EmitEventRequest) {

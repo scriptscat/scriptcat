@@ -1,3 +1,4 @@
+import type { TEncodedMessage } from "@App/pkg/utils/message_value";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
 export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName: string) => any;
@@ -19,6 +20,14 @@ export type ValueUpdateDateEntry = [string, any, any];
 export type ValueUpdateData = {
   id?: string;
   entries: ValueUpdateDateEntry[];
+  uuid: string;
+  storageName: string; // 储存name
+  sender: ValueUpdateSender;
+};
+
+export type ValueUpdateDataEncoded = {
+  id?: string;
+  entries: TEncodedMessage<ValueUpdateDateEntry[]>;
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;

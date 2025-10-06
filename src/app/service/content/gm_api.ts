@@ -6,17 +6,19 @@ import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import type { ValueUpdateData } from "./types";
+import type { ValueUpdateDataEncoded } from "./types";
 import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "./listener_manager";
+import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
+import { type TGMKeyValue } from "@App/app/repo/value";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateData): void;
+  valueUpdate(data: ValueUpdateDataEncoded): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -99,7 +101,7 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateData) {
+  public valueUpdate(data: ValueUpdateDataEncoded) {
     const scriptRes = this.scriptRes;
     const { id, uuid, entries, storageName, sender } = data;
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
@@ -112,7 +114,8 @@ class GM_Base implements IGM_Base {
           fn();
         }
       }
-      for (const [key, value, oldValue] of entries) {
+      const entries_ = decodeMessage(entries);
+      for (const [key, value, oldValue] of entries_) {
         // 触发,并更新值
         if (value === undefined) {
           if (valueStore[key] !== undefined) {
@@ -208,7 +211,7 @@ export default class GMApi extends GM_Base {
     return id;
   }
 
-  static _GM_setValues(a: GMApi, promise: any, values: { [key: string]: any }) {
+  static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
       valChangeCounterId = 0;
@@ -232,10 +235,7 @@ export default class GMApi extends GM_Base {
       }
     }
     // 避免undefined 等空值流失，先進行映射處理
-    const valuesNew = {} as Record<string, [number, any]>;
-    for (const [key, value] of Object.entries(values)) {
-      valuesNew[key] = !value ? [0, value === undefined ? 1 : value === null ? 2 : value] : [1, value];
-    }
+    const valuesNew = encodeMessage(values);
     a.sendMessage("GM_setValues", [id, valuesNew]);
     return id;
   }
@@ -281,7 +281,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  public GM_setValues(values: { [key: string]: any }) {
+  public GM_setValues(values: TGMKeyValue) {
     if (values == null) {
       throw new Error("GM_setValues: values must not be null or undefined");
     }
@@ -292,12 +292,12 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
+  public GM_getValues(keysOrDefaults: TGMKeyValue | string[] | null | undefined) {
     if (keysOrDefaults == null) {
       // Returns all values
       return this.scriptRes.value;
     }
-    const result: { [key: string]: any } = {};
+    const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
       // 键名数组
       // Handle array of keys (e.g., ['foo', 'bar'])
@@ -320,9 +320,7 @@ export default class GMApi extends GM_Base {
 
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
-  public ["GM.getValues"](
-    keysOrDefaults: { [key: string]: any } | string[] | null | undefined
-  ): Promise<{ [key: string]: any }> {
+  public ["GM.getValues"](keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
     return new Promise((resolve) => {
       const ret = this.GM_getValues(keysOrDefaults);
       resolve(ret);
@@ -330,7 +328,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_setValues"] })
-  public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
+  public ["GM.setValues"](values: TGMKeyValue): Promise<void> {
     return new Promise((resolve) => {
       if (values == null) {
         throw new Error("GM.setValues: values must not be null or undefined");

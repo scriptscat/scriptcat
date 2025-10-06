@@ -6,12 +6,13 @@ import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
+import type { ValueUpdateDataEncoded, ValueUpdateSender } from "../content/types";
 import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { encodeMessage } from "@App/pkg/utils/message_value";
 
 export class ValueService {
   logger: Logger;
@@ -103,18 +104,18 @@ export class ValueService {
     if (flag) {
       this.pushValueToTab({
         id,
-        entries: [[key, value, oldValue]],
+        entries: encodeMessage([[key, value, oldValue]]),
         uuid,
         storageName,
         sender,
-      } as ValueUpdateData);
+      } as ValueUpdateDataEncoded);
     }
     // 没更新也要 valueUpdate ?
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   // 推送值到tab
-  async pushValueToTab<T extends ValueUpdateData>(sendData: T) {
+  async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
     const { storageName } = sendData;
     chrome.tabs.query({}, (tabs) => {
       const lastError = chrome.runtime.lastError;
@@ -213,11 +214,11 @@ export class ValueService {
     if (entries.length > 0) {
       this.pushValueToTab({
         id,
-        entries,
+        entries: encodeMessage(entries),
         uuid,
         storageName,
         sender,
-      } as ValueUpdateData);
+      } as ValueUpdateDataEncoded);
     }
     // 没更新也要 valueUpdate ?
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });

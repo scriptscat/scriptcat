@@ -22,6 +22,8 @@ import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 import { BrowserNoSupport, notificationsUpdate } from "./utils";
+import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
+import { type TGMKeyValue } from "@App/app/repo/value";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -318,11 +320,8 @@ export default class GMApi {
     if (!request.params || request.params.length !== 2) {
       throw new Error("param is failed");
     }
-    const [id, valuesNew] = request.params as [string, Record<string, [number, any]>];
-    const values = {} as Record<string, any>;
-    for (const [key, [n, t]] of Object.entries(valuesNew)) {
-      values[key] = n ? t : t === 1 ? undefined : t === 2 ? null : t;
-    }
+    const [id, valuesNew] = request.params as [string, TEncodedMessage<TGMKeyValue>];
+    const values = decodeMessage(valuesNew);
     const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
