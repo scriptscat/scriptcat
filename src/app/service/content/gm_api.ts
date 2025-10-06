@@ -195,7 +195,7 @@ export default class GMApi extends GM_Base {
       valueChangePromiseMap.set(id, promise);
     }
     // 对object的value进行一次转化
-    if (typeof value === "object") {
+    if (value && typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
     }
     if (value === undefined) {
@@ -220,13 +220,23 @@ export default class GMApi extends GM_Base {
     }
     const valueStore = a.scriptRes.value;
     for (const [key, value] of Object.entries(values)) {
-      if (key === undefined) {
+      let value_ = value;
+      // 对object的value进行一次转化
+      if (value_ && typeof value_ === "object") {
+        value_ = JSON.parse(JSON.stringify(value_));
+      }
+      if (value_ === undefined) {
         if (valueStore[key]) delete valueStore[key];
       } else {
-        valueStore[key] = value;
+        valueStore[key] = value_;
       }
     }
-    a.sendMessage("GM_setValues", [id, values]);
+    // 避免undefined 等空值流失，先進行映射處理
+    const valuesNew = {} as Record<string, [number, any]>;
+    for (const [key, value] of Object.entries(values)) {
+      valuesNew[key] = !value ? [0, value === undefined ? 1 : value === null ? 2 : value] : [1, value];
+    }
+    a.sendMessage("GM_setValues", [id, valuesNew]);
     return id;
   }
 
@@ -1163,7 +1173,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.saveTab" })
   GM_saveTab(obj: object) {
-    if (typeof obj === "object") {
+    if (obj && typeof obj === "object") {
       obj = JSON.parse(JSON.stringify(obj));
     }
     this.sendMessage("GM_saveTab", [obj]);

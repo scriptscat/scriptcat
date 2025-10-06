@@ -318,7 +318,11 @@ export default class GMApi {
     if (!request.params || request.params.length !== 2) {
       throw new Error("param is failed");
     }
-    const [id, values] = request.params as [string, { [key: string]: any }];
+    const [id, valuesNew] = request.params as [string, Record<string, [number, any]>];
+    const values = {} as Record<string, any>;
+    for (const [key, [n, t]] of Object.entries(valuesNew)) {
+      values[key] = n ? t : t === 1 ? undefined : t === 2 ? null : t;
+    }
     const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,

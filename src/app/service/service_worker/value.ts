@@ -12,6 +12,7 @@ import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 export class ValueService {
   logger: Logger;
@@ -71,7 +72,7 @@ export class ValueService {
     let oldValue;
     // 使用事务来保证数据一致性
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const flag = await cacheInstance.tx<boolean>(cacheKey, async () => {
+    const flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
@@ -83,16 +84,19 @@ export class ValueService {
           updatetime: now,
         };
       } else {
+        let dataModel = valueModel.data;
         // 值没有发生变化, 不进行操作
-        oldValue = valueModel.data[key];
+        oldValue = dataModel[key];
         if (oldValue === value) {
           return false;
         }
+        dataModel = { ...dataModel }; // 每次儲存使用新參考
         if (value === undefined) {
-          delete valueModel.data[key];
+          delete dataModel[key];
         } else {
-          valueModel.data[key] = value;
+          dataModel[key] = value;
         }
+        valueModel.data = dataModel; // 每次儲存使用新參考
       }
       await this.valueDAO.save(storageName, valueModel);
       return true;
@@ -161,9 +165,9 @@ export class ValueService {
     const storageName = getStorageName(script);
     let oldValueRecord: { [key: string]: any } = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const flag = await cacheInstance.tx<boolean>(cacheKey, async () => {
+    const entries = [] as [string, any, any][];
+    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
-      let changed = false;
       if (!valueModel) {
         const now = Date.now();
         valueModel = {
@@ -173,39 +177,41 @@ export class ValueService {
           createtime: now,
           updatetime: now,
         };
-        changed = true;
       } else {
-        oldValueRecord = valueModel.data;
+        let changed = false;
+        let dataModel = (oldValueRecord = valueModel.data);
+        dataModel = { ...dataModel }; // 每次儲存使用新參考
         for (const [key, value] of Object.entries(values)) {
-          const oldValue = valueModel.data[key];
+          const oldValue = dataModel[key];
           if (oldValue === value) continue;
           changed = true;
           if (values[key] === undefined) {
-            delete valueModel.data[key];
+            delete dataModel[key];
           } else {
-            valueModel.data[key] = value;
+            dataModel[key] = value;
           }
+          entries.push([key, value, oldValue]);
         }
         if (removeNotProvided) {
           // 处理oldValue有但是没有在data.values中的情况
           for (const key of Object.keys(oldValueRecord)) {
             if (!(key in values)) {
               changed = true;
-              delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
+              const oldValue = oldValueRecord[key];
+              delete dataModel[key]; // 这里使用delete是因为保存不需要这个字段了
               values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
+              entries.push([key, undefined, oldValue]);
             }
           }
         }
+        if (!changed) return false;
+        valueModel.data = dataModel; // 每次儲存使用新參考
       }
       await this.valueDAO.save(storageName, valueModel);
-      return changed;
+      return true;
     });
-    if (flag) {
-      // 推送到所有加载了本脚本的tab中
-      const entries = [] as [string, any, any][];
-      for (const key of Object.keys(values)) {
-        entries.push([key, values[key], oldValueRecord[key]]);
-      }
+    // 推送到所有加载了本脚本的tab中
+    if (entries.length > 0) {
       this.pushValueToTab({
         id,
         entries,
