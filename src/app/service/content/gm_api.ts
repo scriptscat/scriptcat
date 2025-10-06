@@ -269,7 +269,6 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_listValues(): string[] {
     const keys = Object.keys(this.scriptRes.value);
-    keys.sort(); // TM 有根据key做排序
     return keys;
   }
 
@@ -278,7 +277,6 @@ export default class GMApi extends GM_Base {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
     return new Promise((resolve) => {
       const keys = Object.keys(this.scriptRes.value);
-      keys.sort(); // TM 有根据key做排序
       resolve(keys);
     });
   }
