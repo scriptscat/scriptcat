@@ -933,7 +933,7 @@ export default class GMApi {
     const notificationId: string | undefined = request.params[1];
     const options: chrome.notifications.NotificationCreateOptions = {
       title: details.title || "ScriptCat",
-      message: details.text || "无消息内容",
+      message: details.text || "No Notification Message",
       iconUrl: details.image || getIcon(request.script) || chrome.runtime.getURL("assets/logo.png"),
       type: isFirefox() || details.progress === undefined ? "basic" : "progress",
     };
