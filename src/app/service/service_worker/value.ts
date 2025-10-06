@@ -5,7 +5,6 @@ import { type Value, ValueDAO } from "@App/app/repo/value";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import { cacheInstance } from "@App/app/cache";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateData, ValueUpdateSender } from "../content/types";
 import type { TScriptValueUpdate } from "../queue";
