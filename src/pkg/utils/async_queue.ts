@@ -1,22 +1,35 @@
 type TStackFn<T> = (...args: any[]) => Promise<T>;
-type TStack<T> = { task: TStackFn<T>; resolve: any }[];
+type TStack<T> = { task: TStackFn<T>; resolve: any; reject: any }[] & { active?: boolean };
 const stacks = {} as Record<string, TStack<any>>;
 
 const startAsync = async <T>(stack: TStack<T>) => {
   let stackEntry;
+  stack.active = true;
   while ((stackEntry = stack.shift())) {
-    const ret = await stackEntry.task();
-    stackEntry.resolve(ret);
+    try {
+      const ret = await stackEntry.task();
+      stackEntry.resolve(ret);
+    } catch (e: any) {
+      stackEntry.reject(e);
+    }
   }
+  stack.active = false;
 };
 
 export const stackAsyncTask = <T>(key: string, task: TStackFn<T>): Promise<T> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const stack: TStack<T> = stacks[key] || (stacks[key] = []);
-    const start = stack.length === 0;
-    stack.push({ task, resolve });
-    if (start) {
+    stack.push({ task, resolve, reject });
+    if (!stack.active) {
       startAsync<T>(stack);
     }
   });
+};
+
+// 僅用於單元測試
+export const clearStack = () => {
+  for (const key in stacks) {
+    stacks[key].active = false;
+    delete stacks[key];
+  }
 };

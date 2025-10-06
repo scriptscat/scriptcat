@@ -55,7 +55,7 @@ export const encodeMessage = <T>(values: T): TEncodedMessage<T> => {
  */
 export const decodeMessage = <T>(values: TEncodedMessage<T>): T => {
   const { m, k } = values;
-  if (!m || !k || typeof k !== "string") throw new Error("invalid decodeMessage");
+  if (m === null || m === undefined || !k || typeof k !== "string") throw new Error("invalid decodeMessage");
 
   const sRandomId = k;
   const sUndefined = `${sRandomId}undefined`;
