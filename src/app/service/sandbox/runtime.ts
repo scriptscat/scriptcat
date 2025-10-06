@@ -332,7 +332,9 @@ export class Runtime {
     // 更新crontabScripts中的脚本值
     this.crontabSripts.forEach((script) => {
       if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
-        script.value[data.key] = data.value;
+        for (const [key, value, _oldValue] of data.entries) {
+          script.value[key] = value;
+        }
       }
     });
   }

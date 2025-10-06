@@ -1,7 +1,7 @@
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
-import { base64ToBlob, strToBase64 } from "@App/pkg/utils/utils";
+import { base64ToBlob, randNum, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -10,6 +10,7 @@ import type { ValueUpdateData } from "./types";
 import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
+import { ListenerManager } from "./listener_manager";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -20,6 +21,11 @@ export interface IGM_Base {
 }
 
 const integrity = {}; // 仅防止非法实例化
+
+let valChangeCounterId = 0;
+let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+
+const valueChangePromiseMap = new Map<string, any>();
 
 // GM_Base 定义内部用变量和函数。均使用@protected
 // 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
@@ -37,7 +43,7 @@ class GM_Base implements IGM_Base {
   protected scriptRes!: ScriptRunResource;
 
   @GMContext.protected()
-  protected valueChangeListener!: Map<number, { name: string; listener: GMTypes.ValueChangeListener }>;
+  protected valueChangeListener!: ListenerManager<GMTypes.ValueChangeListener>;
 
   @GMContext.protected()
   protected EE!: EventEmitter;
@@ -94,20 +100,29 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   public valueUpdate(data: ValueUpdateData) {
-    if (data.uuid === this.scriptRes.uuid || data.storageName === getStorageName(this.scriptRes)) {
-      // 触发,并更新值
-      if (data.value === undefined) {
-        if (this.scriptRes.value[data.key] !== undefined) {
-          delete this.scriptRes.value[data.key];
+    const scriptRes = this.scriptRes;
+    const { id, uuid, entries, storageName, sender } = data;
+    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+      const valueStore = scriptRes.value;
+      const remote = sender.runFlag !== this.runFlag;
+      if (!remote && id) {
+        const fn = valueChangePromiseMap.get(id);
+        if (fn) {
+          valueChangePromiseMap.delete(id);
+          fn();
         }
-      } else {
-        this.scriptRes.value[data.key] = data.value;
       }
-      this.valueChangeListener.forEach((item) => {
-        if (item.name === data.key) {
-          item.listener(data.key, data.oldValue, data.value, data.sender.runFlag !== this.runFlag, data.sender.tabId);
+      for (const [key, value, oldValue] of entries) {
+        // 触发,并更新值
+        if (value === undefined) {
+          if (valueStore[key] !== undefined) {
+            delete valueStore[key];
+          }
+        } else {
+          valueStore[key] = value;
         }
-      });
+        this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+      }
     }
   }
 
@@ -130,7 +145,7 @@ export default class GMApi extends GM_Base {
     public scriptRes: ScriptRunResource
   ) {
     // testing only 仅供测试用
-    const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+    const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
     const EE = new EventEmitter<string, any>();
     super(
       {
@@ -169,45 +184,75 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_setValue(a: GMApi, key: string, value: any) {
+  static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
+    if (valChangeCounterId > 1e8) {
+      // 防止 valChangeCounterId 过大导致无法正常工作
+      valChangeCounterId = 0;
+      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+    }
+    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    if (promise) {
+      valueChangePromiseMap.set(id, promise);
+    }
     // 对object的value进行一次转化
     if (typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
     }
     if (value === undefined) {
       delete a.scriptRes.value[key];
-      a.sendMessage("GM_setValue", [key]);
+      a.sendMessage("GM_setValue", [id, key]);
     } else {
       a.scriptRes.value[key] = value;
-      a.sendMessage("GM_setValue", [key, value]);
+      a.sendMessage("GM_setValue", [id, key, value]);
     }
+    return id;
+  }
+
+  static _GM_setValues(a: GMApi, promise: any, values: { [key: string]: any }) {
+    if (valChangeCounterId > 1e8) {
+      // 防止 valChangeCounterId 过大导致无法正常工作
+      valChangeCounterId = 0;
+      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+    }
+    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    if (promise) {
+      valueChangePromiseMap.set(id, promise);
+    }
+    const valueStore = a.scriptRes.value;
+    for (const [key, value] of Object.entries(values)) {
+      if (key === undefined) {
+        if (valueStore[key]) delete valueStore[key];
+      } else {
+        valueStore[key] = value;
+      }
+    }
+    a.sendMessage("GM_setValues", [id, values]);
+    return id;
   }
 
   @GMContext.API()
   public GM_setValue(key: string, value: any) {
-    _GM_setValue(this, key, value);
+    _GM_setValue(this, null, key, value);
   }
 
   @GMContext.API()
   public ["GM.setValue"](key: string, value: any): Promise<void> {
     // Asynchronous wrapper for GM_setValue to support GM.setValue
     return new Promise((resolve) => {
-      _GM_setValue(this, key, value);
-      resolve();
+      _GM_setValue(this, resolve, key, value);
     });
   }
 
   @GMContext.API()
-  public GM_deleteValue(name: string): void {
-    _GM_setValue(this, name, undefined);
+  public GM_deleteValue(key: string): void {
+    _GM_setValue(this, null, key, undefined);
   }
 
   @GMContext.API()
-  public ["GM.deleteValue"](name: string): Promise<void> {
+  public ["GM.deleteValue"](key: string): Promise<void> {
     // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
     return new Promise((resolve) => {
-      _GM_setValue(this, name, undefined);
-      resolve();
+      _GM_setValue(this, resolve, key, undefined);
     });
   }
 
@@ -233,10 +278,7 @@ export default class GMApi extends GM_Base {
     if (typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
-    for (const key of Object.keys(values)) {
-      const value = values[key];
-      _GM_setValue(this, key, value);
-    }
+    _GM_setValues(this, null, values);
   }
 
   @GMContext.API()
@@ -280,8 +322,13 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_setValues"] })
   public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
     return new Promise((resolve) => {
-      this.GM_setValues(values);
-      resolve();
+      if (values == null) {
+        throw new Error("GM.setValues: values must not be null or undefined");
+      }
+      if (typeof values !== "object") {
+        throw new Error("GM.setValues: values must be an object");
+      }
+      _GM_setValues(this, resolve, values);
     });
   }
 
@@ -291,30 +338,37 @@ export default class GMApi extends GM_Base {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
+    const req = {} as Record<string, undefined>;
     for (const key of keys) {
-      _GM_setValue(this, key, undefined);
+      req[key] = undefined;
     }
+    _GM_setValues(this, null, req);
   }
 
   // Asynchronous wrapper for GM.deleteValues
   @GMContext.API({ depend: ["GM_deleteValues"] })
   public ["GM.deleteValues"](keys: string[]): Promise<void> {
     return new Promise((resolve) => {
-      this.GM_deleteValues(keys);
-      resolve();
+      if (!Array.isArray(keys)) {
+        throw new Error("GM.deleteValues: keys must be string[]");
+      } else {
+        const req = {} as Record<string, undefined>;
+        for (const key of keys) {
+          req[key] = undefined;
+        }
+        _GM_setValues(this, resolve, req);
+      }
     });
   }
 
   @GMContext.API({ alias: "GM.addValueChangeListener" })
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
-    this.eventId += 1;
-    this.valueChangeListener.set(this.eventId, { name, listener });
-    return this.eventId;
+    return this.valueChangeListener.add(name, listener);
   }
 
   @GMContext.API({ alias: "GM.removeValueChangeListener" })
   public GM_removeValueChangeListener(listenerId: number): void {
-    this.valueChangeListener.delete(listenerId);
+    this.valueChangeListener.remove(listenerId);
   }
 
   @GMContext.API({ alias: "GM.log" })
@@ -1225,4 +1279,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_xmlhttpRequest } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;

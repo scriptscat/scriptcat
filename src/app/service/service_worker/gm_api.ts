@@ -301,13 +301,25 @@ export default class GMApi {
     return true;
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue"] })
   async GM_setValue(request: Request, sender: IGetSender) {
-    if (!request.params || request.params.length < 1) {
+    if (!request.params || request.params.length < 2) {
       throw new Error("param is failed");
     }
-    const [key, value] = request.params;
-    await this.value.setValue(request.script.uuid, key, value, {
+    const [id, key, value] = request.params as [string, string, any];
+    await this.value.setValue(request.script.uuid, id, key, value, {
+      runFlag: request.runFlag,
+      tabId: sender.getSender()?.tab?.id || -1,
+    });
+  }
+
+  @PermissionVerify.API({ link: ["GM_deleteValues"] })
+  async GM_setValues(request: Request, sender: IGetSender) {
+    if (!request.params || request.params.length !== 2) {
+      throw new Error("param is failed");
+    }
+    const [id, values] = request.params as [string, { [key: string]: any }];
+    await this.value.setValues(request.script.uuid, id, values, {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
     });

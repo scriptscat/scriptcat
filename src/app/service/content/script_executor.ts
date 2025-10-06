@@ -33,11 +33,12 @@ export class ScriptExecutor {
   }
 
   valueUpdate(data: ValueUpdateData) {
-    this.execList
-      .filter((val) => val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName)
-      .forEach((val) => {
+    const { uuid, storageName } = data;
+    for (const val of this.execList) {
+      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
         val.valueUpdate(data);
-      });
+      }
+    }
   }
 
   start(scripts: ScriptLoadInfo[]) {
