@@ -319,10 +319,11 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [id, values] = request.params as [string, { [key: string]: any }];
-    await this.value.setValues(request.script.uuid, id, values, {
+    const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
-    });
+    };
+    await this.value.setValues(request.script.uuid, id, values, valueSender, false);
   }
 
   @PermissionVerify.API()

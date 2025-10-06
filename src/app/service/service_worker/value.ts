@@ -147,7 +147,13 @@ export class ValueService {
   }
 
   // 批量设置
-  async setValues(uuid: string, id: string, values: { [key: string]: any }, sender: ValueUpdateSender) {
+  async setValues(
+    uuid: string,
+    id: string,
+    values: { [key: string]: any },
+    sender: ValueUpdateSender,
+    removeNotProvided: boolean
+  ) {
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
@@ -180,12 +186,14 @@ export class ValueService {
             valueModel.data[key] = value;
           }
         }
-        // 处理oldValue有但是没有在data.values中的情况
-        for (const key of Object.keys(oldValueRecord)) {
-          if (!(key in values)) {
-            changed = true;
-            delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
-            values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
+        if (removeNotProvided) {
+          // 处理oldValue有但是没有在data.values中的情况
+          for (const key of Object.keys(oldValueRecord)) {
+            if (!(key in values)) {
+              changed = true;
+              delete valueModel.data[key]; // 这里使用delete是因为保存不需要这个字段了
+              values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
+            }
           }
         }
       }
@@ -211,17 +219,19 @@ export class ValueService {
   }
 
   setScriptValue({ uuid, key, value }: { uuid: string; key: string; value: any }, _sender: IGetSender) {
-    return this.setValue(uuid, "", key, value, {
+    const valueSender = {
       runFlag: "user",
       tabId: -2,
-    });
+    };
+    return this.setValue(uuid, "", key, value, valueSender);
   }
 
   setScriptValues({ uuid, values }: { uuid: string; values: { [key: string]: any } }, _sender: IGetSender) {
-    return this.setValues(uuid, "", values, {
+    const valueSender = {
       runFlag: "user",
       tabId: -2,
-    });
+    };
+    return this.setValues(uuid, "", values, valueSender, true);
   }
 
   init(runtime: RuntimeService, popup: PopupService) {
