@@ -232,17 +232,12 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
-  const [tags, setTags] = useState<string[]>([]);
-  useEffect(() => {
+  const { tags } = useMemo(() => {
     let metadata = item.metadata;
     if (item.selfMetadata) {
       metadata = getCombinedMeta(item.metadata, item.selfMetadata);
     }
-    const newTags = parseTags(metadata) || [];
-    setTags((prev) => {
-      if (prev.length === 0 && newTags.length === 0) return prev;
-      return newTags;
-    });
+    return { tags: parseTags(metadata) || [] };
   }, [item.metadata, item.selfMetadata]);
   return (
     <Tooltip content={col} position="tl">
@@ -811,12 +806,12 @@ function ScriptList() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
   const { t } = useTranslation();
 
-  const [_filterCache, setFilterCache_] = useState(() => new Map<string, any>());
+  const filterCache = useMemo(() => new Map<string, any>(), []);
 
-  const setFilterCache = useCallback((res: Partial<Record<string, any>>[] | null) => {
-    setFilterCache_((filterCache) => {
+  const setFilterCache = useCallback(
+    (res: Partial<Record<string, any>>[] | null) => {
       filterCache.clear();
-      if (res === null) return new Map<string, any>(filterCache);
+      if (res === null) return;
       for (const entry of res) {
         filterCache.set(entry.uuid, {
           code: entry.code === true,
@@ -824,9 +819,9 @@ function ScriptList() {
           auto: entry.auto === true,
         });
       }
-      return new Map<string, any>(filterCache);
-    });
-  }, []);
+    },
+    [filterCache]
+  );
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -1062,11 +1057,7 @@ function ScriptList() {
             if (!value || !value.value) {
               return true;
             }
-            let result: any;
-            setFilterCache_((filterCache) => {
-              result = filterCache.get(row.uuid);
-              return filterCache;
-            });
+            const result = filterCache.get(row.uuid);
             if (!result) return false;
             switch (value.type) {
               case "auto":
