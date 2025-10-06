@@ -153,7 +153,7 @@ describe("GM Api", () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test1-test2-test3-test5");
+    expect(ret).toEqual("test1-test2-test3-test5"); // new test
   });
 
   it("GM.listValues", async () => {
@@ -181,7 +181,7 @@ describe("GM Api", () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test1-test2-test3-test5");
+    expect(ret).toEqual("test1-test2-test3-test5"); // new test
   });
 
   it("GM_getValues", async () => {
