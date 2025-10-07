@@ -257,7 +257,16 @@ export class RuntimeService {
       }
     }
     const scriptResPromises = [] as Promise<[ScriptRunResource, URLRuleEntry[], URLRuleEntry[] | null]>[];
+    const unregisterScriptIds = [] as string[];
+    const isNoCompliedResources = !compliedResources.length;
     allScripts.forEach((script) => {
+      if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
+        // 确保浏览器没有残留 PageScripts
+        if (script.uuid) unregisterScriptIds.push(script.uuid);
+      } else if (isNoCompliedResources) {
+        // CompliedResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
+        if (script.uuid) unregisterScriptIds.push(script.uuid);
+      }
       if (script.type !== SCRIPT_TYPE_NORMAL) {
         return;
       }
@@ -308,13 +317,14 @@ export class RuntimeService {
         }
       })
     );
+    await Promise.allSettled([this.unregistryPageScripts_(unregisterScriptIds)]); // ignore success or fail
   }
 
   async updateResourceOnScriptChange(script: Script) {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw "Invalid Calling of updateResourceOnScriptChange";
     }
-    // 安裝，啟用，或earlyStartScript的value更新
+    // 安装，启用，或earlyStartScript的value更新
     const scriptRes = await this.script.buildScriptRunResource(script);
     const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script, scriptRes);
     if (scriptMatchInfo) {
@@ -344,6 +354,8 @@ export class RuntimeService {
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
+      let needReRegisterInjectJS = false;
+      const uuids = [] as string[];
       for (const { uuid, enable } of data) {
         const script = await this.scriptDAO.get(uuid);
         if (!script) {
@@ -362,11 +374,12 @@ export class RuntimeService {
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
         if (script.type === SCRIPT_TYPE_NORMAL) {
+          if (isEarlyStartScript(script.metadata)) needReRegisterInjectJS = true;
           // 加载页面脚本
           if (enable) {
             await this.updateResourceOnScriptChange(script);
           } else {
-            await this.unregistryPageScript(script.uuid);
+            uuids.push(script.uuid);
             await this.compliedResourceDAO.delete(uuid); // 没启用的删一下, 节省compliedResourceDAO空间
             try {
               // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
@@ -377,6 +390,8 @@ export class RuntimeService {
           }
         }
       }
+      await this.unregistryPageScripts(uuids);
+      if (needReRegisterInjectJS) await this.reRegisterInjectScript();
     });
 
     // 监听脚本安装
@@ -388,31 +403,36 @@ export class RuntimeService {
         });
         return;
       }
-      const needReRegisterInjectJS = isEarlyStartScript(script.metadata);
       if (script.type === SCRIPT_TYPE_NORMAL) {
+        const needReRegisterInjectJS = isEarlyStartScript(script.metadata);
         if (script.status === SCRIPT_STATUS_ENABLE) {
           await this.updateResourceOnScriptChange(script);
-          // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
-          // 不是 earlyStart 的不用重新注入 （没有改变）
-          if (needReRegisterInjectJS) await this.reRegisterInjectScript();
         } else {
           // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
           const _scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
-          // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
-          // 不是 earlyStart 的不用重新注入 （没有改变）
-          if (needReRegisterInjectJS) await this.reRegisterInjectScript();
         }
+        // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+        // 不是 earlyStart 的不用重新注入 （没有改变）
+        if (needReRegisterInjectJS) await this.reRegisterInjectScript();
       }
     });
 
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
-      for (const { uuid } of data) {
-        await this.unregistryPageScript(uuid);
+      let needReRegisterInjectJS = false;
+      const uuids = [] as string[];
+      for (const { uuid, type, isEarlyStart } of data) {
+        uuids.push(uuid);
         await this.deleteScriptMatch(uuid);
+        if (type === SCRIPT_TYPE_NORMAL && isEarlyStart) {
+          needReRegisterInjectJS = true;
+        }
       }
-      // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
-      await this.reRegisterInjectScript();
+      await this.unregistryPageScripts(uuids);
+      if (needReRegisterInjectJS) {
+        // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
+        await this.reRegisterInjectScript();
+      }
     });
 
     // 监听脚本排序
@@ -1411,17 +1431,18 @@ export class RuntimeService {
     }
   }
 
-  async unregistryPageScript(uuid: string) {
+  async unregistryPageScripts_(uuids: string[]) {
+    const result = await chrome.userScripts.getScripts({ ids: uuids });
+    const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
+    if (filteredIds.length > 0) {
+      // 修改脚本状态为disable，浏览器取消注册该脚本
+      await chrome.userScripts.unregister({ ids: filteredIds });
+    }
+  }
+  async unregistryPageScripts(uuids: string[]) {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
       return;
     }
-    const result = await chrome.userScripts.getScripts({ ids: [uuid] });
-    if (result.length === 1) {
-      // 修改脚本状态为disable，浏览器取消注册该脚本
-      await Promise.all([
-        this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
-        chrome.userScripts.unregister({ ids: [uuid] }),
-      ]);
-    }
+    return await this.unregistryPageScripts_(uuids);
   }
 }
