@@ -33,7 +33,7 @@ export default class ServiceWorkerManager {
     dao.save(data);
   }
 
-  async initManager() {
+  initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
@@ -68,7 +68,6 @@ export default class ServiceWorkerManager {
       scriptDAO,
       localStorageDAO
     );
-    await runtime.waitInit();
     runtime.init();
     const popup = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig);
     popup.init();

@@ -666,6 +666,8 @@ export class RuntimeService {
       // 初始化完成
       return true;
     })();
+
+    this.waitInit();
   }
 
   private loadBlacklist() {

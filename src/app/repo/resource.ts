@@ -35,7 +35,7 @@ export type CompliedResource = {
   name: string;
   flag: string;
   uuid: string;
-  require: Array<string>; // 仅存储url，节省空间
+  require: string[]; // 仅存储url，节省空间
   matches: string[]; // primary
   includeGlobs: string[]; // includeGlobs applied after matches
   excludeMatches: string[];

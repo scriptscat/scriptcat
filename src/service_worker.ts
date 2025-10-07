@@ -61,7 +61,7 @@ async function setupOffscreenDocument() {
   }
 }
 
-async function main() {
+function main() {
   cleanInvalidKeys();
   // 初始化管理器
   const message = new ExtensionMessage(true);
@@ -76,7 +76,7 @@ async function main() {
   const manager = new ServiceWorkerManager(server, messageQueue, new ServiceWorkerMessageSend());
   manager.initManager();
   // 初始化沙盒环境
-  await setupOffscreenDocument();
+  setupOffscreenDocument();
 }
 
 const apiActions: {
