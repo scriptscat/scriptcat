@@ -10,7 +10,7 @@ import migrate from "./app/migrate";
 import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
 import type { RuntimeMessageSender } from "@Packages/message/types";
-import { cleanInvalidCompliedResources } from "./app/repo/resource";
+import { cleanInvalidKeys } from "./app/repo/resource";
 
 migrate();
 
@@ -62,7 +62,7 @@ async function setupOffscreenDocument() {
 }
 
 async function main() {
-  await cleanInvalidCompliedResources();
+  cleanInvalidKeys();
   // 初始化管理器
   const message = new ExtensionMessage(true);
   // 初始化日志组件

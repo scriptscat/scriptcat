@@ -1,5 +1,5 @@
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
-import { Repo } from "./repo";
+import { deletesStorage, loadCache, Repo } from "./repo";
 import { v5 as uuidv5 } from "uuid";
 
 export type ResourceType = "require" | "require-css" | "resource";
@@ -63,8 +63,8 @@ export class ResourceDAO extends Repo<Resource> {
   }
 }
 
-// SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "484a82cd-255b-4bc9-8d32-7062348c6114";
+// CompliedResource结构变更时，建议修改 CompliedResourceNamespace 以删除旧Cache
+export const CompliedResourceNamespace = "4fd57fee-79f2-45c4-ae84-736fa230397f";
 
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {
@@ -73,7 +73,7 @@ export class CompliedResourceDAO extends Repo<CompliedResource> {
   }
 
   protected joinKey(key: string) {
-    return this.prefix + key;
+    return this.prefix + CompliedResourceNamespace + ":" + key;
   }
 
   save(resource: CompliedResource) {
@@ -81,24 +81,13 @@ export class CompliedResourceDAO extends Repo<CompliedResource> {
   }
 }
 
-export const cleanInvalidCompliedResources = async () => {
-  const storedKey = (await chrome.storage.local.get("complied_resource_key"))["complied_resource_key"];
-  if (storedKey === CompliedResourceNamespace) return;
-  const invalidKeys = await new Promise<string[]>((resolve) => {
-    chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
-      }
-      const ret = result
-        ? Object.keys(result).filter(
-            (key) => key.startsWith("complied_resource:") || key.startsWith("complied_resource##")
-          )
-        : ([] as string[]);
-      resolve(ret);
-    });
+// 清理无效的key
+export const cleanInvalidKeys = async () => {
+  loadCache().then((cache) => {
+    const invalidKeys = Object.keys(cache).filter(
+      (key) =>
+        key.startsWith("complied_resource:") && !key.startsWith("complied_resource:" + CompliedResourceNamespace + ":")
+    );
+    deletesStorage(invalidKeys);
   });
-  await chrome.storage.local.remove(invalidKeys);
-  await chrome.storage.local.set({ complied_resource_key: CompliedResourceNamespace });
 };
