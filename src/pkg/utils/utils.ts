@@ -81,7 +81,7 @@ export function parseStorageValue(str: string): unknown {
 // https://developer.chrome.com/docs/extensions/reference/api/tabs?hl=en#get_the_current_tab
 export async function getCurrentTab() {
   // `tab` will either be a `tabs.Tab` instance or `undefined`.
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true, windowType: "normal" });
   return tab;
 }
 

@@ -1,5 +1,5 @@
-import { Discord, DocumentationSite, ExtVersion } from "@App/app/const";
-import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch } from "@arco-design/web-react";
+import { Discord, DocumentationSite, ExtVersion, ExtServer } from "@App/app/const";
+import { Alert, Badge, Button, Card, Collapse, Dropdown, Menu, Switch, Tooltip } from "@arco-design/web-react";
 import {
   IconBook,
   IconBug,
@@ -40,6 +40,7 @@ function App() {
     notice: "",
     isRead: false,
   });
+  const [checkUpdateStatus, setCheckUpdateStatus] = useState(0);
   const [currentUrl, setCurrentUrl] = useState("");
   const [isEnableScript, setIsEnableScript] = useState(true);
   const [isBlacklist, setIsBlacklist] = useState(false);
@@ -184,7 +185,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await doCheckUpdateInPopupMenu(); // 在service_worker打開新tab及進行檢查。
+        await doCheckUpdateInPopupMenu(); // 在service_worker打开新tab及进行检查。
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;
@@ -200,6 +201,33 @@ function App() {
         break;
     }
   };
+
+  useEffect(() => {
+    if (checkUpdateStatus === 1) {
+      Promise.all([
+        fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+          .then((resp) => resp.json())
+          .catch(console.warn), // 加 catch 避免 网络请求失败或API返回错误
+        // 加 800ms delay 避免过快显示
+        new Promise((resolve) => setTimeout(resolve, 800)),
+      ]).then(([resp]: [{ data: { notice: string; version: string } } | null | undefined, any]) => {
+        let newCheckUpdateState = 0;
+        if (resp?.data) {
+          setCheckUpdate((items) => {
+            if (resp.data.version === items.version) {
+              newCheckUpdateState = 2;
+              return items;
+            }
+            const isRead = items.notice !== resp.data.notice ? false : items.isRead;
+            const newCheckUpdate = { ...resp.data, isRead };
+            systemConfig.setCheckUpdate(newCheckUpdate);
+            return newCheckUpdate;
+          });
+        }
+        setCheckUpdateStatus(() => newCheckUpdateState);
+      });
+    }
+  }, [checkUpdateStatus]);
 
   return (
     <>
@@ -320,16 +348,39 @@ function App() {
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
-          <span className="text-[12px] font-500">{`v${ExtVersion}`}</span>
-          {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS && (
-            <span
-              onClick={() => {
-                window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
-              }}
-              className="text-[10px] font-500 cursor-pointer underline text-blue-500 underline-offset-2"
-            >
-              {t("popup.new_version_available")}
-            </span>
+          {versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS ? (
+            <Tooltip content={`${t("popup.new_version_available")} (v${checkUpdate.version})`}>
+              <span
+                onClick={() => {
+                  window.open(`https://github.com/scriptscat/scriptcat/releases/tag/v${checkUpdate.version}`);
+                }}
+                className={`text-[12px] font-500 cursor-pointer underline underline-offset-2 text-blue-500 dark:text-blue-400`}
+              >{`v${ExtVersion}`}</span>
+            </Tooltip>
+          ) : checkUpdateStatus === 0 ? (
+            <Tooltip content={t("check_update")}>
+              <span
+                onClick={() => {
+                  setCheckUpdateStatus(1);
+                }}
+                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+              >{`v${ExtVersion}`}</span>
+            </Tooltip>
+          ) : checkUpdateStatus === 1 ? (
+            <Tooltip content={t("checking_for_updates")}>
+              <span className="text-[12px] font-500">{`${t("checking_for_updates")}`}</span>
+            </Tooltip>
+          ) : checkUpdateStatus === 2 ? (
+            <Tooltip content={t("latest_version")}>
+              <span
+                onClick={() => {
+                  setCheckUpdateStatus(1);
+                }}
+                className="text-[12px] font-500 cursor-pointer hover:underline hover:underline-offset-2"
+              >{`${t("latest_version")}`}</span>
+            </Tooltip>
+          ) : (
+            <></>
           )}
         </div>
       </Card>
