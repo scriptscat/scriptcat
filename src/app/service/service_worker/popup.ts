@@ -179,18 +179,18 @@ export class PopupService {
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
     for (const [uuid, o] of matchingResult) {
-      const script = o.matchInfo || ({} as TScriptMatchInfoEntry);
+      const matchInfo = o.matchInfo || ({} as TScriptMatchInfoEntry);
       let run = runMap.get(uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
-        run.enable = script.status === SCRIPT_STATUS_ENABLE;
+        run.enable = matchInfo.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
-        run.hasUserConfig = !!script.config;
+        run.hasUserConfig = !!matchInfo.config;
       } else {
-        run = this.scriptToMenu(script);
+        run = this.scriptToMenu(matchInfo);
         run.isEffective = o.effective!;
       }
-      scriptMenuMap.set(script.uuid, run);
+      scriptMenuMap.set(matchInfo.uuid, run);
     }
     // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
     for (const script of runScripts) {
