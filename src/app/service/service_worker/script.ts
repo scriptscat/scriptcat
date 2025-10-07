@@ -261,7 +261,7 @@ export class ScriptService {
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
-    // 刪 storage cache
+    // 删 storage cache
     this.compliedResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
@@ -512,13 +512,21 @@ export class ScriptService {
     return this.buildScriptRunResource(script);
   }
 
-  async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
+  async buildScriptRunResource(script: Script, basicOnly?: boolean): Promise<ScriptRunResource> {
     const ret: ScriptRunResource = { ...script } as ScriptRunResource;
     // 自定义配置
     const { match, include, exclude } = ret.metadata;
     ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
     if (ret.selfMetadata) {
       ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
+    }
+    ret.flag = `#-${script.uuid}`;
+    if (basicOnly) {
+      // 只用来生成 matchInfo 的话不需要 value, resource, code
+      ret.value = {};
+      ret.resource = {};
+      ret.code = "";
+      return Promise.resolve(ret);
     }
     return Promise.all([
       this.valueService.getScriptValue(ret),
@@ -530,7 +538,6 @@ export class ScriptService {
       }
       ret.value = value;
       ret.resource = resource;
-      ret.flag = scriptFlag || randomMessageFlag();
       ret.code = code.code;
       ret.code = compileScriptCode(ret);
       return ret;
@@ -754,7 +761,7 @@ export class ScriptService {
     }
   }
 
-  // 定时自动检查脚本更新後，彈出頁面
+  // 定时自动检查脚本更新后，弹出页面
   async openBatchUpdatePage(q: string) {
     const p = q ? `?${q}` : "";
     await openInCurrentTab(`/src/batchupdate.html${p}`);
@@ -1010,7 +1017,7 @@ export class ScriptService {
       return false;
     });
 
-    // 沒有空值 case
+    // 没有空值 case
     /*
     if (uuid) {
       return this.checkUpdateAvailable(uuid).then((script) => {
@@ -1298,7 +1305,7 @@ export class ScriptService {
     this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
+    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
     chrome.alarms.create(
       "checkScriptUpdate",
       {

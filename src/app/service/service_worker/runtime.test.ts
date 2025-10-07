@@ -130,7 +130,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
       expect(result.has(script.uuid)).toBe(true);
 
       const matchInfo = result.get(script.uuid);
@@ -163,7 +163,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const allResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
+      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
 
       // 默认查询应该不包含被排除的脚本
       expect(defaultResult.has(script.uuid)).toBe(false);

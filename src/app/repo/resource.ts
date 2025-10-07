@@ -62,7 +62,7 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // SC代码更新时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "811eada2-695f-4deb-8b90-2e67b81fa704";
+export const CompliedResourceNamespace = "53228523-7886-4bbe-8284-5073b95e4fc1";
 
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {

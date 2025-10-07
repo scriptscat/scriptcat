@@ -245,15 +245,18 @@ export class RuntimeService {
   }
 
   async waitInit() {
-    const cScriptMatch = await cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch");
     const scriptMatchCache = (this.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>());
+    const [cScriptMatch, compliedResources, allScripts] = await Promise.all([
+      cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch"),
+      this.compliedResourceDAO.all(),
+      this.scriptDAO.all(),
+    ]);
+    const isColdStart = !cScriptMatch;
     if (cScriptMatch) {
       for (const [key, value] of Object.entries(cScriptMatch)) {
         scriptMatchCache.set(key, value);
       }
     }
-    const isColdStart = cScriptMatch ? false : true;
-    const [compliedResources, allScripts] = await Promise.all([this.compliedResourceDAO.all(), this.scriptDAO.all()]);
     const scriptResPromises = [] as Promise<[ScriptRunResource, URLRuleEntry[], URLRuleEntry[] | null]>[];
     allScripts.forEach((script) => {
       if (script.type !== SCRIPT_TYPE_NORMAL) {
@@ -273,7 +276,7 @@ export class RuntimeService {
       if (isColdStart) {
         scriptResPromises.push(
           this.script
-            .buildScriptRunResource(script, uuid)
+            .buildScriptRunResource(script, true)
             .then(
               (scriptRes) =>
                 [scriptRes, scriptUrlPatterns, originalUrlPatterns] as [
@@ -313,7 +316,7 @@ export class RuntimeService {
       throw "Invalid Calling of updateResourceOnScriptChange";
     }
     // 安裝，啟用，或earlyStartScript的value更新
-    const scriptRes = await this.script.buildScriptRunResource(script, script.uuid);
+    const scriptRes = await this.script.buildScriptRunResource(script);
     const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script, scriptRes);
     if (scriptMatchInfo) {
       const { apiScript } = await this.buildAndSaveCompliedResource(script, { scriptMatchInfo, scriptRes });
@@ -744,7 +747,7 @@ export class RuntimeService {
   ) {
     // 如果没开启, 则不注册
     if (script.status === SCRIPT_STATUS_ENABLE) {
-      const scriptRes = o.scriptRes || (await this.script.buildScriptRunResource(script, script.uuid));
+      const scriptRes = o.scriptRes || (await this.script.buildScriptRunResource(script));
       const scriptMatchInfo = o.scriptMatchInfo || (await this.buildAndSetScriptMatchInfo(script, scriptRes));
       if (scriptMatchInfo) {
         return await this.buildAndSaveCompliedResource_(script, {
@@ -1398,7 +1401,7 @@ export class RuntimeService {
   }
 
   async buildAndSetScriptMatchInfo(script: Script, scriptRes_?: ScriptRunResource) {
-    const scriptRes = scriptRes_ || (await this.script.buildScriptRunResource(script, script.uuid));
+    const scriptRes = scriptRes_ || (await this.script.buildScriptRunResource(script));
     const o = this.scriptURLPatternResults(scriptRes);
     if (!o) {
       return undefined;
