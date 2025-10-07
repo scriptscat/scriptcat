@@ -14,12 +14,6 @@ body .text-clickable:hover {
     text-decoration: underline;
 }
 
-body .card-enabled {
-    background-color: rgba(var(--gray-1),.6);
-    opacity: .95
-}
-
-body .card-disabled {
-    background-color: rgba(var(--gray-1),.4);
-    opacity: .65
+.script-card.card-disabled {
+    filter: contrast(0.9);
 }
