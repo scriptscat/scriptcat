@@ -258,6 +258,8 @@ export class RuntimeService {
       await this.buildAndSaveCompliedResourceFromScript(script);
     };
     const unregisterScriptIds = [] as string[];
+    // 没有 CompliedResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。
+    // 这个情况会把所有有效脚本跟Inject&Content脚本先取消注册。后续载入时会重新以新代码注册。
     const isNoCompliedResources = !compliedResources.length;
     allScripts.forEach((script) => {
       const uuid = script.uuid;
@@ -324,6 +326,9 @@ export class RuntimeService {
     if (complieResourcePromises.length) {
       await Promise.all(complieResourcePromises);
     }
+    if (isNoCompliedResources) {
+      unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
+    }
     await Promise.allSettled([this.unregistryPageScripts_(unregisterScriptIds)]); // ignore success or fail
     await cacheInstance.set<boolean>("runtimeStartFlag", true);
   }
@@ -332,7 +337,7 @@ export class RuntimeService {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw "Invalid Calling of updateResourceOnScriptChange";
     }
-    // 安裝，啟用，或earlyStartScript的value更新
+    // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompliedResourceFromScript(script);
     if (!ret) return;
     const { apiScript } = ret;
