@@ -346,12 +346,3 @@ export const stringMatching = (main: string, sub: string): boolean => {
     return false;
   }
 };
-
-export const replacing = (s: string, a: string, b: string) => {
-  // built-in replace cannot handle long text.
-  const i = s.indexOf(a);
-  if (i >= 0) {
-    return `${s.substring(0, i)}${b}${s.substring(i + a.length)}`;
-  }
-  return s;
-};
