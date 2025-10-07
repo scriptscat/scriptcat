@@ -127,7 +127,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       // Act
       const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
       expect(scriptMatchInfo).toBeDefined();
-      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
       expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
@@ -194,13 +194,13 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试匹配第一个规则
-      const result1 = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result1 = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
       // 测试匹配第二个规则
-      const result2 = await runtime.getPageScriptMatchingResultByUrl("https://www.test.com/page");
+      const result2 = runtime.getPageScriptMatchingResultByUrl("https://www.test.com/page");
       // 测试匹配include规则
-      const result3 = await runtime.getPageScriptMatchingResultByUrl("https://example.org/api/users");
+      const result3 = runtime.getPageScriptMatchingResultByUrl("https://example.org/api/users");
       // 测试不匹配的URL
-      const result4 = await runtime.getPageScriptMatchingResultByUrl("https://other.com/page");
+      const result4 = runtime.getPageScriptMatchingResultByUrl("https://other.com/page");
 
       // Assert
       expect(result1.has(script.uuid)).toBe(true);
@@ -234,14 +234,11 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试被include但不被exclude的URL
-      const includeResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/user");
+      const includeResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/user");
       // 测试被include但也被exclude的URL
-      const excludeResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/admin/panel");
+      const excludeResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/admin/panel");
       // 测试被include但也被exclude的URL（包含无效匹配）
-      const excludeAllResult = await runtime.getPageScriptMatchingResultByUrl(
-        "http://www.example.com/admin/panel",
-        true
-      );
+      const excludeAllResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/admin/panel", true);
 
       // Assert
       expect(includeResult.has(script.uuid)).toBe(true);

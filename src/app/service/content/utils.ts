@@ -92,10 +92,10 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
-export function isEarlyStartScript(metadata: SCMetadata) {
-  return metadata["run-at"] && metadata["run-at"][0] === "document-start" && metadata["early-start"];
+export function isEarlyStartScript(metadata: SCMetadata): boolean {
+  return !!(metadata["run-at"] && metadata["run-at"][0] === "document-start" && metadata["early-start"]);
 }
 
-export function isInjectIntoContent(metadata: SCMetadata) {
-  return metadata["inject-into"] && metadata["inject-into"][0] === "content";
+export function isInjectIntoContent(metadata: SCMetadata): boolean {
+  return !!(metadata["inject-into"] && metadata["inject-into"][0] === "content");
 }
