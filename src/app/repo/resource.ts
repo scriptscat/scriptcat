@@ -31,9 +31,11 @@ export interface ResourceHash {
   };
 }
 
-export interface CompliedResource {
+export type CompliedResource = {
+  name: string;
+  flag: string;
   uuid: string;
-  storeCodeArr: string[] | null;
+  require: Array<string>; // 仅存储url，节省空间
   matches: string[]; // primary
   includeGlobs: string[]; // includeGlobs applied after matches
   excludeMatches: string[];
@@ -43,7 +45,7 @@ export interface CompliedResource {
   runAt: string;
   scriptUrlPatterns: URLRuleEntry[];
   originalUrlPatterns: URLRuleEntry[] | null;
-}
+};
 
 export const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";
 
