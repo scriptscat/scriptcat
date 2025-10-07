@@ -1251,7 +1251,11 @@ export class RuntimeService {
     return await runScript(this.msgSender, res);
   }
 
-  compileInjectUserScript(injectJs: string, messageFlag: string, o: Record<string, any>) {
+  compileInjectUserScript(
+    injectJs: string,
+    messageFlag: string,
+    { excludeMatches, excludeGlobs }: { excludeMatches: string[] | undefined; excludeGlobs: string[] | undefined }
+  ) {
     // 替换ScriptFlag
     // 遍历early-start的脚本
     const earlyScriptFlag = [...this.earlyScriptFlags].map((uuid) => getScriptFlag(uuid));
@@ -1266,8 +1270,8 @@ export class RuntimeService {
       allFrames: true,
       world: "MAIN",
       runAt: "document_start",
-      excludeMatches: o.excludeMatches,
-      excludeGlobs: o.excludeGlobs,
+      excludeMatches: excludeMatches,
+      excludeGlobs: excludeGlobs,
     };
 
     // 构建给content.js用的early-start脚本flag
@@ -1279,8 +1283,8 @@ export class RuntimeService {
         allFrames: true,
         world: "USER_SCRIPT",
         runAt: "document_start",
-        excludeMatches: o.excludeMatches,
-        excludeGlobs: o.excludeGlobs,
+        excludeMatches: excludeMatches,
+        excludeGlobs: excludeGlobs,
       },
       script,
     ] as chrome.userScripts.RegisteredUserScript[];
@@ -1299,9 +1303,11 @@ export class RuntimeService {
     if (!messageFlag || !scripts?.[0] || !injectJs) {
       return;
     }
-    const apiScripts = this.compileInjectUserScript(injectJs, messageFlag, scripts[0]);
+    // 提取现有的 excludeMatches 和 excludeGlobs
+    const { excludeMatches, excludeGlobs } = scripts[0];
+    const apiScripts = this.compileInjectUserScript(injectJs, messageFlag, { excludeMatches, excludeGlobs });
     try {
-      await chrome.userScripts.update(apiScripts);
+      await chrome.userScripts.update(apiScripts); // 里面包括 "scriptcat-inject" 和 "scriptcat-early-start-flag"
     } catch (e: any) {
       this.logger.error("register inject.js error", Logger.E(e));
     }
