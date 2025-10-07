@@ -44,10 +44,12 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
   }
   switch (theme) {
     case "dark":
+      document.documentElement.classList.add("dark");
       document.body.setAttribute("arco-theme", "dark");
       editor.setTheme("vs-dark");
       break;
     case "light":
+      document.documentElement.classList.remove("dark");
       document.body.removeAttribute("arco-theme");
       editor.setTheme("vs");
       break;
