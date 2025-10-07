@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -137,6 +137,13 @@ const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
+const MemoizedScriptListSidebar = React.memo(
+  ({ open, scriptList, onFilter }: { open: any; scriptList: any; onFilter: any }) => (
+    <ScriptListSidebar open={open} scriptList={scriptList} onFilter={onFilter} />
+  )
+);
+MemoizedScriptListSidebar.displayName = "MemoizedScriptListSidebar";
+
 function composeRefs<T>(...refs: React.Ref<T>[]): (node: T | null) => void {
   return (node) => {
     for (const ref of refs) {
@@ -225,13 +232,13 @@ const EnableSwitchCell = React.memo(
 EnableSwitchCell.displayName = "EnableSwitchCell";
 
 const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => {
-  const { tag } = useMemo(() => {
+  const { tags } = useMemo(() => {
     let metadata = item.metadata;
     if (item.selfMetadata) {
-      metadata = getCombinedMeta(metadata, item.selfMetadata);
+      metadata = getCombinedMeta(item.metadata, item.selfMetadata);
     }
-    return { tag: parseTags(metadata) || [] };
-  }, [item]);
+    return { tags: parseTags(metadata) || [] };
+  }, [item.metadata, item.selfMetadata]);
   return (
     <Tooltip content={col} position="tl">
       <Link
@@ -251,9 +258,9 @@ const NameCell = React.memo(({ col, item }: { col: string; item: ListType }) => 
         >
           <ScriptIcons script={item} size={20} />
           {i18nName(item)}
-          {tag && (
+          {tags && (
             <Space style={{ marginLeft: 8 }}>
-              {tag.map((t) => (
+              {tags.map((t) => (
                 <Tag key={t} color={hashColor(t)}>
                   {t}
                 </Tag>
@@ -796,22 +803,25 @@ function ScriptList() {
   const [select, setSelect] = useState<Script[]>([]);
   const [selectColumn, setSelectColumn] = useState(0);
   const [savedWidths, setSavedWidths] = useState<{ [key: string]: number } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(localStorage.getItem("script-list-sidebar") === "1");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
   const { t } = useTranslation();
 
-  const filterCache: Map<string, any> = new Map<string, any>();
+  const filterCache = useMemo(() => new Map<string, any>(), []);
 
-  const setFilterCache = (res: Partial<Record<string, any>>[] | null) => {
-    filterCache.clear();
-    if (res === null) return;
-    for (const entry of res) {
-      filterCache.set(entry.uuid, {
-        code: entry.code === true,
-        name: entry.name === true,
-        auto: entry.auto === true,
-      });
-    }
-  };
+  const setFilterCache = useCallback(
+    (res: Partial<Record<string, any>>[] | null) => {
+      filterCache.clear();
+      if (res === null) return;
+      for (const entry of res) {
+        filterCache.set(entry.uuid, {
+          code: entry.code === true,
+          name: entry.name === true,
+          auto: entry.auto === true,
+        });
+      }
+    },
+    [filterCache]
+  );
 
   // 处理拖拽排序
   const sensors = useSensors(
@@ -1190,20 +1200,24 @@ function ScriptList() {
 
   useEffect(() => {
     if (savedWidths === null) return;
+
     setNewColumns((nColumns) => {
       const widths = columns.map((item) => savedWidths[item.key!] ?? item.width);
       const c = nColumns.length === widths.length ? nColumns : columns;
       return c.map((item, i) => {
         const width = widths[i];
+        let dest;
         if (i === 8) {
           // 第8列特殊处理，因为可能涉及到操作图的显示
-          return { ...columns[8], width };
+          dest = item.render === columns[i].render && item.title === columns[i].title ? item : columns[i];
+        } else {
+          dest = item;
         }
         let m =
-          width === item.width
-            ? item
+          width === dest.width
+            ? dest
             : {
-                ...item,
+                ...dest,
                 width,
               };
         // 处理语言更新
@@ -1426,7 +1440,7 @@ function ScriptList() {
                     style={{ minWidth: "80px" }}
                     triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
                     size="mini"
-                    value={newColumns[selectColumn].title?.toString()}
+                    value={selectColumn === 8 ? t("action") : newColumns[selectColumn].title?.toString()}
                     onChange={(val) => {
                       const index = parseInt(val as string, 10);
                       setSelectColumn(index);
@@ -1434,7 +1448,7 @@ function ScriptList() {
                   >
                     {newColumns.map((column, index) => (
                       <Select.Option key={index} value={index}>
-                        {column.title}
+                        {index === 8 ? t("action") : column.title}
                       </Select.Option>
                     ))}
                   </Select>
@@ -1536,13 +1550,7 @@ function ScriptList() {
           {/* 主要内容区域 */}
           <div className="flex flex-row relative">
             {/* 侧边栏 */}
-            <ScriptListSidebar
-              open={sidebarOpen}
-              scriptList={scriptList}
-              onFilter={(data) => {
-                setFilterScriptList(data);
-              }}
-            />
+            <MemoizedScriptListSidebar open={sidebarOpen} scriptList={scriptList} onFilter={setFilterScriptList} />
 
             {/* 主要表格区域 */}
             <div className="flex-1">
