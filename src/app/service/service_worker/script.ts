@@ -10,7 +10,6 @@ import {
   getBrowserType,
   getStorageName,
   openInCurrentTab,
-  randomMessageFlag,
   stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
