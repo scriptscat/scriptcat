@@ -15,7 +15,6 @@ import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
-import type { TScriptMatchInfoEntry } from "./types";
 import { obtainBlackList } from "@App/pkg/utils/utils";
 
 initTestEnv();
@@ -109,7 +108,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockLocalStorageDAO
     );
     // await runtime.waitInit();
-    runtime.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
+    // runtime.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
   });
 
   describe("脚本匹配基础功能", () => {
@@ -125,12 +124,12 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
       const result = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
+      // expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
       expect(result.has(script.uuid)).toBe(true);
 
       const matchInfo = result.get(script.uuid);
@@ -153,7 +152,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试默认查询（不包含无效匹配）
@@ -163,7 +162,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       const allResult = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
+      // expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
 
       // 默认查询应该不包含被排除的脚本
       expect(defaultResult.has(script.uuid)).toBe(false);
@@ -190,7 +189,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试匹配第一个规则
@@ -230,7 +229,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试被include但不被exclude的URL
@@ -266,7 +265,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试正常URL
@@ -287,16 +286,16 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
   });
 
   describe("错误处理", () => {
-    it("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
-      // Arrange
-      const script = createMockScript();
-      mockScriptService.buildScriptRunResource.mockImplementation(() => {
-        throw new Error("Build script run resource failed");
-      });
+    // it("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
+    //   // Arrange
+    //   const script = createMockScript();
+    //   mockScriptService.buildScriptRunResource.mockImplementation(() => {
+    //     throw new Error("Build script run resource failed");
+    //   });
 
-      // Act & Assert
-      await expect(runtime.buildAndSetScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
-    });
+    //   // Act & Assert
+    //   await expect(runtime.applyScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
+    // });
 
     it("应该正确处理空metadata的脚本", async () => {
       // Arrange
@@ -308,7 +307,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeUndefined();
       const result = runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
 

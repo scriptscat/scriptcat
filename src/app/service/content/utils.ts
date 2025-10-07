@@ -126,3 +126,9 @@ export function isEarlyStartScript(metadata: SCMetadata): boolean {
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
   return !!(metadata["inject-into"] && metadata["inject-into"][0] === "content");
 }
+
+export const getScriptFlag = (uuid: string) => {
+  // scriptFlag 对同一脚本永远一致。重新开启浏览器也不会变。
+  // 实作内容有待检讨
+  return `#-${uuid}`;
+};

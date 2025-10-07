@@ -2,7 +2,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
-import type { TScriptMatchInfoEntry, ScriptMenu } from "./types";
+import type { ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
@@ -173,24 +173,35 @@ export class PopupService {
       this.getScriptMenu(req.tabId),
       this.getScriptMenu(-1),
     ]);
+
+    const uuids = [...matchingResult.keys()];
+
+    const [scripts] = await Promise.all([this.scriptDAO.gets(uuids)]);
+
     // 与运行时脚本进行合并
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
-    for (const [uuid, o] of matchingResult) {
-      const matchInfo = o.matchInfo || ({} as TScriptMatchInfoEntry);
+    for (let idx = 0, l = uuids.length; idx < l; idx++) {
+      const uuid = uuids[idx];
+      const script = scripts[idx];
+      const o = matchingResult.get(uuid);
+
+      if (!script || !o) continue;
+
+      const scriptRes = this.runtime.script.buildScriptRunResourceBasic(script);
       let run = runMap.get(uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
-        run.enable = matchInfo.status === SCRIPT_STATUS_ENABLE;
+        run.enable = scriptRes.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
-        run.hasUserConfig = !!matchInfo.config;
+        run.hasUserConfig = !!scriptRes.config;
       } else {
-        run = this.scriptToMenu(matchInfo);
+        run = this.scriptToMenu(scriptRes);
         run.isEffective = o.effective!;
       }
-      scriptMenuMap.set(matchInfo.uuid, run);
+      scriptMenuMap.set(uuid, run);
     }
     // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
     for (const script of runScripts) {

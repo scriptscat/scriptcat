@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode, getScriptFlag, isEarlyStartScript } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -513,7 +513,7 @@ export class ScriptService {
     return this.buildScriptRunResource(script);
   }
 
-  async buildScriptRunResource(script: Script, basicOnly?: boolean): Promise<ScriptRunResource> {
+  buildScriptRunResourceBasic(script: Script): ScriptRunResource {
     const ret: ScriptRunResource = { ...script } as ScriptRunResource;
     // 自定义配置
     const { match, include, exclude } = ret.metadata;
@@ -521,14 +521,16 @@ export class ScriptService {
     if (ret.selfMetadata) {
       ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
     }
-    ret.flag = `#-${script.uuid}`;
-    if (basicOnly) {
-      // 只用来生成 matchInfo 的话不需要 value, resource, code
-      ret.value = {};
-      ret.resource = {};
-      ret.code = "";
-      return Promise.resolve(ret);
-    }
+    ret.flag = getScriptFlag(script.uuid);
+    // 只用来生成 matchInfo 的话不需要 value, resource, code
+    ret.value = {};
+    ret.resource = {};
+    ret.code = "";
+    return ret;
+  }
+
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret = this.buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),

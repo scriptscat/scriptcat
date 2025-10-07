@@ -1,15 +1,8 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, TScriptMatchInfoEntry } from "./types";
+import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo } from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
-import type {
-  SCMetadata,
-  Script,
-  SCRIPT_STATUS,
-  ScriptDAO,
-  ScriptRunResource,
-  ScriptSite,
-} from "@App/app/repo/scripts";
+import type { SCMetadata, Script, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api";
@@ -33,6 +26,7 @@ import {
   compileInjectScriptByFlag,
   compileScriptCode,
   compileScriptCodeByResource,
+  getScriptFlag,
   isEarlyStartScript,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
@@ -57,9 +51,10 @@ const runtimeGlobal = {
 };
 
 export class RuntimeService {
+  earlyScriptFlags = new Set<string>();
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
-  scriptMatchCache: Map<string, TScriptMatchInfoEntry> | null | undefined;
+  // scriptMatchCache: Map<string, TScriptMatchInfoEntry> | null | undefined;
 
   logger: Logger;
 
@@ -103,7 +98,7 @@ export class RuntimeService {
     private msgSender: MessageSend,
     mq: IMessageQueue,
     private value: ValueService,
-    private script: ScriptService,
+    public script: ScriptService,
     private resource: ResourceService,
     private scriptDAO: ScriptDAO,
     private localStorageDAO: LocalStorageDAO
@@ -239,39 +234,61 @@ export class RuntimeService {
       value: {},
       resource: {},
       resourceCheck,
-    } as TScriptMatchInfoEntry;
+    } as ScriptMatchInfo;
     return matchInfo;
   }
 
   async waitInit() {
-    const scriptMatchCache = (this.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>());
-    const [cScriptMatch, compliedResources, allScripts] = await Promise.all([
-      cacheInstance.get<{ [key: string]: TScriptMatchInfoEntry }>("scriptMatch"),
+    // const scriptMatchCache = (this.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>());
+    const [cRuntimeStartFlag, compliedResources, allScripts] = await Promise.all([
+      cacheInstance.get<boolean>("runtimeStartFlag"),
       this.compliedResourceDAO.all(),
       this.scriptDAO.all(),
     ]);
-    const isColdStart = !cScriptMatch;
-    if (cScriptMatch) {
-      for (const [key, value] of Object.entries(cScriptMatch)) {
-        scriptMatchCache.set(key, value);
-      }
-    }
-    const scriptResPromises = [] as Promise<[ScriptRunResource, URLRuleEntry[], URLRuleEntry[] | null]>[];
+
+    const _isColdStart = !cRuntimeStartFlag;
+    // if (cScriptMatch) {
+    //   for (const [key, value] of Object.entries(cScriptMatch)) {
+    //     scriptMatchCache.set(key, value);
+    //   }
+    // }
+    // const scriptResPromises = [] as Promise<[ScriptRunResource, URLRuleEntry[], URLRuleEntry[] | null]>[];
+    const complieResourcePromises = [] as Promise<any>[];
+    const complieResourcePromiseFn = async (script: Script) => {
+      await this.buildAndSaveCompliedResourceFromScript(script);
+    };
     const unregisterScriptIds = [] as string[];
     const isNoCompliedResources = !compliedResources.length;
     allScripts.forEach((script) => {
-      if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
+      const uuid = script.uuid;
+      const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
+      const enable = script.status === SCRIPT_STATUS_ENABLE;
+
+      if (isNormalScript && enable && isEarlyStartScript(script.metadata)) {
+        this.earlyScriptFlags.add(uuid);
+      } else {
+        this.earlyScriptFlags.delete(uuid);
+      }
+
+      if (!isNormalScript || !enable) {
         // 确保浏览器没有残留 PageScripts
-        if (script.uuid) unregisterScriptIds.push(script.uuid);
+        if (uuid) unregisterScriptIds.push(uuid);
       } else if (isNoCompliedResources) {
         // CompliedResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
-        if (script.uuid) unregisterScriptIds.push(script.uuid);
+        if (uuid) unregisterScriptIds.push(uuid);
       }
-      if (script.type !== SCRIPT_TYPE_NORMAL) {
+      if (!isNormalScript) {
         return;
       }
-      const uuid = script.uuid;
+
       const compliedResource = compliedResources.find((res) => res.uuid === uuid);
+
+      if (!compliedResource) {
+        if (script.status === SCRIPT_STATUS_ENABLE) {
+          complieResourcePromises.push(complieResourcePromiseFn(script));
+        }
+      }
+
       if (!compliedResource || !compliedResource.require || !compliedResource.scriptUrlPatterns?.length) return;
 
       const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
@@ -281,56 +298,45 @@ export class RuntimeService {
       if (originalUrlPatterns !== null && originalUrlPatterns !== scriptUrlPatterns) {
         this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
       }
-      if (isColdStart) {
-        scriptResPromises.push(
-          this.script
-            .buildScriptRunResource(script, true)
-            .then(
-              (scriptRes) =>
-                [scriptRes, scriptUrlPatterns, originalUrlPatterns] as [
-                  ScriptRunResource,
-                  URLRuleEntry[],
-                  URLRuleEntry[] | null,
-                ]
-            )
-        );
-      }
+      // if (isColdStart) {
+      //   scriptResPromises.push(
+      //     this.script
+      //       .buildScriptRunResource(script, true)
+      //       .then(
+      //         (scriptRes) =>
+      //           [scriptRes, scriptUrlPatterns, originalUrlPatterns] as [
+      //             ScriptRunResource,
+      //             URLRuleEntry[],
+      //             URLRuleEntry[] | null,
+      //           ]
+      //       )
+      //   );
+      // }
     });
-    if (scriptResPromises.length) {
-      const scriptResList = await Promise.all(scriptResPromises);
-      for (const [scriptRes, scriptUrlPatterns, originalUrlPatterns] of scriptResList) {
-        const matchInfo = this.createMatchInfoEntry(scriptRes, { scriptUrlPatterns, originalUrlPatterns });
-        scriptMatchCache.set(matchInfo.uuid, matchInfo);
-      }
-      await this.saveScriptMatchInfo();
+    // if (scriptResPromises.length) {
+    //   const scriptResList = await Promise.all(scriptResPromises);
+    //   for (const [_scriptRes, _scriptUrlPatterns, _originalUrlPatterns] of scriptResList) {
+    //     // const matchInfo = this.createMatchInfoEntry(scriptRes, { scriptUrlPatterns, originalUrlPatterns });
+    //     // scriptMatchCache.set(matchInfo.uuid, matchInfo);
+    //   }
+    //   // await this.saveScriptMatchInfo();
+    // }
+    if (complieResourcePromises.length) {
+      await Promise.all(complieResourcePromises);
     }
-
-    // compliedResourceDAO是新功能。如果安装时未有建立compliedResource，则在初始化时建立
-    await Promise.allSettled(
-      allScripts.map(async (script) => {
-        if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
-          return undefined;
-        }
-        const result = await this.compliedResourceDAO.get(script.uuid);
-        if (!result) {
-          await this.buildAndSaveCompliedResource(script);
-        }
-      })
-    );
     await Promise.allSettled([this.unregistryPageScripts_(unregisterScriptIds)]); // ignore success or fail
+    await cacheInstance.set<boolean>("runtimeStartFlag", true);
   }
 
   async updateResourceOnScriptChange(script: Script) {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw "Invalid Calling of updateResourceOnScriptChange";
     }
-    // 安装，启用，或earlyStartScript的value更新
-    const scriptRes = await this.script.buildScriptRunResource(script);
-    const scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script, scriptRes);
-    if (scriptMatchInfo) {
-      const { apiScript } = await this.buildAndSaveCompliedResource(script, { scriptMatchInfo, scriptRes });
-      await this.loadPageScript(scriptMatchInfo, apiScript!);
-    }
+    // 安裝，啟用，或earlyStartScript的value更新
+    const ret = await this.buildAndSaveCompliedResourceFromScript(script);
+    if (!ret) return;
+    const { apiScript } = ret;
+    await this.loadPageScript(script, apiScript!);
   }
 
   init() {
@@ -374,20 +380,31 @@ export class RuntimeService {
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
         if (script.type === SCRIPT_TYPE_NORMAL) {
-          if (isEarlyStartScript(script.metadata)) needReRegisterInjectJS = true;
+          const isEarlyStart = isEarlyStartScript(script.metadata);
+          if (isEarlyStart && enable) {
+            this.earlyScriptFlags.add(uuid);
+          } else {
+            this.earlyScriptFlags.delete(uuid);
+          }
+          if (isEarlyStart) {
+            needReRegisterInjectJS = true;
+          }
           // 加载页面脚本
           if (enable) {
             await this.updateResourceOnScriptChange(script);
           } else {
-            uuids.push(script.uuid);
+            uuids.push(uuid);
             await this.compliedResourceDAO.delete(uuid); // 没启用的删一下, 节省compliedResourceDAO空间
             try {
               // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
-              await this.buildAndSetScriptMatchInfo(script);
+              const scriptResLight = this.script.buildScriptRunResourceBasic(script);
+              await this.applyScriptMatchInfo(scriptResLight);
             } catch {
               // 忽略
             }
           }
+        } else {
+          this.earlyScriptFlags.delete(uuid);
         }
       }
       await this.unregistryPageScripts(uuids);
@@ -405,15 +422,24 @@ export class RuntimeService {
       }
       if (script.type === SCRIPT_TYPE_NORMAL) {
         const needReRegisterInjectJS = isEarlyStartScript(script.metadata);
-        if (script.status === SCRIPT_STATUS_ENABLE) {
+        const enable = script.status === SCRIPT_STATUS_ENABLE;
+        if (needReRegisterInjectJS && enable) {
+          this.earlyScriptFlags.add(script.uuid);
+        } else {
+          this.earlyScriptFlags.delete(script.uuid);
+        }
+        if (enable) {
           await this.updateResourceOnScriptChange(script);
         } else {
           // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
-          const _scriptMatchInfo = await this.buildAndSetScriptMatchInfo(script);
+          const scriptResLight = this.script.buildScriptRunResourceBasic(script);
+          await this.applyScriptMatchInfo(scriptResLight);
         }
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
         // 不是 earlyStart 的不用重新注入 （没有改变）
         if (needReRegisterInjectJS) await this.reRegisterInjectScript();
+      } else {
+        this.earlyScriptFlags.delete(script.uuid);
       }
     });
 
@@ -423,6 +449,7 @@ export class RuntimeService {
       const uuids = [] as string[];
       for (const { uuid, type, isEarlyStart } of data) {
         uuids.push(uuid);
+        this.earlyScriptFlags.delete(uuid);
         await this.deleteScriptMatch(uuid);
         if (type === SCRIPT_TYPE_NORMAL && isEarlyStart) {
           needReRegisterInjectJS = true;
@@ -440,12 +467,12 @@ export class RuntimeService {
       const uuidSort = Object.fromEntries(scripts.map(({ uuid, sort }) => [uuid, sort]));
       this.scriptMatch.setupSorter(uuidSort);
       // 更新缓存
-      this.scriptMatchCache!.forEach((matchInfo, uuid) => {
-        if (uuid in uuidSort) {
-          matchInfo.sort = uuidSort[uuid];
-        }
-      });
-      await this.saveScriptMatchInfo();
+      // this.scriptMatchCache!.forEach((matchInfo, uuid) => {
+      //   if (uuid in uuidSort) {
+      //     matchInfo.sort = uuidSort[uuid];
+      //   }
+      // });
+      // await this.saveScriptMatchInfo();
     });
 
     // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
@@ -479,7 +506,8 @@ export class RuntimeService {
       } else {
         try {
           // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
-          await this.buildAndSetScriptMatchInfo(script);
+          const scriptResLight = this.script.buildScriptRunResourceBasic(script);
+          await this.applyScriptMatchInfo(scriptResLight);
         } catch {
           // 忽略
         }
@@ -511,27 +539,30 @@ export class RuntimeService {
       this.blacklist = obtainBlackList(blacklist);
       this.loadBlacklist();
       // 更新 scriptMatchCache
-      this.scriptMatchCache!.forEach(async (matchInfo, uuid) => {
-        const o = this.scriptURLPatternResults({
-          metadata: matchInfo.metadata,
-          originalMetadata: matchInfo.originalMetadata,
-          selfMetadata: matchInfo.selfMetadata,
-        });
-        if (o) {
-          matchInfo.scriptUrlPatterns = o.scriptUrlPatterns;
-          matchInfo.originalUrlPatterns = o.originalUrlPatterns;
-          this.scriptMatchCache!.set(uuid, matchInfo);
-        }
-      });
-      await this.saveScriptMatchInfo();
+      // this.scriptMatchCache!.forEach(async (matchInfo, uuid) => {
+      //   const o = this.scriptURLPatternResults({
+      //     metadata: matchInfo.metadata,
+      //     originalMetadata: matchInfo.originalMetadata,
+      //     selfMetadata: matchInfo.selfMetadata,
+      //   });
+      //   if (o) {
+      //     matchInfo.scriptUrlPatterns = o.scriptUrlPatterns;
+      //     matchInfo.originalUrlPatterns = o.originalUrlPatterns;
+      //     this.scriptMatchCache!.set(uuid, matchInfo);
+      //   }
+      // });
+      // await this.saveScriptMatchInfo();
       // 更新 CompliedResources
-      const compliedResources = await this.compliedResourceDAO.gets([...this.scriptMatchCache!.keys()]);
+      const compliedResources = await this.compliedResourceDAO.all();
       await Promise.all(
-        compliedResources.map((compliedResource) => {
+        compliedResources.map(async (compliedResource) => {
           if (compliedResource) {
-            const matchInfo = this.scriptMatchCache!.get(compliedResource.uuid);
-            if (matchInfo) {
-              const { scriptUrlPatterns, originalUrlPatterns } = matchInfo;
+            const script = await this.scriptDAO.get(compliedResource.uuid);
+            if (!script) return;
+            const scriptRes = this.script.buildScriptRunResourceBasic(script);
+            const o = this.scriptURLPatternResults(scriptRes);
+            if (o) {
+              const { scriptUrlPatterns, originalUrlPatterns } = o;
               compliedResource.scriptUrlPatterns = scriptUrlPatterns;
               compliedResource.originalUrlPatterns =
                 scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns;
@@ -664,49 +695,23 @@ export class RuntimeService {
     return runtimeGlobal.messageFlag;
   }
 
-  getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo, scriptCode: string) {
+  async buildAndSaveCompliedResourceFromScript(script: Script) {
+    const scriptRes = await this.script.buildScriptRunResource(script);
+    const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
+    if (!scriptMatchInfo) return undefined;
+
+    const scriptCode = scriptRes.code;
+
     const res = getUserScriptRegister(scriptMatchInfo, complieInjectionCode(scriptMatchInfo, scriptCode));
-    const { registerScript } = res!;
+    const registerScript = res.registerScript;
     // 过滤掉matches为空的脚本
     if (!registerScript.matches || registerScript.matches.length === 0) {
       this.logger.error("registerScript matches is empty", {
-        script: scriptMatchInfo.name,
-        uuid: scriptMatchInfo.uuid,
+        script: script.name,
+        uuid: script.uuid,
       });
       return undefined;
     }
-    return registerScript;
-  }
-
-  buildAndSaveCompliedResourceNull(script: Script) {
-    const result = {
-      flag: "",
-      name: script.name,
-      require: [],
-      uuid: script.uuid,
-      matches: [],
-      includeGlobs: [],
-      excludeMatches: [],
-      excludeGlobs: [],
-      allFrames: false,
-      world: "",
-      runAt: "",
-      scriptUrlPatterns: [],
-      originalUrlPatterns: null,
-    } as CompliedResource;
-    this.compliedResourceDAO.save(result);
-    return { compliedResource: result, jsCode: "", apiScript: undefined };
-  }
-
-  async buildAndSaveCompliedResource_(
-    script: Script,
-    o: { scriptMatchInfo: TScriptMatchInfoEntry; scriptRes: ScriptRunResource }
-  ) {
-    const scriptRes = o.scriptRes;
-    const scriptMatchInfo = o.scriptMatchInfo;
-    const registerScript = this.getUserScriptRegister(scriptMatchInfo, scriptRes.code);
-
-    if (!registerScript) return this.buildAndSaveCompliedResourceNull(script);
 
     const scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
     const originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
@@ -730,24 +735,6 @@ export class RuntimeService {
 
     this.compliedResourceDAO.save(result);
     return { compliedResource: result, jsCode: registerScript.js[0].code!, apiScript: registerScript };
-  }
-
-  async buildAndSaveCompliedResource(
-    script: Script,
-    o: { scriptMatchInfo?: TScriptMatchInfoEntry; scriptRes?: ScriptRunResource } = {}
-  ) {
-    // 如果没开启, 则不注册
-    if (script.status === SCRIPT_STATUS_ENABLE) {
-      const scriptRes = o.scriptRes || (await this.script.buildScriptRunResource(script));
-      const scriptMatchInfo = o.scriptMatchInfo || (await this.buildAndSetScriptMatchInfo(script, scriptRes));
-      if (scriptMatchInfo) {
-        return await this.buildAndSaveCompliedResource_(script, {
-          scriptRes,
-          scriptMatchInfo,
-        });
-      }
-    }
-    return this.buildAndSaveCompliedResourceNull(script);
   }
 
   async restoreJSCodeFromCompliedResource(result: CompliedResource) {
@@ -782,14 +769,14 @@ export class RuntimeService {
         let result = await this.compliedResourceDAO.get(script.uuid);
         if (!result || !result.require || !result.scriptUrlPatterns?.length) {
           // 按常理不会跑这个
-          const ret = await this.buildAndSaveCompliedResource(script);
+          const ret = await this.buildAndSaveCompliedResourceFromScript(script);
+          if (!ret) return undefined;
           result = ret.compliedResource;
           resultCode = ret.jsCode;
         } else {
           resultCode = await this.restoreJSCodeFromCompliedResource(result);
         }
         if (!resultCode) return undefined;
-
         const registerScript = {
           id: result.uuid,
           js: [{ code: resultCode }],
@@ -970,8 +957,7 @@ export class RuntimeService {
     // 如果有使用自定义排除，原本脚本定义的会返回 uuid{Ori}
     // 因此基于自定义排除页面被排除的情况下，结果只包含 uuid{Ori} 而不包含 uuid
     const matchedUuids = this.scriptMatch.urlMatch(url!);
-    const ret = new Map<string, { uuid: string; effective: boolean; matchInfo?: TScriptMatchInfoEntry }>();
-    const scriptMatchCache = this.scriptMatchCache!;
+    const ret = new Map<string, { uuid: string; effective: boolean }>();
     for (const e of matchedUuids) {
       const uuid = e.endsWith(ORIGINAL_URLMATCH_SUFFIX) ? e.slice(0, -ORIGINAL_URLMATCH_SUFFIX.length) : e;
       if (!includeNonEffective && uuid !== e) continue;
@@ -980,8 +966,6 @@ export class RuntimeService {
       if (e === uuid) {
         o.effective = true;
       }
-      // 把匹配脚本的资料从 cache 取出来
-      o.matchInfo = scriptMatchCache.get(uuid);
       ret.set(uuid, o);
     }
     // ret 只包含 uuid 为键的 matchingResult
@@ -1035,15 +1019,46 @@ export class RuntimeService {
 
     const enableScript = [] as ScriptLoadInfo[];
 
-    for (const [_uuid, o] of matchingResult) {
+    const uuids = [...matchingResult.keys()];
+
+    const [scripts, compliedResources] = await Promise.all([
+      this.scriptDAO.gets(uuids),
+      this.compliedResourceDAO.gets(uuids),
+    ]);
+
+    for (let idx = 0, l = uuids.length; idx < l; idx++) {
+      // const uuid = uuids[idx];
+      const script = scripts[idx];
+      const compliedResource = compliedResources[idx];
+
+      if (!script || !compliedResource) continue;
+      const scriptRes_ = this.script.buildScriptRunResourceBasic(script);
+      const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
+
+      let resourceCheck: Record<string, [string, ResourceType]> | undefined = undefined;
+
+      for (const [_key, res] of Object.entries(scriptRes_.resource)) {
+        if (res.url.startsWith("file:///")) {
+          if (!resourceCheck) {
+            resourceCheck = {} as Record<string, [string, ResourceType]>;
+          }
+          resourceCheck[res.url] = [res.hash.sha512, res.type];
+        }
+      }
+
       // 物件部份内容预设为空
-      const scriptRes = Object.assign({}, o.matchInfo, {
+      const scriptRes = {
+        ...scriptRes_,
+        scriptUrlPatterns: scriptUrlPatterns,
+        originalUrlPatterns: originalUrlPatterns === null ? scriptUrlPatterns : originalUrlPatterns,
         code: "",
         value: {},
         resource: {},
+        resourceCheck,
         metadataStr: "",
         userConfigStr: "",
-      }) as ScriptLoadInfo;
+      };
+
       // 判断脚本是否开启
       if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
         continue;
@@ -1233,16 +1248,12 @@ export class RuntimeService {
 
   compileInjectUserScript(injectJs: string, messageFlag: string, o: Record<string, any>) {
     // 替换ScriptFlag
-    const earlyScriptFlag: string[] = [];
     // 遍历early-start的脚本
-    this.scriptMatchCache!.forEach((script) => {
-      if (isEarlyStartScript(script.metadata)) {
-        earlyScriptFlag.push(script.flag);
-      }
-    });
+    const earlyScriptFlag = [...this.earlyScriptFlags].map((uuid) => getScriptFlag(uuid));
+    const flagParam = JSON.stringify(earlyScriptFlag);
 
     // 构建inject.js的脚本注册信息
-    const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${JSON.stringify(earlyScriptFlag)})`;
+    const code = `(function (MessageFlag, EarlyScriptFlag) {\n${injectJs}\n})('${messageFlag}', ${flagParam})`;
     const script: chrome.userScripts.RegisteredUserScript = {
       id: "scriptcat-inject",
       js: [{ code }],
@@ -1258,7 +1269,7 @@ export class RuntimeService {
     return [
       {
         id: "scriptcat-early-start-flag",
-        js: [{ code: "window.EarlyScriptFlag=" + JSON.stringify(earlyScriptFlag) + ";" }],
+        js: [{ code: "window.EarlyScriptFlag=" + flagParam + ";" }],
         matches: ["<all_urls>"],
         allFrames: true,
         world: "USER_SCRIPT",
@@ -1295,9 +1306,9 @@ export class RuntimeService {
   loadingScript: Promise<void> | null = null;
 
   // 保存脚本匹配信息
-  async saveScriptMatchInfo() {
-    return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache!));
-  }
+  // async saveScriptMatchInfo() {
+  //   // return await cacheInstance.set("scriptMatch", Object.fromEntries(this.scriptMatchCache!));
+  // }
 
   scriptMatchEntry(
     scriptRes: ScriptRunResource,
@@ -1319,25 +1330,25 @@ export class RuntimeService {
     this.scriptMatch.clearRules(uuidOri);
     // 添加新的数据
     this.scriptMatch.addRules(uuid, scriptUrlPatterns);
-    if (matchInfoEntry.originalUrlPatterns && originalUrlPatterns !== scriptUrlPatterns) {
+    if (originalUrlPatterns && originalUrlPatterns !== scriptUrlPatterns) {
       this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
     }
     return matchInfoEntry;
   }
 
-  async updateScriptStatus(uuid: string, status: SCRIPT_STATUS) {
-    const script = this.scriptMatchCache!.get(uuid);
-    if (script) {
-      script.status = status;
-      await this.saveScriptMatchInfo();
-    }
-  }
+  // async updateScriptStatus(uuid: string, status: SCRIPT_STATUS) {
+  //   const script = this.scriptMatchCache!.get(uuid);
+  //   if (script) {
+  //     script.status = status;
+  //     await this.saveScriptMatchInfo();
+  //   }
+  // }
 
   async deleteScriptMatch(uuid: string) {
-    this.scriptMatchCache!.delete(uuid);
+    // this.scriptMatchCache!.delete(uuid);
     this.scriptMatch.clearRules(uuid);
     this.scriptMatch.clearRules(`${uuid}${ORIGINAL_URLMATCH_SUFFIX}`);
-    await this.saveScriptMatchInfo();
+    // await this.saveScriptMatchInfo();
   }
 
   scriptURLPatternResults(scriptRes: {
@@ -1383,28 +1394,28 @@ export class RuntimeService {
     return { scriptUrlPatterns, originalUrlPatterns };
   }
 
-  async buildAndSetScriptMatchInfo(script: Script, scriptRes_?: ScriptRunResource) {
-    const scriptRes = scriptRes_ || (await this.script.buildScriptRunResource(script));
+  async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = this.scriptURLPatternResults(scriptRes);
     if (!o) {
       return undefined;
     }
     // 构建脚本匹配信息
-    const scriptMatchInfo = this.scriptMatchEntry(scriptRes, o);
+    return this.scriptMatchEntry(scriptRes, o);
+    // const scriptMatchInfo = this.scriptMatchEntry(scriptRes, o);
     // 把脚本信息放入缓存中
-    this.scriptMatchCache!.set(scriptRes.uuid, scriptMatchInfo);
-    await this.saveScriptMatchInfo();
-    return scriptMatchInfo;
+    // this.scriptMatchCache!.set(scriptRes.uuid, scriptMatchInfo);
+    // await this.saveScriptMatchInfo();
+    // return scriptMatchInfo;
   }
 
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
-  async loadPageScript(scriptMatchInfo: ScriptMatchInfo, registerScript_: chrome.userScripts.RegisteredUserScript) {
+  async loadPageScript(script: Script, registerScript_: chrome.userScripts.RegisteredUserScript) {
     // 如果脚本开启, 则注册脚本
-    if (!this.isUserScriptsAvailable || !this.isLoadScripts || scriptMatchInfo.status !== SCRIPT_STATUS_ENABLE) {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts || script.status !== SCRIPT_STATUS_ENABLE) {
       return;
     }
-    const { name, uuid } = scriptMatchInfo;
+    const { name, uuid } = script;
     const registerScript = registerScript_;
     const res: chrome.userScripts.RegisteredUserScript | undefined = (
       await chrome.userScripts.getScripts({ ids: [uuid] })
@@ -1430,6 +1441,21 @@ export class RuntimeService {
       }
     }
   }
+
+  // async unregistryPageScript(uuid: string) {
+  //   if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
+  //     return;
+  //   }
+  //   const result = await chrome.userScripts.getScripts({ ids: [uuid] });
+  //   if (result.length === 1) {
+  //     // 修改脚本状态为disable，浏览器取消注册该脚本
+  //     // await Promise.all([
+  //     //   this.updateScriptStatus(uuid, SCRIPT_STATUS_DISABLE),
+  //     //   chrome.userScripts.unregister({ ids: [uuid] }),
+  //     // ]);
+  //     await chrome.userScripts.unregister({ ids: [uuid] });
+  //   }
+  // }
 
   async unregistryPageScripts_(uuids: string[]) {
     const result = await chrome.userScripts.getScripts({ ids: uuids });
