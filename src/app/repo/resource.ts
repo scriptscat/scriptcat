@@ -67,6 +67,7 @@ export const CompliedResourceNamespace = "53228523-7886-4bbe-8284-5073b95e4fc1";
 export class CompliedResourceDAO extends Repo<CompliedResource> {
   constructor() {
     super(`complied_resource`);
+    this.enableCache();
   }
 
   protected joinKey(key: string) {
