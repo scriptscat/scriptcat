@@ -58,6 +58,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         readOnly: true,
         diffWordWrap: "off",
         glyphMargin: true,
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+        },
       });
       edit.setModel({
         original: editor.createModel(diffCode, "javascript"),
@@ -74,6 +77,9 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         scrollBeyondLastLine: false,
         readOnly: !editable,
         glyphMargin: true,
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+        },
       });
       edit.setValue(code);
 

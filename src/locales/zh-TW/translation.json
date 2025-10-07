@@ -501,5 +501,20 @@
   "editor_type_definition_reset": "編輯器類型定義已重設",
   "editor_type_definition_saved": "編輯器類型定義已儲存",
   "layout": "佈局",
-  "hide_script_list": "隱藏腳本列表"
+  "hide_script_list": "隱藏腳本列表",
+  "script_list": {
+    "sidebar": {
+      "stopped": "停止",
+      "all": "全部",
+      "normal_script": "普通腳本",
+      "status": "狀態"
+    }
+  },
+  "tags": "標籤",
+  "install_source": "安裝來源",
+  "input_tags_placeholder": "輸入標籤，按回車確認",
+  "switch_to_card_mode": "切換到卡片模式",
+  "switch_to_table_mode": "切換到表格模式",
+  "open_sidebar": "打開側邊欄",
+  "close_sidebar": "關閉側邊欄"
 }

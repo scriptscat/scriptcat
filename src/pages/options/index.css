@@ -66,6 +66,19 @@ h6.arco-typography {
   min-width: 100px;
 }
 
-.source_cell .arco-table-cell-wrap-value, .source_cell .arco-tag {
+.source_cell .arco-table-cell-wrap-value,
+.source_cell .arco-tag {
   max-width: 100%;
+}
+
+.script-list {
+  .arco-table-container {
+    border: none !important;
+  }
+
+  .arco-table-border .arco-table-th:first-child,
+  .arco-table-border .arco-table-td:first-child {
+    border-left: none !important;
+
+  }
 }
