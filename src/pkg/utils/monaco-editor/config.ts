@@ -8,6 +8,8 @@ const config = {
   // https://github.com/microsoft/monaco-editor/issues/1842
   // https://github.com/suren-atoyan/monaco-react/issues/75#issuecomment-1890761086
   allowNonTsExtensions: true,
+  allowJs: true,
+  strict: true,
 } as languages.typescript.CompilerOptions;
 
 export const defaultConfig = JSON.stringify(config, null, 2);
