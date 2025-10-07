@@ -13,7 +13,6 @@ import type { RuntimeMessageSender } from "@Packages/message/types";
 import { cleanInvalidCompliedResources } from "./app/repo/resource";
 
 migrate();
-cleanInvalidCompliedResources();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
@@ -63,6 +62,7 @@ async function setupOffscreenDocument() {
 }
 
 async function main() {
+  await cleanInvalidCompliedResources();
   // 初始化管理器
   const message = new ExtensionMessage(true);
   // 初始化日志组件
