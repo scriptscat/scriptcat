@@ -516,5 +516,6 @@
   "switch_to_card_mode": "Wechseln Sie in den Kartenmodus",
   "switch_to_table_mode": "In den Tabellenmodus wechseln",
   "open_sidebar": "Öffne die Seitenleiste",
-  "close_sidebar": "Schließe die Seitenleiste"
+  "close_sidebar": "Schließe die Seitenleiste",
+  "no_message_content": "Kein Nachrichteninhalt"
 }

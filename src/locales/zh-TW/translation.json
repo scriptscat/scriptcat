@@ -516,5 +516,6 @@
   "switch_to_card_mode": "切換到卡片模式",
   "switch_to_table_mode": "切換到表格模式",
   "open_sidebar": "打開側邊欄",
-  "close_sidebar": "關閉側邊欄"
+  "close_sidebar": "關閉側邊欄",
+  "no_message_content": "無訊息內容"
 }
