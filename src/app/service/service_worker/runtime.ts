@@ -774,7 +774,7 @@ export class RuntimeService {
         }
         let resultCode = "";
         let result = await this.compliedResourceDAO.get(script.uuid);
-        if (!result || !result.require || !result.scriptUrlPatterns?.length) {
+        if (!result || !result.scriptUrlPatterns?.length) {
           // 按常理不会跑这个
           const ret = await this.buildAndSaveCompliedResourceFromScript(script);
           if (!ret) return undefined;
