@@ -1,4 +1,3 @@
-import { type ResourceType } from "@App/app/repo/resource";
 import type { Script, ScriptRunResource, SCRIPT_RUN_STATUS, SCMetadata, UserConfig } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";

@@ -216,7 +216,6 @@ export class RuntimeService {
     scriptRes: ScriptRunResource,
     o: { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] | null }
   ) {
-
     // 优化性能，将不需要的信息去掉
     // 而且可能会超过缓存的存储限制
     const matchInfo = {
@@ -885,7 +884,6 @@ export class RuntimeService {
       console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
     }
 
-    const ts = Date.now();
     const particularScriptList = await this.getParticularScriptList();
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
