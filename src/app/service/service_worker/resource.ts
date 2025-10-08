@@ -129,15 +129,14 @@ export class ResourceService {
   // 检查资源是否存在,如果不存在则重新加载
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
-    if (res) {
-      // 判断1天过期
-      if ((res.updatetime || 0) > Date.now() - 1000 * 86400) {
-        return res;
-      }
+    const updateTime = res?.updatetime;
+    // 判断1天过期
+    if (updateTime && updateTime > Date.now() - 1000 * 86400) {
+      return res;
     }
     try {
       res = await this.updateResource(uuid, url, type);
-      if (res && res.contentType) {
+      if (res?.contentType) {
         return res;
       }
     } catch (e: any) {
