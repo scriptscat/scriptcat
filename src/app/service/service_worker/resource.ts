@@ -112,7 +112,7 @@ export class ResourceService {
     return ret;
   }
 
-  async updateResourceByType(script: Script, type: ResourceType): Promise<any> {
+  updateResourceByType(script: Script, type: ResourceType) {
     const promises = script.metadata[type]?.map(async (u) => {
       if (type === "resource") {
         const split = u.split(/\s+/);
