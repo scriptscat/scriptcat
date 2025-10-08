@@ -253,7 +253,7 @@ export class RuntimeService {
       const compliedResource = compliedResources.find((res) => res.uuid === uuid);
 
       if (!compliedResource) {
-        // 如沒有 compliedResource, 預先嘗試重新生成
+        // 如没有 compliedResource, 预先尝试重新生成
         if (script.status === SCRIPT_STATUS_ENABLE) {
           complieResourcePromises.push(complieResourcePromiseFn(script));
         }
@@ -271,7 +271,7 @@ export class RuntimeService {
       }
     });
     if (complieResourcePromises.length) {
-      // 等待 scriptMatch 處理
+      // 等待 scriptMatch 处理
       await Promise.all(complieResourcePromises);
     }
     if (cleanUpPreviousRegister) {
@@ -279,7 +279,7 @@ export class RuntimeService {
       unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
     }
     if (unregisterScriptIds.length) {
-      // 忽略 UserScripts API 無法執行
+      // 忽略 UserScripts API 无法执行
       await Promise.allSettled([this.unregistryPageScripts(unregisterScriptIds, true)]); // ignore success or fail
     }
     if (!cRuntimeStartFlag) {
@@ -1338,7 +1338,7 @@ export class RuntimeService {
   }
 
   /**
-   * applyScriptMatchInfo 會進行 scriptMatch 的更新
+   * applyScriptMatchInfo 会进行 scriptMatch 的更新
    */
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = this.scriptURLPatternResults(scriptRes);
