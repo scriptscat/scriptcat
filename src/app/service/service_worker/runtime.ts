@@ -133,9 +133,14 @@ export class RuntimeService {
       };
       // 处理architecture和bitness
       if (chrome.runtime.getPlatformInfo) {
-        const platformInfo = await chrome.runtime.getPlatformInfo();
-        this.userAgentData.architecture = platformInfo.nacl_arch;
-        this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+        try {
+          const platformInfo = await chrome.runtime.getPlatformInfo();
+          this.userAgentData.architecture = platformInfo.nacl_arch;
+          this.userAgentData.bitness = platformInfo.arch.includes("64") ? "64" : "32";
+        } catch (e) {
+          // 避免 API 无法执行的问题。不影响整体运作
+          console.warn(e);
+        }
       }
     }
   }
@@ -575,13 +580,14 @@ export class RuntimeService {
     this.loadingInitProcessPromise = this.waitInit();
 
     this.initReady = (async () => {
-      // 取得初始值
-      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
+      // 取得初始值 或 等待各种异步同时进行的初始化 (_1, _2, ...)
+      const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2, _3] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
         this.loadingInitFlagPromise, // messageFlag 初始化等待
         this.loadingInitProcessPromise, // 初始化程序等待
+        this.initUserAgentData(), // 初始化：userAgentData
       ]);
 
       // 保存初始值
@@ -597,14 +603,9 @@ export class RuntimeService {
 
       // 初始化：加载黑名单
       this.loadBlacklist();
-      // 初始化：userAgentData
 
-      await Promise.all([
-        // 初始化：userAgentData
-        this.initUserAgentData(),
-        // 注册脚本
-        this.registerUserscripts(),
-      ]);
+      // 注册脚本
+      await this.registerUserscripts();
 
       this.initReady = true;
 
