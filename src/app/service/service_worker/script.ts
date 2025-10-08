@@ -261,7 +261,7 @@ export class ScriptService {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
     // 删 storage cache
-    this.compliedResourceDAO.delete(script.uuid);
+    const compliedResourceUpdatePromise = this.compliedResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
@@ -285,11 +285,18 @@ export class ScriptService {
           code: param.code,
         });
         logger.info("install success");
-        // 下载资源
-        this.resourceService.checkScriptResource(script).then(() => {
-          // 广播一下
-          this.publishInstallScript(script, { update, upsertBy });
-        });
+
+        // Cache更新 & 下载资源
+        await Promise.all([
+          compliedResourceUpdatePromise,
+          this.resourceService.checkResourceByType(script, "require"),
+          this.resourceService.checkResourceByType(script, "require-css"),
+          this.resourceService.checkResourceByType(script, "resource"),
+        ]);
+
+        // 广播一下
+        this.publishInstallScript(script, { update, upsertBy });
+
         return { update };
       })
       .catch((e: any) => {

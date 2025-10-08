@@ -49,7 +49,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用於全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在userScript API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 在UserScripts API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
   with(arguments[0]||this.$){
 ${preCode}

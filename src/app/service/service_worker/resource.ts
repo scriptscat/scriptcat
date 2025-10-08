@@ -113,7 +113,7 @@ export class ResourceService {
   }
 
   // 更新资源
-  async checkScriptResource(script: Script) {
+  async updateScriptResources(script: Script) {
     const [require, require_css, resource] = await Promise.all([
       this.checkResourceByType(script, "require"),
       this.checkResourceByType(script, "require-css"),
