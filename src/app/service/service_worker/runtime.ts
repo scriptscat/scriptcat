@@ -110,21 +110,6 @@ export class RuntimeService {
         return this.localStorageDAO.save({ key: "scriptInjectMessageFlag", value: runtimeGlobal.messageFlag });
       })
       .catch(console.error);
-    this.loadingInitRegisteredPromise = new Promise<void>((resolve) => {
-      let result = false;
-      chrome.userScripts
-        .getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] })
-        .then((res) => {
-          if (res.length === 2) {
-            result = true;
-          }
-        })
-        .finally(() => {
-          runtimeGlobal.registered = result;
-          // 考虑 API 不可使用情况，使用 finally
-          resolve();
-        });
-    });
     this.logger = LoggerCore.logger({ component: "runtime" });
 
     // 使用中间件
@@ -322,6 +307,22 @@ export class RuntimeService {
     }
     await Promise.allSettled([this.unregistryPageScripts_(unregisterScriptIds)]); // ignore success or fail
     await cacheInstance.set<boolean>("runtimeStartFlag", true);
+
+    this.loadingInitRegisteredPromise = new Promise<void>((resolve) => {
+      let result = false;
+      chrome.userScripts
+        .getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] })
+        .then((res) => {
+          if (res.length === 2) {
+            result = true;
+          }
+        })
+        .finally(() => {
+          runtimeGlobal.registered = result;
+          // 考虑 API 不可使用情况，使用 finally
+          resolve();
+        });
+    });
   }
 
   async updateResourceOnScriptChange(script: Script) {
