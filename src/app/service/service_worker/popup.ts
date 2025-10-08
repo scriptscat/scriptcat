@@ -170,7 +170,12 @@ export class PopupService {
           i++;
           // 由于使用旧id，旧的内部context menu item应会被重用因此不会造成记忆体失控。
           // （推论内部有cache机制，即使removeAll也是有残留）
-          chrome.contextMenus.create(menuEntry);
+          chrome.contextMenus.create(menuEntry, () => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError) {
+              console.error("chrome.runtime.lastError in chrome.contextMenus.create:", lastError.message);
+            }
+          });
         }
       })
       .catch(console.warn);
