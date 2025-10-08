@@ -157,7 +157,7 @@ export class PopupService {
         for (const menuEntry of menuEntries) {
           // 菜单项目用的共通 uuid. 不会随 tab 切换或换页换iframe载入等行为改变。稳定id
           // 以固定槽位 i 对应稳定显示 id：即使 removeAll 重建，显示 id 仍保持一致以规避 Chrome 的不稳定行为。
-          const menuDisplayId = contextMenuConvArr[i] || (contextMenuConvArr[i] = uuidv4());
+          const menuDisplayId = contextMenuConvArr[i] || (contextMenuConvArr[i] = `${groupKeyNS}-${100000 + i}`);
           // 把 SC管理用id 换成 menu显示用id
           if (menuEntry.id) {
             // 建立 SC id ↔ 显示 id 的双向映射：parentId/点击回推都依赖此映射。
