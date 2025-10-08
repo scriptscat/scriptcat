@@ -22,6 +22,7 @@ import { joinPath } from "@Packages/filesystem/utils";
 import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 import { BrowserNoSupport, notificationsUpdate } from "./utils";
+import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 
@@ -949,7 +950,7 @@ export default class GMApi {
     const notificationId: string | undefined = request.params[1];
     const options: chrome.notifications.NotificationCreateOptions = {
       title: details.title || "ScriptCat",
-      message: details.text || "无消息内容",
+      message: details.text || i18n.t("no_message_content"),
       iconUrl: details.image || getIcon(request.script) || chrome.runtime.getURL("assets/logo.png"),
       type: isFirefox() || details.progress === undefined ? "basic" : "progress",
     };

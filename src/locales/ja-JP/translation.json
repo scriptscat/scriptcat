@@ -516,5 +516,6 @@
   "switch_to_card_mode": "カードモードに切り替え",
   "switch_to_table_mode": "テーブルモードに切り替え",
   "open_sidebar": "サイドバーを開く",
-  "close_sidebar": "サイドバーを閉じる"
+  "close_sidebar": "サイドバーを閉じる",
+  "no_message_content": "メッセージ内容なし"
 }
