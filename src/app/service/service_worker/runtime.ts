@@ -621,6 +621,8 @@ export class RuntimeService {
     // ======== 以下初始化是异步处理，因此扩充载入时可能会优先跑其他同步初始化 ========
 
     this.initReady = (async () => {
+      // waitInit 优先处理 （包括处理重启问题）
+      await this.waitInit();
       // 取得初始值
       const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
@@ -657,8 +659,6 @@ export class RuntimeService {
       // 初始化完成
       return true;
     })();
-
-    this.waitInit();
   }
 
   private loadBlacklist() {
