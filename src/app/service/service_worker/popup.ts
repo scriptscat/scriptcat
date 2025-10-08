@@ -238,7 +238,9 @@ export class PopupService {
     // 但点击后，两边都会执行。
     // 目的只是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
     const groupKey = uuidv5(
-      JSON.stringify({ ...(message.options || {}), autoClose: "", id: "", name: name }),
+      message.options?.inputType
+        ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
+        : `${name}\n${message.options?.accessKey || ""}`,
       groupKeyNS
     );
 
