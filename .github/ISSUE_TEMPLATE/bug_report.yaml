@@ -1,7 +1,7 @@
 name: "Bug反馈"
 description: 提交脚本猫使用过程中遇到的 BUG
 title: "[BUG] "
-labels: ["bug"]
+type: "Bug"
 # assignees: ""
 body:
   - type: markdown
