@@ -78,10 +78,6 @@ export class ScriptClient extends Client {
     return this.do("getFilterResult", req);
   }
 
-  // getScriptRunResource(script: Script): Promise<ScriptRunResource> {
-  //   return this.doThrow("getScriptRunResource", script);
-  // }
-
   getScriptRunResourceByUUID(uuid: string): Promise<ScriptRunResource> {
     return this.doThrow("getScriptRunResourceByUUID", uuid);
   }

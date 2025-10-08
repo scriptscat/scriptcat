@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, getScriptFlag, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode, isEarlyStartScript } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -40,7 +40,7 @@ import type {
   TInstallScriptParams,
 } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
-import { getCombinedMeta, selfMetadataUpdate } from "./utils";
+import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
@@ -256,7 +256,7 @@ export class ScriptService {
     return this.mq.publish<TInstallScript>("installScript", { script, ...options });
   }
 
-  // 安装脚本
+  // 安装脚本 / 更新腳本
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
@@ -295,6 +295,7 @@ export class ScriptService {
         ]);
 
         // 广播一下
+        // Runtime 會負責更新 CompliedResource
         this.publishInstallScript(script, { update, upsertBy });
 
         return { update };
@@ -510,34 +511,14 @@ export class ScriptService {
     return results;
   }
 
-  // getScriptRunResource(script: Script) {
-  //   return this.buildScriptRunResource(script);
-  // }
-
   async getScriptRunResourceByUUID(uuid: string) {
     const script = await this.fetchInfo(uuid);
     if (!script) return null;
     return this.buildScriptRunResource(script);
   }
 
-  buildScriptRunResourceBasic(script: Script): ScriptRunResource {
-    const ret: ScriptRunResource = { ...script } as ScriptRunResource;
-    // 自定义配置
-    const { match, include, exclude } = ret.metadata;
-    ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
-    if (ret.selfMetadata) {
-      ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
-    }
-    ret.flag = getScriptFlag(script.uuid);
-    // 只用来生成 matchInfo 的话不需要 value, resource, code
-    ret.value = {};
-    ret.resource = {};
-    ret.code = "";
-    return ret;
-  }
-
   async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
-    const ret = this.buildScriptRunResourceBasic(script);
+    const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),
@@ -1295,7 +1276,6 @@ export class ScriptService {
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
-    // this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));

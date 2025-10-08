@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  isBase64,
-  parseUrlSRI,
-  getCombinedMeta,
-  selfMetadataUpdate,
-  getUserScriptRegister,
-  complieInjectionCode,
-} from "./utils";
+import { isBase64, parseUrlSRI, getCombinedMeta, selfMetadataUpdate, getUserScriptRegister } from "./utils";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
@@ -250,14 +243,13 @@ describe("getUserScriptRegister", () => {
       originalMetadata: {},
     };
 
-    const result = getUserScriptRegister(
-      mockScriptMatchInfo,
-      complieInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code)
-    );
+    // const code = complieInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);
+    const result = getUserScriptRegister(mockScriptMatchInfo);
+    // result.registerScript.js[0].code = code;
 
     expect(result).toHaveProperty("registerScript");
     expect(result.registerScript.id).toBe("test-uuid");
-    expect(result.registerScript.js).toHaveLength(1);
+    // expect(result.registerScript.js).toHaveLength(1);
     expect(result.registerScript.matches).toContain("*://example.com/*");
     expect(result.registerScript.allFrames).toBe(false);
     expect(result.registerScript.world).toBe("MAIN");
