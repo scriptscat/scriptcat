@@ -19,6 +19,7 @@ import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
+import { getCombinedMeta } from "./utils";
 
 type TxUpdateScriptMenuCallback = (
   result: ScriptMenu[]
@@ -190,15 +191,17 @@ export class PopupService {
 
       if (!script || !o) continue;
 
-      const scriptRes = this.runtime.script.buildScriptRunResourceBasic(script);
       let run = runMap.get(uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
-        run.enable = scriptRes.status === SCRIPT_STATUS_ENABLE;
+        run.enable = script.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
-        run.hasUserConfig = !!scriptRes.config;
+        run.hasUserConfig = !!script.config;
       } else {
-        run = this.scriptToMenu(scriptRes);
+        if (script.selfMetadata) {
+          script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+        }
+        run = this.scriptToMenu(script);
         run.isEffective = o.effective!;
       }
       scriptMenuMap.set(uuid, run);
