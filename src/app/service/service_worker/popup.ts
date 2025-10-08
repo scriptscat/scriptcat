@@ -176,7 +176,7 @@ export class PopupService {
 
     const uuids = [...matchingResult.keys()];
 
-    const [scripts] = await Promise.all([this.scriptDAO.gets(uuids)]);
+    const scripts = await this.scriptDAO.gets(uuids);
 
     // 与运行时脚本进行合并
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
