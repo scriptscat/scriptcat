@@ -18,7 +18,7 @@ import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
-import { v5 as uuidv5, v4 as uuidv4 } from "uuid";
+import { v5 as uuidv5 } from "uuid";
 
 type TxUpdateScriptMenuCallback = (
   result: ScriptMenu[]
