@@ -403,8 +403,6 @@ export class RuntimeService {
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
         // 不是 earlyStart 的不用重新注入 （没有改变）
         if (needReRegisterInjectJS) await this.reRegisterInjectScript();
-      } else {
-        this.earlyScriptFlags.delete(script.uuid);
       }
     });
 
