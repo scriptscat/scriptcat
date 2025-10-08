@@ -366,7 +366,7 @@ export class RuntimeService {
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
       let needReRegisterInjectJS = false;
-      const uuids = [] as string[];
+      const unregisteyUuids = [] as string[];
       for (const { uuid, enable } of data) {
         const script = await this.scriptDAO.get(uuid);
         if (!script) {
@@ -398,7 +398,7 @@ export class RuntimeService {
           if (enable) {
             await this.updateResourceOnScriptChange(script);
           } else {
-            uuids.push(uuid);
+            unregisteyUuids.push(uuid);
             await this.compliedResourceDAO.delete(uuid); // 没启用的删一下, 节省compliedResourceDAO空间
             try {
               // 不管是enable还是disable都需要调用buildAndSetScriptMatchInfo以更新缓存 ??
@@ -412,7 +412,7 @@ export class RuntimeService {
           this.earlyScriptFlags.delete(uuid);
         }
       }
-      await this.unregistryPageScripts(uuids);
+      await this.unregistryPageScripts(unregisteyUuids);
       if (needReRegisterInjectJS) await this.reRegisterInjectScript();
     });
 
@@ -451,16 +451,16 @@ export class RuntimeService {
     // 监听脚本删除
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
       let needReRegisterInjectJS = false;
-      const uuids = [] as string[];
+      const unregisteyUuids = [] as string[];
       for (const { uuid, type, isEarlyStart } of data) {
-        uuids.push(uuid);
+        unregisteyUuids.push(uuid);
         this.earlyScriptFlags.delete(uuid);
         await this.deleteScriptMatch(uuid);
         if (type === SCRIPT_TYPE_NORMAL && isEarlyStart) {
           needReRegisterInjectJS = true;
         }
       }
-      await this.unregistryPageScripts(uuids);
+      await this.unregistryPageScripts(unregisteyUuids);
       if (needReRegisterInjectJS) {
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
         await this.reRegisterInjectScript();
