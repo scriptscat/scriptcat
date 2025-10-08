@@ -26,7 +26,7 @@ export interface IGM_Base {
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
-const integrity = {}; // 僅防止非法实例化
+const integrity = {}; // 仅防止非法实例化
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
