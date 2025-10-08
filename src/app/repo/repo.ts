@@ -4,7 +4,7 @@ let loadCachePromise: Promise<Partial<Record<string, any>>> | undefined = undefi
 let cache: Partial<Record<string, any>> | undefined = undefined;
 
 // 加载数据到缓存
-function loadCache(): Promise<Partial<Record<string, any>>> {
+export function loadCache(): Promise<Partial<Record<string, any>>> {
   if (cache) {
     return Promise.resolve(cache);
   }
@@ -127,7 +127,8 @@ function deleteStorage(key: string) {
     });
   });
 }
-function deletesStorage(keys: string[]) {
+
+export function deletesStorage(keys: string[]) {
   return new Promise<void>((resolve) => {
     chrome.storage.local.remove(keys, () => {
       const lastError = chrome.runtime.lastError;

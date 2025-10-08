@@ -2,8 +2,20 @@ export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
-import { compileInjectScript, compilePreInjectScript, isEarlyStartScript, isInjectIntoContent } from "../content/utils";
-import { getApiMatchesAndGlobs, RuleType, toUniquePatternStrings } from "@App/pkg/utils/url_matcher";
+import {
+  compileInjectScript,
+  compilePreInjectScript,
+  getScriptFlag,
+  isEarlyStartScript,
+  isInjectIntoContent,
+} from "../content/utils";
+import {
+  extractUrlPatterns,
+  getApiMatchesAndGlobs,
+  RuleType,
+  toUniquePatternStrings,
+  type URLRuleEntry,
+} from "@App/pkg/utils/url_matcher";
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -166,16 +178,19 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
   };
 }
 
-// 构建userScript注册信息
-export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-  const preDocumentStartScript = isEarlyStartScript(scriptMatchInfo);
-
+export function compileInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
+  const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+  let scriptInjectCode;
   if (preDocumentStartScript) {
-    scriptMatchInfo.code = compilePreInjectScript(parseScriptLoadInfo(scriptMatchInfo), scriptMatchInfo.code);
+    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
   } else {
-    scriptMatchInfo.code = compileInjectScript(scriptMatchInfo, scriptMatchInfo.code);
+    scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
   }
+  return scriptInjectCode;
+}
 
+// 构建userScript注册信息（忽略代碼部份）
+export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
 
   const excludeMatches = toUniquePatternStrings(
@@ -187,7 +202,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 
   const registerScript: chrome.userScripts.RegisteredUserScript = {
     id: scriptMatchInfo.uuid,
-    js: [{ code: scriptMatchInfo.code }],
+    js: [{ code: "" }],
     matches: matches, // primary
     includeGlobs: includeGlobs, // includeGlobs applied after matches
     excludeMatches: excludeMatches,
@@ -196,7 +211,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     world: "MAIN",
   };
 
-  if (isInjectIntoContent(scriptMatchInfo)) {
+  if (isInjectIntoContent(scriptMatchInfo.metadata)) {
     // 需要注入到content script的脚本
     registerScript.world = "USER_SCRIPT";
   }
@@ -208,4 +223,59 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   return {
     registerScript,
   };
+}
+
+export function buildScriptRunResourceBasic(script: Script): ScriptRunResource {
+  const ret: ScriptRunResource = { ...script } as ScriptRunResource;
+  // 自定义配置
+  const { match, include, exclude } = ret.metadata;
+  ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
+  if (ret.selfMetadata) {
+    ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
+  }
+  ret.flag = getScriptFlag(script.uuid);
+  // 只用来生成 matchInfo 的话不需要 value, resource, code
+  ret.value = {};
+  ret.resource = {};
+  ret.code = "";
+  return ret;
+}
+
+export function scriptURLPatternResults(scriptRes: {
+  metadata: SCMetadata;
+  originalMetadata: SCMetadata;
+  selfMetadata?: SCMetadata;
+}): {
+  scriptUrlPatterns: URLRuleEntry[];
+  originalUrlPatterns: URLRuleEntry[];
+} | null {
+  const { metadata, originalMetadata } = scriptRes;
+  const metaMatch = metadata.match;
+  const metaInclude = metadata.include;
+  const metaExclude = metadata.exclude;
+  if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
+    return null;
+  }
+
+  // 黑名单排除 統一在腳本注冊時添加
+  const scriptUrlPatterns = extractUrlPatterns([
+    ...(metaMatch || []).map((e) => `@match ${e}`),
+    ...(metaInclude || []).map((e) => `@include ${e}`),
+    ...(metaExclude || []).map((e) => `@exclude ${e}`),
+  ]);
+
+  // 如果使用了自定义排除，无法在脚本原有的网域看到匹配情况
+  // 所有统一把原本的pattern都解析一下
+
+  const selfMetadata = scriptRes.selfMetadata;
+  const originalUrlPatterns: URLRuleEntry[] | null =
+    selfMetadata?.match || selfMetadata?.include || selfMetadata?.exclude
+      ? extractUrlPatterns([
+          ...(originalMetadata.match || []).map((e) => `@match ${e}`),
+          ...(originalMetadata.include || []).map((e) => `@include ${e}`),
+          ...(originalMetadata.exclude || []).map((e) => `@exclude ${e}`),
+        ])
+      : scriptUrlPatterns;
+
+  return { scriptUrlPatterns, originalUrlPatterns };
 }

@@ -1,4 +1,4 @@
-export type SCMetadata = Record<string, string[]>;
+export type SCMetadata = Partial<Record<string, string[]>>;
 
 // 解析标签 允许使用逗号和空格分隔
 export function parseTags(metadata: SCMetadata): string[] {
