@@ -112,22 +112,6 @@ export class ResourceService {
     return ret;
   }
 
-  // 更新资源
-  async updateScriptResources(script: Script) {
-    const [require, require_css, resource] = await Promise.all([
-      this.checkResourceByType(script, "require"),
-      this.checkResourceByType(script, "require-css"),
-      this.checkResourceByType(script, "resource"),
-    ]);
-
-    // wait https://github.com/tc39/proposal-await-dictionary
-    return {
-      ...require,
-      ...require_css,
-      ...resource,
-    };
-  }
-
   async checkResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
     if (!script.metadata[type]) {
       return {};
