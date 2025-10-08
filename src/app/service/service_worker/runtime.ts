@@ -88,7 +88,7 @@ export class RuntimeService {
   updateSitesBusy: boolean = false;
 
   loadingInitFlagPromise: Promise<any> | undefined;
-  loadingInitRegisteredPromise: Promise<any> | undefined;
+  loadingInitProcessPromise: Promise<any> | undefined;
 
   compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
 
@@ -308,21 +308,14 @@ export class RuntimeService {
     await Promise.allSettled([this.unregistryPageScripts(unregisterScriptIds, true)]); // ignore success or fail
     await cacheInstance.set<boolean>("runtimeStartFlag", true);
 
-    this.loadingInitRegisteredPromise = new Promise<void>((resolve) => {
-      let result = false;
-      chrome.userScripts
-        .getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] })
-        .then((res) => {
-          if (res.length === 2) {
-            result = true;
-          }
-        })
-        .finally(() => {
-          runtimeGlobal.registered = result;
-          // 考虑 API 不可使用情况，使用 finally
-          resolve();
-        });
-    });
+    let registered = false;
+    try {
+      const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-content", "scriptcat-inject"] });
+      registered = res.length === 2;
+    } finally {
+      // 考虑 API 不可使用等情况
+      runtimeGlobal.registered = registered;
+    }
   }
 
   async updateResourceOnScriptChange(script: Script) {
@@ -621,16 +614,17 @@ export class RuntimeService {
 
     // ======== 以下初始化是异步处理，因此扩充载入时可能会优先跑其他同步初始化 ========
 
+    // waitInit 优先处理 （包括处理重启问题）
+    this.loadingInitProcessPromise = this.waitInit();
+
     this.initReady = (async () => {
-      // waitInit 优先处理 （包括处理重启问题）
-      await this.waitInit();
       // 取得初始值
       const [isUserScriptsAvailable, isLoadScripts, strBlacklist, _1, _2] = await Promise.all([
         checkUserScriptsAvailable(),
         this.systemConfig.getEnableScript(),
         this.systemConfig.getBlacklist(),
-        this.loadingInitFlagPromise,
-        this.loadingInitRegisteredPromise,
+        this.loadingInitFlagPromise, // messageFlag 初始化等待
+        this.loadingInitProcessPromise, // 初始化程序等待
       ]);
 
       // 保存初始值
