@@ -795,7 +795,7 @@ export class RuntimeService {
           world: result.world,
         } as chrome.userScripts.RegisteredUserScript;
         if (result.runAt) {
-          registerScript.runAt = result.runAt as "document_start" | "document_end" | "document_idle";
+          registerScript.runAt = result.runAt as chrome.extensionTypes.RunAt;
         }
         return registerScript;
       })
