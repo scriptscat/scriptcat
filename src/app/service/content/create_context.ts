@@ -22,7 +22,7 @@ export const createContext = (
   // 如果是preDocumentStart脚本，装载loadScriptPromise
   let loadScriptPromise: Promise<void> | undefined;
   let loadScriptResolve: (() => void) | undefined;
-  if (isEarlyStartScript(scriptRes)) {
+  if (isEarlyStartScript(scriptRes.metadata)) {
     loadScriptPromise = new Promise((resolve) => {
       loadScriptResolve = resolve;
     });

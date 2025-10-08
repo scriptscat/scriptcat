@@ -10,7 +10,6 @@ import {
   getBrowserType,
   getStorageName,
   openInCurrentTab,
-  randomMessageFlag,
   stringMatching,
 } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
@@ -27,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode } from "../content/utils";
+import { compileScriptCode, isEarlyStartScript } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -41,7 +40,7 @@ import type {
   TInstallScriptParams,
 } from "../queue";
 import { timeoutExecution } from "@App/pkg/utils/timer";
-import { getCombinedMeta, selfMetadataUpdate } from "./utils";
+import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
@@ -51,6 +50,7 @@ import {
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { CompiledResourceDAO } from "@App/app/repo/resource";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -63,6 +63,7 @@ export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
+  compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
   private readonly scriptUpdateCheck;
 
   constructor(
@@ -255,10 +256,12 @@ export class ScriptService {
     return this.mq.publish<TInstallScript>("installScript", { script, ...options });
   }
 
-  // 安装脚本
+  // 安装脚本 / 更新腳本
   async installScript(param: { script: Script; code: string; upsertBy: InstallSource }) {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
+    // 删 storage cache
+    const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
@@ -282,11 +285,19 @@ export class ScriptService {
           code: param.code,
         });
         logger.info("install success");
-        // 下载资源
-        this.resourceService.checkScriptResource(script).then(() => {
-          // 广播一下
-          this.publishInstallScript(script, { update, upsertBy });
-        });
+
+        // Cache更新 & 下载资源
+        await Promise.all([
+          compiledResourceUpdatePromise,
+          this.resourceService.updateResourceByType(script, "require"),
+          this.resourceService.updateResourceByType(script, "require-css"),
+          this.resourceService.updateResourceByType(script, "resource"),
+        ]);
+
+        // 广播一下
+        // Runtime 會負責更新 CompiledResource
+        this.publishInstallScript(script, { update, upsertBy });
+
         return { update };
       })
       .catch((e: any) => {
@@ -307,8 +318,10 @@ export class ScriptService {
       .delete(uuid)
       .then(async () => {
         await this.scriptCodeDAO.delete(uuid);
+        await this.compiledResourceDAO.delete(uuid);
         logger.info("delete success");
-        const data = [{ uuid, storageName, type: script.type }];
+        const isEarlyStart = isEarlyStartScript(script.metadata);
+        const data = [{ uuid, storageName, type: script.type, isEarlyStart }];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
@@ -329,11 +342,13 @@ export class ScriptService {
       .deletes(uuids)
       .then(async () => {
         await this.scriptCodeDAO.deletes(uuids);
+        await this.compiledResourceDAO.deletes(uuids);
         logger.info("delete success");
         const data = scripts.map((script) => ({
           uuid: script.uuid,
           storageName: getStorageName(script),
           type: script.type,
+          isEarlyStart: isEarlyStartScript(script.metadata),
         }));
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
@@ -496,24 +511,14 @@ export class ScriptService {
     return results;
   }
 
-  // getScriptRunResource(script: Script) {
-  //   return this.buildScriptRunResource(script);
-  // }
-
   async getScriptRunResourceByUUID(uuid: string) {
     const script = await this.fetchInfo(uuid);
     if (!script) return null;
     return this.buildScriptRunResource(script);
   }
 
-  async buildScriptRunResource(script: Script, scriptFlag?: string): Promise<ScriptRunResource> {
-    const ret: ScriptRunResource = { ...script } as ScriptRunResource;
-    // 自定义配置
-    const { match, include, exclude } = ret.metadata;
-    ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
-    if (ret.selfMetadata) {
-      ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
-    }
+  async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {
+    const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
       this.resourceService.getScriptResources(ret, true),
@@ -524,7 +529,6 @@ export class ScriptService {
       }
       ret.value = value;
       ret.resource = resource;
-      ret.flag = scriptFlag || randomMessageFlag();
       ret.code = code.code;
       ret.code = compileScriptCode(ret);
       return ret;
@@ -748,7 +752,6 @@ export class ScriptService {
     }
   }
 
-  // 定时自动检查脚本更新後，彈出頁面
   async openBatchUpdatePage(q: string, dontCheckNow: boolean) {
     const p = q ? `?${q}` : "";
     await openInCurrentTab(`/src/batchupdate.html${p}`);
@@ -1006,7 +1009,7 @@ export class ScriptService {
       return false;
     });
 
-    // 沒有空值 case
+    // 没有空值 case
     /*
     if (uuid) {
       return this.checkUpdateAvailable(uuid).then((script) => {
@@ -1273,7 +1276,6 @@ export class ScriptService {
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
-    // this.group.on("getScriptRunResource", this.getScriptRunResource.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
@@ -1294,7 +1296,7 @@ export class ScriptService {
     this.group.on("openBatchUpdatePage", (q: string) => this.openBatchUpdatePage(q, false));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
-    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
+    // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次
     chrome.alarms.create(
       "checkScriptUpdate",
       {
