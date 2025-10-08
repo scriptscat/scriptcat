@@ -516,5 +516,6 @@
   "switch_to_card_mode": "Switch to Card Mode",
   "switch_to_table_mode": "Switch to Table Mode",
   "open_sidebar": "Open Sidebar",
-  "close_sidebar": "Close Sidebar"
+  "close_sidebar": "Close Sidebar",
+  "no_message_content": "No Message Content"
 }
