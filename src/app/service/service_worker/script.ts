@@ -289,9 +289,9 @@ export class ScriptService {
         // Cache更新 & 下载资源
         await Promise.all([
           compliedResourceUpdatePromise,
-          this.resourceService.checkResourceByType(script, "require"),
-          this.resourceService.checkResourceByType(script, "require-css"),
-          this.resourceService.checkResourceByType(script, "resource"),
+          this.resourceService.updateResourceByType(script, "require"),
+          this.resourceService.updateResourceByType(script, "require-css"),
+          this.resourceService.updateResourceByType(script, "resource"),
         ]);
 
         // 广播一下

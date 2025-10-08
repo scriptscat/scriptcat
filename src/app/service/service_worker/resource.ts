@@ -112,30 +112,18 @@ export class ResourceService {
     return ret;
   }
 
-  async checkResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
-    if (!script.metadata[type]) {
-      return {};
-    }
-    const ret: { [key: string]: Resource } = {};
-    await Promise.allSettled(
-      script.metadata[type].map(async (u) => {
-        if (type === "resource") {
-          const split = u.split(/\s+/);
-          if (split.length === 2) {
-            const res = await this.checkResource(script.uuid, split[1], "resource");
-            if (res) {
-              ret[split[0]] = res;
-            }
-          }
-        } else {
-          const res = await this.checkResource(script.uuid, u, type);
-          if (res) {
-            ret[u] = res;
-          }
+  async updateResourceByType(script: Script, type: ResourceType): Promise<any> {
+    const promises = script.metadata[type]?.map(async (u) => {
+      if (type === "resource") {
+        const split = u.split(/\s+/);
+        if (split.length === 2) {
+          return this.checkResource(script.uuid, split[1], "resource");
         }
-      })
-    );
-    return ret;
+      } else {
+        return this.checkResource(script.uuid, u, type);
+      }
+    });
+    return promises?.length && Promise.allSettled(promises);
   }
 
   // 检查资源是否存在,如果不存在则重新加载
