@@ -735,7 +735,17 @@ export class RuntimeService {
     return { compliedResource: result, jsCode: registerScript.js[0].code!, apiScript: registerScript };
   }
 
-  async restoreJSCodeFromCompliedResource(result: CompliedResource) {
+  async restoreJSCodeFromCompliedResource(script: Script, result: CompliedResource) {
+    const earlyScript = isEarlyStartScript(script.metadata);
+    // 如果是预加载脚本，需要另外的处理方式
+    if (earlyScript) {
+      const scriptRes = await this.script.buildScriptRunResource(script);
+      if (!scriptRes) return "";
+      const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
+      if (!scriptMatchInfo) return "";
+      return complieInjectionCode(scriptMatchInfo, scriptRes.code);
+    }
+
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
     const require: CompileScriptCodeResource["require"] = [];
     for (const requireUrl of result.require) {
@@ -744,6 +754,7 @@ export class RuntimeService {
         require.push({ url: res.url, content: res.content });
       }
     }
+
     return compileInjectScriptByFlag(
       result.flag,
       compileScriptCodeByResource({
@@ -772,7 +783,7 @@ export class RuntimeService {
           result = ret.compliedResource;
           resultCode = ret.jsCode;
         } else {
-          resultCode = await this.restoreJSCodeFromCompliedResource(result);
+          resultCode = await this.restoreJSCodeFromCompliedResource(script, result);
         }
         if (!resultCode) return undefined;
         const registerScript = {
