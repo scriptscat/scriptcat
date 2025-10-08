@@ -47,6 +47,7 @@ import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompliedResource, ResourceType } from "@App/app/repo/resource";
 import { CompliedResourceDAO } from "@App/app/repo/resource";
+import { setOnTabURLChanged } from "./url_monitor";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -568,6 +569,13 @@ export class RuntimeService {
 
       // 注册脚本
       await this.registerUserscripts();
+
+      // 或许能加快PageLoad的载入速度。subframe 的 URL 不捕捉。
+      setOnTabURLChanged((newUrl: string) => {
+        if (!this.isUrlBlacklist(newUrl)) {
+          this.scriptMatchEnable.urlMatch(newUrl);
+        }
+      });
 
       this.initReady = true;
 
