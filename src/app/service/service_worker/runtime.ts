@@ -890,7 +890,6 @@ export class RuntimeService {
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
     const generalScriptList = await this.getContentAndInjectScript();
-    console.log("ts: ", Date.now() - ts);
 
     const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...generalScriptList];
 
