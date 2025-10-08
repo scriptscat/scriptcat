@@ -353,6 +353,7 @@ export class RuntimeService {
         }
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
+        // 脚本类别不会更改
         if (script.type === SCRIPT_TYPE_NORMAL) {
           const isEarlyStart = isEarlyStartScript(script.metadata);
           if (isEarlyStart && enable) {
@@ -369,8 +370,6 @@ export class RuntimeService {
           } else {
             unregisteyUuids.push(uuid);
           }
-        } else {
-          this.earlyScriptFlags.delete(uuid);
         }
       }
       await this.unregistryPageScripts(unregisteyUuids);
@@ -386,6 +385,7 @@ export class RuntimeService {
         });
         return;
       }
+      // 代码更新时脚本类别不会更改
       if (script.type === SCRIPT_TYPE_NORMAL) {
         const needReRegisterInjectJS = isEarlyStartScript(script.metadata);
         const enable = script.status === SCRIPT_STATUS_ENABLE;
@@ -397,7 +397,7 @@ export class RuntimeService {
         if (enable) {
           await this.updateResourceOnScriptChange(script);
         } else {
-          // 還是要建立 CompliedResoure, 否則 Popup 看不到 Script
+          // 还是要建立 CompliedResoure, 否则 Popup 看不到 Script
           await this.buildAndSaveCompliedResourceFromScript(script, false);
         }
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
@@ -489,7 +489,7 @@ export class RuntimeService {
       this.loadBlacklist();
       await this.unregisterUserscripts();
       if (this.isUserScriptsAvailable && this.isLoadScripts) {
-        // 重新注册用户脚本；注冊是會用加入 blacklistExcludeMatches 和 blacklistExcludeGlobs
+        // 重新注册用户脚本；注册是会用加入 blacklistExcludeMatches 和 blacklistExcludeGlobs
         await this.registerUserscripts();
       }
       this.logger.info("blacklist updated", {
