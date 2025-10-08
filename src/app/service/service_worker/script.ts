@@ -50,7 +50,7 @@ import {
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
-import { CompliedResourceDAO } from "@App/app/repo/resource";
+import { CompiledResourceDAO } from "@App/app/repo/resource";
 // import { gzip as pakoGzip } from "pako";
 
 const cIdKey = `(cid_${Math.random()})`;
@@ -63,7 +63,7 @@ export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
-  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
+  compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
   private readonly scriptUpdateCheck;
 
   constructor(
@@ -261,7 +261,7 @@ export class ScriptService {
     param.upsertBy = param.upsertBy || "user";
     const { script, upsertBy } = param;
     // 删 storage cache
-    const compliedResourceUpdatePromise = this.compliedResourceDAO.delete(script.uuid);
+    const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
       name: script.name,
       uuid: script.uuid,
@@ -288,14 +288,14 @@ export class ScriptService {
 
         // Cache更新 & 下载资源
         await Promise.all([
-          compliedResourceUpdatePromise,
+          compiledResourceUpdatePromise,
           this.resourceService.updateResourceByType(script, "require"),
           this.resourceService.updateResourceByType(script, "require-css"),
           this.resourceService.updateResourceByType(script, "resource"),
         ]);
 
         // 广播一下
-        // Runtime 會負責更新 CompliedResource
+        // Runtime 會負責更新 CompiledResource
         this.publishInstallScript(script, { update, upsertBy });
 
         return { update };
@@ -318,7 +318,7 @@ export class ScriptService {
       .delete(uuid)
       .then(async () => {
         await this.scriptCodeDAO.delete(uuid);
-        await this.compliedResourceDAO.delete(uuid);
+        await this.compiledResourceDAO.delete(uuid);
         logger.info("delete success");
         const isEarlyStart = isEarlyStartScript(script.metadata);
         const data = [{ uuid, storageName, type: script.type, isEarlyStart }];
@@ -342,7 +342,7 @@ export class ScriptService {
       .deletes(uuids)
       .then(async () => {
         await this.scriptCodeDAO.deletes(uuids);
-        await this.compliedResourceDAO.deletes(uuids);
+        await this.compiledResourceDAO.deletes(uuids);
         logger.info("delete success");
         const data = scripts.map((script) => ({
           uuid: script.uuid,

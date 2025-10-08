@@ -31,7 +31,7 @@ export interface ResourceHash {
   };
 }
 
-export type CompliedResource = {
+export type CompiledResource = {
   name: string;
   flag: string;
   uuid: string;
@@ -63,20 +63,20 @@ export class ResourceDAO extends Repo<Resource> {
   }
 }
 
-// CompliedResource结构变更时，建议修改 CompliedResourceNamespace 以删除旧Cache
-export const CompliedResourceNamespace = "a51b9167-fdde-467a-a86f-75e5636adda2";
+// CompiledResource结构变更时，建议修改 CompiledResourceNamespace 以删除旧Cache
+export const CompiledResourceNamespace = "a51b9167-fdde-467a-a86f-75e5636adda2";
 
-export class CompliedResourceDAO extends Repo<CompliedResource> {
+export class CompiledResourceDAO extends Repo<CompiledResource> {
   constructor() {
-    super(`complied_resource`);
+    super(`compiled_resource`);
     this.enableCache();
   }
 
   protected joinKey(key: string) {
-    return this.prefix + CompliedResourceNamespace + ":" + key;
+    return this.prefix + CompiledResourceNamespace + ":" + key;
   }
 
-  save(resource: CompliedResource) {
+  save(resource: CompiledResource) {
     return super._save(resource.uuid, resource);
   }
 }
@@ -86,7 +86,7 @@ export const cleanInvalidKeys = async () => {
   loadCache().then((cache) => {
     const invalidKeys = Object.keys(cache).filter(
       (key) =>
-        key.startsWith("complied_resource:") && !key.startsWith("complied_resource:" + CompliedResourceNamespace + ":")
+        key.startsWith("compiled_resource:") && !key.startsWith("compiled_resource:" + CompiledResourceNamespace + ":")
     );
     deletesStorage(invalidKeys);
   });

@@ -11,7 +11,7 @@ import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
-  complieInjectionCode,
+  compileInjectionCode,
   getUserScriptRegister,
   scriptURLPatternResults,
 } from "./utils";
@@ -45,8 +45,8 @@ import { localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
-import type { CompliedResource, ResourceType } from "@App/app/repo/resource";
-import { CompliedResourceDAO } from "@App/app/repo/resource";
+import type { CompiledResource, ResourceType } from "@App/app/repo/resource";
+import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
@@ -97,9 +97,9 @@ export class RuntimeService {
 
   loadingInitFlagPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
-  initialCompliedResourcePromise: Promise<any> | undefined;
+  initialCompiledResourcePromise: Promise<any> | undefined;
 
-  compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
+  compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
 
   constructor(
     private systemConfig: SystemConfig,
@@ -229,17 +229,17 @@ export class RuntimeService {
   }
 
   async waitInit() {
-    const [cRuntimeStartFlag, compliedResources, allScripts] = await Promise.all([
+    const [cRuntimeStartFlag, compiledResources, allScripts] = await Promise.all([
       cacheInstance.get<boolean>("runtimeStartFlag"),
-      this.compliedResourceDAO.all(),
+      this.compiledResourceDAO.all(),
       this.scriptDAO.all(),
     ]);
 
     const unregisterScriptIds = [] as string[];
-    // 没有 CompliedResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。
+    // 没有 CompiledResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。
     // 这个情况会把所有有效脚本跟Inject&Content脚本先取消注册。后续载入时会重新以新代码注册。
-    const cleanUpPreviousRegister = !compliedResources.length;
-    this.initialCompliedResourcePromise = Promise.all(
+    const cleanUpPreviousRegister = !compiledResources.length;
+    this.initialCompiledResourcePromise = Promise.all(
       allScripts.map(async (script) => {
         const uuid = script.uuid;
         const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
@@ -255,21 +255,21 @@ export class RuntimeService {
           // 确保浏览器没有残留 PageScripts
           if (uuid) unregisterScriptIds.push(uuid);
         } else if (cleanUpPreviousRegister) {
-          // CompliedResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
+          // CompiledResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
           if (uuid) unregisterScriptIds.push(uuid);
         }
 
         if (isNormalScript) {
-          let compliedResource = await this.compliedResourceDAO.get(uuid);
-          if (!compliedResource) {
-            const ret = await this.buildAndSaveCompliedResourceFromScript(script, false);
-            compliedResource = ret?.compliedResource;
+          let compiledResource = await this.compiledResourceDAO.get(uuid);
+          if (!compiledResource) {
+            const ret = await this.buildAndSaveCompiledResourceFromScript(script, false);
+            compiledResource = ret?.compiledResource;
           }
-          if (!compliedResource?.scriptUrlPatterns) {
+          if (!compiledResource?.scriptUrlPatterns) {
             throw new Error(`No valid scriptUrlPatterns. Script UUID: ${uuid}`);
           }
 
-          const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
+          const { scriptUrlPatterns, originalUrlPatterns } = compiledResource;
           const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
           // 添加新的数据
           const scriptMatch = enable ? this.scriptMatchEnable : this.scriptMatchDisable;
@@ -307,7 +307,7 @@ export class RuntimeService {
       throw "Invalid Calling of updateResourceOnScriptChange";
     }
     // 安装，启用，或earlyStartScript的value更新
-    const ret = await this.buildAndSaveCompliedResourceFromScript(script, true);
+    const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
     if (!ret) return;
     const { apiScript } = ret;
     await this.loadPageScript(script, apiScript!);
@@ -397,8 +397,8 @@ export class RuntimeService {
         if (enable) {
           await this.updateResourceOnScriptChange(script);
         } else {
-          // 还是要建立 CompliedResoure, 否则 Popup 看不到 Script
-          await this.buildAndSaveCompliedResourceFromScript(script, false);
+          // 还是要建立 CompiledResoure, 否则 Popup 看不到 Script
+          await this.buildAndSaveCompiledResourceFromScript(script, false);
         }
         // 初始化会把所有的脚本flag注入，所以只用安装和卸载时重新注入flag
         // 不是 earlyStart 的不用重新注入 （没有改变）
@@ -458,7 +458,7 @@ export class RuntimeService {
     this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script }: TScriptValueUpdate) => {
       if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
         // 如果是预加载脚本，需要更新脚本代码重新注册
-        // scriptMatchInfo 里的 value 改变 => complieInjectionCode -> injectionCode 改变
+        // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
         await this.updateResourceOnScriptChange(script);
       }
     });
@@ -576,7 +576,7 @@ export class RuntimeService {
       });
 
       // 注册脚本
-      await this.initialCompliedResourcePromise; // 先等待 CompliedResource 完成避免注册时重复生成
+      await this.initialCompiledResourcePromise; // 先等待 CompiledResource 完成避免注册时重复生成
       await this.registerUserscripts();
 
       this.initReady = true;
@@ -633,7 +633,7 @@ export class RuntimeService {
     return runtimeGlobal.messageFlag;
   }
 
-  async buildAndSaveCompliedResourceFromScript(script: Script, withCode: boolean = false) {
+  async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
     const resources = withCode ? scriptRes.resource : await this.resource.getScriptResources(scriptRes, true);
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
@@ -646,7 +646,7 @@ export class RuntimeService {
     let jsCode = "";
     if (withCode) {
       const scriptCode = scriptRes.code;
-      const code = complieInjectionCode(scriptMatchInfo, scriptCode);
+      const code = compileInjectionCode(scriptMatchInfo, scriptCode);
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -675,14 +675,14 @@ export class RuntimeService {
       runAt: registerScript.runAt || "",
       scriptUrlPatterns: scriptUrlPatterns,
       originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
-    } as CompliedResource;
+    } as CompiledResource;
 
-    this.compliedResourceDAO.save(result);
+    this.compiledResourceDAO.save(result);
 
-    return { compliedResource: result, jsCode, apiScript: registerScript };
+    return { compiledResource: result, jsCode, apiScript: registerScript };
   }
 
-  async restoreJSCodeFromCompliedResource(script: Script, result: CompliedResource) {
+  async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
     const earlyScript = isEarlyStartScript(script.metadata);
     // 如果是预加载脚本，需要另外的处理方式
     if (earlyScript) {
@@ -690,7 +690,7 @@ export class RuntimeService {
       if (!scriptRes) return "";
       const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
       if (!scriptMatchInfo) return "";
-      return complieInjectionCode(scriptMatchInfo, scriptRes.code);
+      return compileInjectionCode(scriptMatchInfo, scriptRes.code);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -728,15 +728,15 @@ export class RuntimeService {
           return undefined;
         }
         let resultCode = "";
-        let result = await this.compliedResourceDAO.get(script.uuid);
+        let result = await this.compiledResourceDAO.get(script.uuid);
         if (!result || !result.scriptUrlPatterns?.length) {
           // 按常理不会跑这个
-          const ret = await this.buildAndSaveCompliedResourceFromScript(script, true);
+          const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
           if (!ret) return undefined;
-          result = ret.compliedResource;
+          result = ret.compiledResource;
           resultCode = ret.jsCode;
         } else {
-          resultCode = await this.restoreJSCodeFromCompliedResource(script, result);
+          resultCode = await this.restoreJSCodeFromCompiledResource(script, result);
         }
         if (!resultCode) return undefined;
         const registerScript = {
@@ -984,9 +984,9 @@ export class RuntimeService {
 
     const uuids = [...matchingResult.keys()];
 
-    const [scripts, compliedResources] = await Promise.all([
+    const [scripts, compiledResources] = await Promise.all([
       this.scriptDAO.gets(uuids),
-      this.compliedResourceDAO.gets(uuids),
+      this.compiledResourceDAO.gets(uuids),
     ]);
 
     const resourceChecks = {} as { [uuid: string]: Record<string, [string, ResourceType]> };
@@ -994,11 +994,11 @@ export class RuntimeService {
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const uuid = uuids[idx];
       const script = scripts[idx];
-      const compliedResource = compliedResources[idx];
+      const compiledResource = compiledResources[idx];
 
-      if (!script || !compliedResource) continue;
+      if (!script || !compiledResource) continue;
       const scriptRes_ = buildScriptRunResourceBasic(script);
-      const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
+      const { scriptUrlPatterns, originalUrlPatterns } = compiledResource;
 
       for (const [_key, res] of Object.entries(scriptRes_.resource)) {
         if (res.url.startsWith("file:///")) {
@@ -1142,7 +1142,7 @@ export class RuntimeService {
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
           const scriptCode = compileScriptCode(scriptRes, scriptDAOCode);
-          const scriptInjectCode = complieInjectionCode(scriptRes, scriptCode);
+          const scriptInjectCode = compileInjectionCode(scriptRes, scriptCode);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,

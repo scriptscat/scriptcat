@@ -243,7 +243,7 @@ describe("getUserScriptRegister", () => {
       originalMetadata: {},
     };
 
-    // const code = complieInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);
+    // const code = compileInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);
     const result = getUserScriptRegister(mockScriptMatchInfo);
     // result.registerScript.js[0].code = code;
 

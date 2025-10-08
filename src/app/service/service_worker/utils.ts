@@ -178,7 +178,7 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
   };
 }
 
-export function complieInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
+export function compileInjectionCode(scriptRes: ScriptLoadInfo | ScriptMatchInfo, scriptCode: string) {
   const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
   let scriptInjectCode;
   if (preDocumentStartScript) {
