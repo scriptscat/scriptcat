@@ -15,7 +15,6 @@ export interface ScriptLoadInfo extends ScriptRunResource {
   metadataStr: string; // 脚本元数据字符串
   userConfigStr: string; // 用户配置字符串
   userConfig?: UserConfig;
-  resourceCheck?: Record<string, [string, ResourceType]>;
 }
 
 // 为了优化性能，存储到缓存时删除了code、value与resource

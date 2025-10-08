@@ -216,13 +216,6 @@ export class RuntimeService {
     scriptRes: ScriptRunResource,
     o: { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] | null }
   ) {
-    const resourceCheck = {} as Record<string, [string, ResourceType]>;
-
-    for (const [_key, res] of Object.entries(scriptRes.resource)) {
-      if (res.url.startsWith("file:///")) {
-        resourceCheck[res.url] = [res.hash.sha512, res.type];
-      }
-    }
 
     // 优化性能，将不需要的信息去掉
     // 而且可能会超过缓存的存储限制
@@ -233,7 +226,6 @@ export class RuntimeService {
       code: "",
       value: {},
       resource: {},
-      resourceCheck,
     } as ScriptMatchInfo;
     return matchInfo;
   }
@@ -1033,8 +1025,10 @@ export class RuntimeService {
       this.compliedResourceDAO.gets(uuids),
     ]);
 
+    const resourceChecks = {} as { [uuid: string]: Record<string, [string, ResourceType]> };
+
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
-      // const uuid = uuids[idx];
+      const uuid = uuids[idx];
       const script = scripts[idx];
       const compliedResource = compliedResources[idx];
 
@@ -1042,13 +1036,10 @@ export class RuntimeService {
       const scriptRes_ = this.script.buildScriptRunResourceBasic(script);
       const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
 
-      let resourceCheck: Record<string, [string, ResourceType]> | undefined = undefined;
-
       for (const [_key, res] of Object.entries(scriptRes_.resource)) {
         if (res.url.startsWith("file:///")) {
-          if (!resourceCheck) {
-            resourceCheck = {} as Record<string, [string, ResourceType]>;
-          }
+          const resourceCheck =
+            resourceChecks[uuid] || (resourceChecks[uuid] = {} as Record<string, [string, ResourceType]>);
           resourceCheck[res.url] = [res.hash.sha512, res.type];
         }
       }
@@ -1061,7 +1052,6 @@ export class RuntimeService {
         code: "",
         value: {},
         resource: {},
-        resourceCheck,
         metadataStr: "",
         userConfigStr: "",
       };
@@ -1094,9 +1084,11 @@ export class RuntimeService {
     // 更新资源使用了file协议的脚本
     const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo>();
     for (const scriptRes of enableScript) {
-      if (scriptRes.resourceCheck) {
+      const uuid = scriptRes.uuid;
+      const resourceCheck = resourceChecks[uuid];
+      if (resourceCheck) {
         let resourceUpdated = false;
-        for (const [url, [sha512, type]] of Object.entries(scriptRes.resourceCheck)) {
+        for (const [url, [sha512, type]] of Object.entries(resourceCheck)) {
           const resourceList = scriptRes.metadata[type];
           if (!resourceList) continue;
           const updatedResource = await this.resource.updateResource(scriptRes.uuid, url, type);
