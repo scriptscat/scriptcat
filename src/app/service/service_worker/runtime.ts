@@ -570,16 +570,16 @@ export class RuntimeService {
       // 初始化：加载黑名单
       this.loadBlacklist();
 
-      // 注册脚本
-      await this.initialCompliedResourcePromise; // 先等待 CompliedResource 完成避免注册时重复生成
-      await this.registerUserscripts();
-
       // 或许能加快PageLoad的载入速度。subframe 的 URL 不捕捉。
       setOnTabURLChanged((newUrl: string) => {
         if (!this.isUrlBlacklist(newUrl)) {
           this.scriptMatchEnable.urlMatch(newUrl);
         }
       });
+
+      // 注册脚本
+      await this.initialCompliedResourcePromise; // 先等待 CompliedResource 完成避免注册时重复生成
+      await this.registerUserscripts();
 
       this.initReady = true;
 
