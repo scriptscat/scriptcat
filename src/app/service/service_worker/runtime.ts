@@ -305,7 +305,7 @@ export class RuntimeService {
     if (isNoCompliedResources) {
       unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
     }
-    await Promise.allSettled([this.unregistryPageScripts_(unregisterScriptIds)]); // ignore success or fail
+    await Promise.allSettled([this.unregistryPageScripts(unregisterScriptIds, true)]); // ignore success or fail
     await cacheInstance.set<boolean>("runtimeStartFlag", true);
 
     this.loadingInitRegisteredPromise = new Promise<void>((resolve) => {
@@ -1471,18 +1471,15 @@ export class RuntimeService {
   //   }
   // }
 
-  async unregistryPageScripts_(uuids: string[]) {
+  async unregistryPageScripts(uuids: string[], forced: boolean = false) {
+    if (forced ? false : !this.isUserScriptsAvailable || !this.isLoadScripts) {
+      return;
+    }
     const result = await chrome.userScripts.getScripts({ ids: uuids });
     const filteredIds = result.map((entry) => entry.id).filter((id) => !!id);
     if (filteredIds.length > 0) {
       // 修改脚本状态为disable，浏览器取消注册该脚本
       await chrome.userScripts.unregister({ ids: filteredIds });
     }
-  }
-  async unregistryPageScripts(uuids: string[]) {
-    if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
-      return;
-    }
-    return await this.unregistryPageScripts_(uuids);
   }
 }
