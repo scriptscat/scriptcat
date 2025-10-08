@@ -1,9 +1,29 @@
-import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 
-// 构建脚本运行代码
+export type CompileScriptCodeResource = {
+  name: string;
+  code: string;
+  require: Array<{ url: string; content: string }>;
+};
+
+// 根据ScriptRunResource获取require的资源
+export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCodeResource["require"] {
+  const resourceArray = new Array<{ url: string; content: string }>();
+  if (Array.isArray(scriptRes.metadata.require)) {
+    for (const val of scriptRes.metadata.require) {
+      const res = scriptRes.resource[val];
+      if (res) {
+        resourceArray.push({ url: res.url, content: res.content });
+      }
+    }
+  }
+  return resourceArray;
+}
+
 /**
+ * 构建脚本运行代码
  * @see {@link ExecScript}
  * @param scriptRes
  * @param scriptCode
@@ -11,26 +31,25 @@ import type { ScriptLoadInfo } from "../service_worker/types";
  */
 export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: string): string {
   scriptCode = scriptCode ?? scriptRes.code;
-  let requireCode = "";
-  if (Array.isArray(scriptRes.metadata.require)) {
-    requireCode += scriptRes.metadata.require
-      .map((val) => {
-        const res = scriptRes.resource[val];
-        if (res) {
-          return res.content;
-        }
-      })
-      .join("\n");
-  }
-  const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(scriptRes.name)}.user.js`)}`;
+  const requireArray = getScriptRequire(scriptRes);
+  return compileScriptCodeByResource({
+    name: scriptRes.name,
+    code: scriptCode,
+    require: requireArray,
+  });
+}
+
+export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
+  const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(resource.name)}.user.js`)}`;
+  const requireCode = resource.require.map((r) => r.content).join("\n");
   const preCode = [requireCode].join("\n"); // 不需要 async 封装
-  const code = [scriptCode, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
+  const code = [resource.code, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用於全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在userScript API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 在UserScripts API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
   with(arguments[0]||this.$){
 ${preCode}
@@ -64,8 +83,16 @@ export function compileInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
-  return `window['${script.flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction);
+}
+
+export function compileInjectScriptByFlag(
+  flag: string,
+  scriptCode: string,
+  autoDeleteMountFunction: boolean = false
+): string {
+  const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
 }
 
 /**
@@ -92,12 +119,16 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
-export function isEarlyStartScript(script: Script) {
-  return (
-    script.metadata["run-at"] && script.metadata["run-at"][0] === "document-start" && script.metadata["early-start"]
-  );
+export function isEarlyStartScript(metadata: SCMetadata): boolean {
+  return !!(metadata["run-at"] && metadata["run-at"][0] === "document-start" && metadata["early-start"]);
 }
 
-export function isInjectIntoContent(script: Script) {
-  return script.metadata["inject-into"] && script.metadata["inject-into"][0] === "content";
+export function isInjectIntoContent(metadata: SCMetadata): boolean {
+  return !!(metadata["inject-into"] && metadata["inject-into"][0] === "content");
 }
+
+export const getScriptFlag = (uuid: string) => {
+  // scriptFlag 对同一脚本永远一致。重新开启浏览器也不会变。
+  // 实作内容有待检讨
+  return `#-${uuid}`;
+};

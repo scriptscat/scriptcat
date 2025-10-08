@@ -132,7 +132,7 @@ export default class ContentRuntime {
     const injectScript: ScriptLoadInfo[] = [];
     const contentScript: ScriptLoadInfo[] = [];
     for (const script of scripts) {
-      if (isInjectIntoContent(script)) {
+      if (isInjectIntoContent(script.metadata)) {
         contentScript.push(script);
         continue;
       }

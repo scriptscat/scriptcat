@@ -2,7 +2,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ExtMessageSender } from "@Packages/message/types";
 import { type RuntimeService } from "./runtime";
-import type { TScriptMatchInfoEntry, ScriptMenu } from "./types";
+import type { ScriptMenu } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
@@ -19,6 +19,7 @@ import { getStorageName, getCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
+import { getCombinedMeta } from "./utils";
 
 type TxUpdateScriptMenuCallback = (
   result: ScriptMenu[]
@@ -169,17 +170,27 @@ export class PopupService {
   // 获取popup页面数据
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const [matchingResult, runScripts, backScriptList] = await Promise.all([
-      this.runtime.getPageScriptMatchingResultByUrl(req.url, true),
+      this.runtime.getPageScriptMatchingResultByUrl(req.url, true, true),
       this.getScriptMenu(req.tabId),
       this.getScriptMenu(-1),
     ]);
+
+    const uuids = [...matchingResult.keys()];
+
+    const scripts = await this.scriptDAO.gets(uuids);
+
     // 与运行时脚本进行合并
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
-    for (const [uuid, o] of matchingResult) {
-      const script = o.matchInfo || ({} as TScriptMatchInfoEntry);
+    for (let idx = 0, l = uuids.length; idx < l; idx++) {
+      const uuid = uuids[idx];
+      const script = scripts[idx];
+      const o = matchingResult.get(uuid);
+
+      if (!script || !o) continue;
+
       let run = runMap.get(uuid);
       if (run) {
         // 如果脚本已经存在，则不添加，更新信息
@@ -187,10 +198,13 @@ export class PopupService {
         run.isEffective = o.effective!;
         run.hasUserConfig = !!script.config;
       } else {
+        if (script.selfMetadata) {
+          script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+        }
         run = this.scriptToMenu(script);
         run.isEffective = o.effective!;
       }
-      scriptMenuMap.set(script.uuid, run);
+      scriptMenuMap.set(uuid, run);
     }
     // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
     for (const script of runScripts) {

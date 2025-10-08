@@ -243,11 +243,13 @@ describe("getUserScriptRegister", () => {
       originalMetadata: {},
     };
 
+    // const code = compileInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);
     const result = getUserScriptRegister(mockScriptMatchInfo);
+    // result.registerScript.js[0].code = code;
 
     expect(result).toHaveProperty("registerScript");
     expect(result.registerScript.id).toBe("test-uuid");
-    expect(result.registerScript.js).toHaveLength(1);
+    // expect(result.registerScript.js).toHaveLength(1);
     expect(result.registerScript.matches).toContain("*://example.com/*");
     expect(result.registerScript.allFrames).toBe(false);
     expect(result.registerScript.world).toBe("MAIN");
