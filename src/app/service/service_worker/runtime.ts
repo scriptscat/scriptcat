@@ -54,7 +54,6 @@ export class RuntimeService {
   earlyScriptFlags = new Set<string>();
   scriptMatch: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
-  // scriptMatchCache: Map<string, TScriptMatchInfoEntry> | null | undefined;
 
   logger: Logger;
 

@@ -107,8 +107,6 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptDAO,
       mockLocalStorageDAO
     );
-    // await runtime.waitInit();
-    // runtime.scriptMatchCache = new Map<string, TScriptMatchInfoEntry>();
   });
 
   describe("脚本匹配基础功能", () => {
