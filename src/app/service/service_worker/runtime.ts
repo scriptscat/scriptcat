@@ -305,7 +305,9 @@ export class RuntimeService {
     if (isNoCompliedResources) {
       unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
     }
-    await Promise.allSettled([this.unregistryPageScripts(unregisterScriptIds, true)]); // ignore success or fail
+    if (unregisterScriptIds.length) {
+      await Promise.allSettled([this.unregistryPageScripts(unregisterScriptIds, true)]); // ignore success or fail
+    }
     await cacheInstance.set<boolean>("runtimeStartFlag", true);
 
     let registered = false;
