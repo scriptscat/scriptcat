@@ -3,7 +3,7 @@ import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { getCombinedMeta } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { Group } from "@Packages/message/server";
@@ -15,10 +15,11 @@ import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
+import { obtainBlackList } from "@App/pkg/utils/utils";
 
 initTestEnv();
 
-describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
+describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () => {
   let runtime: RuntimeService;
   let mockSystemConfig: {
     getBlacklist: MockedFunction<() => string>;
@@ -39,7 +40,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
     createtime: Date.now(),
     checktime: Date.now(),
     metadata: {
-      match: ["http://www.example.com/*"],
+      match: ["https://www.example.com/*"],
     },
     ...overrides,
   });
@@ -113,7 +114,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       // Arrange
       const script = createMockScript({
         metadata: {
-          match: ["http://www.example.com/*"],
+          match: ["https://www.example.com/*"],
         },
       });
 
@@ -121,12 +122,12 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
-      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
+      // expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
       expect(result.has(script.uuid)).toBe(true);
 
       const matchInfo = result.get(script.uuid);
@@ -138,10 +139,10 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       // Arrange
       const script = createMockScript({
         metadata: {
-          match: ["http://www.example.com/*"],
+          match: ["https://www.example.com/*"],
         },
         selfMetadata: {
-          exclude: ["http://www.example.com/*"],
+          exclude: ["https://www.example.com/*"],
         },
       });
 
@@ -149,17 +150,17 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试默认查询（不包含无效匹配）
-      const defaultResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const defaultResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
 
       // 测试包含无效匹配的查询
-      const allResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path", true);
+      const allResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path", true, true);
 
       // Assert
-      expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script, script.uuid);
+      // expect(mockScriptService.buildScriptRunResource).toHaveBeenCalledWith(script);
 
       // 默认查询应该不包含被排除的脚本
       expect(defaultResult.has(script.uuid)).toBe(false);
@@ -177,7 +178,7 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       // Arrange
       const script = createMockScript({
         metadata: {
-          match: ["http://www.example.com/*", "https://www.test.com/*"],
+          match: ["https://www.example.com/*", "https://www.test.com/*"],
           include: ["*://*/api/*"],
         },
       });
@@ -186,17 +187,17 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试匹配第一个规则
-      const result1 = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result1 = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
       // 测试匹配第二个规则
-      const result2 = await runtime.getPageScriptMatchingResultByUrl("https://www.test.com/page");
+      const result2 = runtime.getPageScriptMatchingResultByUrl("https://www.test.com/page");
       // 测试匹配include规则
-      const result3 = await runtime.getPageScriptMatchingResultByUrl("https://example.org/api/users");
+      const result3 = runtime.getPageScriptMatchingResultByUrl("https://example.org/api/users");
       // 测试不匹配的URL
-      const result4 = await runtime.getPageScriptMatchingResultByUrl("https://other.com/page");
+      const result4 = runtime.getPageScriptMatchingResultByUrl("https://other.com/page");
 
       // Assert
       expect(result1.has(script.uuid)).toBe(true);
@@ -226,16 +227,17 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeDefined();
 
       // 测试被include但不被exclude的URL
-      const includeResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/user");
+      const includeResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/user");
       // 测试被include但也被exclude的URL
-      const excludeResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/admin/panel");
+      const excludeResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/admin/panel");
       // 测试被include但也被exclude的URL（包含无效匹配）
-      const excludeAllResult = await runtime.getPageScriptMatchingResultByUrl(
-        "http://www.example.com/admin/panel",
+      const excludeAllResult = runtime.getPageScriptMatchingResultByUrl(
+        "https://www.example.com/admin/panel",
+        true,
         true
       );
 
@@ -248,55 +250,19 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       expect(excludeAllResult.has(script.uuid)).toBe(true);
       expect(excludeAllResult.get(script.uuid)?.effective).toBe(false);
     });
-
-    it("应该正确处理黑名单规则", async () => {
-      // Arrange
-      mockSystemConfig.getBlacklist.mockReturnValue("*://www.blacklisted.com/*");
-
-      const script = createMockScript({
-        metadata: {
-          match: ["*://*/*"],
-        },
-      });
-
-      const scriptRunResource = createScriptRunResource(script);
-      mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
-
-      // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
-      expect(scriptMatchInfo).toBeDefined();
-
-      // 测试正常URL
-      const normalResult = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/page");
-      // 测试黑名单URL
-      const blacklistResult = await runtime.getPageScriptMatchingResultByUrl("http://www.blacklisted.com/page");
-      // 黑名单中的无效匹配
-      const blacklistAllResult = await runtime.getPageScriptMatchingResultByUrl(
-        "http://www.blacklisted.com/page",
-        true
-      );
-
-      // Assert
-      expect(normalResult.has(script.uuid)).toBe(true);
-      expect(normalResult.get(script.uuid)?.effective).toBe(true);
-
-      expect(blacklistResult.has(script.uuid)).toBe(false);
-
-      expect(blacklistAllResult.has(script.uuid)).toBe(false);
-    });
   });
 
   describe("错误处理", () => {
-    it("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
-      // Arrange
-      const script = createMockScript();
-      mockScriptService.buildScriptRunResource.mockImplementation(() => {
-        throw new Error("Build script run resource failed");
-      });
+    // it("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
+    //   // Arrange
+    //   const script = createMockScript();
+    //   mockScriptService.buildScriptRunResource.mockImplementation(() => {
+    //     throw new Error("Build script run resource failed");
+    //   });
 
-      // Act & Assert
-      await expect(runtime.buildAndSetScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
-    });
+    //   // Act & Assert
+    //   await expect(runtime.applyScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
+    // });
 
     it("应该正确处理空metadata的脚本", async () => {
       // Arrange
@@ -308,34 +274,118 @@ describe("RuntimeService - getAndSetUserScriptRegister 脚本匹配", () => {
       mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
+      const scriptMatchInfo = await runtime.applyScriptMatchInfo(scriptRunResource);
       expect(scriptMatchInfo).toBeUndefined();
-      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
+      const result = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
 
       // Assert
       expect(result.has(script.uuid)).toBe(false);
     });
   });
-  describe("测试脚本重新加载", () => {
-    it("应该正确处理脚本的重新加载", async () => {
+
+  describe("includeDisabled 选项", () => {
+    it("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange
-      const script = createMockScript();
-      const scriptRunResource = createScriptRunResource(script);
-      mockScriptService.buildScriptRunResource.mockReturnValue(scriptRunResource);
+      // 启用脚本
+      const enabledScript = createMockScript({
+        metadata: {
+          match: ["https://www.example.com/*"],
+        },
+        status: SCRIPT_STATUS_ENABLE,
+      });
+
+      // 禁用脚本
+      const disabledScript = createMockScript({
+        metadata: {
+          match: ["https://www.example.com/*"],
+        },
+        status: SCRIPT_STATUS_DISABLE,
+      });
+
+      const enabledRunResource = createScriptRunResource(enabledScript);
+      const disabledRunResource = createScriptRunResource(disabledScript);
+
+      mockScriptService.buildScriptRunResource
+        .mockReturnValueOnce(enabledRunResource)
+        .mockReturnValueOnce(disabledRunResource);
 
       // Act
-      const scriptMatchInfo = await runtime.buildAndSetScriptMatchInfo(script);
-      expect(scriptMatchInfo).toBeDefined();
+      // 先应用匹配信息（内部应分别记录到 enable/disable 的匹配器中）
+      const enabledMatchInfo = await runtime.applyScriptMatchInfo(enabledRunResource);
+      const disabledMatchInfo = await runtime.applyScriptMatchInfo(disabledRunResource);
+
+      expect(enabledMatchInfo).toBeDefined();
+      expect(disabledMatchInfo).toBeDefined();
+
+      // 默认查询（不包含禁用）
+      const defaultResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path");
+      // 包含禁用脚本的查询
+      const withDisabledResult = runtime.getPageScriptMatchingResultByUrl("https://www.example.com/path", true);
 
       // Assert
-      const result = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
-      expect(result.has(script.uuid)).toBe(true);
+      // 默认不包含禁用脚本
+      expect(defaultResult.has(enabledScript.uuid)).toBe(true);
+      expect(defaultResult.get(enabledScript.uuid)?.effective).toBe(true);
+      expect(defaultResult.has(disabledScript.uuid)).toBe(false);
 
-      // 清空缓存之类的数据后再次操作
-      runtime.scriptMatchCache = null;
-      const resultAfterClear = await runtime.getPageScriptMatchingResultByUrl("http://www.example.com/path");
-      expect(resultAfterClear.has(script.uuid)).toBe(true);
-      expect(runtime.loadingScript).toBeNull();
+      // includeDisabled=true 时应包含禁用脚本
+      expect(withDisabledResult.has(enabledScript.uuid)).toBe(true);
+      expect(withDisabledResult.get(enabledScript.uuid)?.effective).toBe(true);
+
+      expect(withDisabledResult.has(disabledScript.uuid)).toBe(true);
+      // 禁用脚本在匹配器中同样是“命中”的，故 effective=true
+      expect(withDisabledResult.get(disabledScript.uuid)?.effective).toBe(true);
+    });
+  });
+
+  describe("黑名單測試", async () => {
+    it("黑名單測試 A", async () => {
+      // Arrange
+      const blacklistString = "*://www.blacklisted.com/*";
+      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
+      runtime.blacklist = obtainBlackList(blacklistString); //  this.systemConfig.addListener("blacklist", ... ) 裡自動更新 blacklist
+      runtime.loadBlacklist();
+      expect(runtime.blackMatch?.rulesMap?.size || 0).toBe(1);
+      expect(runtime.blackMatch?.rulesMap.get("BK")?.length || 0).toBe(1);
+      expect(runtime.blacklistExcludeMatches?.length || 0).toBe(1);
+      expect(runtime.blacklistExcludeGlobs?.length || 0).toBe(0);
+
+      // 测试正常URL
+      const normalResult = runtime.isUrlBlacklist("https://www.example.com/page");
+      // 测试黑名单URL
+      const blacklistResult = runtime.isUrlBlacklist("https://www.blacklisted.com/page");
+
+      // Assert
+      expect(normalResult).toBe(false);
+
+      expect(blacklistResult).toBe(true);
+    });
+
+    it("黑名單測試 B", async () => {
+      // Arrange
+      const blacklistString = "*://www.blacklisted.com/*\nhttps://*.google.com/*";
+      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
+      runtime.blacklist = obtainBlackList(blacklistString); //  this.systemConfig.addListener("blacklist", ... ) 裡自動更新 blacklist
+      runtime.loadBlacklist();
+      expect(runtime.blackMatch?.rulesMap?.size || 0).toBe(1);
+      expect(runtime.blackMatch?.rulesMap.get("BK")?.length || 0).toBe(2);
+      expect(runtime.blacklistExcludeMatches?.length || 0).toBe(1);
+      expect(runtime.blacklistExcludeGlobs?.length || 0).toBe(1);
+
+      // 测试正常URL
+      const normalResult1 = runtime.isUrlBlacklist("https://www.example.com/page");
+      // 测试黑名单URL
+      const blacklistResult1 = runtime.isUrlBlacklist("https://www.blacklisted.com/page");
+      // 测试黑名单URL
+      const blacklistResult2 = runtime.isUrlBlacklist("https://www.google.com/page");
+      // 测试正常URL
+      const normalResult2 = runtime.isUrlBlacklist("https://www.google.cn/page");
+
+      // Assert
+      expect(normalResult1).toBe(false);
+      expect(blacklistResult1).toBe(true);
+      expect(blacklistResult2).toBe(true);
+      expect(normalResult2).toBe(false);
     });
   });
 });

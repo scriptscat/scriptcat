@@ -7,7 +7,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
 import { isText } from "@App/pkg/utils/istextorbinary";
-import { blobToBase64 } from "@App/pkg/utils/utils";
+import { blobToBase64, randNum } from "@App/pkg/utils/utils";
 import { type TDeleteScript } from "../queue";
 import { cacheInstance } from "@App/app/cache";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
@@ -28,23 +28,34 @@ export class ResourceService {
   public async getResource(
     uuid: string,
     url: string,
-    _type: ResourceType,
-    load: boolean
+    type: ResourceType,
+    loadNow: boolean
   ): Promise<Resource | undefined> {
     const res = await this.getResourceModel(url);
     if (res) {
+      // 读取过但失败的资源加载也会被放在缓存，避免再加载资源
+      // 因此 getResource 时不会再加载资源，直接返回 undefined 表示没有资源
+      if (!res.contentType) return undefined;
       return res;
     }
-    if (load) {
-      // 如果没有缓存，则尝试加载资源
+    // 缓存中无资源加载纪录
+    if (loadNow) {
+      // 立即尝试加载资源
       try {
-        return await this.updateResource(uuid, url, _type);
+        return await this.updateResource(uuid, url, type);
       } catch (e: any) {
         this.logger.error("load resource error", { url }, Logger.E(e));
       }
     } else {
-      // 如果没有缓存则不加载，则返回undefined，但是会在后台异步加载
-      this.updateResource(uuid, url, _type);
+      // 等一下尝试加载资源 （在后台异步加载）
+      // 先返回 undefined 表示没有资源
+      // 避免所有资源立即同一时间加载, delay设为 1.2s ~ 2.4s
+      setTimeout(
+        () => {
+          this.updateResource(uuid, url, type);
+        },
+        randNum(1200, 2400)
+      );
     }
     return undefined;
   }
@@ -85,7 +96,7 @@ export class ResourceService {
           }
         }
         if (path) {
-          if (uri.startsWith("file://")) {
+          if (uri.startsWith("file:///")) {
             // 如果是file://协议，则每次请求更新一下文件
             const res = await this.updateResource(script.uuid, path, type);
             ret[resourceKey] = res;
@@ -101,60 +112,31 @@ export class ResourceService {
     return ret;
   }
 
-  // 更新资源
-  async checkScriptResource(script: Script) {
-    const [require, require_css, resource] = await Promise.all([
-      this.checkResourceByType(script, "require"),
-      this.checkResourceByType(script, "require-css"),
-      this.checkResourceByType(script, "resource"),
-    ]);
-
-    // wait https://github.com/tc39/proposal-await-dictionary
-    return {
-      ...require,
-      ...require_css,
-      ...resource,
-    };
-  }
-
-  async checkResourceByType(script: Script, type: ResourceType): Promise<{ [key: string]: Resource }> {
-    if (!script.metadata[type]) {
-      return {};
-    }
-    const ret: { [key: string]: Resource } = {};
-    await Promise.allSettled(
-      script.metadata[type].map(async (u) => {
-        if (type === "resource") {
-          const split = u.split(/\s+/);
-          if (split.length === 2) {
-            const res = await this.checkResource(script.uuid, split[1], "resource");
-            if (res) {
-              ret[split[0]] = res;
-            }
-          }
-        } else {
-          const res = await this.checkResource(script.uuid, u, type);
-          if (res) {
-            ret[u] = res;
-          }
+  updateResourceByType(script: Script, type: ResourceType) {
+    const promises = script.metadata[type]?.map(async (u) => {
+      if (type === "resource") {
+        const split = u.split(/\s+/);
+        if (split.length === 2) {
+          return this.checkResource(script.uuid, split[1], "resource");
         }
-      })
-    );
-    return ret;
+      } else {
+        return this.checkResource(script.uuid, u, type);
+      }
+    });
+    return promises?.length && Promise.allSettled(promises);
   }
 
   // 检查资源是否存在,如果不存在则重新加载
   async checkResource(uuid: string, url: string, type: ResourceType) {
     let res = await this.getResourceModel(url);
-    if (res) {
-      // 判断1天过期
-      if ((res.updatetime || 0) > Date.now() - 1000 * 86400) {
-        return res;
-      }
+    const updateTime = res?.updatetime;
+    // 判断1天过期
+    if (updateTime && updateTime > Date.now() - 1000 * 86400) {
+      return res;
     }
     try {
       res = await this.updateResource(uuid, url, type);
-      if (res) {
+      if (res?.contentType) {
         return res;
       }
     } catch (e: any) {
@@ -172,7 +154,7 @@ export class ResourceService {
       const resource = await this.loadByUrl(u.url, type);
       const now = Date.now();
       resource.updatetime = now;
-      if (!result) {
+      if (!result || !result.contentType) {
         // 资源不存在,保存
         resource.createtime = now;
         resource.link = { [uuid]: true };
@@ -192,6 +174,26 @@ export class ResourceService {
         });
       }
     } catch (e) {
+      // 资源错误时保存一个空纪录以防止再度尝试加载
+      // this.resourceDAO.save 自身出错的话忽略
+      await this.resourceDAO
+        .save({
+          url: u.url,
+          content: "",
+          contentType: "",
+          hash: {
+            md5: "",
+            sha1: "",
+            sha256: "",
+            sha384: "",
+            sha512: "",
+          },
+          base64: "",
+          link: { [uuid]: true },
+          type,
+          createtime: Date.now(),
+        })
+        .catch(console.warn);
       this.logger.error("load resource error", { url: u.url }, Logger.E(e));
       throw e;
     }

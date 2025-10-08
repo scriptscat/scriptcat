@@ -33,7 +33,7 @@ export default class ServiceWorkerManager {
     dao.save(data);
   }
 
-  async initManager() {
+  initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
