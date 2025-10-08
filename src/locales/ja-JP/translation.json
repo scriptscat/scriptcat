@@ -517,5 +517,14 @@
   "switch_to_table_mode": "テーブルモードに切り替え",
   "open_sidebar": "サイドバーを開く",
   "close_sidebar": "サイドバーを閉じる",
-  "no_message_content": "メッセージ内容なし"
+  "no_message_content": "メッセージ内容なし",
+  "error_metadata_invalid": "MetaData ブロックが不正です",
+  "error_script_name_required": "スクリプト名は必須です",
+  "error_script_version_required": "@version は必須です",
+  "error_script_namespace_required": "@namespace は必須です",
+  "error_cron_invalid": "無効な cron 式です: {{expr}}",
+  "error_script_type_mismatch": "スクリプト種別が不一致です（通常とバックグラウンドは相互変換不可）",
+  "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
+  "error_subscribe_name_required": "サブスクライブ名は必須です",
+  "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています"
 }

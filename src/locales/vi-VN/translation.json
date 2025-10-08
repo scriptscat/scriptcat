@@ -517,5 +517,14 @@
   "switch_to_table_mode": "Chuyển sang chế độ bảng",
   "open_sidebar": "Mở thanh bên",
   "close_sidebar": "Đóng thanh bên",
-  "no_message_content": "Không có nội dung tin nhắn"
+  "no_message_content": "Không có nội dung tin nhắn",
+  "error_metadata_invalid": "MetaData không hợp lệ",
+  "error_script_name_required": "Tên script là bắt buộc",
+  "error_script_version_required": "@version của script là bắt buộc",
+  "error_script_namespace_required": "@namespace của script là bắt buộc",
+  "error_cron_invalid": "Biểu thức cron không hợp lệ: {{expr}}",
+  "error_script_type_mismatch": "Loại script không khớp: script thường và nền không thể chuyển đổi cho nhau",
+  "error_old_script_code_missing": "Không tìm thấy mã script cũ",
+  "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
+  "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API"
 }

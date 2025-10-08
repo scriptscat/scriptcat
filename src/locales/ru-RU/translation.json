@@ -517,5 +517,14 @@
   "switch_to_table_mode": "Переключиться в табличный режим",
   "open_sidebar": "Открыть боковую панель",
   "close_sidebar": "Закрыть боковую панель",
-  "no_message_content": "Нет содержимого сообщения"
+  "no_message_content": "Нет содержимого сообщения",
+  "error_metadata_invalid": "Неверный блок MetaData",
+  "error_script_name_required": "Имя скрипта обязательно",
+  "error_script_version_required": "Требуется @version скрипта",
+  "error_script_namespace_required": "Требуется @namespace скрипта",
+  "error_cron_invalid": "Неверное выражение cron: {{expr}}",
+  "error_script_type_mismatch": "Несоответствие типа скрипта: обычные и фоновые скрипты нельзя преобразовывать",
+  "error_old_script_code_missing": "Предыдущий код скрипта не найден",
+  "error_subscribe_name_required": "Имя подписки обязательно",
+  "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API"
 }

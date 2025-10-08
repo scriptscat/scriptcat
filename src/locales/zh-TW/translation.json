@@ -517,5 +517,14 @@
   "switch_to_table_mode": "切換到表格模式",
   "open_sidebar": "打開側邊欄",
   "close_sidebar": "關閉側邊欄",
-  "no_message_content": "無訊息內容"
+  "no_message_content": "無訊息內容",
+  "error_metadata_invalid": "MetaData 資訊錯誤",
+  "error_script_name_required": "腳本名稱不可為空",
+  "error_script_version_required": "腳本 @version 版本不可為空",
+  "error_script_namespace_required": "腳本 @namespace 命名空間不可為空",
+  "error_cron_invalid": "錯誤的排程表示式，請檢查：{{expr}}",
+  "error_script_type_mismatch": "腳本類型不相容，前臺腳本與後臺腳本不可互轉",
+  "error_old_script_code_missing": "舊的腳本程式碼不存在",
+  "error_subscribe_name_required": "訂閱名稱不可為空",
+  "error_grant_conflict": "@grant 同時宣告了 none 與 GM API"
 }

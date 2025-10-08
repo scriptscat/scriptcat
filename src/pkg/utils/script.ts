@@ -14,6 +14,7 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
+import { t as i18n_t } from "@App/locales/locales";
 
 // 从脚本代码抽出Metadata
 export function parseMetadata(code: string): SCMetadata | null {
@@ -85,16 +86,16 @@ export async function prepareScriptByCode(
   dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
   if (metadata == null) {
-    throw new Error("MetaData信息错误");
+    throw new Error(i18n_t("error_metadata_invalid"));
   }
   if (metadata.name === undefined) {
-    throw new Error("脚本名不能为空");
+    throw new Error(i18n_t("error_script_name_required"));
   }
   if (metadata.version === undefined) {
-    throw new Error("脚本@version版本不能为空");
+    throw new Error(i18n_t("error_script_version_required"));
   }
   if (metadata.namespace === undefined) {
-    throw new Error("脚本@namespace命名空间不能为空");
+    throw new Error(i18n_t("error_script_namespace_required"));
   }
   let type = SCRIPT_TYPE_NORMAL;
   if (metadata.crontab !== undefined) {
@@ -102,7 +103,7 @@ export async function prepareScriptByCode(
     try {
       nextTime(metadata.crontab[0]);
     } catch {
-      throw new Error(`错误的定时表达式,请检查: ${metadata.crontab[0]}`);
+      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;
@@ -160,11 +161,14 @@ export async function prepareScriptByCode(
       (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
       (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
-      throw new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变");
+      throw new Error(i18n_t("error_script_type_mismatch"));
+    }
+    if (script.metadata?.grant?.includes("none") && script.metadata?.grant?.some((s: string) => s.startsWith("GM"))) {
+      throw new Error(i18n_t("error_grant_conflict"));
     }
     const scriptCode = await new ScriptCodeDAO().get(old.uuid);
     if (!scriptCode) {
-      throw new Error("旧的脚本代码不存在");
+      throw new Error(i18n_t("error_old_script_code_missing"));
     }
     oldCode = scriptCode;
     const { uuid, createtime, lastruntime, error, sort, selfMetadata, subscribeUrl, checkUpdate, status } = old;
@@ -197,10 +201,10 @@ export async function prepareSubscribeByCode(
   const dao = new SubscribeDAO();
   const metadata = parseMetadata(code);
   if (!metadata) {
-    throw new Error("MetaData信息错误");
+    throw new Error(i18n_t("error_metadata_invalid"));
   }
   if (metadata.name === undefined) {
-    throw new Error("订阅名不能为空");
+    throw new Error(i18n_t("error_subscribe_name_required"));
   }
   const now = Date.now();
   const subscribe: Subscribe = {
