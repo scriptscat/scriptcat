@@ -97,6 +97,7 @@ export class RuntimeService {
 
   loadingInitFlagPromise: Promise<any> | undefined;
   loadingInitProcessPromise: Promise<any> | undefined;
+  initialCompliedResourcePromise: Promise<any> | undefined;
 
   compliedResourceDAO: CompliedResourceDAO = new CompliedResourceDAO();
 
@@ -238,45 +239,47 @@ export class RuntimeService {
     // 没有 CompliedResources 表示这是 没有启用脚本 或 代码有改变需要重新安装。
     // 这个情况会把所有有效脚本跟Inject&Content脚本先取消注册。后续载入时会重新以新代码注册。
     const cleanUpPreviousRegister = !compliedResources.length;
-    allScripts.forEach(async (script) => {
-      const uuid = script.uuid;
-      const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
-      const enable = script.status === SCRIPT_STATUS_ENABLE;
+    this.initialCompliedResourcePromise = Promise.all(
+      allScripts.map(async (script) => {
+        const uuid = script.uuid;
+        const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
+        const enable = script.status === SCRIPT_STATUS_ENABLE;
 
-      if (isNormalScript && enable && isEarlyStartScript(script.metadata)) {
-        this.earlyScriptFlags.add(uuid);
-      } else {
-        this.earlyScriptFlags.delete(uuid);
-      }
-
-      if (!isNormalScript || !enable) {
-        // 确保浏览器没有残留 PageScripts
-        if (uuid) unregisterScriptIds.push(uuid);
-      } else if (cleanUpPreviousRegister) {
-        // CompliedResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
-        if (uuid) unregisterScriptIds.push(uuid);
-      }
-
-      if (isNormalScript) {
-        let compliedResource = await this.compliedResourceDAO.get(uuid);
-        if (!compliedResource) {
-          const ret = await this.buildAndSaveCompliedResourceFromScript(script, false);
-          compliedResource = ret?.compliedResource;
-        }
-        if (!compliedResource?.scriptUrlPatterns) {
-          throw new Error(`No valid scriptUrlPatterns. Script UUID: ${uuid}`);
+        if (isNormalScript && enable && isEarlyStartScript(script.metadata)) {
+          this.earlyScriptFlags.add(uuid);
+        } else {
+          this.earlyScriptFlags.delete(uuid);
         }
 
-        const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
-        const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
-        // 添加新的数据
-        const scriptMatch = enable ? this.scriptMatchEnable : this.scriptMatchDisable;
-        scriptMatch.addRules(uuid, scriptUrlPatterns);
-        if (originalUrlPatterns !== null && originalUrlPatterns !== scriptUrlPatterns) {
-          scriptMatch.addRules(uuidOri, originalUrlPatterns);
+        if (!isNormalScript || !enable) {
+          // 确保浏览器没有残留 PageScripts
+          if (uuid) unregisterScriptIds.push(uuid);
+        } else if (cleanUpPreviousRegister) {
+          // CompliedResourceNamespace 修改后先反注册残留脚本，之后再重新加载 PageScripts
+          if (uuid) unregisterScriptIds.push(uuid);
         }
-      }
-    });
+
+        if (isNormalScript) {
+          let compliedResource = await this.compliedResourceDAO.get(uuid);
+          if (!compliedResource) {
+            const ret = await this.buildAndSaveCompliedResourceFromScript(script, false);
+            compliedResource = ret?.compliedResource;
+          }
+          if (!compliedResource?.scriptUrlPatterns) {
+            throw new Error(`No valid scriptUrlPatterns. Script UUID: ${uuid}`);
+          }
+
+          const { scriptUrlPatterns, originalUrlPatterns } = compliedResource;
+          const uuidOri = `${uuid}${ORIGINAL_URLMATCH_SUFFIX}`;
+          // 添加新的数据
+          const scriptMatch = enable ? this.scriptMatchEnable : this.scriptMatchDisable;
+          scriptMatch.addRules(uuid, scriptUrlPatterns);
+          if (originalUrlPatterns !== null && originalUrlPatterns !== scriptUrlPatterns) {
+            scriptMatch.addRules(uuidOri, originalUrlPatterns);
+          }
+        }
+      })
+    );
     if (cleanUpPreviousRegister) {
       // 先反注册残留脚本
       unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
@@ -568,6 +571,7 @@ export class RuntimeService {
       this.loadBlacklist();
 
       // 注册脚本
+      await this.initialCompliedResourcePromise; // 先等待 CompliedResource 完成避免注册时重复生成
       await this.registerUserscripts();
 
       // 或许能加快PageLoad的载入速度。subframe 的 URL 不捕捉。
