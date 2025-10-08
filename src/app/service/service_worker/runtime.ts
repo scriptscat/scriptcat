@@ -274,10 +274,6 @@ export class RuntimeService {
         this.scriptMatch.addRules(uuidOri, originalUrlPatterns);
       }
     });
-    if (complieResourcePromises.length) {
-      // 等待 scriptMatch 处理
-      await Promise.all(complieResourcePromises);
-    }
     if (cleanUpPreviousRegister) {
       // 先反注册残留脚本
       unregisterScriptIds.push("scriptcat-early-start-flag", "scriptcat-inject", "scriptcat-content");
@@ -297,6 +293,11 @@ export class RuntimeService {
     } finally {
       // 考虑 UserScripts API 不可使用等情况
       runtimeGlobal.registered = registered;
+    }
+
+    // 最后等待 scriptMatch 处理完毕（如有），结束waitInit，进入initReady程序
+    if (complieResourcePromises.length) {
+      await Promise.all(complieResourcePromises);
     }
   }
 
