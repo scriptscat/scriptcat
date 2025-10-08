@@ -12,6 +12,7 @@ const getUrlDomain = (navUrl: string) => {
 };
 
 let onUserActionDomainChanged: ((...args: any) => Promise<any>) | null = null;
+let onTabURLChanged: ((...args: any) => Promise<any>) | null = null;
 
 // 记录所有Tab的网址 （只作内部暂存检查之用）
 const lastNavs: Partial<Record<string, string>> = {};
@@ -54,14 +55,19 @@ const onUrlNavigated = (tab: chrome.tabs.Tab) => {
       }
     }
   }
+  onTabURLChanged?.(navUrl);
 };
 
 const onTabRemoved = (tabId: number) => {
   delete lastNavs[`${tabId}`];
 };
 
-const setOnUserActionDomainChanged = (f: ((...args: any) => Promise<any>) | null = null) => {
+const setOnUserActionDomainChanged = (f: ((...args: any) => Promise<any> | any) | null = null) => {
   onUserActionDomainChanged = f;
 };
 
-export { onUrlNavigated, onTabRemoved, setOnUserActionDomainChanged };
+const setOnTabURLChanged = (f: ((...args: any) => Promise<any> | any) | null = null) => {
+  onTabURLChanged = f;
+};
+
+export { onUrlNavigated, onTabRemoved, setOnUserActionDomainChanged, setOnTabURLChanged };
