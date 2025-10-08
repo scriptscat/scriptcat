@@ -1,6 +1,6 @@
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
-import type { NotificationMessageOption, ScriptMenuItem } from "../service_worker/types";
+import type { NotificationMessageOption, ScriptMenuItemOption } from "../service_worker/types";
 import { base64ToBlob, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
@@ -446,39 +446,43 @@ export default class GMApi extends GM_Base {
   GM_registerMenuCommand(
     name: string,
     listener: (inputValue?: any) => void,
-    options_or_accessKey?: ScriptMenuItem["options"] | string
+    options_or_accessKey?: ScriptMenuItemOption | string
   ): number {
     if (!this.menuMap) {
       this.menuMap = new Map();
     }
-    if (typeof options_or_accessKey === "object") {
-      const option: ScriptMenuItem["options"] = options_or_accessKey;
-      // 如果是对象，并且有id属性,则直接使用id
-      if (option.id && this.menuMap.has(option.id)) {
-        // 如果id存在,则直接使用
-        this.EE.removeAllListeners("menuClick:" + option.id);
-        this.EE.addListener("menuClick:" + option.id, listener);
-        this.sendMessage("GM_registerMenuCommand", [option.id, name, option]);
-        return option.id;
-      }
-    } else {
-      options_or_accessKey = { accessKey: options_or_accessKey };
-      let flag = 0;
-      this.menuMap.forEach((val, menuId) => {
-        if (val === name) {
-          flag = menuId;
-        }
-      });
-      if (flag) {
-        return flag;
+    const options: ScriptMenuItemOption =
+      typeof options_or_accessKey === "string"
+        ? ({ accessKey: options_or_accessKey! } as ScriptMenuItemOption)
+        : options_or_accessKey! || ({} as ScriptMenuItemOption);
+
+    if (options.autoClose === undefined) {
+      options.autoClose = true;
+    }
+
+    if (options.nested === undefined) {
+      options.nested = true;
+    }
+
+    // 如果是对象，并且有id属性,则直接使用id
+    if (options.id && this.menuMap.has(options.id)) {
+      // 如果id存在,则直接使用
+      this.EE.removeAllListeners("menuClick:" + options.id);
+      this.EE.addListener("menuClick:" + options.id, listener);
+      this.sendMessage("GM_registerMenuCommand", [options.id, name, options]);
+      return options.id;
+    }
+    for (const [mappedId, mappedName] of this.menuMap) {
+      if (mappedName === name) {
+        return mappedId;
       }
     }
     this.eventId += 1;
     const id = this.eventId;
-    options_or_accessKey.id = id;
+    options.id = id;
     this.menuMap.set(id, name);
     this.EE.addListener("menuClick:" + id, listener);
-    this.sendMessage("GM_registerMenuCommand", [id, name, options_or_accessKey]);
+    this.sendMessage("GM_registerMenuCommand", [id, name, options]);
     return id;
   }
 
