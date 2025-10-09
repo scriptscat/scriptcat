@@ -709,7 +709,7 @@ export class PopupService {
       async ({ tabId, frameId, scripts }: { tabId: number; frameId: number; document: string; scripts: Script[] }) => {
         await this.addScriptRunNumber({ tabId, frameId, scripts });
         // 设置角标 (chrome.tabs.onActivated 切换后)
-        if (lastActiveTabId > 0 && tabId === lastActiveTabId) {
+        if (tabId === lastActiveTabId) {
           await this.updateBadgeIcon();
         }
       }
