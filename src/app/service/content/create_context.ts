@@ -27,6 +27,7 @@ export const createContext = (
       loadScriptResolve = resolve;
     });
   }
+  let invalid = false;
   const context = createGMBase({
     prefix: envPrefix,
     message,
@@ -43,6 +44,21 @@ export const createContext = (
     grantSet: new Set(),
     loadScriptPromise,
     loadScriptResolve,
+    setInvalidContext() {
+      if (invalid) return;
+      invalid = true;
+      this.valueChangeListener.clear();
+      this.EE.removeAllListeners();
+      this.runFlag = `${uuidv4()}(invalid)`; // 更改 uuid 防止 runFlag 相关操作
+      // 释放记忆
+      this.message = null;
+      this.scriptRes = null;
+      this.valueChangeListener = null;
+      this.EE = null;
+    },
+    isInvalidContext() {
+      return invalid;
+    },
   });
   const grantedAPIs: { [key: string]: any } = {};
   const __methodInject__ = (grant: string): boolean => {
@@ -87,7 +103,7 @@ const noEval = false;
 const shouldFnBind = (f: any) => {
   if (typeof f !== "function") return false;
   if ("prototype" in f) return false; // 避免getter, 使用 in operator (注意, nodeJS的测试环境有异)
-  // window中的函式，大写开头不用於直接呼叫 （例如NodeFilter)
+  // window中的函式，大写开头不用于直接呼叫 （例如NodeFilter)
   const { name } = f;
   if (!name) return false;
   const e = name.charCodeAt(0);
@@ -268,7 +284,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     }
   }
 
-  // 一次性 get, 用於 with(this.$) 设计
+  // 一次性 get, 用于 with(this.$) 设计
   ownDescs.$ = {
     enumerable: false,
     configurable: true,
@@ -288,15 +304,15 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
 
   // 脚本window设置
 
-  // 把 GM Api (或其他全域API) 复製到 脚本window
-  // 请手动检查避开key，防止与window的属性setter有衝突 或 属性名重覆
+  // 把 GM Api (或其他全域API) 复制到 脚本window
+  // 请手动检查避开key，防止与window的属性setter有冲突 或 属性名重复
   for (const key of Object.keys(context)) {
     if (key in protect || key === "window") continue;
     mySandbox[key] = context[key]; // window以外
   }
 
   // 把 GM context物件的 window属性内容移至exposedWindow
-  // 由於目前只有 window.close, window.open, window.onurlchange, 不需要循环 window
+  // 由于目前只有 window.close, window.open, window.onurlchange, 不需要循环 window
   const cWindow = context.window;
 
   // @grant window.close
@@ -311,7 +327,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
 
   // @grant window.onurlchange
   if (cWindow?.onurlchange === null) {
-    // 目前 TM 只支援 null. ScriptCat不需要grant预设啟用？
+    // 目前 TM 只支援 null. ScriptCat不需要grant预设启用？
     mySandbox.onurlchange = null;
   }
 

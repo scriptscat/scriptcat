@@ -19,7 +19,14 @@ import FileSystemFactory from "@Packages/filesystem/factory";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import { isWarpTokenError } from "@Packages/filesystem/error";
 import { joinPath } from "@Packages/filesystem/utils";
-import type { EmitEventRequest, MessageRequest, NotificationMessageOption, Request } from "./types";
+import type {
+  EmitEventRequest,
+  GMRegisterMenuCommandParam,
+  GMUnRegisterMenuCommandParam,
+  MessageRequest,
+  NotificationMessageOption,
+  Request,
+} from "./types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 import { BrowserNoSupport, notificationsUpdate } from "./utils";
 import i18n from "@App/locales/locales";
@@ -799,11 +806,11 @@ export default class GMApi {
 
   @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
   GM_registerMenuCommand(request: Request, sender: IGetSender) {
-    const [id, name, options] = request.params;
+    const [key, name, options] = request.params as GMRegisterMenuCommandParam;
     // 触发菜单注册, 在popup中处理
     this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
       uuid: request.script.uuid,
-      id,
+      key,
       name,
       options,
       tabId: sender.getSender()?.tab?.id || -1,
@@ -814,13 +821,14 @@ export default class GMApi {
 
   @PermissionVerify.API({ alias: ["CAT_unregisterMenuInput"] })
   GM_unregisterMenuCommand(request: Request, sender: IGetSender) {
-    const [id] = request.params;
+    const [key] = request.params as GMUnRegisterMenuCommandParam;
     // 触发菜单取消注册, 在popup中处理
     this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
-      id: id,
+      key,
       tabId: sender.getSender()?.tab?.id || -1,
       frameId: sender.getSender()?.frameId,
+      documentId: sender.getSender()?.documentId,
     });
   }
 
@@ -918,7 +926,7 @@ export default class GMApi {
         return tabData || {};
       })
       .then((data) => {
-        return data[sender.getExtMessageSender().tabId];
+        return data![sender.getExtMessageSender().tabId];
       });
   }
 
