@@ -4,6 +4,8 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, compileScriptCode } from "./utils";
 import type { Message } from "@Packages/message/types";
+import { encodeMessage } from "@App/pkg/utils/message_value";
+import { v4 as uuidv4 } from "uuid";
 
 const nilFn: ScriptFunc = () => {};
 
@@ -431,5 +433,49 @@ describe("GM_value", () => {
     );
 
     expect(ret).toEqual({ ret1: 123, ret2: 456 });
+  });
+  it("GM_addValueChangeListener", async () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
+    script.code = `
+    return new Promise(resolve=>{
+      GM_addValueChangeListener("a", (name, oldValue, newValue, remote)=>{
+        resolve({name, oldValue, newValue, remote});
+      });
+      GM_setValue("a", 123);
+    });
+   `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    let retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    // 模拟值变化
+    exec.valueUpdate({
+      id: "123",
+      entries: encodeMessage([["a", 123, undefined]]),
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+    });
+    const ret = await retPromise;
+    expect(ret).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: false });
+    // remote = true
+    retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    // 模拟值变化
+    exec.valueUpdate({
+      id: "123",
+      entries: encodeMessage([["a", 123, undefined]]),
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: "user", tabId: -2 },
+    });
+    const ret2 = await retPromise;
+    expect(ret2).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: true });
   });
 });
