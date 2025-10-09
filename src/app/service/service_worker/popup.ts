@@ -1,7 +1,7 @@
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
-import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "./types";
+import type { ScriptMenu, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { Script, ScriptDAO } from "@App/app/repo/scripts";
@@ -58,16 +58,6 @@ const contextMenuConvMap2 = new Map<string, string | number>();
 // --------------------------------------------------------------------------------------------------
 
 let lastActiveTabId = 0;
-let menuRegisterNeedUpdate = false;
-
-// --------------------------------------------------------------------------------------------------
-
-// menuRegister 用来保存「当前 Tab」的 menu 状态。
-// 其中会包含 mainframe 和 subframe 的项目。
-// 最后会再透过 groupKey 做整合显示。
-
-// 每个 tab 的脚本菜单暂存；key 为 `${tabId}.${uuid}`，值为该脚本在该 tab 的菜单项（含 mainframe/subframe）。
-const menuRegister = new Map<string, ScriptMenuItem[]>();
 
 // --------------------------------------------------------------------------------------------------
 
@@ -182,36 +172,6 @@ export class PopupService {
       .catch(console.warn);
   }
 
-  // 在多次本地记录操作后，只需要执行一次有锁记录更新。不用更新回传 false
-  // 将「无锁的本地 menuRegister」同步回「有锁的快取」；若无实质变更则不发布更新事件。
-  async syncMenuCommandsToSessionStore(tabId: number, uuid: string): Promise<boolean> {
-    let retUpdated = false;
-    await this.txUpdateScriptMenu(tabId, async (data) => {
-      const script = data.find((item) => item.uuid === uuid);
-      if (script && menuRegisterNeedUpdate) {
-        menuRegisterNeedUpdate = false;
-        retUpdated = true;
-        // 本地纪录（最新）复制到外部存取（有锁）
-        script.menus = [...(menuRegister.get(`${tabId}.${uuid}`) || [])];
-      }
-      return data;
-    });
-    if (retUpdated) {
-      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
-    }
-    return retUpdated;
-  }
-
-  // 标记需要同步后，若成功写回快取，再触发实际菜单重建（避免多次小变更重复重建）。
-  async onMenuCommandsChanged(tabId: number, uuid: string) {
-    menuRegisterNeedUpdate = true;
-    const didTxRecordUpdate = await this.syncMenuCommandsToSessionStore(tabId, uuid);
-    if (didTxRecordUpdate) {
-      // 更新数据后再更新菜单
-      await this.updateScriptMenu(tabId);
-    }
-  }
-
   async registerMenuCommand(message: TScriptMenuRegister) {
     // GM_registerMenuCommand 是同步函数。
     // 所以流程是：先在 popup.ts 即时更新「无锁的记录」，再回写到「有锁记录」交给 Popup/App.tsx。
@@ -223,71 +183,68 @@ export class PopupService {
     const { key, name, uuid, tabId } = message; // 唯一键, 项目显示名字， 脚本uuid
     // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
 
-    // 以 `${tabId}.${uuid}` 作为隔离命名空间，避免跨分页/框架互相干扰。
-    const mrKey = `${tabId}.${uuid}`; // 防止多分页间的registerMenuCommand互相影响
-
-    let menus = menuRegister.get(mrKey) as ScriptMenuItem[];
-    if (!menus) {
-      menus = [] as ScriptMenuItem[];
-      menuRegister.set(mrKey, menus);
-    }
-
-    // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
-    // groupKey 用来表示「相同性质的项目」，允许重叠。
-    // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
-    // 但点击后，两边都会执行。
-    // 目的只是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
-    const groupKey = uuidv5(
-      message.options?.inputType
-        ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
-        : `${name}\n${message.options?.accessKey || ""}`,
-      groupKeyNS
-    );
-
-    let found = false;
-    for (const item of menus) {
-      if (item.key === key) {
-        found = true;
-        // 存在修改信息
-        item.name = name;
-        item.options = { ...message.options };
-        item.groupKey = groupKey;
-        break;
+    let retUpdated = false;
+    await this.txUpdateScriptMenu(tabId, async (data) => {
+      const script = data.find((item) => item.uuid === uuid);
+      if (script) {
+        retUpdated = true;
+        // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
+        // groupKey 用来表示「相同性质的项目」，允许重叠。
+        // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
+        // 但点击后，两边都会执行。
+        // 目的是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
+        const groupKey = uuidv5(
+          message.options?.inputType
+            ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
+            : `${name}\n${message.options?.accessKey || ""}`,
+          groupKeyNS
+        );
+        const menu = script.menus.find((item) => item.key === key);
+        if (!menu) {
+          // 不存在新增
+          script.menus.push({
+            groupKey,
+            key: key, // unique primary key
+            name: name,
+            options: message.options,
+            tabId: tabId, // fix
+            frameId: message.frameId, // fix with unique key
+            documentId: message.documentId, // fix with unique key
+          });
+        } else {
+          // 存在修改信息
+          menu.name = message.name;
+          menu.options = message.options;
+          menu.groupKey = groupKey;
+        }
       }
+      return data;
+    });
+
+    if (retUpdated) {
+      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
+      // 更新数据后再更新菜单
+      await this.updateScriptMenu(tabId);
     }
-    if (!found) {
-      const entry = {
-        groupKey,
-        key: key, // unique primary key
-        name: name,
-        options: message.options,
-        tabId: tabId, // fix
-        frameId: message.frameId, // fix with unique key
-        documentId: message.documentId, // fix with unique key
-      };
-      menus.push(entry);
-    }
-    // 更新有锁记录
-    await this.onMenuCommandsChanged(tabId, uuid);
   }
 
   async unregisterMenuCommand({ key, uuid, tabId }: TScriptMenuUnregister) {
-    const mrKey = `${tabId}.${uuid}`;
-
-    let menus = menuRegister.get(mrKey) as ScriptMenuItem[];
-    if (!menus) {
-      menus = [] as ScriptMenuItem[];
-      menuRegister.set(mrKey, menus);
-    }
-
-    for (let i = 0, l = menus.length; i < l; i++) {
-      if (menus[i].key === key) {
-        menus.splice(i, 1);
-        break;
+    let retUpdated = false;
+    await this.txUpdateScriptMenu(tabId, async (data) => {
+      const script = data.find((item) => item.uuid === uuid);
+      if (script) {
+        retUpdated = true;
+        // 删除菜单
+        script.menus = script.menus.filter((item) => item.key !== key);
       }
+      return data;
+    });
+
+    if (retUpdated) {
+      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
+      // 更新数据后再更新菜单
+      await this.updateScriptMenu(tabId);
     }
-    // 更新有锁记录
-    await this.onMenuCommandsChanged(tabId, uuid);
   }
 
   async updateScriptMenu(tabId: number) {
@@ -307,8 +264,7 @@ export class PopupService {
   }
 
   // 将 Script 转为 ScriptMenu 并初始化其在该 tab 的菜单暂存（menus 空阵列、计数归零）。
-  scriptToMenu(script: Script, tabId: number): ScriptMenu {
-    menuRegister.set(`${tabId}.${script.uuid}`, []);
+  scriptToMenu(script: Script): ScriptMenu {
     return {
       uuid: script.uuid,
       name: script.name,
@@ -361,7 +317,7 @@ export class PopupService {
         if (script.selfMetadata) {
           script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
         }
-        run = this.scriptToMenu(script, tabId);
+        run = this.scriptToMenu(script);
         run.isEffective = o.effective!;
       }
       scriptMenuMap.set(uuid, run);
@@ -411,7 +367,7 @@ export class PopupService {
             scriptMenu.runNumByIframe = (scriptMenu.runNumByIframe || 0) + 1;
           }
         } else {
-          const item = this.scriptToMenu(script, tabId);
+          const item = this.scriptToMenu(script);
           item.isEffective = true;
           item.runNum = 1;
           if (frameId) {
@@ -449,7 +405,7 @@ export class PopupService {
         const scriptMenu = menu.find((item) => item.uuid === script.uuid);
         // 加入菜单
         if (!scriptMenu) {
-          const item = this.scriptToMenu(script, -1);
+          const item = this.scriptToMenu(script);
           menu.push(item);
         }
         return menu;
@@ -469,7 +425,7 @@ export class PopupService {
           if (script.status === SCRIPT_STATUS_ENABLE) {
             // 加入菜单
             if (index === -1) {
-              const item = this.scriptToMenu(script, -1);
+              const item = this.scriptToMenu(script);
               menu.push(item);
             }
           } else {
@@ -591,10 +547,6 @@ export class PopupService {
       }
       runCountMap.delete(tabId);
       scriptCountMap.delete(tabId);
-      const mrKeys = [...menuRegister.keys()].filter((key) => key.startsWith(`${tabId}.`));
-      for (const key of mrKeys) {
-        menuRegister.delete(key);
-      }
       // 清理数据tab关闭需要释放的数据
       this.txUpdateScriptMenu(tabId, async (scripts) => {
         for (const { uuid } of scripts) {
