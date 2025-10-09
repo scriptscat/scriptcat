@@ -187,7 +187,7 @@ export class PopupService {
     // 给脚本添加菜单
     await this.txUpdateScriptMenu(tabId, async (data) => {
       while (true) {
-        const message = this.registerMenuCommandMessages.get(mrKey)?.pop();
+        const message = this.registerMenuCommandMessages.get(mrKey)?.shift();
         if (!message) {
           this.registerMenuCommandMessages.delete(mrKey);
           return data;
@@ -248,7 +248,7 @@ export class PopupService {
     let retUpdated = false;
     await this.txUpdateScriptMenu(tabId, async (data) => {
       while (true) {
-        const message = this.unregisterMenuCommandMessages.get(mrKey)?.pop();
+        const message = this.unregisterMenuCommandMessages.get(mrKey)?.shift();
         if (!message) {
           this.unregisterMenuCommandMessages.delete(mrKey);
           return data;
