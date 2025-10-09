@@ -274,4 +274,32 @@ describe("GM_menu", () => {
 
     expect(await ret).toEqual(1);
   });
+
+  it("复杂的id生成逻辑", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `
+    // 自定义id
+    let obj1 = { id: "abc" };
+    let id1 = GM_registerMenuCommand("test1", ()=>key1="test1",obj1);
+    let id2 = GM_registerMenuCommand("test2", ()=>key2="test2",obj1);
+    // 顺序生成的id
+    let id3 = GM_registerMenuCommand("test3", ()=>key3="test3");
+    let id4 = GM_registerMenuCommand("test4", ()=>key4="test4");
+    // 打乱顺序id
+    let id5 = GM_registerMenuCommand("test5", ()=>key5="test5",{id: "3"});
+    let id6 = GM_registerMenuCommand("test6", ()=>key6="test6",{id: 3});
+    let id7 = GM_registerMenuCommand("test7", ()=>key7="test7");
+    return { id1, id2, id3, id4, id5, id6, id7 };
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3 });
+  });
 });
