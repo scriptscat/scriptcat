@@ -172,55 +172,63 @@ export class PopupService {
       .catch(console.warn);
   }
 
+  // 防止并发导致频繁更新菜单，将注册菜单的请求集中在一个队列中处理
+  registerMenuCommandMessages = new Map<string, TScriptMenuRegister[]>();
+
   async registerMenuCommand(message: TScriptMenuRegister) {
-    // GM_registerMenuCommand 是同步函数。
-    // 所以流程是：先在 popup.ts 即时更新「无锁的记录」，再回写到「有锁记录」交给 Popup/App.tsx。
-    // 这样可以避免新增/删除操作的次序冲突。
-    // 外部（popup.tsx）只会读取 menu items，不会直接修改（若要修改，必须透过 popup.ts）。
-
-    // 给脚本添加菜单
-
-    const { key, name, uuid, tabId } = message; // 唯一键, 项目显示名字， 脚本uuid
-    // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
+    const { tabId, uuid } = message;
+    const mrKey = `${tabId}.${uuid}`;
+    if (!this.registerMenuCommandMessages.has(mrKey)) {
+      this.registerMenuCommandMessages.set(mrKey, []);
+    }
+    this.registerMenuCommandMessages.get(mrKey)!.push(message);
 
     let retUpdated = false;
+    // 给脚本添加菜单
     await this.txUpdateScriptMenu(tabId, async (data) => {
-      const script = data.find((item) => item.uuid === uuid);
-      if (script) {
-        retUpdated = true;
-        // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
-        // groupKey 用来表示「相同性质的项目」，允许重叠。
-        // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
-        // 但点击后，两边都会执行。
-        // 目的是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
-        const groupKey = uuidv5(
-          message.options?.inputType
-            ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
-            : `${name}\n${message.options?.accessKey || ""}`,
-          groupKeyNS
-        );
-        const menu = script.menus.find((item) => item.key === key);
-        if (!menu) {
-          // 不存在新增
-          script.menus.push({
-            groupKey,
-            key: key, // unique primary key
-            name: name,
-            options: message.options,
-            tabId: tabId, // fix
-            frameId: message.frameId, // fix with unique key
-            documentId: message.documentId, // fix with unique key
-          });
-        } else {
-          // 存在修改信息
-          menu.name = message.name;
-          menu.options = message.options;
-          menu.groupKey = groupKey;
+      while (true) {
+        const message = this.registerMenuCommandMessages.get(mrKey)?.pop();
+        if (!message) {
+          this.registerMenuCommandMessages.delete(mrKey);
+          return data;
+        }
+        // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
+        const { key, name, uuid } = message; // 唯一键, 项目显示名字， 脚本uuid
+        const script = data.find((item) => item.uuid === uuid);
+        if (script) {
+          retUpdated = true;
+          // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
+          // groupKey 用来表示「相同性质的项目」，允许重叠。
+          // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
+          // 但点击后，两边都会执行。
+          // 目的是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
+          const groupKey = uuidv5(
+            message.options?.inputType
+              ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
+              : `${name}\n${message.options?.accessKey || ""}`,
+            groupKeyNS
+          );
+          const menu = script.menus.find((item) => item.key === key);
+          if (!menu) {
+            // 不存在新增
+            script.menus.push({
+              groupKey,
+              key: key, // unique primary key
+              name: name,
+              options: message.options,
+              tabId: tabId, // fix
+              frameId: message.frameId, // fix with unique key
+              documentId: message.documentId, // fix with unique key
+            });
+          } else {
+            // 存在修改信息
+            menu.name = message.name;
+            menu.options = message.options;
+            menu.groupKey = groupKey;
+          }
         }
       }
-      return data;
     });
-
     if (retUpdated) {
       this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
       // 更新数据后再更新菜单
@@ -228,16 +236,31 @@ export class PopupService {
     }
   }
 
+  unregisterMenuCommandMessages = new Map<string, TScriptMenuUnregister[]>();
+
   async unregisterMenuCommand({ key, uuid, tabId }: TScriptMenuUnregister) {
+    const mrKey = `${tabId}.${uuid}`;
+    if (!this.unregisterMenuCommandMessages.has(mrKey)) {
+      this.unregisterMenuCommandMessages.set(mrKey, []);
+    }
+    this.unregisterMenuCommandMessages.get(mrKey)!.push({ key, uuid, tabId });
+
     let retUpdated = false;
     await this.txUpdateScriptMenu(tabId, async (data) => {
-      const script = data.find((item) => item.uuid === uuid);
-      if (script) {
-        retUpdated = true;
-        // 删除菜单
-        script.menus = script.menus.filter((item) => item.key !== key);
+      while (true) {
+        const message = this.unregisterMenuCommandMessages.get(mrKey)?.pop();
+        if (!message) {
+          this.unregisterMenuCommandMessages.delete(mrKey);
+          return data;
+        }
+        const script = data.find((item) => item.uuid === uuid);
+        if (script) {
+          retUpdated = true;
+          // 删除菜单
+          script.menus = script.menus.filter((item) => item.key !== key);
+        }
+        return data;
       }
-      return data;
     });
 
     if (retUpdated) {
