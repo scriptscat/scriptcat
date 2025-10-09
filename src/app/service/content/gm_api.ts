@@ -566,7 +566,9 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ alias: "GM.unregisterMenuCommand" })
   GM_unregisterMenuCommand(menuId: TScriptMenuItemID): void {
-    execEnvInit(this);
+    if (!this.contentEnvKey) {
+      return;
+    }
     let menuKey = `t${menuId}`; // 见 TScriptMenuItemID 注释
     menuKey = `${this.contentEnvKey!}.${menuKey}` as TScriptMenuItemKey; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
     this.menuKeyRegistered!.delete(menuKey);
