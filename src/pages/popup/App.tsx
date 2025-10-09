@@ -11,17 +11,19 @@ import {
   IconSettings,
   IconSync,
 } from "@arco-design/web-react/icon";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RiMessage2Line } from "react-icons/ri";
 import { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
 import { useTranslation } from "react-i18next";
 import ScriptMenuList from "../components/ScriptMenuList";
 import PopupWarnings from "../components/PopupWarnings";
 import { popupClient, requestOpenBatchUpdatePage } from "../store/features/script";
-import type { ScriptMenu } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, TPopupScript } from "@App/app/service/service_worker/types";
 import { systemConfig } from "../store/global";
 import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
+import { useAppContext } from "../store/AppContext";
+import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
 
@@ -30,9 +32,17 @@ const iconStyle = {
   fontSize: 16,
 };
 
+const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
+  //@ts-ignore
+  b.enable - a.enable ||
+  // 排序次序：启用优先 → 菜单数量多者优先 → 执行次数多者优先 → 更新时间新者优先
+  b.menus.length - a.menus.length ||
+  b.runNum - a.runNum ||
+  b.updatetime - a.updatetime;
+
 function App() {
   const [loading, setLoading] = useState(true);
-  const [scriptList, setScriptList] = useState<ScriptMenu[]>([]);
+  const [scriptList, setScriptList] = useState<(ScriptMenu & { menuUpdated?: number })[]>([]);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>([]);
   const [showAlert, setShowAlert] = useState(false);
   const [checkUpdate, setCheckUpdate] = useState<Parameters<typeof systemConfig.setCheckUpdate>[0]>({
@@ -46,21 +56,95 @@ function App() {
   const [isBlacklist, setIsBlacklist] = useState(false);
   const [collapseActiveKey, setCollapseActiveKey] = useState<string[]>(["script"]);
   const { t } = useTranslation();
+  const pageTabIdRef = useRef(0);
 
   const urlHost = useMemo(() => {
     let url: URL | undefined;
     try {
       url = new URL(currentUrl);
     } catch (_: any) {
-      // ignore error
+      // 容错：URL 解析失败时忽略错误（不影响后续 UI）
     }
     return url?.hostname ?? "";
   }, [currentUrl]);
 
+  const { subscribeMessage } = useAppContext();
   useEffect(() => {
     let isMounted = true;
 
+    const unhooks = [
+      // 订阅脚本啟用状态变更（enableScripts），即时更新对应项目的 enable。
+      subscribeMessage<TEnableScript[]>("enableScripts", (data) => {
+        setScriptList((prevList) => {
+          for (const { uuid, enable } of data) {
+            prevList = prevList.map((item) =>
+              item.uuid === uuid && item.enable !== enable ? { ...item, enable } : item
+            );
+          }
+          return prevList;
+        });
+      }),
+
+      // 订阅脚本刪除（deleteScripts），即时刪除对应项目。
+      subscribeMessage<TDeleteScript[]>("deleteScripts", (data) => {
+        setScriptList((prevList) => {
+          for (const { uuid } of data) {
+            prevList = prevList.filter((item) => item.uuid !== uuid);
+          }
+          return prevList;
+        });
+      }),
+
+      // 订阅背景脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
+      subscribeMessage<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
+        setScriptList((prevList) =>
+          prevList.map((item) => (item.uuid === uuid && item.runStatus !== runStatus ? { ...item, runStatus } : item))
+        );
+      }),
+
+      subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuid }: TPopupScript) => {
+        // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
+        if (pageTabIdRef.current !== tabId) return;
+        let url: string = "";
+        // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
+        setCurrentUrl((v) => {
+          url = v || "";
+          return v;
+        });
+        if (!url) return;
+        popupClient.getPopupData({ url, tabId }).then((resp) => {
+          if (!isMounted) return;
+
+          // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
+          if (!resp || !resp.scriptList) {
+            console.warn("Invalid popup data response:", resp);
+            return;
+          }
+
+          // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
+          const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
+          if (!newMenus) return;
+          setScriptList((prev) => {
+            // 只针对 uuid 进行更新。其他项目保持参考一致
+            const list = prev.map((item) => {
+              return item.uuid !== uuid
+                ? item
+                : {
+                    ...item,
+                    menus: [...newMenus],
+                    menuUpdated: Date.now(),
+                  };
+            });
+            // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
+            list.sort(scriptListSorter);
+            return list;
+          });
+        });
+      }),
+    ];
+
     const onCurrentUrlUpdated = (url: string, tabId: number) => {
+      pageTabIdRef.current = tabId;
       checkScriptEnableAndUpdate();
       popupClient
         .getPopupData({ url, tabId })
@@ -73,17 +157,9 @@ function App() {
             return;
           }
 
-          // 按照开启状态和更新时间排序
+          // 依启用状态、菜单数量、执行次数与更新时间排序（见 scriptListSorter）
           const list = resp.scriptList;
-          list.sort(
-            (a, b) =>
-              //@ts-ignore
-              b.enable - a.enable ||
-              // 根据菜单数排序
-              b.menus.length - a.menus.length ||
-              b.runNum - a.runNum ||
-              b.updatetime - a.updatetime
-          );
+          list.sort(scriptListSorter);
           setScriptList(list);
           setBackScriptList(resp.backScriptList || []);
           setIsBlacklist(resp.isBlacklist || false);
@@ -95,7 +171,7 @@ function App() {
         .catch((error) => {
           console.error("Failed to get popup data:", error);
           if (!isMounted) return;
-          // 设置默认值以防止错误
+          // 设为安全预设，避免 UI 因错误状态而崩溃
           setScriptList([]);
           setBackScriptList([]);
           setIsBlacklist(false);
@@ -116,7 +192,7 @@ function App() {
       setCheckUpdate(checkUpdate);
     };
     const queryTabInfo = async () => {
-      // 只跑一次 tab 资讯，不绑定在 currentUrl
+      // 仅在挂载时读取一次页签信息；不绑定 currentUrl 以避免重复查询
       try {
         const tab = await getCurrentTab();
         if (!isMounted || !tab) return;
@@ -137,6 +213,8 @@ function App() {
     queryTabInfo();
     return () => {
       isMounted = false;
+      for (const unhook of unhooks) unhook();
+      unhooks.length = 0;
     };
   }, []);
 
@@ -146,7 +224,7 @@ function App() {
       systemConfig.setEnableScript(val);
     },
     handleSettingsClick: () => {
-      // 用a链接的方式,vivaldi竟然会直接崩溃
+      // 使用 window.open 而非 <a> 连结：避免 Vivaldi 等浏览器偶发崩溃
       window.open("/src/options.html", "_blank");
     },
     handleNotificationClick: () => {
@@ -167,7 +245,7 @@ function App() {
         domain = url.hostname;
       }
     } catch {
-      // ignore
+      // 容错：无效 URL 直接忽略
     }
     return domain;
   };
@@ -201,6 +279,12 @@ function App() {
         break;
     }
   };
+
+  const [menuExpandNum, setMenuExpandNum] = useState(() => {
+    // 读取使用者设定的清单展开上限（menuExpandNum）。
+    systemConfig.getMenuExpandNum().then((val) => setMenuExpandNum(val));
+    return 5;
+  });
 
   useEffect(() => {
     if (checkUpdateStatus === 1) {
@@ -248,12 +332,12 @@ function App() {
               <Dropdown
                 onVisibleChange={(visible) => {
                   if (!visible) return;
-                  // 检查位置，优化窗口过小，导致弹出菜单显示不全的问题
+                  // 下拉开启时校正位置：视窗过小可能导致菜单显示超出可视区域
                   setTimeout(() => {
                     const dropdowns = document.getElementsByClassName("arco-dropdown");
                     if (dropdowns.length > 0) {
                       const dropdown = dropdowns[0] as HTMLElement;
-                      // 如果top是负数修改为0
+                      // 若面板 top 为负值则矫正为 0，避免被裁切
                       if (parseInt(dropdown.style.top) < 0) {
                         dropdown.style.top = "0px";
                       }
@@ -331,7 +415,12 @@ function App() {
             style={{ padding: "0" }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={scriptList} isBackscript={false} currentUrl={currentUrl} />
+            <ScriptMenuList
+              script={scriptList}
+              isBackscript={false}
+              currentUrl={currentUrl}
+              menuExpandNum={menuExpandNum}
+            />
           </CollapseItem>
 
           <CollapseItem
@@ -339,12 +428,17 @@ function App() {
             name="background"
             style={{
               padding: "0",
-              // 未加载完成前不采用动画，避免collapseActiveKey变化时闪现
+              // 未加载完成期间关闭动画，避免 collapseActiveKey 变更造成闪烁
               ...(loading ? { transform: "none" } : { transform: "height 0.2s cubic-bezier(0.34, 0.69, 0.1, 1)" }),
             }}
             contentStyle={{ padding: "0" }}
           >
-            <ScriptMenuList script={backScriptList} isBackscript={true} currentUrl={currentUrl} />
+            <ScriptMenuList
+              script={backScriptList}
+              isBackscript={true}
+              currentUrl={currentUrl}
+              menuExpandNum={menuExpandNum}
+            />
           </CollapseItem>
         </Collapse>
         <div className="flex flex-row arco-card-header !h-6">
