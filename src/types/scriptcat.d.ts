@@ -159,9 +159,9 @@ declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
  */
 declare function CAT_ScriptLoaded(): Promise<void>;
 
-declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab;
-declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab;
-declare function GM_openInTab(url: string): GMTypes.Tab;
+declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
