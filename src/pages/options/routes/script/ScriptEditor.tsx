@@ -226,7 +226,7 @@ function ScriptEditor() {
     // 解析code生成新的script并更新
     const code = e.getValue();
     const targetUUID = existingScript.uuid;
-    return prepareScriptByCode(code, existingScript.origin || "", targetUUID)
+    return prepareScriptByCode(code, existingScript.origin || "", targetUUID, false, scriptDAO, { byEditor: true })
       .then((prepareScript) => {
         const { script, oldScript } = prepareScript;
         if (targetUUID) {

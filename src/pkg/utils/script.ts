@@ -81,7 +81,8 @@ export async function prepareScriptByCode(
   origin: string,
   uuid?: string,
   override: boolean = false,
-  dao?: ScriptDAO
+  dao?: ScriptDAO,
+  options?: Record<string, any>
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
@@ -163,7 +164,12 @@ export async function prepareScriptByCode(
     ) {
       throw new Error(i18n_t("error_script_type_mismatch"));
     }
-    if (script.metadata?.grant?.includes("none") && script.metadata?.grant?.some((s: string) => s.startsWith("GM"))) {
+    if (
+      options?.byEditor &&
+      script.metadata?.grant?.includes("none") &&
+      script.metadata?.grant?.some((s: string) => s.startsWith("GM")) &&
+      !(old.metadata?.grant?.includes("none") && old.metadata?.grant?.some((s: string) => s.startsWith("GM")))
+    ) {
       throw new Error(i18n_t("error_grant_conflict"));
     }
     const scriptCode = await new ScriptCodeDAO().get(old.uuid);
