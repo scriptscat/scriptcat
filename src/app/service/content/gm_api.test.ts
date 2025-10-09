@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import ExecScript from "./exec_script";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, compileScriptCode } from "./utils";
+import type { Message } from "@Packages/message/types";
 
 const nilFn: ScriptFunc = () => {};
 
@@ -208,5 +209,139 @@ describe("early-script", () => {
     // 触发envInfo
     exec.dealEarlyScript(envInfo);
     expect(await ret).toEqual(123);
+  });
+});
+
+describe("GM_menu", () => {
+  it("注册菜单", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `return new Promise(resolve=>{
+      GM_registerMenuCommand("test", ()=>resolve(123));
+    })`;
+    const mockSendMessage = vi.fn().mockResolvedValueOnce({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+
+    // 验证 sendMessage 是否被调用
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+    // 获取实际调用的参数
+    const actualCall = mockSendMessage.mock.calls[0][0];
+    const actualMenuKey = actualCall.data.params[0];
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_registerMenuCommand",
+          params: [actualMenuKey, "test", {}],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+    // 模拟点击菜单
+    exec.emitEvent("menuClick", actualMenuKey, "");
+    expect(await retPromise).toEqual(123);
+  });
+
+  it("取消注册菜单", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand", "GM_unregisterMenuCommand"];
+    script.code = `
+    let key = GM_registerMenuCommand("test", ()=>key="test");
+    GM_unregisterMenuCommand(key);
+    return key;
+  `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = exec.exec();
+    // 验证 sendMessage 是否被调用
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    expect(await ret).toEqual(1);
+  });
+
+  it("同id菜单，执行最后一个", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `return new Promise(resolve=>{
+      GM_registerMenuCommand("test", ()=>resolve(123),{id: "abc"});
+      GM_registerMenuCommand("test", ()=>resolve(456),{id: "abc"});
+    })`;
+    const mockSendMessage = vi.fn().mockResolvedValueOnce({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+
+    // 验证 sendMessage 是否被调用
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    // 获取实际调用的参数
+    const actualCall = mockSendMessage.mock.calls[0][0];
+    const actualMenuKey = actualCall.data.params[0];
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_registerMenuCommand",
+          params: [actualMenuKey, "test", {}],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+    // 模拟点击菜单
+    exec.emitEvent("menuClick", actualMenuKey, "");
+    expect(await retPromise).toEqual(456);
+  });
+
+  it("id生成逻辑", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `
+    // 自定义id
+    let obj1 = { id: "abc" };
+    let id1 = GM_registerMenuCommand("test1", ()=>"test1",obj1);
+    let id2 = GM_registerMenuCommand("test2", ()=>"test2",obj1);
+    // 顺序生成的id
+    let id3 = GM_registerMenuCommand("test3", ()=>"test3");
+    let id4 = GM_registerMenuCommand("test4", ()=>"test4");
+    // 不能覆盖顺序
+    let id5 = GM_registerMenuCommand("test5", ()=>"test5",{id: "3"});
+    let id6 = GM_registerMenuCommand("test6", ()=>"test6",{id: 3});
+    let id7 = GM_registerMenuCommand("test7", ()=>"test7");
+    // 同名菜单-不同的id
+    let id8 = GM_registerMenuCommand("test7", ()=>"test7");
+    return { id1, id2, id3, id4, id5, id6, id7, id8 };
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
   });
 });

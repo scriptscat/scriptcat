@@ -963,14 +963,15 @@ function ScriptList() {
     };
 
     const unhooks = [
-      subscribeMessage("scriptRunStatus", pageApi.scriptRunStatus),
-      subscribeMessage("installScript", pageApi.installScript),
-      subscribeMessage("deleteScripts", pageApi.deleteScripts),
-      subscribeMessage("enableScripts", pageApi.enableScripts),
-      subscribeMessage("sortedScripts", pageApi.sortedScripts),
+      subscribeMessage<TScriptRunStatus>("scriptRunStatus", pageApi.scriptRunStatus),
+      subscribeMessage<TInstallScript>("installScript", pageApi.installScript),
+      subscribeMessage<TDeleteScript[]>("deleteScripts", pageApi.deleteScripts),
+      subscribeMessage<TEnableScript[]>("enableScripts", pageApi.enableScripts),
+      subscribeMessage<TSortedScript[]>("sortedScripts", pageApi.sortedScripts),
     ];
     return () => {
       for (const unhook of unhooks) unhook();
+      unhooks.length = 0;
     };
   }, []);
 

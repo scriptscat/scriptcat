@@ -84,7 +84,7 @@ function Setting() {
       editor_type_definition: setEditorTypeDefinition,
     };
     const unhooks = [
-      subscribeMessage(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
+      subscribeMessage<TKeyValue>(SystemConfigChange, ({ key, value: _value }: TKeyValue) => {
         const setter = autoRefresh[key as keyof typeof autoRefresh];
         if (typeof setter === "function") {
           // 异步方式，先让 systemConfig.cache 更新，再在下一个 microTask 读取 systemConfig.get 使页面的设定更新
@@ -102,6 +102,7 @@ function Setting() {
     ];
     return () => {
       for (const unhook of unhooks) unhook();
+      unhooks.length = 0;
     };
   }, []);
 
