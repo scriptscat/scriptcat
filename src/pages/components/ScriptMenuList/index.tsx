@@ -25,34 +25,47 @@ import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { RiPlayFill, RiStopFill } from "react-icons/ri";
 import { useTranslation } from "react-i18next";
 import { ScriptIcons } from "@App/pages/options/routes/utils";
-import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/types";
+import type {
+  GroupScriptMenuItem,
+  ScriptMenu,
+  ScriptMenuItem,
+  ScriptMenuItemOption,
+} from "@App/app/service/service_worker/types";
 import { popupClient, runtimeClient, scriptClient } from "@App/pages/store/features/script";
-import { messageQueue, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { type TScriptRunStatus } from "@App/app/service/queue";
 
 const CollapseItem = Collapse.Item;
 
-const sendMenuAction = (uuid: string, menu: ScriptMenuItem, inputValue?: any) => {
-  popupClient.menuClick(uuid, menu, inputValue).then(() => {
-    menu.options?.autoClose !== false && window.close();
+const sendMenuAction = (
+  uuid: string,
+  name: string,
+  options: ScriptMenuItemOption | undefined,
+  menus: ScriptMenuItem[],
+  inputValue?: any
+) => {
+  Promise.allSettled(menus.map((menu) => popupClient.menuClick(uuid, menu, inputValue))).then(() => {
+    options?.autoClose !== false && window.close();
   });
 };
 
 const FormItem = Form.Item;
 
 type MenuItemProps = {
-  menu: ScriptMenuItem;
+  menuItems: ScriptMenuItem[];
   uuid: string;
 };
 
-const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
-  const initialValue = menu.options?.inputDefaultValue;
+type GroupScriptMenuItemsProp = { group: GroupScriptMenuItem[]; menuUpdated: number };
+
+const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
+  const menuItem = menuItems[0];
+  const { name, options } = menuItem;
+  const initialValue = options?.inputDefaultValue;
 
   const InputMenu = (() => {
-    const placeholder = menu.options?.inputPlaceholder;
+    const placeholder = options?.inputPlaceholder;
 
-    switch (menu.options?.inputType) {
+    switch (options?.inputType) {
       case "text":
         return <Input type="text" placeholder={placeholder} />;
       case "number":
@@ -73,7 +86,7 @@ const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
       autoComplete="off"
       onSubmit={(v) => {
         const inputValue = v.inputValue;
-        sendMenuAction(uuid, menu, inputValue);
+        sendMenuAction(uuid, name, options, menuItems, inputValue);
       }}
     >
       <Button
@@ -81,15 +94,15 @@ const MenuItem = React.memo(({ menu, uuid }: MenuItemProps) => {
         type="secondary"
         htmlType="submit"
         icon={<IconMenu />}
-        title={menu.options?.title}
+        title={options?.title}
         style={{ display: "block", width: "100%" }}
       >
-        {menu.name}
-        {menu.options?.accessKey && `(${menu.options.accessKey.toUpperCase()})`}
+        {name}
+        {options?.accessKey && `(${options.accessKey.toUpperCase()})`}
       </Button>
       {InputMenu && (
         <FormItem
-          label={menu.options?.inputLabel}
+          label={options?.inputLabel}
           field="inputValue"
           style={{ marginTop: 5, marginBottom: 5, paddingLeft: 20 }}
         >
@@ -153,6 +166,7 @@ CollapseHeader.displayName = "CollapseHeader";
 
 interface ListMenuItemProps {
   item: ScriptMenu;
+  scriptMenus: GroupScriptMenuItemsProp;
   menuExpandNum: number;
   isBackscript: boolean;
   url: URL | null;
@@ -161,7 +175,7 @@ interface ListMenuItemProps {
 }
 
 const ListMenuItem = React.memo(
-  ({ item, menuExpandNum, isBackscript, url, onEnableChange, handleDeleteScript }: ListMenuItemProps) => {
+  ({ item, scriptMenus, menuExpandNum, isBackscript, url, onEnableChange, handleDeleteScript }: ListMenuItemProps) => {
     const { t } = useTranslation();
     const [isEffective, setIsEffective] = useState<boolean | null>(item.isEffective);
 
@@ -172,14 +186,17 @@ const ListMenuItem = React.memo(
     };
 
     const visibleMenus = useMemo(() => {
-      const m = item.menus;
+      const m = scriptMenus?.group || [];
       return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-    }, [item.menus, isExpand, menuExpandNum]);
+    }, [scriptMenus?.group, isExpand, menuExpandNum]);
 
-    const shouldShowMore = useMemo(() => item.menus.length > menuExpandNum, [item.menus, menuExpandNum]);
+    const shouldShowMore = useMemo(
+      () => scriptMenus?.group?.length > menuExpandNum,
+      [scriptMenus?.group, menuExpandNum]
+    );
 
-    const handleExcludeUrl = (item: ScriptMenu, excludePattern: string, isExclude: boolean) => {
-      scriptClient.excludeUrl(item.uuid, excludePattern, isExclude).finally(() => {
+    const handleExcludeUrl = (uuid: string, excludePattern: string, isExclude: boolean) => {
+      scriptClient.excludeUrl(uuid, excludePattern, isExclude).finally(() => {
         setIsEffective(isExclude);
       });
     };
@@ -226,7 +243,7 @@ const ListMenuItem = React.memo(
                 status="warning"
                 type="secondary"
                 icon={!isEffective ? <IconPlus /> : <IconMinus />}
-                onClick={() => handleExcludeUrl(item, `*://${url.host}/*`, !isEffective)}
+                onClick={() => handleExcludeUrl(item.uuid, `*://${url.host}/*`, !isEffective)}
               >
                 {(!isEffective ? t("exclude_on") : t("exclude_off")).replace("$0", `${url.host}`)}
               </Button>
@@ -243,9 +260,10 @@ const ListMenuItem = React.memo(
           </div>
         </CollapseItem>
         <div className="arco-collapse-item-content-box flex flex-col" style={{ padding: "0 0 0 40px" }}>
-          {/* 判断菜单数量，再判断是否展开 */}
-          {visibleMenus.map((menu) => {
-            return <MenuItem key={menu.id} menu={menu} uuid={item.uuid} />;
+          {/* 依数量与展开状态决定要显示的分组项（收合时只显示前 menuExpandNum 笔） */}
+          {visibleMenus.map(({ uuid, groupKey, menus }) => {
+            // 不同脚本之间可能出现相同的 groupKey；为避免 React key 冲突，需加上 uuid 做区分。
+            return <MenuItem key={`${uuid}:${groupKey}`} menuItems={menus} uuid={uuid} />;
           })}
           {shouldShowMore && (
             <Button
@@ -281,29 +299,89 @@ const ListMenuItem = React.memo(
       prevProps.url?.href === nextProps.url?.href &&
       prevProps.item === nextProps.item &&
       prevProps.isBackscript === nextProps.isBackscript &&
-      prevProps.menuExpandNum === nextProps.menuExpandNum
+      prevProps.menuExpandNum === nextProps.menuExpandNum &&
+      prevProps.scriptMenus?.menuUpdated === nextProps.scriptMenus?.menuUpdated
     );
   }
 );
 
 ListMenuItem.displayName = "ListMenuItem";
 
-// 用于popup页的脚本操作列表
+type TGrouppedMenus = Record<string, GroupScriptMenuItemsProp> & { __length__?: number };
+
+// Popup 页面使用的脚本/选单清单元件：只负责渲染与互动，状态与持久化交由外部 client 处理。
 const ScriptMenuList = React.memo(
-  ({ script, isBackscript, currentUrl }: { script: ScriptMenu[]; isBackscript: boolean; currentUrl: string }) => {
-    const [list, setList] = useState([] as ScriptMenu[]);
+  ({
+    script,
+    isBackscript,
+    currentUrl,
+    menuExpandNum,
+  }: {
+    script: (ScriptMenu & {
+      menuUpdated?: number;
+    })[];
+    isBackscript: boolean;
+    currentUrl: string;
+    menuExpandNum: number;
+  }) => {
+    const [list, setList] = useState(
+      [] as (ScriptMenu & {
+        menuUpdated?: number;
+      })[]
+    );
     const { t } = useTranslation();
-    const [menuExpandNum, setMenuExpandNum] = useState(5);
+
+    const [grouppedMenus, setGrouppedMenus] = useState<TGrouppedMenus>({});
+
+    // 依 groupKey 进行聚合：将同语义（mainframe/subframe）命令合并为单一分组以供 UI 呈现。
+    useEffect(() => {
+      const list_ = list;
+      setGrouppedMenus((prev) => {
+        const ret = {} as TGrouppedMenus;
+        let changed = false;
+        let retLen = 0;
+        for (const { uuid, menus, menuUpdated: m } of list_) {
+          retLen++;
+          const menuUpdated = m || 0;
+          if (prev[uuid]?.menuUpdated === menuUpdated) {
+            ret[uuid] = prev[uuid];
+            continue; // Skip if unchanged
+          }
+
+          const resultMap = new Map<string, ScriptMenuItem[]>();
+          for (const menu of menus) {
+            const groupKey = menu.groupKey;
+            let m = resultMap.get(groupKey);
+            if (!m) resultMap.set(groupKey, (m = []));
+            m.push(menu);
+          }
+
+          const result = [];
+          for (const [groupKey, arr] of resultMap) {
+            result.push({ uuid, groupKey, menus: arr } as GroupScriptMenuItem);
+          }
+
+          // 输出以 uuid 分组存放；不依赖 list 的迭代顺序以避免不稳定渲染。
+          ret[uuid] = { group: result, menuUpdated };
+          changed = true;
+        }
+        ret.__length__ = retLen;
+        if (!changed && ret.__length__ !== prev.__length__) changed = true;
+
+        // 若无引用变更则维持原物件以降低重渲染
+        return changed ? ret : prev;
+      });
+    }, [list]);
 
     const url = useMemo(() => {
       let url: URL;
       try {
-        // 如果currentUrl为空或无效，使用默认URL
+        // 容错：当 currentUrl 为空或非法时改用预设 URL，避免 URL 解析抛错。
         const urlToUse = currentUrl?.trim() || "https://example.com";
         url = new URL(urlToUse);
       } catch (e: any) {
         console.error("Invalid URL:", e);
-        // 提供一个默认的URL，避免后续代码报错
+        // 提供预设 URL 以确保后续依赖 url 的流程不会中断。
         url = new URL("https://example.com");
       }
       return url;
@@ -311,62 +389,47 @@ const ScriptMenuList = React.memo(
 
     useEffect(() => {
       setList(script);
-      // 注册菜单快捷键
-      const listeners: ((e: KeyboardEvent) => void)[] = [];
-      script.forEach((item) => {
-        item.menus.forEach((menu) => {
-          if (menu.options?.accessKey) {
-            const listener = (e: KeyboardEvent) => {
-              if (e.key.toUpperCase() === menu.options!.accessKey!.toUpperCase()) {
-                sendMenuAction(item.uuid, menu);
-              }
-            };
-            document.addEventListener("keypress", listener);
-            listeners.push(listener);
+      // 注册菜单快速键（accessKey）：以各分组第一个项目的 accessKey 作为触发条件。
+      const checkItems = new Map();
+      for (const [_uuid, menus] of Object.entries(grouppedMenus)) {
+        if (typeof menus !== "object") continue;
+        for (const menu of menus.group) {
+          const menuItem = menu.menus[0]; // 同一分组的语义一致，取首项即可读取 accessKey / name 等共用属性。
+          const { name, options } = menuItem;
+          const accessKey = options?.accessKey;
+          if (typeof accessKey === "string") {
+            checkItems.set(`${menu.uuid}:${menu.groupKey}`, [menu.uuid, accessKey.toUpperCase(), name, menu.menus]);
+          }
+        }
+      }
+      if (!checkItems.size) return;
+      const sharedKeyPressListner = (e: KeyboardEvent) => {
+        const keyUpper = e.key.toUpperCase();
+        checkItems.forEach(([uuid, accessKeyUpper, name, menuItems]) => {
+          if (keyUpper === accessKeyUpper) {
+            // 快速键触发不需传递 options（autoClose 由 sendMenuAction 内部处理）。
+            sendMenuAction(uuid, name, {}, menuItems);
           }
         });
-      });
-      return () => {
-        for (const listener of listeners) {
-          document.removeEventListener("keypress", listener);
-        }
       };
-    }, [script]);
-
-    useEffect(() => {
-      let isMounted = true;
-      // 监听脚本运行状态
-      const unsub = messageQueue.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
-        if (!isMounted) return;
-        setList((prevList) => prevList.map((item) => (item.uuid === uuid ? { ...item, runStatus } : item)));
-      });
-      // 获取配置
-      systemConfig.getMenuExpandNum().then((num) => {
-        if (!isMounted) return;
-        setMenuExpandNum(num);
-      });
+      document.addEventListener("keypress", sharedKeyPressListner);
       return () => {
-        isMounted = false;
-        unsub();
+        checkItems.clear();
+        document.removeEventListener("keypress", sharedKeyPressListner);
       };
-    }, []);
+    }, [script, grouppedMenus]);
 
     const handleDeleteScript = (uuid: string) => {
-      setList((prevList) => prevList.filter((i) => i.uuid !== uuid));
+      // 本地先行移除列表项（乐观更新）；若删除失败会显示错误讯息。
       scriptClient.deletes([uuid]).catch((e) => {
-        Message.error(`{t('delete_failed')}: ${e}`);
+        Message.error(`${t("delete_failed")}: ${e}`);
       });
     };
 
     const onEnableChange = (item: ScriptMenu, checked: boolean) => {
-      scriptClient
-        .enable(item.uuid, checked)
-        .then(() => {
-          setList((prevList) => prevList.map((item1) => (item1 === item ? { ...item1, enable: checked } : item1)));
-        })
-        .catch((err) => {
-          Message.error(err);
-        });
+      scriptClient.enable(item.uuid, checked).catch((err) => {
+        Message.error(err);
+      });
     };
 
     return (
@@ -379,6 +442,7 @@ const ScriptMenuList = React.memo(
               key={`${item.uuid}`}
               url={url}
               item={item}
+              scriptMenus={grouppedMenus[item.uuid] || {}}
               isBackscript={isBackscript}
               onEnableChange={onEnableChange}
               handleDeleteScript={handleDeleteScript}
