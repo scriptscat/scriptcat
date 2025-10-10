@@ -10,12 +10,10 @@
     padding: 0 8px;
 }
 
-.arco-dropdown-menu-item,
-.arco-dropdown-menu-item a {
-    display: flex;
+.option-entry {
+    display: inline-flex;
+    flex-direction: row;
+    vertical-align: middle;
     align-items: center;
-}
-
-:is(.arco-dropdown-menu-pop-header, .arco-dropdown-menu-item, .arco-dropdown-menu-item a) > svg {
-    margin-right: .5em;
+    column-gap: .5rem;
 }

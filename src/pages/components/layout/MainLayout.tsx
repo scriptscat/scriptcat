@@ -241,21 +241,28 @@ const MainLayout: React.FC<{
                 droplist={
                   <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                     <Menu.Item key="/script/editor">
-                      <span onClick={() => openEditor({ template: "" })}>
+                      <span className="option-entry" onClick={() => openEditor({ template: "" })}>
                         <RiFileCodeLine /> {t("create_user_script")}
                       </span>
                     </Menu.Item>
                     <Menu.Item key="background">
-                      <span onClick={() => openEditor({ template: "background", target: "blank" })}>
+                      <span
+                        className="option-entry"
+                        onClick={() => openEditor({ template: "background", target: "blank" })}
+                      >
                         <RiTerminalBoxLine /> {t("create_background_script")}
                       </span>
                     </Menu.Item>
                     <Menu.Item key="crontab">
-                      <span onClick={() => openEditor({ template: "crontab", target: "blank" })}>
+                      <span
+                        className="option-entry"
+                        onClick={() => openEditor({ template: "crontab", target: "blank" })}
+                      >
                         <RiTimerLine /> {t("create_scheduled_script")}
                       </span>
                     </Menu.Item>
                     <Menu.Item
+                      className={"option-entry"}
                       key="import_local"
                       onClick={() => {
                         if ("showOpenFilePicker" in window) {
@@ -283,6 +290,7 @@ const MainLayout: React.FC<{
                       <RiImportLine /> {t("import_by_local")}
                     </Menu.Item>
                     <Menu.Item
+                      className={"option-entry"}
                       key="link"
                       onClick={() => {
                         setImportVisible(true);

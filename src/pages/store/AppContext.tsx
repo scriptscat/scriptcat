@@ -90,14 +90,14 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
   }
 };
 
-function setSpaUrlHash(hashPath: string, replace = true) {
+function replaceHashSilently(nextHash: string) {
   const url = new URL(window.location.href);
-  url.hash = hashPath.startsWith("#") ? hashPath : `#${hashPath}`;
-  if (replace) {
-    history.replaceState(null, "", url);
-  } else {
-    history.pushState(null, "", url); // 若你偶爾想保留紀錄，可以傳 false
-  }
+  const curr = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+  const next = nextHash.startsWith("#") ? nextHash.slice(1) : nextHash;
+  if (curr === next) return; // ✅ 相同就不要動，避免重複觸發
+
+  url.hash = next; // 只改 URL 物件中的 hash
+  history.replaceState({ __fromOverlayEditor: true }, "", url.toString()); // ✅ 靜默替換，不觸發 hashchange
 }
 
 function buildEditorHash(params?: { uuid?: string; template?: string; target?: "blank" | "initial" }) {
@@ -124,7 +124,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setEditorParams(params);
     setEditorOpen(true);
     // 不新增歷史紀錄：用 replace
-    setSpaUrlHash(buildEditorHash(params), true);
+    replaceHashSilently(buildEditorHash(params));
   }, []);
 
   const closeEditor = useCallback(() => {
@@ -137,7 +137,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // 提供給 Core，在切換 tab/建立新稿時更新 hash（仍使用 replace）
   const updateEditorHash = useCallback((params: { uuid?: string; template?: string; target?: "blank" | "initial" }) => {
-    setSpaUrlHash(buildEditorHash(params), true);
+    replaceHashSilently(buildEditorHash(params));
   }, []);
 
   const [colorThemeState, setColorThemeState] = useState<"auto" | "light" | "dark">(() => {

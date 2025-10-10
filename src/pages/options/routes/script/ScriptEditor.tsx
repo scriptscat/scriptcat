@@ -1,7 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
@@ -171,7 +171,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
   return {
     script,
     code,
-    active: true,
+    // active: true, // ← 不再回傳 active，由呼叫端用 setActiveUuid 控制
     hotKeys,
     isChanged: false,
   };
@@ -188,7 +188,6 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     {
       script: Script;
       code: string;
-      active: boolean;
       hotKeys: HotKey[];
       editor?: editor.IStandaloneCodeEditor;
       isChanged: boolean;
@@ -206,9 +205,15 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
 
+  // 目前活躍的 editor（用 uuid 指定）
+  const [activeUuid, setActiveUuid] = useState<string>("");
+
+  // 保留當前活躍的 monaco 實例，切 tab/開啟 overlay 後可 layout()/focus()
+  const activeEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
   const { t } = useTranslation();
-  const scriptDAO = new ScriptDAO();
-  const scriptCodeDAO = new ScriptCodeDAO();
+  const scriptDAO = useMemo(() => new ScriptDAO(), []);
+  const scriptCodeDAO = useMemo(() => new ScriptCodeDAO(), []);
 
   const setShow = (key: visibleItem, show: boolean) => {
     for (const k of Object.keys(visible)) {
@@ -432,7 +437,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   const hotKeys: HotKey[] = [];
   let activeTab = "";
   for (let i = 0; i < editors.length; i += 1) {
-    if (editors[i].active) {
+    if (editors[i].script.uuid === activeUuid) {
       activeTab = i.toString();
       break;
     }
@@ -458,77 +463,67 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         setCanLoadScript(true);
       });
     }
+  }, [pageInit]);
+
+  useEffect(() => {
     // 恢复标题
     return () => {
       document.title = "Home - ScriptCat";
     };
-  }, [pageInit]);
+  }, []);
 
   // Instead of reading from URL, compute once from props:
   const memoParamsKey = useMemo(() => {
     return `${uuid || ""}|${template || ""}|${target || ""}`;
   }, [uuid, template, target]);
 
+  // NEW: remember which params we've already handled (per overlay session)
+  const handledParamsRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!canLoadScript) return;
 
+    if (handledParamsRef.current === memoParamsKey) return;
+    handledParamsRef.current = memoParamsKey; // mark handled
     const [uuid, template, target] = memoParamsKey.split("|");
 
-    // 如果有id则打开对应的脚本
+    // 如果有id則打開對應的腳本
     if (uuid) {
-      const [scripts] = [scriptList];
-      for (let i = 0; i < scripts.length; i += 1) {
-        if (scripts[i].uuid === uuid) {
-          // 如果已经打开则激活
-          scriptCodeDAO.findByUUID(uuid).then((code) => {
-            const uuid = scripts[i].uuid;
-            setEditors((prev) => {
-              const flag = prev.some((item) => item.script.uuid === uuid);
-              if (flag) {
-                return prev.map((item) =>
-                  item.script.uuid === uuid
-                    ? {
-                        ...item,
-                        active: true,
-                      }
-                    : {
-                        ...item,
-                        active: false,
-                      }
-                );
-              } else {
-                const newEditor = {
-                  script: scripts[i],
-                  code: code?.code || "",
-                  active: true,
-                  hotKeys,
-                  isChanged: false,
-                };
-                return [...prev, newEditor];
-              }
-            });
-            setSelectSciptButtonAndTab(uuid);
-          });
-          break;
-        }
-      }
-    } else {
-      emptyScript(template || "", hotKeys, target || "blank").then((e) => {
+      const scripts = scriptList;
+      const found = scripts.find((s) => s.uuid === uuid);
+      if (!found) return; // nothing to open yet (list not ready)
+      scriptCodeDAO.findByUUID(uuid).then((code) => {
         setEditors((prev) => {
-          prev.forEach((item) => {
-            if (item) {
-              item.active = false;
-            }
-          });
-          const uuid = e?.script?.uuid;
-          if (uuid) {
+          const exists = prev.some((it) => it.script.uuid === uuid);
+          if (exists) {
+            // 如果已經打開，只需切到該 tab
+            setActiveUuid(uuid);
             setSelectSciptButtonAndTab(uuid);
+            return prev;
           }
+          // 否則建立一個新的 editor（僅新增，不標 active）
+          const newEditor = {
+            script: found,
+            code: code?.code || "",
+            hotKeys,
+            isChanged: false,
+          };
+          setActiveUuid(found.uuid);
+          setSelectSciptButtonAndTab(found.uuid);
+          return [...prev, newEditor];
+        });
+      });
+    } else {
+      // 新建空白腳本
+      emptyScript(template || "", hotKeys, (target as any) || "blank").then((e) => {
+        setEditors((prev) => {
+          setActiveUuid(e.script.uuid);
+          setSelectSciptButtonAndTab(e.script.uuid);
           return [...prev, e];
         });
       });
     }
-  }, [canLoadScript, memoParamsKey]);
+  }, [canLoadScript, memoParamsKey, hotKeys, scriptCodeDAO, scriptList]);
 
   // === onbeforeunload & popstate only when NOT overlay ===
   useEffect(() => {
@@ -562,17 +557,17 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
 
   // 取得目前活躍 editor
   useEffect(() => {
-    const active = editors.find((e) => e.active);
+    if (!onUrlChange) return;
+    const active = editors.find((e) => e.script.uuid === activeUuid);
     if (!active) return;
 
+    // 開啟既有腳本就用 uuid；否則帶 template/target（保持你的行為）
     if (active.script?.uuid && active.script.createtime !== 0) {
-      // 開啟既有腳本
-      onUrlChange?.({ uuid: active.script.uuid });
+      onUrlChange({ uuid: active.script.uuid });
     } else {
-      // 新建空白：帶上 template/target（如果有資料）
-      onUrlChange?.({ template: template || "", target: target || "blank" });
+      onUrlChange({ template: template || "", target: target || "blank" });
     }
-  }, [editors, onUrlChange, template, target]);
+  }, [activeUuid, editors, onUrlChange, template, target]);
 
   // 对tab点击右键进行的操作
   useEffect(() => {
@@ -580,68 +575,86 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
     if (rightOperationTab) {
       switch (rightOperationTab.key) {
-        case "1":
+        case "1": // 关闭当前
           setEditors((prev) => {
-            prev = prev.filter((item) => item.script.uuid !== rightOperationTab.uuid);
-            if (prev.length > 0) {
-              // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
-              if (rightOperationTab.selectSciptButtonAndTab === rightOperationTab.uuid) {
-                prev[0] = {
-                  ...prev[0],
-                  active: true,
-                };
-                const chooseTabUUID = prev[0].script.uuid;
-                setSelectSciptButtonAndTab(chooseTabUUID);
-                return prev;
-              } else {
-                const prevTabUUID = rightOperationTab.selectSciptButtonAndTab;
-                setSelectSciptButtonAndTab(prevTabUUID);
-                // 之前选中的tab
-                return prev.map((item) =>
-                  item.script.uuid === prevTabUUID
-                    ? {
-                        ...item,
-                        active: true,
-                      }
-                    : {
-                        ...item,
-                        active: false,
-                      }
-                );
-              }
-            } else {
+            const targetUuid = rightOperationTab.uuid;
+            const filtered = prev.filter((item) => item.script.uuid !== targetUuid);
+
+            if (filtered.length === 0) {
               return [];
             }
+
+            // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
+            if (rightOperationTab.selectSciptButtonAndTab === targetUuid) {
+              const chooseTabUUID = filtered[0].script.uuid;
+              setSelectSciptButtonAndTab(chooseTabUUID);
+              setActiveUuid(chooseTabUUID); // 改為設定當前活躍
+            } else {
+              const prevTabUUID = rightOperationTab.selectSciptButtonAndTab;
+              setSelectSciptButtonAndTab(prevTabUUID);
+              setActiveUuid(prevTabUUID); // 之前选中的tab保持活跃
+            }
+            return filtered;
           });
           break;
-        case "2":
+
+        case "2": // 关闭其它
           setSelectSciptButtonAndTab(rightOperationTab.uuid);
-          setEditors((prev) => prev.filter((item) => item.script.uuid === rightOperationTab.uuid));
+          setEditors((prev) => {
+            const only = prev.filter((item) => item.script.uuid === rightOperationTab.uuid);
+            // 只保留當前，直接設為活躍
+            setActiveUuid(rightOperationTab.uuid);
+            return only;
+          });
           break;
-        case "3":
+
+        case "3": // 关闭左侧
           setEditors((prev) => {
             prev.some((item, index) => {
               if (item.script.uuid === rightOperationTab.uuid) {
                 selectEditorIndex = index;
                 return true;
               }
+              return false;
             });
-            return prev.slice(selectEditorIndex);
+            const sliced = prev.slice(selectEditorIndex);
+
+            // 如果當前活躍的 tab 被砍掉了，就把活躍設為右鍵點選的那個
+            const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
+            if (!stillActive) {
+              setActiveUuid(rightOperationTab.uuid);
+              setSelectSciptButtonAndTab(rightOperationTab.uuid);
+            }
+            return sliced;
           });
           break;
-        case "4":
+
+        case "4": // 关闭右侧
           setEditors((prev) => {
             prev.some((item, index) => {
               if (item.script.uuid === rightOperationTab.uuid) {
                 selectEditorIndex = index;
                 return true;
               }
+              return false;
             });
-            return prev.slice(0, selectEditorIndex + 1);
+            const sliced = prev.slice(0, selectEditorIndex + 1);
+
+            // 如果當前活躍的 tab 被砍掉了，就把活躍設為右鍵點選的那個
+            const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
+            if (!stillActive) {
+              setActiveUuid(rightOperationTab.uuid);
+              setSelectSciptButtonAndTab(rightOperationTab.uuid);
+            }
+            return sliced;
           });
+          break;
+
+        default:
+          break;
       }
     }
-  }, [rightOperationTab]);
+  }, [rightOperationTab, activeUuid, setActiveUuid, setSelectSciptButtonAndTab]);
 
   // 通用的编辑器删除处理函数
   const handleDeleteEditor = (targetUuid: string, needConfirm: boolean = false) => {
@@ -662,36 +675,49 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
       if (prev.length === 1) {
         emptyScript(template || "", hotKeys, "blank").then((e) => {
           setEditors([e]);
+          setActiveUuid(e.script.uuid);
           setSelectSciptButtonAndTab(e.script.uuid);
         });
         return prev;
       }
 
       // 删除目标编辑器
-      prev = prev.filter((_, index) => index !== targetIndex);
+      const next = prev.filter((_, index) => index !== targetIndex);
 
-      // 如果删除的是当前激活的编辑器，需要激活其他编辑器
-      if (targetEditor.active && prev.length > 0) {
-        let nextActiveIndex;
-        if (targetIndex >= prev.length) {
+      // 如果删除的是当前活跃的编辑器，需要激活其他编辑器
+      if (targetEditor.script.uuid === activeUuid && next.length > 0) {
+        let nextActiveIndex: number;
+        if (targetIndex >= next.length) {
           // 如果删除的是最后一个，激活前一个
-          nextActiveIndex = prev.length - 1;
+          nextActiveIndex = next.length - 1;
         } else {
           // 否则激活下一个（原来的下一个现在在同样的位置）
           nextActiveIndex = targetIndex;
         }
-        prev[nextActiveIndex].active = true;
-        setSelectSciptButtonAndTab(prev[nextActiveIndex].script.uuid);
+        const u = next[nextActiveIndex].script.uuid;
+        setActiveUuid(u);
+        setSelectSciptButtonAndTab(u);
       }
 
-      return prev;
+      return next;
     });
   };
 
   // 处理编辑器激活状态变化时的focus
   useEffect(() => {
-    editors.forEach((item) => {
-      if (item.active && item.editor) {
+    let activeUuid: string;
+    let editors: {
+      script: Script;
+      code: string;
+      hotKeys: HotKey[];
+      editor?: editor.IStandaloneCodeEditor;
+      isChanged: boolean;
+    }[];
+    setActiveUuid((v) => (activeUuid = v));
+    setEditors((v) => (editors = v));
+    if (!editors! || !activeUuid!) return;
+    editors!.forEach((item) => {
+      if (item.script.uuid === activeUuid && item.editor) {
         setTimeout(() => {
           item.editor?.focus();
         }, 100);
@@ -759,7 +785,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                   onClick={() => {
                     setEditors((prev) => {
                       prev.forEach((e) => {
-                        if (e.active) {
+                        if (e.script.uuid === activeUuid) {
                           item.action && item.action(e.script, e.editor!);
                         }
                       });
@@ -796,7 +822,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                           onClick={() => {
                             setEditors((prev) => {
                               prev.forEach((e) => {
-                                if (e.active) {
+                                if (e.script.uuid === activeUuid) {
                                   menuItem.action(e.script, e.editor!);
                                 }
                               });
@@ -945,32 +971,29 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                       onClick={() => {
                         setSelectSciptButtonAndTab(script.uuid);
                         // 如果已经打开则激活
-                        let flag = false;
-                        for (let i = 0; i < editors.length; i += 1) {
-                          if (editors[i].script.uuid === script.uuid) {
-                            editors[i].active = true;
-                            flag = true;
-                          } else {
-                            editors[i].active = false;
+                        const alreadyOpen = editors.some((e) => e.script.uuid === script.uuid);
+                        if (alreadyOpen) {
+                          // 改為設定當前活躍的 uuid，不要去改每個 item 的 active
+                          setActiveUuid(script.uuid);
+                          return;
+                        }
+
+                        // 如果没有打开则打开
+                        // 获取code
+                        scriptCodeDAO.findByUUID(script.uuid).then((code) => {
+                          if (!code) {
+                            return;
                           }
-                        }
-                        if (!flag) {
-                          // 如果没有打开则打开
-                          // 获取code
-                          scriptCodeDAO.findByUUID(script.uuid).then((code) => {
-                            if (!code) {
-                              return;
-                            }
-                            const newEditor = {
-                              script,
-                              code: code.code,
-                              active: true,
-                              hotKeys,
-                              isChanged: false,
-                            };
-                            setEditors((prev) => [...prev, newEditor]);
-                          });
-                        }
+                          const newEditor = {
+                            script,
+                            code: code.code,
+                            hotKeys,
+                            isChanged: false,
+                          };
+                          setEditors((prev) => [...prev, newEditor]);
+                          // 新加入後設為當前活躍
+                          setActiveUuid(script.uuid);
+                        });
                       }}
                     >
                       <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
@@ -1024,35 +1047,28 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         <Col span={hiddenScriptList ? 24 : 20} className="flex! flex-col h-full">
           <Tabs
             editable
-            activeTab={activeTab}
+            activeTab={(() => {
+              const idx = editors.findIndex((e) => e.script.uuid === activeUuid);
+              return String(Math.max(0, idx));
+            })()}
             className="edit-tabs"
             type="card-gutter"
             style={{
               overflow: "inherit",
             }}
             onChange={(index: string) => {
-              setEditors((prev) =>
-                prev.map((editor, i) =>
-                  `${i}` === index
-                    ? {
-                        ...editor,
-                        active:
-                          (setSelectSciptButtonAndTab(editor.script.uuid), // 需要用 microTask 推遲嗎？
-                          true),
-                      }
-                    : {
-                        ...editor,
-                        active: false,
-                      }
-                )
-              );
+              // 只改 activeUuid，不要去 map 整個陣列 flip active
+              const i = Number(index);
+              const uuid = editors[i]?.script.uuid;
+              if (uuid) {
+                setActiveUuid(uuid);
+                setSelectSciptButtonAndTab(uuid); // 需要用 microTask 推遲嗎？保持你的原註解
+              }
             }}
             onAddTab={() => {
               emptyScript(template || "", hotKeys, "blank").then((e) => {
                 setEditors((prev) => {
-                  prev.forEach((item) => {
-                    item.active = false;
-                  });
+                  setActiveUuid(e.script.uuid);
                   setSelectSciptButtonAndTab(e.script.uuid);
                   return [...prev, e];
                 });
@@ -1062,7 +1078,9 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               const i = parseInt(index, 10);
               const targetUuid = editors[i]?.script.uuid;
               if (targetUuid) {
+                // 復用你原本的刪除函數（含二次確認與空白建檔）
                 handleDeleteEditor(targetUuid, true);
+                // handleDeleteEditor 會自己處理 activeUuid 的鄰居選擇（見第 4 點修改）
               }
             }}
           >
@@ -1098,7 +1116,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                           ? "rgb(var(--orange-5))"
                           : e.script.uuid === selectSciptButtonAndTab
                             ? "rgb(var(--green-7))"
-                            : e.active
+                            : e.script.uuid === activeUuid
                               ? "rgb(var(--green-7))"
                               : "var(--color-text-1)",
                       }}
@@ -1110,19 +1128,20 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               />
             ))}
           </Tabs>
-          <div className="flex flex-grow flex-1">
-            {editors.map((item) => {
-              if (item.active) {
-                document.title = `${i18nName(item.script)} - Script Editor`;
+          {/* 只渲染當前活躍的編輯器，避免隱藏的 Monaco 造成 reflow/jank */}
+          <div className="flex flex-grow flex-1 w-full">
+            {(() => {
+              const item = editors.find((e) => e.script.uuid === activeUuid);
+              if (!item) return null;
+
+              if (item) {
+                if (item.script && item.script.name && item.script.uuid === activeUuid) {
+                  document.title = `${i18nName(item.script)} - Script Editor`;
+                }
               }
+
               return (
-                <div
-                  className="w-full"
-                  key={`fe_${item.script.uuid}`}
-                  style={{
-                    display: item.active ? "block" : "none",
-                  }}
-                >
+                <div className="w-full" key={`fe_${item.script.uuid}`} style={{ display: "block" }}>
                   <WarpEditor
                     className="script-code-editor"
                     key={`e_${item.script.uuid}`}
@@ -1131,13 +1150,22 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                     code={item.code}
                     hotKeys={item.hotKeys}
                     callbackEditor={(e) => {
+                      activeEditorRef.current = e;
                       setEditors((prev) =>
                         prev.map((v) =>
                           v.script.uuid === item.script.uuid
                             ? {
                                 ...v,
+                                /* 编辑器实例创建后立即聚焦一次 */
                                 editor:
-                                  (v.active && setTimeout(() => e.focus(), 100), // 编辑器实例创建后立即聚焦一次
+                                  (setTimeout(() => {
+                                    try {
+                                      e.layout();
+                                      e.focus();
+                                    } catch {
+                                      // 忽略失敗
+                                    }
+                                  }, 100),
                                   e),
                               }
                             : v
@@ -1159,7 +1187,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                   />
                 </div>
               );
-            })}
+            })()}
           </div>
         </Col>
       </Row>

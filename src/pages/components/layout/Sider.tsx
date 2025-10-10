@@ -1,5 +1,5 @@
 import Logger from "@App/pages/options/routes/Logger";
-import ScriptEditor from "@App/pages/options/routes/script/ScriptEditor";
+import ScriptEditorRoute from "@App/pages/options/routes/script/ScriptEditorRoute";
 import ScriptList from "@App/pages/options/routes/ScriptList";
 import Setting from "@App/pages/options/routes/Setting";
 import SubscribeList from "@App/pages/options/routes/SubscribeList";
@@ -169,8 +169,8 @@ const Sider: React.FC = () => {
         <Routes>
           <Route index element={<ScriptList />} />
           <Route path="/script/editor">
-            <Route path=":uuid" element={<ScriptEditor />} />
-            <Route path="" element={<ScriptEditor />} />
+            <Route path=":uuid" element={<ScriptEditorRoute />} />
+            <Route path="" element={<ScriptEditorRoute />} />
           </Route>
           <Route path="/subscribe" element={<SubscribeList />} />
           <Route path="/logger" element={<Logger />} />
