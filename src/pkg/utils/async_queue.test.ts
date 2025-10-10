@@ -8,7 +8,7 @@ import { clearStack, stackAsyncTask } from "./async_queue";
 const generateKey = (prefix: string) => `${prefix}-${Math.random()}`;
 
 /**
- * 工具：可控延時的異步函數
+ * 工具：可控延时的异步函数
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
