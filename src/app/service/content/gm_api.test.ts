@@ -6,8 +6,6 @@ import { compileScript, compileScriptCode } from "./utils";
 import type { Message } from "@Packages/message/types";
 import { encodeMessage } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";
-import { console } from "inspector";
-
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
