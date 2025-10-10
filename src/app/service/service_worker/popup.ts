@@ -193,10 +193,10 @@ export class PopupService {
       const { uuid, key, name } = message;
       const script = scripts.get(uuid);
       if (!script) continue;
+      const menus = script.menus;
 
       if (listEntry.registerType === ScriptMenuRegisterType.REGISTER) {
-        const menus = script.menus;
-        retUpdated.add(script.uuid);
+        retUpdated.add(uuid);
         // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
         // groupKey 用来表示「相同性质的项目」，允许重叠。
         // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
@@ -227,7 +227,6 @@ export class PopupService {
           menu.groupKey = groupKey;
         }
       } else if (listEntry.registerType === ScriptMenuRegisterType.UNREGISTER) {
-        const menus = script.menus;
         // 删除菜单
         const index = menus.findIndex((item) => item.key === key);
         if (index >= 0) {
