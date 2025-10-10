@@ -25,6 +25,7 @@ import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
+import i18n, { i18nName } from "@App/locales/locales";
 
 // type SynchronizeTarget = "local";
 
@@ -390,7 +391,10 @@ export class SynchronizeService {
                 if (metaObj.isDeleted) {
                   if (script) {
                     this.script.deleteScript(script.uuid);
-                    InfoNotification("脚本删除同步", `脚本${script.name}已被删除`);
+                    InfoNotification(
+                      i18n.t("notification.script_sync_delete"),
+                      i18n.t("notification.script_sync_delete_desc", { scriptName: i18nName(script) })
+                    );
                   }
                   scriptMap.delete(uuid);
                 } else {

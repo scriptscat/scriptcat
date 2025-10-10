@@ -526,5 +526,11 @@
   "error_script_type_mismatch": "Loại script không khớp: script thường và nền không thể chuyển đổi cho nhau",
   "error_old_script_code_missing": "Không tìm thấy mã script cũ",
   "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
-  "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API"
+  "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
+  "notification": {
+    "script_sync_delete": "Đồng bộ xóa script",
+    "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
+    "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
+    "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
+  }
 }

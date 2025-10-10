@@ -526,5 +526,11 @@
   "error_script_type_mismatch": "Script type mismatch: normal and background scripts cannot be converted",
   "error_old_script_code_missing": "Previous script code not found",
   "error_subscribe_name_required": "Subscription name is required",
-  "error_grant_conflict": "@grant declares both 'none' and GM API"
+  "error_grant_conflict": "@grant declares both 'none' and GM API",
+  "notification": {
+    "script_sync_delete": "Script Sync Delete",
+    "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
+    "subscribe_update": "Subscribe {{subscribeName}} has been updated",
+    "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
+  }
 }

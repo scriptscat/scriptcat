@@ -526,5 +526,11 @@
   "error_script_type_mismatch": "Несоответствие типа скрипта: обычные и фоновые скрипты нельзя преобразовывать",
   "error_old_script_code_missing": "Предыдущий код скрипта не найден",
   "error_subscribe_name_required": "Имя подписки обязательно",
-  "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API"
+  "error_grant_conflict": "@grant одновременно объявляет 'none' и GM API",
+  "notification": {
+    "script_sync_delete": "Синхронизация удаления скрипта",
+    "script_sync_delete_desc": "Скрипт {{scriptName}} был удален",
+    "subscribe_update": "Подписка {{subscribeName}} была обновлена",
+    "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}"
+  }
 }

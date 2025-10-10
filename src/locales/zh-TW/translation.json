@@ -526,5 +526,11 @@
   "error_script_type_mismatch": "腳本類型不相容，前臺腳本與後臺腳本不可互轉",
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
-  "error_grant_conflict": "@grant 同時宣告了 none 與 GM API"
+  "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
+  "notification": {
+    "script_sync_delete": "腳本刪除同步",
+    "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
+    "subscribe_update": "訂閱 {{subscribeName}} 已更新",
+    "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
+  }
 }

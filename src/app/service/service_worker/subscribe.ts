@@ -15,6 +15,7 @@ import { fetchScriptBody, parseMetadata, prepareSubscribeByCode } from "@App/pkg
 import { cacheInstance } from "@App/app/cache";
 import { v4 as uuidv4 } from "uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
+import i18n, { i18nName } from "@App/locales/locales";
 
 export class SubscribeService {
   logger: Logger;
@@ -120,7 +121,7 @@ export class SubscribeService {
             url,
             uuid: script.uuid,
           };
-          notification[0].push(script.name);
+          notification[0].push(i18nName(script));
           return true;
         })().catch((e) => {
           logger.error("install script failed", Logger.E(e));
@@ -135,7 +136,7 @@ export class SubscribeService {
         (async () => {
           const script = await this.scriptDAO.findByUUID(item.uuid);
           if (script) {
-            notification[1].push(script.name);
+            notification[1].push(i18nName(script));
             // 删除脚本
             this.scriptService.deleteScript(script.uuid);
           }
@@ -151,7 +152,13 @@ export class SubscribeService {
 
     await this.subscribeDAO.update(subscribe.url, subscribe);
 
-    InfoNotification("订阅更新", `安装了:${notification[0].join(",")}\n删除了:${notification[1].join("\n")}`);
+    InfoNotification(
+      i18n.t("notification.subscribe_update", { subscribeName: subscribe.name }),
+      i18n.t("notification.subscribe_update_desc", {
+        newScripts: notification[0].join(","),
+        deletedScripts: notification[1].join(","),
+      })
+    );
 
     logger.info("subscribe update", {
       install: notification[0],
