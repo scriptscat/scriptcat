@@ -517,5 +517,20 @@
   "switch_to_table_mode": "In den Tabellenmodus wechseln",
   "open_sidebar": "Öffne die Seitenleiste",
   "close_sidebar": "Schließe die Seitenleiste",
-  "no_message_content": "Kein Nachrichteninhalt"
+  "no_message_content": "Kein Nachrichteninhalt",
+  "error_metadata_invalid": "MetaData-Block ist ungültig",
+  "error_script_name_required": "Skriptname ist erforderlich",
+  "error_script_version_required": "Skript @version ist erforderlich",
+  "error_script_namespace_required": "Skript @namespace ist erforderlich",
+  "error_cron_invalid": "Ungültiger Cron-Ausdruck: {{expr}}",
+  "error_script_type_mismatch": "Skripttyp stimmt nicht überein: Normale und Hintergrundskripte können nicht konvertiert werden",
+  "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
+  "error_subscribe_name_required": "Abonnementname ist erforderlich",
+  "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
+  "notification": {
+    "script_sync_delete": "Skript-Löschsynchronisation",
+    "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
+    "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
+    "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
+  }
 }

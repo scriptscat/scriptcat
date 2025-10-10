@@ -517,5 +517,20 @@
   "switch_to_table_mode": "切换到表格模式",
   "open_sidebar": "打开侧边栏",
   "close_sidebar": "关闭侧边栏",
-  "no_message_content": "无消息内容"
+  "no_message_content": "无消息内容",
+  "error_metadata_invalid": "MetaData 信息错误",
+  "error_script_name_required": "脚本名不能为空",
+  "error_script_version_required": "脚本 @version 版本不能为空",
+  "error_script_namespace_required": "脚本 @namespace 命名空间不能为空",
+  "error_cron_invalid": "错误的定时表达式，请检查：{{expr}}",
+  "error_script_type_mismatch": "脚本类型不匹配，普通脚本与后台脚本不能互相转换",
+  "error_old_script_code_missing": "旧的脚本代码不存在",
+  "error_subscribe_name_required": "订阅名不能为空",
+  "error_grant_conflict": "@grant 同时声明了 none 和 GM API",
+  "notification": {
+    "script_sync_delete": "脚本删除同步",
+    "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
+    "subscribe_update": "订阅 {{subscribeName}} 已更新",
+    "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
+  }
 }
