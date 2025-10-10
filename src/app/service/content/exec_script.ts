@@ -5,7 +5,7 @@ import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
-import type { ValueUpdateData } from "./types";
+import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_info";
 import { type IGM_Base } from "./gm_api";
 
@@ -64,7 +64,7 @@ export default class ExecScript {
     this.sandboxContext?.emitEvent(event, eventId, data);
   }
 
-  valueUpdate(data: ValueUpdateData) {
+  valueUpdate(data: ValueUpdateDataEncoded) {
     this.sandboxContext?.valueUpdate(data);
   }
 

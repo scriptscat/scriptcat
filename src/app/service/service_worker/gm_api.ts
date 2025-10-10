@@ -30,6 +30,8 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 import { BrowserNoSupport, notificationsUpdate } from "./utils";
 import i18n from "@App/locales/locales";
+import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
+import { type TGMKeyValue } from "@App/app/repo/value";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -309,16 +311,30 @@ export default class GMApi {
     return true;
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_setValues", "GM_deleteValues"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue"] })
   async GM_setValue(request: Request, sender: IGetSender) {
-    if (!request.params || request.params.length < 1) {
+    if (!request.params || request.params.length < 2) {
       throw new Error("param is failed");
     }
-    const [key, value] = request.params;
-    await this.value.setValue(request.script.uuid, key, value, {
+    const [id, key, value] = request.params as [string, string, any];
+    await this.value.setValue(request.script.uuid, id, key, value, {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
     });
+  }
+
+  @PermissionVerify.API({ link: ["GM_deleteValues"] })
+  async GM_setValues(request: Request, sender: IGetSender) {
+    if (!request.params || request.params.length !== 2) {
+      throw new Error("param is failed");
+    }
+    const [id, valuesNew] = request.params as [string, TEncodedMessage<TGMKeyValue>];
+    const values = decodeMessage(valuesNew);
+    const valueSender = {
+      runFlag: request.runFlag,
+      tabId: sender.getSender()?.tab?.id || -1,
+    };
+    await this.value.setValues(request.script.uuid, id, values, valueSender, false);
   }
 
   @PermissionVerify.API()

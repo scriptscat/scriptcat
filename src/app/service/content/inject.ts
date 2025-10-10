@@ -4,7 +4,7 @@ import { ExternalWhitelist } from "@App/app/const";
 import { sendMessage } from "@Packages/message/client";
 import type { ScriptExecutor } from "./script_executor";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
-import type { GMInfoEnv, ValueUpdateData } from "./types";
+import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 
 export class InjectRuntime {
   constructor(
@@ -20,7 +20,7 @@ export class InjectRuntime {
       // 转发给脚本
       this.scriptExecutor.emitEvent(data);
     });
-    this.server.on("runtime/valueUpdate", (data: ValueUpdateData) => {
+    this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
       this.scriptExecutor.valueUpdate(data);
     });
 

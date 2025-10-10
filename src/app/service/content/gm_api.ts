@@ -8,25 +8,34 @@ import type {
   TScriptMenuItemID,
   TScriptMenuItemKey,
 } from "../service_worker/types";
-import { base64ToBlob, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
+import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import type { ValueUpdateData } from "./types";
+import type { ValueUpdateDataEncoded } from "./types";
 import type { MessageRequest } from "../service_worker/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { getStorageName } from "@App/pkg/utils/utils";
+import { ListenerManager } from "./listener_manager";
+import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
+import { type TGMKeyValue } from "@App/app/repo/value";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateData): void;
+  valueUpdate(data: ValueUpdateDataEncoded): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
 const integrity = {}; // 仅防止非法实例化
+
+let valChangeCounterId = 0;
+
+let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+
+const valueChangePromiseMap = new Map<string, any>();
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -55,7 +64,7 @@ class GM_Base implements IGM_Base {
 
   // Extension Context 无效时释放 valueChangeListener
   @GMContext.protected()
-  protected valueChangeListener?: Map<number, { name: string; listener: GMTypes.ValueChangeListener }> | null;
+  protected valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
 
   // Extension Context 无效时释放 EE
   @GMContext.protected()
@@ -131,22 +140,32 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateData) {
+  public valueUpdate(data: ValueUpdateDataEncoded) {
     if (!this.scriptRes || !this.valueChangeListener) return;
-    if (data.uuid === this.scriptRes.uuid || data.storageName === getStorageName(this.scriptRes)) {
-      // 触发,并更新值
-      if (data.value === undefined) {
-        if (this.scriptRes.value[data.key] !== undefined) {
-          delete this.scriptRes.value[data.key];
+    const scriptRes = this.scriptRes;
+    const { id, uuid, entries, storageName, sender } = data;
+    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+      const valueStore = scriptRes.value;
+      const remote = sender.runFlag !== this.runFlag;
+      if (!remote && id) {
+        const fn = valueChangePromiseMap.get(id);
+        if (fn) {
+          valueChangePromiseMap.delete(id);
+          fn();
         }
-      } else {
-        this.scriptRes.value[data.key] = data.value;
       }
-      this.valueChangeListener.forEach((item) => {
-        if (item.name === data.key) {
-          item.listener(data.key, data.oldValue, data.value, data.sender.runFlag !== this.runFlag, data.sender.tabId);
+      const entries_ = decodeMessage(entries);
+      for (const [key, value, oldValue] of entries_) {
+        // 触发,并更新值
+        if (value === undefined) {
+          if (valueStore[key] !== undefined) {
+            delete valueStore[key];
+          }
+        } else {
+          valueStore[key] = value;
         }
-      });
+        this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+      }
     }
   }
 
@@ -170,7 +189,7 @@ export default class GMApi extends GM_Base {
     public scriptRes: ScriptRunResource | undefined
   ) {
     // testing only 仅供测试用
-    const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+    const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
     const EE = new EventEmitter<string, any>();
     let invalid = false;
     super(
@@ -225,85 +244,123 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_setValue(a: GMApi, key: string, value: any) {
+  static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
     if (!a.scriptRes) return;
+    if (valChangeCounterId > 1e8) {
+      // 防止 valChangeCounterId 过大导致无法正常工作
+      valChangeCounterId = 0;
+      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+    }
+    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    if (promise) {
+      valueChangePromiseMap.set(id, promise);
+    }
     // 对object的value进行一次转化
-    if (typeof value === "object") {
+    if (value && typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
     }
     if (value === undefined) {
       delete a.scriptRes.value[key];
-      a.sendMessage("GM_setValue", [key]);
+      a.sendMessage("GM_setValue", [id, key]);
     } else {
       a.scriptRes.value[key] = value;
-      a.sendMessage("GM_setValue", [key, value]);
+      a.sendMessage("GM_setValue", [id, key, value]);
     }
+    return id;
+  }
+
+  static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
+    if (!a.scriptRes) return;
+    if (valChangeCounterId > 1e8) {
+      // 防止 valChangeCounterId 过大导致无法正常工作
+      valChangeCounterId = 0;
+      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+    }
+    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    if (promise) {
+      valueChangePromiseMap.set(id, promise);
+    }
+    const valueStore = a.scriptRes.value;
+    for (const [key, value] of Object.entries(values)) {
+      let value_ = value;
+      // 对object的value进行一次转化
+      if (value_ && typeof value_ === "object") {
+        value_ = JSON.parse(JSON.stringify(value_));
+      }
+      if (value_ === undefined) {
+        if (valueStore[key]) delete valueStore[key];
+      } else {
+        valueStore[key] = value_;
+      }
+    }
+    // 避免undefined 等空值流失，先进行映射处理
+    const valuesNew = encodeMessage(values);
+    a.sendMessage("GM_setValues", [id, valuesNew]);
+    return id;
   }
 
   @GMContext.API()
   public GM_setValue(key: string, value: any) {
-    _GM_setValue(this, key, value);
+    _GM_setValue(this, null, key, value);
   }
 
   @GMContext.API()
   public ["GM.setValue"](key: string, value: any): Promise<void> {
     // Asynchronous wrapper for GM_setValue to support GM.setValue
     return new Promise((resolve) => {
-      _GM_setValue(this, key, value);
-      resolve();
+      _GM_setValue(this, resolve, key, value);
     });
   }
 
   @GMContext.API()
-  public GM_deleteValue(name: string): void {
-    _GM_setValue(this, name, undefined);
+  public GM_deleteValue(key: string): void {
+    _GM_setValue(this, null, key, undefined);
   }
 
   @GMContext.API()
-  public ["GM.deleteValue"](name: string): Promise<void> {
+  public ["GM.deleteValue"](key: string): Promise<void> {
     // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
     return new Promise((resolve) => {
-      _GM_setValue(this, name, undefined);
-      resolve();
+      _GM_setValue(this, resolve, key, undefined);
     });
   }
 
   @GMContext.API()
   public GM_listValues(): string[] {
     if (!this.scriptRes) return [];
-    return Object.keys(this.scriptRes.value);
+    const keys = Object.keys(this.scriptRes.value);
+    return keys;
   }
 
   @GMContext.API()
   public ["GM.listValues"](): Promise<string[]> {
-    if (!this.scriptRes) return Promise.resolve([]);
     // Asynchronous wrapper for GM_listValues to support GM.listValues
-    return Promise.resolve(Object.keys(this.scriptRes.value));
+    return new Promise((resolve) => {
+      if (!this.scriptRes) return resolve([]);
+      const keys = Object.keys(this.scriptRes.value);
+      resolve(keys);
+    });
   }
 
   @GMContext.API()
-  public GM_setValues(values: { [key: string]: any }) {
-    if (!this.scriptRes) return;
+  public GM_setValues(values: TGMKeyValue) {
     if (values == null) {
       throw new Error("GM_setValues: values must not be null or undefined");
     }
     if (typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
-    for (const key of Object.keys(values)) {
-      const value = values[key];
-      _GM_setValue(this, key, value);
-    }
+    _GM_setValues(this, null, values);
   }
 
   @GMContext.API()
-  public GM_getValues(keysOrDefaults: { [key: string]: any } | string[] | null | undefined) {
+  public GM_getValues(keysOrDefaults: TGMKeyValue | string[] | null | undefined) {
     if (!this.scriptRes) return {};
     if (keysOrDefaults == null) {
       // Returns all values
       return this.scriptRes.value;
     }
-    const result: { [key: string]: any } = {};
+    const result: TGMKeyValue = {};
     if (Array.isArray(keysOrDefaults)) {
       // 键名数组
       // Handle array of keys (e.g., ['foo', 'bar'])
@@ -326,10 +383,8 @@ export default class GMApi extends GM_Base {
 
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
-  public ["GM.getValues"](
-    keysOrDefaults: { [key: string]: any } | string[] | null | undefined
-  ): Promise<{ [key: string]: any }> {
-    if (!this.scriptRes) return new Promise<{ [key: string]: any }>(() => {});
+  public ["GM.getValues"](keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
+    if (!this.scriptRes) return new Promise<TGMKeyValue>(() => {});
     return new Promise((resolve) => {
       const ret = this.GM_getValues(keysOrDefaults);
       resolve(ret);
@@ -340,8 +395,13 @@ export default class GMApi extends GM_Base {
   public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
     if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
-      this.GM_setValues(values);
-      resolve();
+      if (values == null) {
+        throw new Error("GM.setValues: values must not be null or undefined");
+      }
+      if (typeof values !== "object") {
+        throw new Error("GM.setValues: values must be an object");
+      }
+      _GM_setValues(this, resolve, values);
     });
   }
 
@@ -352,9 +412,11 @@ export default class GMApi extends GM_Base {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
+    const req = {} as Record<string, undefined>;
     for (const key of keys) {
-      _GM_setValue(this, key, undefined);
+      req[key] = undefined;
     }
+    _GM_setValues(this, null, req);
   }
 
   // Asynchronous wrapper for GM.deleteValues
@@ -362,23 +424,28 @@ export default class GMApi extends GM_Base {
   public ["GM.deleteValues"](keys: string[]): Promise<void> {
     if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
-      this.GM_deleteValues(keys);
-      resolve();
+      if (!Array.isArray(keys)) {
+        throw new Error("GM.deleteValues: keys must be string[]");
+      } else {
+        const req = {} as Record<string, undefined>;
+        for (const key of keys) {
+          req[key] = undefined;
+        }
+        _GM_setValues(this, resolve, req);
+      }
     });
   }
 
   @GMContext.API({ alias: "GM.addValueChangeListener" })
   public GM_addValueChangeListener(name: string, listener: GMTypes.ValueChangeListener): number {
     if (!this.valueChangeListener) return 0;
-    this.eventId += 1;
-    this.valueChangeListener.set(this.eventId, { name, listener });
-    return this.eventId;
+    return this.valueChangeListener.add(name, listener);
   }
 
   @GMContext.API({ alias: "GM.removeValueChangeListener" })
   public GM_removeValueChangeListener(listenerId: number): void {
     if (!this.valueChangeListener) return;
-    this.valueChangeListener.delete(listenerId);
+    this.valueChangeListener.remove(listenerId);
   }
 
   @GMContext.API({ alias: "GM.log" })
@@ -1320,4 +1387,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_xmlhttpRequest } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;

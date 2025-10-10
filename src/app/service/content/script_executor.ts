@@ -2,7 +2,7 @@ import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ValueUpdateData, ScriptFunc, PreScriptFunc } from "./types";
+import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
 import { addStyle } from "./utils";
 
 // 脚本执行器
@@ -32,12 +32,13 @@ export class ScriptExecutor {
     }
   }
 
-  valueUpdate(data: ValueUpdateData) {
-    this.execList
-      .filter((val) => val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName)
-      .forEach((val) => {
+  valueUpdate(data: ValueUpdateDataEncoded) {
+    const { uuid, storageName } = data;
+    for (const val of this.execList) {
+      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
         val.valueUpdate(data);
-      });
+      }
+    }
   }
 
   start(scripts: ScriptLoadInfo[]) {

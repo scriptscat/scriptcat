@@ -6,6 +6,7 @@ import { GMContextApiGet } from "./gm_context";
 import { createGMBase } from "./gm_api";
 import { protect } from "./gm_context";
 import { isEarlyStartScript } from "./utils";
+import { ListenerManager } from "./listener_manager";
 
 // 构建沙盒上下文
 export const createContext = (
@@ -16,7 +17,7 @@ export const createContext = (
   scriptGrants: Set<string>
 ) => {
   // 按照GMApi构建
-  const valueChangeListener = new Map<number, { name: string; listener: GMTypes.ValueChangeListener }>();
+  const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
   const EE = new EventEmitter<string, any>();
   // 如果是preDocumentStart脚本，装载loadScriptPromise
   let loadScriptPromise: Promise<void> | undefined;

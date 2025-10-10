@@ -4,7 +4,8 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, compileScriptCode } from "./utils";
 import type { Message } from "@Packages/message/types";
-
+import { encodeMessage } from "@App/pkg/utils/message_value";
+import { v4 as uuidv4 } from "uuid";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -141,6 +142,22 @@ describe("GM Api", () => {
     expect(ret).toEqual("test1-test2-test3");
   });
 
+  it("GM_listValues No Sort", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
+    script.value.test5 = "30";
+    script.value.test2 = "70";
+    script.value.test3 = "75";
+    script.value.test1 = "40";
+    script.metadata.grant = ["GM_listValues"];
+    script.code = `return GM_listValues().join("-");`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+  });
+
   it("GM.listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
@@ -151,6 +168,22 @@ describe("GM Api", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
+  });
+
+  it("GM.listValues No Sort", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = {};
+    script.value.test5 = "30";
+    script.value.test2 = "70";
+    script.value.test3 = "75";
+    script.value.test1 = "40";
+    script.metadata.grant = ["GM.listValues"];
+    script.code = `return GM.listValues().then(v=>v.join("-"));`;
+    // @ts-ignore
+    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
   it("GM_getValues", async () => {
@@ -165,6 +198,13 @@ describe("GM Api", () => {
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
+    // object default
+    script.code = `return GM_getValues({test4: "default",test2:123});`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret2 = await exec.exec();
+    expect(ret2.test1).toBeUndefined();
+    expect(ret2.test2).toEqual(45);
+    expect(ret2.test4).toEqual("default");
   });
 
   it("GM.getValues", async () => {
@@ -343,5 +383,364 @@ describe("GM_menu", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
+  });
+});
+
+describe("GM_value", () => {
+  it("GM_setValue", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue"];
+    script.code = `
+    GM_setValue("a", 123);
+    let ret1 = GM_getValue("a", 456);
+    // 设置再删除
+    GM_setValue("a", undefined);
+    let ret2 = GM_getValue("a", 456);
+    return {ret1, ret2};
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    // 第一次调用：设置值为 123
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "a", 123],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第二次调用：删除值（设置为 undefined）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [expect.any(String), "a"],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({ ret1: 123, ret2: 456 });
+  });
+
+  it("GM_setValues", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValues", "GM_setValues"];
+    script.code = `
+    GM_setValues({"a":123,"b":456,"c":"789"});
+    let ret1 = GM_getValues(["a","b","c"]);
+    // 设置再删除
+    GM_setValues({"a": undefined, "c": undefined});
+    let ret2 = GM_getValues(["a","b","c"]);
+    return {ret1, ret2};
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    // 第一次调用：设置值为 123
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                a: 123,
+                b: 456,
+                c: "789",
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第二次调用：删除值（设置为 undefined）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                a: expect.stringMatching(/^##[\d.]+##undefined$/),
+                c: expect.stringMatching(/^##[\d.]+##undefined$/),
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
+  });
+
+  it("GM_deleteValue", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValue"];
+    script.code = `
+    GM_setValues({"a":123,"b":456,"c":"789"});
+    let ret1 = GM_getValues(["a","b","c"]);
+    // 设置再删除
+    GM_deleteValue("b");
+    let ret2 = GM_getValues(["a","b","c"]);
+    return {ret1, ret2};
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    // 第一次调用：设置值为 123
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                a: 123,
+                b: 456,
+                c: "789",
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第二次调用：删除值（设置为 undefined）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValue",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the string payload
+            "b",
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { a: 123, c: "789" } });
+  });
+
+  it("GM_deleteValues", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValues", "GM_setValues", "GM_deleteValues"];
+    script.code = `
+    GM_setValues({"a":123,"b":456,"c":"789"});
+    let ret1 = GM_getValues(["a","b","c"]);
+    // 设置再删除
+    GM_deleteValues(["a","c"]);
+    let ret2 = GM_getValues(["a","b","c"]);
+    return {ret1, ret2};
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+
+    // 第一次调用：设置值为 123
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the object payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                a: 123,
+                b: 456,
+                c: "789",
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    // 第二次调用：删除值（设置为 undefined）
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: "content/runtime/gmApi",
+        data: {
+          api: "GM_setValues",
+          params: [
+            // event id
+            expect.stringMatching(/^.+::\d$/),
+            // the string payload
+            expect.objectContaining({
+              k: expect.stringMatching(/^##[\d.]+##$/),
+              m: expect.objectContaining({
+                a: expect.stringMatching(/^##[\d.]+##undefined$/),
+                c: expect.stringMatching(/^##[\d.]+##undefined$/),
+              }),
+            }),
+          ],
+          runFlag: expect.any(String),
+          uuid: undefined,
+        },
+      })
+    );
+
+    expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
+  });
+
+  it("GM_addValueChangeListener", async () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
+    script.metadata.storageName = ["testStorage"];
+    script.code = `
+    return new Promise(resolve=>{
+      GM_addValueChangeListener("a", (name, oldValue, newValue, remote)=>{
+        resolve({name, oldValue, newValue, remote});
+      });
+      GM_setValue("a", 123);
+    });
+   `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    let retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    // 模拟值变化
+    exec.valueUpdate({
+      id: "123",
+      entries: encodeMessage([["a", 123, undefined]]),
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+    });
+    const ret = await retPromise;
+    expect(ret).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: false });
+    // remote = true
+    retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    // 模拟值变化
+    exec.valueUpdate({
+      id: "123",
+      entries: encodeMessage([["a", 123, undefined]]),
+      uuid: script.uuid,
+      storageName: "testStorage",
+      sender: { runFlag: "user", tabId: -2 },
+    });
+    const ret2 = await retPromise;
+    expect(ret2).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: true });
+  });
+  it("异步GM.setValue，等待回调", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM.getValue", "GM.setValue"];
+    script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+
+    await Promise.resolve(); // 等待一轮微任务，让GM.setValue执行
+
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    // 获取调用参数
+    const actualCall = mockSendMessage.mock.calls[0][0];
+    console.log("actualCall", actualCall.data.params[0]);
+    // 触发valueUpdate
+    exec.valueUpdate({
+      id: actualCall.data.params[0],
+      entries: encodeMessage([["a", 123, undefined]]),
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+    });
+
+    const ret = await retPromise;
+    expect(ret).toEqual(123);
   });
 });

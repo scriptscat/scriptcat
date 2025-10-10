@@ -17,3 +17,5 @@ export class ValueDAO extends Repo<Value> {
     return super._save(key, value);
   }
 }
+
+export type TGMKeyValue = Record<string, any>;
