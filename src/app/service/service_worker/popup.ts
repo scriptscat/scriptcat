@@ -266,9 +266,7 @@ export class PopupService {
       })
       .then(() => {
         if (retUpdated?.length) {
-          for (const uuid of retUpdated) {
-            this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
-          }
+          this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuids: retUpdated });
           // 更新数据后再更新菜单
           this.updateScriptMenu(tabId);
         }

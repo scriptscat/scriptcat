@@ -253,4 +253,4 @@ export type TBatchUpdateListAction =
       }[];
     };
 
-export type TPopupScript = { tabId: number; uuid: string };
+export type TPopupScript = { tabId: number; uuids: string[] };

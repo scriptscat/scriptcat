@@ -102,44 +102,46 @@ function App() {
         );
       }),
 
-      subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuid }: TPopupScript) => {
-        // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
-        if (pageTabIdRef.current !== tabId) return;
-        let url: string = "";
-        // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
-        setCurrentUrl((v) => {
-          url = v || "";
-          return v;
-        });
-        if (!url) return;
-        popupClient.getPopupData({ url, tabId }).then((resp) => {
-          if (!isMounted) return;
-
-          // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
-          if (!resp || !resp.scriptList) {
-            console.warn("Invalid popup data response:", resp);
-            return;
-          }
-
-          // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
-          const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
-          if (!newMenus) return;
-          setScriptList((prev) => {
-            // 只针对 uuid 进行更新。其他项目保持参考一致
-            const list = prev.map((item) => {
-              return item.uuid !== uuid
-                ? item
-                : {
-                    ...item,
-                    menus: [...newMenus],
-                    menuUpdated: Date.now(),
-                  };
-            });
-            // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
-            list.sort(scriptListSorter);
-            return list;
+      subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuids }: TPopupScript) => {
+        for (const uuid of uuids) {
+          // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
+          if (pageTabIdRef.current !== tabId) return;
+          let url: string = "";
+          // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
+          setCurrentUrl((v) => {
+            url = v || "";
+            return v;
           });
-        });
+          if (!url) return;
+          popupClient.getPopupData({ url, tabId }).then((resp) => {
+            if (!isMounted) return;
+
+            // 响应健全性检查：必须包含 scriptList，否则忽略此次更新
+            if (!resp || !resp.scriptList) {
+              console.warn("Invalid popup data response:", resp);
+              return;
+            }
+
+            // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
+            const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
+            if (!newMenus) return;
+            setScriptList((prev) => {
+              // 只针对 uuid 进行更新。其他项目保持参考一致
+              const list = prev.map((item) => {
+                return item.uuid !== uuid
+                  ? item
+                  : {
+                      ...item,
+                      menus: [...newMenus],
+                      menuUpdated: Date.now(),
+                    };
+              });
+              // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
+              list.sort(scriptListSorter);
+              return list;
+            });
+          });
+        }
       }),
     ];
 
