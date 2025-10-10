@@ -11,7 +11,18 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import {
+  Button,
+  Dropdown,
+  Grid,
+  Input,
+  Menu,
+  Message,
+  Modal,
+  type ModalHookReturnType,
+  Tabs,
+  Tooltip,
+} from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -53,6 +64,7 @@ type ScriptEditorContextValue = {
   scriptClient: typeof scriptClient;
   setScriptList: React.Dispatch<React.SetStateAction<Script[]>>;
   handleDeleteEditor: (uuid: string, needConfirm?: boolean) => void;
+  modal: ModalHookReturnType;
   t: TFunction<"translation">;
 };
 
@@ -224,6 +236,7 @@ const ScriptEditorScriptListItem = React.memo(({ uuid, status, name }: Pick<Scri
     setScriptList,
     handleDeleteEditor,
     t,
+    modal,
   } = useScriptEditorCtx();
   const isEnabled = status === SCRIPT_STATUS_ENABLE;
   return (
@@ -339,7 +352,7 @@ const ScriptEditorScriptListItem = React.memo(({ uuid, status, name }: Pick<Scri
         onClick={(e) => {
           e.stopPropagation();
           // 删除脚本
-          Modal.confirm({
+          modal.confirm!({
             title: t("confirm_delete_script"),
             content: t("confirm_delete_script_content", { name }),
             onOk: () => {
@@ -368,7 +381,6 @@ ScriptEditorScriptListItem.displayName = "ScriptEditorScriptListItem";
 
 const ScriptEditorScriptList = React.memo(
   ({ scriptList, searchKeyword }: { scriptList: Script[]; searchKeyword: string }) => {
-    console.log(123884);
     const filterScriptList = useMemo(() => {
       return scriptList.filter((script) => {
         if (!searchKeyword) return true;
@@ -405,6 +417,7 @@ function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
+  const [modal, contextHolder] = Modal.useModal();
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -930,6 +943,7 @@ function ScriptEditor() {
       setScriptList,
       handleDeleteEditor,
       t,
+      modal,
     }),
     [selectSciptButtonAndTab, editors, hotKeys, scriptCodeDAO, scriptClient, setScriptList, handleDeleteEditor, t]
   );
@@ -946,6 +960,7 @@ function ScriptEditor() {
           height: "calc(100% + 20px)",
         }}
       >
+        {contextHolder}
         <ScriptStorage
           visible={visible.scriptStorage}
           script={currentScript}
