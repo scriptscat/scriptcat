@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clearStack, stackAsyncTask } from "./async_queue";
 
 /**
- * 工具：生成隨機 key
+ * 工具：生成随机 key
  */
 const generateKey = (prefix: string) => `${prefix}-${Math.random()}`;
 
