@@ -43,7 +43,7 @@ const MainLayout: React.FC<{
   pageName?: string;
 }> = ({ children, className, pageName }) => {
   const [modal, contextHolder] = Modal.useModal();
-  const { colorThemeState, updateColorTheme } = useAppContext();
+  const { colorThemeState, updateColorTheme, openEditor } = useAppContext();
 
   const importRef = useRef<RefTextAreaType>(null);
   const [importVisible, setImportVisible] = useState(false);
@@ -241,19 +241,19 @@ const MainLayout: React.FC<{
                 droplist={
                   <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                     <Menu.Item key="/script/editor">
-                      <a href="#/script/editor">
+                      <span onClick={() => openEditor({ template: "" })}>
                         <RiFileCodeLine /> {t("create_user_script")}
-                      </a>
+                      </span>
                     </Menu.Item>
                     <Menu.Item key="background">
-                      <a href="#/script/editor?template=background">
+                      <span onClick={() => openEditor({ template: "background", target: "blank" })}>
                         <RiTerminalBoxLine /> {t("create_background_script")}
-                      </a>
+                      </span>
                     </Menu.Item>
                     <Menu.Item key="crontab">
-                      <a href="#/script/editor?template=crontab">
+                      <span onClick={() => openEditor({ template: "crontab", target: "blank" })}>
                         <RiTimerLine /> {t("create_scheduled_script")}
-                      </a>
+                      </span>
                     </Menu.Item>
                     <Menu.Item
                       key="import_local"

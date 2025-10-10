@@ -1,4 +1,4 @@
-import React, { useState, createContext, type ReactNode, useEffect, useContext } from "react";
+import React, { useState, createContext, type ReactNode, useEffect, useContext, useCallback, useRef } from "react";
 import { messageQueue } from "./global";
 import { editor } from "monaco-editor";
 import { type TKeyValue } from "@Packages/message/message_queue";
@@ -10,6 +10,40 @@ export interface AppContextType {
   colorThemeState: "auto" | "light" | "dark";
   updateColorTheme: (theme: "auto" | "light" | "dark") => void;
   subscribeMessage: <T>(topic: string, handler: (msg: T) => void) => () => void;
+  editorOpen: boolean;
+  setEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  editorParams:
+    | {
+        uuid?: string | undefined;
+        template?: string | undefined;
+        target?: "blank" | "initial" | undefined;
+      }
+    | undefined;
+  setEditorParams: React.Dispatch<
+    React.SetStateAction<
+      | {
+          uuid?: string;
+          template?: string;
+          target?: "blank" | "initial";
+        }
+      | undefined
+    >
+  >;
+  openEditor: (
+    params?:
+      | {
+          uuid?: string | undefined;
+          template?: string | undefined;
+          target?: "blank" | "initial" | undefined;
+        }
+      | undefined
+  ) => void;
+  closeEditor: () => void;
+  updateEditorHash: (params: {
+    uuid?: string | undefined;
+    template?: string | undefined;
+    target?: "blank" | "initial" | undefined;
+  }) => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -56,7 +90,56 @@ const setAppColorTheme = (theme: "light" | "dark" | "auto") => {
   }
 };
 
+function setSpaUrlHash(hashPath: string, replace = true) {
+  const url = new URL(window.location.href);
+  url.hash = hashPath.startsWith("#") ? hashPath : `#${hashPath}`;
+  if (replace) {
+    history.replaceState(null, "", url);
+  } else {
+    history.pushState(null, "", url); // 若你偶爾想保留紀錄，可以傳 false
+  }
+}
+
+function buildEditorHash(params?: { uuid?: string; template?: string; target?: "blank" | "initial" }) {
+  if (!params) return "/script/editor";
+  const { uuid, template, target } = params;
+  if (uuid) return `/script/editor/${uuid}`;
+  const qs: string[] = [];
+  if (template) qs.push(`template=${encodeURIComponent(template)}`);
+  if (target) qs.push(`target=${encodeURIComponent(target)}`);
+  return `/script/editor${qs.length ? `?${qs.join("&")}` : ""}`;
+}
+
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorParams, setEditorParams] = useState<{
+    uuid?: string;
+    template?: string;
+    target?: "blank" | "initial";
+  }>();
+  const prevHashRef = useRef<string>(window.location.hash);
+
+  const openEditor = useCallback((params?: { uuid?: string; template?: string; target?: "blank" | "initial" }) => {
+    prevHashRef.current = window.location.hash;
+    setEditorParams(params);
+    setEditorOpen(true);
+    // 不新增歷史紀錄：用 replace
+    setSpaUrlHash(buildEditorHash(params), true);
+  }, []);
+
+  const closeEditor = useCallback(() => {
+    setEditorOpen(false);
+    // 還原到打開前的 hash，同樣 replace
+    const url = new URL(window.location.href);
+    url.hash = prevHashRef.current || "#/";
+    history.replaceState(null, "", url);
+  }, []);
+
+  // 提供給 Core，在切換 tab/建立新稿時更新 hash（仍使用 replace）
+  const updateEditorHash = useCallback((params: { uuid?: string; template?: string; target?: "blank" | "initial" }) => {
+    setSpaUrlHash(buildEditorHash(params), true);
+  }, []);
+
   const [colorThemeState, setColorThemeState] = useState<"auto" | "light" | "dark">(() => {
     colorThemeInit();
     return localStorage.lightMode || "auto";
@@ -98,7 +181,20 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ colorThemeState, updateColorTheme, subscribeMessage }}>
+    <AppContext.Provider
+      value={{
+        colorThemeState,
+        updateColorTheme,
+        subscribeMessage,
+        editorOpen,
+        setEditorOpen,
+        editorParams,
+        setEditorParams,
+        openEditor,
+        closeEditor,
+        updateEditorHash,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

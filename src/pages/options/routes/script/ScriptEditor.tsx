@@ -2,7 +2,6 @@ import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
 import type { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
 import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
@@ -25,6 +24,15 @@ import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 
 const { Row, Col } = Grid;
+
+/** Props the core needs (no router hooks here) */
+export type ScriptEditorCoreProps = {
+  uuid?: string;
+  template?: string;
+  target?: "blank" | "initial";
+  overlayMode?: boolean;
+  onUrlChange?: (params: { uuid?: string; template?: string; target?: "blank" | "initial" }) => void;
+};
 
 type HotKey = {
   id: string;
@@ -171,17 +179,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
-const popstate = () => {
-  if (confirm(i18n.t("script_modified_leave_confirm"))) {
-    window.history.back();
-    window.removeEventListener("popstate", popstate);
-  } else {
-    window.history.pushState(null, "", window.location.href);
-  }
-  return false;
-};
-
-function ScriptEditor() {
+function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
@@ -207,9 +205,6 @@ function ScriptEditor() {
   const [pageInit, setPageInit] = useState<boolean>(false);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
-
-  const pageUrlParams = useParams();
-  const [pageUrlSearchParams, setPageUrlSearchParams] = useSearchParams();
 
   const { t } = useTranslation();
   const scriptDAO = new ScriptDAO();
@@ -455,15 +450,8 @@ function ScriptEditor() {
     });
   });
   useEffect(() => {
-    const [alreadyInit] = [pageInit];
-    if (!alreadyInit) {
+    if (!pageInit) {
       setPageInit(true); // 防止开发模式下重复初始化
-
-      const newParams = new URLSearchParams(pageUrlSearchParams);
-      if (newParams.get("d")) {
-        newParams.delete("d");
-        setPageUrlSearchParams(newParams, { replace: true });
-      }
 
       scriptDAO.all().then((scripts) => {
         setScriptList(scripts.sort((a, b) => a.sort - b.sort));
@@ -474,20 +462,17 @@ function ScriptEditor() {
     return () => {
       document.title = "Home - ScriptCat";
     };
-  }, []);
+  }, [pageInit]);
 
-  const memoUrlQueryString = useMemo(() => {
-    return `${pageUrlParams.uuid || ""}|${pageUrlSearchParams.get("template") || ""}|${pageUrlSearchParams.get("target") || ""}|${pageUrlSearchParams.get("d") || ""}`;
-  }, [pageUrlParams, pageUrlSearchParams]);
+  // Instead of reading from URL, compute once from props:
+  const memoParamsKey = useMemo(() => {
+    return `${uuid || ""}|${template || ""}|${target || ""}`;
+  }, [uuid, template, target]);
 
   useEffect(() => {
     if (!canLoadScript) return;
 
-    const [uuid, template, target, d] = memoUrlQueryString.split("|");
-    if (d) return;
-    const newParams = new URLSearchParams(pageUrlSearchParams);
-    newParams.set("d", `${Date.now()}`);
-    setPageUrlSearchParams(newParams, { replace: true });
+    const [uuid, template, target] = memoParamsKey.split("|");
 
     // 如果有id则打开对应的脚本
     if (uuid) {
@@ -543,34 +528,51 @@ function ScriptEditor() {
         });
       });
     }
-  }, [canLoadScript, memoUrlQueryString]);
+  }, [canLoadScript, memoParamsKey]);
 
-  // 控制onbeforeunload
+  // === onbeforeunload & popstate only when NOT overlay ===
   useEffect(() => {
-    let flag = false;
+    if (overlayMode) return; // disable in overlay mode
 
-    for (let i = 0; i < editors.length; i += 1) {
-      if (editors[i].isChanged) {
-        flag = true;
-        break;
-      }
-    }
-
-    if (flag) {
-      const beforeunload = () => {
-        return true;
-      };
+    const anyChanged = editors.some((e) => e.isChanged);
+    if (anyChanged) {
+      const beforeunload = () => true;
       window.onbeforeunload = beforeunload;
+
+      const popstate = () => {
+        if (confirm(i18n.t("script_modified_leave_confirm"))) {
+          window.history.back();
+          window.removeEventListener("popstate", popstate);
+        } else {
+          window.history.pushState(null, "", window.location.href);
+        }
+        return false;
+      };
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", popstate);
-    } else {
-      window.removeEventListener("popstate", popstate);
-    }
 
-    return () => {
+      return () => {
+        window.onbeforeunload = null;
+        window.removeEventListener("popstate", popstate);
+      };
+    } else {
       window.onbeforeunload = null;
-    };
-  }, [editors]);
+    }
+  }, [editors, overlayMode]);
+
+  // 取得目前活躍 editor
+  useEffect(() => {
+    const active = editors.find((e) => e.active);
+    if (!active) return;
+
+    if (active.script?.uuid && active.script.createtime !== 0) {
+      // 開啟既有腳本
+      onUrlChange?.({ uuid: active.script.uuid });
+    } else {
+      // 新建空白：帶上 template/target（如果有資料）
+      onUrlChange?.({ template: template || "", target: target || "blank" });
+    }
+  }, [editors, onUrlChange, template, target]);
 
   // 对tab点击右键进行的操作
   useEffect(() => {
@@ -658,7 +660,6 @@ function ScriptEditor() {
 
       // 如果只剩一个编辑器，打开空白脚本
       if (prev.length === 1) {
-        const template = pageUrlSearchParams.get("template") || "";
         emptyScript(template || "", hotKeys, "blank").then((e) => {
           setEditors([e]);
           setSelectSciptButtonAndTab(e.script.uuid);
@@ -1047,7 +1048,6 @@ function ScriptEditor() {
               );
             }}
             onAddTab={() => {
-              const template = pageUrlSearchParams.get("template") || "";
               emptyScript(template || "", hotKeys, "blank").then((e) => {
                 setEditors((prev) => {
                   prev.forEach((item) => {
