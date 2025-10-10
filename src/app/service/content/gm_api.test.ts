@@ -247,7 +247,7 @@ describe("early-script", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = exec.exec();
     // 触发envInfo
-    exec.dealEarlyScript(envInfo);
+    exec.updateEarlyScriptGMInfo(envInfo);
     expect(await ret).toEqual(123);
   });
 });
