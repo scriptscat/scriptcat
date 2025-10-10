@@ -185,6 +185,7 @@ function ScriptEditor() {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
+  const [modal, contextHolder] = Modal.useModal();
   const [editors, setEditors] = useState<
     {
       script: Script;
@@ -708,6 +709,7 @@ function ScriptEditor() {
         height: "calc(100% + 20px)",
       }}
     >
+      {contextHolder}
       <ScriptStorage
         visible={visible.scriptStorage}
         script={currentScript}
@@ -991,7 +993,7 @@ function ScriptEditor() {
                       onClick={(e) => {
                         e.stopPropagation();
                         // 删除脚本
-                        Modal.confirm({
+                        modal.confirm!({
                           title: t("confirm_delete_script"),
                           content: t("confirm_delete_script_content", { name: i18nName(script) }),
                           onOk: () => {

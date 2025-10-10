@@ -27,6 +27,7 @@ import { migrateToChromeStorage } from "@App/app/migrate";
 import { useSystemConfig } from "./utils";
 
 function Tools() {
+  const [modal, contextHolder] = Modal.useModal();
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const [backupFileList, setBackupFileList] = useState<File[]>([]);
@@ -47,6 +48,7 @@ function Tools() {
         position: "relative",
       }}
     >
+      {contextHolder}
       <Card className="backup" title={t("backup")} bordered={false}>
         <Space direction="vertical">
           <Title heading={6}>{t("local")}</Title>
@@ -226,7 +228,7 @@ function Tools() {
                       status="danger"
                       size="small"
                       onClick={() => {
-                        Modal.confirm({
+                        modal.confirm!({
                           title: t("confirm_delete"),
                           content: `${t("confirm_delete_backup_file")}${item.name}?`,
                           onOk: async () => {
