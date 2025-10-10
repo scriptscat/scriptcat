@@ -21,10 +21,6 @@ import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";
 import { getCombinedMeta } from "./utils";
 
-type TxUpdateScriptMenuCallback = (
-  result: ScriptMenu[]
-) => Promise<ScriptMenu[] | undefined> | ScriptMenu[] | undefined;
-
 const enum ScriptMenuRegisterType {
   REGISTER = 1,
   UNREGISTER = 2,
@@ -256,9 +252,12 @@ export class PopupService {
     return Promise.resolve() // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
       .then(() => {
         if (list.length) {
-          return this.txUpdateScriptMenu(tabId, (data) => {
+          cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
+            data = data || [];
             retUpdated = this.updateMenuCommand(tabId, data);
-            return data;
+            if (retUpdated.length) {
+              tx.set(data);
+            }
           });
         }
       })
@@ -375,20 +374,11 @@ export class PopupService {
     return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
   }
 
-  // 事务更新脚本菜单
-  // 以快取层的事务操作安全更新某 tab 的 ScriptMenu 阵列，避免竞态条件。
-  txUpdateScriptMenu(tabId: number, callback: TxUpdateScriptMenuCallback): Promise<ScriptMenu[]> {
-    const cacheKey = `${CACHE_KEY_TAB_SCRIPT}${tabId}`;
-    return cacheInstance.tx<ScriptMenu[]>(cacheKey, (menu) => callback(menu || []));
-  }
-
   async addScriptRunNumber({ tabId, frameId, scripts }: { tabId: number; frameId: number; scripts: Script[] }) {
     // 设置数据
-    return await this.txUpdateScriptMenu(tabId, async (data) => {
+    await cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
       // 特例：frameId 为 0/未提供时，重置当前 tab 的计数资料（视为页面重新载入）。
-      if (!frameId) {
-        data = [];
-      }
+      data = !frameId ? [] : data || [];
       // 设置脚本运行次数
       scripts.forEach((script) => {
         const scriptMenu = data.find((item) => item.uuid === script.uuid);
@@ -414,7 +404,7 @@ export class PopupService {
       }
       data.length && scriptCountMap.set(tabId, `${data.length}`);
       runCount && runCountMap.set(tabId, `${runCount}`);
-      return data;
+      tx.set(data);
     });
   }
 
@@ -433,20 +423,25 @@ export class PopupService {
       if (script.status !== SCRIPT_STATUS_ENABLE) {
         return;
       }
-      return this.txUpdateScriptMenu(-1, (menu) => {
+      await cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, (menu: ScriptMenu[] | undefined, tx) => {
+        menu = menu || [];
         const scriptMenu = menu.find((item) => item.uuid === script.uuid);
         // 加入菜单
         if (!scriptMenu) {
           const item = this.scriptToMenu(script);
           menu.push(item);
+          tx.set(menu);
         }
-        return menu;
       });
     });
-    this.mq.subscribe<TEnableScript[]>("enableScripts", async (data): Promise<ScriptMenu[]> => {
-      return this.txUpdateScriptMenu(-1, async (menu) => {
-        for (const { uuid } of data) {
-          const script = await this.scriptDAO.get(uuid);
+    this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
+      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, async (menu: ScriptMenu[] | undefined, tx) => {
+        menu = menu || [];
+        const uuids = data.map((item) => item.uuid);
+        const scripts = await this.scriptDAO.gets(uuids);
+        for (let i = 0, l = uuids.length; i < l; i++) {
+          const uuid = uuids[i];
+          const script = scripts[i];
           if (!script) {
             continue;
           }
@@ -459,31 +454,33 @@ export class PopupService {
             if (index === -1) {
               const item = this.scriptToMenu(script);
               menu.push(item);
+              tx.set(menu);
             }
           } else {
             // 移出菜单
             if (index !== -1) {
               menu.splice(index, 1);
+              tx.set(menu);
             }
           }
         }
-        return menu;
       });
     });
-    this.mq.subscribe<TDeleteScript[]>("deleteScripts", (data): Promise<ScriptMenu[]> => {
-      return this.txUpdateScriptMenu(-1, (menu) => {
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", (data) => {
+      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, (menu: ScriptMenu[] | undefined, tx) => {
+        if (!menu) return;
         for (const { uuid } of data) {
           const index = menu.findIndex((item) => item.uuid === uuid);
           if (index !== -1) {
             menu.splice(index, 1);
+            tx.set(menu);
           }
         }
-        return menu;
       });
     });
-    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }): Promise<ScriptMenu[]> => {
-      return this.txUpdateScriptMenu(-1, (menu) => {
-        const scriptMenu = menu.find((item) => item.uuid === uuid);
+    this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
+      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, (menu: ScriptMenu[] | undefined, tx) => {
+        const scriptMenu = menu?.find((item) => item.uuid === uuid);
         if (scriptMenu) {
           scriptMenu.runStatus = runStatus;
           if (runStatus === SCRIPT_RUN_STATUS_RUNNING) {
@@ -491,8 +488,8 @@ export class PopupService {
           } else {
             scriptMenu.runNum = 0;
           }
+          tx.set(menu!);
         }
-        return menu;
       });
     });
   }
@@ -580,18 +577,21 @@ export class PopupService {
       runCountMap.delete(tabId);
       scriptCountMap.delete(tabId);
       // 清理数据tab关闭需要释放的数据
-      this.txUpdateScriptMenu(tabId, async (scripts) => {
-        for (const { uuid } of scripts) {
-          // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
-          // 避免先删除了数据获取不到
-          cacheInstance.tx(`GM_getTab:${uuid}`, (tabData?: { [key: number]: any }) => {
-            if (tabData) {
-              delete tabData[tabId];
-            }
-            return tabData;
-          });
+      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (scripts: ScriptMenu[] | undefined) => {
+        if (scripts) {
+          return Promise.all(
+            scripts.map(({ uuid }) => {
+              // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
+              // 避免先删除了数据获取不到
+              return cacheInstance.tx(`GM_getTab:${uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
+                if (tabData) {
+                  delete tabData[tabId];
+                  tx.set(tabData);
+                }
+              });
+            })
+          );
         }
-        return undefined;
       });
     });
     // 监听页面切换加载菜单

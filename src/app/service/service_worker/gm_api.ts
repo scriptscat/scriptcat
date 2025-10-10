@@ -921,31 +921,29 @@ export default class GMApi {
 
   @PermissionVerify.API({})
   GM_getTab(request: Request, sender: IGetSender) {
-    return cacheInstance
-      .tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
-        return tabData || {};
-      })
-      .then((data) => {
-        return data![sender.getExtMessageSender().tabId];
-      });
+    return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData: { [key: number]: any } | undefined) => {
+      const ret = tabData?.[sender.getExtMessageSender().tabId];
+      return ret;
+    });
   }
 
   @PermissionVerify.API()
   async GM_saveTab(request: Request, sender: IGetSender) {
     const data = request.params[0];
     const tabId = sender.getExtMessageSender().tabId;
-    await cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
+    await cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
       tabData = tabData || {};
       tabData[tabId] = data;
-      return tabData;
+      tx.set(tabData);
     });
     return true;
   }
 
   @PermissionVerify.API()
   GM_getTabs(request: Request, _sender: IGetSender) {
-    return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData?: { [key: number]: any }) => {
-      return tabData || {};
+    return cacheInstance.tx(`GM_getTab:${request.uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
+      if (!tabData) tx.set((tabData = {}));
+      return tabData;
     });
   }
 
