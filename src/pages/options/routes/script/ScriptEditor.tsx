@@ -945,7 +945,17 @@ function ScriptEditor() {
       t,
       modal,
     }),
-    [selectSciptButtonAndTab, editors, hotKeys, scriptCodeDAO, scriptClient, setScriptList, handleDeleteEditor, t]
+    [
+      selectSciptButtonAndTab,
+      editors,
+      hotKeys,
+      scriptCodeDAO,
+      scriptClient,
+      setScriptList,
+      handleDeleteEditor,
+      t,
+      modal,
+    ]
   );
 
   return (
