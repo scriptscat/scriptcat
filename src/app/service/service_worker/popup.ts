@@ -179,7 +179,6 @@ export class PopupService {
 
   // 防止并发导致频繁更新菜单，将注册菜单的请求集中在一个队列中处理
   updateMenuCommands = new Map<number, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
-  isUpdateMenuDirty = false;
 
   // 此函数必须是同步执行的，避免updateMenuCommands并发问题
   updateMenuCommand(tabId: number, data: ScriptMenu[]): string[] {
@@ -579,6 +578,12 @@ export class PopupService {
       }
       runCountMap.delete(tabId);
       scriptCountMap.delete(tabId);
+      const list = this.updateMenuCommands.get(tabId);
+      if (list) {
+        // 避免 menuCommand 更新在 Tab 移除后触发
+        list.length = 0;
+        this.updateMenuCommands.delete(tabId);
+      }
       // 清理数据tab关闭需要释放的数据
       this.txUpdateScriptMenu(tabId, async (scripts) => {
         for (const { uuid } of scripts) {
