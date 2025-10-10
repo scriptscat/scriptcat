@@ -90,13 +90,13 @@ export class ValueService {
         if (oldValue === value) {
           return false;
         }
-        dataModel = { ...dataModel }; // 每次儲存使用新參考
+        dataModel = { ...dataModel }; // 每次储存使用新参考
         if (value === undefined) {
           delete dataModel[key];
         } else {
           dataModel[key] = value;
         }
-        valueModel.data = dataModel; // 每次儲存使用新參考
+        valueModel.data = dataModel; // 每次储存使用新参考
       }
       await this.valueDAO.save(storageName, valueModel);
       return true;
@@ -109,9 +109,9 @@ export class ValueService {
         storageName,
         sender,
       } as ValueUpdateDataEncoded);
+      // valueUpdate 消息用于 early script 的处理
+      this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
     }
-    // 没更新也要 valueUpdate ?
-    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   // 推送值到tab
@@ -180,7 +180,7 @@ export class ValueService {
       } else {
         let changed = false;
         let dataModel = (oldValueRecord = valueModel.data);
-        dataModel = { ...dataModel }; // 每次儲存使用新參考
+        dataModel = { ...dataModel }; // 每次储存使用新参考
         for (const [key, value] of Object.entries(values)) {
           const oldValue = dataModel[key];
           if (oldValue === value) continue;
@@ -205,7 +205,7 @@ export class ValueService {
           }
         }
         if (!changed) return false;
-        valueModel.data = dataModel; // 每次儲存使用新參考
+        valueModel.data = dataModel; // 每次储存使用新参考
       }
       await this.valueDAO.save(storageName, valueModel);
       return true;
@@ -219,9 +219,9 @@ export class ValueService {
         storageName,
         sender,
       } as ValueUpdateDataEncoded);
+      // valueUpdate 消息用于 early script 的处理
+      this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
     }
-    // 没更新也要 valueUpdate ?
-    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
   }
 
   setScriptValue({ uuid, key, value }: { uuid: string; key: string; value: any }, _sender: IGetSender) {
