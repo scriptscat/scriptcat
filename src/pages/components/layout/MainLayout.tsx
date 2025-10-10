@@ -42,6 +42,7 @@ const MainLayout: React.FC<{
   className: string;
   pageName?: string;
 }> = ({ children, className, pageName }) => {
+  const [modal, contextHolder] = Modal.useModal();
   const { colorThemeState, updateColorTheme } = useAppContext();
 
   const importRef = useRef<RefTextAreaType>(null);
@@ -51,7 +52,7 @@ const MainLayout: React.FC<{
 
   const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
     if (!stat) return;
-    Modal.info({
+    modal.info!({
       title: t("script_import_result"),
       content: (
         <Space direction="vertical" style={{ width: "100%" }}>
@@ -198,6 +199,7 @@ const MainLayout: React.FC<{
       }}
       locale={arcoLocale(i18n.language)}
     >
+      {contextHolder}
       <Layout>
         <Layout.Header
           style={{
