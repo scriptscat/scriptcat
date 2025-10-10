@@ -178,14 +178,15 @@ export class PopupService {
   }
 
   // 防止并发导致频繁更新菜单，将注册菜单的请求集中在一个队列中处理
-  updateMenuCommends = new Map<string, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
+  updateMenuCommands = new Map<string, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
+  isUpdateMenuDirty = false;
 
-  updateMenuCommend(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
+  updateMenuCommand(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
     let retUpdated = false;
     while (true) {
-      const message_ = this.updateMenuCommends.get(mrKey)?.shift();
+      const message_ = this.updateMenuCommands.get(mrKey)?.shift();
       if (!message_) {
-        this.updateMenuCommends.delete(mrKey);
+        this.updateMenuCommands.delete(mrKey);
         break;
       }
       if (message_.registerType === ScriptMenuRegisterType.REGISTER) {
@@ -248,17 +249,20 @@ export class PopupService {
   ) {
     const { tabId, uuid } = message;
     const mrKey = `${tabId}.${uuid}`;
-    let list = this.updateMenuCommends.get(mrKey);
+    let list = this.updateMenuCommands.get(mrKey);
     if (!list) {
-      this.updateMenuCommends.set(mrKey, (list = []));
+      this.updateMenuCommands.set(mrKey, (list = []));
     }
     list.push({ ...message, registerType });
+    await Promise.resolve(); // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
 
     let retUpdated = false;
-    await this.txUpdateScriptMenu(tabId, async (data) => {
-      retUpdated = this.updateMenuCommend(tabId, uuid, data, mrKey);
-      return data;
-    });
+    if (list.length) {
+      await this.txUpdateScriptMenu(tabId, async (data) => {
+        retUpdated = this.updateMenuCommand(tabId, uuid, data, mrKey);
+        return data;
+      });
+    }
 
     if (retUpdated) {
       this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
