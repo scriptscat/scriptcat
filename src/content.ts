@@ -25,18 +25,24 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
   // 处理scriptExecutor
   const scriptExecutorFlag = randomMessageFlag();
   const scriptExecutorMsg = new CustomEventMessage(scriptExecutorFlag, true);
-  const scriptExecutor = new ScriptExecutor(new CustomEventMessage(scriptExecutorFlag, false), []);
+  const scriptExecutor = new ScriptExecutor(new CustomEventMessage(scriptExecutorFlag, false));
+
+  const loadEarlyScriptFlag = (flag: string[]) => {
+    scriptExecutor.checkEarlyStartScript(flag);
+  };
   // 处理EarlyScript
-  if (window.EarlyScriptFlag) {
-    scriptExecutor.setEarlyStartScriptFlag(window.EarlyScriptFlag);
-    scriptExecutor.checkEarlyStartScript();
+  const earylyFlag = window.EarlyScriptFlag;
+  if (earylyFlag) {
+    // @ts-ignore
+    window.EarlyScriptFlag = null; // 释放物件参考
+    loadEarlyScriptFlag(earylyFlag);
   } else {
     // 监听属性设置
     Object.defineProperty(window, "EarlyScriptFlag", {
       configurable: true,
       set: (val: string[]) => {
-        scriptExecutor.setEarlyStartScriptFlag(val);
-        scriptExecutor.checkEarlyStartScript();
+        delete window.EarlyScriptFlag; // 删除 property setter 避免重复呼叫
+        loadEarlyScriptFlag(val);
       },
     });
   }

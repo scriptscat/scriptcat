@@ -5,20 +5,21 @@ import ExecScript from "./exec_script";
 import type { GMInfoEnv, ValueUpdateData, ScriptFunc, PreScriptFunc } from "./types";
 import { addStyle } from "./utils";
 
+export type ExecScriptEntry = {
+  scriptLoadInfo: any;
+  scriptFlag: string;
+  envInfo: any;
+  scriptFunc: any;
+};
+
 // 脚本执行器
 export class ScriptExecutor {
   execList: ExecScript[] = [];
 
   envInfo: GMInfoEnv | undefined;
+  earlyScriptFlag: string[] = [];
 
-  constructor(
-    private msg: Message,
-    private earlyScriptFlag: string[]
-  ) {}
-
-  setEarlyStartScriptFlag(flag: string[]) {
-    this.earlyScriptFlag = flag;
-  }
+  constructor(private msg: Message) {}
 
   init(envInfo: GMInfoEnv) {
     this.envInfo = envInfo;
@@ -41,11 +42,20 @@ export class ScriptExecutor {
   }
 
   start(scripts: ScriptLoadInfo[]) {
+    const loadExec = (script: ScriptLoadInfo, scriptFunc: any) => {
+      this.execScriptEntry({
+        scriptLoadInfo: script,
+        scriptFlag: script.flag,
+        scriptFunc,
+        envInfo: this.envInfo!,
+      });
+    };
     scripts.forEach((script) => {
+      const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
-      if (this.earlyScriptFlag.includes(script.flag)) {
+      if (this.earlyScriptFlag.includes(flag)) {
         for (const val of this.execList) {
-          if (val.scriptRes.flag === script.flag) {
+          if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.dealEarlyScript(this.envInfo!);
             break;
@@ -54,60 +64,75 @@ export class ScriptExecutor {
         return;
       }
       // @ts-ignore
-      const scriptFunc = window[script.flag];
+      const scriptFunc = window[flag];
       if (scriptFunc) {
-        this.execScript(script, scriptFunc);
+        // @ts-ignore
+        window[flag] = null; // 释放物件参考
+        loadExec(script, scriptFunc);
       } else {
         // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, script.flag, {
+        Object.defineProperty(window, flag, {
           configurable: true,
           set: (val: ScriptFunc) => {
-            this.execScript(script, val);
+            // @ts-ignore
+            delete window[flag]; // 删除 property setter 避免重复呼叫
+            loadExec(script, val);
           },
         });
       }
     });
   }
 
-  checkEarlyStartScript() {
+  checkEarlyStartScript(earlyStarFlag: string[]) {
+    this.earlyScriptFlag = earlyStarFlag;
+    const loadExec = (flag: string, scriptFunc: any) => {
+      this.execScriptEntry({
+        scriptLoadInfo: scriptFunc.scriptInfo,
+        scriptFunc: scriptFunc.func,
+        scriptFlag: flag,
+        envInfo: {},
+      });
+    };
     this.earlyScriptFlag.forEach((flag) => {
       // @ts-ignore
       const scriptFunc = window[flag] as PreScriptFunc;
       if (scriptFunc) {
         // @ts-ignore
-        const exec = new ExecScript(scriptFunc.scriptInfo, "content", this.msg, scriptFunc.func, {});
-        this.execList.push(exec);
-        exec.exec();
+        window[flag] = null; // 释放物件参考
+        loadExec(flag, scriptFunc);
       } else {
         // 监听脚本加载,和屏蔽读取
         Object.defineProperty(window, flag, {
           configurable: true,
           set: (val: PreScriptFunc) => {
             // @ts-ignore
-            const exec = new ExecScript(val.scriptInfo, "content", this.msg, val.func, {});
-            this.execList.push(exec);
-            exec.exec();
+            delete window[flag]; // 取消 property setter 避免重复呼叫
+            loadExec(flag, val);
           },
         });
       }
     });
   }
 
-  execScript(script: ScriptLoadInfo, scriptFunc: ScriptFunc) {
+  execScriptEntry(scriptEntry: ExecScriptEntry) {
+    const { scriptFlag, scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
+
     // @ts-ignore
-    delete window[script.flag];
-    const exec = new ExecScript(script, "content", this.msg, scriptFunc, this.envInfo!);
+    delete window[scriptFlag];
+    const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
     this.execList.push(exec);
+    const metadata = scriptLoadInfo.metadata || {};
+    const resource = scriptLoadInfo.resource;
     // 注入css
-    if (script.metadata["require-css"]) {
-      for (const val of script.metadata["require-css"]) {
-        const res = script.resource[val];
+    if (metadata["require-css"] && resource) {
+      for (const val of metadata["require-css"]) {
+        const res = resource[val];
         if (res) {
           addStyle(res.content);
         }
       }
     }
-    if (script.metadata["run-at"] && script.metadata["run-at"][0] === "document-body") {
+    if (metadata["run-at"] && metadata["run-at"][0] === "document-body") {
       // 等待页面加载完成
       this.waitBody(() => {
         exec.exec();
