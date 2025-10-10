@@ -186,7 +186,7 @@ declare function GM_closeNotification(id: string): void;
 
 declare function GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void;
 
-declare function GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }): void;
+declare function GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }): void;
 
 declare function GM_addElement(tag: string, attributes: any): HTMLElement;
 declare function GM_addElement(parentNode: Element, tag: string, attrs: any): HTMLElement;

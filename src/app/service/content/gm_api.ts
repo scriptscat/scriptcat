@@ -1298,7 +1298,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({})
-  GM_setClipboard(data: string, info?: string | { type?: string; minetype?: string }, cb?: () => void) {
+  GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }, cb?: () => void) {
     if (this.isInvalidContext()) return;
     this.sendMessage("GM_setClipboard", [data, info])
       .then(() => {
@@ -1314,7 +1314,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ depend: ["GM_setClipboard"] })
-  ["GM.setClipboard"](data: string, info?: string | { type?: string; minetype?: string }): Promise<void> {
+  ["GM.setClipboard"](data: string, info?: string | { type?: string; mimetype?: string }): Promise<void> {
     if (this.isInvalidContext()) return new Promise<void>(() => {});
     return this.sendMessage("GM_setClipboard", [data, info]);
   }
