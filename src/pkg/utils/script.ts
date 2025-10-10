@@ -82,7 +82,9 @@ export async function prepareScriptByCode(
   uuid?: string,
   override: boolean = false,
   dao?: ScriptDAO,
-  options?: Record<string, any>
+  options?: {
+    byEditor?: boolean; // 是否通过编辑器导入
+  }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
