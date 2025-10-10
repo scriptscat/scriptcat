@@ -255,7 +255,7 @@ export class PopupService {
 
     let retUpdated = false;
     if (list.length) {
-      await this.txUpdateScriptMenu(tabId, async (data) => {
+      await this.txUpdateScriptMenu(tabId, (data) => {
         retUpdated = this.updateMenuCommand(tabId, uuid, data, mrKey);
         return data;
       });
