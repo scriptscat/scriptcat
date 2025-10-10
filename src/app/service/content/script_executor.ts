@@ -57,7 +57,7 @@ export class ScriptExecutor {
         for (const val of this.execList) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
-            val.dealEarlyScript(this.envInfo!);
+            val.updateEarlyScriptGMInfo(this.envInfo!);
             break;
           }
         }
