@@ -179,7 +179,6 @@ export class PopupService {
 
   // 防止并发导致频繁更新菜单，将注册菜单的请求集中在一个队列中处理
   updateMenuCommands = new Map<number, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
-  isUpdateMenuDirty = false;
 
   // 此函数必须是同步执行的，避免updateMenuCommands并发问题
   updateMenuCommand(tabId: number, data: ScriptMenu[]): string[] {
@@ -194,10 +193,10 @@ export class PopupService {
       const { uuid, key, name } = message;
       const script = scripts.get(uuid);
       if (!script) continue;
+      const menus = script.menus;
 
       if (listEntry.registerType === ScriptMenuRegisterType.REGISTER) {
-        const menus = script.menus;
-        retUpdated.add(script.uuid);
+        retUpdated.add(uuid);
         // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
         // groupKey 用来表示「相同性质的项目」，允许重叠。
         // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
@@ -228,7 +227,6 @@ export class PopupService {
           menu.groupKey = groupKey;
         }
       } else if (listEntry.registerType === ScriptMenuRegisterType.UNREGISTER) {
-        const menus = script.menus;
         // 删除菜单
         const index = menus.findIndex((item) => item.key === key);
         if (index >= 0) {
@@ -579,6 +577,12 @@ export class PopupService {
       }
       runCountMap.delete(tabId);
       scriptCountMap.delete(tabId);
+      const list = this.updateMenuCommands.get(tabId);
+      if (list) {
+        // 避免 menuCommand 更新在 Tab 移除后触发
+        list.length = 0;
+        this.updateMenuCommands.delete(tabId);
+      }
       // 清理数据tab关闭需要释放的数据
       this.txUpdateScriptMenu(tabId, async (scripts) => {
         for (const { uuid } of scripts) {
