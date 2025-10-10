@@ -183,15 +183,12 @@ export class PopupService {
 
   updateMenuCommand(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
     let retUpdated = false;
+    const list = this.updateMenuCommands.get(mrKey);
+    if (!list) return false;
     const script = data.find((item) => item.uuid === uuid);
     if (script) {
       const menus = script.menus;
-      while (true) {
-        const message_ = this.updateMenuCommands.get(mrKey)?.shift();
-        if (!message_) {
-          this.updateMenuCommands.delete(mrKey);
-          break;
-        }
+      for (const message_ of list) {
         if (message_.registerType === ScriptMenuRegisterType.REGISTER) {
           const message = message_ as TScriptMenuRegister;
 
@@ -238,6 +235,8 @@ export class PopupService {
         }
       }
     }
+    list.length = 0;
+    this.updateMenuCommands.delete(mrKey);
     return retUpdated;
   }
 
