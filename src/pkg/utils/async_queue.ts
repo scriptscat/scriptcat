@@ -3,9 +3,9 @@ type TStackFn<T> = (...args: any[]) => Promise<T>;
 
 // 链表节点类型，包含任务、Promise 的 resolve/reject、以及下一个节点
 type TNode<T> = {
-  task: TStackFn<T>;
-  resolve: (v: T | Promise<T>) => void;
-  reject: (e?: any) => void;
+  task: TStackFn<T> | null;
+  resolve: ((v: T | Promise<T>) => void) | null;
+  reject: ((e?: any) => void) | null;
   next: TNode<T> | null;
 };
 
@@ -23,19 +23,24 @@ const stacks = {} as Record<string, TStack<any>>;
  * 会依次从 head 开始执行，直到队列为空
  */
 const startAsync = async <T>(stack: TStack<T>) => {
-  let node = stack.head;
-  while (node) {
-    const stackEntry = node;
+  let node;
+  while ((node = stack.head)) {
+    const { task, resolve, reject } = node;
+
+    // 目前节点的 task, resolve, reject 已被取出，清理回调引用
+    node.task = node.resolve = node.reject = null;
     try {
       // 执行异步任务
-      const ret = await stackEntry.task();
-      stackEntry.resolve(ret);
+      const ret = await task!();
+      resolve!(ret);
     } catch (e: any) {
-      stackEntry.reject(e);
+      reject!(e);
     }
+
     // 移动到下一个节点
-    stack.head = node = stackEntry.next;
-    stackEntry.next = null;
+    stack.head = node.next; // 更新head至下一个节点
+    // 目前节点的 next 已被取出，清理引用
+    node.next = null;
   }
 
   // 当队列为空时，重置 tail
