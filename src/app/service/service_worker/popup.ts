@@ -181,6 +181,7 @@ export class PopupService {
   updateMenuCommands = new Map<number, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
   isUpdateMenuDirty = false;
 
+  // 此函数必须是同步执行的，避免updateMenuCommands并发问题
   updateMenuCommand(tabId: number, data: ScriptMenu[]): string[] {
     const retUpdated = new Set<string>();
     const list = this.updateMenuCommands.get(tabId);
@@ -188,13 +189,13 @@ export class PopupService {
     const uuids = new Set(list.map((entry) => entry.uuid));
     const scripts = new Map(data.filter((item) => uuids.has(item.uuid)).map((item) => [item.uuid, item]));
     for (const listEntry of list) {
-      if (listEntry.registerType === ScriptMenuRegisterType.REGISTER) {
-        const message = listEntry as TScriptMenuRegister;
+      const message = listEntry as TScriptMenuRegister;
+      // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
+      const { uuid, key, name } = message;
+      const script = scripts.get(uuid);
+      if (!script) continue;
 
-        // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
-        const { key, name } = message; // 唯一键, 项目显示名字， 脚本uuid
-        const script = scripts.get(message.uuid);
-        if (!script) continue;
+      if (listEntry.registerType === ScriptMenuRegisterType.REGISTER) {
         const menus = script.menus;
         retUpdated.add(script.uuid);
         // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
@@ -227,9 +228,6 @@ export class PopupService {
           menu.groupKey = groupKey;
         }
       } else if (listEntry.registerType === ScriptMenuRegisterType.UNREGISTER) {
-        const { uuid, key } = listEntry;
-        const script = scripts.get(uuid);
-        if (!script) continue;
         const menus = script.menus;
         // 删除菜单
         const index = menus.findIndex((item) => item.key === key);
