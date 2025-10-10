@@ -71,7 +71,7 @@ export const stackAsyncTask = <T>(key: string, task: TStackFn<T>): Promise<T> =>
 };
 
 /**
- * ⚠️ 仅用於单元测试
+ * ⚠️ 仅用于单元测试
  * 清空所有队列
  */
 export const clearStack = () => {
