@@ -23,7 +23,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("stackAsyncTask（按鍵名排队的异步序列队列）", () => {
+describe("stackAsyncTask（按键名排队的异步序列队列）", () => {
   it("同一 key 下任務應按入隊順序串行執行", async () => {
     const key = generateKey("k-serial");
     const order: number[] = [];
