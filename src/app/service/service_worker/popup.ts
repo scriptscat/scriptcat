@@ -183,19 +183,19 @@ export class PopupService {
 
   updateMenuCommand(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
     let retUpdated = false;
-    while (true) {
-      const message_ = this.updateMenuCommands.get(mrKey)?.shift();
-      if (!message_) {
-        this.updateMenuCommands.delete(mrKey);
-        break;
-      }
-      if (message_.registerType === ScriptMenuRegisterType.REGISTER) {
-        const message = message_ as TScriptMenuRegister;
+    const script = data.find((item) => item.uuid === uuid);
+    if (script) {
+      while (true) {
+        const message_ = this.updateMenuCommands.get(mrKey)?.shift();
+        if (!message_) {
+          this.updateMenuCommands.delete(mrKey);
+          break;
+        }
+        if (message_.registerType === ScriptMenuRegisterType.REGISTER) {
+          const message = message_ as TScriptMenuRegister;
 
-        // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
-        const { key, name, uuid } = message; // 唯一键, 项目显示名字， 脚本uuid
-        const script = data.find((item) => item.uuid === uuid);
-        if (script) {
+          // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
+          const { key, name } = message; // 唯一键, 项目显示名字， 脚本uuid
           retUpdated = true;
           // 以 options+name 生成稳定 groupKey：相同语义项目在 UI 只呈现一次，但可同时触发多个来源（frame）。
           // groupKey 用来表示「相同性质的项目」，允许重叠。
@@ -226,11 +226,8 @@ export class PopupService {
             menu.options = message.options;
             menu.groupKey = groupKey;
           }
-        }
-      } else if (message_.registerType === ScriptMenuRegisterType.UNREGISTER) {
-        const { key, uuid } = message_;
-        const script = data.find((item) => item.uuid === uuid);
-        if (script) {
+        } else if (message_.registerType === ScriptMenuRegisterType.UNREGISTER) {
+          const { key } = message_;
           // 删除菜单
           const index = script.menus.findIndex((item) => item.key === key);
           if (index >= 0) {
