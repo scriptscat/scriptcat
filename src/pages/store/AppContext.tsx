@@ -15,7 +15,7 @@ export interface AppContextType {
   editorParams:
     | {
         uuid?: string | undefined;
-        template?: string | undefined;
+        template?: "" | "background" | "crontab" | undefined;
         target?: "blank" | "initial" | undefined;
       }
     | undefined;
@@ -23,7 +23,7 @@ export interface AppContextType {
     React.SetStateAction<
       | {
           uuid?: string;
-          template?: string;
+          template?: "" | "background" | "crontab";
           target?: "blank" | "initial";
         }
       | undefined
@@ -33,7 +33,7 @@ export interface AppContextType {
     params?:
       | {
           uuid?: string | undefined;
-          template?: string | undefined;
+          template?: "" | "background" | "crontab" | undefined;
           target?: "blank" | "initial" | undefined;
         }
       | undefined
@@ -41,7 +41,7 @@ export interface AppContextType {
   closeEditor: () => void;
   updateEditorHash: (params: {
     uuid?: string | undefined;
-    template?: string | undefined;
+    template?: "" | "background" | "crontab" | undefined;
     target?: "blank" | "initial" | undefined;
   }) => void;
 }
@@ -114,18 +114,21 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorParams, setEditorParams] = useState<{
     uuid?: string;
-    template?: string;
+    template?: "" | "background" | "crontab";
     target?: "blank" | "initial";
   }>();
   const prevHashRef = useRef<string>(window.location.hash);
 
-  const openEditor = useCallback((params?: { uuid?: string; template?: string; target?: "blank" | "initial" }) => {
-    prevHashRef.current = window.location.hash;
-    setEditorParams(params);
-    setEditorOpen(true);
-    // 不新增歷史紀錄：用 replace
-    replaceHashSilently(buildEditorHash(params));
-  }, []);
+  const openEditor = useCallback(
+    (params?: { uuid?: string; template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
+      prevHashRef.current = window.location.hash;
+      setEditorParams(params);
+      setEditorOpen(true);
+      // 不新增歷史紀錄：用 replace
+      replaceHashSilently(buildEditorHash(params));
+    },
+    []
+  );
 
   const closeEditor = useCallback(() => {
     setEditorOpen(false);

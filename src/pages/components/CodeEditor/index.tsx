@@ -40,14 +40,17 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     if (diffCode === undefined || code === undefined || !div.current) {
       return () => {};
     }
-    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor;
+
+    let edit: editor.IStandaloneDiffEditor | editor.IStandaloneCodeEditor | null = null;
+    let originalModel: editor.ITextModel | null = null;
+    let modifiedModel: editor.ITextModel | null = null;
+
     const inlineDiv = document.getElementById(id) as HTMLDivElement;
+
     // @ts-ignore
     if (diffCode) {
       edit = editor.createDiffEditor(inlineDiv, {
-        hideUnchangedRegions: {
-          enabled: true,
-        },
+        hideUnchangedRegions: { enabled: true },
         enableSplitViewResizing: false,
         renderSideBySide: false,
         folding: true,
@@ -58,16 +61,18 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         readOnly: true,
         diffWordWrap: "off",
         glyphMargin: true,
-        unicodeHighlight: {
-          ambiguousCharacters: false,
-        },
+        unicodeHighlight: { ambiguousCharacters: false },
       });
-      edit.setModel({
-        original: editor.createModel(diffCode, "javascript"),
-        modified: editor.createModel(code, "javascript"),
+
+      // 保存 model 引用，之後在 cleanup 手動 dispose
+      originalModel = editor.createModel(diffCode, "javascript");
+      modifiedModel = editor.createModel(code, "javascript");
+      (edit as editor.IStandaloneDiffEditor).setModel({
+        original: originalModel,
+        modified: modifiedModel,
       });
     } else {
-      edit = editor.create(inlineDiv, {
+      const codeEditor = editor.create(inlineDiv, {
         language: "javascript",
         theme: document.body.getAttribute("arco-theme") === "dark" ? "vs-dark" : "vs",
         folding: true,
@@ -77,18 +82,24 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         scrollBeyondLastLine: false,
         readOnly: !editable,
         glyphMargin: true,
-        unicodeHighlight: {
-          ambiguousCharacters: false,
-        },
+        unicodeHighlight: { ambiguousCharacters: false },
       });
-      edit.setValue(code);
-
-      setEditor(edit);
+      codeEditor.setValue(code);
+      setEditor(codeEditor);
+      edit = codeEditor;
     }
     return () => {
       // 目前会出现：Uncaught (in promise) Canceled: Canceled
       // 问题追踪：https://github.com/microsoft/monaco-editor/issues/4702
-      edit?.dispose();
+      try {
+        edit?.dispose();
+      } finally {
+        // 確保 diff 的兩個 model 也被釋放（避免殘留）
+        originalModel?.dispose();
+        modifiedModel?.dispose();
+        // 讓下游 effect 不再拿到已被 dispose 的 editor
+        setEditor(undefined);
+      }
     };
   }, [div, code, diffCode, editable, id]);
 
@@ -99,27 +110,61 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
     if (!monacoEditor) {
       return () => {};
     }
+
     const model = monacoEditor.getModel();
     if (!model) {
       return () => {};
     }
-    let timer: NodeJS.Timeout | null;
+
+    // --- 生命週期守門與清理 ---
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const disposables: Array<{ dispose: () => void }> = [];
+
+    // editor 被 dispose 時，立即標記死亡並清理
+    const editorDisposeListener = monacoEditor.onDidDispose(() => {
+      alive = false;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
+    disposables.push({ dispose: () => editorDisposeListener.dispose() });
+
+    // --- debounce lint ---
     const lint = () => {
+      if (!alive) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
+        if (!alive) return;
+
+        // model 可能在這段時間被 dispose，必須檢查
+        const currentModel = monacoEditor.getModel();
+        if (!currentModel || (currentModel as any).isDisposed?.()) return;
+
+        let parsed: any = {};
+        try {
+          parsed = JSON.parse(eslintConfig || "{}");
+        } catch {
+          parsed = {};
+        }
+
         LinterWorker.sendLinterMessage({
-          code: model.getValue(),
+          code: currentModel.getValue(),
           id,
-          config: JSON.parse(eslintConfig),
+          config: parsed,
         });
       }, 500);
     };
+
     // 加载完成就检测一次
     lint();
-    model.onDidChangeContent(() => {
+
+    const contentDisposable = model.onDidChangeContent(() => {
       lint();
     });
+    disposables.push({ dispose: () => contentDisposable.dispose() });
 
     // 在行号旁显示ESLint错误/警告图标
     const diffEslint = (
@@ -129,26 +174,29 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
         severity: number;
       }[]
     ) => {
+      if (!alive) return;
+
+      // 再次確認 model 還活著
+      const currentModel = monacoEditor.getModel();
+      if (!currentModel || (currentModel as any).isDisposed?.()) return;
+
       // 定义glyph class
-      const glyphMarginClassList = {
+      const glyphMarginClassList: Record<number, string> = {
         4: "icon-warn",
         8: "icon-error",
       };
 
       // 先移除所有旧的Decorations
-      const oldDecorations = model
+      const oldDecorations = currentModel
         .getAllDecorations()
         .filter(
           (i) =>
             i.options.glyphMarginClassName &&
-            Object.values(glyphMarginClassList).includes(i.options.glyphMarginClassName)
+            Object.values(glyphMarginClassList).includes(i.options.glyphMarginClassName as string)
         );
-      monacoEditor.removeDecorations(oldDecorations.map((i) => i.id));
-
-      /* 待改进 目前似乎monaco无法满足需求
-      // 获取所有ESLint ModelMarkers
-      const allMarkers = editor.getModelMarkers({ owner: "ESLint" });
-      */
+      if (oldDecorations.length) {
+        monacoEditor.removeDecorations(oldDecorations.map((i) => i.id));
+      }
 
       // 再重新添加新的Decorations
       monacoEditor.createDecorationsCollection(
@@ -158,34 +206,20 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
             isWholeLine: true,
             // @ts-ignore
             glyphMarginClassName: glyphMarginClassList[severity],
-
-            /* 待改进 目前monaco似乎无法满足需求
-            glyphMarginHoverMessage: allMarkers.reduce(
-              (prev: any, next: any) => {
-                if (
-                  next.startLineNumber === startLineNumber &&
-                  next.endLineNumber === endLineNumber
-                ) {
-                  prev.push({
-                    value: `${next.message} ESLinter [(${next.code.value})](${next.code.target})`,
-                    isTrusted: true,
-                  });
-                }
-                return prev;
-              },
-              []
-            ),
-            */
           },
         }))
       );
     };
 
     const handler = (message: any) => {
-      if (id !== message.id) {
-        return;
-      }
-      editor.setModelMarkers(model, "ESLint", message.markers);
+      if (!alive) return;
+      if (id !== message.id) return;
+
+      const currentModel = monacoEditor.getModel();
+      if (!currentModel || (currentModel as any).isDisposed?.()) return;
+
+      editor.setModelMarkers(currentModel, "ESLint", message.markers);
+
       const fix = new Map();
       // 设置fix
       message.markers.forEach(
@@ -221,9 +255,17 @@ const CodeEditor: React.ForwardRefRenderFunction<{ editor: editor.IStandaloneCod
       );
       diffEslint(formatMarkers);
     };
+
     LinterWorker.hook.addListener("message", handler);
+
     return () => {
+      alive = false;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       LinterWorker.hook.removeListener("message", handler);
+      disposables.forEach((d) => d.dispose());
     };
   }, [id, monacoEditor, enableEslint, eslintConfig]);
 

@@ -50,6 +50,40 @@ const MainLayout: React.FC<{
   const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
+  // 用 hash 判斷是否在 URL 模式的 ScriptEditor 頁面
+  const [inUrlEditor, setInUrlEditor] = useState<boolean>(() => {
+    const h = typeof window !== "undefined" ? window.location.hash : "";
+    const path = h.startsWith("#") ? h.slice(1) : h;
+    return path.split("?")[0].startsWith("/script/editor");
+  });
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const h = window.location.hash || "";
+      const path = h.startsWith("#") ? h.slice(1) : h;
+      setInUrlEditor(path.split("?")[0].startsWith("/script/editor"));
+    };
+    // 初始化 & 監聽 hash 變化
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, []);
+
+  // 統一處理「新增腳本」
+  const createScript = (o: { template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
+    if (inUrlEditor) {
+      // URL 模式：通知路由內的 ScriptEditor 自己加一個分頁
+      window.dispatchEvent(
+        new CustomEvent("scriptcat:editor:add", {
+          detail: { template: o.template || "", target: o.target || "blank" },
+        })
+      );
+    } else {
+      // Overlay 模式
+      openEditor({ template: o.template || "", target: o.target || "blank" });
+    }
+  };
+
   const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
     if (!stat) return;
     modal.info!({
@@ -241,14 +275,14 @@ const MainLayout: React.FC<{
                 droplist={
                   <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
                     <Menu.Item key="/script/editor">
-                      <span className="option-entry" onClick={() => openEditor({ template: "" })}>
+                      <span className="option-entry" onClick={() => createScript({ template: "" })}>
                         <RiFileCodeLine /> {t("create_user_script")}
                       </span>
                     </Menu.Item>
                     <Menu.Item key="background">
                       <span
                         className="option-entry"
-                        onClick={() => openEditor({ template: "background", target: "blank" })}
+                        onClick={() => createScript({ template: "background", target: "blank" })}
                       >
                         <RiTerminalBoxLine /> {t("create_background_script")}
                       </span>
@@ -256,7 +290,7 @@ const MainLayout: React.FC<{
                     <Menu.Item key="crontab">
                       <span
                         className="option-entry"
-                        onClick={() => openEditor({ template: "crontab", target: "blank" })}
+                        onClick={() => createScript({ template: "crontab", target: "blank" })}
                       >
                         <RiTimerLine /> {t("create_scheduled_script")}
                       </span>
