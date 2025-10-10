@@ -25,6 +25,11 @@ type TxUpdateScriptMenuCallback = (
   result: ScriptMenu[]
 ) => Promise<ScriptMenu[] | undefined> | ScriptMenu[] | undefined;
 
+const enum ScriptMenuRegisterType {
+  REGISTER = 1,
+  UNREGISTER = 2,
+}
+
 // 以 tabId 为 key 的「执行次数」快取（字串形式存放），供 badge 显示使用。
 const runCountMap = new Map<number, string>();
 
@@ -173,25 +178,19 @@ export class PopupService {
   }
 
   // 防止并发导致频繁更新菜单，将注册菜单的请求集中在一个队列中处理
-  registerMenuCommandMessages = new Map<string, TScriptMenuRegister[]>();
+  updateMenuCommends = new Map<string, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
 
-  async registerMenuCommand(message: TScriptMenuRegister) {
-    const { tabId, uuid } = message;
-    const mrKey = `${tabId}.${uuid}`;
-    if (!this.registerMenuCommandMessages.has(mrKey)) {
-      this.registerMenuCommandMessages.set(mrKey, []);
-    }
-    this.registerMenuCommandMessages.get(mrKey)!.push(message);
-
+  updateMenuCommend(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
     let retUpdated = false;
-    // 给脚本添加菜单
-    await this.txUpdateScriptMenu(tabId, async (data) => {
-      while (true) {
-        const message = this.registerMenuCommandMessages.get(mrKey)?.shift();
-        if (!message) {
-          this.registerMenuCommandMessages.delete(mrKey);
-          return data;
-        }
+    while (true) {
+      const message_ = this.updateMenuCommends.get(mrKey)?.shift();
+      if (!message_) {
+        this.updateMenuCommends.delete(mrKey);
+        break;
+      }
+      if (message_.registerType === ScriptMenuRegisterType.REGISTER) {
+        const message = message_ as TScriptMenuRegister;
+
         // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
         const { key, name, uuid } = message; // 唯一键, 项目显示名字， 脚本uuid
         const script = data.find((item) => item.uuid === uuid);
@@ -227,8 +226,40 @@ export class PopupService {
             menu.groupKey = groupKey;
           }
         }
+      } else if (message_.registerType === ScriptMenuRegisterType.UNREGISTER) {
+        const { key, uuid } = message_;
+        const script = data.find((item) => item.uuid === uuid);
+        if (script) {
+          // 删除菜单
+          const index = script.menus.findIndex((item) => item.key === key);
+          if (index >= 0) {
+            retUpdated = true;
+            script.menus.splice(index, 1);
+          }
+        }
       }
+    }
+    return retUpdated;
+  }
+
+  async updateRegisterMenuCommand(
+    message: TScriptMenuRegister | TScriptMenuUnregister,
+    registerType: ScriptMenuRegisterType
+  ) {
+    const { tabId, uuid } = message;
+    const mrKey = `${tabId}.${uuid}`;
+    let list = this.updateMenuCommends.get(mrKey);
+    if (!list) {
+      this.updateMenuCommends.set(mrKey, (list = []));
+    }
+    list.push({ ...message, registerType });
+
+    let retUpdated = false;
+    await this.txUpdateScriptMenu(tabId, async (data) => {
+      retUpdated = this.updateMenuCommend(tabId, uuid, data, mrKey);
+      return data;
     });
+
     if (retUpdated) {
       this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
       // 更新数据后再更新菜单
@@ -236,38 +267,12 @@ export class PopupService {
     }
   }
 
-  unregisterMenuCommandMessages = new Map<string, TScriptMenuUnregister[]>();
+  async registerMenuCommand(message: TScriptMenuRegister) {
+    this.updateRegisterMenuCommand(message, ScriptMenuRegisterType.REGISTER);
+  }
 
   async unregisterMenuCommand({ key, uuid, tabId }: TScriptMenuUnregister) {
-    const mrKey = `${tabId}.${uuid}`;
-    if (!this.unregisterMenuCommandMessages.has(mrKey)) {
-      this.unregisterMenuCommandMessages.set(mrKey, []);
-    }
-    this.unregisterMenuCommandMessages.get(mrKey)!.push({ key, uuid, tabId });
-
-    let retUpdated = false;
-    await this.txUpdateScriptMenu(tabId, async (data) => {
-      while (true) {
-        const message = this.unregisterMenuCommandMessages.get(mrKey)?.shift();
-        if (!message) {
-          this.unregisterMenuCommandMessages.delete(mrKey);
-          return data;
-        }
-        const script = data.find((item) => item.uuid === uuid);
-        if (script) {
-          retUpdated = true;
-          // 删除菜单
-          script.menus = script.menus.filter((item) => item.key !== key);
-        }
-        return data;
-      }
-    });
-
-    if (retUpdated) {
-      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
-      // 更新数据后再更新菜单
-      await this.updateScriptMenu(tabId);
-    }
+    this.updateRegisterMenuCommand({ key, uuid, tabId }, ScriptMenuRegisterType.UNREGISTER);
   }
 
   async updateScriptMenu(tabId: number) {
