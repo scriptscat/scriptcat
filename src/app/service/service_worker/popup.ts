@@ -185,6 +185,7 @@ export class PopupService {
     let retUpdated = false;
     const script = data.find((item) => item.uuid === uuid);
     if (script) {
+      const menus = script.menus;
       while (true) {
         const message_ = this.updateMenuCommands.get(mrKey)?.shift();
         if (!message_) {
@@ -208,7 +209,7 @@ export class PopupService {
               : `${name}\n${message.options?.accessKey || ""}`,
             groupKeyNS
           );
-          const menu = script.menus.find((item) => item.key === key);
+          const menu = menus.find((item) => item.key === key);
           if (!menu) {
             // 不存在新增
             script.menus.push({
@@ -229,10 +230,10 @@ export class PopupService {
         } else if (message_.registerType === ScriptMenuRegisterType.UNREGISTER) {
           const { key } = message_;
           // 删除菜单
-          const index = script.menus.findIndex((item) => item.key === key);
+          const index = menus.findIndex((item) => item.key === key);
           if (index >= 0) {
             retUpdated = true;
-            script.menus.splice(index, 1);
+            menus.splice(index, 1);
           }
         }
       }
