@@ -249,17 +249,17 @@ export class PopupService {
     }
     list.push({ ...message, registerType });
     let retUpdated: string[] | undefined;
-    return Promise.resolve() // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
-      .then(() => {
-        if (list.length) {
-          cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
-            data = data || [];
-            retUpdated = this.updateMenuCommand(tabId, data);
-            if (retUpdated.length) {
-              tx.set(data);
-            }
-          });
-        }
+    return Promise.resolve(list) // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
+      .then((list) => {
+        if (!list.length) return;
+        cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
+          if (!list.length) return;
+          data = data || [];
+          retUpdated = this.updateMenuCommand(tabId, data);
+          if (retUpdated.length) {
+            tx.set(data);
+          }
+        });
       })
       .then(() => {
         if (retUpdated?.length) {
