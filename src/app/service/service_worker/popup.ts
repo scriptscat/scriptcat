@@ -181,7 +181,7 @@ export class PopupService {
   updateMenuCommands = new Map<string, ((TScriptMenuRegister | TScriptMenuUnregister) & { registerType: number })[]>();
   isUpdateMenuDirty = false;
 
-  updateMenuCommand(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string) {
+  updateMenuCommand(tabId: number, uuid: string, data: ScriptMenu[], mrKey: string): boolean {
     let retUpdated = false;
     const list = this.updateMenuCommands.get(mrKey);
     if (!list) return false;
@@ -240,10 +240,10 @@ export class PopupService {
     return retUpdated;
   }
 
-  async updateRegisterMenuCommand(
+  updateRegisterMenuCommand(
     message: TScriptMenuRegister | TScriptMenuUnregister,
     registerType: ScriptMenuRegisterType
-  ) {
+  ): Promise<void> {
     const { tabId, uuid } = message;
     const mrKey = `${tabId}.${uuid}`;
     let list = this.updateMenuCommands.get(mrKey);
@@ -251,28 +251,30 @@ export class PopupService {
       this.updateMenuCommands.set(mrKey, (list = []));
     }
     list.push({ ...message, registerType });
-    await Promise.resolve(); // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
-
     let retUpdated = false;
-    if (list.length) {
-      await this.txUpdateScriptMenu(tabId, (data) => {
-        retUpdated = this.updateMenuCommand(tabId, uuid, data, mrKey);
-        return data;
+    return Promise.resolve() // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
+      .then(() => {
+        if (list.length) {
+          return this.txUpdateScriptMenu(tabId, (data) => {
+            retUpdated = this.updateMenuCommand(tabId, uuid, data, mrKey);
+            return data;
+          });
+        }
+      })
+      .then(() => {
+        if (retUpdated) {
+          this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
+          // 更新数据后再更新菜单
+          this.updateScriptMenu(tabId);
+        }
       });
-    }
-
-    if (retUpdated) {
-      this.mq.publish<TPopupScript>("popupMenuRecordUpdated", { tabId, uuid });
-      // 更新数据后再更新菜单
-      await this.updateScriptMenu(tabId);
-    }
   }
 
-  async registerMenuCommand(message: TScriptMenuRegister) {
+  registerMenuCommand(message: TScriptMenuRegister) {
     this.updateRegisterMenuCommand(message, ScriptMenuRegisterType.REGISTER);
   }
 
-  async unregisterMenuCommand({ key, uuid, tabId }: TScriptMenuUnregister) {
+  unregisterMenuCommand({ key, uuid, tabId }: TScriptMenuUnregister) {
     this.updateRegisterMenuCommand({ key, uuid, tabId }, ScriptMenuRegisterType.UNREGISTER);
   }
 
