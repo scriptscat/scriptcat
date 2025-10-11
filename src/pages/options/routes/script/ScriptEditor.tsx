@@ -1,10 +1,26 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable no-empty */
+// ================================
+// File: src/pages/ScriptEditor.tsx
+// ================================
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, ScriptCodeDAO, ScriptDAO } from "@App/app/repo/scripts";
 import CodeEditor from "@App/pages/components/CodeEditor";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { editor } from "monaco-editor";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import { Button, Dropdown, Grid, Input, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
+import {
+  Button,
+  Dropdown,
+  Grid,
+  Input,
+  Menu,
+  Message,
+  Modal,
+  ModalHookReturnType,
+  Tabs,
+  Tooltip,
+} from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -20,8 +36,19 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { IconClose, IconDelete, IconPlus, IconSearch, IconShrink } from "@arco-design/web-react/icon";
+import {
+  IconClose,
+  IconDelete,
+  IconList,
+  IconPlus,
+  IconSearch,
+  IconSettings,
+  IconShrink,
+} from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
+import { systemConfig } from "@App/pages/store/global";
+import { wScript } from "./shared";
+import { ScriptEditorScriptList } from "./ScriptEditorScriptList";
 
 const { Row, Col } = Grid;
 
@@ -38,162 +65,60 @@ export type ScriptEditorCoreProps = {
   }) => void;
 };
 
-type HotKey = {
+export type HotKey = {
   id: string;
   title: string;
   hotKey: number;
   action: (script: Script, codeEditor: editor.IStandaloneCodeEditor) => void;
 };
 
-const Editor: React.FC<{
-  id: string;
-  script: Script;
-  code: string;
+export type ScriptEditorScriptListProps = {
+  showSearchInput: boolean;
+  setShowSearchInput: React.Dispatch<React.SetStateAction<boolean>>;
+  searchKeyword: string;
+  setSearchKeyword: React.Dispatch<React.SetStateAction<string>>;
+  scriptList: Script[];
+  selectSciptButtonAndTab: string;
+  setSelectSciptButtonAndTab: React.Dispatch<React.SetStateAction<string>>;
+  modelMapRef: React.MutableRefObject<Map<string, editor.ITextModel>>;
+  switchToUuid: (uuid: string) => void;
+  scriptCodeDAO: ScriptCodeDAO;
+  setEditors: React.Dispatch<
+    React.SetStateAction<
+      {
+        script: Script;
+        code: string;
+        hotKeys: HotKey[];
+        isChanged: boolean;
+      }[]
+    >
+  >;
   hotKeys: HotKey[];
-  callbackEditor: (e: editor.IStandaloneCodeEditor) => void;
-  onChange: (code: string) => void;
-  className: string;
-}> = ({ id, script, code, hotKeys, callbackEditor, onChange, className }) => {
-  const [node, setNode] = useState<{ editor: editor.IStandaloneCodeEditor }>();
-  const ref = useCallback<(node: { editor: editor.IStandaloneCodeEditor }) => void>(
-    (inlineNode) => {
-      if (inlineNode && inlineNode.editor && !node) {
-        setNode(inlineNode);
-      }
-    },
-    [node]
-  );
-  useEffect(() => {
-    if (!node || !node.editor) {
-      return;
-    }
-    // @ts-ignore
-    if (!node.editor.uuid) {
-      // @ts-ignore
-      node.editor.uuid = script.uuid;
-    }
-    hotKeys.forEach((item) => {
-      node.editor.addAction({
-        id: item.id,
-        label: item.title,
-        keybindings: [item.hotKey],
-        run(editor) {
-          // @ts-ignore
-          item.action(script, editor);
-        },
-      });
-    });
-    node.editor.onKeyUp(() => {
-      onChange(node.editor.getValue() || "");
-    });
-    callbackEditor(node.editor);
-    return () => {
-      node.editor.dispose();
-    };
-  }, [node?.editor]);
-
-  return <CodeEditor key={id} id={id} ref={ref} className={className} code={code} diffCode="" editable />;
+  setScriptList: React.Dispatch<React.SetStateAction<Script[]>>;
+  handleDeleteEditor: (targetUuid: string, needConfirm?: boolean) => void;
+  modalConfirm: (config: any) => void;
 };
 
-const WarpEditor = React.memo(Editor, (prev, next) => {
-  return prev.script.uuid === next.script.uuid;
-});
+const WrappedCodeEditor = React.memo(CodeEditor, (prev, next) => prev.uuid === next.uuid);
+WrappedCodeEditor.displayName = "WrappedCodeEditor";
 
-type EditorMenu = {
-  title: string;
-  tooltip?: string;
-  action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
-  items?: {
-    id: string;
-    title: string;
-    tooltip?: string;
-    hotKey?: number;
-    hotKeyString?: string;
-    action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
-  }[];
-};
+const cfgEditorWithScriptList = systemConfig.config<boolean>("editor_with_script_list", true);
 
-const emptyScript = async (template: string, hotKeys: any, target?: string) => {
-  let code = "";
-  switch (template) {
-    case "background":
-      code = backgroundTpl;
-      code = lazyScriptName(code);
-      break;
-    case "crontab":
-      code = crontabTpl;
-      code = lazyScriptName(code);
-      break;
-    default: {
-      code = normalTpl;
-      const [url, icon] =
-        target === "initial"
-          ? await new Promise<string[]>((resolve) => {
-              chrome.storage.local.get(["activeTabUrl"], (result) => {
-                const lastError = chrome.runtime.lastError;
-                let retUrl = "https://*/*";
-                let retIcon = "";
-                if (lastError) {
-                  console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-                  chrome.storage.local.remove(["activeTabUrl"]);
-                } else {
-                  chrome.storage.local.remove(["activeTabUrl"]);
-                  const pageUrl = result?.activeTabUrl?.url;
-                  if (pageUrl) {
-                    try {
-                      const { protocol, pathname, hostname } = new URL(pageUrl);
-                      if (protocol && pathname && hostname) {
-                        retUrl = `${protocol}//${hostname}${pathname}`;
-                        if (protocol === "http:" || protocol === "https:") {
-                          retIcon = `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
-                        }
-                      }
-                    } catch {
-                      // do nothing
-                    }
-                  }
-                }
-                resolve([retUrl, retIcon]);
-              });
-            })
-          : ["https://*/*", ""];
-      code = lazyScriptName(code);
-      if (icon) {
-        code = code.replace("{{match}}", url);
-        code = code.replace("{{icon}}", icon);
-      } else {
-        code = code.replace("{{match}}", url);
-        code = code.replace(/[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
-      }
-      break;
-    }
-  }
-  const prepareScript = await prepareScriptByCode(code, "", uuidv4());
-  const { script } = prepareScript;
-  script.createtime = 0;
-
-  return {
-    script,
-    code,
-    // active: true, // ← 不再回傳 active，由呼叫端用 setActiveUuid 控制
-    hotKeys,
-    isChanged: false,
-  };
-};
-
-type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
+// --- 單一 Monaco Editor，多個 Model（每個分頁一個 Model，擁有獨立的 Undo 記錄）---
+// 我們保留一個 editor 實例（由 CodeEditor 控制），並為每個分頁建立/保存 model。
 
 function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
+
+  // 編輯器分頁資料（script 與其初始 code）
   const [editors, setEditors] = useState<
     {
       script: Script;
-      code: string;
+      code: string; // 初始載入的 code，用於判斷 isChanged
       hotKeys: HotKey[];
-      editor?: editor.IStandaloneCodeEditor;
       isChanged: boolean;
     }[]
   >([]);
@@ -207,23 +132,30 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   }>();
   const [pageInit, setPageInit] = useState<boolean>(false);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
-  const [hiddenScriptList, setHiddenScriptList] = useState<boolean>(false);
+  const [hiddenScriptList, setHiddenScriptList] = useState<boolean | null>(() => {
+    const isPromise = cfgEditorWithScriptList.promise?.then(() => {
+      setHiddenScriptList(cfgEditorWithScriptList.value ? false : true);
+    });
+    return isPromise ? null : cfgEditorWithScriptList.value ? false : true;
+  });
 
-  // 目前活躍的 editor（用 uuid 指定）
+  // 目前活躍的分頁（以 uuid 指定）
   const [activeUuid, setActiveUuid] = useState<string>("");
+
+  // 單一 Monaco Editor 實例引用
+  const monacoEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+  // 每個分頁對應一個 model；切換分頁只切換 model
+  const modelMapRef = useRef<Map<string, editor.ITextModel>>(new Map());
 
   const { t } = useTranslation();
   const scriptDAO = useMemo(() => new ScriptDAO(), []);
   const scriptCodeDAO = useMemo(() => new ScriptCodeDAO(), []);
 
-  const setShow = useCallback((key: visibleItem, show: boolean) => {
+  const setShow = useCallback((key: "scriptStorage" | "scriptSetting" | "scriptResource", show: boolean) => {
     setVisible((prev) => {
       const next: Record<string, boolean> = {};
-      // 先全部關
-      Object.keys(prev).forEach((k) => {
-        next[k] = false;
-      });
-      // 指定這個開/關
+      Object.keys(prev).forEach((k) => (next[k] = false));
       next[key] = show;
       return next;
     });
@@ -231,7 +163,6 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
 
   const save = useCallback(
     (existingScript: Script, e: editor.IStandaloneCodeEditor): Promise<Script> => {
-      // 解析code生成新的script并更新
       const code = e.getValue();
       const targetUUID = existingScript.uuid;
       return prepareScriptByCode(code, existingScript.origin || "", targetUUID)
@@ -257,7 +188,6 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
             .then((update): Script => {
               if (!update) {
                 Message.success(t("create_success_note"));
-                // 保存的时候如何左侧没有脚本即新建
                 setScriptList((prev) => {
                   setSelectSciptButtonAndTab(script.uuid);
                   return [script, ...prev];
@@ -265,16 +195,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               } else {
                 const uuid = script.uuid;
                 const name = script.name;
-                setScriptList((prev) =>
-                  prev.map((script: Script) =>
-                    script.uuid === uuid
-                      ? {
-                          ...script,
-                          name,
-                        }
-                      : script
-                  )
-                );
+                setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, name } : s)));
                 Message.success(t("save_success"));
               }
               const uuid = script.uuid;
@@ -282,15 +203,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               setEditors((prev) =>
                 prev.map((item) =>
                   item.script.uuid === uuid
-                    ? {
-                        ...item,
-                        code: code,
-                        isChanged: false,
-                        script: {
-                          ...item.script,
-                          name,
-                        },
-                      }
+                    ? { ...item, code, isChanged: false, script: wScript({ ...item.script, name }) }
                     : item
                 )
               );
@@ -315,15 +228,10 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         chrome.downloads.download(
           {
             url: URL.createObjectURL(new Blob([e.getValue()], { type: "text/javascript" })),
-            saveAs: true, // true直接弹出对话框；false弹出下载选项
+            saveAs: true,
             filename: `${script.name}.user.js`,
           },
           () => {
-            /*
-            chrome扩展api发生错误无法通过try/catch捕获，必须在api回调函数中访问chrome.runtime.lastError进行获取
-            var chrome.runtime.lastError: chrome.runtime.LastError | undefined
-            This will be defined during an API method callback if there was an error
-          */
             if (chrome.runtime.lastError) {
               console.log(t("save_as_failed") + ": ", chrome.runtime.lastError);
               Message.error(`${t("save_as_failed")}: ${chrome.runtime.lastError.message}`);
@@ -337,18 +245,28 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     },
     [t]
   );
+
+  type EditorMenu = {
+    title: string | JSX.Element;
+    key?: string;
+    tooltip?: string;
+    action?: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+    items?: {
+      id: string;
+      title: string;
+      tooltip?: string;
+      hotKey?: number;
+      hotKeyString?: string;
+      action: (script: Script, e: editor.IStandaloneCodeEditor) => void;
+    }[];
+  };
+
   const menu: EditorMenu[] = useMemo(
     () => [
       {
         title: t("file"),
         items: [
-          {
-            id: "save",
-            title: t("save"),
-            hotKey: KeyMod.CtrlCmd | KeyCode.KeyS,
-            hotKeyString: "Ctrl+S",
-            action: save,
-          },
+          { id: "save", title: t("save"), hotKey: KeyMod.CtrlCmd | KeyCode.KeyS, hotKeyString: "Ctrl+S", action: save },
           {
             id: "saveAs",
             title: t("save_as"),
@@ -368,34 +286,20 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
             hotKeyString: "Ctrl+F5",
             tooltip: t("only_background_scheduled_can_run"),
             action: async (script, e) => {
-              // 保存更新代码之后再调试
               const newScript = await save(script, e);
-              // 判断脚本类型
               if (newScript.type === SCRIPT_TYPE_NORMAL) {
                 Message.error(t("only_background_scheduled_can_run"));
                 return;
               }
-              Message.loading({
-                id: "debug_script",
-                content: t("preparing_script_resources"),
-                duration: 3000,
-              });
+              Message.loading({ id: "debug_script", content: t("preparing_script_resources"), duration: 3000 });
               runtimeClient
                 .runScript(newScript.uuid)
                 .then(() => {
-                  Message.success({
-                    id: "debug_script",
-                    content: t("build_success_message"),
-                    duration: 3000,
-                  });
+                  Message.success({ id: "debug_script", content: t("build_success_message"), duration: 3000 });
                 })
                 .catch((err) => {
                   LoggerCore.logger(Logger.E(err)).debug("run script error");
-                  Message.error({
-                    id: "debug_script",
-                    content: `${t("build_failed")}: ${err}`,
-                    duration: 3000,
-                  });
+                  Message.error({ id: "debug_script", content: `${t("build_failed")}: ${err}`, duration: 3000 });
                 });
             },
           },
@@ -425,19 +329,8 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         ],
       },
       {
-        title: t("layout"),
-        items: [
-          {
-            id: "hideScriptList",
-            title: (hiddenScriptList ? "✓ " : "") + t("hide_script_list"),
-            action() {
-              setHiddenScriptList((v) => !v!);
-            },
-          },
-        ],
-      },
-      {
-        title: t("settings"),
+        title: <IconSettings />,
+        key: "icon_settings",
         tooltip: t("script_setting_tooltip"),
         action(script) {
           setShow("scriptSetting", true);
@@ -448,18 +341,13 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     [hiddenScriptList, save, saveAs, setShow, t]
   );
 
-  // 根据菜单生产快捷键（純計算，不觸發渲染副作用）
+  // 根據菜單生成快捷鍵（熱鍵行為會對當前活躍分頁生效）
   const hotKeys: HotKey[] = React.useMemo(() => {
     const keys: HotKey[] = [];
     menu.forEach((item) => {
       item.items?.forEach((menuItem) => {
         if (menuItem.hotKey) {
-          keys.push({
-            id: menuItem.id,
-            title: menuItem.title,
-            hotKey: menuItem.hotKey,
-            action: menuItem.action,
-          });
+          keys.push({ id: menuItem.id, title: menuItem.title, hotKey: menuItem.hotKey, action: menuItem.action });
         }
       });
     });
@@ -469,8 +357,6 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   // 初始化 + 卸載
   useEffect(() => {
     let mounted = true;
-
-    // 防止开发模式下重复初始化
     if (!pageInit) {
       setPageInit(true);
       scriptDAO.all().then((scripts) => {
@@ -479,15 +365,31 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         setCanLoadScript(true);
       });
     }
-
-    // 卸載時恢復標題
     return () => {
       mounted = false;
       document.title = "Home - ScriptCat";
+      // 清理所有殘留 model（避免記憶體洩漏）
+      modelMapRef.current.forEach((m) => m.dispose());
+      modelMapRef.current.clear();
     };
-    // 只在首次 mount 進來跑一次（pageInit 控制重入）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useLayoutEffect(() => {
+    if (!selectSciptButtonAndTab) return;
+    try {
+      const elm = document.querySelector(`#editor-script-uuid-${selectSciptButtonAndTab}`);
+      if (elm) {
+        elm.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+          behavior: "instant",
+        });
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [selectSciptButtonAndTab]);
 
   useEffect(() => {
     const item = editors.find((e) => e.script.uuid === activeUuid);
@@ -496,92 +398,159 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     }
   }, [activeUuid, editors]);
 
-  // Instead of reading from URL, compute once from props:
-  const memoParamsKey = useMemo(() => {
-    return `${uuid || ""}|${template || ""}|${target || ""}`;
-  }, [uuid, template, target]);
-
-  // NEW: remember which params we've already handled (per overlay session)
+  const memoParamsKey = useMemo(() => `${uuid || ""}|${template || ""}|${target || ""}`, [uuid, template, target]);
   const handledParamsRef = useRef<string | null>(null);
 
+  // 產生新分頁（建立 model）
+  const createTabWithCode = useCallback(
+    (code: string): Promise<{ script: Script; code: string } & { uuid: string }> => {
+      return prepareScriptByCode(code, "", uuidv4()).then(({ script }) => {
+        script.createtime = 0;
+        const model = editor.createModel(code, "javascript");
+        modelMapRef.current.set(script.uuid, model);
+        return { script, code, uuid: script.uuid };
+      });
+    },
+    []
+  );
+
+  const [buildTemplateParam, setBuildTemplateParam] = useState<"" | "background" | "crontab">(template || "");
+
+  const handleCreateByTemplate = useCallback(
+    (tpl: "" | "background" | "crontab", tgt: "blank" | "initial" = "blank") => {
+      setBuildTemplateParam(tpl);
+      // 直接沿用上方新建邏輯（略過 tgt，保持簡化）
+      let code = "";
+      switch (tpl) {
+        case "background":
+          code = lazyScriptName(backgroundTpl);
+          break;
+        case "crontab":
+          code = lazyScriptName(crontabTpl);
+          break;
+        default:
+          code = lazyScriptName(normalTpl)
+            .replace("{{match}}", "https://*/*")
+            .replace(/\[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
+          break;
+      }
+      createTabWithCode(code).then(({ script, code: c }) => {
+        setEditors((prev) => [...prev, { script: wScript(script), code: c, hotKeys, isChanged: false }]);
+        switchToUuid(script.uuid);
+      });
+    },
+    [createTabWithCode, hotKeys]
+  );
+
+  // 依傳入參數建立/開啟分頁
   useEffect(() => {
     if (!canLoadScript) return;
     if (handledParamsRef.current === memoParamsKey) return;
 
-    const [uuid, template, target] = memoParamsKey.split("|");
+    const [idFromParam, tpl, tgt] = memoParamsKey.split("|");
 
-    if (uuid) {
-      const found = scriptList.find((s) => s.uuid === uuid);
+    if (idFromParam) {
+      const found = scriptList.find((s) => s.uuid === idFromParam);
       if (!found) return; // 等清單
-      scriptCodeDAO.findByUUID(uuid).then((code) => {
-        setEditors((prev) => {
-          const exists = prev.some((it) => it.script.uuid === uuid);
-          if (exists) {
-            setActiveUuid(uuid);
-            setSelectSciptButtonAndTab(uuid);
-            handledParamsRef.current = memoParamsKey;
-            return prev;
-          }
-          const newEditor = { script: found, code: code?.code || "", hotKeys, isChanged: false };
-          setActiveUuid(found.uuid);
-          setSelectSciptButtonAndTab(found.uuid);
+      scriptCodeDAO.findByUUID(idFromParam).then((code) => {
+        if (modelMapRef.current.has(idFromParam)) {
+          setActiveUuid(idFromParam);
+          setSelectSciptButtonAndTab(idFromParam);
           handledParamsRef.current = memoParamsKey;
-          return [...prev, newEditor];
-        });
+          return;
+        }
+        const mdl = editor.createModel(code?.code || "", "javascript");
+        modelMapRef.current.set(found.uuid, mdl);
+        const newEditorEntry = { script: wScript(found), code: code?.code || "", hotKeys, isChanged: false };
+        setEditors((prev) => [...prev, newEditorEntry]);
+        setActiveUuid(found.uuid);
+        setSelectSciptButtonAndTab(found.uuid);
+        handledParamsRef.current = memoParamsKey;
       });
     } else {
-      emptyScript(template || "", hotKeys, (target as any) || "blank").then((e) => {
-        setEditors((prev) => {
-          setActiveUuid(e.script.uuid);
-          setSelectSciptButtonAndTab(e.script.uuid);
+      // 建立空白腳本（依 template）
+      const makeCodeByTemplate = async () => {
+        let code = "";
+        switch (tpl) {
+          case "background":
+            code = lazyScriptName(backgroundTpl);
+            break;
+          case "crontab":
+            code = lazyScriptName(crontabTpl);
+            break;
+          default:
+            code = lazyScriptName(normalTpl);
+            // target 初始網址替換（與原邏輯一致，略）
+            code = code.replace("{{match}}", "https://*/*");
+            code = code.replace(/\[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
+            break;
+        }
+        return code;
+      };
+      makeCodeByTemplate().then((code) => {
+        createTabWithCode(code).then(({ script, code: c }) => {
+          setEditors((prev) => [...prev, { script: wScript(script), code: c, hotKeys, isChanged: false }]);
+          setActiveUuid(script.uuid);
+          setSelectSciptButtonAndTab(script.uuid);
           handledParamsRef.current = memoParamsKey;
-          return [...prev, e];
         });
       });
     }
-    // 故意沒有 hotKeys/scriptCodeDAO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canLoadScript, memoParamsKey, scriptList]);
 
-  // 未保存離開保護
+  // 未保存離開保護（overlay 下不啟用）
   useEffect(() => {
-    if (overlayMode) return; // overlay 不啟用離開保護
-
+    // if (overlayMode) return;
     const anyChanged = editors.some((e) => e.isChanged);
-    if (!anyChanged) {
-      window.onbeforeunload = null;
-      return;
+    const unhooks = [] as (() => any)[];
+    if (anyChanged) {
+      const beforeunload = (event: Event) => {
+        // https://developer.mozilla.org/ja/docs/Web/API/Window/beforeunload_event
+        // Cancel the event as stated by the standard.
+        event.preventDefault();
+        // Chrome requires returnValue to be set.
+        //@ts-ignore
+        event.returnValue = "";
+      };
+      window.addEventListener("beforeunload", beforeunload);
+      const popstate = () => {
+        if (confirm(i18n.t("script_modified_leave_confirm"))) {
+          window.history.back();
+          window.removeEventListener("popstate", popstate);
+        } else {
+          window.history.pushState(null, "", window.location.href);
+        }
+        return false;
+      };
+      window.history.pushState(null, "", window.location.href);
+      window.addEventListener("popstate", popstate);
+      unhooks.push(() => {
+        window.removeEventListener("beforeunload", beforeunload);
+        window.removeEventListener("popstate", popstate);
+      });
     }
 
-    const beforeunload = () => true;
-    window.onbeforeunload = beforeunload;
-
-    const popstate = () => {
-      if (confirm(i18n.t("script_modified_leave_confirm"))) {
-        window.history.back();
-        window.removeEventListener("popstate", popstate);
-      } else {
-        window.history.pushState(null, "", window.location.href);
+    const onAdd = (e: Event | CustomEvent) => {
+      const p = (e as CustomEvent).detail;
+      if (p && typeof p.tpl === "string") {
+        handleCreateByTemplate(p.tpl, p.tgt);
       }
-      return false;
     };
-    window.history.pushState(null, "", window.location.href);
-    window.addEventListener("popstate", popstate);
-
+    window.addEventListener("scriptcat:editor:add", onAdd);
+    unhooks.push(() => {
+      window.removeEventListener("scriptcat:editor:add", onAdd);
+    });
     return () => {
-      window.onbeforeunload = null;
-      window.removeEventListener("popstate", popstate);
+      for (const unhook of unhooks) unhook();
     };
-  }, [overlayMode, editors]);
+  }, [editors, handleCreateByTemplate]);
 
-  // 取得目前活躍 editor
   // URL 同步
   useEffect(() => {
     if (!onUrlChange) return;
     const active = editors.find((e) => e.script.uuid === activeUuid);
     if (!active) return;
-
-    // 開啟既有腳本就用 uuid；否則帶 template/target（保持你的行為）
     if (active.script?.uuid && active.script.createtime !== 0) {
       onUrlChange({ uuid: active.script.uuid });
     } else {
@@ -589,342 +558,294 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     }
   }, [onUrlChange, activeUuid, editors, template, target]);
 
-  // 对tab点击右键进行的操作
+  // 右鍵分頁操作（關閉當前/其它/左側/右側）
   useEffect(() => {
-    let selectEditorIndex: number = 0;
-    // 1 关闭当前, 2关闭其它, 3关闭左侧, 4关闭右侧
-    if (rightOperationTab) {
-      switch (rightOperationTab.key) {
-        case "1": // 关闭当前
-          setEditors((prev) => {
-            const targetUuid = rightOperationTab.uuid;
-            const filtered = prev.filter((item) => item.script.uuid !== targetUuid);
-
-            if (filtered.length === 0) {
-              return [];
+    let selectEditorIndex = 0;
+    if (!rightOperationTab) return;
+    switch (rightOperationTab.key) {
+      case "1": // 關閉當前
+        handleDeleteEditor(rightOperationTab.uuid, false);
+        break;
+      case "2": // 關閉其它
+        setSelectSciptButtonAndTab(rightOperationTab.uuid);
+        setEditors((prev) => {
+          const only = prev.filter((it) => it.script.uuid === rightOperationTab.uuid);
+          setActiveUuid(rightOperationTab.uuid);
+          // 清理被移除的 models
+          prev.forEach((it) => {
+            if (it.script.uuid !== rightOperationTab.uuid) {
+              const m = modelMapRef.current.get(it.script.uuid);
+              m?.dispose();
+              modelMapRef.current.delete(it.script.uuid);
             }
-
-            // 还有的话，如果之前有选中的，那么我们还是选中之前的，如果没有选中的我们就选中第一个
-            if (rightOperationTab.selectSciptButtonAndTab === targetUuid) {
-              const chooseTabUUID = filtered[0].script.uuid;
-              setSelectSciptButtonAndTab(chooseTabUUID);
-              setActiveUuid(chooseTabUUID); // 改為設定當前活躍
-            } else {
-              const prevTabUUID = rightOperationTab.selectSciptButtonAndTab;
-              setSelectSciptButtonAndTab(prevTabUUID);
-              setActiveUuid(prevTabUUID); // 之前选中的tab保持活跃
-            }
-            return filtered;
           });
-          break;
-
-        case "2": // 关闭其它
-          setSelectSciptButtonAndTab(rightOperationTab.uuid);
-          setEditors((prev) => {
-            const only = prev.filter((item) => item.script.uuid === rightOperationTab.uuid);
-            // 只保留當前，直接設為活躍
+          return only;
+        });
+        break;
+      case "3": // 關閉左側
+        setEditors((prev) => {
+          prev.some((item, index) => {
+            if (item.script.uuid === rightOperationTab.uuid) {
+              selectEditorIndex = index;
+              return true;
+            }
+            return false;
+          });
+          const sliced = prev.slice(selectEditorIndex);
+          prev.slice(0, selectEditorIndex).forEach((it) => {
+            const m = modelMapRef.current.get(it.script.uuid);
+            m?.dispose();
+            modelMapRef.current.delete(it.script.uuid);
+          });
+          const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
+          if (!stillActive) {
             setActiveUuid(rightOperationTab.uuid);
-            return only;
-          });
-          break;
-
-        case "3": // 关闭左侧
-          setEditors((prev) => {
-            prev.some((item, index) => {
-              if (item.script.uuid === rightOperationTab.uuid) {
-                selectEditorIndex = index;
-                return true;
-              }
-              return false;
-            });
-            const sliced = prev.slice(selectEditorIndex);
-
-            // 如果當前活躍的 tab 被砍掉了，就把活躍設為右鍵點選的那個
-            const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
-            if (!stillActive) {
-              setActiveUuid(rightOperationTab.uuid);
-              setSelectSciptButtonAndTab(rightOperationTab.uuid);
+            setSelectSciptButtonAndTab(rightOperationTab.uuid);
+          }
+          return sliced;
+        });
+        break;
+      case "4": // 關閉右側
+        setEditors((prev) => {
+          prev.some((item, index) => {
+            if (item.script.uuid === rightOperationTab.uuid) {
+              selectEditorIndex = index;
+              return true;
             }
-            return sliced;
+            return false;
           });
-          break;
-
-        case "4": // 关闭右侧
-          setEditors((prev) => {
-            prev.some((item, index) => {
-              if (item.script.uuid === rightOperationTab.uuid) {
-                selectEditorIndex = index;
-                return true;
-              }
-              return false;
-            });
-            const sliced = prev.slice(0, selectEditorIndex + 1);
-
-            // 如果當前活躍的 tab 被砍掉了，就把活躍設為右鍵點選的那個
-            const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
-            if (!stillActive) {
-              setActiveUuid(rightOperationTab.uuid);
-              setSelectSciptButtonAndTab(rightOperationTab.uuid);
-            }
-            return sliced;
+          const sliced = prev.slice(0, selectEditorIndex + 1);
+          prev.slice(selectEditorIndex + 1).forEach((it) => {
+            const m = modelMapRef.current.get(it.script.uuid);
+            m?.dispose();
+            modelMapRef.current.delete(it.script.uuid);
           });
-          break;
-
-        default:
-          break;
-      }
+          const stillActive = sliced.some((e) => e.script.uuid === activeUuid);
+          if (!stillActive) {
+            setActiveUuid(rightOperationTab.uuid);
+            setSelectSciptButtonAndTab(rightOperationTab.uuid);
+          }
+          return sliced;
+        });
+        break;
+      default:
+        break;
     }
-  }, [rightOperationTab, activeUuid, setActiveUuid, setSelectSciptButtonAndTab]);
+  }, [rightOperationTab, activeUuid]);
 
-  // 通用的编辑器删除处理函数
+  // 通用刪除（會處理 model 釋放）
   const handleDeleteEditor = (targetUuid: string, needConfirm: boolean = false) => {
     setEditors((prev) => {
-      const targetIndex = prev.findIndex((e) => e.script.uuid === targetUuid);
-      if (targetIndex === -1) return prev;
-
-      const targetEditor = prev[targetIndex];
-
-      // 如果需要确认且脚本已修改
-      if (needConfirm && targetEditor.isChanged) {
-        if (!confirm(t("script_modified_close_confirm"))) {
-          return prev;
-        }
+      const idx = prev.findIndex((e) => e.script.uuid === targetUuid);
+      if (idx === -1) return prev;
+      const target = prev[idx];
+      if (needConfirm && target.isChanged) {
+        if (!confirm(t("script_modified_close_confirm"))) return prev;
       }
+      const next = prev.filter((_, i) => i !== idx);
+      // 釋放對應 model（保留其它 model 的 undo 記錄）
+      const mdl = modelMapRef.current.get(targetUuid);
+      mdl?.dispose();
+      modelMapRef.current.delete(targetUuid);
 
-      // 如果只剩一个编辑器，打开空白脚本
       if (prev.length === 1) {
-        emptyScript(template || "", hotKeys, "blank").then((e) => {
-          setEditors([e]);
-          setActiveUuid(e.script.uuid);
-          setSelectSciptButtonAndTab(e.script.uuid);
+        // 若刪到無分頁，新增空白一個
+        const code = lazyScriptName(normalTpl)
+          .replace("{{match}}", "https://*/*")
+          .replace(/\[\r\n]*[^\r\n]*\{\{icon\}\}[^\r\n]*/, "");
+        createTabWithCode(code).then(({ script, code: c }) => {
+          setEditors([{ script, code: c, hotKeys, isChanged: false }]);
+          setActiveUuid(script.uuid);
+          setSelectSciptButtonAndTab(script.uuid);
+          // 同時讓 editor 設定成新 model
+          const newModel = modelMapRef.current.get(script.uuid);
+          if (monacoEditorRef.current && newModel) monacoEditorRef.current.setModel(newModel);
         });
-        return prev;
+        return prev; // 讓異步流程接手
       }
 
-      // 删除目标编辑器
-      const next = prev.filter((_, index) => index !== targetIndex);
-
-      // 如果删除的是当前活跃的编辑器，需要激活其他编辑器
-      if (targetEditor.script.uuid === activeUuid && next.length > 0) {
-        let nextActiveIndex: number;
-        if (targetIndex >= next.length) {
-          // 如果删除的是最后一个，激活前一个
-          nextActiveIndex = next.length - 1;
-        } else {
-          // 否则激活下一个（原来的下一个现在在同样的位置）
-          nextActiveIndex = targetIndex;
-        }
+      // 切換活躍分頁
+      if (targetUuid === activeUuid && next.length > 0) {
+        const nextActiveIndex = idx >= next.length ? next.length - 1 : idx;
         const u = next[nextActiveIndex].script.uuid;
         setActiveUuid(u);
         setSelectSciptButtonAndTab(u);
+        const mdl2 = modelMapRef.current.get(u);
+        if (monacoEditorRef.current && mdl2) monacoEditorRef.current.setModel(mdl2);
       }
-
       return next;
     });
   };
 
-  // 处理编辑器激活状态变化时的focus
-  useEffect(() => {
-    const active = editors.find((e) => e.script.uuid === activeUuid);
-    const ed = active?.editor;
-    if (!ed) return;
-
-    const id = window.setTimeout(() => {
-      try {
-        ed.layout();
-        ed.focus();
-      } catch {
-        // 無視錯誤
-      }
-    }, 100);
-    return () => window.clearTimeout(id);
-  }, [activeUuid, editors]);
-
-  useEffect(() => {
-    if (overlayMode) return; // 只在 URL 模式下接事件
-
-    const onAdd = (ev: Event) => {
-      const detail = (ev as CustomEvent).detail || {};
-      const tpl = (detail.template as string) || "";
-      const tgt = (detail.target as "blank" | "initial") || "blank";
-
-      emptyScript(tpl, hotKeys, tgt).then((e) => {
-        setEditors((prev) => {
-          setActiveUuid(e.script.uuid);
-          setSelectSciptButtonAndTab(e.script.uuid);
-          return [...prev, e];
-        });
-      });
-    };
-
-    window.addEventListener("scriptcat:editor:add", onAdd as EventListener);
-    return () => {
-      window.removeEventListener("scriptcat:editor:add", onAdd as EventListener);
-    };
-  }, [overlayMode, hotKeys, setEditors, setActiveUuid, setSelectSciptButtonAndTab]);
-
+  // 當前分頁切換：只切換 editor 的 model
   const activeTab = useMemo(() => {
     const idx = editors.findIndex((e) => e.script.uuid === activeUuid);
     return idx >= 0 ? String(idx) : undefined;
   }, [editors, activeUuid]);
 
-  // 新增：用下拉選單建立分頁（取代 onAddTab）
-  // 新建空白腳本
-  const handleCreateByTemplate = (tpl: "" | "background" | "crontab", tgt: "blank" | "initial" = "blank") => {
-    emptyScript(template || tpl, hotKeys, tgt).then((e) => {
-      setEditors((prev) => {
-        setActiveUuid(e.script.uuid);
-        setSelectSciptButtonAndTab(e.script.uuid);
-        return [...prev, e];
-      });
-    });
+  const switchToUuid = (uuid: string) => {
+    setActiveUuid(uuid);
+    setSelectSciptButtonAndTab(uuid);
+    const mdl = modelMapRef.current.get(uuid);
+    if (monacoEditorRef.current && mdl) {
+      monacoEditorRef.current.setModel(mdl);
+      // 小延時以確保 layout/focus
+      setTimeout(() => {
+        try {
+          monacoEditorRef.current!.layout();
+          monacoEditorRef.current!.focus();
+        } catch {}
+      }, 100);
+    }
   };
 
   const handleModeToggle = () => {
     const layoutContent = document.querySelector("#scripteditor-layout-content");
     const container = document.querySelector("#scripteditor-container");
     if (layoutContent && container && !layoutContent.firstElementChild) {
-      let s = layoutContent.previousElementSibling;
+      let s = layoutContent.previousElementSibling as HTMLElement | null;
       while (s instanceof HTMLElement) {
         s.style.display = "none";
-        s = s.previousElementSibling;
+        s = s.previousElementSibling as HTMLElement | null;
       }
       layoutContent.appendChild(container);
-
-      // const targetId = "scripteditor-container";
-      // const mb = document.getElementById(`modal-for-${targetId}`);
       const modalBoxParent = document.querySelector(".editor-modal-wrapper");
       if (modalBoxParent) {
-        // (modalBoxParent as HTMLElement).style.display = "none";
-        // if (modalBoxParent.previousElementSibling as HTMLElement) {
-        //   (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "none";
-        // }
-        // return;
         (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
-        // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "none";
       }
-
-      // setEditorOpen(false);
+      // setTimeout(() => {
+      //   let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
+      //   while ((s = s?.previousElementSibling) instanceof HTMLElement) {
+      //     (s as HTMLElement).style.display = "";
+      //   }
+      // }, 1);
     }
-    // overlayMode = false;
   };
 
   const handleClose = () => {
-    const layoutContent = document.querySelector("#scripteditor-layout-content");
-    const container = document.querySelector("#scripteditor-container");
-    if (layoutContent && container && !layoutContent.firstElementChild) {
-      // let s = layoutContent.previousElementSibling;
-      // while (s instanceof HTMLElement) {
-      //   s.style.display = "none";
-      //   s = s.previousElementSibling;
-      // }
-      // layoutContent.appendChild(container);
-
-      // const targetId = "scripteditor-container";
-      // const mb = document.getElementById(`modal-for-${targetId}`);
-      const modalBoxParent = document.querySelector(".editor-modal-wrapper");
-      if (modalBoxParent) {
-        // (modalBoxParent as HTMLElement).style.display = "none";
-        // if (modalBoxParent.previousElementSibling as HTMLElement) {
-        //   (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "none";
-        // }
-        // return;
-        (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
-        // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "none";
-      }
-
-      // setEditorOpen(false);
+    const modalBoxParent = document.querySelector(".editor-modal-wrapper");
+    if (modalBoxParent) {
+      (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
     }
-    /*
-    let isChanged = false;
-    setEditors((prev) => {
-      isChanged = prev.some((item) => item.isChanged);
-      return prev;
-    });
-    if (isChanged) {
-      if (!confirm(t("script_modified_close_confirm"))) {
-        return;
+    setTimeout(() => {
+      let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
+      while ((s = s?.previousElementSibling) instanceof HTMLElement) {
+        (s as HTMLElement).style.display = "";
       }
-    }
-    closeEditor();
-    */
+    }, 1);
+  };
+
+  useLayoutEffect(() => {
+    if (!showSearchInput) return;
+    const cid = setTimeout(
+      () => showSearchInput && (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
+      1
+    );
+    return () => {
+      clearTimeout(cid);
+    };
+  }, [showSearchInput]);
+
+  const modalConfirm = useCallback(
+    (config: any) => {
+      modal.confirm!(config);
+    },
+    [modal]
+  );
+
+  const actionProps = {
+    showSearchInput,
+    setShowSearchInput,
+    searchKeyword,
+    setSearchKeyword,
+    scriptList,
+    selectSciptButtonAndTab,
+    setSelectSciptButtonAndTab,
+    modelMapRef,
+    switchToUuid,
+    scriptCodeDAO,
+    setEditors,
+    hotKeys,
+    setScriptList,
+    handleDeleteEditor,
+    modalConfirm,
   };
 
   return (
     <div
       className="h-full flex flex-col"
-      style={{
-        position: "relative",
-        left: -10,
-        top: -10,
-        width: "calc(100% + 20px)",
-        height: "calc(100% + 20px)",
-      }}
+      style={{ position: "relative", left: -10, top: -10, width: "calc(100% + 20px)", height: "calc(100% + 20px)" }}
     >
       {contextHolder}
       <ScriptStorage
         visible={visible.scriptStorage}
         script={currentScript}
-        onOk={() => {
-          setShow("scriptStorage", false);
-        }}
-        onCancel={() => {
-          setShow("scriptStorage", false);
-        }}
+        onOk={() => setShow("scriptStorage", false)}
+        onCancel={() => setShow("scriptStorage", false)}
       />
       <ScriptResource
         visible={visible.scriptResource}
         script={currentScript}
-        onOk={() => {
-          setShow("scriptResource", false);
-        }}
-        onCancel={() => {
-          setShow("scriptResource", false);
-        }}
+        onOk={() => setShow("scriptResource", false)}
+        onCancel={() => setShow("scriptResource", false)}
       />
       <ScriptSetting
         visible={visible.scriptSetting}
         script={currentScript!}
-        onOk={() => {
-          setShow("scriptSetting", false);
-        }}
-        onCancel={() => {
-          setShow("scriptSetting", false);
-        }}
+        onOk={() => setShow("scriptSetting", false)}
+        onCancel={() => setShow("scriptSetting", false)}
       />
+
       <div
         className="h-6"
-        style={{
-          borderBottom: "1px solid var(--color-neutral-3)",
-          background: "var(--color-secondary)",
-        }}
+        style={{ borderBottom: "1px solid var(--color-neutral-3)", background: "var(--color-secondary)" }}
       >
         <div className="flex flex-row">
+          {
+            <Button
+              size="mini"
+              style={{
+                backgroundColor: hiddenScriptList ? "" : "var(--color-tooltip-bg)",
+              }}
+              onClick={() => {
+                setHiddenScriptList((v) => {
+                  const newVal = !v!;
+                  systemConfig.setEditorWithScriptList(newVal ? false : true);
+                  return newVal;
+                });
+              }}
+            >
+              <IconList />
+            </Button>
+          }
           {menu.map((item, index) => {
             if (!item.items) {
-              // 没有子菜单
-              return (
+              const btn = (
                 <Button
-                  key={`m_${item.title}`}
+                  key={`m_${item.key || item.title}`}
                   size="mini"
                   onClick={() => {
-                    setEditors((prev) => {
-                      prev.forEach((e) => {
-                        if (e.script.uuid === activeUuid) {
-                          item.action && item.action(e.script, e.editor!);
-                        }
-                      });
-                      return prev;
-                    });
+                    const script = editors.find((e) => e.script.uuid === activeUuid)?.script;
+                    if (!script || !monacoEditorRef.current) return;
+                    item.action && item.action(script, monacoEditorRef.current);
                   }}
                 >
                   {item.title}
                 </Button>
               );
+              return item.tooltip ? (
+                <Tooltip key={`menu-tooltip-a${index.toString()}`} position="bottom" content={item.tooltip}>
+                  {btn}
+                </Tooltip>
+              ) : (
+                btn
+              );
             }
             return (
               <Dropdown
                 key={`d_${index.toString()}`}
+                trigger="click"
+                position="bl"
                 droplist={
                   <Menu
                     style={{
@@ -945,14 +866,9 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                           key={`sm_${menuItem.title}`}
                           size="mini"
                           onClick={() => {
-                            setEditors((prev) => {
-                              prev.forEach((e) => {
-                                if (e.script.uuid === activeUuid) {
-                                  menuItem.action(e.script, e.editor!);
-                                }
-                              });
-                              return prev;
-                            });
+                            const script = editors.find((e) => e.script.uuid === activeUuid)?.script;
+                            if (!script || !monacoEditorRef.current) return;
+                            menuItem.action(script, monacoEditorRef.current);
                           }}
                         >
                           <div
@@ -998,12 +914,8 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                     })}
                   </Menu>
                 }
-                trigger="click"
-                position="bl"
               >
-                <Button key={`m_${item.title}`} size="mini">
-                  {item.title}
-                </Button>
+                <Button size="mini">{item.title}</Button>
               </Dropdown>
             );
           })}
@@ -1020,245 +932,87 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
           )}
         </div>
       </div>
-      <Row
-        className="flex flex-grow flex-1"
-        style={{
-          overflow: "hidden",
-        }}
-      >
-        {!hiddenScriptList && (
-          <Col
-            span={4}
-            className="h-full"
-            style={{
-              overflowY: "scroll",
-            }}
-          >
-            <div
-              className="flex flex-col"
-              style={{
-                backgroundColor: "var(--color-secondary)",
-                overflow: "hidden",
-              }}
-            >
-              <Button
-                className="text-left"
-                size="mini"
-                style={{
-                  color: "var(--color-text-2)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  borderBottom: "1px solid rgba(127, 127, 127, 0.8)",
-                }}
-                onClick={() => {
-                  setShowSearchInput(!showSearchInput);
-                  setTimeout(
-                    () =>
-                      showSearchInput &&
-                      (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
-                    1
-                  );
-                }}
-              >
-                <div className="flex justify-between items-center">
-                  {t("installed_scripts")}
-                  <IconSearch
-                    style={{
-                      cursor: "inherit",
-                    }}
-                  />
-                </div>
-              </Button>
-              {showSearchInput && (
-                <div className="p-2">
-                  <Input
-                    placeholder={t("search_scripts")}
-                    allowClear
-                    value={searchKeyword}
-                    onChange={(value) => setSearchKeyword(value)}
-                    size="mini"
-                    id="editor_search_scripts_input"
-                  />
-                </div>
-              )}
-              {scriptList
-                .filter((script) => {
-                  if (!searchKeyword) return true;
-                  return i18nName(script).toLowerCase().includes(searchKeyword.toLowerCase());
-                })
-                .map((script) => (
-                  <div
-                    key={`s_${script.uuid}`}
-                    className="relative group"
-                    style={{
-                      overflow: "hidden",
-                    }}
-                  >
-                    <Button
-                      size="mini"
-                      className="text-left w-full"
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        backgroundColor: selectSciptButtonAndTab === script.uuid ? "gray" : "",
-                        paddingRight: "32px", // 为删除按钮留出空间
-                      }}
-                      onClick={() => {
-                        setSelectSciptButtonAndTab(script.uuid);
-                        // 如果已经打开则激活
-                        const alreadyOpen = editors.some((e) => e.script.uuid === script.uuid);
-                        if (alreadyOpen) {
-                          // 改為設定當前活躍的 uuid，不要去改每個 item 的 active
-                          setActiveUuid(script.uuid);
-                          return;
-                        }
 
-                        // 如果没有打开则打开
-                        // 获取code
-                        scriptCodeDAO.findByUUID(script.uuid).then((code) => {
-                          if (!code) return;
-                          const newEditor = { script, code: code.code, hotKeys, isChanged: false };
-                          setEditors((prev) => {
-                            if (prev.some((e) => e.script.uuid === script.uuid)) {
-                              // 已經有了，只切換
-                              return prev;
-                            }
-                            return [...prev, newEditor];
-                          });
-                          setActiveUuid(script.uuid);
-                        });
-                      }}
-                    >
-                      <span className="overflow-hidden text-ellipsis">{i18nName(script)}</span>
-                    </Button>
-                    {/* 删除按钮，只在鼠标悬停时显示 */}
-                    <Button
-                      type="text"
-                      icon={<IconDelete />}
-                      iconOnly
-                      size="mini"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      style={{
-                        width: "20px",
-                        height: "20px",
-                        minWidth: "20px",
-                        border: "none",
-                        background: "transparent",
-                        color: "var(--color-text-2)",
-                        boxShadow: "none",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // 删除脚本
-                        modal.confirm!({
-                          title: t("confirm_delete_script"),
-                          content: t("confirm_delete_script_content", { name: i18nName(script) }),
-                          onOk: () => {
-                            scriptClient
-                              .deletes([script.uuid])
-                              .then(() => {
-                                setScriptList((prev) => prev.filter((s) => s.uuid !== script.uuid));
-                                handleDeleteEditor(script.uuid);
-                                if (selectSciptButtonAndTab === script.uuid) {
-                                  setSelectSciptButtonAndTab("");
-                                }
-                                Message.success(t("delete_success"));
-                              })
-                              .catch((err) => {
-                                LoggerCore.logger(Logger.E(err)).debug("delete script error");
-                                Message.error(`${t("delete_failed")}: ${err}`);
-                              });
-                          },
-                        });
-                      }}
-                    />
-                  </div>
-                ))}
-            </div>
-          </Col>
-        )}
+      <Row className="flex flex-grow flex-1" style={{ overflow: "hidden" }}>
+        {!hiddenScriptList && hiddenScriptList !== null && <ScriptEditorScriptList {...actionProps} />}
+
         <Col span={hiddenScriptList ? 24 : 20} className="flex! flex-col h-full">
           <Tabs
             editable
             activeTab={activeTab}
             className="edit-tabs"
             type="card-gutter"
-            style={{
-              overflow: "inherit",
-            }}
+            style={{ overflow: "inherit" }}
             onChange={(index: string) => {
-              // 只改 activeUuid，不要去 map 整個陣列 flip active
               const i = Number(index);
               const uuid = editors[i]?.script.uuid;
-              if (uuid) {
-                setActiveUuid(uuid);
-                setSelectSciptButtonAndTab(uuid); // 需要用 microTask 推遲嗎？保持你的原註解
-              }
+              if (uuid) switchToUuid(uuid);
             }}
-            onAddTab={() => {
-              handleCreateByTemplate(template || "", "blank");
-            }}
+            onAddTab={() => handleCreateByTemplate(template || "", "blank")}
             onDeleteTab={(index: string) => {
               const i = parseInt(index, 10);
               const targetUuid = editors[i]?.script.uuid;
-              if (targetUuid) {
-                // 復用你原本的刪除函數（含二次確認與空白建檔）
-                handleDeleteEditor(targetUuid, true);
-                // handleDeleteEditor 會自己處理 activeUuid 的鄰居選擇（見第 4 點修改）
-              }
+              if (targetUuid) handleDeleteEditor(targetUuid, true);
             }}
+            deleteButton={editors.length === 1 ? <></> : undefined}
             addButton={<></>}
-            // ✅ 自訂加號：點它彈出選單，選擇要建立哪種腳本
             extra={
-              <Dropdown
-                trigger="click"
-                position="br"
-                droplist={
-                  <Menu>
-                    <Menu.Item key="new-user" onClick={() => handleCreateByTemplate("")}>
-                      {/* 你也可以沿用 RiFileCodeLine 等圖示 */}
-                      {t("create_user_script")}
-                    </Menu.Item>
-                    <Menu.Item key="new-bg" onClick={() => handleCreateByTemplate("background", "blank")}>
-                      {t("create_background_script")}
-                    </Menu.Item>
-                    <Menu.Item key="new-cron" onClick={() => handleCreateByTemplate("crontab", "blank")}>
-                      {t("create_scheduled_script")}
-                    </Menu.Item>
-                  </Menu>
-                }
-              >
-                {/* 顯示在 Tabs 右側的加號按鈕 */}
-                <Button size="mini">
-                  <IconPlus />
-                </Button>
-              </Dropdown>
+              <>
+                <Dropdown
+                  trigger="hover"
+                  position="br"
+                  droplist={
+                    <Menu>
+                      <Menu.Item key="new-user" onClick={() => handleCreateByTemplate("")}>
+                        {t("create_user_script")}
+                      </Menu.Item>
+                      <Menu.Item key="new-bg" onClick={() => handleCreateByTemplate("background", "blank")}>
+                        {t("create_background_script")}
+                      </Menu.Item>
+                      <Menu.Item key="new-cron" onClick={() => handleCreateByTemplate("crontab", "blank")}>
+                        {t("create_scheduled_script")}
+                      </Menu.Item>
+                    </Menu>
+                  }
+                >
+                  <Button size="mini" onClick={() => handleCreateByTemplate(buildTemplateParam, "blank")}>
+                    <IconPlus />
+                  </Button>
+                </Dropdown>
+                <div style={{ width: "8px" }} />
+              </>
             }
           >
-            {editors.map((e, index) => (
+            {editors.map((e, index, array) => (
               <TabPane
+                closable={array.length == 1 ? false : true}
                 destroyOnHide
                 key={index!.toString()}
                 title={
                   <Dropdown
                     trigger="contextMenu"
+                    disabled={array.length == 1 ? true : false}
                     position="bl"
                     droplist={
                       <Menu
-                        onClickMenuItem={(key) => {
+                        onClickMenuItem={(key) =>
                           setRightOperationTab({
                             ...rightOperationTab,
                             key,
                             uuid: e.script.uuid,
                             selectSciptButtonAndTab,
-                          });
-                        }}
+                          })
+                        }
+                        onClick={(e) => (e.preventDefault(), e.stopPropagation())} // 要設定；否則按 disabled 選項 時會點到 editor
                       >
                         <Menu.Item key="1">{t("close_current_tab")}</Menu.Item>
                         <Menu.Item key="2">{t("close_other_tabs")}</Menu.Item>
-                        <Menu.Item key="3">{t("close_left_tabs")}</Menu.Item>
-                        <Menu.Item key="4">{t("close_right_tabs")}</Menu.Item>
+                        <Menu.Item key="3" disabled={index === 0}>
+                          {t("close_left_tabs")}
+                        </Menu.Item>
+                        <Menu.Item key="4" disabled={index === array.length - 1}>
+                          {t("close_right_tabs")}
+                        </Menu.Item>
                       </Menu>
                     }
                   >
@@ -1280,59 +1034,54 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               />
             ))}
           </Tabs>
-          {/* 只渲染當前活躍的編輯器，避免隱藏的 Monaco 造成 reflow/jank */}
-          <div className="flex flex-grow flex-1 w-full">
-            {(() => {
-              const item = editors.find((e) => e.script.uuid === activeUuid);
-              if (!item) return null;
 
-              return (
-                <div className="w-full" key={`fe_${item.script.uuid}`} style={{ display: "block" }}>
-                  <WarpEditor
-                    className="script-code-editor"
-                    key={`e_${item.script.uuid}`}
-                    id={`e_${item.script.uuid}`}
-                    script={item.script}
-                    code={item.code}
-                    hotKeys={item.hotKeys}
-                    callbackEditor={(e) => {
-                      setEditors((prev) =>
-                        prev.map((v) =>
-                          v.script.uuid === item.script.uuid
-                            ? {
-                                ...v,
-                                /* 编辑器实例创建后立即聚焦一次 */
-                                editor:
-                                  (setTimeout(() => {
-                                    try {
-                                      e.layout();
-                                      e.focus();
-                                    } catch {
-                                      // 忽略失敗
-                                    }
-                                  }, 100),
-                                  e),
-                              }
-                            : v
-                        )
-                      );
-                    }}
-                    onChange={(code) => {
-                      setEditors((prev) => {
-                        const script = prev.find((v) => v.script.uuid === item.script.uuid);
-                        if (!script) return prev;
-                        const isChanged = !(script.code === code);
-                        if (isChanged !== script.isChanged) {
-                          script.isChanged = isChanged;
-                          return [...prev];
-                        }
-                        return prev;
-                      });
-                    }}
-                  />
-                </div>
-              );
-            })()}
+          {/* 單一 CodeEditor；切換分頁時只切換 model */}
+          <div className="flex flex-grow flex-1 w-full">
+            <WrappedCodeEditor
+              id={`singleton-editor`}
+              className="script-code-editor"
+              uuid={`${activeUuid}`}
+              editable
+              // 當前使用的 model 由子元件透過 monacoEditor.setModel 接收（使用 ref + prop currentModel）
+              currentModel={modelMapRef.current.get(activeUuid)}
+              onReady={(ed) => {
+                monacoEditorRef.current = ed;
+                // 註冊快捷鍵（對當前活躍分頁生效）
+                hotKeys.forEach((hk) => {
+                  ed.addAction({
+                    id: hk.id,
+                    label: hk.title,
+                    keybindings: [hk.hotKey],
+                    run: () => {
+                      const script = editors.find((e) => e.script.uuid === activeUuid)?.script;
+                      if (script) hk.action(script, ed);
+                    },
+                  });
+                });
+                // 初次掛載設置當前 model
+                const mdl = modelMapRef.current.get(activeUuid);
+                if (mdl) ed.setModel(mdl);
+                setTimeout(() => {
+                  try {
+                    ed.layout();
+                    ed.focus();
+                  } catch {}
+                }, 100);
+              }}
+              onChange={(val) => {
+                // 更新 isChanged 標記（與當初載入 code 比對）
+                setEditors((prev) => {
+                  const idx = prev.findIndex((e) => e.script.uuid === activeUuid);
+                  if (idx === -1) return prev;
+                  const item = prev[idx];
+                  const changed = item.code !== val;
+                  if (changed === item.isChanged) return prev;
+                  const next = [...prev];
+                  next[idx] = { ...item, isChanged: changed };
+                  return next;
+                });
+              }}
+            />
           </div>
         </Col>
       </Row>

@@ -74,7 +74,6 @@ export default function ModalWrapper({
   useEffect(() => {
     if (!mounted) return;
     if (!open) return;
-    console.log(12388);
 
     const ok = moveInto(modalBodyRef.current!);
     if (!ok) {

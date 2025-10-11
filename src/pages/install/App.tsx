@@ -14,7 +14,6 @@ import {
 } from "@arco-design/web-react";
 import { IconDown } from "@arco-design/web-react/icon";
 import { v4 as uuidv4 } from "uuid";
-import CodeEditor from "../components/CodeEditor";
 import { useEffect, useMemo, useState } from "react";
 import type { SCMetadata, Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
@@ -29,6 +28,7 @@ import { type FTInfo, startFileTrack, unmountFileTrack } from "@App/pkg/utils/fi
 import { cleanupOldHandles, loadHandle, saveHandle } from "@App/pkg/utils/filehandle-db";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { intervalExecution, timeoutExecution } from "@App/pkg/utils/timer";
+import CodeEditorDiff from "../components/CodeEditorDiff";
 
 type ScriptOrSubscribe = Script | Subscribe;
 
@@ -644,7 +644,7 @@ function App() {
         </Grid.Col>
       </Grid.Row>
       <div id="show-code-container">
-        <CodeEditor
+        <CodeEditorDiff
           id="show-code"
           code={scriptCode || undefined}
           diffCode={diffCode === scriptCode ? "" : diffCode || ""}

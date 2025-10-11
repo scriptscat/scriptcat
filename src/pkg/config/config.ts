@@ -463,6 +463,28 @@ export class SystemConfig {
   getScriptMenuDisplayType(): Promise<"no_browser" | "all"> {
     return this._get("script_menu_display_type", "all");
   }
+
+  getEditorWithScriptList(): Promise<boolean> {
+    return this._get<boolean>("editor_with_script_list", true);
+  }
+
+  setEditorWithScriptList(val: boolean) {
+    this._set("editor_with_script_list", val);
+  }
+
+  config<T extends string | number | boolean>(key: string, def: T | Promise<T>) {
+    const o = {
+      value: null,
+    } as {
+      value: T | null;
+      promise?: Promise<void> | null;
+    };
+    o.promise = this._get<T>(key as any, def as any).then((v) => {
+      o.value = v;
+      o.promise = null;
+    });
+    return o;
+  }
 }
 
 let lazyScriptNamePrefix: string = "";

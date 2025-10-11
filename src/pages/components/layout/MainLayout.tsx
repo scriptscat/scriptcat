@@ -85,9 +85,15 @@ const MainLayout: React.FC<{
       // Overlay 模式
       openEditor({ template: o.template || "", target: o.target || "blank" });
     }
-    if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
-      document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
-    }
+    // if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
+    //   document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
+    // }
+    setTimeout(() => {
+      let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
+      while ((s = s?.previousElementSibling) instanceof HTMLElement) {
+        (s as HTMLElement).style.display = "none";
+      }
+    }, 1);
   };
 
   const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {
@@ -279,17 +285,23 @@ const MainLayout: React.FC<{
             {pageName === "options" && (
               <Dropdown
                 droplist={
-                  <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                    <Menu.Item key="/script/editor" onClick={() => createScript({ template: "" })}>
+                  <Menu className={"mr-2"}>
+                    <Menu.Item
+                      className={"option-entry"}
+                      key="/script/editor"
+                      onClick={() => createScript({ template: "" })}
+                    >
                       <RiFileCodeLine /> {t("create_user_script")}
                     </Menu.Item>
                     <Menu.Item
+                      className={"option-entry"}
                       key="/script/editor!background"
                       onClick={() => createScript({ template: "background", target: "blank" })}
                     >
                       <RiTerminalBoxLine /> {t("create_background_script")}
                     </Menu.Item>
                     <Menu.Item
+                      className={"option-entry"}
                       key="/script/editor!crontab"
                       onClick={() => createScript({ template: "crontab", target: "blank" })}
                     >
@@ -351,6 +363,7 @@ const MainLayout: React.FC<{
             <Dropdown
               droplist={
                 <Menu
+                  className={"mr-2"}
                   onClickMenuItem={(key) => {
                     const theme = key as "auto" | "light" | "dark";
                     updateColorTheme(theme);

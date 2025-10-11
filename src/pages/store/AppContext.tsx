@@ -121,11 +121,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const openEditor = useCallback(
     (params?: { uuid?: string; template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
-      prevHashRef.current = window.location.hash;
-      setEditorParams(params);
+      if (document.querySelector(".editor-modal-wrapper")) {
+        window.dispatchEvent(
+          new CustomEvent("scriptcat:editor:add", {
+            detail: { template: params?.template || "", target: params?.target || "blank" },
+          })
+        );
+        // prevHashRef.current = window.location.hash;
+        // setEditorParams(params);
 
-      // 不新增歷史紀錄：用 replace
-      replaceHashSilently(buildEditorHash(params));
+        // // 不新增歷史紀錄：用 replace
+        // replaceHashSilently(buildEditorHash(params));
+      } else {
+        prevHashRef.current = window.location.hash;
+        setEditorParams(params);
+
+        // 不新增歷史紀錄：用 replace
+        replaceHashSilently(buildEditorHash(params));
+      }
 
       const content = document.querySelector("#scripteditor-layout-content")?.firstElementChild;
       if (content) {
@@ -147,6 +160,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             modalBox.appendChild(content);
             (modalBoxParent.parentElement as HTMLElement)!.style.display = "block";
           }
+          setTimeout(() => {
+            let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
+            while ((s = s?.previousElementSibling) instanceof HTMLElement) {
+              (s as HTMLElement).style.display = "none";
+            }
+          }, 1);
         }
       }
 

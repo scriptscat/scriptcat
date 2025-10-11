@@ -5,7 +5,8 @@
   white-space: nowrap;
 }
 
-.script-code-editor {
+.script-code-editor,
+.wrapped-code-editor {
 	margin: 0;
 	padding: 0;
 	border: 0;
