@@ -177,6 +177,7 @@ const Sider: React.FC = () => {
           <Route path="/tools" element={<Tools />} />
           <Route path="/setting" element={<Setting />} />
         </Routes>
+        <div id="scripteditor-layout-content"></div>
       </Layout.Content>
     </HashRouter>
   );

@@ -30,6 +30,8 @@ const Root = (
   <AppProvider>
     <MainLayout className="!flex-row" pageName="options">
       <Sider />
+      <div id="editor-overlay"></div>
+      <div id="editor-overlay-child"></div>
       <EditorOverlay />
     </MainLayout>
   </AppProvider>

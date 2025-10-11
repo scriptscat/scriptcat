@@ -20,7 +20,7 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { IconClose, IconDelete, IconPlus, IconSearch } from "@arco-design/web-react/icon";
+import { IconClose, IconDelete, IconPlus, IconSearch, IconShrink } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { useAppContext } from "@App/pages/store/AppContext";
 
@@ -185,7 +185,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
-  const { closeEditor } = useAppContext();
+  const { closeEditor, setEditorOpen } = useAppContext();
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
@@ -782,6 +782,21 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     });
   };
 
+  const handleModeToggle = () => {
+    const layoutContent = document.querySelector("#scripteditor-layout-content");
+    const container = document.querySelector("#scripteditor-container");
+    if (layoutContent && container && !layoutContent.firstElementChild) {
+      let s = layoutContent.previousElementSibling;
+      while (s instanceof HTMLElement) {
+        s.style.display = "none";
+        s = s.previousElementSibling;
+      }
+      layoutContent.appendChild(container);
+      setEditorOpen(false);
+    }
+    // overlayMode = false;
+  };
+
   const handleClose = () => {
     let isChanged = false;
     setEditors((prev) => {
@@ -954,6 +969,11 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
             );
           })}
           <div style={{ flex: 1 }} />
+          {overlayMode && (
+            <Button size="mini" onClick={handleModeToggle}>
+              <IconShrink />
+            </Button>
+          )}
           {overlayMode && (
             <Button size="mini" onClick={handleClose}>
               <IconClose />

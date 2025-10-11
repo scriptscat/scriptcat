@@ -10,8 +10,12 @@ export default function ScriptEditorRoute() {
   const target = (sp.get("target") as "blank" | "initial" | null) || undefined;
 
   // 🔒 當 Overlay 開啟時，URL 模式暫停渲染，避免雙實例互相干擾
-  if (editorOpen) return null;
+  if (editorOpen) return <div id="scripteditor-pagebox"></div>;
 
   // URL 模式下 overlayMode 必須為 false，啟用 onbeforeunload/popstate
-  return <ScriptEditor uuid={uuid} template={template} target={target} overlayMode={false} />;
+  return (
+    <div id="scripteditor-pagebox" style={{ height: "100%", width: "100%", position: "relative" }}>
+      <ScriptEditor uuid={uuid} template={template} target={target} overlayMode={false} />
+    </div>
+  );
 }
