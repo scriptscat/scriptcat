@@ -134,7 +134,7 @@ export async function prepareScriptByCode(
     uuid: newUUID,
     name: metadata.name[0],
     author: metadata.author && metadata.author[0],
-    namespace: metadata.namespace && metadata.namespace[0],
+    namespace: metadata.namespace[0], // 上面的代码已检查 meta.namespace, 不会为undefined
     originDomain: domain,
     origin,
     checkUpdate: true,
@@ -158,6 +158,12 @@ export async function prepareScriptByCode(
   }
   if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
+  }
+  const checkUrl = script.checkUpdateUrl || script.downloadUrl;
+  if (!old && checkUrl && script.name && script.namespace) {
+    // GreasyFork的脚本会自动添加 @updateURL 和 @downloadURL
+    // 即使脚本更新时改变了名字和namespace, 网址还是指向同一个脚本
+    old = await findByUpdateURL(dao, script.name, script.namespace, checkUrl);
   }
   if (old) {
     if (
@@ -234,3 +240,40 @@ export async function prepareSubscribeByCode(
   }
   return { subscribe, oldSubscribe: old };
 }
+
+const findByUpdateURL = async (dao: ScriptDAO, name: string, namespace: string, checkUrl: string) => {
+  const search = checkUrl.split("/");
+  let count = 0;
+  let ret_: Script | null = null;
+  await dao.findOne((key, value) => {
+    const currentCheckUrl = value.checkUpdateUrl || value.downloadUrl;
+    const current = currentCheckUrl?.split("/");
+    if (!current) return false;
+    let c = 0;
+    // 根据 checkUpdateUrl 网址对比找出最有可能的脚本
+    // GreasyFork 的话，脚本名字改变了后，path也会改变，但ID不变
+    for (let l = Math.min(search.length, current.length); c < l; c++) {
+      if (current[c] !== search[c]) break;
+    }
+    if (c > count) {
+      count = c;
+      ret_ = value;
+    }
+    return false;
+  });
+  const ret = ret_ as Script | null;
+  const retCheckUrl = ret?.checkUpdateUrl || ret?.downloadUrl;
+  if (!retCheckUrl) return undefined;
+  // 尝试下载该脚本的url, 检查是否指向要求脚本
+  let metadata;
+  try {
+    const code = await fetchScriptBody(retCheckUrl);
+    metadata = code ? parseMetadata(code) : null;
+  } catch {
+    return undefined;
+  }
+  if (metadata && metadata.name![0] === name && (metadata.namespace?.[0] || "") === namespace) {
+    return ret;
+  }
+  return undefined;
+};

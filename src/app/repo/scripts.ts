@@ -124,7 +124,7 @@ export class ScriptDAO extends Repo<Script> {
     });
   }
 
-  public findByNameAndNamespace(name: string, namespace?: string) {
+  public findByNameAndNamespace(name: string, namespace: string) {
     return this.findOne((key, value) => {
       return value.name === name && (!namespace || value.namespace === namespace);
     });
