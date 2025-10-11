@@ -410,7 +410,9 @@
   "develop_mode_guide": "偵測到目前未開啟開發者模式，您的腳本無法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"_blank\" style=\"color: var(--color-text-1)\">👉點我了解如何開啟</a>",
   "allow_user_script_guide": "偵測到目前未開啟允許使用者腳本，您的腳本無法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"_blank\" style=\"color: var(--color-text-1)\">👉點我了解如何開啟</a>",
   "lower_version_browser_guide": "偵測到目前瀏覽器版本過低，您的腳本無法正常使用，<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉點我了解更多</a>",
-  "enable_script_failed": "腳本開啟失敗",
+  "enable_script_success": "腳本啟用成功",
+  "enable_script_failed": "腳本啟用失敗",
+  "disable_script_success": "腳本停用成功",
   "disable_script_failed": "腳本停用失敗",
   "confirm_leave_page": "目前正在編輯狀態，跳轉其他頁面將會遺失目前內容，是否跳轉？",
   "page_in_blacklist": "目前頁面在黑名單中，無法使用腳本",
@@ -517,20 +519,5 @@
   "switch_to_table_mode": "切換到表格模式",
   "open_sidebar": "打開側邊欄",
   "close_sidebar": "關閉側邊欄",
-  "no_message_content": "無訊息內容",
-  "error_metadata_invalid": "MetaData 資訊錯誤",
-  "error_script_name_required": "腳本名稱不可為空",
-  "error_script_version_required": "腳本 @version 版本不可為空",
-  "error_script_namespace_required": "腳本 @namespace 命名空間不可為空",
-  "error_cron_invalid": "錯誤的排程表示式，請檢查：{{expr}}",
-  "error_script_type_mismatch": "腳本類型不相容，前臺腳本與後臺腳本不可互轉",
-  "error_old_script_code_missing": "舊的腳本程式碼不存在",
-  "error_subscribe_name_required": "訂閱名稱不可為空",
-  "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
-  "notification": {
-    "script_sync_delete": "腳本刪除同步",
-    "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
-    "subscribe_update": "訂閱 {{subscribeName}} 已更新",
-    "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
-  }
+  "no_message_content": "無訊息內容"
 }

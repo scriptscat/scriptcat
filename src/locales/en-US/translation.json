@@ -410,8 +410,10 @@
   "develop_mode_guide": "Developer mode has not been detected. Your script is not working, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>.",
   "allow_user_script_guide": "Allow User Scripts has not been detected. Your script is not working, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉tap to learn how to enable</a>",
   "lower_version_browser_guide": "It is detected that the current browser version is too low, and your script cannot be used normally. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Click me to learn more</a>",
-  "enable_script_failed": "Failed to Enable Script",
-  "disable_script_failed": "Failed to Close Script",
+  "enable_script_success": "Script enabled successfully",
+  "enable_script_failed": "Failed to enable script",
+  "disable_script_success": "Script disabled successfully",
+  "disable_script_failed": "Failed to disable script",
   "confirm_leave_page": "Currently editing status. Leaving this page will lose the current content. Do you want to leave?",
   "page_in_blacklist": "The current page is blacklisted, cannot use script",
   "baidu_netdisk": "BaiduNetdisk",
@@ -517,20 +519,5 @@
   "switch_to_table_mode": "Switch to Table Mode",
   "open_sidebar": "Open Sidebar",
   "close_sidebar": "Close Sidebar",
-  "no_message_content": "No Message Content",
-  "error_metadata_invalid": "Invalid MetaData block",
-  "error_script_name_required": "Script name is required",
-  "error_script_version_required": "Script @version is required",
-  "error_script_namespace_required": "Script @namespace is required",
-  "error_cron_invalid": "Invalid cron expression: {{expr}}",
-  "error_script_type_mismatch": "Script type mismatch: normal and background scripts cannot be converted",
-  "error_old_script_code_missing": "Previous script code not found",
-  "error_subscribe_name_required": "Subscription name is required",
-  "error_grant_conflict": "@grant declares both 'none' and GM API",
-  "notification": {
-    "script_sync_delete": "Script Sync Delete",
-    "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
-    "subscribe_update": "Subscribe {{subscribeName}} has been updated",
-    "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
-  }
+  "no_message_content": "No Message Content"
 }

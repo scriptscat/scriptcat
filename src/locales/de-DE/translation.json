@@ -410,8 +410,10 @@
   "develop_mode_guide": "Es wurde erkannt, dass der Entwicklermodus derzeit nicht aktiviert ist. Ihre Skripte können nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie den Entwicklermodus aktivieren</a>",
   "allow_user_script_guide": "Es wurde festgestellt, dass Benutzerskripte derzeit nicht aktiviert sind. Ihr Skript kann nicht normal verwendet werden. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um zu erfahren, wie Sie es aktivieren</a>",
   "lower_version_browser_guide": "Es wurde festgestellt, dass die aktuelle Browserversion zu niedrig ist und Ihr Skript nicht normal verwendet werden kann. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Klicken Sie hier, um mehr zu erfahren</a>",
-  "enable_script_failed": "Skript-Aktivierung fehlgeschlagen",
-  "disable_script_failed": "Skript-Deaktivierung fehlgeschlagen",
+  "enable_script_success": "Skript erfolgreich aktiviert",
+  "enable_script_failed": "Aktivierung des Skripts fehlgeschlagen",
+  "disable_script_success": "Skript erfolgreich deaktiviert",
+  "disable_script_failed": "Deaktivierung des Skripts fehlgeschlagen",
   "confirm_leave_page": "Derzeit im Bearbeitungsstatus. Das Navigieren zu anderen Seiten führt zum Verlust des aktuellen Inhalts. Navigieren?",
   "page_in_blacklist": "Die aktuelle Seite ist auf der Blacklist und kann keine Skripte verwenden",
   "baidu_netdisk": "Baidu Netdisk",
@@ -517,20 +519,5 @@
   "switch_to_table_mode": "In den Tabellenmodus wechseln",
   "open_sidebar": "Öffne die Seitenleiste",
   "close_sidebar": "Schließe die Seitenleiste",
-  "no_message_content": "Kein Nachrichteninhalt",
-  "error_metadata_invalid": "MetaData-Block ist ungültig",
-  "error_script_name_required": "Skriptname ist erforderlich",
-  "error_script_version_required": "Skript @version ist erforderlich",
-  "error_script_namespace_required": "Skript @namespace ist erforderlich",
-  "error_cron_invalid": "Ungültiger Cron-Ausdruck: {{expr}}",
-  "error_script_type_mismatch": "Skripttyp stimmt nicht überein: Normale und Hintergrundskripte können nicht konvertiert werden",
-  "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
-  "error_subscribe_name_required": "Abonnementname ist erforderlich",
-  "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
-  "notification": {
-    "script_sync_delete": "Skript-Löschsynchronisation",
-    "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
-    "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
-    "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
-  }
+  "no_message_content": "Kein Nachrichteninhalt"
 }

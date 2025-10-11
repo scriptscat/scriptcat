@@ -410,8 +410,10 @@
   "develop_mode_guide": "Chế độ nhà phát triển chưa được phát hiện. Script của bạn không hoạt động, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉nhấn để tìm hiểu cách bật</a>.",
   "allow_user_script_guide": "Cho phép script người dùng chưa được phát hiện. Script của bạn không hoạt động, <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉nhấn để tìm hiểu cách bật</a>",
   "lower_version_browser_guide": "Phát hiện phiên bản trình duyệt hiện tại quá cũ và script của bạn không thể sử dụng bình thường. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\" style=\"color: var(--color-text-1)\">👉Nhấp vào tôi để tìm hiểu thêm</a>",
-  "enable_script_failed": "Bật script thất bại",
-  "disable_script_failed": "Tắt script thất bại",
+  "enable_script_success": "Kích hoạt tập lệnh thành công",
+  "enable_script_failed": "Kích hoạt tập lệnh thất bại",
+  "disable_script_success": "Vô hiệu hóa tập lệnh thành công",
+  "disable_script_failed": "Vô hiệu hóa tập lệnh thất bại",
   "confirm_leave_page": "Hiện đang ở trạng thái chỉnh sửa. Rời khỏi trang này sẽ làm mất nội dung hiện tại. Bạn có muốn rời đi không?",
   "page_in_blacklist": "Trang hiện tại nằm trong danh sách đen, không thể sử dụng script",
   "baidu_netdisk": "Baidunetdisk",
@@ -517,20 +519,5 @@
   "switch_to_table_mode": "Chuyển sang chế độ bảng",
   "open_sidebar": "Mở thanh bên",
   "close_sidebar": "Đóng thanh bên",
-  "no_message_content": "Không có nội dung tin nhắn",
-  "error_metadata_invalid": "MetaData không hợp lệ",
-  "error_script_name_required": "Tên script là bắt buộc",
-  "error_script_version_required": "@version của script là bắt buộc",
-  "error_script_namespace_required": "@namespace của script là bắt buộc",
-  "error_cron_invalid": "Biểu thức cron không hợp lệ: {{expr}}",
-  "error_script_type_mismatch": "Loại script không khớp: script thường và nền không thể chuyển đổi cho nhau",
-  "error_old_script_code_missing": "Không tìm thấy mã script cũ",
-  "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
-  "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
-  "notification": {
-    "script_sync_delete": "Đồng bộ xóa script",
-    "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
-    "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
-    "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
-  }
+  "no_message_content": "Không có nội dung tin nhắn"
 }
