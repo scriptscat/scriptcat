@@ -9,18 +9,7 @@ import CodeEditor from "@App/pages/components/CodeEditor";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import { KeyCode, KeyMod } from "monaco-editor";
-import {
-  Button,
-  Dropdown,
-  Grid,
-  Input,
-  Menu,
-  Message,
-  Modal,
-  ModalHookReturnType,
-  Tabs,
-  Tooltip,
-} from "@arco-design/web-react";
+import { Button, Dropdown, Grid, Menu, Message, Modal, Tabs, Tooltip } from "@arco-design/web-react";
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import normalTpl from "@App/template/normal.tpl";
 import crontabTpl from "@App/template/crontab.tpl";
@@ -36,15 +25,7 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import {
-  IconClose,
-  IconDelete,
-  IconList,
-  IconPlus,
-  IconSearch,
-  IconSettings,
-  IconShrink,
-} from "@arco-design/web-react/icon";
+import { IconClose, IconList, IconPlus, IconSettings, IconShrink } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { systemConfig } from "@App/pages/store/global";
 import { wScript } from "./shared";
