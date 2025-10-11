@@ -14,3 +14,7 @@
 	overflow: hidden;
 	box-sizing: border-box;
 }
+
+.arco-tabs-add-icon:empty {
+	display: none;
+}

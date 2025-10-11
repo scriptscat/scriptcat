@@ -20,8 +20,9 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { IconDelete, IconSearch } from "@arco-design/web-react/icon";
+import { IconClose, IconDelete, IconPlus, IconSearch } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 const { Row, Col } = Grid;
 
@@ -184,6 +185,7 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
+  const { closeEditor } = useAppContext();
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
@@ -780,6 +782,20 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     });
   };
 
+  const handleClose = () => {
+    let isChanged = false;
+    setEditors((prev) => {
+      isChanged = prev.some((item) => item.isChanged);
+      return prev;
+    });
+    if (isChanged) {
+      if (!confirm(t("script_modified_close_confirm"))) {
+        return;
+      }
+    }
+    closeEditor();
+  };
+
   return (
     <div
       className="h-full flex flex-col"
@@ -937,6 +953,12 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               </Dropdown>
             );
           })}
+          <div style={{ flex: 1 }} />
+          {overlayMode && (
+            <Button size="mini" onClick={handleClose}>
+              <IconClose />
+            </Button>
+          )}
         </div>
       </div>
       <Row
@@ -1127,6 +1149,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
                 // handleDeleteEditor 會自己處理 activeUuid 的鄰居選擇（見第 4 點修改）
               }
             }}
+            addButton={<></>}
             // ✅ 自訂加號：點它彈出選單，選擇要建立哪種腳本
             extra={
               <Dropdown
@@ -1149,7 +1172,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
               >
                 {/* 顯示在 Tabs 右側的加號按鈕 */}
                 <Button size="mini">
-                  {/* 若你有 IconPlus 可用：<IconPlus /> */}＋ {t("create_script")}
+                  <IconPlus />
                 </Button>
               </Dropdown>
             }
