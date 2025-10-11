@@ -71,7 +71,10 @@ const MainLayout: React.FC<{
 
   // 統一處理「新增腳本」
   const createScript = (o: { template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
-    if (inUrlEditor) {
+    if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
+      document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
+    }
+    if (inUrlEditor && !document.querySelector("#scripteditor-layout-content")?.firstElementChild) {
       // URL 模式：通知路由內的 ScriptEditor 自己加一個分頁
       window.dispatchEvent(
         new CustomEvent("scriptcat:editor:add", {
@@ -81,6 +84,9 @@ const MainLayout: React.FC<{
     } else {
       // Overlay 模式
       openEditor({ template: o.template || "", target: o.target || "blank" });
+    }
+    if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
+      document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
     }
   };
 
@@ -274,26 +280,20 @@ const MainLayout: React.FC<{
               <Dropdown
                 droplist={
                   <Menu style={{ maxHeight: "100%", width: "calc(100% + 10px)" }}>
-                    <Menu.Item key="/script/editor">
-                      <span className="option-entry" onClick={() => createScript({ template: "" })}>
-                        <RiFileCodeLine /> {t("create_user_script")}
-                      </span>
+                    <Menu.Item key="/script/editor" onClick={() => createScript({ template: "" })}>
+                      <RiFileCodeLine /> {t("create_user_script")}
                     </Menu.Item>
-                    <Menu.Item key="background">
-                      <span
-                        className="option-entry"
-                        onClick={() => createScript({ template: "background", target: "blank" })}
-                      >
-                        <RiTerminalBoxLine /> {t("create_background_script")}
-                      </span>
+                    <Menu.Item
+                      key="/script/editor!background"
+                      onClick={() => createScript({ template: "background", target: "blank" })}
+                    >
+                      <RiTerminalBoxLine /> {t("create_background_script")}
                     </Menu.Item>
-                    <Menu.Item key="crontab">
-                      <span
-                        className="option-entry"
-                        onClick={() => createScript({ template: "crontab", target: "blank" })}
-                      >
-                        <RiTimerLine /> {t("create_scheduled_script")}
-                      </span>
+                    <Menu.Item
+                      key="/script/editor!crontab"
+                      onClick={() => createScript({ template: "crontab", target: "blank" })}
+                    >
+                      <RiTimerLine /> {t("create_scheduled_script")}
                     </Menu.Item>
                     <Menu.Item
                       className={"option-entry"}

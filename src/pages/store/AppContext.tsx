@@ -123,9 +123,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     (params?: { uuid?: string; template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
       prevHashRef.current = window.location.hash;
       setEditorParams(params);
-      setEditorOpen(true);
+
       // 不新增歷史紀錄：用 replace
       replaceHashSilently(buildEditorHash(params));
+
+      const content = document.querySelector("#scripteditor-layout-content")?.firstElementChild;
+      if (content) {
+        const targetId = "scripteditor-container";
+        const mb = document.getElementById(`modal-for-${targetId}`);
+        if (!mb?.firstElementChild) {
+          const modalBox = mb?.closest(".arco-modal-content");
+          const modalBoxParent = document.querySelector(".editor-modal-wrapper");
+          // if (modalBox && modalBoxParent) {
+          //   modalBox.appendChild(content);
+          //   (modalBoxParent as HTMLElement).style.display = "block";
+          //   if (modalBoxParent.previousElementSibling as HTMLElement) {
+          //     (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "block";
+          //   }
+          //   return;
+          // }
+          // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "block";
+          if (modalBox && modalBoxParent) {
+            modalBox.appendChild(content);
+            (modalBoxParent.parentElement as HTMLElement)!.style.display = "block";
+          }
+        }
+      }
+
+      setEditorOpen(true);
     },
     []
   );

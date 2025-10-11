@@ -22,7 +22,6 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import { IconClose, IconDelete, IconPlus, IconSearch, IconShrink } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
-import { useAppContext } from "@App/pages/store/AppContext";
 
 const { Row, Col } = Grid;
 
@@ -185,7 +184,6 @@ const emptyScript = async (template: string, hotKeys: any, target?: string) => {
 type visibleItem = "scriptStorage" | "scriptSetting" | "scriptResource";
 
 function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
-  const { closeEditor, setEditorOpen } = useAppContext();
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
@@ -792,12 +790,52 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
         s = s.previousElementSibling;
       }
       layoutContent.appendChild(container);
-      setEditorOpen(false);
+
+      // const targetId = "scripteditor-container";
+      // const mb = document.getElementById(`modal-for-${targetId}`);
+      const modalBoxParent = document.querySelector(".editor-modal-wrapper");
+      if (modalBoxParent) {
+        // (modalBoxParent as HTMLElement).style.display = "none";
+        // if (modalBoxParent.previousElementSibling as HTMLElement) {
+        //   (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "none";
+        // }
+        // return;
+        (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
+        // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "none";
+      }
+
+      // setEditorOpen(false);
     }
     // overlayMode = false;
   };
 
   const handleClose = () => {
+    const layoutContent = document.querySelector("#scripteditor-layout-content");
+    const container = document.querySelector("#scripteditor-container");
+    if (layoutContent && container && !layoutContent.firstElementChild) {
+      // let s = layoutContent.previousElementSibling;
+      // while (s instanceof HTMLElement) {
+      //   s.style.display = "none";
+      //   s = s.previousElementSibling;
+      // }
+      // layoutContent.appendChild(container);
+
+      // const targetId = "scripteditor-container";
+      // const mb = document.getElementById(`modal-for-${targetId}`);
+      const modalBoxParent = document.querySelector(".editor-modal-wrapper");
+      if (modalBoxParent) {
+        // (modalBoxParent as HTMLElement).style.display = "none";
+        // if (modalBoxParent.previousElementSibling as HTMLElement) {
+        //   (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "none";
+        // }
+        // return;
+        (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
+        // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "none";
+      }
+
+      // setEditorOpen(false);
+    }
+    /*
     let isChanged = false;
     setEditors((prev) => {
       isChanged = prev.some((item) => item.isChanged);
@@ -809,6 +847,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
       }
     }
     closeEditor();
+    */
   };
 
   return (
