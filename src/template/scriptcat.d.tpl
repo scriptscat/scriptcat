@@ -119,7 +119,7 @@ declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | 
 function GM_registerMenuCommand(
   name: string,
   listener?: (inputValue?: any) => void,
-  optionsOrAccessKey?:
+  options_or_accessKey?:
     | {
         id?: number | string;
         accessKey?: string;
@@ -138,7 +138,7 @@ declare function GM_unregisterMenuCommand(id: number): void;
 declare function CAT_registerMenuInput(
   name: string,
   listener?: (inputValue?: any) => void,
-  optionsOrAccessKey?:
+  options_or_accessKey?:
     | {
         id?: number | string;
         accessKey?: string;

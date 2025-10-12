@@ -600,6 +600,11 @@ export default class GMApi extends GM_Base {
     if (!this.EE) return -1;
     execEnvInit(this);
     this.regMenuCounter! += 1;
+    // 兼容 GM_registerMenuCommand(name, options_or_accessKey)
+    if (!options_or_accessKey && typeof listener === "object") {
+      options_or_accessKey = listener;
+      listener = undefined;
+    }
     // 浅拷贝避免修改/共用参数
     const options: SWScriptMenuItemOption = (
       typeof options_or_accessKey === "string"
