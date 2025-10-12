@@ -588,7 +588,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ alias: "GM.registerMenuCommand" })
   GM_registerMenuCommand(
     name: string,
-    listener: (inputValue?: any) => void,
+    listener?: (inputValue?: any) => void,
     options_or_accessKey?: ScriptMenuItemOption | string
   ): TScriptMenuItemID {
     if (!this.EE) return -1;
@@ -601,6 +601,20 @@ export default class GMApi extends GM_Base {
           ? { ...options_or_accessKey }
           : {}
     ) as ScriptMenuItemOption;
+    if (options.autoClose === undefined) {
+      options.autoClose = true;
+    }
+    if (options.nested === undefined) {
+      options.nested = true;
+    }
+    if (options.separator || (!listener && !name)) {
+      // GM_registerMenuCommand("") 时自动设为分隔线
+      options.separator = true;
+      name = "";
+      listener = undefined;
+    } else {
+      options.separator = false;
+    }
     let providedId: string | number | undefined = options.id;
     delete options.id; // id不直接储存在options (id 影响 groupKey 操作)
     if (providedId === undefined) providedId = this.menuIdCounter! += 1; // 如无指定，使用累计器id
@@ -616,7 +630,10 @@ export default class GMApi extends GM_Base {
       // 没注册过，先记录一下
       this.menuKeyRegistered!.add(menuKey);
     }
-    this.EE.addListener("menuClick:" + menuKey, listener);
+    if (listener) {
+      // GM_registerMenuCommand("hi", undefined, {accessKey:"h"}) 时TM不会报错
+      this.EE.addListener("menuClick:" + menuKey, listener);
+    }
     // 发送至 service worker 处理（唯一键，显示名字，不包括id的其他设定）
     this.sendMessage("GM_registerMenuCommand", [menuKey, name, options] as GMRegisterMenuCommandParam);
     return ret;

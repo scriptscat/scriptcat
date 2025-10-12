@@ -76,10 +76,13 @@ export type NotificationMessageOption = {
 export type Api = (request: Request, con: IGetSender) => Promise<any>;
 
 /** 脚本菜单选项 */
+// GM_registerMenuCommand optionsOrAccessKey
 export type ScriptMenuItemOption = {
   id?: number; // 用于菜单修改及删除 (GM API)
   accessKey?: string; // GM/TM 共通参数
   autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
+  nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话由三级菜单升至二级菜单
+  separator?: boolean; // SC独自设定。预设 false。true 的话表示分隔线
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";
   title?: string; // title 只适用于输入框类型

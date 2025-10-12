@@ -350,7 +350,8 @@ const ScriptMenuList = React.memo(
 
           const resultMap = new Map<string, ScriptMenuItem[]>();
           for (const menu of menus) {
-            const groupKey = menu.groupKey;
+            if (menu.options?.separator) continue; // popup 不显示分隔线
+            const groupKey = menu.groupKey.split(",")[0]; // popup 显示不区分二级菜单或三级菜单
             let m = resultMap.get(groupKey);
             if (!m) resultMap.set(groupKey, (m = []));
             m.push(menu);

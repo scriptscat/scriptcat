@@ -118,13 +118,14 @@ declare function GM_getResourceURL(name: string, isBlobUrl?: boolean): string | 
 
 function GM_registerMenuCommand(
   name: string,
-  listener: (inputValue?: any) => void,
+  listener?: (inputValue?: any) => void,
   optionsOrAccessKey?:
     | {
         id?: number;
         autoClose?: boolean;
-        title?: string;
         accessKey?: string;
+        nested?: boolean;
+        separator?: boolean;
       }
     | string
 ): number;
@@ -136,15 +137,17 @@ declare function GM_unregisterMenuCommand(id: number): void;
  */
 declare function CAT_registerMenuInput(
   name: string,
-  listener: (inputValue?: any) => void,
+  listener?: (inputValue?: any) => void,
   optionsOrAccessKey?:
     | {
         id?: number;
-        autoClose?: boolean;
-        title?: string;
         accessKey?: string;
+        autoClose?: boolean;
+        nested?: boolean;
+        separator?: boolean;
         // 可选输入框
         inputType?: "text" | "number" | "boolean";
+        title?: string; // title 只适用于输入框类型
         inputLabel?: string;
         inputDefaultValue?: string | number | boolean;
         inputPlaceholder?: string;

@@ -84,23 +84,35 @@ export class PopupService {
     for (const { uuid, name, menus } of menu) {
       const subMenuEntries = [] as chrome.contextMenus.CreateProperties[];
       let withMenuItem = false;
-      const groupKeys = new Map<string, string>();
+      const groupKeys = new Map<string, { name: string; separator?: boolean; nested?: boolean }>();
       for (const { name, options, groupKey } of menus) {
         if (options?.inputType) continue; // 如果是带输入框的菜单则不在页面内注册
         if (groupKeys.has(groupKey)) continue;
-        groupKeys.set(groupKey, name);
+        groupKeys.set(groupKey, { name, separator: options?.separator, nested: options?.nested });
       }
-      for (const [groupKey, name] of groupKeys) {
-        if (!name) continue; // 日后再调整 name 为空的情况
+      for (const [groupKey, { name, separator, nested }] of groupKeys) {
         // 创建菜单
         const menuUid = `scriptMenu_menu_${uuid}_${groupKey}`;
-        const createProperties = {
-          id: menuUid,
-          title: name,
-          contexts: ["all"],
-          parentId: `scriptMenu_${uuid}`, // 上层是 `scriptMenu_${uuid}`
-        } as chrome.contextMenus.CreateProperties;
-        withMenuItem = true; // 日后或引入菜单分隔线的设计。 withMenuItem = true 表示实际菜单选项有。
+        let createProperties;
+        if (separator) {
+          createProperties = {
+            id: menuUid,
+            type: "separator",
+            contexts: ["all"],
+          } as chrome.contextMenus.CreateProperties;
+        } else {
+          createProperties = {
+            id: menuUid,
+            title: name,
+            contexts: ["all"],
+          } as chrome.contextMenus.CreateProperties;
+          withMenuItem = true; // 表示实际菜单选项有。
+        }
+        if (nested) {
+          createProperties.parentId = `scriptMenu_${uuid}`; // 上层是 `scriptMenu_${uuid}`
+        } else {
+          createProperties.parentId = `scriptMenu`;
+        }
         subMenuEntries.push(createProperties);
       }
       if (withMenuItem) {
@@ -202,12 +214,18 @@ export class PopupService {
         // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
         // 但点击后，两边都会执行。
         // 目的是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
-        const groupKey = uuidv5(
-          message.options?.inputType
-            ? JSON.stringify({ ...message.options, autoClose: undefined, id: undefined, name: name })
-            : `${name}\n${message.options?.accessKey || ""}`,
-          groupKeyNS
-        );
+        const nameForKey = message.options?.separator ? "" : `${name}_${message.options?.accessKey || ""}`;
+        const popupGroup = message.options?.inputType
+          ? JSON.stringify({
+              ...message.options,
+              autoClose: undefined,
+              id: undefined,
+              name: nameForKey,
+              nested: undefined,
+              separator: undefined,
+            })
+          : nameForKey; // 一般菜單項目不需要 JSON.stringify
+        const groupKey = `${uuidv5(popupGroup, groupKeyNS)},${message.options?.nested ? 3 : 2}`;
         const menu = menus.find((item) => item.key === key);
         if (!menu) {
           // 不存在新增
