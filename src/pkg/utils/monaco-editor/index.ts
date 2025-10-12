@@ -43,6 +43,10 @@ export default function registerEditor() {
     resource: "引入资源文件",
     require: "引入外部 js 文件",
     noframes: "表示脚本不运行在`<frame>`中",
+    "inject-into":
+      "脚本注入环境<br>`content`：脚本注入到content环境<br>`page`：脚本注入到網頁环境（預設）<br>注：SC不支持以CSP判断是否需要脚本注入到content环境的`inject-into: auto`设计。",
+    "early-start":
+      "配合`run-at: document-start` 的声明，使用 `early-start` 可以比网页更快的加载脚本进行执行，但是会存在一些性能问题与GM API使用限制。（SC独自）",
     definition: "ScriptCat特有功能：一个`.d.ts`文件的引用地址,能够自动补全编辑器的自动提示",
     antifeature: "这是与脚本市场有关的，不受欢迎的功能需要加上此描述值",
     updateURL: "脚本检查更新的url",

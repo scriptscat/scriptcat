@@ -226,7 +226,7 @@ export class SynchronizeService {
         orig_excludes: script.metadata.exclude || [],
         orig_includes: script.metadata.include || [],
         orig_matches: script.metadata.match || [],
-        orig_noframes: script.metadata.noframe ? true : null,
+        orig_noframes: script.metadata.noframes ? true : null,
         orig_run_at: (script.metadata.run_at && script.metadata.run_at[0]) || "document-idle",
         use_blockers: [],
         use_connects: [],
