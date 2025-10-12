@@ -119,12 +119,17 @@ export function addStyle(css: string): HTMLStyleElement {
   return document.documentElement.appendChild(dom);
 }
 
+export function metadataBlankOrTrue(metadata: SCMetadata, key: string): boolean {
+  const s = metadata[key]?.[0];
+  return s === "" || s === "true";
+}
+
 export function isEarlyStartScript(metadata: SCMetadata): boolean {
-  return !!(metadata["run-at"] && metadata["run-at"][0] === "document-start" && metadata["early-start"]);
+  return metadataBlankOrTrue(metadata, "early-start") && metadata["run-at"]?.[0] === "document-start";
 }
 
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
-  return !!(metadata["inject-into"] && metadata["inject-into"][0] === "content");
+  return metadata["inject-into"]?.[0] === "content";
 }
 
 export const getScriptFlag = (uuid: string) => {
