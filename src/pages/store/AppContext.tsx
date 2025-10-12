@@ -4,6 +4,12 @@ import { editor } from "monaco-editor";
 import { type TKeyValue } from "@Packages/message/message_queue";
 import { changeLanguage } from "@App/locales/locales";
 import { SystemConfigChange } from "@App/pkg/config/config";
+import {
+  getScriptEditorOpenStatus,
+  hideContentAboveInPageEditor,
+  makeModalVisible,
+  ScriptEditorOpenStatus,
+} from "../components/ScriptEditor/utils";
 
 export type ThemeParam = { theme: "auto" | "light" | "dark" };
 export interface AppContextType {
@@ -121,55 +127,52 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const openEditor = useCallback(
     (params?: { uuid?: string; template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
-      if (document.querySelector(".editor-modal-wrapper")) {
+      const openStatus = getScriptEditorOpenStatus();
+      if (openStatus & ScriptEditorOpenStatus.MODAL_INVISIBLE) {
+        makeModalVisible();
+      }
+      if (openStatus & ScriptEditorOpenStatus.IN_PAGE) {
+        // URL 模式：通知路由內的 ScriptEditor 自己加一個分頁
         window.dispatchEvent(
           new CustomEvent("scriptcat:editor:add", {
             detail: { template: params?.template || "", target: params?.target || "blank" },
           })
         );
-        // prevHashRef.current = window.location.hash;
-        // setEditorParams(params);
-
-        // // 不新增歷史紀錄：用 replace
-        // replaceHashSilently(buildEditorHash(params));
       } else {
-        prevHashRef.current = window.location.hash;
-        setEditorParams(params);
+        // Overlay 模式
+        const hasModal =
+          (openStatus & (ScriptEditorOpenStatus.MODAL_VISIBLE | ScriptEditorOpenStatus.MODAL_INVISIBLE)) > 0;
+        if (hasModal) {
+          window.dispatchEvent(
+            new CustomEvent("scriptcat:editor:add", {
+              detail: { template: params?.template || "", target: params?.target || "blank" },
+            })
+          );
+          // prevHashRef.current = window.location.hash;
+          // setEditorParams(params);
 
-        // 不新增歷史紀錄：用 replace
-        replaceHashSilently(buildEditorHash(params));
-      }
+          // // 不新增歷史紀錄：用 replace
+          // replaceHashSilently(buildEditorHash(params));
+        } else {
+          prevHashRef.current = window.location.hash;
+          setEditorParams(params);
 
-      const content = document.querySelector("#scripteditor-layout-content")?.firstElementChild;
-      if (content) {
-        const targetId = "scripteditor-container";
-        const mb = document.getElementById(`modal-for-${targetId}`);
-        if (!mb?.firstElementChild) {
-          const modalBox = mb?.closest(".arco-modal-content");
-          const modalBoxParent = document.querySelector(".editor-modal-wrapper");
-          // if (modalBox && modalBoxParent) {
-          //   modalBox.appendChild(content);
-          //   (modalBoxParent as HTMLElement).style.display = "block";
-          //   if (modalBoxParent.previousElementSibling as HTMLElement) {
-          //     (modalBoxParent.previousElementSibling! as HTMLElement).style.display = "block";
-          //   }
-          //   return;
-          // }
-          // (document.querySelector("#editor-overlay") as HTMLElement)!.style.display = "block";
-          if (modalBox && modalBoxParent) {
-            modalBox.appendChild(content);
-            (modalBoxParent.parentElement as HTMLElement)!.style.display = "block";
-          }
-          setTimeout(() => {
-            let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
-            while ((s = s?.previousElementSibling) instanceof HTMLElement) {
-              (s as HTMLElement).style.display = "none";
-            }
-          }, 1);
+          // 不新增歷史紀錄：用 replace
+          replaceHashSilently(buildEditorHash(params));
         }
-      }
 
-      setEditorOpen(true);
+        if ((openStatus & ScriptEditorOpenStatus.IN_PAGE) > 0) {
+          const targetId = "scripteditor-modal-container";
+          const mb = document.getElementById(`modal-for-${targetId}`);
+          if (!mb?.firstElementChild) {
+            makeModalVisible();
+            setTimeout(hideContentAboveInPageEditor, 1);
+          }
+        }
+
+        setEditorOpen(true);
+      }
+      setTimeout(hideContentAboveInPageEditor, 1);
     },
     []
   );

@@ -50,50 +50,9 @@ const MainLayout: React.FC<{
   const [showLanguage, setShowLanguage] = useState(false);
   const { t } = useTranslation();
 
-  // 用 hash 判斷是否在 URL 模式的 ScriptEditor 頁面
-  const [inUrlEditor, setInUrlEditor] = useState<boolean>(() => {
-    const h = typeof window !== "undefined" ? window.location.hash : "";
-    const path = h.startsWith("#") ? h.slice(1) : h;
-    return path.split("?")[0].startsWith("/script/editor");
-  });
-
-  useEffect(() => {
-    const syncFromHash = () => {
-      const h = window.location.hash || "";
-      const path = h.startsWith("#") ? h.slice(1) : h;
-      setInUrlEditor(path.split("?")[0].startsWith("/script/editor"));
-    };
-    // 初始化 & 監聽 hash 變化
-    syncFromHash();
-    window.addEventListener("hashchange", syncFromHash);
-    return () => window.removeEventListener("hashchange", syncFromHash);
-  }, []);
-
   // 統一處理「新增腳本」
   const createScript = (o: { template?: "" | "background" | "crontab"; target?: "blank" | "initial" }) => {
-    if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
-      document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
-    }
-    if (inUrlEditor && !document.querySelector("#scripteditor-layout-content")?.firstElementChild) {
-      // URL 模式：通知路由內的 ScriptEditor 自己加一個分頁
-      window.dispatchEvent(
-        new CustomEvent("scriptcat:editor:add", {
-          detail: { template: o.template || "", target: o.target || "blank" },
-        })
-      );
-    } else {
-      // Overlay 模式
-      openEditor({ template: o.template || "", target: o.target || "blank" });
-    }
-    // if (document.querySelector(".editor-modal-wrapper")?.parentElement) {
-    //   document.querySelector(".editor-modal-wrapper")!.parentElement!.style.display = "block";
-    // }
-    setTimeout(() => {
-      let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
-      while ((s = s?.previousElementSibling) instanceof HTMLElement) {
-        (s as HTMLElement).style.display = "none";
-      }
-    }, 1);
+    openEditor({ template: o.template || "", target: o.target || "blank" });
   };
 
   const showImportResult = (stat: Awaited<ReturnType<ScriptClient["importByUrls"]>>) => {

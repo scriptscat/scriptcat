@@ -11,7 +11,7 @@ export type ModalWrapperProps = {
   open: boolean;
   /** Called when user closes the modal */
   onCancel?: () => void;
-  /** The *existing* DOM node you want to teleport, by id. Example: "scripteditor-container" */
+  /** The *existing* DOM node you want to teleport, by id. Example: "scripteditor-modal-container" */
   targetId: string;
   /** Where to put the node when modal is closed. CSS selector. Example: "#scripteditor-layout-content" */
   pageHostSelector: string;

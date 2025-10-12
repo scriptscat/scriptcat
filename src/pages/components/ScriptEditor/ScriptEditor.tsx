@@ -25,11 +25,21 @@ import ScriptSetting from "@App/pages/components/ScriptSetting";
 import { runtimeClient, scriptClient } from "@App/pages/store/features/script";
 import i18n, { i18nName } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
-import { IconClose, IconList, IconPlus, IconSettings, IconShrink } from "@arco-design/web-react/icon";
+import { IconClose, IconExpand, IconList, IconPlus, IconSettings, IconShrink } from "@arco-design/web-react/icon";
 import { lazyScriptName } from "@App/pkg/config/config";
 import { systemConfig } from "@App/pages/store/global";
-import { wScript } from "./shared";
+import { wScript } from "../../options/routes/script/shared";
 import { ScriptEditorScriptList } from "./ScriptEditorScriptList";
+import {
+  getScriptEditorOpenStatus,
+  hideContentAboveInPageEditor,
+  makeModalInvisible,
+  makeModalVisible,
+  ScriptEditorOpenStatus,
+  showContentAboveInPageEditor,
+} from "./utils";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 const { Row, Col } = Grid;
 
@@ -88,11 +98,26 @@ const cfgEditorWithScriptList = systemConfig.config<boolean>("editor_with_script
 // --- 單一 Monaco Editor，多個 Model（每個分頁一個 Model，擁有獨立的 Undo 記錄）---
 // 我們保留一個 editor 實例（由 CodeEditor 控制），並為每個分頁建立/保存 model。
 
-function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
+function ScriptEditor({ overlayMode = false, onUrlChange }: ScriptEditorCoreProps) {
   const [visible, setVisible] = useState<{ [key: string]: boolean }>({});
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [showSearchInput, setShowSearchInput] = useState<boolean>(false);
   const [modal, contextHolder] = Modal.useModal();
+
+  const { editorParams } = useAppContext();
+  const pageUrlParams = useParams<{ uuid?: string }>();
+  const [pageUrlSearchParams] = useSearchParams();
+  const [uuid, template, target] = useMemo(() => {
+    if (overlayMode === false) {
+      const { uuid } = pageUrlParams;
+      const sp = pageUrlSearchParams;
+      const template = (sp.get("template") || undefined) as "" | "background" | "crontab" | undefined;
+      const target = (sp.get("target") as "blank" | "initial" | null) || undefined;
+      return [uuid, template, target];
+    } else {
+      return [editorParams?.uuid, editorParams?.template, editorParams?.target];
+    }
+  }, [overlayMode, pageUrlParams, pageUrlSearchParams, editorParams]);
 
   // 編輯器分頁資料（script 與其初始 code）
   const [editors, setEditors] = useState<
@@ -111,6 +136,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
     uuid: string;
     selectSciptButtonAndTab: string;
   }>();
+  const [isIconToPage, setIsIconToPage] = useState<boolean>(true);
   const [pageInit, setPageInit] = useState<boolean>(false);
   const [canLoadScript, setCanLoadScript] = useState<boolean>(false);
   const [hiddenScriptList, setHiddenScriptList] = useState<boolean | null>(() => {
@@ -132,6 +158,22 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   const { t } = useTranslation();
   const scriptDAO = useMemo(() => new ScriptDAO(), []);
   const scriptCodeDAO = useMemo(() => new ScriptCodeDAO(), []);
+
+  const location = useLocation();
+  useEffect(() => {
+    if (!overlayMode) return;
+    const modalContainer = document.querySelector("#scripteditor-modal-container");
+    const scriptEditorMain = document.querySelector("#scripteditor-layout-content #scripteditor-main");
+    if (!scriptEditorMain || !modalContainer || modalContainer.firstElementChild) return;
+
+    let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
+    while ((s = s?.previousElementSibling) instanceof HTMLElement) {
+      if (s.classList.contains("scripteditor-in-page")) break;
+      if ((s as HTMLElement).style.display !== "none") {
+        modalContainer?.appendChild(scriptEditorMain);
+      }
+    }
+  }, [location, overlayMode]);
 
   const setShow = useCallback((key: "scriptStorage" | "scriptSetting" | "scriptResource", show: boolean) => {
     setVisible((prev) => {
@@ -514,8 +556,8 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
 
     const onAdd = (e: Event | CustomEvent) => {
       const p = (e as CustomEvent).detail;
-      if (p && typeof p.tpl === "string") {
-        handleCreateByTemplate(p.tpl, p.tgt);
+      if (p && typeof p.template === "string") {
+        handleCreateByTemplate(p.template, p.target);
       }
     };
     window.addEventListener("scriptcat:editor:add", onAdd);
@@ -681,47 +723,50 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
   };
 
   const handleModeToggle = () => {
-    const layoutContent = document.querySelector("#scripteditor-layout-content");
-    const container = document.querySelector("#scripteditor-container");
-    if (layoutContent && container && !layoutContent.firstElementChild) {
-      let s = layoutContent.previousElementSibling as HTMLElement | null;
-      while (s instanceof HTMLElement) {
-        s.style.display = "none";
-        s = s.previousElementSibling as HTMLElement | null;
+    const openStatus = getScriptEditorOpenStatus();
+    if (openStatus & ScriptEditorOpenStatus.IN_OVERLAY) {
+      setIsIconToPage(false);
+      const layoutContent = document.querySelector("#scripteditor-layout-content");
+      const scriptEditorMain = document.querySelector("#scripteditor-main");
+      if (layoutContent && scriptEditorMain && !layoutContent.firstElementChild) {
+        layoutContent.appendChild(scriptEditorMain);
+        hideContentAboveInPageEditor();
+        makeModalInvisible();
       }
-      layoutContent.appendChild(container);
-      const modalBoxParent = document.querySelector(".editor-modal-wrapper");
-      if (modalBoxParent) {
-        (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
+    } else if (
+      (openStatus & (ScriptEditorOpenStatus.IN_PAGE | ScriptEditorOpenStatus.MODAL_INVISIBLE)) ===
+      (ScriptEditorOpenStatus.IN_PAGE | ScriptEditorOpenStatus.MODAL_INVISIBLE)
+    ) {
+      setIsIconToPage(true);
+      const modalContainer = document.querySelector("#scripteditor-modal-container");
+      const scriptEditorMain = document.querySelector("#scripteditor-main");
+      if (modalContainer && scriptEditorMain && !modalContainer.firstElementChild) {
+        makeModalVisible();
+        showContentAboveInPageEditor();
+        modalContainer?.appendChild(scriptEditorMain);
       }
-      // setTimeout(() => {
-      //   let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
-      //   while ((s = s?.previousElementSibling) instanceof HTMLElement) {
-      //     (s as HTMLElement).style.display = "";
-      //   }
-      // }, 1);
     }
   };
 
   const handleClose = () => {
-    const modalBoxParent = document.querySelector(".editor-modal-wrapper");
-    if (modalBoxParent) {
-      (modalBoxParent.parentElement as HTMLElement)!.style.display = "none";
-    }
-    setTimeout(() => {
-      let s: Element | HTMLElement | null | undefined = document.querySelector("#scripteditor-layout-content");
-      while ((s = s?.previousElementSibling) instanceof HTMLElement) {
-        (s as HTMLElement).style.display = "";
+    const modalContainer = document.querySelector("#scripteditor-modal-container");
+    const scriptEditorMain = document.querySelector("#scripteditor-main");
+    if (modalContainer && scriptEditorMain) {
+      showContentAboveInPageEditor();
+      makeModalInvisible();
+      if (!modalContainer.firstElementChild) {
+        modalContainer?.appendChild(scriptEditorMain);
       }
-    }, 1);
+    }
   };
 
   useLayoutEffect(() => {
     if (!showSearchInput) return;
-    const cid = setTimeout(
-      () => showSearchInput && (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus(),
-      1
-    );
+    const cid = setTimeout(() => {
+      if (showSearchInput) {
+        (document.querySelector("#editor_search_scripts_input") as HTMLInputElement)?.focus();
+      }
+    }, 1);
     return () => {
       clearTimeout(cid);
     };
@@ -754,6 +799,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
 
   return (
     <div
+      id="scripteditor-main"
       className="h-full flex flex-col"
       style={{ position: "relative", left: -10, top: -10, width: "calc(100% + 20px)", height: "calc(100% + 20px)" }}
     >
@@ -903,7 +949,7 @@ function ScriptEditor({ uuid, template, target = "blank", overlayMode = false, o
           <div style={{ flex: 1 }} />
           {overlayMode && (
             <Button size="mini" onClick={handleModeToggle}>
-              <IconShrink />
+              {isIconToPage ? <IconShrink /> : <IconExpand />}
             </Button>
           )}
           {overlayMode && (

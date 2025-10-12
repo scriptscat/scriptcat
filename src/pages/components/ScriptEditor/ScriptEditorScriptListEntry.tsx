@@ -7,7 +7,7 @@ import { editor } from "monaco-editor";
 import React from "react";
 import Logger from "@App/app/logger/logger";
 import { type ScriptEditorScriptListEntryActionProps } from "./ScriptEditorScriptList";
-import { wScript } from "./shared";
+import { wScript } from "../../options/routes/script/shared";
 import { type SCRIPT_STATUS, SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 
 export const ScriptEditorScriptListEntry = React.memo(function ScriptEditorScriptListEntry({

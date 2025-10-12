@@ -8,7 +8,7 @@ import React, { useMemo } from "react";
 import { type HotKey, type ScriptEditorScriptListProps } from "./ScriptEditor";
 import { ScriptEditorScriptListEntry } from "./ScriptEditorScriptListEntry";
 import type { Script, ScriptCodeDAO } from "@App/app/repo/scripts";
-import { wScript } from "./shared";
+import { wScript } from "../../options/routes/script/shared";
 
 export type ScriptEditorScriptListEntryActionProps = {
   selectSciptButtonAndTab: string;
