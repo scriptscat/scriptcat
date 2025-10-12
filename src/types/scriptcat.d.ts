@@ -121,11 +121,11 @@ function GM_registerMenuCommand(
   listener?: (inputValue?: any) => void,
   optionsOrAccessKey?:
     | {
-        id?: number;
-        autoClose?: boolean;
+        id?: number | string;
         accessKey?: string;
-        nested?: boolean;
-        separator?: boolean;
+        autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
+        nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
       }
     | string
 ): number;
@@ -140,11 +140,11 @@ declare function CAT_registerMenuInput(
   listener?: (inputValue?: any) => void,
   optionsOrAccessKey?:
     | {
-        id?: number;
+        id?: number | string;
         accessKey?: string;
-        autoClose?: boolean;
-        nested?: boolean;
-        separator?: boolean;
+        autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
+        nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
         // 可选输入框
         inputType?: "text" | "number" | "boolean";
         title?: string; // title 只适用于输入框类型

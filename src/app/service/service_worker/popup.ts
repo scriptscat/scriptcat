@@ -84,17 +84,17 @@ export class PopupService {
     for (const { uuid, name, menus } of menu) {
       const subMenuEntries = [] as chrome.contextMenus.CreateProperties[];
       let withMenuItem = false;
-      const groupKeys = new Map<string, { name: string; separator?: boolean; nested?: boolean }>();
+      const groupKeys = new Map<string, { name: string; mSeparator?: boolean; nested?: boolean }>();
       for (const { name, options, groupKey } of menus) {
         if (options?.inputType) continue; // 如果是带输入框的菜单则不在页面内注册
         if (groupKeys.has(groupKey)) continue;
-        groupKeys.set(groupKey, { name, separator: options?.separator, nested: options?.nested });
+        groupKeys.set(groupKey, { name, mSeparator: options?.mSeparator, nested: options?.nested });
       }
-      for (const [groupKey, { name, separator, nested }] of groupKeys) {
+      for (const [groupKey, { name, mSeparator, nested }] of groupKeys) {
         // 创建菜单
         const menuUid = `scriptMenu_menu_${uuid}_${groupKey}`;
         let createProperties;
-        if (separator) {
+        if (mSeparator) {
           createProperties = {
             id: menuUid,
             type: "separator",
@@ -202,7 +202,7 @@ export class PopupService {
     for (const listEntry of list) {
       const message = listEntry as TScriptMenuRegister;
       // message.key是唯一的。 即使在同一tab里的mainframe subframe也是不一样
-      const { uuid, key, name } = message;
+      const { uuid, key, name, options } = message;
       const script = scripts.get(uuid);
       if (!script) continue;
       const menus = script.menus;
@@ -214,18 +214,18 @@ export class PopupService {
         // 例如 subframe 和 mainframe 创建了相同的 menu item，显示时只会出现一个。
         // 但点击后，两边都会执行。
         // 目的是整理显示，实际上内部还是存有多笔 entry（分别记录不同的 frameId 和 id）。
-        const nameForKey = message.options?.separator ? "" : `${name}_${message.options?.accessKey || ""}`;
-        const popupGroup = message.options?.inputType
+        const nameForKey = options.mSeparator ? "" : `${name}_${options.accessKey || ""}`;
+        const popupGroup = options.inputType
           ? JSON.stringify({
               ...message.options,
               autoClose: undefined,
               id: undefined,
               name: nameForKey,
               nested: undefined,
-              separator: undefined,
+              mSeparator: undefined,
             })
-          : nameForKey; // 一般菜單項目不需要 JSON.stringify
-        const groupKey = `${uuidv5(popupGroup, groupKeyNS)},${message.options?.nested ? 3 : 2}`;
+          : `${nameForKey}_${options.mIndividualKey}`; // 一般菜單項目不需要 JSON.stringify
+        const groupKey = `${uuidv5(popupGroup, groupKeyNS)},${options.nested ? 3 : 2}`;
         const menu = menus.find((item) => item.key === key);
         if (!menu) {
           // 不存在新增

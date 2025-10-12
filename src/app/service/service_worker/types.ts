@@ -78,11 +78,27 @@ export type Api = (request: Request, con: IGetSender) => Promise<any>;
 /** 脚本菜单选项 */
 // GM_registerMenuCommand optionsOrAccessKey
 export type ScriptMenuItemOption = {
-  id?: number; // 用于菜单修改及删除 (GM API)
+  id?: number | string; // 用于菜单修改及删除 (GM API)
+  accessKey?: string; // GM/TM 共通参数
+  autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
+  nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
+  individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
+  /** 可选输入框类型 */
+  inputType?: "text" | "number" | "boolean";
+  title?: string; // title 只适用于输入框类型
+  inputLabel?: string;
+  inputDefaultValue?: string | number | boolean;
+  inputPlaceholder?: string;
+};
+
+/** 脚本菜单选项 */
+// Service_Worker 接收到的
+export type SWScriptMenuItemOption = {
   accessKey?: string; // GM/TM 共通参数
   autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
   nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话由三级菜单升至二级菜单
-  separator?: boolean; // SC独自设定。预设 false。true 的话表示分隔线
+  mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey
+  mSeparator?: boolean; // 内部用。true 为分隔线
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";
   title?: string; // title 只适用于输入框类型
@@ -142,7 +158,7 @@ export type ScriptMenuItem = {
   groupKey: string;
   key: TScriptMenuItemKey;
   name: TScriptMenuItemName;
-  options?: ScriptMenuItemOption;
+  options?: SWScriptMenuItemOption;
   tabId: number; //-1表示后台脚本
   frameId?: number;
   documentId?: string;
@@ -167,7 +183,7 @@ export type GroupScriptMenuItem = {
  * 使用范例：
  * GM_registerMenuCommand信息传递("myKey", "开启设定", { autoClose: true });
  */
-export type GMRegisterMenuCommandParam = [TScriptMenuItemKey, TScriptMenuItemName, Omit<ScriptMenuItemOption, "id">];
+export type GMRegisterMenuCommandParam = [TScriptMenuItemKey, TScriptMenuItemName, SWScriptMenuItemOption];
 
 /**
  * GM_unregisterMenuCommand 信息传递的呼叫参数型别：
