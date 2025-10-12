@@ -103,21 +103,18 @@ export class WindowMessage implements Message {
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
+      const messageId = uuidv4();
       const body: WindowMessageBody<TMessage> = {
-        messageId: uuidv4(),
+        messageId,
         type: "sendMessage",
         data,
       };
-      const eventId = `response:${body.messageId}`;
-      let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody<TMessage>) => {
-        if (callback !== null) {
-          this.EE.removeListener(eventId, callback!);
-          resolve!(body.data as T);
-          callback = null; // 设为 null 提醒JS引擎可以GC
-          resolve = null;
-        }
-      };
-      this.EE.addListener(eventId, callback);
+      const eventId = `response:${messageId}`;
+      this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
+        this.EE.removeAllListeners(eventId);
+        resolve!(body.data as T);
+        resolve = null; // 设为 null 提醒JS引擎可以GC
+      });
       this.target.postMessage(body, "*");
     });
   }
@@ -216,21 +213,18 @@ export class ServiceWorkerMessageSend implements MessageSend {
   async sendMessage<T = any>(data: TMessage): Promise<T> {
     await this.init();
     return new Promise((resolve: ((value: T) => void) | null) => {
+      const messageId = uuidv4();
       const body: WindowMessageBody<TMessage> = {
-        messageId: uuidv4(),
+        messageId,
         type: "sendMessage",
         data,
       };
-      const eventId = `response:${body.messageId}`;
-      let callback: EventEmitter.EventListener<string | symbol, any> | null = (body: WindowMessageBody<TMessage>) => {
-        if (callback !== null) {
-          this.EE.removeListener(eventId, callback);
-          resolve!(body.data as T);
-          callback = null; // 设为 null 提醒JS引擎可以GC
-          resolve = null;
-        }
-      };
-      this.EE.addListener(eventId, callback);
+      const eventId = `response:${messageId}`;
+      this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
+        this.EE.removeAllListeners(eventId);
+        resolve!(body.data as T);
+        resolve = null; // 设为 null 提醒JS引擎可以GC
+      });
       this.target!.postMessage(body);
     });
   }

@@ -632,6 +632,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ alias: "GM.addStyle" })
   GM_addStyle(css: string) {
     if (!this.message || !this.scriptRes) return;
+    if (typeof css !== "string") throw new Error("The parameter 'css' of GM_addStyle shall be a string.");
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
@@ -655,27 +656,31 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({ alias: "GM.addElement" })
-  GM_addElement(parentNode: EventTarget | string, tagName: any, attrs?: any) {
+  GM_addElement(
+    parentNode: EventTarget | string,
+    tagName: string | Record<string, string | number | boolean>,
+    attrs: Record<string, string | number | boolean> = {}
+  ) {
     if (!this.message || !this.scriptRes) return;
     // 与content页的消息通讯实际是同步,此方法不需要经过background
     // 这里直接使用同步的方式去处理, 不要有promise
-    let parentNodeId: any = parentNode;
-    if (typeof parentNodeId !== "string") {
-      const id = (<CustomEventMessage>this.message).sendRelatedTarget(parentNodeId);
+    let parentNodeId: number | null;
+    if (typeof parentNode !== "string") {
+      const id = (<CustomEventMessage>this.message).sendRelatedTarget(parentNode);
       parentNodeId = id;
     } else {
       parentNodeId = null;
+      attrs = tagName as Record<string, string | number | boolean>;
+      tagName = parentNode as string;
     }
+    if (typeof tagName !== "string") throw new Error("The parameter 'tagName' of GM_addElement shall be a string.");
+    if (typeof attrs !== "object") throw new Error("The parameter 'attrs' of GM_addElement shall be an object.");
     const resp = (<CustomEventMessage>this.message).syncSendMessage({
       action: `${this.prefix}/runtime/gmApi`,
       data: {
         uuid: this.scriptRes.uuid,
         api: "GM_addElement",
-        params: [
-          parentNodeId,
-          typeof parentNode === "string" ? parentNode : tagName,
-          typeof parentNode === "string" ? tagName : attrs,
-        ],
+        params: [parentNodeId, tagName, attrs],
       },
     });
     if (resp.code) {
