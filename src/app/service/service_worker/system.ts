@@ -20,20 +20,6 @@ export class SystemService {
 
   async init() {
     const vscodeConnect = new VscodeConnectClient(this.msgSender);
-    // 如果开启了自动连接vscode，则自动连接
-    // 使用tx来确保service_worker恢复时不会再执行
-    cacheInstance.tx("vscodeReconnect", async (init) => {
-      if (!init) {
-        if (await this.systemConfig.getVscodeReconnect()) {
-          // 调用连接
-          vscodeConnect.connect({
-            url: await this.systemConfig.getVscodeUrl(),
-            reconnect: true,
-          });
-        }
-      }
-      return true;
-    });
     this.group.on("connectVSCode", (params) => {
       return vscodeConnect.connect(params);
     });
@@ -52,5 +38,19 @@ export class SystemService {
     });
 
     this.group.on("getFaviconFromDomain", this.getFaviconFromDomain.bind(this));
+
+    // 如果开启了自动连接vscode，则自动连接
+    // 使用tx来确保service_worker恢复时不会再执行
+    const init = await cacheInstance.get<boolean>("vscodeReconnect");
+    if (!init) {
+      if (await this.systemConfig.getVscodeReconnect()) {
+        // 调用连接
+        vscodeConnect.connect({
+          url: await this.systemConfig.getVscodeUrl(),
+          reconnect: true,
+        });
+      }
+      await cacheInstance.set<boolean>("vscodeReconnect", true);
+    }
   }
 }

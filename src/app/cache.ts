@@ -1,3 +1,5 @@
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+
 interface CacheStorage {
   get<T>(key: string): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
@@ -116,54 +118,51 @@ class Cache extends ExtCache {
     return ret;
   }
 
-  private txLock: Map<string, ((unlock: () => void) => void)[]> = new Map();
-
-  lock(key: string): Promise<() => void> | (() => void) {
-    const hasLock = this.txLock.has(key);
-
-    const unlock = () => {
-      const waitFunc = this.txLock.get(key)?.shift();
-      if (waitFunc) {
-        waitFunc(unlock);
-      } else {
-        this.txLock.delete(key);
-      }
-    };
-
-    if (hasLock) {
-      let lock = this.txLock.get(key);
-      if (!lock) {
-        lock = [];
-        this.txLock.set(key, lock);
-      }
-      return new Promise<() => void>((resolve) => {
-        lock.push(resolve);
-      });
-    }
-    this.txLock.set(key, []);
-    return unlock;
-  }
-
   // 事务处理,如果有事务正在进行,则等待
-  public async tx<T>(key: string, set: ICacheSet<T>): Promise<T> {
-    const unlock = await this.lock(key);
-    let newValue: T;
-    await this.get<T>(key)
-      .then((result) => set(result))
-      .then((value) => {
-        if (value) {
-          newValue = value;
-          return this.set(key, value);
-        } else if (value === undefined) {
-          return this.del(key);
-        }
-      });
-    unlock();
-    return newValue!; // 必须注意当 value 为 「undefined, null, "", 0」 时，newValue 是 undefined
+  public tx<T, CB extends (val: T | undefined, tx: { set: (newVal: T) => void; del: () => void }) => any>(
+    key: string,
+    callback: CB
+  ): Promise<Awaited<ReturnType<CB>>> {
+    const enum Actions {
+      NONE = 0,
+      SET = 1,
+      DEL = 2,
+    }
+    return stackAsyncTask(key, () => {
+      let ret: Awaited<ReturnType<CB>>;
+      const act = { action: Actions.NONE } as { action?: number; newVal?: T };
+      return this.get<T>(key)
+        .then((result) => {
+          const tx = {
+            set: (newVal: T) => {
+              act.action = Actions.SET;
+              act.newVal = newVal;
+            },
+            del: () => {
+              act.action = Actions.DEL;
+              act.newVal = undefined;
+            },
+          };
+          return callback(result, tx);
+        })
+        .then((result) => {
+          ret = result;
+          if (act.action === Actions.SET) {
+            return this.set(key, act.newVal);
+          } else if (act.action === Actions.DEL) {
+            return this.del(key);
+          }
+        })
+        .then(() => ret);
+    });
   }
 
   incr(key: string, increase: number): Promise<number> {
-    return this.tx<number>(key, (value) => (value || 0) + increase);
+    return this.tx(key, (value: number | undefined, tx) => {
+      value = (value || 0) + increase;
+      tx.set(value);
+      return value;
+    });
   }
 }
 
