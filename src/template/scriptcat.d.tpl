@@ -123,9 +123,9 @@ function GM_registerMenuCommand(
     | {
         id?: number | string;
         accessKey?: string;
-        autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
-        nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
-        individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
+        autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
+        nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
       }
     | string
 ): number;
@@ -142,9 +142,9 @@ declare function CAT_registerMenuInput(
     | {
         id?: number | string;
         accessKey?: string;
-        autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
-        nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
-        individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
+        autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
+        nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+        individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
         // 可选输入框
         inputType?: "text" | "number" | "boolean";
         title?: string; // title 只适用于输入框类型
@@ -162,9 +162,9 @@ declare const CAT_unregisterMenuInput: typeof GM_unregisterMenuCommand;
  */
 declare function CAT_ScriptLoaded(): Promise<void>;
 
-declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab;
-declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab;
-declare function GM_openInTab(url: string): GMTypes.Tab;
+declare function GM_openInTab(url: string, options: GMTypes.OpenTabOptions): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string, loadInBackground: boolean): GMTypes.Tab | undefined;
+declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 

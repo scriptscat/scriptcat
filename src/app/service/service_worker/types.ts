@@ -80,9 +80,9 @@ export type Api = (request: Request, con: IGetSender) => Promise<any>;
 export type ScriptMenuItemOption = {
   id?: number | string; // 用于菜单修改及删除 (GM API)
   accessKey?: string; // GM/TM 共通参数
-  autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
-  nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话右键菜单项目由三级菜单升至二级菜单
-  individual?: boolean; // SC独自设定。预设 false。true 的话表示不进行显示重叠（单独项）
+  autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
+  nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+  individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";
   title?: string; // title 只适用于输入框类型
@@ -95,9 +95,9 @@ export type ScriptMenuItemOption = {
 // Service_Worker 接收到的
 export type SWScriptMenuItemOption = {
   accessKey?: string; // GM/TM 共通参数
-  autoClose?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 时点击后不关闭菜单
-  nested?: boolean; // SC独自设定。用于一般菜单项目。预设 true。false 的话由三级菜单升至二级菜单
-  mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey
+  autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
+  nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
+  mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
   mSeparator?: boolean; // 内部用。true 为分隔线
   /** 可选输入框类型 */
   inputType?: "text" | "number" | "boolean";
