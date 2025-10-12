@@ -79,7 +79,7 @@ export class CustomEventMessage implements Message {
         data,
       };
       this.nativeSend(body);
-      // EventEmitter3 採用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
+      // EventEmitter3 采用同步事件设计，callback会被马上执行而不像传统javascript架构以下一个macrotask 执行
       resolve(new WindowMessageConnect(body.messageId, this.EE, new CustomEventPostMessage(this)));
     });
   }
@@ -103,21 +103,18 @@ export class CustomEventMessage implements Message {
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
+      const messageId = uuidv4();
       const body: WindowMessageBody<TMessage> = {
-        messageId: uuidv4(),
+        messageId,
         type: "sendMessage",
         data,
       };
-      const eventId = `response:${body.messageId}`;
-      let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody<TMessage>) => {
-        if (callback !== null) {
-          this.EE.removeListener(eventId, callback);
-          resolve!(body.data as T);
-          callback = null; // 设为 null 提醒JS引擎可以GC
-          resolve = null;
-        }
-      };
-      this.EE.addListener(eventId, callback);
+      const eventId = `response:${messageId}`;
+      this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
+        this.EE.removeAllListeners(eventId);
+        resolve!(body.data as T);
+        resolve = null; // 设为 null 提醒JS引擎可以GC
+      });
       this.nativeSend(body);
     });
   }
@@ -126,23 +123,22 @@ export class CustomEventMessage implements Message {
   // 与content页的消息通讯实际是同步,此方法不需要经过background
   // 但是请注意中间不要有promise
   syncSendMessage(data: TMessage): TMessage {
+    const messageId = uuidv4();
     const body: WindowMessageBody<TMessage> = {
-      messageId: uuidv4(),
+      messageId,
       type: "sendMessage",
       data,
     };
-    let ret: TMessage;
-    const eventId = `response:${body.messageId}`;
-    let callback: EventEmitter.EventListener<string, any> | null = (body: WindowMessageBody<TMessage>) => {
-      if (callback !== null) {
-        this.EE.removeListener(eventId, callback);
-        ret = body.data!;
-        callback = null; // 设为 null 提醒JS引擎可以GC
-      }
-    };
-    this.EE.addListener(eventId, callback);
-    this.nativeSend(body);
-    return ret!;
+    let ret: TMessage | undefined | null;
+    const eventId = `response:${messageId}`;
+    this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
+      ret = body.data;
+    });
+    this.nativeSend(body); // 执行后立即返回 ret
+    this.EE.removeAllListeners(eventId); // 即使没有立即执行也能清除callback
+    // 如果 data 里含有不正确参数（非 primitive type)，可能导致没有返回值
+    if (!ret) throw new Error("syncSendMessage response failed.");
+    return ret;
   }
 
   relateId = 0;
