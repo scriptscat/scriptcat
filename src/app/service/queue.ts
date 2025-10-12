@@ -1,7 +1,7 @@
 import type { Script, SCRIPT_RUN_STATUS, SCRIPT_STATUS, SCRIPT_TYPE } from "../repo/scripts";
 import type {
   InstallSource,
-  ScriptMenuItemOption,
+  SWScriptMenuItemOption,
   TScriptMenuItemKey,
   TScriptMenuItemName,
 } from "./service_worker/types";
@@ -36,7 +36,7 @@ export type TScriptMenuRegister = {
   uuid: string;
   key: TScriptMenuItemKey;
   name: TScriptMenuItemName;
-  options?: Omit<ScriptMenuItemOption, "id">;
+  options: SWScriptMenuItemOption;
   tabId: number;
   frameId?: number;
   documentId?: string;

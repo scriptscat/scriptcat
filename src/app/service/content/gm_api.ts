@@ -5,6 +5,7 @@ import type {
   GMUnRegisterMenuCommandParam,
   NotificationMessageOption,
   ScriptMenuItemOption,
+  SWScriptMenuItemOption,
   TScriptMenuItemID,
   TScriptMenuItemKey,
 } from "../service_worker/types";
@@ -42,6 +43,7 @@ const execEnvInit = (execEnv: GMApi) => {
     execEnv.contentEnvKey = randomMessageFlag(); // 不重复识别字串。用于区分 mainframe subframe 等执行环境
     execEnv.menuKeyRegistered = new Set();
     execEnv.menuIdCounter = 0;
+    execEnv.regMenuCounter = 0;
   }
 };
 
@@ -580,6 +582,10 @@ export default class GMApi extends GM_Base {
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   menuIdCounter: number | undefined;
 
+  // 菜单注冊累计器 - 用於穩定同一Tab不同frame之選項的單獨項目不合併狀態
+  // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
+  regMenuCounter: number | undefined;
+
   // 内容脚本执行环境识别符，用于区分 mainframe / subframe 等环境并作为 menu key 的命名空间。
   // 由 execEnvInit() 以 randomMessageFlag() 生成，避免跨 frame 的 ID 碰撞。
   // (同一环境跨脚本也不一样)
@@ -588,24 +594,50 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ alias: "GM.registerMenuCommand" })
   GM_registerMenuCommand(
     name: string,
-    listener: (inputValue?: any) => void,
+    listener?: (inputValue?: any) => void,
     options_or_accessKey?: ScriptMenuItemOption | string
   ): TScriptMenuItemID {
     if (!this.EE) return -1;
     execEnvInit(this);
+    this.regMenuCounter! += 1;
+    // 兼容 GM_registerMenuCommand(name, options_or_accessKey)
+    if (!options_or_accessKey && typeof listener === "object") {
+      options_or_accessKey = listener;
+      listener = undefined;
+    }
     // 浅拷贝避免修改/共用参数
-    const options = (
+    const options: SWScriptMenuItemOption = (
       typeof options_or_accessKey === "string"
         ? { accessKey: options_or_accessKey }
         : options_or_accessKey
-          ? { ...options_or_accessKey }
+          ? { ...options_or_accessKey, id: undefined, individual: undefined } // id不直接储存在options (id 影响 groupKey 操作)
           : {}
     ) as ScriptMenuItemOption;
-    let providedId: string | number | undefined = options.id;
-    delete options.id; // id不直接储存在options (id 影响 groupKey 操作)
+    const isSeparator = !listener && !name;
+    let isIndividual = typeof options_or_accessKey === "object" ? options_or_accessKey.individual : undefined;
+    if (isIndividual === undefined && isSeparator) {
+      isIndividual = true;
+    }
+    options.mIndividualKey = isIndividual ? this.regMenuCounter : 0;
+    if (options.autoClose === undefined) {
+      options.autoClose = true;
+    }
+    if (options.nested === undefined) {
+      options.nested = true;
+    }
+    if (isSeparator) {
+      // GM_registerMenuCommand("") 时自动设为分隔线
+      options.mSeparator = true;
+      name = "";
+      listener = undefined;
+    } else {
+      options.mSeparator = false;
+    }
+    let providedId: string | number | undefined =
+      typeof options_or_accessKey === "object" ? options_or_accessKey.id : undefined;
     if (providedId === undefined) providedId = this.menuIdCounter! += 1; // 如无指定，使用累计器id
-    const ret = providedId as TScriptMenuItemID;
-    providedId = `t${providedId}`; // 见 TScriptMenuItemID 注释
+    const ret = providedId! as TScriptMenuItemID;
+    providedId = `t${providedId!}`; // 见 TScriptMenuItemID 注释
     providedId = `${this.contentEnvKey!}.${providedId}` as TScriptMenuItemKey; // 区分 subframe mainframe，见 TScriptMenuItemKey 注释
     const menuKey = providedId; // menuKey为唯一键：{环境识别符}.t{注册ID}
     // 检查之前有否注册
@@ -616,7 +648,10 @@ export default class GMApi extends GM_Base {
       // 没注册过，先记录一下
       this.menuKeyRegistered!.add(menuKey);
     }
-    this.EE.addListener("menuClick:" + menuKey, listener);
+    if (listener) {
+      // GM_registerMenuCommand("hi", undefined, {accessKey:"h"}) 时TM不会报错
+      this.EE.addListener("menuClick:" + menuKey, listener);
+    }
     // 发送至 service worker 处理（唯一键，显示名字，不包括id的其他设定）
     this.sendMessage("GM_registerMenuCommand", [menuKey, name, options] as GMRegisterMenuCommandParam);
     return ret;

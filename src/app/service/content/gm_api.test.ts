@@ -281,7 +281,16 @@ describe("GM_menu", () => {
         action: "content/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
-          params: [actualMenuKey, "test", {}],
+          params: [
+            actualMenuKey,
+            "test",
+            {
+              autoClose: true,
+              mIndividualKey: 0,
+              mSeparator: false,
+              nested: true,
+            },
+          ],
           runFlag: expect.any(String),
           uuid: undefined,
         },
@@ -344,7 +353,18 @@ describe("GM_menu", () => {
         action: "content/runtime/gmApi",
         data: {
           api: "GM_registerMenuCommand",
-          params: [actualMenuKey, "test", {}],
+          params: [
+            actualMenuKey,
+            "test",
+            {
+              autoClose: true,
+              id: undefined,
+              individual: undefined,
+              mIndividualKey: 0,
+              mSeparator: false,
+              nested: true,
+            },
+          ],
           runFlag: expect.any(String),
           uuid: undefined,
         },
