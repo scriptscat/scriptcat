@@ -12,7 +12,7 @@ export type SearchType = "auto" | "name" | "script_code";
  * 脚本匹配信息。
  * 扩展自 ScriptRunResource。
  */
-export interface ScriptMatchInfo extends ScriptRunResource {
+export interface ScriptMatchInfo extends Script {
   /** 已被自定义覆盖的 UrlPatterns */
   scriptUrlPatterns: URLRuleEntry[];
   /** 脚本原本的 UrlPatterns */
