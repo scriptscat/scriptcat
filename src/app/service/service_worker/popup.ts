@@ -513,7 +513,6 @@ export class PopupService {
   // 触发目标 tab/frame 的「menuClick」事件；key 为菜单唯一键以定位对应 listener。
   async menuClick({ uuid, menus, inputValue }: MenuClickParams) {
     // 同名菜单，每一个iframe只触发一次
-    console.log("menuClick", uuid, menus, inputValue);
     const pushed = new Set<string>();
     await Promise.allSettled(
       menus.map((menu) => {
