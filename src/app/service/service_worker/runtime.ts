@@ -29,7 +29,6 @@ import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
-  compileScriptCode,
   compileScriptCodeByResource,
   getScriptFlag,
   isEarlyStartScript,
@@ -304,7 +303,7 @@ export class RuntimeService {
 
   async updateResourceOnScriptChange(script: Script) {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
-      throw "Invalid Calling of updateResourceOnScriptChange";
+      throw new Error("Invalid Calling of updateResourceOnScriptChange");
     }
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
@@ -645,8 +644,7 @@ export class RuntimeService {
 
     let jsCode = "";
     if (withCode) {
-      const scriptCode = scriptRes.code;
-      const code = compileInjectionCode(scriptMatchInfo, scriptCode);
+      const code = compileInjectionCode(scriptRes, scriptRes.code);
       registerScript.js[0].code = jsCode = code;
     }
 
@@ -662,7 +660,7 @@ export class RuntimeService {
     const scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
     const originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
     const result = {
-      flag: scriptMatchInfo.flag,
+      flag: scriptRes.flag,
       name: script.name,
       require: resourceUrls, // 仅储存url
       uuid: script.uuid,
@@ -682,15 +680,14 @@ export class RuntimeService {
     return { compiledResource: result, jsCode, apiScript: registerScript };
   }
 
+  // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
     const earlyScript = isEarlyStartScript(script.metadata);
     // 如果是预加载脚本，需要另外的处理方式
     if (earlyScript) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
-      const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
-      if (!scriptMatchInfo) return "";
-      return compileInjectionCode(scriptMatchInfo, scriptRes.code);
+      return compileInjectionCode(scriptRes, scriptRes.code);
     }
 
     const originalCode = await this.script.scriptCodeDAO.get(result.uuid);
@@ -1141,8 +1138,7 @@ export class RuntimeService {
         const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
         const scriptDAOCode = scriptCodes[targetUUID];
         if (scriptRes && scriptDAOCode) {
-          const scriptCode = compileScriptCode(scriptRes, scriptDAOCode);
-          const scriptInjectCode = compileInjectionCode(scriptRes, scriptCode);
+          const scriptInjectCode = compileInjectionCode(scriptRes, scriptDAOCode);
           scriptRegisterInfo.js = [
             {
               code: scriptInjectCode,
@@ -1301,7 +1297,7 @@ export class RuntimeService {
   }
 
   /**
-   * applyScriptMatchInfo 会进行 scriptMatch 的更新
+   * applyScriptMatchInfo 对脚本进行URL匹配信息的处理
    */
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = scriptURLPatternResults(scriptRes);

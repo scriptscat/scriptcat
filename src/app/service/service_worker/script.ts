@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { isEarlyStartScript } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -530,7 +530,6 @@ export class ScriptService {
       ret.value = value;
       ret.resource = resource;
       ret.code = code.code;
-      ret.code = compileScriptCode(ret);
       return ret;
     });
   }
