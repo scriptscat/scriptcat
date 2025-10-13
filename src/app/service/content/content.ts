@@ -5,7 +5,8 @@ import type { MessageSend } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
-import { isInjectIntoContent } from "./utils";
+import { definePropertyListener, isInjectIntoContent } from "./utils";
+import { RuntimeClient } from "../service_worker/client";
 
 // content页的处理
 export default class ContentRuntime {
@@ -75,7 +76,7 @@ export default class ContentRuntime {
             let parentNode: EventTarget | undefined;
             // 判断是不是content脚本发过来的
             let msg: CustomEventMessage;
-            if (this.contentScript.has(data.uuid)) {
+            if (this.contentScript.has(data.uuid) || this.scriptExecutor.execList.has(data.uuid)) {
               msg = this.scriptExecutorMsg;
             } else {
               msg = this.senderToInject;
@@ -123,6 +124,19 @@ export default class ContentRuntime {
         return false;
       }
     );
+  }
+
+  pageLoad() {
+    // 处理content EarlyScript
+    definePropertyListener(window, "EarlyScriptFlag", (flag: string[]) => {
+      this.scriptExecutor.checkEarlyStartScript(flag);
+    });
+
+    const client = new RuntimeClient(this.senderToExt);
+    // 向service_worker请求脚本列表
+    client.pageLoad().then((data) => {
+      this.start(data.scripts, data.envInfo);
+    });
   }
 
   start(scripts: ScriptLoadInfo[], envInfo: GMInfoEnv) {

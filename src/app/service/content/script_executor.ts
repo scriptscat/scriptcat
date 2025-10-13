@@ -3,10 +3,10 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyle } from "./utils";
+import { addStyle, definePropertyListener } from "./utils";
 
 export type ExecScriptEntry = {
-  scriptLoadInfo: any;
+  scriptLoadInfo: ScriptLoadInfo;
   scriptFlag: string;
   envInfo: any;
   scriptFunc: any;
@@ -14,7 +14,7 @@ export type ExecScriptEntry = {
 
 // 脚本执行器
 export class ScriptExecutor {
-  execList: ExecScript[] = [];
+  execList: Map<string, ExecScript> = new Map();
 
   envInfo: GMInfoEnv | undefined;
   earlyScriptFlag: string[] = [];
@@ -27,7 +27,7 @@ export class ScriptExecutor {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execList.find((val) => val.scriptRes.uuid === data.uuid);
+    const exec = this.execList.get(data.uuid);
     if (exec) {
       exec.emitEvent(data.event, data.eventId, data.data);
     }
@@ -35,7 +35,7 @@ export class ScriptExecutor {
 
   valueUpdate(data: ValueUpdateDataEncoded) {
     const { uuid, storageName } = data;
-    for (const val of this.execList) {
+    for (const val of this.execList.values()) {
       if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
         val.valueUpdate(data);
       }
@@ -55,7 +55,7 @@ export class ScriptExecutor {
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
       if (this.earlyScriptFlag.includes(flag)) {
-        for (const val of this.execList) {
+        for (const val of this.execList.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(this.envInfo!);
@@ -64,23 +64,10 @@ export class ScriptExecutor {
         }
         return;
       }
-      // @ts-ignore
-      const scriptFunc = window[flag];
-      if (scriptFunc) {
-        // @ts-ignore
-        window[flag] = null; // 释放物件参考
-        loadExec(script, scriptFunc);
-      } else {
-        // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, flag, {
-          configurable: true,
-          set: (val: ScriptFunc) => {
-            // @ts-ignore
-            delete window[flag]; // 删除 property setter 避免重复呼叫
-            loadExec(script, val);
-          },
-        });
-      }
+
+      definePropertyListener(window, flag, (val: ScriptFunc) => {
+        loadExec(script, val);
+      });
     });
   }
 
@@ -95,33 +82,17 @@ export class ScriptExecutor {
       });
     };
     this.earlyScriptFlag.forEach((flag) => {
-      // @ts-ignore
-      const scriptFunc = window[flag] as PreScriptFunc;
-      if (scriptFunc) {
-        // @ts-ignore
-        window[flag] = null; // 释放物件参考
-        loadExec(flag, scriptFunc);
-      } else {
-        // 监听脚本加载,和屏蔽读取
-        Object.defineProperty(window, flag, {
-          configurable: true,
-          set: (val: PreScriptFunc) => {
-            // @ts-ignore
-            delete window[flag]; // 取消 property setter 避免重复呼叫
-            loadExec(flag, val);
-          },
-        });
-      }
+      definePropertyListener(window, flag, (val: PreScriptFunc) => {
+        loadExec(flag, val);
+      });
     });
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
-    const { scriptFlag, scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
+    const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
-    // @ts-ignore
-    delete window[scriptFlag];
     const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
-    this.execList.push(exec);
+    this.execList.set(scriptLoadInfo.uuid, exec);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;
     // 注入css

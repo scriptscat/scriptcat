@@ -1232,7 +1232,7 @@ export class RuntimeService {
     return [
       {
         id: "scriptcat-early-start-flag",
-        js: [{ code: "window.EarlyScriptFlag=" + flagParam + ";" }],
+        js: [{ code: `window.EarlyScriptFlag=${flagParam};window.MessageFlag="${messageFlag}"` }],
         matches: ["<all_urls>"],
         allFrames: true,
         world: "USER_SCRIPT",
