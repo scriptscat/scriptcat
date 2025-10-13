@@ -125,7 +125,7 @@ function GM_registerMenuCommand(
         accessKey?: string;
         autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
         nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
-        individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
+        individual?: boolean; // SC特有配置，默认为 false，true 表示相同的菜单项不合并显示
       }
     | string
 ): number;
@@ -144,7 +144,7 @@ declare function CAT_registerMenuInput(
         accessKey?: string;
         autoClose?: boolean; // SC特有配置，默认为 true，false 时点击后不关闭弹出菜单页面
         nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
-        individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
+        individual?: boolean; // SC特有配置，默认为 false，true 表示相同的菜单项不合并显示
         // 可选输入框
         inputType?: "text" | "number" | "boolean";
         title?: string; // title 只适用于输入框类型
