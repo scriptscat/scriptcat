@@ -14,7 +14,7 @@ export type ExecScriptEntry = {
 
 // 脚本执行器
 export class ScriptExecutor {
-  execList: Map<string, ExecScript> = new Map();
+  execMap: Map<string, ExecScript> = new Map();
 
   envInfo: GMInfoEnv | undefined;
   earlyScriptFlag: string[] = [];
@@ -27,7 +27,7 @@ export class ScriptExecutor {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execList.get(data.uuid);
+    const exec = this.execMap.get(data.uuid);
     if (exec) {
       exec.emitEvent(data.event, data.eventId, data.data);
     }
@@ -35,7 +35,7 @@ export class ScriptExecutor {
 
   valueUpdate(data: ValueUpdateDataEncoded) {
     const { uuid, storageName } = data;
-    for (const val of this.execList.values()) {
+    for (const val of this.execMap.values()) {
       if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
         val.valueUpdate(data);
       }
@@ -55,7 +55,7 @@ export class ScriptExecutor {
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
       if (this.earlyScriptFlag.includes(flag)) {
-        for (const val of this.execList.values()) {
+        for (const val of this.execMap.values()) {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(this.envInfo!);
@@ -92,7 +92,7 @@ export class ScriptExecutor {
     const { scriptLoadInfo, scriptFunc, envInfo } = scriptEntry;
 
     const exec = new ExecScript(scriptLoadInfo, "content", this.msg, scriptFunc, envInfo);
-    this.execList.set(scriptLoadInfo.uuid, exec);
+    this.execMap.set(scriptLoadInfo.uuid, exec);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.resource;
     // 注入css

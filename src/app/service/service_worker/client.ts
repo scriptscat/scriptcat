@@ -257,7 +257,7 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<{ flag: string; scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
+  pageLoad(): Promise<{ scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }> {
     return this.doThrow("pageLoad");
   }
 

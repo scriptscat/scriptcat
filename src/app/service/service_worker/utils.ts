@@ -5,6 +5,7 @@ import type { ScriptLoadInfo, ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
   compilePreInjectScript,
+  compileScriptCode,
   getScriptFlag,
   isEarlyStartScript,
   isInjectIntoContent,
@@ -181,10 +182,11 @@ export function parseScriptLoadInfo(script: ScriptRunResource): ScriptLoadInfo {
 export function compileInjectionCode(scriptRes: ScriptRunResource, scriptCode: string) {
   const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
   let scriptInjectCode;
+  scriptCode = compileScriptCode(scriptRes, scriptCode);
   if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode, true);
+    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes), scriptCode);
   } else {
-    scriptInjectCode = compileInjectScript(scriptRes, scriptCode, true);
+    scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
   }
   return scriptInjectCode;
 }
