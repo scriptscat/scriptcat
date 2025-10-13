@@ -511,15 +511,25 @@ export class PopupService {
   }
 
   // 触发目标 tab/frame 的「menuClick」事件；key 为菜单唯一键以定位对应 listener。
-  async menuClick({ uuid, key, sender, inputValue }: MenuClickParams) {
-    // 菜单点击事件
-    await this.runtime.emitEventToTab(sender, {
-      uuid,
-      event: "menuClick",
-      eventId: `${key}`,
-      data: inputValue,
-    });
-    return true;
+  async menuClick({ uuid, menus, inputValue }: MenuClickParams) {
+    await Promise.allSettled(
+      menus.map((menu) =>
+        // 菜单点击事件
+        this.runtime.emitEventToTab(
+          {
+            tabId: menu.tabId,
+            frameId: menu.frameId || 0,
+            documentId: menu.documentId || "",
+          },
+          {
+            uuid,
+            event: "menuClick",
+            eventId: `${menu.key}`,
+            data: inputValue,
+          }
+        )
+      )
+    );
   }
 
   async updateBadgeIcon() {
@@ -677,29 +687,18 @@ export class PopupService {
         // 寻找menu信息
         const menu = await this.getScriptMenu(tab!.id!);
         let script = menu.find((item) => item.uuid === uuid);
-        let bgscript = false;
         if (!script) {
           // 从后台脚本中寻找
           const backgroundMenu = await this.getScriptMenu(-1);
           script = backgroundMenu.find((item) => item.uuid === uuid);
-          bgscript = true;
         }
         if (script) {
           // 仅触发「非输入型」且 groupKey 相符的项目；同 groupKey 可能代表多个 frame 来源，一次性全部触发。
           const menuItems = script.menus.filter((item) => item.groupKey === groupKey && !item.options?.inputType);
-          await Promise.allSettled(
-            menuItems.map((menuItem) =>
-              this.menuClick({
-                uuid: script.uuid,
-                key: menuItem.key,
-                sender: {
-                  tabId: bgscript ? -1 : tab!.id!,
-                  frameId: menuItem.frameId || 0,
-                  documentId: menuItem.documentId || "",
-                },
-              } as MenuClickParams)
-            )
-          );
+          await this.menuClick({
+            uuid: script.uuid,
+            menus: menuItems,
+          } as MenuClickParams);
           return;
         }
       }

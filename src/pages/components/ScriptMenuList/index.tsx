@@ -38,12 +38,11 @@ const CollapseItem = Collapse.Item;
 
 const sendMenuAction = (
   uuid: string,
-  name: string,
   options: ScriptMenuItemOption | undefined,
   menus: ScriptMenuItem[],
   inputValue?: any
 ) => {
-  Promise.allSettled(menus.map((menu) => popupClient.menuClick(uuid, menu, inputValue))).then(() => {
+  popupClient.menuClick(uuid, menus, inputValue).then(() => {
     options?.autoClose !== false && window.close();
   });
 };
@@ -86,7 +85,7 @@ const MenuItem = React.memo(({ menuItems, uuid }: MenuItemProps) => {
       autoComplete="off"
       onSubmit={(v) => {
         const inputValue = v.inputValue;
-        sendMenuAction(uuid, name, options, menuItems, inputValue);
+        sendMenuAction(uuid, options, menuItems, inputValue);
       }}
     >
       <Button
@@ -406,10 +405,10 @@ const ScriptMenuList = React.memo(
       if (!checkItems.size) return;
       const sharedKeyPressListner = (e: KeyboardEvent) => {
         const keyUpper = e.key.toUpperCase();
-        checkItems.forEach(([uuid, accessKeyUpper, name, menuItems]) => {
+        checkItems.forEach(([uuid, accessKeyUpper, _name, menuItems]) => {
           if (keyUpper === accessKeyUpper) {
             // 快速键触发不需传递 options（autoClose 由 sendMenuAction 内部处理）。
-            sendMenuAction(uuid, name, {}, menuItems);
+            sendMenuAction(uuid, {}, menuItems);
           }
         });
       };
