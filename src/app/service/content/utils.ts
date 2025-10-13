@@ -106,7 +106,7 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
   return `window['${script.flag}'] = {
   scriptInfo: ${JSON.stringify(script)},
-  func: function(){${autoDeleteMountCode}${compileScriptCode(script, scriptCode)}}
+  func: function(){${autoDeleteMountCode}${scriptCode}}
   }`;
 }
 

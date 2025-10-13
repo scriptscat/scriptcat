@@ -76,7 +76,7 @@ export default class ContentRuntime {
             let parentNode: EventTarget | undefined;
             // 判断是不是content脚本发过来的
             let msg: CustomEventMessage;
-            if (this.contentScript.has(data.uuid) || this.scriptExecutor.execList.has(data.uuid)) {
+            if (this.contentScript.has(data.uuid) || this.scriptExecutor.execMap.has(data.uuid)) {
               msg = this.scriptExecutorMsg;
             } else {
               msg = this.senderToInject;

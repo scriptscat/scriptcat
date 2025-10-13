@@ -972,8 +972,6 @@ export class RuntimeService {
       return { flag: "", scripts: [] };
     }
 
-    const scriptFlag = this.getMessageFlag();
-
     // 匹配当前页面的脚本（只包含有效脚本。自定义排除了的不包含）
     const matchingResult = this.getPageScriptMatchingResultByUrl(chromeSender.url!, false, false);
 
@@ -1180,7 +1178,6 @@ export class RuntimeService {
     }
 
     return {
-      flag: scriptFlag,
       scripts: enableScript,
       envInfo: {
         sandboxMode: "raw",
