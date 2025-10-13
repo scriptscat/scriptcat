@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { isEarlyStartScript } from "../content/utils";
+import { compileScriptCode, isEarlyStartScript } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -514,7 +514,9 @@ export class ScriptService {
   async getScriptRunResourceByUUID(uuid: string) {
     const script = await this.fetchInfo(uuid);
     if (!script) return null;
-    return this.buildScriptRunResource(script);
+    const scriptRes = await this.buildScriptRunResource(script);
+    scriptRes.code = compileScriptCode(scriptRes);
+    return scriptRes;
   }
 
   async buildScriptRunResource(script: Script): Promise<ScriptRunResource> {

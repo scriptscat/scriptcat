@@ -1194,11 +1194,10 @@ export class RuntimeService {
 
   // 运行脚本
   async runScript(uuid: string) {
-    const script = await this.scriptDAO.get(uuid);
-    if (!script) {
+    const res = await this.script.getScriptRunResourceByUUID(uuid);
+    if (!res) {
       return;
     }
-    const res = await this.script.buildScriptRunResource(script);
     return await runScript(this.msgSender, res);
   }
 
