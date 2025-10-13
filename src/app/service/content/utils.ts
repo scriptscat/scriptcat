@@ -137,3 +137,19 @@ export const getScriptFlag = (uuid: string) => {
   // 实作内容有待检讨
   return `#-${uuid}`;
 };
+
+// 监听属性设置
+export function definePropertyListener<T>(obj: any, prop: string, listener: (val: T) => void) {
+  if (obj[prop] !== undefined) {
+    listener(obj[prop]);
+    delete obj[prop];
+    return;
+  }
+  Object.defineProperty(obj, prop, {
+    configurable: true,
+    set: (val: any) => {
+      delete obj[prop]; // 删除 property setter
+      listener(val);
+    },
+  });
+}
