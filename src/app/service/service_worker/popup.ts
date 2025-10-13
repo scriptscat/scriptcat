@@ -512,10 +512,16 @@ export class PopupService {
 
   // 触发目标 tab/frame 的「menuClick」事件；key 为菜单唯一键以定位对应 listener。
   async menuClick({ uuid, menus, inputValue }: MenuClickParams) {
+    // 同名菜单，每一个iframe只触发一次
+    console.log("menuClick", uuid, menus, inputValue);
+    const pushed = new Set<string>();
     await Promise.allSettled(
-      menus.map((menu) =>
-        // 菜单点击事件
-        this.runtime.emitEventToTab(
+      menus.map((menu) => {
+        const key = `${menu.groupKey}_${menu.tabId}_${menu.frameId || 0}_${menu.documentId || ""}`;
+        if (pushed.has(key)) return;
+        pushed.add(key);
+        // menuClick 事件不等待回应
+        return this.runtime.emitEventToTab(
           {
             tabId: menu.tabId,
             frameId: menu.frameId || 0,
@@ -527,8 +533,8 @@ export class PopupService {
             eventId: `${menu.key}`,
             data: inputValue,
           }
-        )
-      )
+        );
+      })
     );
   }
 
