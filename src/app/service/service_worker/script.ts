@@ -87,17 +87,23 @@ export class ScriptService {
         if (req.method !== "GET") {
           return undefined;
         }
-        const reqUrl = new URL(req.url);
-        // 判断是否有hash
-        if (!reqUrl.hash) {
-          return undefined;
+        let targetUrl: string | null = null;
+        // 判断是否为 file:///*/*.user.js
+        if (req.url.startsWith("file://") && req.url.endsWith(".user.js")) {
+          targetUrl = req.url;
+        } else {
+          const reqUrl = new URL(req.url);
+          // 判断是否有hash
+          if (!reqUrl.hash) {
+            return undefined;
+          }
+          // 判断是否有url参数
+          if (!reqUrl.hash.includes("url=")) {
+            return undefined;
+          }
+          // 获取url参数
+          targetUrl = reqUrl.hash.split("url=")[1];
         }
-        // 判断是否有url参数
-        if (!reqUrl.hash.includes("url=")) {
-          return undefined;
-        }
-        // 获取url参数
-        const targetUrl = reqUrl.hash.split("url=")[1];
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
@@ -148,6 +154,7 @@ export class ScriptService {
           `${DocumentationSite}/docs/script_installation/*`,
           `${DocumentationSite}/en/docs/script_installation/*`,
           "https://www.tampermonkey.net/script_installation.php*",
+          "file:///*/*.user.js*",
         ],
         types: ["main_frame"],
       }
