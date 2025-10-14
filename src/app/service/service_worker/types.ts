@@ -79,7 +79,7 @@ export type Api = (request: Request, con: IGetSender) => Promise<any>;
 // GM_registerMenuCommand optionsOrAccessKey
 export type ScriptMenuItemOption = {
   id?: number | string; // 用于菜单修改及删除 (GM API)
-  accessKey?: string; // 基本参数
+  accessKey?: string; // 菜单快捷键
   autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
   nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
   individual?: boolean; // SC特有配置，默认为 false，true 表示当多iframe时，相同的菜单项不自动合并
@@ -94,7 +94,7 @@ export type ScriptMenuItemOption = {
 /** 脚本菜单选项 */
 // Service_Worker 接收到的
 export type SWScriptMenuItemOption = {
-  accessKey?: string; // 基本参数
+  accessKey?: string; // 菜单快捷键
   autoClose?: boolean; // 默认为 true，false 时点击后不关闭弹出菜单页面
   nested?: boolean; // SC特有配置，默认为 true，false 的话浏览器右键菜单项目由三级菜单升至二级菜单
   mIndividualKey?: number; // 内部用。用於单独项提供稳定 GroupKey，当多iframe时，相同的菜单项不自动合并
