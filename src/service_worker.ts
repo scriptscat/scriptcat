@@ -6,13 +6,14 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
-import migrate from "./app/migrate";
+import migrate, { migrateChromeStorage } from "./app/migrate";
 import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
 import type { RuntimeMessageSender } from "@Packages/message/types";
 import { cleanInvalidKeys } from "./app/repo/resource";
 
 migrate();
+migrateChromeStorage();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
