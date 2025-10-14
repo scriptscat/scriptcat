@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next"; // 添加这行导入语句
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import type { ConfigGroup, Script, UserConfig, UserConfigWithoutOptions } from "@App/app/repo/scripts";
 import type { FormInstance } from "@arco-design/web-react";
 import {
   Checkbox,
@@ -28,11 +28,22 @@ const UserConfigPanel: React.FC<{
 }> = ({ script, userConfig, values }) => {
   const formRefs = useRef<{ [key: string]: FormInstance }>({});
   const [visible, setVisible] = React.useState(true);
-  const [tab, setTab] = React.useState(Object.keys(userConfig)[0]);
+  const [tab, setTab] = React.useState("");
   useEffect(() => {
-    setTab(Object.keys(userConfig)[0]);
+    setTab(userConfig["#options"]?.sort[0] || Object.keys(userConfig)[0]);
     setVisible(true);
   }, [script, userConfig]);
+
+  // 过滤掉 #options
+  const filteredConfig = useMemo(() => {
+    return (userConfig["#options"]?.sort || Object.keys(userConfig)).reduce((acc, key) => {
+      if (key === "#options") {
+        return acc;
+      }
+      acc[key] = userConfig[key] as ConfigGroup;
+      return acc;
+    }, {} as UserConfigWithoutOptions);
+  }, [userConfig]);
 
   const { t } = useTranslation();
 
@@ -69,8 +80,8 @@ const UserConfigPanel: React.FC<{
           setTab(value);
         }}
       >
-        {Object.keys(userConfig).map((itemKey) => {
-          const value = userConfig[itemKey];
+        {Object.keys(filteredConfig).map((itemKey) => {
+          const value = filteredConfig[itemKey];
           const keys = Object.keys(value).sort((a, b) => {
             return (value[a].index || 0) - (value[b].index || 0);
           });
