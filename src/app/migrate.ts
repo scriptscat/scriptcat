@@ -9,6 +9,7 @@ import { ValueDAO } from "./repo/value";
 import type { Permission } from "./repo/permission";
 import { PermissionDAO } from "./repo/permission";
 import { DocumentationSite } from "./const";
+import { LocalStorageDAO } from "./repo/localStorage";
 
 // 迁移数据到chrome.storage
 export function migrateToChromeStorage() {
@@ -237,22 +238,55 @@ function renameField() {
   db.version(18).upgrade(() => {
     migrateToChromeStorage();
   });
-  db.version(19).upgrade(() => {
-    // 修复之前originDomain字段错误的数据
-    const scriptDAO = new ScriptDAO();
-    scriptDAO.enableCache();
-    scriptDAO.all().then((scripts) => {
-      scripts.forEach((script) => {
-        // 处理originDomain为空，但origin有值的情况
-        if (!script.originDomain && (script.origin?.startsWith("http://") || script.origin?.startsWith("https://"))) {
-          const u = new URL(script.origin);
-          script.originDomain = u.hostname;
-          scriptDAO.save(script);
+
+  return db.open();
+}
+
+// 迁移chrome.storage的数据
+export function migrateChromeStorage() {
+  const migrationList = [
+    {
+      version: 1,
+      upgrade: async () => {
+        // 修复之前originDomain字段错误的数据
+        const scriptDAO = new ScriptDAO();
+        scriptDAO.enableCache();
+        const scripts = await scriptDAO.all();
+        return Promise.all(
+          scripts.map((script) => {
+            // 处理originDomain为空，但origin有值的情况
+            if (
+              !script.originDomain &&
+              (script.origin?.startsWith("http://") || script.origin?.startsWith("https://"))
+            ) {
+              const u = new URL(script.origin);
+              script.originDomain = u.hostname;
+              return scriptDAO.save(script);
+            }
+          })
+        );
+      },
+    },
+  ];
+  const localstorageDAO = new LocalStorageDAO();
+  localstorageDAO.get("migrations").then(async (item) => {
+    const migrations = item?.value || [];
+    for (let i = 0; i < migrationList.length; i++) {
+      const m = migrationList[i];
+      if (!migrations.includes(m.version)) {
+        try {
+          await m.upgrade();
+          migrations.push(m.version);
+        } catch (e) {
+          throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
         }
-      });
+      }
+    }
+    localstorageDAO.save({
+      key: "migrations",
+      value: migrations,
     });
   });
-  return db.open();
 }
 
 export default function migrate() {
