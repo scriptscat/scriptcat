@@ -278,7 +278,7 @@ export function migrateChromeStorage() {
           await m.upgrade();
           migrations.push(m.version);
         } catch (e) {
-          throw new Error(`Migration failed: ${e}`);
+          throw new Error(`Chrome storage migration v${m.version} failed: ${e}`);
         }
       }
     }
