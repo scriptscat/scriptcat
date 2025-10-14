@@ -237,6 +237,21 @@ function renameField() {
   db.version(18).upgrade(() => {
     migrateToChromeStorage();
   });
+  db.version(19).upgrade(() => {
+    // 修复之前originDomain字段错误的数据
+    const scriptDAO = new ScriptDAO();
+    scriptDAO.enableCache();
+    scriptDAO.all().then((scripts) => {
+      scripts.forEach((script) => {
+        // 处理originDomain为空，但origin有值的情况
+        if (!script.originDomain && (script.origin?.startsWith("http://") || script.origin?.startsWith("https://"))) {
+          const u = new URL(script.origin);
+          script.originDomain = u.hostname;
+          scriptDAO.save(script);
+        }
+      });
+    });
+  });
   return db.open();
 }
 

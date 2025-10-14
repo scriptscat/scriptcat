@@ -111,7 +111,6 @@ export async function prepareScriptByCode(
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;
   }
-  let urlSplit: string[];
   let domain = "";
   let checkUpdateUrl = "";
   let downloadUrl = origin;
@@ -121,11 +120,9 @@ export async function prepareScriptByCode(
   } else {
     checkUpdateUrl = origin.replace("user.js", "meta.js");
   }
-  if (origin.includes("/")) {
-    urlSplit = origin.split("/");
-    if (urlSplit[2]) {
-      domain = urlSplit[2];
-    }
+  if (origin.startsWith("http://") || origin.startsWith("https://")) {
+    const u = new URL(origin);
+    domain = u.hostname;
   }
   const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
