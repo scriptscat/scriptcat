@@ -9,11 +9,9 @@ export function parseUserConfig(code: string): UserConfig | undefined {
   }
 
   const configs = config[1].trim().split(/[-]{3,}/);
-  const ret: UserConfig = {
-    "#options": {
-      sort: [],
-    },
-  };
+  const ret: UserConfig = {};
+
+  const sortSet = new Set<string>();
 
   for (const val of configs) {
     const obj: UserConfig = parse(val);
@@ -33,7 +31,7 @@ export function parseUserConfig(code: string): UserConfig | undefined {
         continue;
       }
 
-      ret["#options"]!.sort.push(groupKey);
+      sortSet.add(groupKey);
 
       Object.keys(ret[groupKey] || {}).forEach((subKey, subIndex) => {
         const groupData = ret[groupKey] as { [key: string]: any };
@@ -43,6 +41,6 @@ export function parseUserConfig(code: string): UserConfig | undefined {
       });
     }
   }
-
+  ret["#options"] = { sort: Array.from(sortSet) };
   return ret;
 }
