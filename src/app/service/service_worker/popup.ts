@@ -268,7 +268,7 @@ export class PopupService {
     return Promise.resolve(list) // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
       .then((list) => {
         if (!list.length) return;
-        cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
+        return cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
           if (!list.length) return;
           data = data || [];
           retUpdated = this.updateMenuCommand(tabId, data);
@@ -294,7 +294,9 @@ export class PopupService {
     this.updateRegisterMenuCommand({ key, uuid, tabId }, ScriptMenuRegisterType.UNREGISTER);
   }
 
+  // 更新脚本菜单
   async updateScriptMenu(tabId: number) {
+    console.log("updateScriptMenu", tabId, lastActiveTabId);
     if (tabId !== lastActiveTabId) return; // 其他页面的指令，不理
 
     // 注意：不要使用 getCurrentTab()。
