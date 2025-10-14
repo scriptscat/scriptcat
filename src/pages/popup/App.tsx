@@ -24,6 +24,7 @@ import { isChineseUser, localePath } from "@App/locales/locales";
 import { getCurrentTab } from "@App/pkg/utils/utils";
 import { useAppContext } from "../store/AppContext";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
+import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 
 const CollapseItem = Collapse.Item;
 
@@ -72,33 +73,66 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
+    const updateScriptList = (
+      update: (item: ScriptMenu) => ScriptMenu | undefined,
+      options?: {
+        sort?: boolean;
+      }
+    ) => {
+      const updateList = (list: ScriptMenu[], update: (item: ScriptMenu) => ScriptMenu | undefined) => {
+        const newList = [];
+        for (let i = 0; i < list.length; i++) {
+          const newItem = update(list[i]);
+          if (newItem) {
+            newList.push(newItem);
+          }
+        }
+        if (options?.sort) {
+          newList.sort(scriptListSorter);
+        }
+        return newList;
+      };
+      setScriptList((prev) => {
+        return updateList(prev, update);
+      });
+      setBackScriptList((prev) => {
+        return updateList(prev, update);
+      });
+    };
+
     const unhooks = [
       // 订阅脚本啟用状态变更（enableScripts），即时更新对应项目的 enable。
       subscribeMessage<TEnableScript[]>("enableScripts", (data) => {
-        setScriptList((prevList) => {
+        updateScriptList((item) => {
           for (const { uuid, enable } of data) {
-            prevList = prevList.map((item) =>
-              item.uuid === uuid && item.enable !== enable ? { ...item, enable } : item
-            );
+            if (item.uuid === uuid && item.enable !== enable) {
+              return { ...item, enable };
+            }
           }
-          return prevList;
+          return item;
         });
       }),
 
       // 订阅脚本刪除（deleteScripts），即时刪除对应项目。
       subscribeMessage<TDeleteScript[]>("deleteScripts", (data) => {
-        setScriptList((prevList) => {
+        updateScriptList((item) => {
           for (const { uuid } of data) {
-            prevList = prevList.filter((item) => item.uuid !== uuid);
+            if (item.uuid === uuid) {
+              return undefined;
+            }
           }
-          return prevList;
+          return item;
         });
       }),
 
-      // 订阅背景脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
+      // 订阅后台脚本执行状态变更（scriptRunStatus），即时更新对应项目的 runStatus。
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
-        setScriptList((prevList) =>
-          prevList.map((item) => (item.uuid === uuid && item.runStatus !== runStatus ? { ...item, runStatus } : item))
+        setBackScriptList((prevList) =>
+          prevList.map((item) =>
+            item.uuid === uuid && item.runStatus !== runStatus
+              ? { ...item, runStatus, runNum: runStatus === SCRIPT_RUN_STATUS_RUNNING ? 1 : 0 }
+              : item
+          )
         );
       }),
 
@@ -125,21 +159,19 @@ function App() {
             // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
             const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
             if (!newMenus) return;
-            setScriptList((prev) => {
-              // 只针对 uuid 进行更新。其他项目保持参考一致
-              const list = prev.map((item) => {
-                return item.uuid !== uuid
-                  ? item
-                  : {
-                      ...item,
-                      menus: [...newMenus],
-                      menuUpdated: Date.now(),
-                    };
-              });
-              // 若 menus 数量变动，可能影响排序结果，因此需重新 sort
-              list.sort(scriptListSorter);
-              return list;
-            });
+            updateScriptList(
+              (item) => {
+                if (item.uuid === uuid) {
+                  return {
+                    ...item,
+                    menus: [...newMenus],
+                    menuUpdated: Date.now(),
+                  };
+                }
+                return item;
+              },
+              { sort: true }
+            );
           });
         }
       }),
