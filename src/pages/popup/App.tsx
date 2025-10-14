@@ -139,7 +139,7 @@ function App() {
       subscribeMessage<TPopupScript>("popupMenuRecordUpdated", ({ tabId, uuids }: TPopupScript) => {
         for (const uuid of uuids) {
           // 仅处理当前页签(tab)的菜单更新，其他页签的变更忽略
-          if (pageTabIdRef.current !== tabId) return;
+          if (pageTabIdRef.current !== tabId && tabId !== -1) return;
           let url: string = "";
           // 透过 setState 回呼取得最新的 currentUrl（避免闭包读到旧值）
           setCurrentUrl((v) => {
@@ -157,8 +157,11 @@ function App() {
             }
 
             // 仅抽取该 uuid 最新的 menus；仅更新 menus 栏位以维持其他属性的引用稳定
-            const newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
-            if (!newMenus) return;
+            let newMenus = resp.scriptList.find((item) => item.uuid === uuid)?.menus;
+            if (!newMenus) {
+              newMenus = resp.backScriptList.find((item) => item.uuid === uuid)?.menus;
+              if (!newMenus) return;
+            }
             updateScriptList(
               (item) => {
                 if (item.uuid === uuid) {

@@ -296,7 +296,6 @@ export class PopupService {
 
   // 更新脚本菜单
   async updateScriptMenu(tabId: number) {
-    console.log("updateScriptMenu", tabId, lastActiveTabId);
     if (tabId !== lastActiveTabId) return; // 其他页面的指令，不理
 
     // 注意：不要使用 getCurrentTab()。
