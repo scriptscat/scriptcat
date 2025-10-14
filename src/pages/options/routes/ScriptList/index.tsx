@@ -21,7 +21,6 @@ import { TbWorldWww } from "react-icons/tb";
 import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
-import { FaThLarge } from "react-icons/fa";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
   type SCRIPT_STATUS,
@@ -1139,17 +1138,6 @@ function ScriptList() {
                         localStorage.setItem("script-list-sidebar", newState ? "1" : "0");
                         return newState;
                       });
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip content={t("switch_to_card_mode")}>
-                  <Button
-                    icon={<FaThLarge />}
-                    iconOnly
-                    type="text"
-                    size="small"
-                    style={{
-                      color: "var(--color-text-2)",
                     }}
                   />
                 </Tooltip>
