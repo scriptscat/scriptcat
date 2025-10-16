@@ -39,7 +39,17 @@ export interface Config {
   index: number; // 配置项排序位置
 }
 
-export type UserConfig = { [key: string]: { [key: string]: Config } };
+export interface ConfigGroup {
+  [key: string]: Config;
+}
+
+export type UserConfig = {
+  [key: string]: ConfigGroup | { sort: string[] } | undefined;
+  "#options"?: { sort: string[] };
+};
+
+// 排除掉 #options
+export type UserConfigWithoutOptions = Omit<{ [key: string]: ConfigGroup }, "#options">;
 
 export interface Script {
   uuid: string; // 脚本uuid,通过脚本uuid识别唯一脚本

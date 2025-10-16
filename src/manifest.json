@@ -38,6 +38,7 @@
     "webRequest",
     "userScripts",
     "contextMenus",
+    "webNavigation",
     "notifications",
     "clipboardWrite",
     "unlimitedStorage",

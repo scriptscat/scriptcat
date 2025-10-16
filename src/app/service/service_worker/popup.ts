@@ -593,13 +593,7 @@ export class PopupService {
     this.dealBackgroundScriptInstall();
 
     // 监听tab开关
-    chrome.tabs.onRemoved.addListener((tabId) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
-        // 没有 tabId 资讯，无法释放数据
-        return;
-      }
+    const clearData = async (tabId: number) => {
       runCountMap.delete(tabId);
       scriptCountMap.delete(tabId);
       const list = this.updateMenuCommands.get(tabId);
@@ -609,8 +603,9 @@ export class PopupService {
         this.updateMenuCommands.delete(tabId);
       }
       // 清理数据tab关闭需要释放的数据
-      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (scripts: ScriptMenu[] | undefined) => {
+      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (scripts: ScriptMenu[] | undefined, tx) => {
         if (scripts) {
+          tx.del();
           return Promise.all(
             scripts.map(({ uuid }) => {
               // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
@@ -625,6 +620,15 @@ export class PopupService {
           );
         }
       });
+    };
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onRemoved:", lastError);
+        // 没有 tabId 资讯，无法释放数据
+        return;
+      }
+      clearData(tabId);
     });
     // 监听页面切换加载菜单
     // 进程启动时可能尚未触发 onActivated：补一次初始化以建立当前 tab 的菜单与 badge。
@@ -649,24 +653,20 @@ export class PopupService {
       this.genScriptMenu();
       this.updateBadgeIcon();
     });
-    // chrome.tabs.onUpdated.addListener((tabId, _changeInfo, _tab) => {
-    //   const lastError = chrome.runtime.lastError;
-    //   if (lastError) {
-    //     console.error("chrome.runtime.lastError in chrome.tabs.onUpdated:", lastError);
-    //     // 没有 tabId 资讯，无法加载菜单
-    //     return;
-    //   }
-    //   this.updateBadgeIcon(tabId);
-    // });
-    // chrome.windows.onFocusChanged.addListener((_windowId) => {
-    //   const lastError = chrome.runtime.lastError;
-    //   if (lastError) {
-    //     console.error("chrome.runtime.lastError in chrome.windows.onFocusChanged:", lastError);
-    //     // 没有 tabId 资讯，无法加载菜单
-    //     return;
-    //   }
-    //   this.updateBadgeIcon(-1);
-    // });
+
+    chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.webNavigation.onBeforeNavigate:", lastError);
+        return;
+      }
+      // 没有开启脚本时不会触发pageLoad更新数据
+      // 这里做一次清理
+      if (runCountMap.has(details.tabId) && !this.runtime.isLoadScripts) {
+        clearData(details.tabId);
+      }
+    });
+
     // 处理chrome菜单点击
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const lastError = chrome.runtime.lastError;
@@ -703,9 +703,6 @@ export class PopupService {
         }
       }
     });
-
-    // scriptCountMap.clear();
-    // runCountMap.clear();
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。

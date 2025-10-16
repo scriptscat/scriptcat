@@ -32,6 +32,7 @@ import { BrowserNoSupport, notificationsUpdate } from "./utils";
 import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
+import { createObjectURL } from "../offscreen/client";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -429,10 +430,7 @@ export default class GMApi {
             updatetime: info.updatetime,
           });
           const blob = await r.read("blob");
-          const url = URL.createObjectURL(blob);
-          setTimeout(() => {
-            URL.revokeObjectURL(url);
-          }, 30 * 1000);
+          const url = await createObjectURL(this.msgSender, blob, false);
           return { action: "onload", data: url };
         } catch (e: any) {
           return { action: "error", data: { code: 5, error: e.message } };

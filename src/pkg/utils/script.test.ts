@@ -321,6 +321,7 @@ console.log('Hello World');
           index: 0,
         },
       },
+      "#options": { sort: ["group1"] },
     });
   });
 
@@ -353,6 +354,7 @@ console.log('Hello World');
           index: 0,
         },
       },
+      "#options": { sort: ["group1"] },
     });
   });
 
@@ -371,7 +373,7 @@ console.log('Hello World');
 `;
 
     const result = parseUserConfig(code);
-    expect(result).toEqual({});
+    expect(result).toEqual({ "#options": { sort: [] } });
   });
 
   test("解析格式错误的YAML应该抛出错误", () => {

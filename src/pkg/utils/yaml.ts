@@ -11,12 +11,13 @@ export function parseUserConfig(code: string): UserConfig | undefined {
   const configs = config[1].trim().split(/[-]{3,}/);
   const ret: UserConfig = {};
 
+  const sortSet = new Set<string>();
+
   for (const val of configs) {
     const obj: UserConfig = parse(val);
     if (!obj || typeof obj !== "object") {
       continue;
     }
-
     // 验证是否符合分组规范：group -> config -> properties
     for (const [groupKey, groupValue] of Object.entries(obj)) {
       if (!groupValue || typeof groupValue !== "object") {
@@ -25,13 +26,21 @@ export function parseUserConfig(code: string): UserConfig | undefined {
       }
 
       ret[groupKey] = groupValue;
+
+      if (groupKey === "#options") {
+        continue;
+      }
+
+      sortSet.add(groupKey);
+
       Object.keys(ret[groupKey] || {}).forEach((subKey, subIndex) => {
-        if (ret[groupKey][subKey] && typeof ret[groupKey][subKey] === "object") {
-          ret[groupKey][subKey].index = ret[groupKey][subKey].index || subIndex; // 确保index存在
+        const groupData = ret[groupKey] as { [key: string]: any };
+        if (groupData[subKey] && typeof groupData[subKey] === "object") {
+          groupData[subKey].index = groupData[subKey].index || subIndex; // 确保index存在
         }
       });
     }
   }
-
+  ret["#options"] = { sort: Array.from(sortSet) };
   return ret;
 }
