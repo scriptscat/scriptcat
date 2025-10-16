@@ -81,4 +81,19 @@ h6.arco-typography {
     border-left: none !important;
 
   }
+
+  /* 卡片视图样式 */
+  .script-card {
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+
+  .script-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .script-card .arco-card-body {
+    padding: 16px !important;
+  }
 }
