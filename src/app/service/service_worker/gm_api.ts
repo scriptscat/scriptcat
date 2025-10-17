@@ -109,7 +109,8 @@ export const checkHasUnsafeHeaders = (key: string) => {
 export const isConnectMatched = (metadataConnect: string[] | undefined, reqURL: URL, sender: IGetSender) => {
   if (metadataConnect?.length) {
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
-      if (metadataConnect[i] === "self") {
+      const lowerMetaConnect = metadataConnect[i].toLowerCase();
+      if (lowerMetaConnect === "self") {
         const senderURL = sender.getSender()?.url;
         if (senderURL) {
           let senderURLObject;
@@ -122,7 +123,7 @@ export const isConnectMatched = (metadataConnect: string[] | undefined, reqURL: 
             if (reqURL.hostname === senderURLObject.hostname) return true;
           }
         }
-      } else if (metadataConnect[i] === "*" || `.${reqURL.hostname}`.endsWith(`.${metadataConnect[i]}`)) {
+      } else if (lowerMetaConnect === "*" || `.${reqURL.hostname}`.endsWith(`.${lowerMetaConnect}`)) {
         return true;
       }
     }

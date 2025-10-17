@@ -73,4 +73,11 @@ describe("isConnectMatched", () => {
     const sender = makeSender("https://bar.com");
     expect(isConnectMatched(["baz.com", "qux.net"], req, sender)).toBe(false);
   });
+
+  it("域名不区分大小写", () => {
+    const req = new URL("https://API.Example.COM/Path");
+    expect(isConnectMatched(["example.com"], req, makeSender())).toBe(true);
+    expect(isConnectMatched(["EXAMPLE.COM"], req, makeSender())).toBe(true);
+    expect(isConnectMatched(["Api.Example.com"], req, makeSender())).toBe(true);
+  });
 });
