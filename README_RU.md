@@ -71,7 +71,7 @@ ScriptCat — это мощный менеджер пользовательск�
 
 | Браузер | Ссылка на магазин                                                                                                                                                                                                              | Статус      |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| Chrome  | [Стабильная версия](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) / [Beta](https://chromewebstore.google.com/detail/%E8%84%9A%E6%9C%AC%E7%8C%AB-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ Доступно |
+| Chrome  | [Стабильная версия](https://chrome.google.com/webstore/detail/scriptcat/ndcooeababalnlpkfedmmbbbgkljhpjf) / [Beta](https://chromewebstore.google.com/detail/scriptcat-beta/jaehimmlecjmebpekkipmpmbpfhdacom) | ✅ Доступно |
 | Edge    | [Стабильная версия](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh) / [Beta](https://microsoftedge.microsoft.com/addons/detail/scriptcat-beta/nimmbghgpcjmeniofmpdfkofcedcjpfi)  | ✅ Доступно |
 | Firefox | [Стабильная версия](https://addons.mozilla.org/firefox/addon/scriptcat/) / [Beta](https://addons.mozilla.org/firefox/addon/scriptcat-pre/)                                                                                     | ✅ MV2      |
 
