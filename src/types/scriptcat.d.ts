@@ -335,6 +335,14 @@ declare namespace CATType {
     // 文件修改时间
     updatetime: number;
   }
+
+  type CATFileStorageDetails = {
+    baseDir: string;
+    path: string;
+    filename: any;
+    file: FileStorageFileInfo;
+    data?: string;
+  };
 }
 
 declare namespace GMTypes {
@@ -465,6 +473,8 @@ declare namespace GMTypes {
     useOpen?: boolean;
   }
 
+  type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
+
   interface XHRResponse {
     finalUrl?: string;
     readyState?: 0 | 1 | 2 | 3 | 4;
@@ -594,4 +604,6 @@ declare namespace GMTypes {
     closed?: boolean;
     name?: string;
   }
+
+  type GMClipboardInfo = string | { type?: string; mimetype?: string };
 }
