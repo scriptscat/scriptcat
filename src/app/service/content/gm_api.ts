@@ -456,7 +456,7 @@ export default class GMApi extends GM_Base {
     if (typeof message !== "string") {
       message = JSON.stringify(message);
     }
-    this.sendMessage("GM_log", [message, level, labels.length ? labels : undefined]);
+    this.sendMessage("GM_log", [message, level, labels]);
   }
 
   @GMContext.API()
