@@ -456,11 +456,7 @@ export default class GMApi extends GM_Base {
     if (typeof message !== "string") {
       message = JSON.stringify(message);
     }
-    const requestParams: any[] = [message, level];
-    if (labels.length > 0) {
-      requestParams.push(labels);
-    }
-    this.sendMessage("GM_log", requestParams);
+    this.sendMessage("GM_log", [message, level, labels]);
   }
 
   @GMContext.API()
@@ -758,7 +754,7 @@ export default class GMApi extends GM_Base {
       this.sendMessage("CAT_fileStorage", ["config"]);
       return;
     }
-    const sendDetails: { [key: string]: string } = {
+    const sendDetails: CATType.CATFileStorageDetails = {
       baseDir: details.baseDir || "",
       path: details.path || "",
       filename: details.filename,
@@ -1056,7 +1052,7 @@ export default class GMApi extends GM_Base {
         timeout: details.timeout,
         cookie: details.cookie,
         anonymous: details.anonymous,
-      },
+      } as GMTypes.DownloadDetails,
     ]).then((con) => {
       connect = con;
       connect.onMessage((data) => {
@@ -1257,7 +1253,7 @@ export default class GMApi extends GM_Base {
       onclose() {},
     };
 
-    this.sendMessage("GM_openInTab", [url, option]).then((id) => {
+    this.sendMessage("GM_openInTab", [url, option as GMTypes.SWOpenTabOptions]).then((id) => {
       if (!this.EE) return;
       if (id) {
         tabid = id;
@@ -1338,7 +1334,7 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API({})
-  GM_setClipboard(data: string, info?: string | { type?: string; mimetype?: string }, cb?: () => void) {
+  GM_setClipboard(data: string, info?: GMTypes.GMClipboardInfo, cb?: () => void) {
     if (this.isInvalidContext()) return;
     this.sendMessage("GM_setClipboard", [data, info])
       .then(() => {
