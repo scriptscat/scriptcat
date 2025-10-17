@@ -106,7 +106,7 @@ export const checkHasUnsafeHeaders = (key: string) => {
   return false;
 };
 
-const isConnectMatched = (metadataConnect: string[] | undefined, reqURL: URL, sender: IGetSender) => {
+export const isConnectMatched = (metadataConnect: string[] | undefined, reqURL: URL, sender: IGetSender) => {
   if (metadataConnect?.length) {
     for (let i = 0, l = metadataConnect.length; i < l; i += 1) {
       if (metadataConnect[i] === "self") {
