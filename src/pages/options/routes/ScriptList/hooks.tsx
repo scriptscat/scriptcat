@@ -469,9 +469,8 @@ export function useScriptSearch() {
       }
     }
     const filterList = scriptList.filter((script) => filterFuncs.every((fn) => fn(script)));
-    // setFilterScriptList(filterList);
-    let mounted = true;
     if (searchKeyword !== "") {
+      let mounted = true;
       // 再基于关键词过滤一次
       requestFilterResult({ value: searchKeyword, type: "auto" }).then((res) => {
         if (!mounted) return;
@@ -496,6 +495,8 @@ export function useScriptSearch() {
       return () => {
         mounted = false;
       };
+    } else {
+      setFilterScriptList(filterList);
     }
   }, [originMap, scriptList, selectedFilters, tagMap, searchKeyword]);
 

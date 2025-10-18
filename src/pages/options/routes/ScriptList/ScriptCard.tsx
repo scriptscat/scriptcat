@@ -27,7 +27,6 @@ import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_NORMAL }
 import {
   requestDeleteScripts,
   requestEnableScript,
-  requestFilterResult,
   requestRunScript,
   requestStopScript,
 } from "@App/pages/store/features/script";
@@ -43,20 +42,19 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell } from "./components";
 import { useTranslation } from "react-i18next";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
-import { MdViewList } from "react-icons/md";
+import { FaThList } from "react-icons/fa";
 
 const { Text } = Typography;
 
 interface ScriptCardItemProps {
   item: ScriptLoading;
-  updateScriptList: (data: Partial<Script | ScriptLoading>) => void;
-  updateEntry: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
+  updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
 }
 
 export const ScriptCardItem = React.memo(
-  ({ item, updateScriptList, updateEntry, setUserConfig, setCloudScript }: ScriptCardItemProps) => {
+  ({ item, updateScripts, setUserConfig, setCloudScript }: ScriptCardItemProps) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
 
@@ -85,7 +83,7 @@ export const ScriptCardItem = React.memo(
     const { handleDelete, handleConfig, handleRunStop, handleCloud } = {
       handleDelete: () => {
         const { uuid } = item;
-        updateScriptList({ uuid, actionLoading: true });
+        updateScripts([uuid], { actionLoading: true });
         requestDeleteScripts([item.uuid]);
       },
       handleConfig: () => {
@@ -103,9 +101,9 @@ export const ScriptCardItem = React.memo(
             id: "script-stop",
             content: t("stopping_script"),
           });
-          updateEntry([item.uuid], { actionLoading: true });
+          updateScripts([item.uuid], { actionLoading: true });
           await requestStopScript(item.uuid);
-          updateEntry([item.uuid], { actionLoading: false });
+          updateScripts([item.uuid], { actionLoading: false });
           Message.success({
             id: "script-stop",
             content: t("script_stopped"),
@@ -116,9 +114,9 @@ export const ScriptCardItem = React.memo(
             id: "script-run",
             content: t("starting_script"),
           });
-          updateEntry([item.uuid], { actionLoading: true });
+          updateScripts([item.uuid], { actionLoading: true });
           await requestRunScript(item.uuid);
-          updateEntry([item.uuid], { actionLoading: false });
+          updateScripts([item.uuid], { actionLoading: false });
           Message.success({
             id: "script-run",
             content: t("script_started"),
@@ -192,7 +190,7 @@ export const ScriptCardItem = React.memo(
               status={item.status}
               enableLoading={item.enableLoading}
               onChange={(checked: boolean) => {
-                updateScriptList({ uuid: item.uuid, enableLoading: true });
+                updateScripts([item.uuid], { enableLoading: true });
                 requestEnableScript({ uuid: item.uuid, enable: checked });
               }}
             />
@@ -332,14 +330,14 @@ ScriptCardItem.displayName = "ScriptCard";
 
 interface ScriptCardProps {
   scriptList: ScriptLoading[];
+  scriptListSortOrder: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setViewMode: (mode: "card" | "table") => void;
-  updateScriptList: (data: Partial<Script | ScriptLoading>) => void;
-  updateEntry: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
+  updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setFilterCache: (res: Partial<Record<string, any>>[] | null) => void;
+  setSearchKeyword: (keyword: string) => void;
 }
 
 export const ScriptCard = ({
@@ -347,13 +345,11 @@ export const ScriptCard = ({
   sidebarOpen,
   setSidebarOpen,
   setViewMode,
-  updateScriptList,
-  updateEntry,
+  updateScripts,
   setUserConfig,
   setCloudScript,
-  setFilterCache,
+  setSearchKeyword,
 }: ScriptCardProps) => {
-  const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
 
@@ -364,6 +360,7 @@ export const ScriptCard = ({
         style={{
           marginBottom: "16px",
           borderBottom: "1px solid var(--color-border-2)",
+          padding: "0 16px",
         }}
       >
         <div className="flex flex-row justify-between items-center" style={{ padding: "8px 0" }}>
@@ -378,30 +375,7 @@ export const ScriptCard = ({
                 setSearchValue(value);
               }}
               onSearch={(value) => {
-                if (value) {
-                  requestFilterResult({ value, type: "auto" }).then((res) => {
-                    setFilterCache(res as any);
-                    const cacheMap = new Map<string, any>();
-                    if (res && Array.isArray(res)) {
-                      for (const entry of res) {
-                        cacheMap.set(entry.uuid, {
-                          code: entry.code === true,
-                          name: entry.name === true,
-                          auto: entry.auto === true,
-                        });
-                      }
-                    }
-                    setFilterScriptList(
-                      scriptList.filter((item) => {
-                        const result = cacheMap.get(item.uuid);
-                        return result?.auto;
-                      })
-                    );
-                  });
-                } else {
-                  setFilterCache(null);
-                  setFilterScriptList(scriptList);
-                }
+                setSearchKeyword(value);
               }}
             />
           </div>
@@ -425,7 +399,7 @@ export const ScriptCard = ({
             </Tooltip>
             <Tooltip content={t("switch_to_table_mode")}>
               <Button
-                icon={<MdViewList />}
+                icon={<FaThList />}
                 type="text"
                 size="small"
                 style={{
@@ -445,7 +419,7 @@ export const ScriptCard = ({
           padding: "16px",
         }}
       >
-        {filterScriptList.length === 0 ? (
+        {scriptList.length === 0 ? (
           <div
             style={{
               textAlign: "center",
@@ -463,12 +437,11 @@ export const ScriptCard = ({
               gap: "16px",
             }}
           >
-            {filterScriptList.map((item) => (
+            {scriptList.map((item) => (
               <ScriptCardItem
                 key={item.uuid}
                 item={item}
-                updateScriptList={updateScriptList}
-                updateEntry={updateEntry}
+                updateScripts={updateScripts}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
               />

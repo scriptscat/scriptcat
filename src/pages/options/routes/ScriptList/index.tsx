@@ -81,7 +81,7 @@ function ScriptList() {
                 scriptList={filterScriptList}
                 scriptListSortOrder={scriptListSortOrder}
                 updateScripts={updateScripts}
-                sidebarOpen={false}
+                sidebarOpen={sidebarOpen}
                 setSidebarOpen={setSidebarOpen}
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
@@ -91,11 +91,14 @@ function ScriptList() {
             ) : (
               <ScriptCard
                 scriptList={filterScriptList}
-                sidebarOpen={false}
+                scriptListSortOrder={scriptListSortOrder}
+                updateScripts={updateScripts}
+                sidebarOpen={sidebarOpen}
                 setSidebarOpen={setSidebarOpen}
                 setViewMode={setViewMode}
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
+                setSearchKeyword={setSearchKeyword}
               />
             )}
           </div>

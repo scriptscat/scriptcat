@@ -867,7 +867,6 @@ export const ScriptTable = ({
         return m;
       });
     });
-    console.log("Loaded column widths:", savedWidths);
   }, [savedWidths, columns]);
 
   useEffect(() => {
