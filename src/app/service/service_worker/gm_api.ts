@@ -248,7 +248,7 @@ export default class GMApi {
     if (!detail.url && !detail.domain) {
       throw new Error("there must be one of url or domain");
     }
-    if (typeof detail.partitionKey !== "object" || detail.partitionKey == null) {
+    if (!detail.partitionKey || typeof detail.partitionKey !== "object") {
       detail.partitionKey = {};
     }
     if (typeof detail.partitionKey.topLevelSite !== "string") {
@@ -759,7 +759,7 @@ export default class GMApi {
     }
 
     // 处理cookiePartition
-    if (typeof param1.cookiePartition !== "object" || param1.cookiePartition == null) {
+    if (!param1.cookiePartition || typeof param1.cookiePartition !== "object") {
       param1.cookiePartition = {};
     }
     if (typeof param1.cookiePartition.topLevelSite !== "string") {

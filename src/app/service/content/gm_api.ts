@@ -346,10 +346,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_setValues(values: TGMKeyValue) {
-    if (values == null) {
-      throw new Error("GM_setValues: values must not be null or undefined");
-    }
-    if (typeof values !== "object") {
+    if (!values || typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
     _GM_setValues(this, null, values);
@@ -358,7 +355,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_getValues(keysOrDefaults: TGMKeyValue | string[] | null | undefined) {
     if (!this.scriptRes) return {};
-    if (keysOrDefaults == null) {
+    if (!keysOrDefaults) {
       // Returns all values
       return this.scriptRes.value;
     }
@@ -397,10 +394,7 @@ export default class GMApi extends GM_Base {
   public ["GM.setValues"](values: { [key: string]: any }): Promise<void> {
     if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
-      if (values == null) {
-        throw new Error("GM.setValues: values must not be null or undefined");
-      }
-      if (typeof values !== "object") {
+      if (!values || typeof values !== "object") {
         throw new Error("GM.setValues: values must be an object");
       }
       _GM_setValues(this, resolve, values);
