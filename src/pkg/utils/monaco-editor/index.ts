@@ -18,6 +18,7 @@ export default function registerEditor() {
   // 悬停提示
   const prompt: { [key: string]: any } = {
     name: "脚本名称",
+    namespace: "脚本命名空间",
     copyright: "脚本的版权信息",
     license: "脚本的开源协议",
     version: "脚本版本",
