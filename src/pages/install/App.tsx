@@ -820,24 +820,30 @@ function App() {
           )}
           <div className="flex flex-row flex-wrap gap-x-4">
             {permissions.map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  maxHeight: "200px",
-                  overflowY: "auto",
-                  overflowX: "auto",
-                  boxSizing: "border-box",
-                }}
-                className="p-8px"
-              >
-                <Typography.Text bold color={item.color}>
-                  {item.label}
-                </Typography.Text>
-                {item.value.map((v) => (
-                  <div key={v}>
-                    <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
-                  </div>
-                ))}
+              <div key={item.label} className="flex flex-col gap-y-2 pt-2 pb-2">
+                {item.value?.length > 0 ? (
+                  <>
+                    <Typography.Text bold color={item.color}>
+                      {item.label}
+                    </Typography.Text>
+                    <div
+                      style={{
+                        maxHeight: "calc( 7.5 * 1.2rem )",
+                        overflowY: "auto",
+                        overflowX: "auto",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {item.value.map((v) => (
+                        <div key={v} className="permission-entry">
+                          <Typography.Text style={{ wordBreak: "unset", color: item.color }}>{v}</Typography.Text>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <></>
+                )}
               </div>
             ))}
           </div>
