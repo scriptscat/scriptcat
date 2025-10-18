@@ -733,7 +733,7 @@ function App() {
             <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
           </Tooltip>
         </div>
-        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1">
+        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1 items-center">
           <div className="flex flex-row flex-nowrap gap-x-2">
             {oldScriptVersion && (
               <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
