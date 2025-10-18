@@ -341,6 +341,7 @@
   "antifeature_tracking_description": "Script này theo dõi thông tin người dùng của bạn",
   "script_info_load_failed": "Tải thông tin script thất bại",
   "script_status_tooltip": "Bạn có thể kiểm soát trạng thái bật của các tập lệnh. Các tập lệnh Tampermonkey thông thường được bật theo mặc định, còn các tập lệnh Nền và Lập lịch thì bị tắt theo mặc định.",
+  "subscribe_source_tooltip": "Đây là nguồn đăng ký. Khi bạn mở đăng ký, tập lệnh đăng ký sẽ tự động được cài đặt.",
   "get_script": "Lấy script",
   "report_issue": "Báo cáo sự cố",
   "project_docs": "Tài liệu dự án",

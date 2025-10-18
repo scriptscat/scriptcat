@@ -341,6 +341,7 @@
   "antifeature_tracking_description": "Dieses Skript verfolgt Ihre Benutzerinformationen",
   "script_info_load_failed": "Skript-Informationen laden fehlgeschlagen!",
   "script_status_tooltip": "Sie können den Aktivierungsstatus von Skripten steuern. Gewöhnliche Tampermonkey-Skripte sind standardmäßig aktiviert, während Hintergrund- und geplante Skripte standardmäßig deaktiviert sind.",
+  "subscribe_source_tooltip": "Dies ist eine Abonnementquelle. Wenn Sie das Abonnement öffnen, wird das Abonnementskript automatisch installiert.",
   "get_script": "Skript abrufen",
   "report_issue": "Bug/Problem-Feedback",
   "project_docs": "Projektdokumentation",

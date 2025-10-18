@@ -341,6 +341,7 @@
   "antifeature_tracking_description": "This script tracks your user information",
   "script_info_load_failed": "Failed to load script information",
   "script_status_tooltip": "You can control the enable status of scripts. Ordinary Tampermonkey scripts are enabled by default, and Background scripts and Scheduled scripts are disabled by default.",
+  "subscribe_source_tooltip": "This is a subscription source. When you open the subscription, the subscription script will be automatically installed.",
   "get_script": "Get Script",
   "report_issue": "Report Issue",
   "project_docs": "Project Documentation",

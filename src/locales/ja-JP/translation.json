@@ -341,6 +341,7 @@
   "antifeature_tracking_description": "このスクリプトはユーザー情報を追跡します",
   "script_info_load_failed": "スクリプト情報の読み込みに失敗しました！",
   "script_status_tooltip": "スクリプトの有効状態を管理できます。通常の Tampermonkey スクリプトはデフォルトで有効ですが、バックグラウンドスクリプトとスケジュールスクリプトはデフォルトで無効になっています。",
+  "subscribe_source_tooltip": "これはサブスクリプションソースです。サブスクリプションを開くと、サブスクリプションスクリプトが自動的にインストールされます。",
   "get_script": "スクリプトを取得",
   "report_issue": "バグ/問題フィードバック",
   "project_docs": "プロジェクトドキュメント",
