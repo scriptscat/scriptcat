@@ -714,45 +714,43 @@ function App() {
   }
 
   return (
-    <div id="install-app-container" className="flex flex-row">
-      <div id="script-title-container" className="flex flex-row">
-        <div id="script-title" className="flex flex-row shirnk-0 grow-1 basis-full gap-x-3 pt-3 pb-3">
-          <div className="grow-1 shrink-1 flex flex-row justify-start items-center">
-            {upsertScript?.metadata.icon && (
-              <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
-                <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
-              </Avatar>
-            )}
-            {upsertScript && (
-              <Tooltip position="tl" content={i18nName(upsertScript)}>
-                <Typography.Text bold className="text-size-lg truncate w-0 grow-1">
-                  {i18nName(upsertScript)}
-                </Typography.Text>
+    <div id="install-app-container" className="flex flex-col">
+      <div className="flex flex-row gap-x-3 pt-3 pb-3">
+        <div className="grow-1 shrink-1 flex flex-row justify-start items-center">
+          {upsertScript?.metadata.icon && (
+            <Avatar size={32} shape="square" style={{ marginRight: "8px" }}>
+              <img src={upsertScript.metadata.icon[0]} alt={upsertScript.name} />
+            </Avatar>
+          )}
+          {upsertScript && (
+            <Tooltip position="tl" content={i18nName(upsertScript)}>
+              <Typography.Text bold className="text-size-lg truncate w-0 grow-1">
+                {i18nName(upsertScript)}
+              </Typography.Text>
+            </Tooltip>
+          )}
+          <Tooltip content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}>
+            <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
+          </Tooltip>
+        </div>
+        <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1">
+          <div className="flex flex-row flex-nowrap gap-x-2">
+            {oldScriptVersion && (
+              <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
+                <Tag bordered>{oldScriptVersion}</Tag>
               </Tooltip>
             )}
-            <Tooltip content={scriptInfo?.userSubscribe ? t("subscribe_source_tooltip") : t("script_status_tooltip")}>
-              <Switch style={{ marginLeft: "8px" }} checked={enable} onChange={handleStatusChange} />
-            </Tooltip>
-          </div>
-          <div className="grow-0 shrink-1 flex flex-row flex-wrap gap-x-2 gap-y-1">
-            <div className="flex flex-row flex-nowrap gap-x-2">
-              {oldScriptVersion && (
-                <Tooltip content={`${t("current_version")}: v${oldScriptVersion}`}>
-                  <Tag bordered>{oldScriptVersion}</Tag>
-                </Tooltip>
-              )}
-              {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
-                <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
-                  <Tag bordered color="red">
-                    {metadataLive.version[0]}
-                  </Tag>
-                </Tooltip>
-              )}
-            </div>
+            {metadataLive.version && metadataLive.version[0] !== oldScriptVersion && (
+              <Tooltip color="red" content={`${t("update_version")}: v${metadataLive.version[0]}`}>
+                <Tag bordered color="red">
+                  {metadataLive.version[0]}
+                </Tag>
+              </Tooltip>
+            )}
           </div>
         </div>
       </div>
-      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-4 flex flex-col mb-4 scrollbar-visible">
+      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-4 flex flex-col mb-4">
         <div className="flex flex-wrap gap-x-3 items-start">
           <div className="flex flex-col shrink-1 grow-1 basis-8/12">
             <div className="grow-1 shrink-0">

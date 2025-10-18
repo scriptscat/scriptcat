@@ -85,16 +85,6 @@
 
 }
 
-#script-title-container {
-	position: sticky;
-	top: 0px;
-	background-color: var(--color-bg-2);
-}
-
-#script-title {
-	background-color: var(--color-fill-2);
-}
-
 .tag-container {
 	inline-size: min-content;
 	align-content: flex-start;
