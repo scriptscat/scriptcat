@@ -751,7 +751,7 @@ function App() {
         </div>
       </div>
       <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-y-2 flex flex-col mb-4">
-        <div className="flex flex-wrap gap-x-3 items-start">
+        <div className="flex flex-wrap gap-x-3 gap-y-2 items-start">
           <div className="flex flex-col shrink-1 grow-1 basis-8/12">
             <div className="grow-1 shrink-0">
               <div className="flex flex-wrap gap-x-2 gap-y-1 tag-container float-right">
