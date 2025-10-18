@@ -341,6 +341,7 @@
   "antifeature_tracking_description": "该脚本会追踪你的用户信息",
   "script_info_load_failed": "脚本信息加载失败！",
   "script_status_tooltip": "可以控制脚本开启状态，普通油猴脚本默认开启，后台脚本、定时脚本默认关闭",
+  "subscribe_source_tooltip": "这是一个订阅源，当你开启订阅后会自动安装订阅的脚本",
   "get_script": "获取脚本",
   "report_issue": "BUG/问题反馈",
   "project_docs": "项目文档",

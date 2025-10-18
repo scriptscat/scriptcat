@@ -52,14 +52,14 @@ export interface EmitEventRequest {
 }
 
 /** GMApi，处理脚本的 GM API 调用请求 */
-export type MessageRequest = {
+export type MessageRequest<T = any[]> = {
   uuid: string; // 脚本id
   api: string;
   runFlag: string;
-  params: any[];
+  params: T;
 };
 
-export type Request = MessageRequest & {
+export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;
 };
 
@@ -73,7 +73,7 @@ export type NotificationMessageOption = {
   };
 };
 
-export type Api = (request: Request, con: IGetSender) => Promise<any>;
+export type Api = (request: GMApiRequest, con: IGetSender) => Promise<any>;
 
 /** 脚本菜单选项 */
 // GM_registerMenuCommand optionsOrAccessKey

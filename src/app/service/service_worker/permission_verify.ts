@@ -4,7 +4,7 @@ import { type Permission, PermissionDAO } from "@App/app/repo/permission";
 import type { IGetSender } from "@Packages/message/server";
 import { type Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { Api, Request } from "./types";
+import type { Api, GMApiRequest } from "./types";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_PERMISSION } from "@App/app/cache_key";
 import { v4 as uuidv4 } from "uuid";
@@ -34,7 +34,7 @@ export interface UserConfirm {
   type: number; // 1: 允许一次 2: 临时允许全部 3: 临时允许此 4: 永久允许全部 5: 永久允许此
 }
 
-export type ApiParamConfirmFn = (request: Request) => Promise<boolean | ConfirmParam>;
+export type ApiParamConfirmFn = (request: GMApiRequest, sender: IGetSender) => Promise<boolean | ConfirmParam>;
 
 export interface ApiParam {
   // 默认提供的函数
@@ -95,7 +95,7 @@ export default class PermissionVerify {
 
   // 确认队列
   confirmQueue: Queue<{
-    request: Request;
+    request: GMApiRequest;
     confirm: ConfirmParam | boolean;
     resolve: (value: boolean) => void;
     reject: (reason: any) => void;
@@ -112,7 +112,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify(request: Request, api: ApiValue, sender: IGetSender): Promise<boolean> {
+  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -160,8 +160,12 @@ export default class PermissionVerify {
   }
 
   // 确认队列,为了防止一次性打开过多的窗口
-  async pushConfirmQueue(request: Request, confirmFn: ApiParamConfirmFn, sender: IGetSender): Promise<boolean> {
-    const confirm = await confirmFn(request);
+  async pushConfirmQueue<T>(
+    request: GMApiRequest<T>,
+    confirmFn: ApiParamConfirmFn,
+    sender: IGetSender
+  ): Promise<boolean> {
+    const confirm = await confirmFn(request, sender);
     if (confirm === true) {
       return true;
     }
@@ -170,7 +174,7 @@ export default class PermissionVerify {
     });
   }
 
-  async confirm(request: Request, confirm: boolean | ConfirmParam, sender: IGetSender): Promise<boolean> {
+  async confirm<T>(request: GMApiRequest<T>, confirm: boolean | ConfirmParam, sender: IGetSender): Promise<boolean> {
     if (typeof confirm === "boolean") {
       return confirm;
     }
