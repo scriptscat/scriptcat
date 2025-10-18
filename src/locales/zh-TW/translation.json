@@ -344,6 +344,7 @@
   "antifeature_tracking_description": "此腳本會追蹤您的使用者資訊",
   "script_info_load_failed": "腳本資訊載入失敗！",
   "script_status_tooltip": "可以控制腳本開啟狀態，普通油猴腳本預設開啟，背景腳本、排程腳本預設關閉",
+  "subscribe_source_tooltip": "這是一個訂閱源，當你開啟訂閱後會自動安裝訂閱的腳本",
   "get_script": "取得腳本",
   "report_issue": "錯誤/問題回報",
   "project_docs": "專案文件",

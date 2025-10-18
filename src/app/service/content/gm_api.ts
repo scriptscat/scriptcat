@@ -817,6 +817,7 @@ export default class GMApi extends GM_Base {
       user: details.user,
       password: details.password,
       redirect: details.redirect,
+      fetch: details.fetch,
     };
     if (!param.headers) {
       param.headers = {};

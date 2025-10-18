@@ -344,6 +344,7 @@
   "antifeature_tracking_description": "crwdns8492:0crwdne8492:0",
   "script_info_load_failed": "crwdns8494:0crwdne8494:0",
   "script_status_tooltip": "crwdns8496:0crwdne8496:0",
+  "subscribe_source_tooltip": "crwdns12828:0crwdne12828:0",
   "get_script": "crwdns8498:0crwdne8498:0",
   "report_issue": "crwdns8500:0crwdne8500:0",
   "project_docs": "crwdns8502:0crwdne8502:0",
@@ -504,5 +505,36 @@
   "editor_type_definition_reset": "crwdns10836:0crwdne10836:0",
   "editor_type_definition_saved": "crwdns10838:0crwdne10838:0",
   "layout": "crwdns12780:0crwdne12780:0",
-  "hide_script_list": "crwdns12782:0crwdne12782:0"
+  "hide_script_list": "crwdns12782:0crwdne12782:0",
+  "script_list": {
+    "sidebar": {
+      "stopped": "crwdns12794:0crwdne12794:0",
+      "all": "crwdns12796:0crwdne12796:0",
+      "normal_script": "crwdns12798:0crwdne12798:0",
+      "status": "crwdns12800:0crwdne12800:0"
+    }
+  },
+  "tags": "crwdns12802:0crwdne12802:0",
+  "install_source": "crwdns12804:0crwdne12804:0",
+  "input_tags_placeholder": "crwdns12806:0crwdne12806:0",
+  "switch_to_card_mode": "crwdns12808:0crwdne12808:0",
+  "switch_to_table_mode": "crwdns12810:0crwdne12810:0",
+  "open_sidebar": "crwdns12812:0crwdne12812:0",
+  "close_sidebar": "crwdns12814:0crwdne12814:0",
+  "no_message_content": "crwdns12830:0crwdne12830:0",
+  "error_metadata_invalid": "crwdns12832:0crwdne12832:0",
+  "error_script_name_required": "crwdns12834:0crwdne12834:0",
+  "error_script_version_required": "crwdns12836:0crwdne12836:0",
+  "error_script_namespace_required": "crwdns12838:0crwdne12838:0",
+  "error_cron_invalid": "crwdns12840:0{{expr}}crwdne12840:0",
+  "error_script_type_mismatch": "crwdns12842:0crwdne12842:0",
+  "error_old_script_code_missing": "crwdns12844:0crwdne12844:0",
+  "error_subscribe_name_required": "crwdns12846:0crwdne12846:0",
+  "error_grant_conflict": "crwdns12848:0crwdne12848:0",
+  "notification": {
+    "script_sync_delete": "crwdns12850:0crwdne12850:0",
+    "script_sync_delete_desc": "crwdns12852:0{{scriptName}}crwdne12852:0",
+    "subscribe_update": "crwdns12854:0{{subscribeName}}crwdne12854:0",
+    "subscribe_update_desc": "crwdns12856:0{{newScripts}}crwdnd12856:0{{deletedScripts}}crwdne12856:0"
+  }
 }
