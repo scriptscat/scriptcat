@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Avatar,
   Button,
@@ -22,8 +22,6 @@ import {
   RiStopFill,
   RiUploadCloudFill,
 } from "react-icons/ri";
-import type { TFunction } from "i18next";
-import type { NavigateFunction } from "react-router-dom";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import {

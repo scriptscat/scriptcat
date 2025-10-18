@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -20,16 +20,13 @@ import type { ColumnProps } from "@arco-design/web-react/es/Table";
 import type { ComponentsProps } from "@arco-design/web-react/es/Table/interface";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { FaThLarge } from "react-icons/fa";
-import { MdViewList } from "react-icons/md";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import {
-  type SCRIPT_STATUS,
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_NORMAL,
-  ScriptDAO,
 } from "@App/app/repo/scripts";
 import {
   IconClockCircle,
@@ -47,13 +44,12 @@ import {
   RiStopFill,
   RiUploadCloudFill,
 } from "react-icons/ri";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { RefInputType } from "@arco-design/web-react/es/Input/interface";
 import Text from "@arco-design/web-react/es/Typography/text";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -61,10 +57,6 @@ import {
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import UserConfigPanel from "@App/pages/components/UserConfigPanel";
-import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
-import ScriptListSidebar from "./Sidebar";
-import ScriptCard, { ScriptCardItem } from "./ScriptCard";
 import { useTranslation } from "react-i18next";
 import { nextTime } from "@App/pkg/utils/cron";
 import { semTime } from "@App/pkg/utils/dayjs";
@@ -75,28 +67,14 @@ import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
   requestDeleteScripts,
-  sortScript,
   pinToTop,
   requestStopScript,
   requestRunScript,
   scriptClient,
   synchronizeClient,
-  requestFilterResult,
-  fetchScriptList,
-  fetchScript,
 } from "@App/pages/store/features/script";
 import { ValueClient } from "@App/app/service/service_worker/client";
-import { loadScriptFavicons } from "@App/pages/store/utils";
-import type { SearchType } from "@App/app/service/service_worker/types";
-import type {
-  TDeleteScript,
-  TEnableScript,
-  TInstallScript,
-  TScriptRunStatus,
-  TSortedScript,
-} from "@App/app/service/queue";
 import { type TFunction } from "i18next";
-import { useAppContext } from "@App/pages/store/AppContext";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
 import { EnableSwitch, MemoizedAvatar } from "./components";
@@ -110,43 +88,14 @@ const SortableRowCtx = createContext<RowCtx>(null);
 interface DraggableContextType {
   sensors: ReturnType<typeof useSensors>;
   scriptList: ScriptLoading[];
-  setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>;
+  scriptListSortOrder: (params: { active: string; over: string }) => void;
 }
 const DraggableContext = createContext<DraggableContextType | null>(null);
-
-const scriptListSortOrder = (
-  setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>,
-  { active, over }: { active: string; over: string }
-) => {
-  setScriptList((scripts) => {
-    let oldIndex = -1;
-    let newIndex = -1;
-    scripts.forEach((item, index) => {
-      if (item.uuid === active) {
-        oldIndex = index;
-      } else if (item.uuid === over) {
-        newIndex = index;
-      }
-    });
-    if (oldIndex >= 0 && newIndex >= 0) {
-      const newItems = arrayMove(scripts, oldIndex, newIndex);
-      for (let i = 0, l = newItems.length; i < l; i += 1) {
-        if (newItems[i].sort !== i) {
-          newItems[i].sort = i;
-        }
-      }
-      return newItems;
-    } else {
-      return scripts;
-    }
-  });
-  sortScript({ active, over });
-};
 
 const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   (props, ref) => {
     const context = useContext(DraggableContext);
-    const { sensors, scriptList, setScriptList } = context || {};
+    const { sensors, scriptList, scriptListSortOrder } = context || {};
     // compute once, even if context is null (keeps hook order legal)
     const sortableIds = useMemo(() => scriptList?.map((s) => ({ id: s.uuid })), [scriptList]);
 
@@ -157,7 +106,7 @@ const DraggableContainer = React.forwardRef<HTMLTableSectionElement, React.HTMLA
           return;
         }
         if (active.id !== over.id) {
-          scriptListSortOrder(setScriptList!, { active: active.id as string, over: over.id as string });
+          scriptListSortOrder!({ active: active.id as string, over: over.id as string });
         }
       },
     };
@@ -188,81 +137,33 @@ const FilterDropdown = React.memo(
     filterKeys,
     setFilterKeys,
     confirm,
-    setFilterCache,
     t,
     inputRef,
   }: {
-    filterKeys: any[];
-    setFilterKeys: (filterKeys: any[], callback?: (...args: any[]) => any) => void;
+    filterKeys: string;
+    setFilterKeys: (filterKeys: string, callback?: (...args: any[]) => any) => void;
     confirm: (...args: any[]) => any;
-    setFilterCache: (res: Partial<Record<string, any>>[] | null) => void;
     t: TFunction<"translation", undefined>;
     inputRef: React.RefObject<RefInputType>;
   }) => {
-    // 执行 setFilterKeys([...filterKeys]) 后 FilterDropdown 会发生重绘。（正常）
-    if (!filterKeys.length) {
-      filterKeys = [{ type: "auto", value: "" }];
-    }
-    const { onTypeChange, onSearchChange } = {
-      onTypeChange: (value: any, _option: any) => {
-        if (value !== filterKeys[0].type) {
-          filterKeys[0].type = value;
-          if (!filterKeys[0].value) {
-            setFilterCache(null);
-            setFilterKeys([...filterKeys]);
-            return;
-          }
-          requestFilterResult({ type: value, value: filterKeys[0].value }).then((res) => {
-            if (filterKeys[0].type !== value) return;
-            setFilterCache(res as any);
-            setFilterKeys([...filterKeys]);
-          });
-        }
-      },
-      onSearchChange: (value: string, _e: any) => {
-        if (value !== filterKeys[0].value) {
-          filterKeys[0].value = value;
-          if (!filterKeys[0].value) {
-            setFilterCache(null);
-            setFilterKeys([...filterKeys]);
-            return;
-          }
-          requestFilterResult({ value, type: filterKeys[0].type }).then((res) => {
-            if (filterKeys[0].value !== value) return;
-            setFilterCache(res as any);
-            setFilterKeys([...filterKeys]);
-          });
-        }
+    const { onSearchChange } = {
+      onSearchChange: (value: string) => {
+        setFilterKeys(value);
       },
     };
     // onSearch 不能使用 useCallback / useMemo
     const onSearch = () => {
-      confirm();
+      confirm(filterKeys);
     };
     return (
       <div className="arco-table-custom-filter flex flex-row gap-2">
-        <Select
-          className="flex-1"
-          triggerProps={{ autoAlignPopupWidth: false, autoAlignPopupMinWidth: true, position: "bl" }}
-          size="small"
-          defaultValue={filterKeys[0].type || "auto"}
-          onChange={onTypeChange}
-        >
-          <Select.Option value="auto">{t("auto")}</Select.Option>
-          <Select.Option value="name">{t("name")}</Select.Option>
-          <Select.Option value="script_code">{t("script_code")}</Select.Option>
-        </Select>
         <Input.Search
           ref={inputRef}
           size="small"
           searchButton
           style={{ minWidth: 240 }}
-          placeholder={
-            t("enter_search_value", {
-              search: filterKeys[0].type == "auto" ? `${t("name")}/${t("script_code")}` : t(""),
-            })!
-          }
-          defaultValue={filterKeys[0].value || ""}
+          placeholder={t("enter_search_value", { search: `${t("name")}/${t("script_code")}` })}
+          defaultValue={filterKeys || ""}
           onChange={onSearchChange}
           onSearch={onSearch}
         />
@@ -532,15 +433,13 @@ UpdateTimeCell.displayName = "UpdateTimeCell";
 const ActionCell = React.memo(
   ({
     item,
-    updateScriptList,
-    updateEntry,
+    updateScripts,
     setUserConfig,
     setCloudScript,
     t,
   }: {
     item: ScriptLoading;
-    updateScriptList: any;
-    updateEntry: any;
+    updateScripts: any;
     setUserConfig: any;
     setCloudScript: any;
     t: any;
@@ -548,7 +447,7 @@ const ActionCell = React.memo(
     const { handleDelete, handleConfig, handleRunStop, handleCloud } = {
       handleDelete: () => {
         const { uuid } = item;
-        updateScriptList({ uuid, actionLoading: true });
+        updateScripts([uuid], { actionLoading: true });
         requestDeleteScripts([item.uuid]);
       },
       handleConfig: () => {
@@ -567,9 +466,9 @@ const ActionCell = React.memo(
             id: "script-stop",
             content: t("stopping_script"),
           });
-          updateEntry([item.uuid], { actionLoading: true });
+          updateScripts([item.uuid], { actionLoading: true });
           await requestStopScript(item.uuid);
-          updateEntry([item.uuid], { actionLoading: false });
+          updateScripts([item.uuid], { actionLoading: false });
           Message.success({
             id: "script-stop",
             content: t("script_stopped"),
@@ -580,9 +479,9 @@ const ActionCell = React.memo(
             id: "script-run",
             content: t("starting_script"),
           });
-          updateEntry([item.uuid], { actionLoading: true });
+          updateScripts([item.uuid], { actionLoading: true });
           await requestRunScript(item.uuid);
-          updateEntry([item.uuid], { actionLoading: false });
+          updateScripts([item.uuid], { actionLoading: false });
           Message.success({
             id: "script-run",
             content: t("script_started"),
@@ -666,14 +565,14 @@ const SortRender = React.memo(({ col }: { col: number }) => {
 SortRender.displayName = "SortRender";
 
 const EnableSwitchCell = React.memo(
-  ({ item, updateScriptList }: { item: ScriptLoading; updateScriptList: any }) => {
+  ({ item, updateScripts }: { item: ScriptLoading; updateScripts: any }) => {
     const { uuid } = item;
     return (
       <EnableSwitch
         status={item.status}
         enableLoading={item.enableLoading}
         onChange={(checked: boolean) => {
-          updateScriptList({ uuid: uuid, enableLoading: true });
+          updateScripts([uuid], { enableLoading: true });
           requestEnableScript({ uuid: uuid, enable: checked });
         }}
       />
@@ -735,32 +634,26 @@ VersionCell.displayName = "VersionCell";
 
 interface ScriptTableProps {
   scriptList: ScriptLoading[];
-  setCanShowList: React.Dispatch<React.SetStateAction<boolean>>;
-  setScriptList: React.Dispatch<React.SetStateAction<ScriptLoading[]>>;
+  scriptListSortOrder: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setViewMode: (mode: "card" | "table") => void;
-  updateScriptList: (data: Partial<Script | ScriptLoading>) => void;
-  updateEntry: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
+  updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
-  setFilterCache: (res: Partial<Record<string, any>>[] | null) => void;
-  filterCache: Map<string, any>;
+  setSearchKeyword: (keyword: string) => void;
 }
 
 export const ScriptTable = ({
   scriptList,
-  setCanShowList,
-  setScriptList,
+  scriptListSortOrder,
   sidebarOpen,
   setSidebarOpen,
   setViewMode,
-  updateScriptList,
-  updateEntry,
+  updateScripts,
   setUserConfig,
   setCloudScript,
-  setFilterCache,
-  filterCache,
+  setSearchKeyword,
 }: ScriptTableProps) => {
   const { t } = useTranslation();
   const [showAction, setShowAction] = useState(false);
@@ -802,9 +695,7 @@ export const ScriptTable = ({
             },
           ],
           onFilter: (value, row) => row.status === value,
-          render: (col: any, item: ScriptLoading) => (
-            <EnableSwitchCell item={item} updateScriptList={updateScriptList} />
-          ),
+          render: (col: any, item: ScriptLoading) => <EnableSwitchCell item={item} updateScripts={updateScripts} />,
         },
         {
           key: "name",
@@ -812,32 +703,19 @@ export const ScriptTable = ({
           dataIndex: "name",
           sorter: (a, b) => a.name.localeCompare(b.name),
           filterIcon: <IconSearch />,
-          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => (
-            <FilterDropdown
-              filterKeys={filterKeys}
-              setFilterKeys={setFilterKeys}
-              confirm={confirm}
-              setFilterCache={setFilterCache}
-              t={t}
-              inputRef={inputRef}
-            />
-          ),
-          onFilter: (value: { type: SearchType; value: string }, row) => {
-            if (!value || !value.value) {
-              return true;
-            }
-            const result = filterCache.get(row.uuid);
-            if (!result) return false;
-            switch (value.type) {
-              case "auto":
-                return result.auto;
-              case "script_code":
-                return result.code;
-              case "name":
-                return result.name;
-              default:
-                return false;
-            }
+          filterDropdown: ({ filterKeys, setFilterKeys, confirm }: any) => {
+            return (
+              <FilterDropdown
+                filterKeys={filterKeys}
+                setFilterKeys={setFilterKeys}
+                confirm={(value) => {
+                  setSearchKeyword(value || "");
+                  confirm();
+                }}
+                t={t}
+                inputRef={inputRef}
+              />
+            );
           },
           onFilterDropdownVisibleChange: (visible) => {
             if (visible) {
@@ -934,8 +812,7 @@ export const ScriptTable = ({
           render: (col: any, item: ScriptLoading) => (
             <ActionCell
               item={item}
-              updateScriptList={updateScriptList}
-              updateEntry={updateEntry}
+              updateScripts={updateScripts}
               setUserConfig={setUserConfig}
               setCloudScript={setCloudScript}
               t={t}
@@ -946,13 +823,13 @@ export const ScriptTable = ({
     [
       t,
       sidebarOpen,
-      updateScriptList,
-      updateEntry,
+      updateScripts,
+      setSearchKeyword,
+      navigate,
+      setSidebarOpen,
+      setViewMode,
       setUserConfig,
       setCloudScript,
-      navigate,
-      filterCache,
-      setFilterCache,
     ]
   );
 
@@ -1063,9 +940,9 @@ export const ScriptTable = ({
     () => ({
       sensors,
       scriptList,
-      setScriptList,
+      scriptListSortOrder,
     }),
-    [sensors, scriptList, setScriptList]
+    [sensors, scriptList, scriptListSortOrder]
   );
 
   return (
@@ -1114,7 +991,7 @@ export const ScriptTable = ({
                 onClick={() => {
                   const enableAction = (enable: boolean) => {
                     const uuids = select.map((item) => item.uuid);
-                    updateEntry(uuids, { enableLoading: true });
+                    updateScripts(uuids, { enableLoading: true });
                     scriptClient.enables(uuids, enable);
                   };
                   switch (action) {
