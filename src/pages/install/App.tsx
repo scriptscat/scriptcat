@@ -750,7 +750,7 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-4 flex flex-col mb-4">
+      <div className="shrink-1 grow-1 overflow-y-auto pl-4 pr-4 gap-y-2 flex flex-col mb-4">
         <div className="flex flex-wrap gap-x-3 items-start">
           <div className="flex flex-col shrink-1 grow-1 basis-8/12">
             <div className="grow-1 shrink-0">
@@ -806,70 +806,6 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-row flex-wrap items-center pt-2 pb-2 gap-2">
-              <div className="grow-1">
-                <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
-              </div>
-              <div className="grow-1 shrink-0 text-end">
-                <Space>
-                  <Button.Group>
-                    <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
-                      {btnText}
-                    </Button>
-                    <Dropdown
-                      droplist={
-                        <Menu>
-                          <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
-                            {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
-                          </Menu.Item>
-                          {!scriptInfo?.userSubscribe && (
-                            <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
-                              {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
-                            </Menu.Item>
-                          )}
-                        </Menu>
-                      }
-                      position="bottom"
-                      disabled={watchFile}
-                    >
-                      <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
-                    </Dropdown>
-                  </Button.Group>
-                  {localFileHandle && (
-                    <Popover content={t("watch_file_description")}>
-                      <Button type="secondary" size="small" onClick={setWatchFileClick}>
-                        {watchFile ? t("stop_watch_file") : t("watch_file")}
-                      </Button>
-                    </Popover>
-                  )}
-                  {isUpdate ? (
-                    <Button.Group>
-                      <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
-                        {t("close")}
-                      </Button>
-                      <Dropdown
-                        droplist={
-                          <Menu>
-                            {!scriptInfo?.userSubscribe && (
-                              <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
-                                {t("close_update_script_no_more_update")}
-                              </Menu.Item>
-                            )}
-                          </Menu>
-                        }
-                        position="bottom"
-                      >
-                        <Button type="primary" status="danger" size="small" icon={<IconDown />} />
-                      </Dropdown>
-                    </Button.Group>
-                  ) : (
-                    <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
-                      {t("close")}
-                    </Button>
-                  )}
-                </Space>
-              </div>
-            </div>
           </div>
           {descriptionParagraph?.length ? (
             <div className="flex flex-col shrink-0 grow-1">
@@ -904,6 +840,70 @@ function App() {
                 ))}
               </div>
             ))}
+          </div>
+        </div>
+        <div className="flex flex-row flex-wrap items-center gap-2">
+          <div className="grow-1">
+            <Typography.Text type="error">{t("install_from_legitimate_sources_warning")}</Typography.Text>
+          </div>
+          <div className="grow-1 shrink-0 text-end">
+            <Space>
+              <Button.Group>
+                <Button type="primary" size="small" onClick={handleInstallBasic} disabled={watchFile}>
+                  {btnText}
+                </Button>
+                <Dropdown
+                  droplist={
+                    <Menu>
+                      <Menu.Item key="install-no-close" onClick={handleInstallCloseAfterInstall}>
+                        {isUpdate ? t("update_script_no_close") : t("install_script_no_close")}
+                      </Menu.Item>
+                      {!scriptInfo?.userSubscribe && (
+                        <Menu.Item key="install-no-updates" onClick={handleInstallNoMoreUpdates}>
+                          {isUpdate ? t("update_script_no_more_update") : t("install_script_no_more_update")}
+                        </Menu.Item>
+                      )}
+                    </Menu>
+                  }
+                  position="bottom"
+                  disabled={watchFile}
+                >
+                  <Button type="primary" size="small" icon={<IconDown />} disabled={watchFile} />
+                </Dropdown>
+              </Button.Group>
+              {localFileHandle && (
+                <Popover content={t("watch_file_description")}>
+                  <Button type="secondary" size="small" onClick={setWatchFileClick}>
+                    {watchFile ? t("stop_watch_file") : t("watch_file")}
+                  </Button>
+                </Popover>
+              )}
+              {isUpdate ? (
+                <Button.Group>
+                  <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
+                    {t("close")}
+                  </Button>
+                  <Dropdown
+                    droplist={
+                      <Menu>
+                        {!scriptInfo?.userSubscribe && (
+                          <Menu.Item key="install-no-updates" onClick={handleCloseNoMoreUpdates}>
+                            {t("close_update_script_no_more_update")}
+                          </Menu.Item>
+                        )}
+                      </Menu>
+                    }
+                    position="bottom"
+                  >
+                    <Button type="primary" status="danger" size="small" icon={<IconDown />} />
+                  </Dropdown>
+                </Button.Group>
+              ) : (
+                <Button type="primary" status="danger" size="small" onClick={handleCloseBasic}>
+                  {t("close")}
+                </Button>
+              )}
+            </Space>
           </div>
         </div>
         <div id="show-code-container">
