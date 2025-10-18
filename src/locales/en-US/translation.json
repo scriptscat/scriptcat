@@ -1,7 +1,7 @@
 {
   "import_link": "Link Import",
   "import_link_failure": "Link Import Failed",
-  "create_user_script": "Create User Script",
+  "create_user_script": "Create UserScript",
   "create_background_script": "Create Background Script",
   "create_scheduled_script": "Create Scheduled Script",
   "import_by_local": "Local Import",
