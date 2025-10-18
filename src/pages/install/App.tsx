@@ -73,6 +73,7 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   const response = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
+      // 参考：加权 Accept-Encoding 值说明
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding#weighted_accept-encoding_values
       "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1",
     },
@@ -89,23 +90,11 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
     throw new Error("Response is text/html, not a valid UserScript");
   }
 
-  const contentLength = +(response.headers.get("Content-Length") || 0);
-  if (contentLength < 30) {
-    throw new Error(`Content-Length ${contentLength} is too small for a valid UserScript`);
-  }
-
-  // 檢查 Content-Type 中的 charset
-  const contentType = response.headers.get("content-type") || "";
-  const charsetMatch = contentType.match(/charset=([^;]+)/i);
-  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
-
   const reader = response.body.getReader();
 
-  // Step 2: 合計の長さを取得します
-
-  // Step 3: データを読み込みます
-  let receivedLength = 0; // その時点の長さ
-  const chunks = []; // 受信したバイナリチャンクの配列(本文を構成します)
+  // 读取数据
+  let receivedLength = 0; // 当前已接收的长度
+  const chunks = []; // 已接收的二进制分片数组（用于组装正文）
   while (true) {
     const { done, value } = await reader.read();
 
@@ -115,22 +104,27 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
 
     chunks.push(value);
     receivedLength += value.length;
-    onProgress?.({ receivedLength, contentLength });
+    onProgress?.({ receivedLength });
   }
+
+  // 检查 Content-Type 中的 charset
+  const contentType = response.headers.get("content-type") || "";
+  const charsetMatch = contentType.match(/charset=([^;]+)/i);
+  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
 
   if (response.status !== 200) {
     throw new Error("fetch script info failed");
   }
 
-  // 合併 chunks
+  // 合并分片（chunks）
   const chunksAll = new Uint8Array(receivedLength); // (4.1)
   let position = 0;
   for (const chunk of chunks) {
     chunksAll.set(chunk, position); // (4.2)
     position += chunk.length;
   }
-  // 使用檢測到的 charset 解碼
 
+  // 使用检测到的 charset 解码
   let code;
   try {
     code = new TextDecoder(charset).decode(chunksAll);
@@ -659,7 +653,7 @@ function App() {
   const loadURLAsync = async (urlHref: string) => {
     try {
       const { code, metadata } = await fetchScriptBody(urlHref, {
-        onProgress: (info: { receivedLength: number; contentLength: number }) => {
+        onProgress: (info: { receivedLength: number }) => {
           setFetchingState((prev) => ({
             ...prev,
             loadingStatus: `Downloading. Received ${formatBytes(info.receivedLength)}.`,
