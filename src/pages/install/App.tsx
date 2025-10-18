@@ -820,7 +820,7 @@ function App() {
           )}
           <div className="flex flex-row flex-wrap gap-x-4">
             {permissions.map((item) => (
-              <div key={item.label} className="flex flex-col gap-y-2 pt-2 pb-2">
+              <div key={item.label} className="flex flex-col gap-y-2">
                 {item.value?.length > 0 ? (
                   <>
                     <Typography.Text bold color={item.color}>
