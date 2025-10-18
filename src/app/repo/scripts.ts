@@ -134,7 +134,7 @@ export class ScriptDAO extends Repo<Script> {
     });
   }
 
-  public findByNameAndNamespace(name: string, namespace?: string) {
+  public findByNameAndNamespace(name: string, namespace: string) {
     return this.findOne((key, value) => {
       return value.name === name && (!namespace || value.namespace === namespace);
     });
@@ -150,6 +150,99 @@ export class ScriptDAO extends Repo<Script> {
     return this.findOne((key, value) => {
       return value.origin === origin && value.subscribeUrl === suburl;
     });
+  }
+
+  public async searchExistingScript(targetScript: Script, toCheckScriptInfoEqual: boolean = true): Promise<Script[]> {
+    const removeScriptNameFromURL = (url: string) => {
+      // https://scriptcat.org/scripts/code/{id}/{scriptname}.user.js (单匹配)
+      if (url.startsWith("https://scriptcat.org/scripts/code/") && url.endsWith(".js")) {
+        const idx1 = url.indexOf("/", "https://scriptcat.org/scripts/code/".length);
+        const idx2 = url.indexOf("/", idx1 + 1);
+        if (idx1 > 0 && idx2 < 0) {
+          const idx3 = url.indexOf(".", idx1 + 1);
+          return url.substring(0, idx1 + 1) + "*" + url.substring(idx3);
+        }
+      }
+      // https://update.greasyfork.org/scripts/{id}/{scriptname}.user.js (单匹配)
+      if (url.startsWith("https://update.greasyfork.org/scripts/") && url.endsWith(".js")) {
+        const idx1 = url.indexOf("/", "https://update.greasyfork.org/scripts/".length);
+        const idx2 = url.indexOf("/", idx1 + 1);
+        if (idx1 > 0 && idx2 < 0) {
+          const idx3 = url.indexOf(".", idx1 + 1);
+          return url.substring(0, idx1 + 1) + "*" + url.substring(idx3);
+        }
+      }
+      // https://openuserjs.org/install/{username}/{scriptname}.user.js (复数匹配)
+      if (url.startsWith("https://openuserjs.org/install/") && url.endsWith(".js")) {
+        const idx1 = url.indexOf("/", "https://openuserjs.org/install/".length);
+        const idx2 = url.indexOf("/", idx1 + 1);
+        if (idx1 > 0 && idx2 < 0) {
+          const idx3 = url.indexOf(".", idx1 + 1);
+          return url.substring(0, idx1 + 1) + "*" + url.substring(idx3);
+        }
+      }
+      return url;
+    };
+    const valEqual = (val1: any, val2: any) => {
+      if (val1 && val2 && Array.isArray(val1) && Array.isArray(val2)) {
+        if (val1.length !== val2.length) return false;
+        if (val1.length < 2) {
+          return val1[0] === val2[0];
+        }
+        // 無視次序
+        const s = new Set([...val1, ...val2]);
+        if (s.size !== val1.length) return false;
+        return true;
+      }
+      return val1 === val2;
+    };
+    const isScriptInfoEqual = (script1: Script, script2: Script) => {
+      // @author, @copyright, @license 應該不會改
+      if (!valEqual(script1.metadata.author, script2.metadata.author)) return false;
+      if (!valEqual(script1.metadata.copyright, script2.metadata.copyright)) return false;
+      if (!valEqual(script1.metadata.license, script2.metadata.license)) return false;
+      // @grant, @connect 應該不會改
+      if (!valEqual(script1.metadata.grant, script2.metadata.grant)) return false;
+      if (!valEqual(script1.metadata.connect, script2.metadata.connect)) return false;
+      // @match @include 應該不會改
+      if (!valEqual(script1.metadata.match, script2.metadata.match)) return false;
+      if (!valEqual(script1.metadata.include, script2.metadata.include)) return false;
+      return true;
+    };
+
+    const { metadata, origin } = targetScript;
+
+    if (origin && !metadata?.updateurl?.[0] && !metadata?.downloadurl?.[0]) {
+      // scriptcat
+      const targetOrigin = removeScriptNameFromURL(origin);
+      return this.find((key, entry) => {
+        if (!entry.origin) return false;
+        const entryOrigin = removeScriptNameFromURL(entry.origin);
+        if (targetOrigin !== entryOrigin) return false;
+        if (toCheckScriptInfoEqual && !isScriptInfoEqual(targetScript, entry)) return false;
+        return true;
+      });
+    } else if (origin && (metadata?.updateurl?.[0] || metadata?.downloadurl?.[0])) {
+      // greasyfork
+
+      const targetOrigin = removeScriptNameFromURL(origin);
+      const targetUpdateURL = removeScriptNameFromURL(metadata?.updateurl?.[0] || "");
+      const targetDownloadURL = removeScriptNameFromURL(metadata?.downloadurl?.[0] || "");
+      return this.find((key, entry) => {
+        if (!entry.origin) return false;
+        const entryOrigin = removeScriptNameFromURL(entry.origin);
+        if (targetOrigin !== entryOrigin) return false;
+
+        const entryUpdateURL = removeScriptNameFromURL(entry.metadata?.updateurl?.[0] || "");
+        const entryDownloadURL = removeScriptNameFromURL(entry.metadata?.downloadurl?.[0] || "");
+
+        if (targetUpdateURL !== entryUpdateURL || targetDownloadURL !== entryDownloadURL) return false;
+        if (toCheckScriptInfoEqual && !isScriptInfoEqual(targetScript, entry)) return false;
+        return true;
+      });
+    } else {
+      return [];
+    }
   }
 }
 
