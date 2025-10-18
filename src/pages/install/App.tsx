@@ -360,7 +360,7 @@ function App() {
     }
 
     return permissions;
-  }, [scriptInfo, metadataLive]);
+  }, [scriptInfo, metadataLive, t]);
 
   const descriptionParagraph = useMemo(() => {
     const ret: JSX.Element[] = [];
@@ -391,7 +391,7 @@ function App() {
     }
 
     return ret;
-  }, [scriptInfo, metadataLive]);
+  }, [scriptInfo, metadataLive, t]);
 
   const antifeatures: { [key: string]: { color: string; title: string; description: string } } = {
     "referral-link": {
@@ -436,7 +436,7 @@ function App() {
     if (upsertScript) {
       document.title = `${!isUpdate ? t("install_script") : t("update_script")} - ${i18nName(upsertScript!)} - ScriptCat`;
     }
-  }, [isUpdate, scriptInfo, upsertScript]);
+  }, [isUpdate, scriptInfo, upsertScript, t]);
 
   // 设置脚本状态
   useEffect(() => {
