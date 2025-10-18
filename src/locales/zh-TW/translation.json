@@ -282,7 +282,8 @@
   "script_requires": "腳本引用了以下外部資源",
   "cookie_warning": "請注意，此腳本會要求 Cookie 的操作權限，這是一項危險的權限，請確認腳本的安全性。",
   "scheduled_script_description_title": "這是一個排程腳本，啟用後將在特定時間自動執行，並可在控制面板中手動控制。",
-  "scheduled_script_description_description": "排程任務表達式：{{expression}}，最近一次執行時間：{{time}}",
+  "scheduled_script_description_description_expr": "排程任務表達式：",
+  "scheduled_script_description_description_next": "最近一次執行時間：",
   "background_script_description": "這是一個背景腳本，啟用後將在瀏覽器開啟時自動執行一次，並可在控制面板中手動控制。",
   "install_success": "安裝成功",
   "install": {
@@ -322,6 +323,8 @@
     "status_autoclose": "$0 秒後自動關閉",
     "header_other_update": "其他可用更新"
   },
+  "install_page_loading": "安裝頁載入中",
+  "invalid_page": "無效頁面",
   "background_script_tag": "這是一個背景腳本",
   "scheduled_script_tag": "這是一個排程腳本",
   "background_script": "背景腳本",

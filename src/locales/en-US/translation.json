@@ -282,7 +282,8 @@
   "script_requires": "Script requires the following external resources",
   "cookie_warning": "Please note, this script requests access to Cookie permissions, which is a dangerous permission. Please verify the security of the script.",
   "scheduled_script_description_title": "This is a scheduled script, which will automatically run at a specific time once enabled and can be manually controlled in the panel.",
-  "scheduled_script_description_description": "Scheduled task expression: {{expression}}, most recent run time: {{time}}",
+  "scheduled_script_description_description_expr": "Scheduled task expression:",
+  "scheduled_script_description_description_next": "Most recent run time:",
   "background_script_description": "This is a background script, which will automatically run once when the browser opens once enabled, and can be manually controlled in the panel.",
   "install_success": "Install Successful",
   "install": {
@@ -322,6 +323,8 @@
     "status_autoclose": "Auto-closing in $0 seconds",
     "header_other_update": "Other available updates"
   },
+  "install_page_loading": "Installation page loading",
+  "invalid_page": "Invalid page",
   "background_script_tag": "This is a Background Script",
   "scheduled_script_tag": "This is a Scheduled Script",
   "background_script": "Background Script",

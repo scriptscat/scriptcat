@@ -2,15 +2,6 @@
 	background: var(--vscode-editorGutter-background);
 }
 
-:root {
-  --show-code-height: 100vh;
-	--show-code-height: min(calc(100vh), calc(40vh + 360px));     /* 可設為 400px */ /* 可設為 100vh */
-}
-
-.install-main-layout {
-	min-height: max-content;
-}
-
 #install-app-container {
 	display: flex;
 	flex-direction: column;
@@ -20,15 +11,15 @@
 
 #show-code-container {
 	display: block;
-	height: var(--show-code-height);
-	padding: 16px 0px;
+	height: 100%;
+	padding: 2px 2px;
 	position: relative;
 	box-sizing: border-box;
 	margin: 0;
 	border: 0;
 	flex-grow: 1;
-  flex-shrink: 0;
-  contain: strict;
+	flex-shrink: 0;
+	contain: strict;
 }
 
 #show-code {
@@ -42,4 +33,76 @@
 	box-sizing: border-box;
 	position: relative;
 	background: #071119;
+}
+
+.downloading {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	column-gap: 4px;
+	align-items: center;
+}
+
+.error-message {
+	color: red;
+}
+
+.error-message:empty {
+	display: none;
+}
+
+.error-message::before {
+	content: "ERROR: ";
+}
+
+/* https://css-loaders.com/dots/ */
+.loader {
+	width: 60px;
+	aspect-ratio: 2;
+	--_g: no-repeat radial-gradient(circle closest-side, currentColor 90%, rgba(0,0,0,0));
+	background: var(--_g) 0% 50%, var(--_g) 50% 50%, var(--_g) 100% 50%;
+	background-size: calc(100%/3) 50%;
+	animation: l3 1s infinite linear;
+	transform: scale(0.5);
+}
+
+@keyframes l3 {
+	20% {
+		background-position: 0% 0%, 50% 50%, 100% 50%
+	}
+
+	40% {
+		background-position: 0% 100%, 50% 0%, 100% 50%
+	}
+
+	60% {
+		background-position: 0% 50%, 50% 100%, 100% 0%
+	}
+
+	80% {
+		background-position: 0% 50%, 50% 50%, 100% 100%
+	}
+
+}
+
+#script-title-container {
+	position: sticky;
+	top: 0px;
+	background-color: var(--color-bg-2);
+}
+
+#script-title {
+	background-color: var(--color-fill-2);
+}
+
+.tag-container {
+	inline-size: min-content;
+	align-content: flex-start;
+	justify-items: flex-end;
+	justify-content: flex-end;
+}
+
+.tag-container .arco-tag {
+	flex-grow: 1;
+	text-align: center;
 }

@@ -282,7 +282,8 @@
   "script_requires": "crwdns8440:0crwdne8440:0",
   "cookie_warning": "crwdns8442:0crwdne8442:0",
   "scheduled_script_description_title": "crwdns8706:0crwdne8706:0",
-  "scheduled_script_description_description": "crwdns8708:0{{expression}}crwdnd8708:0{{time}}crwdne8708:0",
+  "scheduled_script_description_description_expr": "crwdns8708:0",
+  "scheduled_script_description_description_next": "crwdns8708:0",
   "background_script_description": "crwdns8444:0crwdne8444:0",
   "install_success": "crwdns8446:0crwdne8446:0",
   "install": {
@@ -322,6 +323,8 @@
     "status_autoclose": "crwdns12778:0crwdne12778:0",
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
+  "install_page_loading": "Installation page loading",
+  "invalid_page": "Invalid page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",
   "scheduled_script_tag": "crwdns8462:0crwdne8462:0",
   "background_script": "crwdns8464:0crwdne8464:0",
