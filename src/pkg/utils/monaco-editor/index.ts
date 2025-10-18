@@ -43,6 +43,7 @@ export default function registerEditor() {
     resource: "引入资源文件",
     require: "引入外部 js 文件",
     noframes: "表示脚本不运行在`<frame>`中",
+    compatible: "用于在 GreasyFork 中显示脚本的兼容性支持",
     "inject-into":
       "脚本注入环境<br>`content`：脚本注入到content环境<br>`page`：脚本注入到網頁环境（預設）<br>注：SC不支持以CSP判断是否需要脚本注入到content环境的`inject-into: auto`设计。",
     "early-start":
