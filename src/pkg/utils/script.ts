@@ -84,6 +84,7 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
+    byWebRequest?: boolean; // 是否通过網頁連結安裝或更新
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
   dao = dao ?? new ScriptDAO();
@@ -131,7 +132,7 @@ export async function prepareScriptByCode(
     uuid: newUUID,
     name: metadata.name[0],
     author: metadata.author && metadata.author[0],
-    namespace: metadata.namespace && metadata.namespace[0],
+    namespace: metadata.namespace[0], // 上面的代码已检查 meta.namespace, 不会为undefined
     originDomain: domain,
     origin,
     checkUpdate: true,
@@ -155,6 +156,24 @@ export async function prepareScriptByCode(
   }
   if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
+  }
+  if (!old && options?.byWebRequest) {
+    const test = await dao.searchExistingScript(script);
+    if (test.length === 1) {
+      const testCheckUrl = test[0]?.checkUpdateUrl;
+      if (testCheckUrl) {
+        // 尝试下载该脚本的url, 检查是否指向要求脚本
+        try {
+          const code = await fetchScriptBody(testCheckUrl);
+          const metadata = code ? parseMetadata(code) : null;
+          if (metadata && metadata.name![0] === script.name && (metadata.namespace?.[0] || "") === script.namespace) {
+            old = test[0];
+          }
+        } catch {
+          /* empty */
+        }
+      }
+    }
   }
   if (old) {
     if (

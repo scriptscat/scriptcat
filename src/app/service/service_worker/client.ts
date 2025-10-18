@@ -47,7 +47,7 @@ export class ScriptClient extends Client {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do<[boolean, ScriptInfo]>("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
   }
 
   install(script: Script, code: string, upsertBy: InstallSource = "user"): Promise<{ update: boolean }> {
