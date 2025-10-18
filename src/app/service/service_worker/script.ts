@@ -37,7 +37,6 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
-import { timeoutExecution } from "@App/pkg/utils/timer";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
@@ -50,8 +49,6 @@ import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 // import { gzip as pakoGzip } from "pako";
-
-const cIdKey = `(cid_${Math.random()})`;
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
