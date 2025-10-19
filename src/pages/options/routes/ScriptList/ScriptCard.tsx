@@ -5,7 +5,6 @@ import {
   Card,
   Divider,
   Input,
-  Message,
   Popconfirm,
   Space,
   Tag,
@@ -24,14 +23,7 @@ import {
 } from "react-icons/ri";
 import type { Script, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
-import {
-  requestDeleteScripts,
-  requestEnableScript,
-  requestRunScript,
-  requestStopScript,
-} from "@App/pages/store/features/script";
-import { ValueClient } from "@App/app/service/service_worker/client";
-import { message } from "@App/pages/store/global";
+import { requestEnableScript } from "@App/pages/store/features/script";
 import { nextTime } from "@App/pkg/utils/cron";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
@@ -54,10 +46,24 @@ interface ScriptCardItemProps {
   updateScripts: (uuids: string[], data: Partial<Script | ScriptLoading>) => void;
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
+  handleDelete: (item: ScriptLoading) => void;
+  handleConfig: (
+    item: ScriptLoading,
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+  ) => void;
+  handleRunStop: (item: ScriptLoading, t: any) => Promise<void>;
 }
 
 export const ScriptCardItem = React.memo(
-  ({ item, updateScripts, setUserConfig, setCloudScript }: ScriptCardItemProps) => {
+  ({
+    item,
+    updateScripts,
+    setUserConfig,
+    setCloudScript,
+    handleDelete,
+    handleConfig,
+    handleRunStop,
+  }: ScriptCardItemProps) => {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
       id: item.uuid,
     });
@@ -91,55 +97,6 @@ export const ScriptCardItem = React.memo(
         originalLen: fav1?.length ?? 0,
       };
     }, [item.favorite]);
-
-    const { handleDelete, handleConfig, handleRunStop, handleCloud } = {
-      handleDelete: () => {
-        const { uuid } = item;
-        updateScripts([uuid], { actionLoading: true });
-        requestDeleteScripts([item.uuid]);
-      },
-      handleConfig: () => {
-        new ValueClient(message).getScriptValue(item).then((newValues) => {
-          setUserConfig({
-            userConfig: { ...item.config! },
-            script: item,
-            values: newValues,
-          });
-        });
-      },
-      handleRunStop: async () => {
-        if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-          Message.loading({
-            id: "script-stop",
-            content: t("stopping_script"),
-          });
-          updateScripts([item.uuid], { actionLoading: true });
-          await requestStopScript(item.uuid);
-          updateScripts([item.uuid], { actionLoading: false });
-          Message.success({
-            id: "script-stop",
-            content: t("script_stopped"),
-            duration: 3000,
-          });
-        } else {
-          Message.loading({
-            id: "script-run",
-            content: t("starting_script"),
-          });
-          updateScripts([item.uuid], { actionLoading: true });
-          await requestRunScript(item.uuid);
-          updateScripts([item.uuid], { actionLoading: false });
-          Message.success({
-            id: "script-run",
-            content: t("script_started"),
-            duration: 3000,
-          });
-        }
-      },
-      handleCloud: () => {
-        setCloudScript(item);
-      },
-    };
 
     const { toLogger } = {
       toLogger: () =>
@@ -308,7 +265,7 @@ export const ScriptCardItem = React.memo(
                     icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
                     loading={item.actionLoading}
                     size="mini"
-                    onClick={handleRunStop}
+                    onClick={() => handleRunStop(item, t)}
                   >
                     {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("stop") : t("run")}
                   </Button>
@@ -322,16 +279,30 @@ export const ScriptCardItem = React.memo(
                     </Button>
                   </Link>
                   {item.config && (
-                    <Button type="outline" icon={<RiSettings3Fill />} size="mini" onClick={handleConfig}>
+                    <Button
+                      type="outline"
+                      icon={<RiSettings3Fill />}
+                      size="mini"
+                      onClick={() => handleConfig(item, setUserConfig)}
+                    >
                       {t("config")}
                     </Button>
                   )}
                   {item.metadata.cloudcat && (
-                    <Button type="outline" icon={<RiUploadCloudFill />} size="mini" onClick={handleCloud}>
+                    <Button
+                      type="outline"
+                      icon={<RiUploadCloudFill />}
+                      size="mini"
+                      onClick={() => setCloudScript(item)}
+                    >
                       {t("cloud")}
                     </Button>
                   )}
-                  <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={handleDelete}>
+                  <Popconfirm
+                    title={t("confirm_delete_script")}
+                    icon={<RiDeleteBin5Fill />}
+                    onOk={() => handleDelete(item)}
+                  >
                     <Button
                       type="outline"
                       status="danger"
@@ -367,6 +338,12 @@ interface ScriptCardProps {
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
   setSearchKeyword: (keyword: string) => void;
+  handleDelete: (item: ScriptLoading) => void;
+  handleConfig: (
+    item: ScriptLoading,
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+  ) => void;
+  handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
 export const ScriptCard = ({
@@ -380,6 +357,9 @@ export const ScriptCard = ({
   setUserConfig,
   setCloudScript,
   setSearchKeyword,
+  handleDelete,
+  handleConfig,
+  handleRunStop,
 }: ScriptCardProps) => {
   const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
@@ -507,6 +487,9 @@ export const ScriptCard = ({
                     updateScripts={updateScripts}
                     setUserConfig={setUserConfig}
                     setCloudScript={setCloudScript}
+                    handleDelete={handleDelete}
+                    handleConfig={handleConfig}
+                    handleRunStop={handleRunStop}
                   />
                 ))}
               </SortableContext>

@@ -30,6 +30,9 @@ function ScriptList() {
     setSearchKeyword,
     sidebarOpen,
     setSidebarOpen,
+    handleDelete,
+    handleConfig,
+    handleRunStop,
   } = useScriptSearch();
 
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
@@ -97,6 +100,9 @@ function ScriptList() {
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
                 setSearchKeyword={setSearchKeyword}
+                handleDelete={handleDelete}
+                handleConfig={handleConfig}
+                handleRunStop={handleRunStop}
               />
             ) : (
               <ScriptCard
@@ -110,6 +116,9 @@ function ScriptList() {
                 setUserConfig={setUserConfig}
                 setCloudScript={setCloudScript}
                 setSearchKeyword={setSearchKeyword}
+                handleDelete={handleDelete}
+                handleConfig={handleConfig}
+                handleRunStop={handleRunStop}
               />
             )}
           </div>

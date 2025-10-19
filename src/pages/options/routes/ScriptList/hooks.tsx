@@ -1,4 +1,4 @@
-import type { Script } from "@App/app/repo/scripts";
+import type { Script, UserConfig } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
@@ -17,7 +17,15 @@ import type {
 } from "@App/app/service/queue";
 import { useAppContext } from "@App/pages/store/AppContext";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { fetchScript, fetchScriptList, requestFilterResult, sortScript } from "@App/pages/store/features/script";
+import {
+  fetchScript,
+  fetchScriptList,
+  requestFilterResult,
+  sortScript,
+  requestDeleteScripts,
+  requestRunScript,
+  requestStopScript,
+} from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/utils";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useEffect, useMemo, useState } from "react";
@@ -35,11 +43,14 @@ import {
   IconLink,
 } from "@arco-design/web-react/icon";
 import { useTranslation } from "react-i18next";
+import { ValueClient } from "@App/app/service/service_worker/client";
+import { message } from "@App/pages/store/global";
+import { Message } from "@arco-design/web-react";
 
 export function useScriptList() {
+  const { t } = useTranslation();
   const { subscribeMessage } = useAppContext();
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
-  const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(true);
 
   // 初始化数据
@@ -189,14 +200,6 @@ export function useScriptList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 同步 filterScriptList 与 scriptList
-  useEffect(() => {
-    // 如果没有搜索或筛选，直接使用 scriptList
-    // if (!searchValue && filterCache.size === 0) {
-    setFilterScriptList(scriptList);
-    // }
-  }, [scriptList]);
-
   const updateScripts = (uuids: string[], data: Partial<Script | ScriptLoading>) => {
     const set = new Set(uuids);
     setScriptList((list) => {
@@ -239,14 +242,68 @@ export function useScriptList() {
     sortScript({ active, over });
   };
 
+  // 删除脚本操作
+  const handleDelete = (item: ScriptLoading) => {
+    const { uuid } = item;
+    updateScripts([uuid], { actionLoading: true });
+    requestDeleteScripts([uuid]);
+  };
+
+  // 配置脚本操作
+  const handleConfig = (
+    item: ScriptLoading,
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+  ) => {
+    new ValueClient(message).getScriptValue(item).then((newValues) => {
+      setUserConfig({
+        userConfig: { ...item.config! },
+        script: item,
+        values: newValues,
+      });
+    });
+  };
+
+  // 运行/停止脚本操作
+  const handleRunStop = async (item: ScriptLoading) => {
+    if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
+      Message.loading({
+        id: "script-stop",
+        content: t("stopping_script"),
+      });
+      updateScripts([item.uuid], { actionLoading: true });
+      await requestStopScript(item.uuid);
+      updateScripts([item.uuid], { actionLoading: false });
+      Message.success({
+        id: "script-stop",
+        content: t("script_stopped"),
+        duration: 3000,
+      });
+    } else {
+      Message.loading({
+        id: "script-run",
+        content: t("starting_script"),
+      });
+      updateScripts([item.uuid], { actionLoading: true });
+      await requestRunScript(item.uuid);
+      updateScripts([item.uuid], { actionLoading: false });
+      Message.success({
+        id: "script-run",
+        content: t("script_started"),
+        duration: 3000,
+      });
+    }
+  };
+
   return {
     loadingList,
     scriptList,
-    filterScriptList,
-    setFilterScriptList,
     setScriptList,
     updateScripts,
     scriptListSortOrder,
+    // 操作函数
+    handleDelete,
+    handleConfig,
+    handleRunStop,
   };
 }
 

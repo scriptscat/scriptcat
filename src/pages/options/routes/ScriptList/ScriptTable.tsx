@@ -52,20 +52,11 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 import { nextTime } from "@App/pkg/utils/cron";
-import { message, systemConfig } from "@App/pages/store/global";
+import { systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import {
-  requestEnableScript,
-  requestDeleteScripts,
-  pinToTop,
-  requestStopScript,
-  requestRunScript,
-  scriptClient,
-  synchronizeClient,
-} from "@App/pages/store/features/script";
-import { ValueClient } from "@App/app/service/service_worker/client";
+import { requestEnableScript, pinToTop, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
 import { type TFunction } from "i18next";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
@@ -303,67 +294,24 @@ ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
 const ActionCell = React.memo(
   ({
     item,
-    updateScripts,
     setUserConfig,
     setCloudScript,
     t,
+    handleDelete,
+    handleConfig,
+    handleRunStop,
   }: {
     item: ScriptLoading;
-    updateScripts: any;
     setUserConfig: any;
     setCloudScript: any;
     t: any;
+    handleDelete: (item: ScriptLoading) => void;
+    handleConfig: (
+      item: ScriptLoading,
+      setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+    ) => void;
+    handleRunStop: (item: ScriptLoading, t: any) => Promise<void>;
   }) => {
-    const { handleDelete, handleConfig, handleRunStop, handleCloud } = {
-      handleDelete: () => {
-        const { uuid } = item;
-        updateScripts([uuid], { actionLoading: true });
-        requestDeleteScripts([item.uuid]);
-      },
-      handleConfig: () => {
-        new ValueClient(message).getScriptValue(item).then((newValues) => {
-          setUserConfig({
-            userConfig: { ...item.config! },
-            script: item,
-            values: newValues,
-          });
-        });
-      },
-      handleRunStop: async () => {
-        if (item.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
-          // Stop script
-          Message.loading({
-            id: "script-stop",
-            content: t("stopping_script"),
-          });
-          updateScripts([item.uuid], { actionLoading: true });
-          await requestStopScript(item.uuid);
-          updateScripts([item.uuid], { actionLoading: false });
-          Message.success({
-            id: "script-stop",
-            content: t("script_stopped"),
-            duration: 3000,
-          });
-        } else {
-          Message.loading({
-            id: "script-run",
-            content: t("starting_script"),
-          });
-          updateScripts([item.uuid], { actionLoading: true });
-          await requestRunScript(item.uuid);
-          updateScripts([item.uuid], { actionLoading: false });
-          Message.success({
-            id: "script-run",
-            content: t("script_started"),
-            duration: 3000,
-          });
-        }
-      },
-      handleCloud: () => {
-        setCloudScript(item);
-      },
-    };
-
     return (
       <Button.Group>
         <Link to={`/script/editor/${item.uuid}`}>
@@ -375,7 +323,7 @@ const ActionCell = React.memo(
             }}
           />
         </Link>
-        <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={handleDelete}>
+        <Popconfirm title={t("confirm_delete_script")} icon={<RiDeleteBin5Fill />} onOk={() => handleDelete(item)}>
           <Button
             type="text"
             icon={<RiDeleteBin5Fill />}
@@ -389,7 +337,7 @@ const ActionCell = React.memo(
           <Button
             type="text"
             icon={<RiSettings3Fill />}
-            onClick={handleConfig}
+            onClick={() => handleConfig(item, setUserConfig)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -400,7 +348,7 @@ const ActionCell = React.memo(
             type="text"
             icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
             loading={item.actionLoading}
-            onClick={handleRunStop}
+            onClick={() => handleRunStop(item, t)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -410,7 +358,7 @@ const ActionCell = React.memo(
           <Button
             type="text"
             icon={<RiUploadCloudFill />}
-            onClick={handleCloud}
+            onClick={() => setCloudScript(item, setCloudScript)}
             style={{
               color: "var(--color-text-2)",
             }}
@@ -513,6 +461,12 @@ interface ScriptTableProps {
   setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void;
   setCloudScript: (script: Script) => void;
   setSearchKeyword: (keyword: string) => void;
+  handleDelete: (item: ScriptLoading) => void;
+  handleConfig: (
+    item: ScriptLoading,
+    setUserConfig: (config: { script: Script; userConfig: UserConfig; values: { [key: string]: any } }) => void
+  ) => void;
+  handleRunStop: (item: ScriptLoading) => Promise<void>;
 }
 
 export const ScriptTable = ({
@@ -526,6 +480,9 @@ export const ScriptTable = ({
   setUserConfig,
   setCloudScript,
   setSearchKeyword,
+  handleDelete,
+  handleConfig,
+  handleRunStop,
 }: ScriptTableProps) => {
   const { t } = useTranslation();
   const [showAction, setShowAction] = useState(false);
@@ -684,10 +641,12 @@ export const ScriptTable = ({
           render: (col: any, item: ScriptLoading) => (
             <ActionCell
               item={item}
-              updateScripts={updateScripts}
               setUserConfig={setUserConfig}
               setCloudScript={setCloudScript}
               t={t}
+              handleDelete={handleDelete}
+              handleConfig={handleConfig}
+              handleRunStop={handleRunStop}
             />
           ),
         },
@@ -702,6 +661,9 @@ export const ScriptTable = ({
       setViewMode,
       setUserConfig,
       setCloudScript,
+      handleDelete,
+      handleConfig,
+      handleRunStop,
     ]
   );
 
