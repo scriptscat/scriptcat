@@ -269,9 +269,14 @@ export function useScriptSearch() {
     source: "all",
   });
   const [searchKeyword, setSearchKeyword] = useState<string>("");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
 
   // 计算数据量
   const { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap } = useMemo(() => {
+    // 侧边栏关闭时不计算
+    if (!sidebarOpen) {
+      return { statusItems: [], typeItems: [], tagItems: [], sourceItems: [], tagMap: {}, originMap: {} };
+    }
     // 状态过滤选项
     const statusItems: FilterItem[] = [
       {
@@ -418,7 +423,7 @@ export function useScriptSearch() {
       })
     );
     return { statusItems, typeItems, tagItems, sourceItems, tagMap, originMap };
-  }, [scriptList, t]);
+  }, [scriptList, sidebarOpen, t]);
 
   useEffect(() => {
     const filterFuncs: Array<(script: Script) => boolean> = [];
@@ -551,5 +556,7 @@ export function useScriptSearch() {
       tagItems,
       sourceItems,
     },
+    sidebarOpen,
+    setSidebarOpen,
   };
 }

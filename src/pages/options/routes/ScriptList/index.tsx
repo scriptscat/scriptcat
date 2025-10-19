@@ -9,7 +9,7 @@ import ScriptListSidebar from "./Sidebar";
 import ScriptCard from "./ScriptCard";
 import { message } from "@App/pages/store/global";
 import { ValueClient } from "@App/app/service/service_worker/client";
-import ScriptTable from "./ScriptTabel";
+import ScriptTable from "./ScriptTable";
 import { useScriptSearch } from "./hooks";
 
 function ScriptList() {
@@ -28,10 +28,11 @@ function ScriptList() {
     selectedFilters,
     setSelectedFilters,
     setSearchKeyword,
+    sidebarOpen,
+    setSidebarOpen,
   } = useScriptSearch();
 
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
   const [viewMode, setViewMode] = useState<"table" | "card">(() => {
     // 根据屏幕宽度选择默认视图模式
     const viewMode = localStorage.getItem("script-list-view-mode");

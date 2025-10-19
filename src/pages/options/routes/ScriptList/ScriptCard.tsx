@@ -33,7 +33,6 @@ import {
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { nextTime } from "@App/pkg/utils/cron";
-// semTime is unused here
 import { i18nName } from "@App/locales/locales";
 import { hashColor, ScriptIcons } from "../utils";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";

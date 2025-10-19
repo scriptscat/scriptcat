@@ -150,7 +150,7 @@ export function ListHomeRender({ script }: { script: Script }) {
     return null;
   }
 
-  return <Space size="mini">{item.map((i) => i)}</Space>;
+  return <Space size="mini">{item}</Space>;
 }
 
 export type ScriptIconsProps = {
