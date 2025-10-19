@@ -178,23 +178,22 @@ export async function checkUserScriptsAvailable() {
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
     const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
-      ids: ["scriptcat-content"],
+      ids: ["scriptcat-content", "undefined-id-3"],
     });
-    // 返回一个阵列的话表示API可使用 （但API内部处理未必有给予扩充权限）
-    if (ret !== undefined && ret !== null && typeof ret[Symbol.iterator] === "function") {
-      //
-    } else {
+    // 返回结果不是阵列的话表示API不可使用
+    if (ret === undefined || ret === null || typeof ret[Symbol.iterator] !== "function") {
       return false;
     }
 
-    const scripts = ret as chrome.userScripts.RegisteredUserScript[];
-    if (scripts.length > 0) {
-      // API内部处理实际给予扩充权限才会有返回
+    if (ret[0]) {
+      // API内部处理实际给予扩充权限才会有返回Script
+      // 含有 "scriptcat-content" 或 "undefined-id-3"
       return true;
     } else {
-      // Chrome MV3 的一部份浏览器没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩充权限)
-      // 处理 Vivaldi 兼容
-      // Vivaldi 会无法注册 (1. register 报错)
+      // 没有 "scriptcat-content" 和 "undefined-id-3"
+      // 进行 "undefined-id-3" 的注册反注册测试
+      // Chrome MV3 的一部份浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩充权限)
+      // 此时会无法注册 (1. register 报错)
       await chrome.userScripts.register([
         {
           id: "undefined-id-3",
@@ -203,7 +202,7 @@ export async function checkUserScriptsAvailable() {
           world: "USER_SCRIPT",
         },
       ]);
-      // 清掉测试内容 (2. 如没有注入undefined-id-3成功，unregister 报错)
+      // 清掉测试内容 (2. 如没有注入 undefined-id-3 成功，因脚本id不存在 unregister 报错)
       await chrome.userScripts.unregister({ ids: ["undefined-id-3"] });
       return true;
     }
