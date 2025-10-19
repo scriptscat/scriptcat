@@ -40,32 +40,39 @@ export function useScriptList() {
   const { subscribeMessage } = useAppContext();
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
+  const [loadingList, setLoadingList] = useState<boolean>(true);
 
   // 初始化数据
   useEffect(() => {
     let mounted = true;
-    fetchScriptList().then(async (list) => {
-      if (!mounted) return;
-      setScriptList(list);
-      for await (const { chunkResults } of loadScriptFavicons(list)) {
+    setLoadingList(true);
+    fetchScriptList()
+      .then(async (list) => {
         if (!mounted) return;
-        setScriptList((list) => {
-          const scriptMap = new Map<string, ScriptLoading>();
-          for (const s of list) {
-            scriptMap.set(s.uuid, s);
-          }
-          const altered = new Set();
-          for (const item of chunkResults) {
-            const script = scriptMap.get(item.uuid);
-            if (script) {
-              altered.add(item.uuid);
-              script.favorite = item.fav;
+        setScriptList(list);
+        for await (const { chunkResults } of loadScriptFavicons(list)) {
+          if (!mounted) return;
+          setScriptList((list) => {
+            const scriptMap = new Map<string, ScriptLoading>();
+            for (const s of list) {
+              scriptMap.set(s.uuid, s);
             }
-          }
-          return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
-        });
-      }
-    });
+            const altered = new Set();
+            for (const item of chunkResults) {
+              const script = scriptMap.get(item.uuid);
+              if (script) {
+                altered.add(item.uuid);
+                script.favorite = item.fav;
+              }
+            }
+            return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+          });
+        }
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoadingList(false);
+      });
     return () => {
       mounted = false;
     };
@@ -233,6 +240,7 @@ export function useScriptList() {
   };
 
   return {
+    loadingList,
     scriptList,
     filterScriptList,
     setFilterScriptList,

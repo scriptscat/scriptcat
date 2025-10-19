@@ -1,10 +1,14 @@
 import type { SCRIPT_STATUS } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
-import type { ScriptLoading } from "@App/pages/store/features/script";
-import { Avatar, Button, Space, Switch, Tag, Tooltip } from "@arco-design/web-react";
-import type { TFunction } from "i18next";
+import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
+import { Avatar, Message, Switch, Tag, Tooltip } from "@arco-design/web-react";
 import React from "react";
+import Text from "@arco-design/web-react/es/Typography/text";
 import { TbWorldWww } from "react-icons/tb";
+import { semTime } from "@App/pkg/utils/dayjs";
+import { useTranslation } from "react-i18next";
+import { ListHomeRender } from "../utils";
+import { IconEdit, IconLink, IconUserAdd } from "@arco-design/web-react/icon";
 
 export const EnableSwitch = React.memo(
   ({
@@ -51,9 +55,8 @@ export const MemoizedAvatar = React.memo(
 );
 MemoizedAvatar.displayName = "MemoizedAvatar";
 
-// SourceCell component
 export const SourceCell = React.memo(
-  ({ item, t }: { item: ScriptLoading; t: TFunction }) => {
+  ({ item, t }: { item: ScriptLoading; t: any }) => {
     if (item.subscribeUrl) {
       return (
         <Tooltip
@@ -63,7 +66,14 @@ export const SourceCell = React.memo(
             >{`${t("source_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
           }
         >
-          <Tag color="orange" bordered style={{ cursor: "pointer" }}>
+          <Tag
+            icon={<IconLink />}
+            color="orange"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+          >
             {t("source_subscribe_link")}
           </Tag>
         </Tooltip>
@@ -72,7 +82,14 @@ export const SourceCell = React.memo(
     if (!item.origin) {
       return (
         <Tooltip content={<p style={{ margin: 0, padding: 0 }}>{`${t("by_manual_creation")}`}</p>}>
-          <Tag color="purple" bordered style={{ cursor: "pointer" }}>
+          <Tag
+            icon={<IconEdit />}
+            color="purple"
+            bordered
+            style={{
+              cursor: "pointer",
+            }}
+          >
             {t("source_local_script")}
           </Tag>
         </Tooltip>
@@ -84,7 +101,14 @@ export const SourceCell = React.memo(
           <p style={{ margin: 0, padding: 0 }}>{`${t("source_script_link")}: ${decodeURIComponent(item.origin)}`}</p>
         }
       >
-        <Tag color="green" bordered style={{ cursor: "pointer" }}>
+        <Tag
+          icon={<IconUserAdd color="" />}
+          color="green"
+          bordered
+          style={{
+            cursor: "pointer",
+          }}
+        >
           {t("source_script_link")}
         </Tag>
       </Tooltip>
@@ -98,28 +122,59 @@ export const SourceCell = React.memo(
 );
 SourceCell.displayName = "SourceCell";
 
-// HomeCell component
 export const HomeCell = React.memo(({ item }: { item: ScriptLoading }) => {
-  const homepage = item.metadata.homepage?.[0];
-  const supportUrl = item.metadata.supportUrl?.[0];
-
-  if (!homepage && !supportUrl) {
-    return null;
-  }
-
-  return (
-    <Space size={8}>
-      {homepage && (
-        <Button type="text" size="mini" onClick={() => window.open(homepage, "_blank")} style={{ padding: "0 4px" }}>
-          {"主页"}
-        </Button>
-      )}
-      {supportUrl && (
-        <Button type="text" size="mini" onClick={() => window.open(supportUrl, "_blank")} style={{ padding: "0 4px" }}>
-          {"反馈"}
-        </Button>
-      )}
-    </Space>
-  );
+  return <ListHomeRender script={item} />;
 });
 HomeCell.displayName = "HomeCell";
+
+export const UpdateTimeCell = React.memo(({ className, script }: { className?: string; script: ScriptLoading }) => {
+  const { t } = useTranslation();
+  const { handleClick } = {
+    handleClick: () => {
+      if (!script.checkUpdateUrl) {
+        Message.warning(t("update_not_supported")!);
+        return;
+      }
+      Message.info({
+        id: "checkupdate",
+        content: t("checking_for_updates"),
+      });
+      scriptClient
+        .requestCheckUpdate(script.uuid)
+        .then((res) => {
+          if (res) {
+            Message.warning({
+              id: "checkupdate",
+              content: t("new_version_available"),
+            });
+          } else {
+            Message.success({
+              id: "checkupdate",
+              content: t("latest_version"),
+            });
+          }
+        })
+        .catch((e) => {
+          Message.error({
+            id: "checkupdate",
+            content: `${t("update_check_failed")}: ${e.message}`,
+          });
+        });
+    },
+  };
+
+  return (
+    <Tooltip content={t("check_update")} position="tl">
+      <Text
+        className={className}
+        style={{
+          cursor: "pointer",
+        }}
+        onClick={handleClick}
+      >
+        {script.updatetime && semTime(new Date(script.updatetime))}
+      </Text>
+    </Tooltip>
+  );
+});
+UpdateTimeCell.displayName = "UpdateTimeCell";

@@ -83,9 +83,6 @@ h6.arco-typography {
   }
 
   /* 卡片视图样式 */
-  .script-card {
-    height: 100%;
-  }
 
   .script-card:hover {
     transform: translateY(-2px);

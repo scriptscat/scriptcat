@@ -28,14 +28,7 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
-import {
-  IconClockCircle,
-  IconDragDotVertical,
-  IconEdit,
-  IconLink,
-  IconSearch,
-  IconUserAdd,
-} from "@arco-design/web-react/icon";
+import { IconClockCircle, IconDragDotVertical, IconSearch } from "@arco-design/web-react/icon";
 import {
   RiDeleteBin5Fill,
   RiPencilFill,
@@ -59,10 +52,9 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 import { nextTime } from "@App/pkg/utils/cron";
-import { semTime } from "@App/pkg/utils/dayjs";
 import { message, systemConfig } from "@App/pages/store/global";
 import { i18nName } from "@App/locales/locales";
-import { hashColor, ListHomeRender, ScriptIcons } from "../utils";
+import { hashColor, ScriptIcons } from "../utils";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import {
   requestEnableScript,
@@ -77,7 +69,7 @@ import { ValueClient } from "@App/app/service/service_worker/client";
 import { type TFunction } from "i18next";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import { parseTags } from "@App/app/repo/metadata";
-import { EnableSwitch, MemoizedAvatar } from "./components";
+import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell, UpdateTimeCell } from "./components";
 
 type ListType = ScriptLoading;
 
@@ -308,128 +300,6 @@ const ApplyToRunStatusCell = React.memo(({ item, navigate, t }: { item: ListType
 });
 ApplyToRunStatusCell.displayName = "ApplyToRunStatusCell";
 
-const SourceCell = React.memo(
-  ({ item, t }: { item: ListType; t: any }) => {
-    if (item.subscribeUrl) {
-      return (
-        <Tooltip
-          content={
-            <p
-              style={{ margin: 0, padding: 0 }}
-            >{`${t("source_subscribe_link")}: ${decodeURIComponent(item.subscribeUrl)}`}</p>
-          }
-        >
-          <Tag
-            icon={<IconLink />}
-            color="orange"
-            bordered
-            style={{
-              cursor: "pointer",
-            }}
-          >
-            {t("source_subscribe_link")}
-          </Tag>
-        </Tooltip>
-      );
-    }
-    if (!item.origin) {
-      return (
-        <Tooltip content={<p style={{ margin: 0, padding: 0 }}>{`${t("by_manual_creation")}`}</p>}>
-          <Tag
-            icon={<IconEdit />}
-            color="purple"
-            bordered
-            style={{
-              cursor: "pointer",
-            }}
-          >
-            {t("source_local_script")}
-          </Tag>
-        </Tooltip>
-      );
-    }
-    return (
-      <Tooltip
-        content={
-          <p style={{ margin: 0, padding: 0 }}>{`${t("source_script_link")}: ${decodeURIComponent(item.origin)}`}</p>
-        }
-      >
-        <Tag
-          icon={<IconUserAdd color="" />}
-          color="green"
-          bordered
-          style={{
-            cursor: "pointer",
-          }}
-        >
-          {t("source_script_link")}
-        </Tag>
-      </Tooltip>
-    );
-  },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.item.subscribeUrl === nextProps.item.subscribeUrl && prevProps.item.origin === nextProps.item.origin
-    );
-  }
-);
-SourceCell.displayName = "SourceCell";
-
-const HomeCell = React.memo(({ item }: { item: ListType }) => {
-  return <ListHomeRender script={item} />;
-});
-HomeCell.displayName = "HomeCell";
-
-const UpdateTimeCell = React.memo(({ col, script, t }: { col: number; script: ListType; t: any }) => {
-  const { handleClick } = {
-    handleClick: () => {
-      if (!script.checkUpdateUrl) {
-        Message.warning(t("update_not_supported")!);
-        return;
-      }
-      Message.info({
-        id: "checkupdate",
-        content: t("checking_for_updates"),
-      });
-      scriptClient
-        .requestCheckUpdate(script.uuid)
-        .then((res) => {
-          if (res) {
-            Message.warning({
-              id: "checkupdate",
-              content: t("new_version_available"),
-            });
-          } else {
-            Message.success({
-              id: "checkupdate",
-              content: t("latest_version"),
-            });
-          }
-        })
-        .catch((e) => {
-          Message.error({
-            id: "checkupdate",
-            content: `${t("update_check_failed")}: ${e.message}`,
-          });
-        });
-    },
-  };
-
-  return (
-    <Tooltip content={t("check_update")} position="tl">
-      <Text
-        style={{
-          cursor: "pointer",
-        }}
-        onClick={handleClick}
-      >
-        {semTime(new Date(col))}
-      </Text>
-    </Tooltip>
-  );
-});
-UpdateTimeCell.displayName = "UpdateTimeCell";
-
 const ActionCell = React.memo(
   ({
     item,
@@ -633,6 +503,7 @@ const VersionCell = React.memo(({ item }: { item: ListType }) => {
 VersionCell.displayName = "VersionCell";
 
 interface ScriptTableProps {
+  loadingList: boolean;
   scriptList: ScriptLoading[];
   scriptListSortOrder: (params: { active: string; over: string }) => void;
   sidebarOpen: boolean;
@@ -645,6 +516,7 @@ interface ScriptTableProps {
 }
 
 export const ScriptTable = ({
+  loadingList,
   scriptList,
   scriptListSortOrder,
   sidebarOpen,
@@ -763,7 +635,7 @@ export const ScriptTable = ({
           key: "updatetime",
           width: t("script_list_last_updated_width"),
           sorter: (a, b) => a.updatetime - b.updatetime,
-          render: (col: number, script: ListType) => <UpdateTimeCell col={col} script={script} t={t} />,
+          render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
         },
         {
           title: (
@@ -1199,6 +1071,7 @@ export const ScriptTable = ({
         columns={dealColumns}
         data={scriptList}
         pagination={false}
+        loading={loadingList}
         style={
           {
             // minWidth: "1200px",

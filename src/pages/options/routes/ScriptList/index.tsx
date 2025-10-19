@@ -20,6 +20,7 @@ function ScriptList() {
   }>();
   const [cloudScript, setCloudScript] = useState<Script>();
   const {
+    loadingList,
     filterScriptList,
     scriptListSortOrder,
     updateScripts,
@@ -78,6 +79,7 @@ function ScriptList() {
           <div className="flex-1">
             {viewMode === "table" ? (
               <ScriptTable
+                loadingList={loadingList}
                 scriptList={filterScriptList}
                 scriptListSortOrder={scriptListSortOrder}
                 updateScripts={updateScripts}
@@ -90,6 +92,7 @@ function ScriptList() {
               />
             ) : (
               <ScriptCard
+                loadingList={loadingList}
                 scriptList={filterScriptList}
                 scriptListSortOrder={scriptListSortOrder}
                 updateScripts={updateScripts}
