@@ -117,10 +117,10 @@ const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any
   }
 
   // 合并分片（chunks）
-  const chunksAll = new Uint8Array(receivedLength); // (4.1)
+  const chunksAll = new Uint8Array(receivedLength);
   let position = 0;
   for (const chunk of chunks) {
-    chunksAll.set(chunk, position); // (4.2)
+    chunksAll.set(chunk, position);
     position += chunk.length;
   }
 
