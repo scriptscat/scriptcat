@@ -83,7 +83,6 @@ h6.arco-typography {
   }
 
   /* 卡片视图样式 */
-
   .script-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -92,4 +91,21 @@ h6.arco-typography {
   .script-card .arco-card-body {
     padding: 16px !important;
   }
+
+  .script-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  }
+
+  @media (max-width: 960px) {
+    .script-card-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .script-card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
 }

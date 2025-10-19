@@ -32,9 +32,16 @@ function ScriptList() {
 
   const openUserConfig = useSearchParams()[0].get("userConfig") || "";
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => localStorage.getItem("script-list-sidebar") === "1");
-  const [viewMode, setViewMode] = useState<"table" | "card">(
-    () => (localStorage.getItem("script-list-view-mode") as "table" | "card") || "table"
-  );
+  const [viewMode, setViewMode] = useState<"table" | "card">(() => {
+    // 根据屏幕宽度选择默认视图模式
+    const viewMode = localStorage.getItem("script-list-view-mode");
+    if (viewMode === "table" || viewMode === "card") {
+      return viewMode;
+    }
+    const width = window.screen.width;
+    if (width < 1280) return "card";
+    return "table";
+  });
 
   // 设置列和判断是否打开用户配置
   useEffect(() => {

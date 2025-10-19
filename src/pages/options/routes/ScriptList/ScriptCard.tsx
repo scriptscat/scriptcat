@@ -299,7 +299,7 @@ export const ScriptCardItem = React.memo(
             </div>
           </div>
           {/* 操作按钮 */}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             <Divider style={{ margin: "8px 0" }} />
             <div className="flex flex-row justify-between">
               <div>
@@ -308,7 +308,7 @@ export const ScriptCardItem = React.memo(
                     type="outline"
                     icon={item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? <RiStopFill /> : <RiPlayFill />}
                     loading={item.actionLoading}
-                    size="small"
+                    size="mini"
                     onClick={handleRunStop}
                   >
                     {item.runStatus === SCRIPT_RUN_STATUS_RUNNING ? t("stop") : t("run")}
@@ -318,17 +318,17 @@ export const ScriptCardItem = React.memo(
               <div className="flex flex-row justify-between items-center">
                 <Space>
                   <Link to={`/script/editor/${item.uuid}`}>
-                    <Button type="outline" icon={<RiPencilFill />} size="small">
+                    <Button type="outline" icon={<RiPencilFill />} size="mini">
                       {t("edit")}
                     </Button>
                   </Link>
                   {item.config && (
-                    <Button type="outline" icon={<RiSettings3Fill />} size="small" onClick={handleConfig}>
+                    <Button type="outline" icon={<RiSettings3Fill />} size="mini" onClick={handleConfig}>
                       {t("config")}
                     </Button>
                   )}
                   {item.metadata.cloudcat && (
-                    <Button type="outline" icon={<RiUploadCloudFill />} size="small" onClick={handleCloud}>
+                    <Button type="outline" icon={<RiUploadCloudFill />} size="mini" onClick={handleCloud}>
                       {t("cloud")}
                     </Button>
                   )}
@@ -338,7 +338,7 @@ export const ScriptCardItem = React.memo(
                       status="danger"
                       icon={<RiDeleteBin5Fill />}
                       loading={item.actionLoading}
-                      size="small"
+                      size="mini"
                     >
                       {t("delete")}
                     </Button>
@@ -493,9 +493,9 @@ export const ScriptCard = ({
           )
         ) : (
           <div
+            className="script-card-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))",
               gap: "16px",
             }}
           >

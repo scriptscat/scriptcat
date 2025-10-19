@@ -533,5 +533,6 @@
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
-  }
+  },
+  "loading": "Loading..."
 }
