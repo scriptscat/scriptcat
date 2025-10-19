@@ -24,11 +24,12 @@ export default class GMApi {
       statusText: xhr.statusText,
       // header由service_worker处理，但是存在特殊域名（例如：edge.microsoft.com）无法获取的情况，在这里增加一个默认值
       responseHeaders: xhr.getAllResponseHeaders(),
-      responseType: details.responseType,
+      responseType: details.responseType, // **** 概念错误. Xhr的responseType是用来在最终内容判断时做相应的处理，不是拿来直接当 xhr的responseType. 假如 response status 不是 2xx, response type 不是 basic, responseType 就不会是 Xhr 的要求 responseType ****
     };
     if (xhr.readyState === 4) {
-      const responseType = details.responseType?.toLowerCase();
+      const responseType = details.responseType?.toLowerCase(); // **** 概念错误 ****
       if (responseType === "arraybuffer" || responseType === "blob") {
+        // **** 概念错误. Blob型 (包括stream) 的response都应该用progressive body getReader 不断 read. 而不用考虑是progressive与否 ****
         const xhrResponse = xhr.response;
         if (xhrResponse === null) {
           response.response = null;

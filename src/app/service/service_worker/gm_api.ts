@@ -629,7 +629,7 @@ export default class GMApi {
       status: response.status,
       statusText: response.statusText,
       responseHeaders: respHeader,
-      responseType: config.responseType,
+      responseType: config.responseType, // **** 概念错误. Xhr的responseType是用来在最终内容判断时做相应的处理，不是拿来直接当 xhr的responseType. 假如 response status 不是 2xx, response type 不是 basic, responseType 就不会是 Xhr 的要求 responseType ****
     };
     if (resultParam) {
       respond.status = respond.status || resultParam.statusCode;
@@ -683,10 +683,50 @@ export default class GMApi {
       if (!reader) {
         throw new Error("read is not found");
       }
-      const readData = ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+      const chunks = [] as Uint8Array<ArrayBufferLike>[];
+      let receivedLength = 0;
+      const readData = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+        if (value?.length) {
+          chunks.push(value);
+          receivedLength += value.length;
+        }
         if (done) {
           const data = this.dealFetch(config, resp, 4, resultParam);
           data.responseHeaders = resultParam.responseHeader || data.responseHeaders;
+
+          // 真正的 responseType 在这里处理！
+
+          if (resp.type === "basic" && resp.ok) {
+            if (!data.responseType || data.responseText === "text") {
+              // 因为现在用了 body.getReader().read(), 所以 response body 被 consume了，不能用 await response.text()
+
+              // 检查 Content-Type 中的 charset
+              const contentType = resp.headers.get("content-type") || "";
+              const charsetMatch = contentType.match(/charset=([^;]+)/i);
+              const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "utf-8";
+
+              // 合并分片（chunks）
+              const chunksAll = new Uint8Array(receivedLength);
+              let position = 0;
+              for (const chunk of chunks) {
+                chunksAll.set(chunk, position);
+                position += chunk.length;
+              }
+
+              // 使用检测到的 charset 解码
+              let textDecoded;
+              try {
+                textDecoded = new TextDecoder(charset).decode(chunksAll);
+              } catch (e: any) {
+                throw new Error(`Failed to decode response with charset ${charset}: ${e.message}`);
+              }
+              if (typeof textDecoded === "string" && textDecoded.length > 0) {
+                data.response = textDecoded;
+                data.responseType = "text";
+              }
+            }
+            // 还要处理其他类型
+          }
           msgConn.sendMessage({
             action: "onreadystatechange",
             data: data,
