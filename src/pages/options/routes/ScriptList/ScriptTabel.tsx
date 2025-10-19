@@ -918,7 +918,7 @@ export const ScriptTable = ({
         row: DraggableRow,
       },
     }),
-    [t]
+    []
   );
 
   const setWidth = (selectColumn: number, width: any) => {

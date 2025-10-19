@@ -43,6 +43,10 @@ import { EnableSwitch, HomeCell, MemoizedAvatar, SourceCell } from "./components
 import { useTranslation } from "react-i18next";
 import { VscLayoutSidebarLeft, VscLayoutSidebarLeftOff } from "react-icons/vsc";
 import { FaThList } from "react-icons/fa";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const { Text } = Typography;
 
@@ -55,6 +59,15 @@ interface ScriptCardItemProps {
 
 export const ScriptCardItem = React.memo(
   ({ item, updateScripts, setUserConfig, setCloudScript }: ScriptCardItemProps) => {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+      id: item.uuid,
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
     const { t } = useTranslation();
     const navigate = useNavigate();
 
@@ -152,7 +165,11 @@ export const ScriptCardItem = React.memo(
         style={{
           marginBottom: "16px",
           position: "relative",
+          ...style,
         }}
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
       >
         <div className="flex flex-col gap-3">
           {/* 头部：名称和开关 */}
@@ -342,6 +359,7 @@ interface ScriptCardProps {
 
 export const ScriptCard = ({
   scriptList,
+  scriptListSortOrder,
   sidebarOpen,
   setSidebarOpen,
   setViewMode,
@@ -353,13 +371,31 @@ export const ScriptCard = ({
   const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const sortableIds = useMemo(() => scriptList.map((s) => ({ id: s.uuid })), [scriptList]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+    if (active.id !== over.id) {
+      scriptListSortOrder!({ active: active.id as string, over: over.id as string });
+    }
+  };
+
   return (
     <>
       {/* 卡片视图工具栏 */}
       <Card
         style={{
-          marginBottom: "16px",
-          borderBottom: "1px solid var(--color-border-2)",
+          borderWidth: "0 0px 1px 0",
           padding: "0 16px",
         }}
       >
@@ -437,20 +473,26 @@ export const ScriptCard = ({
               gap: "16px",
             }}
           >
-            {scriptList.map((item) => (
-              <ScriptCardItem
-                key={item.uuid}
-                item={item}
-                updateScripts={updateScripts}
-                setUserConfig={setUserConfig}
-                setCloudScript={setCloudScript}
-              />
-            ))}
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+                {scriptList.map((item) => (
+                  <ScriptCardItem
+                    key={item.uuid}
+                    item={item}
+                    updateScripts={updateScripts}
+                    setUserConfig={setUserConfig}
+                    setCloudScript={setCloudScript}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
         )}
       </div>
     </>
   );
 };
+
+ScriptCard.displayName = "ScriptCard";
 
 export default ScriptCard;

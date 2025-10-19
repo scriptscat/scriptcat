@@ -84,7 +84,6 @@ h6.arco-typography {
 
   /* 卡片视图样式 */
   .script-card {
-    transition: all 0.3s ease;
     height: 100%;
   }
 

@@ -500,8 +500,37 @@ export function useScriptSearch() {
     }
   }, [originMap, scriptList, selectedFilters, tagMap, searchKeyword]);
 
+  // 覆盖scriptListManager的排序方法
+  // 避免触发顺序是 scriptList -> filterScriptList 导致列表会出现一瞬间的错乱
+  const scriptListSortOrder = ({ active, over }: { active: string; over: string }) => {
+    setFilterScriptList((scripts) => {
+      let oldIndex = -1;
+      let newIndex = -1;
+      scripts.forEach((item, index) => {
+        if (item.uuid === active) {
+          oldIndex = index;
+        } else if (item.uuid === over) {
+          newIndex = index;
+        }
+      });
+      if (oldIndex >= 0 && newIndex >= 0) {
+        const newItems = arrayMove(scripts, oldIndex, newIndex);
+        for (let i = 0, l = newItems.length; i < l; i += 1) {
+          if (newItems[i].sort !== i) {
+            newItems[i].sort = i;
+          }
+        }
+        return newItems;
+      } else {
+        return scripts;
+      }
+    });
+    scriptListManager.scriptListSortOrder!({ active, over });
+  };
+
   return {
     ...scriptListManager,
+    scriptListSortOrder,
     filterScriptList,
     selectedFilters,
     setSelectedFilters,
