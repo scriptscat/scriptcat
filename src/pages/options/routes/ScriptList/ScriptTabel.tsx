@@ -1072,11 +1072,6 @@ export const ScriptTable = ({
         data={scriptList}
         pagination={false}
         loading={loadingList}
-        style={
-          {
-            // minWidth: "1200px",
-          }
-        }
         rowSelection={{
           type: "checkbox",
           onChange(_, selectedRows) {
