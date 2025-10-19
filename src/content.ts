@@ -17,8 +17,8 @@ declare global {
 }
 
 if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
-  // ScriptCat 未支持 Firefox MV3
-  console.error("Firefox MV3 UserScripts is not yet supported by ScriptCat");
+  // Firefox MV3 之类好像没有 chrome.runtime.onMessage.addListener ?
+  console.error("chrome.runtime.onMessage.addListener is not a function");
 } else {
   const start = (messageFlag: string) => {
     // 建立与service_worker页面的连接
