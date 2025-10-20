@@ -104,17 +104,18 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, value, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4021", key, value, mockSender);
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         entries: expect.any(Object),
-        id: expect.any(String),
+        id: "testId-4021",
         sender: expect.objectContaining({
           runFlag: expect.any(String),
           tabId: expect.any(Number),
@@ -149,17 +150,18 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, value, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4022", key, value, mockSender);
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         entries: expect.any(Object),
-        id: expect.any(String),
+        id: "testId-4022",
         sender: expect.objectContaining({
           runFlag: expect.any(String),
           tabId: expect.any(Number),
@@ -203,17 +205,18 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, newValue, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4023", key, newValue, mockSender);
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         entries: expect.any(Object),
-        id: expect.any(String),
+        id: "testId-4023",
         sender: expect.objectContaining({
           runFlag: expect.any(String),
           tabId: expect.any(Number),
@@ -256,17 +259,18 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, value, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4024", key, value, mockSender);
 
     // 验证结果 - 不应该保存或发送更新
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled(); // 值未改变，不应该保存
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         entries: expect.any(Object),
-        id: expect.any(String),
+        id: "testId-4024",
         sender: expect.objectContaining({
           runFlag: expect.any(String),
           tabId: expect.any(Number),
@@ -300,7 +304,7 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试 - 设置值为undefined
-    await valueService.setValue(mockScript.uuid, "testId", key, undefined, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4025", key, undefined, mockSender);
 
     // 验证结果
     expect(mockValueDAO.save).toHaveBeenCalled();
@@ -321,9 +325,9 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockScriptDAO.get).mockResolvedValue(undefined);
 
     // 执行测试并验证抛出错误
-    await expect(valueService.setValue(nonExistentUuid, "testId", "testKey", "testValue", mockSender)).rejects.toThrow(
-      "script not found"
-    );
+    await expect(
+      valueService.setValue(nonExistentUuid, "testId-4026", "testKey", "testValue", mockSender)
+    ).rejects.toThrow("script not found");
 
     // 验证不会执行后续操作
     expect(mockValueDAO.get).not.toHaveBeenCalled();
@@ -347,13 +351,41 @@ describe("ValueService - setValue 方法测试", () => {
 
     // 并发执行两个setValue操作
     await Promise.all([
-      valueService.setValue(mockScript.uuid, "testId1", key1, value1, mockSender),
-      valueService.setValue(mockScript.uuid, "testId2", key2, value2, mockSender),
+      valueService.setValue(mockScript.uuid, "testId-4041", key1, value1, mockSender),
+      valueService.setValue(mockScript.uuid, "testId-4042", key2, value2, mockSender),
     ]);
 
     // 验证两个操作都被调用
     expect(mockScriptDAO.get).toHaveBeenCalledTimes(2);
     expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
     expect(valueService.pushValueToTab).toHaveBeenCalledTimes(2);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4041",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4042",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
   });
 });
