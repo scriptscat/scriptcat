@@ -119,8 +119,8 @@ describe("ValueService - setValue 方法测试", () => {
           runFlag: expect.any(String),
           tabId: expect.any(Number),
         }),
-        storageName: expect.any(String),
-        uuid: expect.any(String),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
         valueUpdated: true,
       })
     );
@@ -164,8 +164,8 @@ describe("ValueService - setValue 方法测试", () => {
           runFlag: expect.any(String),
           tabId: expect.any(Number),
         }),
-        storageName: expect.any(String),
-        uuid: expect.any(String),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
         valueUpdated: true,
       })
     );
