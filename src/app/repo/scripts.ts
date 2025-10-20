@@ -43,10 +43,11 @@ export interface ConfigGroup {
   [key: string]: Config;
 }
 
-export type UserConfig = {
-  [key: string]: ConfigGroup | { sort: string[] } | undefined;
-  "#options"?: { sort: string[] };
-};
+export type UserConfig = Partial<
+  Record<string, ConfigGroup> & {
+    "#options": { sort: string[] };
+  }
+>;
 
 // 排除掉 #options
 export type UserConfigWithoutOptions = Omit<{ [key: string]: ConfigGroup }, "#options">;

@@ -454,11 +454,13 @@ export class RuntimeService {
     });
 
     // 监听脚本值变更
-    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script }: TScriptValueUpdate) => {
-      if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
-        // 如果是预加载脚本，需要更新脚本代码重新注册
-        // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
-        await this.updateResourceOnScriptChange(script);
+    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script, valueUpdated }: TScriptValueUpdate) => {
+      if (valueUpdated) {
+        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+          // 如果是预加载脚本，需要更新脚本代码重新注册
+          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
+          await this.updateResourceOnScriptChange(script);
+        }
       }
     });
 

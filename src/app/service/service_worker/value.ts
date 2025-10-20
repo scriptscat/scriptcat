@@ -54,7 +54,7 @@ export class ValueService {
             newValues[bindKey] = data[bindKey] === undefined ? undefined : data[bindKey];
           }
           newValues[`${tabKey}.${key}`] =
-            data[`${tabKey}.${key}`] === undefined ? config![tabKey][key].default : data[`${tabKey}.${key}`];
+            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`];
         }
       }
     }
@@ -72,7 +72,7 @@ export class ValueService {
     let oldValue;
     // 使用事务来保证数据一致性
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    const valueUpdated = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
@@ -101,17 +101,16 @@ export class ValueService {
       await this.valueDAO.save(storageName, valueModel);
       return true;
     });
-    if (flag) {
-      this.pushValueToTab({
-        id,
-        entries: encodeMessage([[key, value, oldValue]]),
-        uuid,
-        storageName,
-        sender,
-      } as ValueUpdateDataEncoded);
-      // valueUpdate 消息用于 early script 的处理
-      this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
-    }
+    this.pushValueToTab({
+      id,
+      entries: encodeMessage([[key, value, oldValue]]),
+      uuid,
+      storageName,
+      sender,
+      valueUpdated,
+    } as ValueUpdateDataEncoded);
+    // valueUpdate 消息用于 early script 的处理
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
   }
 
   // 推送值到tab
@@ -211,17 +210,17 @@ export class ValueService {
       return true;
     });
     // 推送到所有加载了本脚本的tab中
-    if (entries.length > 0) {
-      this.pushValueToTab({
-        id,
-        entries: encodeMessage(entries),
-        uuid,
-        storageName,
-        sender,
-      } as ValueUpdateDataEncoded);
-      // valueUpdate 消息用于 early script 的处理
-      this.mq.emit<TScriptValueUpdate>("valueUpdate", { script });
-    }
+    const valueUpdated = entries.length > 0;
+    this.pushValueToTab({
+      id,
+      entries: encodeMessage(entries),
+      uuid,
+      storageName,
+      sender,
+      valueUpdated,
+    } as ValueUpdateDataEncoded);
+    // valueUpdate 消息用于 early script 的处理
+    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
   }
 
   setScriptValue({ uuid, key, value }: { uuid: string; key: string; value: any }, _sender: IGetSender) {

@@ -30,7 +30,7 @@ export type TEnableScript = { uuid: string; enable: boolean };
 
 export type TScriptRunStatus = { uuid: string; runStatus: SCRIPT_RUN_STATUS };
 
-export type TScriptValueUpdate = { script: Script };
+export type TScriptValueUpdate = { script: Script; valueUpdated: boolean };
 
 export type TScriptMenuRegister = {
   uuid: string;
