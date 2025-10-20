@@ -125,6 +125,7 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
     expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
 
     // 验证保存的数据结构
@@ -171,6 +172,7 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
     expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
 
     // 验证保存的数据结构
@@ -226,6 +228,7 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
     expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", {
       script: mockScript,
       valueUpdated: true,
@@ -280,6 +283,7 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: false,
       })
     ); // 值未改变
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
     expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: false }); // 值未改变
   });
 
@@ -333,6 +337,7 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockValueDAO.get).not.toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled();
     expect(valueService.pushValueToTab).not.toHaveBeenCalled();
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
   });
 
   it("应该正确处理并发访问的缓存键", async () => {
@@ -387,5 +392,8 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(2);
+    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(1, "valueUpdate", { script: mockScript, valueUpdated: true });
+    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(2, "valueUpdate", { script: mockScript, valueUpdated: true });
   });
 });
