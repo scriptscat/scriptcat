@@ -464,13 +464,11 @@ declare namespace GMTypes {
     pinned?: boolean;
 
     /**
-     * 使用 `window.open` 打开新窗口，而不是浏览器 API。
-     * 可以打开某些特殊的链接
+     * 【弃用参数】本来用于打开本地特殊协定链接。升级MV3版后已完全不需使用。
      *
      * 相关：Issue #178
-     * 默认值：false
      */
-    useOpen?: boolean;
+    useOpen?: never;
   }
 
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
