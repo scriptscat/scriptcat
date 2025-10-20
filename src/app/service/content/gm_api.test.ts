@@ -773,10 +773,13 @@ describe("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 获取调用参数
     const actualCall = mockSendMessage.mock.calls[0][0];
-    console.log("actualCall", actualCall.data.params[0]);
+    const id = actualCall.data.params[0];
+
+    expect(id).toBeTypeOf("string");
+    expect(id.length).greaterThan(0);
     // 触发valueUpdate
     exec.valueUpdate({
-      id: actualCall.data.params[0],
+      id: id,
       entries: encodeMessage([["a", 123, undefined]]),
       uuid: script.uuid,
       storageName: script.uuid,
