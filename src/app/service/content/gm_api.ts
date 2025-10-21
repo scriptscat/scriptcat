@@ -145,7 +145,7 @@ class GM_Base implements IGM_Base {
   public valueUpdate(data: ValueUpdateDataEncoded) {
     if (!this.scriptRes || !this.valueChangeListener) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender } = data;
+    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
@@ -156,17 +156,19 @@ class GM_Base implements IGM_Base {
           fn();
         }
       }
-      const entries_ = decodeMessage(entries);
-      for (const [key, value, oldValue] of entries_) {
-        // 触发,并更新值
-        if (value === undefined) {
-          if (valueStore[key] !== undefined) {
-            delete valueStore[key];
+      if (valueUpdated) {
+        const valueChanges = decodeMessage(entries);
+        for (const [key, value, oldValue] of valueChanges) {
+          // 触发,并更新值
+          if (value === undefined) {
+            if (valueStore[key] !== undefined) {
+              delete valueStore[key];
+            }
+          } else {
+            valueStore[key] = value;
           }
-        } else {
-          valueStore[key] = value;
+          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
         }
-        this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
       }
     }
   }
