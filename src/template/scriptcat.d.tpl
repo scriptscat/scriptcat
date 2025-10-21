@@ -335,6 +335,14 @@ declare namespace CATType {
     // 文件修改时间
     updatetime: number;
   }
+
+  type CATFileStorageDetails = {
+    baseDir: string;
+    path: string;
+    filename: any;
+    file: FileStorageFileInfo;
+    data?: string;
+  };
 }
 
 declare namespace GMTypes {
@@ -454,16 +462,9 @@ declare namespace GMTypes {
      * 默认值：false
      */
     pinned?: boolean;
-
-    /**
-     * 使用 `window.open` 打开新窗口，而不是浏览器 API。
-     * 可以打开某些特殊的链接
-     *
-     * 相关：Issue #178
-     * 默认值：false
-     */
-    useOpen?: boolean;
   }
+
+  type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
   interface XHRResponse {
     finalUrl?: string;
@@ -594,4 +595,6 @@ declare namespace GMTypes {
     closed?: boolean;
     name?: string;
   }
+
+  type GMClipboardInfo = string | { type?: string; mimetype?: string };
 }

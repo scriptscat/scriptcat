@@ -179,10 +179,6 @@ export default class GMApi {
     });
   }
 
-  async openInTab({ url }: { url: string }) {
-    return window.open(url) !== undefined;
-  }
-
   textarea: HTMLTextAreaElement = document.createElement("textarea");
 
   clipboardData: { type?: string; data: string } | undefined;
@@ -210,7 +206,6 @@ export default class GMApi {
     });
 
     this.group.on("xmlHttpRequest", this.xmlHttpRequest.bind(this));
-    this.group.on("openInTab", this.openInTab.bind(this));
     this.group.on("setClipboard", this.setClipboard.bind(this));
   }
 }
