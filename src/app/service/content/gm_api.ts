@@ -157,8 +157,8 @@ class GM_Base implements IGM_Base {
         }
       }
       if (valueUpdated) {
-        const decodedEntries = decodeMessage(entries);
-        for (const [key, value, oldValue] of decodedEntries) {
+        const valueChanges = decodeMessage(entries);
+        for (const [key, value, oldValue] of valueChanges) {
           // 触发,并更新值
           if (value === undefined) {
             if (valueStore[key] !== undefined) {
