@@ -11,9 +11,11 @@ import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
 import type { RuntimeMessageSender } from "@Packages/message/types";
 import { cleanInvalidKeys } from "./app/repo/resource";
+import { monitorPeriodicAlarm } from "./app/service/service_worker/alarm";
 
 migrate();
 migrateChromeStorage();
+monitorPeriodicAlarm();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
