@@ -96,23 +96,23 @@ export async function openInCurrentTab(url: string, tabId?: number) {
   if (tab) {
     // 添加 openerTabId 有可能出现 Error "Tab opener must be in the same window as the updated tab."
     if (tab.id! >= 0) {
-      // 如 Tab API 有提供 tab.id, 則指定 tab.id
+      // 如 Tab API 有提供 tab.id, 则指定 tab.id
       createProperties.openerTabId = tab.id;
       if (tab.windowId! >= 0) {
-        // 如 Tab API 有提供 tab.windowId, 則指定 tab.windowId
+        // 如 Tab API 有提供 tab.windowId, 则指定 tab.windowId
         createProperties.windowId = tab.windowId;
       }
     }
     createProperties.index = tab.index + 1;
   }
-  // 先嘗試以 openerTabId 和 windowId 打開
+  // 先尝试以 openerTabId 和 windowId 打开
   try {
     await chrome.tabs.create(createProperties);
     return;
   } catch (e: any) {
     console.error("Error opening tab:", e);
   }
-  // 失敗的話，刪去 openerTabId 和 windowId ，再次嘗試打開
+  // 失败的话，删去 openerTabId 和 windowId ，再次尝试打开
   delete createProperties.openerTabId;
   delete createProperties.windowId;
   try {
@@ -171,18 +171,41 @@ export function errorMsg(e: any): string {
   return "";
 }
 
-// 预计报错有机会在异步Promise裡发生，不一定是 chrome.userScripts.getScripts
+// 预计报错有机会在异步Promise里发生，不一定是 chrome.userScripts.getScripts
 export async function checkUserScriptsAvailable() {
   try {
     // Property access which throws if developer mode is not enabled.
     // Method call which throws if API permission or toggle is not enabled.
     chrome.userScripts;
     const ret: chrome.userScripts.RegisteredUserScript[] | any = await chrome.userScripts.getScripts({
-      // 放不可能存在的id. 我们只需要知道API能否执行。不需要完整所有userScripts
-      ids: ["undefined-id-1", "undefined-id-2"],
+      ids: ["scriptcat-content", "undefined-id-3"],
     });
-    // 返回一个阵列的话表示API能正常使用 （有执行权限）
-    return ret !== undefined && ret !== null && typeof ret[Symbol.iterator] === "function";
+    // 返回结果不是阵列的话表示API不可使用
+    if (ret === undefined || ret === null || typeof ret[Symbol.iterator] !== "function") {
+      return false;
+    }
+
+    if (ret[0]) {
+      // API内部处理实际给予扩展权限才会有返回Script
+      // 含有 "scriptcat-content" 或 "undefined-id-3"
+      return true;
+    } else {
+      // 没有 "scriptcat-content" 和 "undefined-id-3"
+      // 进行 "undefined-id-3" 的注册反注册测试
+      // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
+      // 此时会无法注册 (1. register 报错)
+      await chrome.userScripts.register([
+        {
+          id: "undefined-id-3",
+          js: [{ code: "void 0;" }],
+          matches: ["https://not-found.scriptcat.org/"],
+          world: "USER_SCRIPT",
+        },
+      ]);
+      // 清掉测试内容 (2. 如没有注入 undefined-id-3 成功，因脚本id不存在 unregister 报错)
+      await chrome.userScripts.unregister({ ids: ["undefined-id-3"] });
+      return true;
+    }
   } catch {
     // Not available.
     return false;
