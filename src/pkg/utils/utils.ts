@@ -186,7 +186,7 @@ export async function checkUserScriptsAvailable() {
     }
 
     if (ret[0]) {
-      // API内部处理实际给予扩充权限才会有返回Script
+      // API内部处理实际给予扩展权限才会有返回Script
       // 含有 "scriptcat-content" 或 "undefined-id-3"
       return true;
     } else {
