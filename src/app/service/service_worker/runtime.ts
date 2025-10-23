@@ -354,13 +354,14 @@ export class RuntimeService {
         // 如果是后台脚本, 在offscreen中进行处理
         // 脚本类别不会更改
         if (script.type === SCRIPT_TYPE_NORMAL) {
+          const isCurrentEarlyStart = this.earlyScriptFlags.has(uuid);
           const isEarlyStart = isEarlyStartScript(script.metadata);
           if (isEarlyStart && enable) {
             this.earlyScriptFlags.add(uuid);
           } else {
             this.earlyScriptFlags.delete(uuid);
           }
-          if (isEarlyStart) {
+          if (isEarlyStart || isCurrentEarlyStart !== isEarlyStart) {
             needReRegisterInjectJS = true;
           }
           // 加载页面脚本
