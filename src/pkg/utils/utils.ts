@@ -192,7 +192,7 @@ export async function checkUserScriptsAvailable() {
     } else {
       // 没有 "scriptcat-content" 和 "undefined-id-3"
       // 进行 "undefined-id-3" 的注册反注册测试
-      // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩充权限)
+      // Chrome MV3 的一部分浏览器（如 Vivaldi ）没正确处理 MV3 UserScripts API 权限问题 (API内部处理没有给予扩展权限)
       // 此时会无法注册 (1. register 报错)
       await chrome.userScripts.register([
         {
