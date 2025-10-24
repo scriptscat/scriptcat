@@ -156,14 +156,26 @@ export class ScriptService {
     // 兼容 chrome 内核 < 128 处理
     const condition: chrome.declarativeNetRequest.RuleCondition = {
       regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+      resourceTypes: [
+        chrome.declarativeNetRequest.ResourceType.MAIN_FRAME,
+        chrome.declarativeNetRequest.ResourceType.OTHER,
+        chrome.declarativeNetRequest.ResourceType.CSP_REPORT,
+      ],
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
       responseHeaders: [
         {
           header: "Content-Type",
-          values: ["text/javascript", "application/javascript", "text/plain", "text/html", "application/octet-stream"],
+          values: [
+            "text/javascript",
+            "application/javascript",
+            "text/plain",
+            "application/octet-stream",
+            "application/force-download",
+          ],
         },
       ],
+      isUrlFilterCaseSensitive: true,
+      excludedTabIds: [chrome.tabs.TAB_ID_NONE],
     };
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
