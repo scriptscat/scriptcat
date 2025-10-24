@@ -5,13 +5,7 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import {
-  checkSilenceUpdate,
-  getBrowserType,
-  getStorageName,
-  openInCurrentTab,
-  stringMatching,
-} from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, getStorageName, openInCurrentTab, stringMatching } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type {
   SCMetadata,
