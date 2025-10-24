@@ -5,7 +5,13 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import { checkSilenceUpdate, getStorageName, openInCurrentTab, stringMatching } from "@App/pkg/utils/utils";
+import {
+  checkSilenceUpdate,
+  getBrowserType,
+  getStorageName,
+  openInCurrentTab,
+  stringMatching,
+} from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type {
   SCMetadata,
@@ -88,11 +94,12 @@ export class ScriptService {
             return undefined;
           }
           // 判断是否有url参数
-          if (!reqUrl.hash.includes("url=")) {
+          const idx = reqUrl.hash.indexOf("url=");
+          if (idx < 0) {
             return undefined;
           }
           // 获取url参数
-          targetUrl = reqUrl.hash.split("url=")[1];
+          targetUrl = reqUrl.hash.substring(idx + 4);
         }
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
@@ -148,41 +155,99 @@ export class ScriptService {
         ],
       }
     );
+
     // 兼容 chrome 内核 < 128 处理
-    const condition: chrome.declarativeNetRequest.RuleCondition = {
-      regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
-      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
-      requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-    };
-    // const browserType = getBrowserType();
-    // if (browserType.chrome && browserType.chromeVersion >= 128) {
-    //   condition.excludedResponseHeaders = [
-    //     {
-    //       header: "Content-Type",
-    //       values: ["text/html"],
-    //     },
-    //   ];
-    // } else {
-    //   condition.excludedRequestDomains = ["github.com"];
-    // }
+    const browserType = getBrowserType();
+    const addResponseHeaders = browserType.chrome && browserType.chromeVersion >= 128;
+    const conditions: chrome.declarativeNetRequest.RuleCondition[] = [
+      {
+        regexFilter: "^[^?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+        excludedRequestDomains: ["github.com", "gitlab.com", "gitea.com", "bitbucket.org"],
+      },
+      {
+        regexFilter:
+          "^https?://github.com/[^\\s/?#]+/[^\\s/?#]+/releases/([^\\s.?#]+/|)[^.?#]+.user(\\.bg|\\.sub)?.js([?#][^./\\s#?]*?)*?$",
+        // https://github.com/<user>/<repo>/releases/latest/download/file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+      },
+      {
+        regexFilter:
+          "^https?://github.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z]+/([^\\s.?#]+/|)[^.?#]+.user(\\.bg|\\.sub)?.js([?#][^./\\s#?]*?)*?$",
+        // https://github.com/<user>/<repo>/raw/refs/heads/main/.../file.user.js
+        // https://github.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod], // Chrome 91+
+        isUrlFilterCaseSensitive: false,
+      },
+      {
+        regexFilter:
+          "^https?://gitlab\\.com/[^\\s/?#]+/[^\\s/?#]+/-/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+        // https://gitlab.com/<user>/<repo>/-/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
+      {
+        regexFilter:
+          "^https?://gitea\\.com/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+        // https://gitea.com/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
+      {
+        regexFilter:
+          "^https?://bitbucket\\.org/[^\\s/?#]+/[^\\s/?#]+/raw/[a-z0-9_/.-]+/([^\\s.?#]+/|)[^.?#]+\\.user(\\.bg|\\.sub)?\\.js([?#][^./\\s#?]*?)*?$",
+        // https://bitbucket.org/<user>/<repo>/raw/<branch>/.../file.user.js
+        resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
+        requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+        isUrlFilterCaseSensitive: false,
+      },
+    ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
+    const rules = conditions.map((condition, idx) => {
+      Object.assign(condition, {
+        excludedTabIds: [chrome.tabs.TAB_ID_NONE],
+      });
+      if (addResponseHeaders) {
+        Object.assign(condition, {
+          responseHeaders: [
+            {
+              header: "Content-Type",
+              values: [
+                "text/javascript*",
+                "application/javascript*",
+                "text/html*",
+                "text/plain*",
+                "application/octet-stream*",
+                "application/force-download*",
+              ],
+            },
+          ],
+        });
+      }
+      return {
+        id: 1000 + idx,
+        priority: 1,
+        action: {
+          type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
+          redirect: {
+            regexSubstitution: `${installPageURL}?url=\\0`,
+          },
+        },
+        condition: condition,
+      } as chrome.declarativeNetRequest.Rule;
+    });
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, 2],
-        addRules: [
-          {
-            id: 1,
-            priority: 1,
-            action: {
-              type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
-              redirect: {
-                regexSubstitution: `${installPageURL}?url=\\0`,
-              },
-            },
-            condition: condition,
-          },
-        ],
+        removeRuleIds: [1, ...rules.map((rule) => rule.id)],
+        addRules: rules,
       },
       () => {
         if (chrome.runtime.lastError) {
