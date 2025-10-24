@@ -36,9 +36,17 @@ function generateChangelog() {
     // 使用正则表达式替换 (by (\w) -> (by @$1
     // 删除owner
     console.log("🔄 处理文件内容，添加 @ 符号...");
-    let updatedContent = content.replaceAll(" (by 王一之)", "");
-    updatedContent = updatedContent.replaceAll(" (by CodFrm)", "");
-    updatedContent = updatedContent.replace(/\(by (\w)/g, "(by @$1");
+    // 处理用户名
+    let usernameMap = {
+      王一之: "CodFrm",
+      CodFrm: "CodFrm",
+      wangyizhi: "CodFrm",
+    };
+    for (const [name, username] of Object.entries(usernameMap)) {
+      const regex = new RegExp(`\\(by ${name}\\)`, "g");
+      content = content.replaceAll(regex, `(by @${username})`);
+    }
+    const updatedContent = content.replace(/\(by (\w)/g, "(by @$1");
 
     // 检查是否有内容被替换
     if (content !== updatedContent) {

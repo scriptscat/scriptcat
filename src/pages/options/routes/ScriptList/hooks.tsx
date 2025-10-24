@@ -57,33 +57,29 @@ export function useScriptList() {
   useEffect(() => {
     let mounted = true;
     setLoadingList(true);
-    fetchScriptList()
-      .then(async (list) => {
+    fetchScriptList().then(async (list) => {
+      if (!mounted) return;
+      setScriptList(list);
+      setLoadingList(false);
+      for await (const { chunkResults } of loadScriptFavicons(list)) {
         if (!mounted) return;
-        setScriptList(list);
-        for await (const { chunkResults } of loadScriptFavicons(list)) {
-          if (!mounted) return;
-          setScriptList((list) => {
-            const scriptMap = new Map<string, ScriptLoading>();
-            for (const s of list) {
-              scriptMap.set(s.uuid, s);
+        setScriptList((list) => {
+          const scriptMap = new Map<string, ScriptLoading>();
+          for (const s of list) {
+            scriptMap.set(s.uuid, s);
+          }
+          const altered = new Set();
+          for (const item of chunkResults) {
+            const script = scriptMap.get(item.uuid);
+            if (script) {
+              altered.add(item.uuid);
+              script.favorite = item.fav;
             }
-            const altered = new Set();
-            for (const item of chunkResults) {
-              const script = scriptMap.get(item.uuid);
-              if (script) {
-                altered.add(item.uuid);
-                script.favorite = item.fav;
-              }
-            }
-            return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
-          });
-        }
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoadingList(false);
-      });
+          }
+          return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+        });
+      }
+    });
     return () => {
       mounted = false;
     };
