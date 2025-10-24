@@ -161,7 +161,7 @@ export class ScriptService {
       responseHeaders: [
         {
           header: "Content-Type",
-          values: ["text/javascript", "application/javascript", "text/plain", "text/html"],
+          values: ["text/javascript", "application/javascript", "text/plain", "text/html", "application/octet-stream"],
         },
       ],
     };
