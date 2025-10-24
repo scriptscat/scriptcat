@@ -156,21 +156,21 @@ export class ScriptService {
     );
     // 兼容 chrome 内核 < 128 处理
     const condition: chrome.declarativeNetRequest.RuleCondition = {
-      regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
+      regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
       resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
     };
-    const browserType = getBrowserType();
-    if (browserType.chrome && browserType.chromeVersion >= 128) {
-      condition.excludedResponseHeaders = [
-        {
-          header: "Content-Type",
-          values: ["text/html"],
-        },
-      ];
-    } else {
-      condition.excludedRequestDomains = ["github.com"];
-    }
+    // const browserType = getBrowserType();
+    // if (browserType.chrome && browserType.chromeVersion >= 128) {
+    //   condition.excludedResponseHeaders = [
+    //     {
+    //       header: "Content-Type",
+    //       values: ["text/html"],
+    //     },
+    //   ];
+    // } else {
+    //   condition.excludedRequestDomains = ["github.com"];
+    // }
     const installPageURL = chrome.runtime.getURL("src/install.html");
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
