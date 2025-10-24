@@ -323,6 +323,7 @@
     "status_autoclose": "Automatisches Schließen in $0 Sekunden",
     "header_other_update": "Andere verfügbare Updates"
   },
+  "downloading_status_text": "Wird heruntergeladen. {{bytes}} empfangen.",
   "install_page_loading": "Installationsseite wird geladen",
   "invalid_page": "Ungültige Seite",
   "background_script_tag": "Dies ist ein Hintergrundskript",

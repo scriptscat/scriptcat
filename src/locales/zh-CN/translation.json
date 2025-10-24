@@ -323,6 +323,7 @@
     "status_autoclose": "$0 秒后自动关闭",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下载。已接收 {{bytes}}。",
   "install_page_loading": "安装页面加载中",
   "invalid_page": "无效页面",
   "background_script_tag": "这是一个后台脚本",

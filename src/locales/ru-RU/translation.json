@@ -323,6 +323,7 @@
     "status_autoclose": "Автоматическое закрытие через $0 сек.",
     "header_other_update": "Другие доступные обновления"
   },
+  "downloading_status_text": "Загрузка. Получено {{bytes}}.",
   "install_page_loading": "Загрузка страницы установки",
   "invalid_page": "Недействительная страница",
   "background_script_tag": "Это фоновый скрипт",

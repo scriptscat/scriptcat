@@ -323,6 +323,7 @@
     "status_autoclose": "crwdns12778:0crwdne12778:0",
     "header_other_update": "crwdns12784:0crwdne12784:0"
   },
+  "downloading_status_text": "Downloading. Received {{bytes}}.",
   "install_page_loading": "Installation page loading",
   "invalid_page": "Invalid page",
   "background_script_tag": "crwdns8460:0crwdne8460:0",

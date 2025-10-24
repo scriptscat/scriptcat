@@ -656,7 +656,7 @@ function App() {
         onProgress: (info: { receivedLength: number }) => {
           setFetchingState((prev) => ({
             ...prev,
-            loadingStatus: `Downloading. Received ${formatBytes(info.receivedLength)}.`,
+            loadingStatus: t("downloading_status_text", { bytes: `${formatBytes(info.receivedLength)}` }),
           }));
         },
       });

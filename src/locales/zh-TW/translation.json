@@ -323,6 +323,7 @@
     "status_autoclose": "$0 秒後自動關閉",
     "header_other_update": "其他可用更新"
   },
+  "downloading_status_text": "正在下載。已接收 {{bytes}}。",
   "install_page_loading": "安裝頁載入中",
   "invalid_page": "無效頁面",
   "background_script_tag": "這是一個背景腳本",

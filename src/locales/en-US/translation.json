@@ -323,6 +323,7 @@
     "status_autoclose": "Auto-closing in $0 seconds",
     "header_other_update": "Other available updates"
   },
+  "downloading_status_text": "Downloading. Received {{bytes}}.",
   "install_page_loading": "Installation page loading",
   "invalid_page": "Invalid page",
   "background_script_tag": "This is a Background Script",
