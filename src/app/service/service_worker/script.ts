@@ -171,6 +171,7 @@ export class ScriptService {
     } else {
       condition.excludedRequestDomains = ["github.com"];
     }
+    const installPageURL = chrome.runtime.getURL("src/install.html");
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
@@ -182,7 +183,7 @@ export class ScriptService {
             action: {
               type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
               redirect: {
-                regexSubstitution: `chrome-extension://${chrome.runtime.id}/src/install.html?url=\\0`,
+                regexSubstitution: `${installPageURL}?url=\\0`,
               },
             },
             condition: condition,
