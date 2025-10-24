@@ -12,7 +12,7 @@ import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
-import { getIcon, isFirefox, openInCurrentTab, cleanFileName } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, openInCurrentTab, cleanFileName, getCurrentTab } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -854,9 +854,12 @@ export default class GMApi {
     const getNewTabId = async () => {
       const { tabId, windowId } = sender.getExtMessageSender();
       const active = options.active;
-      const currentTab = await chrome.tabs.get(tabId);
+      let currentTab: chrome.tabs.Tab | undefined;
+      if (tabId !== -1) {
+        currentTab = await chrome.tabs.get(tabId);
+      }
       let newTabIndex = -1;
-      if (options.incognito && !currentTab.incognito) {
+      if (options.incognito && !currentTab?.incognito) {
         // incognito: "split" 在 normal 里不会看到 incognito
         // 只能创建新 incognito window
         // pinned 无效
