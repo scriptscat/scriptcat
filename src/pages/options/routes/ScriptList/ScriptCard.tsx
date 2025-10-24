@@ -119,8 +119,6 @@ export const ScriptCardItem = React.memo(
         hoverable
         className="script-card"
         style={{
-          marginBottom: "16px",
-          position: "relative",
           ...style,
         }}
         ref={setNodeRef}
@@ -129,7 +127,7 @@ export const ScriptCardItem = React.memo(
           boxSizing: "border-box",
         }}
       >
-        <div className="flex flex-col justify-between h-full gap-3">
+        <div className="flex flex-col justify-between h-full gap-1">
           <div className="flex flex-col gap-3">
             <div className="flex flex-row justify-between items-start gap-1">
               <div className="flex-1 min-w-0">
@@ -256,7 +254,7 @@ export const ScriptCardItem = React.memo(
           </div>
           {/* 操作按钮 */}
           <div className="flex flex-col">
-            <Divider style={{ margin: "8px 0" }} />
+            <Divider style={{ margin: "4px 0 14px" }} />
             <div className="flex flex-row justify-between">
               <div>
                 {item.type !== SCRIPT_TYPE_NORMAL && (
