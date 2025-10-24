@@ -158,6 +158,12 @@ export class ScriptService {
       regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
       resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
+      responseHeaders: [
+        {
+          header: "Content-Type",
+          values: ["text/javascript", "application/javascript", "text/plain", "text/html"],
+        },
+      ],
     };
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
