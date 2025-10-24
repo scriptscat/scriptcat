@@ -151,32 +151,28 @@ export class ScriptService {
     // 兼容 chrome 内核 < 128 处理
     const condition: chrome.declarativeNetRequest.RuleCondition = {
       regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
-      resourceTypes: [
-        chrome.declarativeNetRequest.ResourceType.MAIN_FRAME,
-        chrome.declarativeNetRequest.ResourceType.OTHER,
-        chrome.declarativeNetRequest.ResourceType.CSP_REPORT,
-      ],
+      resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
       responseHeaders: [
         {
           header: "Content-Type",
           values: [
-            "text/javascript",
-            "application/javascript",
-            "text/plain",
-            "application/octet-stream",
-            "application/force-download",
+            "text/javascript*",
+            "application/javascript*",
+            "text/html*",
+            "text/plain*",
+            "application/octet-stream*",
+            "application/force-download*",
           ],
         },
       ],
       isUrlFilterCaseSensitive: true,
-      excludedTabIds: [chrome.tabs.TAB_ID_NONE],
     };
     const installPageURL = chrome.runtime.getURL("src/install.html");
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, 2],
+        removeRuleIds: [1],
         addRules: [
           {
             id: 1,
