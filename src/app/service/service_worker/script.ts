@@ -5,13 +5,7 @@ import Logger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
-import {
-  checkSilenceUpdate,
-  getBrowserType,
-  getStorageName,
-  openInCurrentTab,
-  stringMatching,
-} from "@App/pkg/utils/utils";
+import { checkSilenceUpdate, getStorageName, openInCurrentTab, stringMatching } from "@App/pkg/utils/utils";
 import { ltever } from "@App/pkg/utils/semver";
 import type {
   SCMetadata,
@@ -161,25 +155,28 @@ export class ScriptService {
     );
     // 兼容 chrome 内核 < 128 处理
     const condition: chrome.declarativeNetRequest.RuleCondition = {
-      regexFilter: "^([^#]+?)\\.user(\\.bg|\\.sub)?\\.js((\\?).*|$)",
+      regexFilter: "^[^#]+\\.user(\\.bg|\\.sub)?\\.js(\\?.*?)?$",
       resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
       requestMethods: ["get" as chrome.declarativeNetRequest.RequestMethod],
-    };
-    const browserType = getBrowserType();
-    if (browserType.chrome && browserType.chromeVersion >= 128) {
-      condition.excludedResponseHeaders = [
+      responseHeaders: [
         {
           header: "Content-Type",
-          values: ["text/html"],
+          values: [
+            "text/javascript*",
+            "application/javascript*",
+            "text/html*",
+            "text/plain*",
+            "application/octet-stream*",
+            "application/force-download*",
+          ],
         },
-      ];
-    } else {
-      condition.excludedRequestDomains = ["github.com"];
-    }
+      ],
+      isUrlFilterCaseSensitive: true,
+    };
     // 重定向到脚本安装页
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [1, 2],
+        removeRuleIds: [1],
         addRules: [
           {
             id: 1,
