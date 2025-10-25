@@ -328,6 +328,13 @@ describe("UrlMatch-match1", () => {
     expect(url.urlMatch("http://test.list.ggnb.top:80/search")).toEqual(["ok1"]);
     expect(url.urlMatch("http://test.list.ggnb.top:443/search")).toEqual(["ok1"]);
   });
+
+  url.addMatch("http://port.test.com:8000/search", "ok2"); // @match
+  it("match1-port", () => {
+    expect(url.urlMatch("http://port.test.com:8000/search")).toEqual(["ok2"]);
+    expect(url.urlMatch("http://port.test.com:3000/search?")).toEqual(["ok2"]); // 跟随TM
+    expect(url.urlMatch("http://port.test.com:2000/search?foo=bar")).toEqual([]);
+  });
 });
 
 describe("UrlMatch-match2", () => {
