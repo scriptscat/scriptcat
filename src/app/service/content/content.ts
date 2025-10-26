@@ -5,7 +5,7 @@ import type { MessageSend } from "@Packages/message/types";
 import type { GMInfoEnv } from "./types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
-import { definePropertyListener, isInjectIntoContent } from "./utils";
+import { isInjectIntoContent } from "./utils";
 import { RuntimeClient } from "../service_worker/client";
 
 // content页的处理
@@ -126,11 +126,8 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad() {
-    // 处理content EarlyScript
-    definePropertyListener(window, "EarlyScriptFlag", (flag: string[]) => {
-      this.scriptExecutor.checkEarlyStartScript(flag);
-    });
+  pageLoad(messageFlag: string) {
+    this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
 
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表

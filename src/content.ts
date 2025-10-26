@@ -11,7 +11,6 @@ import { definePropertyListener } from "./app/service/content/utils";
 
 declare global {
   interface Window {
-    EarlyScriptFlag?: string[];
     MessageFlag?: string;
   }
 }
@@ -48,7 +47,7 @@ if (typeof chrome?.runtime?.onMessage?.addListener !== "function") {
     const runtime = new ContentRuntime(extServer, server, extMsgComm, msgInject, scriptExecutorMsg, scriptExecutor);
     runtime.init();
     // 页面加载，注入脚本
-    runtime.pageLoad();
+    runtime.pageLoad(messageFlag);
   };
 
   // 监听MessageFlag

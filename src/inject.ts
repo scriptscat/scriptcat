@@ -8,7 +8,7 @@ import { InjectRuntime } from "./app/service/content/inject";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
 
-/* global MessageFlag, EarlyScriptFlag */
+/* global MessageFlag  */
 
 const msg: Message = new CustomEventMessage(MessageFlag, false);
 
@@ -22,7 +22,7 @@ const server = new Server("inject", msg);
 const scriptExecutor = new ScriptExecutor(msg);
 const runtime = new InjectRuntime(server, msg, scriptExecutor);
 // 检查early-start的脚本
-scriptExecutor.checkEarlyStartScript(EarlyScriptFlag);
+scriptExecutor.checkEarlyStartScript("inject", MessageFlag);
 
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");

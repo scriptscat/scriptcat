@@ -71,20 +71,34 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(earlyStarFlag: string[]) {
-    this.earlyScriptFlag = earlyStarFlag;
-    const loadExec = (flag: string, scriptFunc: any) => {
-      this.execScriptEntry({
-        scriptLoadInfo: scriptFunc.scriptInfo,
-        scriptFunc: scriptFunc.func,
-        scriptFlag: flag,
-        envInfo: {},
-      });
-    };
-    this.earlyScriptFlag.forEach((flag) => {
-      definePropertyListener(window, flag, (val: PreScriptFunc) => {
-        loadExec(flag, val);
-      });
+  checkEarlyStartScript(env: "content" | "inject", eventFlag: string) {
+    // 监听 脚本加载
+    window.addEventListener(`sc${eventFlag}`, (event) => {
+      if (event instanceof CustomEvent && event.detail.callback) {
+        const flag = event.detail.callback();
+        console.log("Early start script detected:", flag);
+        this.execEarlyScript(flag);
+      }
+    });
+    // 通知 环境 加载完成
+    const ev = new CustomEvent(`${env === "content" ? "ct" : "fd"}ld${eventFlag}`, {
+      detail: {
+        callback: (flag: string) => {
+          console.log("Notify early start script:", flag);
+          this.execEarlyScript(flag);
+        },
+      },
+    });
+    window.dispatchEvent(ev);
+  }
+
+  execEarlyScript(flag: string) {
+    const scriptFunc = (window as any)[flag] as PreScriptFunc;
+    this.execScriptEntry({
+      scriptLoadInfo: scriptFunc.scriptInfo,
+      scriptFunc: scriptFunc.func,
+      scriptFlag: flag,
+      envInfo: {},
     });
   }
 
