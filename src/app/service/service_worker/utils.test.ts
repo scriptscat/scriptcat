@@ -215,7 +215,7 @@ describe("getUserScriptRegister", () => {
     const mockScriptMatchInfo: ScriptMatchInfo = {
       uuid: "test-uuid",
       name: "Test Script",
-      code: "console.log('test');",
+      // code: "console.log('test');",
       metadata: {
         "run-at": ["document-end"],
         noframes: [],
@@ -237,10 +237,10 @@ describe("getUserScriptRegister", () => {
       runStatus: "running",
       createtime: Date.now(),
       checktime: Date.now(),
-      value: {},
-      flag: "test",
-      resource: {},
-      originalMetadata: {},
+      // value: {},
+      // flag: "test",
+      // resource: {},
+      // originalMetadata: {},
     };
 
     // const code = compileInjectionCode(mockScriptMatchInfo, mockScriptMatchInfo.code);

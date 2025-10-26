@@ -17,7 +17,6 @@ export class ScriptExecutor {
   execMap: Map<string, ExecScript> = new Map();
 
   envInfo: GMInfoEnv | undefined;
-  earlyScriptFlag: string[] = [];
 
   constructor(private msg: Message) {}
 
@@ -51,20 +50,17 @@ export class ScriptExecutor {
         envInfo: this.envInfo!,
       });
     };
+    // 处理早期脚本的沙盒环境
+    for (const val of this.execMap.values()) {
+      val.updateEarlyScriptGMInfo(this.envInfo!);
+    }
+    // 监听脚本加载
     scripts.forEach((script) => {
       const flag = script.flag;
-      // 如果是EarlyScriptFlag，处理沙盒环境
-      if (this.earlyScriptFlag.includes(flag)) {
-        for (const val of this.execMap.values()) {
-          if (val.scriptRes.flag === flag) {
-            // 处理早期脚本的沙盒环境
-            val.updateEarlyScriptGMInfo(this.envInfo!);
-            break;
-          }
-        }
+      if (this.execMap.has(script.uuid)) {
+        // 已经执行过的脚本跳过
         return;
       }
-
       definePropertyListener(window, flag, (val: ScriptFunc) => {
         loadExec(script, val);
       });
@@ -76,7 +72,6 @@ export class ScriptExecutor {
     window.addEventListener(`sc${eventFlag}`, (event) => {
       if (event instanceof CustomEvent && event.detail.callback) {
         const flag = event.detail.callback();
-        console.log("Early start script detected:", flag);
         this.execEarlyScript(flag);
       }
     });
@@ -84,7 +79,6 @@ export class ScriptExecutor {
     const ev = new CustomEvent(`${env === "content" ? "ct" : "fd"}ld${eventFlag}`, {
       detail: {
         callback: (flag: string) => {
-          console.log("Notify early start script:", flag);
           this.execEarlyScript(flag);
         },
       },

@@ -269,7 +269,13 @@ export class RuntimeService {
     );
     if (cleanUpPreviousRegister) {
       // 先反注册残留脚本
-      unregisterScriptIds.push("scriptcat-content-flag", "scriptcat-inject", "scriptcat-content");
+      unregisterScriptIds.push(
+        // 兼容旧的注册ID，过渡期后可移除
+        "scriptcat-early-start-flag",
+        "scriptcat-content-flag",
+        "scriptcat-inject",
+        "scriptcat-content"
+      );
     }
     if (unregisterScriptIds.length) {
       // 忽略 UserScripts API 无法执行
