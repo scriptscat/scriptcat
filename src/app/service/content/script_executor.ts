@@ -14,6 +14,7 @@ export type ExecScriptEntry = {
 
 // 脚本执行器
 export class ScriptExecutor {
+  earlyScriptFlag: Set<string> = new Set();
   execMap: Map<string, ExecScript> = new Map();
 
   envInfo: GMInfoEnv | undefined;
@@ -50,16 +51,18 @@ export class ScriptExecutor {
         envInfo: this.envInfo!,
       });
     };
-    // 处理早期脚本的沙盒环境
-    for (const val of this.execMap.values()) {
-      val.updateEarlyScriptGMInfo(this.envInfo!);
-    }
     // 监听脚本加载
     scripts.forEach((script) => {
       const flag = script.flag;
-      if (this.execMap.has(script.uuid)) {
-        // 已经执行过的脚本跳过
-        return;
+      // 如果是EarlyScriptFlag，处理沙盒环境
+      if (this.earlyScriptFlag.has(flag)) {
+        for (const val of this.execMap.values()) {
+          if (val.scriptRes.flag === flag) {
+            // 处理早期脚本的沙盒环境
+            val.updateEarlyScriptGMInfo(this.envInfo!);
+            break;
+          }
+        }
       }
       definePropertyListener(window, flag, (val: ScriptFunc) => {
         loadExec(script, val);
@@ -94,6 +97,7 @@ export class ScriptExecutor {
       scriptFlag: flag,
       envInfo: {},
     });
+    this.earlyScriptFlag.add(flag);
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
