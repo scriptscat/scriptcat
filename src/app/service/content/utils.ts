@@ -99,12 +99,12 @@ export function compileInjectScriptByFlag(
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
-  messageFlag: string,
+  messageFlags: MessageFlags,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  const eventName = isInjectIntoContent(script.metadata) ? "ct" : "fd";
+  const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
   return `window['${script.flag}'] = {
   scriptInfo: ${JSON.stringify(script)},
@@ -112,15 +112,13 @@ export function compilePreInjectScript(
 };
 (() => {
   const f = () => {
-    const event = new CustomEvent('sc${messageFlag}', 
+    const event = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
     { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
-    return window.dispatchEvent(event); // checkEarlyStartScript 先执行的话，这里回传 false
+    return window.dispatchEvent(event);
   };
-  const noCheckEarlyStartScript = f(); // checkEarlyStartScript 先执行的话，这里的 f() 会直接触发execEarlyScript； dispatchEvent 会回传 false
-  if (noCheckEarlyStartScript) { // checkEarlyStartScript 未执行
-    // 使用 dispatchEvent 回传值判断避免注册一堆不会呼叫的 eventHandler
-    window.addEventListener('${eventName}ld${messageFlag}', f, { once: true }); // 如checkEarlyStartScript 先执行，这个较后的event不会被呼叫。
-    // once: true 使呼叫后立即移除监听
+  const noCheckEarlyStartScript = f();
+  if (noCheckEarlyStartScript) {
+    window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
   }
 })();
 `;

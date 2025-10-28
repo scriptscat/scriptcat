@@ -70,24 +70,28 @@ export class ScriptExecutor {
     });
   }
 
-  checkEarlyStartScript(env: "content" | "inject", eventFlag: string) {
+  checkEarlyStartScript(env: "content" | "inject", messageFlags: MessageFlags) {
+    const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`sc${eventFlag}`, (event) => {
-      if (typeof event?.detail?.scriptFlag === "string") {
-        event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-        const scriptFlag = event.detail.scriptFlag;
-        this.execEarlyScript(scriptFlag);
+    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
+      if (event instanceof CustomEvent) {
+        if (typeof event.detail.scriptFlag === "string") {
+          event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+          const scriptFlag = event.detail.scriptFlag;
+          this.execEarlyScript(scriptFlag);
+        }
       }
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(`${env === "content" ? "ct" : "fd"}ld${eventFlag}`);
+    const ev = new CustomEvent(eventNamePrefix + messageFlags.envLoadComplete);
     window.dispatchEvent(ev);
   }
 
   execEarlyScript(flag: string) {
     const scriptFunc = (window as any)[flag] as PreScriptFunc;
+    console.log("execEarlyScript", flag, scriptFunc);
     this.execScriptEntry({
       scriptLoadInfo: scriptFunc.scriptInfo,
       scriptFunc: scriptFunc.func,

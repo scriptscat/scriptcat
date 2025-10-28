@@ -126,8 +126,8 @@ export default class ContentRuntime {
     );
   }
 
-  pageLoad(messageFlag: string) {
-    this.scriptExecutor.checkEarlyStartScript("content", messageFlag);
+  pageLoad(messageFlags: MessageFlags) {
+    this.scriptExecutor.checkEarlyStartScript("content", messageFlags);
 
     const client = new RuntimeClient(this.senderToExt);
     // 向service_worker请求脚本列表

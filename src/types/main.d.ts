@@ -25,8 +25,20 @@ interface FileSystemObserverInstance {
   observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
 }
 
-declare const MessageFlag: string;
-declare const EarlyScriptFlag: string[];
+interface MessageFlags {
+  // inject 环境flag
+  injectFlag: string;
+  // content 环境flag
+  contentFlag: string;
+  // 通信flag
+  messageFlag: string;
+  // 脚本加载完成事件
+  scriptLoadComplete: string;
+  // 环境加载完成事件
+  envLoadComplete: string;
+}
+
+declare const MessageFlags: MessageFlags;
 
 // 可以让content与inject环境交换携带dom的对象
 declare let cloneInto: ((detail: any, view: any) => any) | undefined;
