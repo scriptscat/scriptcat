@@ -72,20 +72,17 @@ export class ScriptExecutor {
 
   checkEarlyStartScript(env: "content" | "inject", eventFlag: string) {
     // 监听 脚本加载
+    // 适用于此「通知环境加载完成」代码执行后的脚本加载
     window.addEventListener(`sc${eventFlag}`, (event) => {
-      if (event instanceof CustomEvent && event.detail.callback) {
-        const flag = event.detail.callback();
-        this.execEarlyScript(flag);
+      if (typeof event?.detail?.scriptFlag === "string") {
+        event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+        const scriptFlag = event.detail.scriptFlag;
+        this.execEarlyScript(scriptFlag);
       }
     });
     // 通知 环境 加载完成
-    const ev = new CustomEvent(`${env === "content" ? "ct" : "fd"}ld${eventFlag}`, {
-      detail: {
-        callback: (flag: string) => {
-          this.execEarlyScript(flag);
-        },
-      },
-    });
+    // 适用于此「通知环境加载完成」代码执行前的脚本加载
+    const ev = new CustomEvent(`${env === "content" ? "ct" : "fd"}ld${eventFlag}`);
     window.dispatchEvent(ev);
   }
 
