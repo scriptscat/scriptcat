@@ -81,10 +81,12 @@
     console.log("querySelector('*') 找到的第一个元素:", firstElement?.tagName);
     assertTrue(firstElement !== null, "应该能找到第一个DOM节点");
     assert("HTML", firstElement.tagName, "早期脚本运行时，第一个可用节点应该是HTML元素");
+    assert("", firstElement.innerHTML, "HTML元素内容应该为空");
     console.log("节点详情:", {
       tagName: firstElement.tagName,
       childNodes: firstElement.childNodes.length,
       children: firstElement.children.length,
+      innerHTML: firstElement.innerHTML,
     });
   });
 

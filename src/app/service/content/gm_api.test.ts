@@ -686,16 +686,16 @@ describe("GM_value", () => {
     expect(ret).toEqual({ ret1: { a: 123, b: 456, c: "789" }, ret2: { b: 456 } });
   });
 
-  it("GM_addValueChangeListener", async () => {
+  it("GM_addValueChangeListener - remote: false", async () => {
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
     script.code = `
     return new Promise(resolve=>{
-      GM_addValueChangeListener("a", (name, oldValue, newValue, remote)=>{
+      GM_addValueChangeListener("param1", (name, oldValue, newValue, remote)=>{
         resolve({name, oldValue, newValue, remote});
       });
-      GM_setValue("a", 123);
+      GM_setValue("param1", 123);
     });
    `;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
@@ -705,31 +705,54 @@ describe("GM_value", () => {
     // @ts-ignore
     const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    let retPromise = exec.exec();
+    const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
     exec.valueUpdate({
-      id: "123",
-      entries: encodeMessage([["a", 123, undefined]]),
+      id: "id-1",
+      entries: encodeMessage([["param1", 123, undefined]]),
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: true,
     });
     const ret = await retPromise;
-    expect(ret).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: false });
+    expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
+  });
+
+  it("GM_addValueChangeListener - remote: true", async () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
+    script.metadata.storageName = ["testStorage"];
+    script.code = `
+    return new Promise(resolve=>{
+      GM_addValueChangeListener("param2", (name, oldValue, newValue, remote)=>{
+        resolve({name, oldValue, newValue, remote});
+      });
+      GM_setValue("param2", 456);
+    });
+   `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    // @ts-ignore
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
+    exec.scriptFunc = compileScript(compileScriptCode(script));
     // remote = true
-    retPromise = exec.exec();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    const retPromise = exec.exec();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
     exec.valueUpdate({
-      id: "123",
-      entries: encodeMessage([["a", 123, undefined]]),
+      id: "id-2",
+      entries: encodeMessage([["param2", 456, undefined]]),
       uuid: script.uuid,
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
+      valueUpdated: true,
     });
     const ret2 = await retPromise;
-    expect(ret2).toEqual({ name: "a", oldValue: undefined, newValue: 123, remote: true });
+    expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
   it("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
@@ -750,14 +773,18 @@ describe("GM_value", () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 获取调用参数
     const actualCall = mockSendMessage.mock.calls[0][0];
-    console.log("actualCall", actualCall.data.params[0]);
+    const id = actualCall.data.params[0];
+
+    expect(id).toBeTypeOf("string");
+    expect(id.length).greaterThan(0);
     // 触发valueUpdate
     exec.valueUpdate({
-      id: actualCall.data.params[0],
+      id: id,
       entries: encodeMessage([["a", 123, undefined]]),
       uuid: script.uuid,
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: true,
     });
 
     const ret = await retPromise;

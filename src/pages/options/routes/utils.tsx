@@ -69,74 +69,88 @@ export function installUrlToHome(installUrl: string) {
 export function ListHomeRender({ script }: { script: Script }) {
   const { t } = useTranslation();
   let home;
+  const item = [];
   if (!script.metadata.homepageurl) {
     home = installUrlToHome(script.downloadUrl || "");
   }
-  return (
-    <Space size="mini">
-      {home && <Tooltip content={t("homepage")}>{home}</Tooltip>}
-      {script.metadata.homepage && (
-        <Tooltip content={t("homepage")}>
-          <Button
-            type="text"
-            iconOnly
-            icon={<IconHome />}
-            size="small"
-            href={script.metadata.homepage[0]}
-            target="_blank"
-          />
-        </Tooltip>
-      )}
-      {script.metadata.homepageurl && (
-        <Tooltip content={t("homepage")}>
-          <Button
-            type="text"
-            iconOnly
-            icon={<IconHome />}
-            size="small"
-            href={script.metadata.homepageurl[0]}
-            target="_blank"
-          />
-        </Tooltip>
-      )}
-      {script.metadata.website && (
-        <Tooltip content={t("script_website")}>
-          <Button
-            type="text"
-            iconOnly
-            icon={<IconHome />}
-            size="small"
-            href={script.metadata.website[0]}
-            target="_blank"
-          />
-        </Tooltip>
-      )}
-      {script.metadata.source && (
-        <Tooltip content={t("script_source")}>
-          <Button
-            type="text"
-            iconOnly
-            icon={<IconCode />}
-            size="small"
-            href={script.metadata.source[0]}
-            target="_blank"
-          />
-        </Tooltip>
-      )}
-      {script.metadata.supporturl && (
-        <Tooltip content={t("bug_feedback_script_support")}>
-          <Button
-            type="text"
-            iconOnly
-            icon={<IconBug />}
-            size="small"
-            href={script.metadata.supporturl[0]}
-            target="_blank"
-          />
-        </Tooltip>
-      )}
-    </Space>
-  );
+  if (home) {
+    item.push(<Tooltip content={t("homepage")}>{home}</Tooltip>);
+  }
+  if (script.metadata.homepage) {
+    item.push(
+      <Tooltip content={t("homepage")}>
+        <Button
+          type="text"
+          iconOnly
+          icon={<IconHome />}
+          size="small"
+          href={script.metadata.homepage[0]}
+          target="_blank"
+        />
+      </Tooltip>
+    );
+  }
+  if (script.metadata.homepageurl) {
+    item.push(
+      <Tooltip content={t("homepage")}>
+        <Button
+          type="text"
+          iconOnly
+          icon={<IconHome />}
+          size="small"
+          href={script.metadata.homepageurl[0]}
+          target="_blank"
+        />
+      </Tooltip>
+    );
+  }
+  if (script.metadata.website) {
+    item.push(
+      <Tooltip content={t("script_website")}>
+        <Button
+          type="text"
+          iconOnly
+          icon={<IconHome />}
+          size="small"
+          href={script.metadata.website[0]}
+          target="_blank"
+        />
+      </Tooltip>
+    );
+  }
+  if (script.metadata.source) {
+    item.push(
+      <Tooltip content={t("script_source")}>
+        <Button
+          type="text"
+          iconOnly
+          icon={<IconCode />}
+          size="small"
+          href={script.metadata.source[0]}
+          target="_blank"
+        />
+      </Tooltip>
+    );
+  }
+  if (script.metadata.supporturl) {
+    item.push(
+      <Tooltip content={t("bug_feedback_script_support")}>
+        <Button
+          type="text"
+          iconOnly
+          icon={<IconBug />}
+          size="small"
+          href={script.metadata.supporturl[0]}
+          target="_blank"
+        />
+      </Tooltip>
+    );
+  }
+  if (item.length === 0) {
+    return null;
+  }
+
+  return <Space size="mini">{item}</Space>;
 }
 
 export type ScriptIconsProps = {

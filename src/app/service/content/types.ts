@@ -31,6 +31,7 @@ export type ValueUpdateDataEncoded = {
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;
+  valueUpdated: boolean;
 };
 
 // gm_api.ts

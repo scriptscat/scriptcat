@@ -13,6 +13,7 @@ import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { MessageQueue } from "@Packages/message/message_queue";
 import type { ValueUpdateSender } from "../content/types";
+import { getStorageName } from "@App/pkg/utils/utils";
 
 initTestEnv();
 
@@ -44,7 +45,9 @@ describe("ValueService - setValue 方法测试", () => {
     runStatus: "running" as const,
     createtime: Date.now(),
     checktime: Date.now(),
-    metadata: {},
+    metadata: {
+      storageName: [`test_storage_${randomUUID()}`],
+    },
     ...overrides,
   });
 
@@ -101,14 +104,76 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, value, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4021", key, value, mockSender);
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
-    expect(valueService.pushValueToTab).toHaveBeenCalled();
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript });
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4021",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
+    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
+
+    // 验证保存的数据结构
+    const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
+    const savedValue = saveCall[1];
+    expect(savedValue.uuid).toBe(mockScript.uuid);
+    expect(savedValue.data[key]).toBe(value);
+    expect(savedValue.createtime).toBeTypeOf("number");
+    expect(savedValue.updatetime).toBeTypeOf("number");
+  });
+
+  it("应该成功设置新脚本的值 (storageName fallback)", async () => {
+    // 准备测试数据
+    const mockScript = createMockScript();
+    mockScript.metadata = {}; // storageName fallback
+    const mockSender = createMockValueSender();
+    const key = "testKey";
+    const value = "testValue";
+
+    // 配置mock返回值
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined); // 新脚本，没有现有值
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    // 执行测试
+    await valueService.setValue(mockScript.uuid, "testId-4022", key, value, mockSender);
+
+    // 验证结果
+    expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
+    expect(mockValueDAO.get).toHaveBeenCalled();
+    expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4022",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
+    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: true });
 
     // 验证保存的数据结构
     const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
@@ -130,7 +195,7 @@ describe("ValueService - setValue 方法测试", () => {
     const originalData = { [key]: oldValue };
     const existingValueModel = {
       uuid: mockScript.uuid,
-      storageName: `script_${mockScript.uuid}`,
+      storageName: getStorageName(mockScript),
       data: originalData,
       createtime: Date.now() - 1000,
       updatetime: Date.now() - 1000,
@@ -142,14 +207,32 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, newValue, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4023", key, newValue, mockSender);
 
     // 验证结果
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
-    expect(valueService.pushValueToTab).toHaveBeenCalled();
-    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript });
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4023",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
+    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", {
+      script: mockScript,
+      valueUpdated: true,
+    });
 
     // 验证保存的数据被正确更新
     const saveCall = vi.mocked(mockValueDAO.save).mock.calls[0];
@@ -168,7 +251,7 @@ describe("ValueService - setValue 方法测试", () => {
 
     const existingValueModel = {
       uuid: mockScript.uuid,
-      storageName: `script_${mockScript.uuid}`,
+      storageName: getStorageName(mockScript),
       data: { [key]: value }, // 相同的值
       createtime: Date.now() - 1000,
       updatetime: Date.now() - 1000,
@@ -179,14 +262,29 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
 
     // 执行测试
-    await valueService.setValue(mockScript.uuid, "testId", key, value, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4024", key, value, mockSender);
 
     // 验证结果 - 不应该保存或发送更新
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled(); // 值未改变，不应该保存
-    expect(valueService.pushValueToTab).not.toHaveBeenCalled(); // 值未改变，不应该推送
-    expect(mockMessageQueue.emit).not.toHaveBeenCalled(); // 值未改变，不应该发送事件
+    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4024",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: false,
+      })
+    ); // 值未改变
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(1);
+    expect(mockMessageQueue.emit).toHaveBeenCalledWith("valueUpdate", { script: mockScript, valueUpdated: false }); // 值未改变
   });
 
   it("当设置值为undefined时应该删除该键", async () => {
@@ -198,7 +296,7 @@ describe("ValueService - setValue 方法测试", () => {
 
     const existingValueModel = {
       uuid: mockScript.uuid,
-      storageName: `script_${mockScript.uuid}`,
+      storageName: getStorageName(mockScript),
       data: { [key]: oldValue, otherKey: "otherValue" },
       createtime: Date.now() - 1000,
       updatetime: Date.now() - 1000,
@@ -210,7 +308,7 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试 - 设置值为undefined
-    await valueService.setValue(mockScript.uuid, "testId", key, undefined, mockSender);
+    await valueService.setValue(mockScript.uuid, "testId-4025", key, undefined, mockSender);
 
     // 验证结果
     expect(mockValueDAO.save).toHaveBeenCalled();
@@ -231,14 +329,15 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockScriptDAO.get).mockResolvedValue(undefined);
 
     // 执行测试并验证抛出错误
-    await expect(valueService.setValue(nonExistentUuid, "testId", "testKey", "testValue", mockSender)).rejects.toThrow(
-      "script not found"
-    );
+    await expect(
+      valueService.setValue(nonExistentUuid, "testId-4026", "testKey", "testValue", mockSender)
+    ).rejects.toThrow("script not found");
 
     // 验证不会执行后续操作
     expect(mockValueDAO.get).not.toHaveBeenCalled();
     expect(mockValueDAO.save).not.toHaveBeenCalled();
     expect(valueService.pushValueToTab).not.toHaveBeenCalled();
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
   });
 
   it("应该正确处理并发访问的缓存键", async () => {
@@ -257,13 +356,44 @@ describe("ValueService - setValue 方法测试", () => {
 
     // 并发执行两个setValue操作
     await Promise.all([
-      valueService.setValue(mockScript.uuid, "testId1", key1, value1, mockSender),
-      valueService.setValue(mockScript.uuid, "testId2", key2, value2, mockSender),
+      valueService.setValue(mockScript.uuid, "testId-4041", key1, value1, mockSender),
+      valueService.setValue(mockScript.uuid, "testId-4042", key2, value2, mockSender),
     ]);
 
     // 验证两个操作都被调用
     expect(mockScriptDAO.get).toHaveBeenCalledTimes(2);
     expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
     expect(valueService.pushValueToTab).toHaveBeenCalledTimes(2);
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4041",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        entries: expect.any(Object),
+        id: "testId-4042",
+        sender: expect.objectContaining({
+          runFlag: expect.any(String),
+          tabId: expect.any(Number),
+        }),
+        storageName: getStorageName(mockScript),
+        uuid: mockScript.uuid,
+        valueUpdated: true,
+      })
+    );
+    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(2);
+    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(1, "valueUpdate", { script: mockScript, valueUpdated: true });
+    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(2, "valueUpdate", { script: mockScript, valueUpdated: true });
   });
 });
