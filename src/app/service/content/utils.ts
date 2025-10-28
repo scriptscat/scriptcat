@@ -111,21 +111,17 @@ export function compilePreInjectScript(
   func: function(){${autoDeleteMountCode}${scriptCode}}
 };
 (() => {
-  let eventListener = (ev) => {
-    if (ev.detail && ev.detail.callback && !loaded) {
-      ev.detail.callback('${script.flag}');
-    }
+  const f = () => {
+    const event = new CustomEvent('sc${messageFlag}', 
+    { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
+    return window.dispatchEvent(event); // checkEarlyStartScript 先执行的话，这里回传 false
+  };
+  const noCheckEarlyStartScript = f(); // checkEarlyStartScript 先执行的话，这里的 f() 会直接触发execEarlyScript； dispatchEvent 会回传 false
+  if (noCheckEarlyStartScript) { // checkEarlyStartScript 未执行
+    // 使用 dispatchEvent 回传值判断避免注册一堆不会呼叫的 eventHandler
+    window.addEventListener('${eventName}ld${messageFlag}', f, { once: true }); // 如checkEarlyStartScript 先执行，这个较后的event不会被呼叫。
+    // once: true 使呼叫后立即移除监听
   }
-  window.addEventListener('${eventName}ld${messageFlag}', eventListener);
-  let loaded = false;
-  const callback = () => {
-    if (loaded) return;
-    loaded = true;
-    window.removeEventListener('${eventName}ld${messageFlag}', eventListener);
-    return '${script.flag}';
-  }
-  const event = new CustomEvent('sc${messageFlag}', { detail: { callback } });
-  window.dispatchEvent(event);
 })();
 `;
 }
