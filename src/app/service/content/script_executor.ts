@@ -91,7 +91,6 @@ export class ScriptExecutor {
 
   execEarlyScript(flag: string) {
     const scriptFunc = (window as any)[flag] as PreScriptFunc;
-    console.log("execEarlyScript", flag, scriptFunc);
     this.execScriptEntry({
       scriptLoadInfo: scriptFunc.scriptInfo,
       scriptFunc: scriptFunc.func,

@@ -614,7 +614,7 @@ export class RuntimeService {
   }
 
   // 生成messageFlags
-  generateMessageFlags(): typeof runtimeGlobal.messageFlags {
+  generateMessageFlags(): MessageFlags {
     return {
       injectFlag: randomMessageFlag(),
       contentFlag: randomMessageFlag(),
@@ -1218,7 +1218,6 @@ export class RuntimeService {
       excludeGlobs: excludeGlobs,
     };
 
-    // 构建content.js的脚本注册信息
     return [script] as chrome.userScripts.RegisteredUserScript[];
   }
 
