@@ -155,10 +155,10 @@
   console.log("\n%c--- GM 存储 API 测试 ---", "color: orange; font-weight: bold;");
 
   test("GM_setValue - 字符串", () => {
-    const fristValue = GM_getValue("test_key");
+    const firstValue = GM_getValue("test_key");
     GM_setValue("test_key", "content环境测试值");
     const value = GM_getValue("test_key");
-    assert("content环境测试值", fristValue, "应该正确保存和读取字符串");
+    assert("content环境测试值", firstValue, "应该正确保存和读取字符串");
     assert("content环境测试值", value, "应该正确保存和读取字符串");
   });
 
