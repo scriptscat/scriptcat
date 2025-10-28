@@ -115,12 +115,7 @@ export class RuntimeService {
     this.loadingInitFlagPromise = this.localStorageDAO
       .get("scriptInjectMessageFlags")
       .then((res) => {
-        runtimeGlobal.messageFlags = res?.value || {
-          contentInject: randomMessageFlag(),
-          injectContent: randomMessageFlag(),
-          scriptLoadComplete: randomMessageFlag(),
-          envLoadComplete: randomMessageFlag(),
-        };
+        runtimeGlobal.messageFlags = res?.value || this.generateMessageFlags();
         return this.localStorageDAO.save({ key: "scriptInjectMessageFlags", value: runtimeGlobal.messageFlags });
       })
       .catch(console.error);
