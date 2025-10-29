@@ -60,7 +60,7 @@ export class ScriptExecutor {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(this.envInfo!);
-            break;
+            return;
           }
         }
       }

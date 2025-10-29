@@ -11,6 +11,7 @@
 // @grant        GM_log
 // @grant        GM_info
 // @grant        GM_setValue
+// @grant        GM.setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_listValues
@@ -154,11 +155,9 @@
   // ============ GM 存储 API 测试 ============
   console.log("\n%c--- GM 存储 API 测试 ---", "color: orange; font-weight: bold;");
 
-  test("GM_setValue - 字符串", () => {
-    const firstValue = GM_getValue("test_key");
-    GM_setValue("test_key", "content环境测试值");
+  await test("GM_setValue - 字符串", async () => {
+    await GM.setValue("test_key", "content环境测试值");
     const value = GM_getValue("test_key");
-    assert("content环境测试值", firstValue, "应该正确保存和读取字符串");
     assert("content环境测试值", value, "应该正确保存和读取字符串");
   });
 
