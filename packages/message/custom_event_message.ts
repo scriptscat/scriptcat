@@ -19,11 +19,19 @@ export class CustomEventMessage implements Message {
   // 关联dom目标
   relatedTarget: Map<number, EventTarget> = new Map();
 
+  protected flags: {
+    injectFlag: string;
+    contentFlag: string;
+    messageFlag: string;
+  };
+
   constructor(
-    protected flag: string,
+    flags: typeof CustomEventMessage.prototype.flags | string,
     protected isContent: boolean
   ) {
-    window.addEventListener((isContent ? "ct" : "fd") + flag, (event) => {
+    flags = typeof flags === "string" ? { injectFlag: "inject", contentFlag: "content", messageFlag: flags } : flags;
+    this.flags = flags;
+    window.addEventListener((isContent ? flags.contentFlag : flags.injectFlag) + flags.messageFlag, (event) => {
       if (event instanceof MouseEvent && event.movementX && event.relatedTarget) {
         this.relatedTarget.set(event.movementX, event.relatedTarget!);
       } else if (event instanceof CustomEvent) {
@@ -95,10 +103,14 @@ export class CustomEventMessage implements Message {
       }
     }
 
-    const ev = new CustomEvent((this.isContent ? "fd" : "ct") + this.flag, {
+    const ev = new CustomEvent(this.sendEventName(), {
       detail,
     });
     window.dispatchEvent(ev);
+  }
+
+  sendEventName(): string {
+    return (this.isContent ? this.flags.injectFlag : this.flags.contentFlag) + this.flags.messageFlag;
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
@@ -148,7 +160,7 @@ export class CustomEventMessage implements Message {
     // 先将relatedTarget转换成id发送过去
     const id = ++this.relateId;
     // 可以使用此种方式交互element
-    const ev = new MouseEvent((this.isContent ? "fd" : "ct") + this.flag, {
+    const ev = new MouseEvent(this.sendEventName(), {
       movementX: id,
       relatedTarget: target,
     });

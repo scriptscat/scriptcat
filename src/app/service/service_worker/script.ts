@@ -327,9 +327,8 @@ export class ScriptService {
         await this.scriptCodeDAO.delete(uuid);
         await this.compiledResourceDAO.delete(uuid);
         logger.info("delete success");
-        const isEarlyStart = isEarlyStartScript(script.metadata);
-        const data = [{ uuid, storageName, type: script.type, isEarlyStart }];
-        this.mq.publish<TDeleteScript[]>("deleteScripts", data);
+        const data = [{ uuid, storageName, type: script.type }] as TDeleteScript[];
+        this.mq.publish("deleteScripts", data);
         return true;
       })
       .catch((e) => {

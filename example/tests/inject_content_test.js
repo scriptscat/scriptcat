@@ -10,13 +10,14 @@
 // @grant        GM_log
 // @grant        GM_info
 // @grant        GM_setValue
+// @grant        GM.setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_listValues
 // @run-at       document-start
 // ==/UserScript==
 
-(function () {
+(async function () {
   "use strict";
 
   console.log("%c=== Content环境 GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
@@ -28,10 +29,10 @@
   };
 
   // 测试辅助函数
-  function test(name, fn) {
+  async function test(name, fn) {
     testResults.total++;
     try {
-      fn();
+      await fn();
       testResults.passed++;
       console.log(`%c✓ ${name}`, "color: green;");
       return true;
@@ -116,8 +117,8 @@
   // ============ GM 存储 API 测试 ============
   console.log("\n%c--- GM 存储 API 测试 ---", "color: orange; font-weight: bold;");
 
-  test("GM_setValue - 字符串", () => {
-    GM_setValue("test_key", "content环境测试值");
+  await test("GM_setValue - 字符串", async () => {
+    await GM.setValue("test_key", "content环境测试值");
     const value = GM_getValue("test_key");
     assert("content环境测试值", value, "应该正确保存和读取字符串");
   });

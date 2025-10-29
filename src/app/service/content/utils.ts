@@ -99,15 +99,29 @@ export function compileInjectScriptByFlag(
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
+  messageFlags: MessageFlags,
   script: ScriptLoadInfo,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
+  const eventNamePrefix = isInjectIntoContent(script.metadata) ? messageFlags.contentFlag : messageFlags.injectFlag;
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${script.flag}']}catch(e){}` : "";
   return `window['${script.flag}'] = {
   scriptInfo: ${JSON.stringify(script)},
   func: function(){${autoDeleteMountCode}${scriptCode}}
-  }`;
+};
+(() => {
+  const f = () => {
+    const event = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
+    { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
+    return window.dispatchEvent(event);
+  };
+  const noCheckEarlyStartScript = f();
+  if (noCheckEarlyStartScript) {
+    window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
+  }
+})();
+`;
 }
 
 export function addStyle(css: string): HTMLStyleElement {
