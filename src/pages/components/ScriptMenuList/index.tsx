@@ -184,14 +184,17 @@ const ListMenuItem = React.memo(
       setIsExpand((e) => !e);
     };
 
+    const hasExpandLimit = menuExpandNum > 0;
+
     const visibleMenus = useMemo(() => {
       const m = scriptMenus?.group || [];
+      if (!hasExpandLimit) return m;
       return m.length > menuExpandNum && !isExpand ? m.slice(0, menuExpandNum) : m;
-    }, [scriptMenus?.group, isExpand, menuExpandNum]);
+    }, [scriptMenus?.group, hasExpandLimit, isExpand, menuExpandNum]);
 
     const shouldShowMore = useMemo(
-      () => scriptMenus?.group?.length > menuExpandNum,
-      [scriptMenus?.group, menuExpandNum]
+      () => hasExpandLimit && scriptMenus?.group?.length > menuExpandNum,
+      [hasExpandLimit, scriptMenus?.group, menuExpandNum]
     );
 
     const handleExcludeUrl = (uuid: string, excludePattern: string, isExclude: boolean) => {
