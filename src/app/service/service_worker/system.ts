@@ -22,10 +22,6 @@ export class SystemService {
     private faviconDAO: FaviconDAO
   ) {}
 
-  getFaviconFromDomain(domain: string) {
-    return fetchIconByDomain(domain);
-  }
-
   async getScriptFavicon(uuid: string): Promise<FaviconRecord[]> {
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -146,8 +142,6 @@ export class SystemService {
         }
       }
     });
-
-    this.group.on("getFaviconFromDomain", this.getFaviconFromDomain.bind(this));
 
     // 如果开启了自动连接vscode，则自动连接
     // 使用tx来确保service_worker恢复时不会再执行

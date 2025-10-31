@@ -413,8 +413,4 @@ export class SystemClient extends Client {
   getScriptFavicon(uuid: string): Promise<FaviconRecord[]> {
     return this.doThrow("getScriptFavicon", uuid);
   }
-
-  getFaviconFromDomain(domain: string): ReturnType<SystemService["getFaviconFromDomain"]> {
-    return this.doThrow("getFaviconFromDomain", domain);
-  }
 }
