@@ -384,8 +384,12 @@
   "guide_script_list_enable_content": "腳本需要開啟才能使用，頁面腳本安裝預設開啟，背景腳本安裝預設關閉",
   "guide_script_list_apply_to_run_status_title": "應用至、與執行狀態",
   "guide_script_list_apply_to_run_status_content": "腳本執行狀態展示，滑鼠懸停至標籤可以查看腳本類型",
-  "guide_script_list_sort_title": "排序/最近更新/操作",
-  "guide_script_list_sort_content": "您可以拖動腳本的標籤進行排序，點選最近更新欄位標籤可以對腳本進行一次檢查更新，操作欄可以進入腳本編輯、控制腳本的執行停止（背景腳本）、設定<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>",
+  "guide_script_list_sort_title": "排序",
+  "guide_script_list_sort_content": "你可以拖曳腳本的標籤進行排序",
+  "guide_script_list_update_title": "最後更新",
+  "guide_script_list_update_content": "點擊最後更新列標籤可以對腳本進行一次檢查更新",
+  "guide_script_list_action_title": "操作",
+  "guide_script_list_action_content": "操作列可以進入腳本編輯、控制腳本的運行停止（後台腳本）、設定<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>，操作右側按鈕可開啟進階篩選與切換視圖模式",
   "guide_tools_title": "常用工具",
   "guide_tools_content": "工具中提供了備份和開發的工具",
   "guide_tools_backup_title": "備份",
@@ -533,5 +537,6 @@
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
-  }
+  },
+  "loading": "加載中..."
 }
