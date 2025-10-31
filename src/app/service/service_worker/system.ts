@@ -7,8 +7,9 @@ import { v5 as uuidv5 } from "uuid";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { TDeleteScript, TInstallScript } from "../queue";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import { extractFaviconsDomain, fetchIconByDomain } from "@App/pkg/utils/favicon";
 import type { FaviconDAO, FaviconRecord } from "@App/app/repo/favicon";
+import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
+import { fetchIconByDomain, extractFaviconsDomain } from "./favicon";
 
 // 一些系统服务
 export class SystemService {
@@ -74,9 +75,9 @@ export class SystemService {
     return opfsRoot.getDirectoryHandle(`favicons:${uuid}`, { create: true });
   }
 
-  async loadFavicon({ uuid, url }: { uuid: string; url: string }): Promise<string> {
-    // 根据url缓存一下
-    return await cacheInstance.tx(`favicon-url:${url}`, async (val: string | undefined, tx) => {
+  loadFavicon({ uuid, url }: { uuid: string; url: string }): Promise<string> {
+    // 根据url缓存，防止重复下载
+    return cacheInstance.tx(`favicon-url:${url}`, async (val: string | undefined, tx) => {
       if (val) {
         return val;
       }
@@ -115,6 +116,7 @@ export class SystemService {
     this.group.on("connectVSCode", (params) => {
       return vscodeConnect.connect(params);
     });
+
     // 加载favicon并缓存到OPFS
     this.group.on("loadFavicon", this.loadFavicon.bind(this));
 
@@ -122,12 +124,11 @@ export class SystemService {
     this.group.on("getScriptFavicon", this.getScriptFavicon.bind(this));
 
     // 脚本更新删除favicon缓存
-    this.mq.subscribe<TInstallScript[]>("installScript", async (message) => {
-      for (const { script, update } of message) {
-        if (update) {
-          // 删除旧的favicon缓存
-          await this.faviconDAO.delete(script.uuid);
-        }
+    this.mq.subscribe<TInstallScript>("installScript", async (messages) => {
+      if (messages.update) {
+        // 删除旧的favicon缓存
+        await this.faviconDAO.delete(messages.script.uuid);
+        await cacheInstance.del(`${CACHE_KEY_FAVICON}${messages.script.uuid}`);
       }
     });
 
