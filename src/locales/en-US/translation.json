@@ -387,7 +387,7 @@
   "guide_script_list_sort_title": "Sort",
   "guide_script_list_sort_content": "You can drag the tag of the script to sort",
   "guide_script_list_update_title": "Last Updated",
-  "guide_script_list_update_content": "Tap the last update column label to check for updates to the script",
+  "guide_script_list_update_content": "Click the last update column label to check for updates to the script",
   "guide_script_list_action_title": "Action",
   "guide_script_list_action_content": "The operation bar allows access to script editing, control script execution and termination (background scripts), and settings (see <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). The buttons on the right allow access to advanced filtering and toggling view modes.",
   "guide_tools_title": "Common Tools",
