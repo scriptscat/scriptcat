@@ -16,6 +16,7 @@ import { cacheInstance } from "@App/app/cache";
 import { v4 as uuidv4 } from "uuid";
 import { CACHE_KEY_SCRIPT_INFO } from "@App/app/cache_key";
 import i18n, { i18nName } from "@App/locales/locales";
+import { mightCreatePeriodicAlarm } from "./alarm";
 
 export class SubscribeService {
   logger: Logger;
@@ -316,21 +317,10 @@ export class SubscribeService {
       this.upsertScript(message.subscribe.url);
     });
 
-    // 定时检查更新, 首次執行為5分钟後，然後每30分钟检查一次
-    chrome.alarms.create(
-      "checkSubscribeUpdate",
-      {
-        delayInMinutes: 5,
-        periodInMinutes: 30,
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-          // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-          console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-        }
-      }
-    );
+    // 定时检查更新, 首次执行为5分钟后，然后每42分钟检查一次
+    mightCreatePeriodicAlarm("checkSubscribeUpdate", {
+      delayInMinutes: 5,
+      periodInMinutes: 42, // 时间相隔和 checkScriptUpdate 错开
+    });
   }
 }

@@ -26,6 +26,7 @@ import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import i18n, { i18nName } from "@App/locales/locales";
+import { mightCreatePeriodicAlarm } from "./alarm";
 
 // type SynchronizeTarget = "local";
 
@@ -606,28 +607,8 @@ export class SynchronizeService {
       this.buildFileSystem(value).then(async (fs) => {
         await this.syncOnce(value, fs);
         // 开启定时器, 一小时一次
-        chrome.alarms.get("cloudSync", (alarm) => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
-            // 非预期的异常API错误，停止处理
-          }
-          if (!alarm) {
-            chrome.alarms.create(
-              "cloudSync",
-              {
-                periodInMinutes: 60,
-              },
-              () => {
-                const lastError = chrome.runtime.lastError;
-                if (lastError) {
-                  console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-                  // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-                  console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-                }
-              }
-            );
-          }
+        mightCreatePeriodicAlarm("cloudSync", {
+          periodInMinutes: 60,
         });
       });
     } else {
