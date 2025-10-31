@@ -63,7 +63,7 @@ export class SystemService {
       favicons: faviconUrls,
     });
 
-    return faviconUrls.slice();
+    return faviconUrls;
   }
 
   async faviconOPFS(uuid: string) {
