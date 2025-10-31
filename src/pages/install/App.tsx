@@ -88,10 +88,12 @@ function App() {
       const uuid = locationUrl.searchParams.get("uuid");
       let info: ScriptInfo | undefined;
       let isKnownUpdate: boolean = false;
+      let paramOptions = {};
       if (uuid) {
         const cachedInfo = await scriptClient.getInstallInfo(uuid);
         if (cachedInfo?.[0]) isKnownUpdate = true;
         info = cachedInfo?.[1] || undefined;
+        paramOptions = cachedInfo?.[2] || {};
         if (!info) {
           throw new Error("fetch script info failed");
         }
@@ -145,7 +147,7 @@ function App() {
         diffCode = prepare.oldSubscribe?.code;
       } else {
         const knownUUID = isKnownUpdate ? info.uuid : undefined;
-        prepare = await prepareScriptByCode(code, url, knownUUID);
+        prepare = await prepareScriptByCode(code, url, knownUUID, false, undefined, paramOptions);
         action = prepare.script;
         if (prepare.oldScript) {
           oldVersion = prepare.oldScript!.metadata!.version![0] || "";
