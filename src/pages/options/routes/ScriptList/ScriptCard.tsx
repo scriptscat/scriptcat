@@ -385,6 +385,7 @@ export const ScriptCard = ({
     <>
       {/* 卡片视图工具栏 */}
       <Card
+        className="script-list-card"
         style={{
           borderWidth: "0 0px 1px 0",
           padding: "0 16px",

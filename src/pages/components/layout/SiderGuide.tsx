@@ -27,6 +27,10 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     }
   }, []);
 
+  const cardView = document.querySelector(".script-list-card");
+
+  // 搜索有没有 .script-list-card 决定是走卡片视图还是表格视图的新手引导
+
   const steps: Array<Step> = [
     {
       title: t("start_guide_title"),
@@ -45,6 +49,11 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       title: t("guide_script_list_title"),
       placement: "auto",
     },
+  ];
+  if (cardView) {
+    // steps.push({});
+  }
+  steps.push(
     {
       content: t("guide_script_list_enable_content"),
       target: ".script-enable",
@@ -58,7 +67,17 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     {
       target: ".script-sort",
       title: t("guide_script_list_sort_title"),
-      content: <CustomTrans i18nKey="guide_script_list_sort_content" />,
+      content: t("guide_script_list_sort_content"),
+    },
+    {
+      target: ".script-updatetime",
+      title: t("guide_script_list_update_title"),
+      content: <CustomTrans i18nKey="guide_script_list_update_content" />,
+    },
+    {
+      target: ".script-action",
+      title: t("guide_script_list_action_title"),
+      content: <CustomTrans i18nKey="guide_script_list_action_content" />,
     },
     {
       target: ".menu-tools",
@@ -81,8 +100,8 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       target: ".setting .sync",
       title: t("guide_setting_sync_title"),
       content: t("guide_setting_sync_content"),
-    },
-  ];
+    }
+  );
 
   const gotoNavigate = (go: Partial<Path>) => {
     if (go.pathname !== location.pathname) {
@@ -106,10 +125,10 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
           gotoNavigate(initRoute);
         } else if (data.action === "next" && data.lifecycle === "complete") {
           switch (data.index) {
-            case 5:
+            case 7:
               gotoNavigate({ pathname: "/tools" });
               break;
-            case 7:
+            case 9:
               gotoNavigate({ pathname: "/setting" });
               break;
             default:
