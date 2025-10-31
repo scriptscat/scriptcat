@@ -1,9 +1,8 @@
 import type { Script } from "@App/app/repo/scripts";
-import { extractFavicons } from "@App/pkg/utils/favicon";
 import { cacheInstance } from "@App/app/cache";
-import { SystemClient } from "@App/app/service/service_worker/client";
 import { message } from "./global";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
+import { SystemClient } from "@App/app/service/service_worker/client";
 
 // 处理单个脚本的favicon
 const processScriptFavicon = async (script: Script) => {
@@ -11,11 +10,10 @@ const processScriptFavicon = async (script: Script) => {
   return {
     uuid: script.uuid,
     fav: await cacheInstance.getOrSet(cacheKey, async () => {
-      const icons = await extractFavicons(script.metadata!.match || [], script.metadata!.include || []);
+      const systemClient = new SystemClient(message);
+      const icons = await systemClient.getScriptFavicon(script.uuid);
       if (icons.length === 0) return [];
 
-      // 从缓存中获取favicon图标
-      const systemClient = new SystemClient(message);
       const newIcons = await Promise.all(
         icons.map(async (icon) => {
           let iconUrl = "";
@@ -23,7 +21,7 @@ const processScriptFavicon = async (script: Script) => {
           if (icon.icon) {
             try {
               // 因为需要持久化URL.createObjectURL，所以需要通过调用到offscreen来创建
-              iconUrl = await systemClient.loadFavicon(icon.icon);
+              iconUrl = await systemClient.loadFavicon({ uuid: script.uuid, url: icon.icon });
             } catch (_) {
               // ignored
             }

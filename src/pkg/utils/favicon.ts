@@ -1,16 +1,5 @@
-import { type TMsgResponse } from "@App/app/service/service_worker/utils";
-import { systemClient } from "@App/pages/store/global";
-
-/**
- * 从脚本的@match和@include规则中提取favicon图标
- * @param matche match规则数组
- * @param include include规则数组
- * @returns favicon URL数组
- */
-export async function extractFavicons(
-  matche: string[] = [],
-  include: string[] = []
-): Promise<{ match: string; website: string; icon?: string }[]> {
+// 从脚本的@match和@include规则中提取域名
+export function extractFaviconsDomain(matche: string[] = [], include: string[] = []) {
   // 提取域名
   const domains = new Map<string, { match: string; domain: string }>();
 
@@ -26,33 +15,7 @@ export async function extractFavicons(
     }
   }
 
-  // 将Map转换为数组并去重
-  const uniqueDomains = Array.from(domains.values());
-
-  // 获取favicon
-  const faviconUrls = new Array<{ match: string; website: string; icon: string }>();
-
-  // 并发获取favicon
-  const fetchPromises = uniqueDomains.map(async (domain) => {
-    try {
-      if (domain.domain) {
-        const icons = await getFaviconFromDomain(domain.domain);
-        if (icons.length > 0) {
-          faviconUrls.push({ match: domain.match, website: "http://" + domain.domain, icon: icons[0] });
-        } else {
-          faviconUrls.push({ match: domain.match, website: "http://" + domain.domain, icon: "" });
-        }
-      } else {
-        faviconUrls.push({ match: domain.match, website: "", icon: "" });
-      }
-    } catch (error) {
-      console.error(`Failed to fetch favicon for ${domain.domain || domain.match}:`, error);
-    }
-  });
-  // 等待所有favicon获取完成
-  await Promise.all(fetchPromises);
-
-  return faviconUrls.slice();
+  return Array.from(domains.values());
 }
 
 /**
@@ -105,41 +68,105 @@ function extractDomainFromPattern(pattern: string): string | null {
   }
 }
 
-const localFavIconPromises = new Map<string, Promise<string[]>>();
-
-const makeError = (e: any) => {
-  const { name } = e;
-  const o = {
-    [name]: class extends Error {
-      constructor(message: any) {
-        super(message);
-        this.name = name;
+// AbortSignal.timeout 是较新的功能。如果不支持 AbortSignal.timeout，则返回传统以定时器操作 AbortController
+const timeoutAbortSignal =
+  typeof AbortSignal?.timeout === "function"
+    ? (milis: number) => {
+        return AbortSignal.timeout(milis);
       }
-    },
-  };
-  return new o[name](e.message);
+    : (milis: number) => {
+        let controller: AbortController | null = new AbortController();
+        const signal = controller.signal;
+        setTimeout(() => {
+          controller!.abort(); // 中断请求
+          controller = null;
+        }, milis);
+        return signal;
+      };
+
+const getFilename = (url: string) => {
+  const i = url.lastIndexOf("/");
+  if (i >= 0) return url.substring(i + 1);
+  return url;
 };
 
-function getFaviconFromDomain(domain: string): Promise<string[]> {
-  let retPromise = localFavIconPromises.get(domain);
-  if (retPromise) return retPromise;
-  retPromise = systemClient.getFaviconFromDomain(domain).then((r: TMsgResponse<string[]>) => {
-    if (r.ok) {
-      return r.res!;
+function parseFaviconsNew(html: string, callback: (href: string) => void) {
+  // Early exit if no link tags
+  if (!html.toLowerCase().includes("<link")) return;
+
+  // Regex to match favicon-related link tags
+  const faviconRegex = /<link[^>]+rel=["'](?:icon|apple-touch-icon|apple-touch-icon-precomposed)["'][^>]*>/gi;
+  const hrefRegex = /href=["'](.*?)["']/i;
+
+  // Find all matching link tags
+  const matches = html.match(faviconRegex);
+  if (matches) {
+    for (const match of matches) {
+      const hrefMatch = match.match(hrefRegex);
+      if (hrefMatch && hrefMatch[1]) {
+        callback(hrefMatch[1]);
+      }
     }
-    const error = r.err!;
-    if (error.errType === 11) {
-      // 網絡錯誤
-      console.log(`${error.message}`);
-    } else if (error.errType === 12) {
-      // 超时
-      console.log(`${error.message}`);
-    } else {
-      // 其他错误
-      console.error(makeError(error));
-    }
-    return [];
-  });
-  localFavIconPromises.set(domain, retPromise);
-  return retPromise;
+  }
+
+  return;
+}
+
+const checkFileNameEqual = (a: string, b: string) => {
+  const name1 = getFilename(a);
+  const name2 = getFilename(b);
+  return 0 === name1.localeCompare(name2, "en", { sensitivity: "base" });
+};
+
+/**
+ * 从域名获取favicon
+ */
+export async function fetchIconByDomain(domain: string): Promise<string[]> {
+  const url = `https://${domain}`;
+  const icons: string[] = [];
+
+  // 设置超时时间（例如 5 秒）
+  const timeout = 5000; // 单位：毫秒
+
+  // 获取页面HTML
+  const response = await fetch(url, { signal: timeoutAbortSignal(timeout) });
+  const html = await response.text();
+  const resolvedPageUrl = response.url;
+  const resolvedUrl = new URL(resolvedPageUrl);
+  const resolvedOrigin = resolvedUrl.origin;
+
+  parseFaviconsNew(html, (href) => icons.push(resolveUrl(href, resolvedPageUrl)));
+
+  // 检查默认favicon位置
+  if (icons.length === 0) {
+    const faviconUrl = `${resolvedOrigin}/favicon.ico`;
+    icons.push(faviconUrl);
+  }
+
+  const urls = await Promise.all(
+    icons.map((icon) =>
+      fetch(icon, { method: "HEAD", signal: timeoutAbortSignal(timeout) })
+        .then((res) => {
+          if (res.ok && checkFileNameEqual(res.url, icon)) {
+            return res.url;
+          }
+        })
+        .catch(() => {
+          // 忽略错误
+        })
+    )
+  );
+
+  return urls.filter((url) => !!url) as string[];
+}
+
+/**
+ * 解析相对URL为绝对URL
+ */
+function resolveUrl(href: string, base: string): string {
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return href; // 如果解析失败，返回原始href
+  }
 }
