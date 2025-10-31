@@ -5,6 +5,7 @@ import Joyride from "react-joyride";
 import type { Path } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomTrans from "../CustomTrans";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> = (_props, ref) => {
   const { t } = useTranslation();
@@ -13,8 +14,12 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
   const [run, setRun] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { setGuideMode } = useAppContext();
   useImperativeHandle(ref, () => ({
-    open: () => setRun(true),
+    open: () => {
+      setRun(true);
+      setGuideMode(true);
+    },
   }));
   useEffect(() => {
     // 首次使用时，打开引导
@@ -26,10 +31,6 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       }
     }
   }, []);
-
-  const cardView = document.querySelector(".script-list-card");
-
-  // 搜索有没有 .script-list-card 决定是走卡片视图还是表格视图的新手引导
 
   const steps: Array<Step> = [
     {
@@ -50,9 +51,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       placement: "auto",
     },
   ];
-  if (cardView) {
-    // steps.push({});
-  }
+
   steps.push(
     {
       content: t("guide_script_list_enable_content"),
@@ -78,7 +77,10 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
       target: ".script-action",
       title: t("guide_script_list_action_title"),
       content: <CustomTrans i18nKey="guide_script_list_action_content" />,
-    },
+    }
+  );
+
+  steps.push(
     {
       target: ".menu-tools",
       title: t("guide_tools_title"),
@@ -120,6 +122,7 @@ const SiderGuide: React.ForwardRefRenderFunction<{ open: () => void }, object> =
     <Joyride
       callback={(data) => {
         if (data.action === "stop" || data.action === "close" || data.status === "finished") {
+          setGuideMode(false);
           setRun(false);
           setStepIndex(0);
           gotoNavigate(initRoute);
