@@ -494,6 +494,9 @@
     "normal-tabs": "通常のタブ",
     "incognito-tabs": "シークレットタブ"
   },
+  "script_run_at": {
+    "title": "実行タイミング"
+  },
   "editor_config": "エディタ設定",
   "editor_config_description": "<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>のcompilerOptionsを参考に設定できます",
   "editor_type_definition": "エディタ型定義",

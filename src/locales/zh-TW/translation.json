@@ -494,6 +494,9 @@
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
   },
+  "script_run_at": {
+    "title": "運行時機"
+  },
   "editor_config": "編輯器設定",
   "editor_config_description": "你可以參考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions進行配置",
   "editor_type_definition": "編輯器類型定義",

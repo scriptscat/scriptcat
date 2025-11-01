@@ -494,6 +494,9 @@
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
   },
+  "script_run_at": {
+    "title": "Ausführungszeitpunkt"
+  },
   "editor_config": "Editor-Konfiguration",
   "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",
   "editor_type_definition": "Editor-Typdefinitionen",

@@ -494,6 +494,9 @@
     "normal-tabs": "Tab thường",
     "incognito-tabs": "Tab ẩn danh"
   },
+  "script_run_at": {
+    "title": "Thời điểm chạy"
+  },
   "editor_config": "Cấu hình trình soạn thảo",
   "editor_config_description": "Bạn có thể tham khảo compilerOptions trong <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> để cấu hình",
   "editor_type_definition": "Định nghĩa kiểu trình soạn thảo",

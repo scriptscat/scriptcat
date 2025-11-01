@@ -494,6 +494,9 @@
     "normal-tabs": "Обычные вкладки",
     "incognito-tabs": "Приватные вкладки"
   },
+  "script_run_at": {
+    "title": "Время выполнения"
+  },
   "editor_config": "Конфигурация редактора",
   "editor_config_description": "Вы можете настроить compilerOptions, ссылаясь на <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>",
   "editor_type_definition": "Определения типов редактора",

@@ -63,11 +63,12 @@ const ScriptSetting: React.FC<{
         ),
       },
       {
-        label: "运行时期",
+        label: t("script_run_at.title"),
         value: (
           <Select
             value={scriptRunAt}
             options={[
+              { label: t("script_run_env.default"), value: "default" },
               { label: "document-start", value: "document-start" },
               { label: "document-body", value: "document-body" },
               { label: "document-end", value: "document-end" },
@@ -75,10 +76,19 @@ const ScriptSetting: React.FC<{
               { label: "early-start", value: "early-start" },
             ]}
             onChange={(value) => {
-              scriptClient.updateMetadata(script.uuid, "run-at", value === "default" ? [] : [value]).then(() => {
-                if (value === "early-start") {
-                  scriptClient.updateMetadata(script.uuid, "early-start", [""]);
-                }
+              setScriptRunAt(value);
+              const earlyStart: string[] = [];
+              const runAt: string[] = [];
+              if (value === "early-start") {
+                earlyStart.push("");
+                runAt.push("document-start");
+              } else if (value !== "default") {
+                runAt.push(value);
+              }
+              Promise.all([
+                scriptClient.updateMetadata(script.uuid, "early-start", earlyStart),
+                scriptClient.updateMetadata(script.uuid, "run-at", runAt),
+              ]).then(() => {
                 Message.success(t("update_success")!);
               });
             }}
@@ -102,9 +112,12 @@ const ScriptSetting: React.FC<{
         if (v.selfMetadata) {
           metadata = getCombinedMeta(metadata, v.selfMetadata);
         }
-        setScriptRunEnv(metadata["run-in"]?.[0] || "all");
-
-        setScriptRunAt(metadata["run-at"]?.[0] || "document-idle");
+        setScriptRunEnv(metadata["run-in"]?.[0] || "default");
+        let runAt = metadata["run-at"]?.[0] || "default";
+        if (runAt === "document-start" && metadata["early-start"] && metadata["early-start"].length > 0) {
+          runAt = "early-start";
+        }
+        setScriptRunAt(runAt);
         setScriptTags(parseTags(metadata) || []);
       });
     }
