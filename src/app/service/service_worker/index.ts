@@ -18,6 +18,7 @@ import { localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
+import { FaviconDAO } from "@App/app/repo/favicon";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -41,6 +42,8 @@ export default class ServiceWorkerManager {
       this.mq.emit("preparationOffscreen", {});
     });
     this.sender.init();
+
+    const faviconDAO = new FaviconDAO();
 
     const scriptDAO = new ScriptDAO();
     scriptDAO.enableCache();
@@ -85,7 +88,14 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(systemConfig, this.api.group("subscribe"), this.mq, script);
     subscribe.init();
-    const system = new SystemService(systemConfig, this.api.group("system"), this.sender);
+    const system = new SystemService(
+      systemConfig,
+      this.api.group("system"),
+      this.sender,
+      this.mq,
+      scriptDAO,
+      faviconDAO
+    );
     system.init();
 
     const regularScriptUpdateCheck = async () => {

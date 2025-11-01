@@ -92,27 +92,6 @@ export function parseUrlSRI(url: string): {
   return { url: urls[0], hash };
 }
 
-export type TMsgResponse<T> =
-  | {
-      ok: true;
-      res: T;
-    }
-  | {
-      ok: false;
-      err: {
-        name?: string;
-        message?: string;
-        errType?: number;
-        [key: string]: any;
-      };
-    };
-
-export function msgResponse<T>(errType: number, t: Error | any, params?: T): TMsgResponse<T> {
-  if (!errType) return { ok: true, res: t };
-  const { name, message } = t;
-  return { ok: false, err: { name, message, errType, ...t, ...params } };
-}
-
 export async function notificationsUpdate(
   notificationId: string,
   options: chrome.notifications.NotificationOptions

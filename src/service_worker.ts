@@ -7,9 +7,6 @@ import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import migrate, { migrateChromeStorage } from "./app/migrate";
-import { fetchIconByDomain } from "./app/service/service_worker/fetch";
-import { msgResponse } from "./app/service/service_worker/utils";
-import type { RuntimeMessageSender } from "@Packages/message/types";
 import { cleanInvalidKeys } from "./app/repo/resource";
 
 migrate();
@@ -79,36 +76,5 @@ function main() {
   // 初始化沙盒环境
   setupOffscreenDocument();
 }
-
-const apiActions: {
-  [key: string]: (message: any, _sender: RuntimeMessageSender) => Promise<any> | any;
-} = {
-  async "fetch-icon-by-domain"(message: any, _sender: RuntimeMessageSender) {
-    const { domain } = message;
-    return await fetchIconByDomain(domain);
-  },
-};
-
-chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
-  const f = apiActions[req.message ?? ""];
-  if (f) {
-    let res;
-    try {
-      res = f(req, sender);
-    } catch (e: any) {
-      sendResponse(msgResponse(1, e));
-      return false;
-    }
-    if (typeof res?.then === "function") {
-      res.then(sendResponse).catch((e: Error) => {
-        sendResponse(msgResponse(1, e));
-      });
-      return true;
-    } else {
-      sendResponse(msgResponse(0, res));
-      return false;
-    }
-  }
-});
 
 main();
