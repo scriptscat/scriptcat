@@ -191,7 +191,6 @@
   "yes": "Ja",
   "no": "Nein",
   "confirm_delete_permission": "Diese Autorisierung löschen bestätigen?",
-  "script_setting": "Skript-Einstellungen",
   "basic_info": "Grundinformationen",
   "update_url": "Update-URL",
   "permission_management": "Berechtigungsverwaltung",
@@ -489,13 +488,16 @@
   "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
   "script_run_env": {
     "title": "Laufzeitumgebung",
-    "default": "default",
     "all": "Alle Bezeichnungen",
     "normal-tabs": "Normale Tabs",
     "incognito-tabs": "Inkognito-Tabs"
   },
   "script_run_at": {
     "title": "Ausführungszeitpunkt"
+  },
+  "script_setting": {
+    "title": "Skript-Einstellungen",
+    "default": "default"
   },
   "editor_config": "Editor-Konfiguration",
   "editor_config_description": "Sie können sich an den compilerOptions in <Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link> orientieren, um die Konfiguration vorzunehmen",

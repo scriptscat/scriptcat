@@ -24,7 +24,7 @@ const tagRender: React.FC<{ value: any; label: ReactNode; closable: boolean; onC
 };
 
 const ScriptSetting: React.FC<{
-  script: Script | undefined;
+  script: Script;
   visible: boolean;
   onOk: () => void;
   onCancel: () => void;
@@ -38,9 +38,6 @@ const ScriptSetting: React.FC<{
   const { t } = useTranslation();
 
   const scriptSettingData = useMemo(() => {
-    if (!script) {
-      return [];
-    }
     const ret = [
       {
         label: t("script_run_env.title"),
@@ -48,7 +45,7 @@ const ScriptSetting: React.FC<{
           <Select
             value={scriptRunEnv}
             options={[
-              { label: t("script_run_env.default"), value: "default" },
+              { label: t("script_setting.default"), value: "default" },
               { label: t("script_run_env.all"), value: "all" },
               { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
               { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
@@ -56,7 +53,7 @@ const ScriptSetting: React.FC<{
             onChange={(value) => {
               setScriptRunEnv(value);
               scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
-                Message.success(t("update_success")!);
+                Message.success(t("update_success"));
               });
             }}
           />
@@ -68,7 +65,7 @@ const ScriptSetting: React.FC<{
           <Select
             value={scriptRunAt}
             options={[
-              { label: t("script_run_env.default"), value: "default" },
+              { label: t("script_setting.default"), value: "default" },
               { label: "document-start", value: "document-start" },
               { label: "document-body", value: "document-body" },
               { label: "document-end", value: "document-end" },
@@ -89,7 +86,7 @@ const ScriptSetting: React.FC<{
                 scriptClient.updateMetadata(script.uuid, "early-start", earlyStart),
                 scriptClient.updateMetadata(script.uuid, "run-at", runAt),
               ]).then(() => {
-                Message.success(t("update_success")!);
+                Message.success(t("update_success"));
               });
             }}
           />
@@ -100,27 +97,25 @@ const ScriptSetting: React.FC<{
   }, [script, scriptRunEnv, scriptRunAt, t]);
 
   useEffect(() => {
-    if (script) {
-      const scriptDAO = new ScriptDAO();
-      scriptDAO.get(script.uuid).then((v) => {
-        if (!v) {
-          return;
-        }
-        setCheckUpdateUrl(v.downloadUrl || "");
-        setCheckUpdate(v.checkUpdate === false ? false : true);
-        let metadata = v.metadata;
-        if (v.selfMetadata) {
-          metadata = getCombinedMeta(metadata, v.selfMetadata);
-        }
-        setScriptRunEnv(metadata["run-in"]?.[0] || "default");
-        let runAt = metadata["run-at"]?.[0] || "default";
-        if (runAt === "document-start" && metadata["early-start"] && metadata["early-start"].length > 0) {
-          runAt = "early-start";
-        }
-        setScriptRunAt(runAt);
-        setScriptTags(parseTags(metadata) || []);
-      });
-    }
+    const scriptDAO = new ScriptDAO();
+    scriptDAO.get(script.uuid).then((v) => {
+      if (!v) {
+        return;
+      }
+      setCheckUpdateUrl(v.downloadUrl || "");
+      setCheckUpdate(v.checkUpdate === false ? false : true);
+      let metadata = v.metadata;
+      if (v.selfMetadata) {
+        metadata = getCombinedMeta(metadata, v.selfMetadata);
+      }
+      setScriptRunEnv(metadata["run-in"]?.[0] || "default");
+      let runAt = metadata["run-at"]?.[0] || "default";
+      if (runAt === "document-start" && metadata["early-start"] && metadata["early-start"].length > 0) {
+        runAt = "early-start";
+      }
+      setScriptRunAt(runAt);
+      setScriptTags(parseTags(metadata) || []);
+    });
   }, [script]);
 
   return (
@@ -128,7 +123,7 @@ const ScriptSetting: React.FC<{
       width={600}
       title={
         <span>
-          {script?.name} {t("script_setting")}
+          {script.name} {t("script_setting.title")}
         </span>
       }
       autoFocus={false}
@@ -147,11 +142,11 @@ const ScriptSetting: React.FC<{
         data={[
           {
             label: t("last_updated"),
-            value: formatUnixTime((script?.updatetime || script?.createtime || 0) / 1000),
+            value: formatUnixTime((script.updatetime || script.createtime || 0) / 1000),
           },
           {
             label: "UUID",
-            value: script?.uuid,
+            value: script.uuid,
           },
           {
             label: t("tags"),
@@ -164,8 +159,8 @@ const ScriptSetting: React.FC<{
                 style={{ maxWidth: 350 }}
                 onChange={(tags) => {
                   setScriptTags(tags);
-                  scriptClient.updateMetadata(script!.uuid, "tag", tags).then(() => {
-                    Message.success(t("update_success")!);
+                  scriptClient.updateMetadata(script.uuid, "tag", tags).then(() => {
+                    Message.success(t("update_success"));
                   });
                 }}
               />
@@ -196,8 +191,8 @@ const ScriptSetting: React.FC<{
                 checked={checkUpdate}
                 onChange={(val) => {
                   setCheckUpdate(val);
-                  scriptClient.setCheckUpdateUrl(script!.uuid, val, checkUpdateUrl).then(() => {
-                    Message.success(t("update_success")!);
+                  scriptClient.setCheckUpdateUrl(script.uuid, val, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success"));
                   });
                 }}
               />
@@ -212,8 +207,8 @@ const ScriptSetting: React.FC<{
                   setCheckUpdateUrl(e);
                 }}
                 onBlur={() => {
-                  scriptClient.setCheckUpdateUrl(script!.uuid, checkUpdate, checkUpdateUrl).then(() => {
-                    Message.success(t("update_success")!);
+                  scriptClient.setCheckUpdateUrl(script.uuid, checkUpdate, checkUpdateUrl).then(() => {
+                    Message.success(t("update_success"));
                   });
                 }}
               />
