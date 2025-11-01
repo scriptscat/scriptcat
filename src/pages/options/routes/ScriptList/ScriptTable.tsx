@@ -590,6 +590,7 @@ export const ScriptTable = ({
           dataIndex: "updatetime",
           align: "center",
           key: "updatetime",
+          className: "script-updatetime",
           width: t("script_list_last_updated_width"),
           sorter: (a, b) => a.updatetime - b.updatetime,
           render: (col: number, script: ListType) => <UpdateTimeCell script={script} />,
@@ -637,6 +638,7 @@ export const ScriptTable = ({
           ),
           dataIndex: "action",
           key: "action",
+          className: "script-action",
           width: 160,
           render: (col: any, item: ScriptLoading) => (
             <ActionCell
@@ -1026,7 +1028,7 @@ export const ScriptTable = ({
       )}
       <Table
         key="script-list-table"
-        className="arco-drag-table-container"
+        className="script-list-table arco-drag-table-container"
         components={components}
         rowKey="uuid"
         tableLayoutFixed

@@ -38,6 +38,7 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useAppContext } from "@App/pages/store/AppContext";
 
 const { Text } = Typography;
 
@@ -165,7 +166,7 @@ export const ScriptCardItem = React.memo(
                   </Space>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="script-enable" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <EnableSwitch
                   status={item.status}
                   enableLoading={item.enableLoading}
@@ -175,6 +176,7 @@ export const ScriptCardItem = React.memo(
                   }}
                 />
                 <div
+                  className="script-sort"
                   {...attributes}
                   {...listeners}
                   role="button"
@@ -197,7 +199,7 @@ export const ScriptCardItem = React.memo(
                   <span>{item.metadata.version[0]}</span>
                 </div>
               )}
-              <div>
+              <div className="script-updatetime">
                 <span className="font-medium">
                   {t("last_updated")}
                   {": "}
@@ -232,7 +234,7 @@ export const ScriptCardItem = React.memo(
               <SourceCell item={item} t={t} />
             </div>
 
-            <div className="flex flex-row gap-3 items-center">
+            <div className="flex flex-row gap-3 items-center apply_to_run_status">
               {item.type === SCRIPT_TYPE_NORMAL && (
                 <Avatar.Group size={20}>
                   {favoriteMemo.trimmed.map((fav) => (
@@ -253,7 +255,7 @@ export const ScriptCardItem = React.memo(
             </div>
           </div>
           {/* 操作按钮 */}
-          <div className="flex flex-col">
+          <div className="flex flex-col script-action">
             <Divider style={{ margin: "4px 0 14px" }} />
             <div className="flex flex-row justify-between">
               <div>
@@ -361,6 +363,28 @@ export const ScriptCard = ({
 }: ScriptCardProps) => {
   const [searchValue, setSearchValue] = useState<string>("");
   const { t } = useTranslation();
+  const { guideMode } = useAppContext();
+
+  // 如果是引导模式，且没有脚本，则创建一条演示数据
+  const list = useMemo(
+    () =>
+      guideMode && scriptList.length === 0
+        ? [
+            {
+              uuid: "demo-uuid-1234",
+              name: "Demo Script",
+              namespace: "demo",
+              sort: 0,
+              createtime: Date.now(),
+              checktime: Date.now(),
+              metadata: {},
+              type: SCRIPT_TYPE_NORMAL,
+              favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
+            } as ScriptLoading,
+          ]
+        : scriptList,
+    [guideMode, scriptList]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -385,6 +409,7 @@ export const ScriptCard = ({
     <>
       {/* 卡片视图工具栏 */}
       <Card
+        className="script-list-card"
         style={{
           borderWidth: "0 0px 1px 0",
           padding: "0 16px",
@@ -446,7 +471,7 @@ export const ScriptCard = ({
           padding: "16px",
         }}
       >
-        {scriptList.length === 0 ? (
+        {list.length === 0 ? (
           loadingList ? (
             <div
               style={{
@@ -478,7 +503,7 @@ export const ScriptCard = ({
           >
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
-                {scriptList.map((item) => (
+                {list.map((item) => (
                   <ScriptCardItem
                     key={item.uuid}
                     item={item}

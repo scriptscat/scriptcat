@@ -384,8 +384,12 @@
   "guide_script_list_enable_content": "Script cần được bật để sử dụng. Script trang được bật theo mặc định khi cài đặt, trong khi script nền bị tắt theo mặc định.",
   "guide_script_list_apply_to_run_status_title": "Áp dụng cho và trạng thái chạy",
   "guide_script_list_apply_to_run_status_content": "Trạng thái chạy của script được hiển thị ở đây. Di chuột qua các thẻ để xem loại script.",
-  "guide_script_list_sort_title": "Sắp xếp/cập nhật lần cuối/hành động",
-  "guide_script_list_sort_content": "Bạn có thể kéo các thẻ của script để sắp xếp chúng. Nhấp vào nhãn cột \"cập nhật lần cuối\" sẽ kiểm tra cập nhật một lần. Cột \"hành động\" cho phép bạn vào chỉnh sửa script, kiểm soát việc chạy/dừng script (đối với script nền) và cấu hình <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">userconfig</Link>.",
+  "guide_script_list_sort_title": "Sắp xếp",
+  "guide_script_list_sort_content": "Bạn có thể kéo nhãn tập lệnh để sắp xếp chúng.",
+  "guide_script_list_update_title": "Cập nhật lần cuối",
+  "guide_script_list_update_content": "Nhấp vào nhãn cột \"Cập nhật lần cuối\" sẽ thực hiện kiểm tra các bản cập nhật cho tập lệnh.",
+  "guide_script_list_action_title": "Thao tác",
+  "guide_script_list_action_content": "Thanh thao tác cho phép truy cập vào chức năng chỉnh sửa tập lệnh, kiểm soát việc thực thi và kết thúc tập lệnh (tập lệnh nền) và cài đặt (xem <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). Các nút bên phải cho phép truy cập vào chức năng lọc nâng cao và chuyển đổi chế độ xem.",
   "guide_tools_title": "Công cụ chung",
   "guide_tools_content": "Các công cụ cung cấp tính năng sao lưu và phát triển.",
   "guide_tools_backup_title": "Sao lưu",
@@ -533,5 +537,6 @@
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
-  }
+  },
+  "loading": "Đang tải..."
 }
