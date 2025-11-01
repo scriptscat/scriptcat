@@ -710,36 +710,40 @@ function ScriptEditor() {
       }}
     >
       {contextHolder}
-      <ScriptStorage
-        visible={visible.scriptStorage}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptStorage", false);
-        }}
-        onCancel={() => {
-          setShow("scriptStorage", false);
-        }}
-      />
-      <ScriptResource
-        visible={visible.scriptResource}
-        script={currentScript}
-        onOk={() => {
-          setShow("scriptResource", false);
-        }}
-        onCancel={() => {
-          setShow("scriptResource", false);
-        }}
-      />
-      <ScriptSetting
-        visible={visible.scriptSetting}
-        script={currentScript!}
-        onOk={() => {
-          setShow("scriptSetting", false);
-        }}
-        onCancel={() => {
-          setShow("scriptSetting", false);
-        }}
-      />
+      {currentScript && (
+        <>
+          <ScriptStorage
+            visible={visible.scriptStorage}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptStorage", false);
+            }}
+            onCancel={() => {
+              setShow("scriptStorage", false);
+            }}
+          />
+          <ScriptResource
+            visible={visible.scriptResource}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptResource", false);
+            }}
+            onCancel={() => {
+              setShow("scriptResource", false);
+            }}
+          />
+          <ScriptSetting
+            visible={visible.scriptSetting}
+            script={currentScript}
+            onOk={() => {
+              setShow("scriptSetting", false);
+            }}
+            onCancel={() => {
+              setShow("scriptSetting", false);
+            }}
+          />
+        </>
+      )}
       <div
         className="h-6"
         style={{

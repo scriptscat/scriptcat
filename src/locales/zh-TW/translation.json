@@ -191,7 +191,6 @@
   "yes": "是",
   "no": "否",
   "confirm_delete_permission": "確定要刪除此授權嗎？",
-  "script_setting": "腳本設定",
   "basic_info": "基本資訊",
   "update_url": "更新URL",
   "permission_management": "授權管理",
@@ -489,10 +488,16 @@
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "script_run_env": {
     "title": "運作環境",
-    "default": "預設",
     "all": "所有標籤",
     "normal-tabs": "普通標籤",
     "incognito-tabs": "隱身標籤"
+  },
+  "script_run_at": {
+    "title": "運行時機"
+  },
+  "script_setting": {
+    "title": "腳本設定",
+    "default": "預設"
   },
   "editor_config": "編輯器設定",
   "editor_config_description": "你可以參考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions進行配置",
