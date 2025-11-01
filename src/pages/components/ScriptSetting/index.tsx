@@ -173,7 +173,7 @@ const ScriptSetting: React.FC<{
       <Divider />
       <Descriptions
         column={1}
-        title={t("script_setting")}
+        title={t("script_setting.title")}
         data={scriptSettingData}
         style={{ marginBottom: 20 }}
         labelStyle={{ paddingRight: 36 }}
