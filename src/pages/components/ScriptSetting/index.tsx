@@ -3,7 +3,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { Checkbox, Descriptions, Divider, Drawer, Input, InputTag, Message, Select, Tag } from "@arco-design/web-react";
 import type { ReactNode } from "react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Match from "./Match";
 import PermissionManager from "./Permission";
@@ -24,21 +24,74 @@ const tagRender: React.FC<{ value: any; label: ReactNode; closable: boolean; onC
 };
 
 const ScriptSetting: React.FC<{
-  script: Script;
+  script: Script | undefined;
   visible: boolean;
   onOk: () => void;
   onCancel: () => void;
 }> = ({ script, visible, onCancel, onOk }) => {
-  const scriptDAO = new ScriptDAO();
   const [scriptTags, setScriptTags] = useState<string[]>([]);
   const [checkUpdateUrl, setCheckUpdateUrl] = useState<string>("");
   const [checkUpdate, setCheckUpdate] = useState<boolean>(false);
   const [scriptRunEnv, setScriptRunEnv] = useState<string>("all");
+  const [scriptRunAt, setScriptRunAt] = useState<string>("default");
 
   const { t } = useTranslation();
 
+  const scriptSettingData = useMemo(() => {
+    if (!script) {
+      return [];
+    }
+    const ret = [
+      {
+        label: t("script_run_env.title"),
+        value: (
+          <Select
+            value={scriptRunEnv}
+            options={[
+              { label: t("script_run_env.default"), value: "default" },
+              { label: t("script_run_env.all"), value: "all" },
+              { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
+              { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
+            ]}
+            onChange={(value) => {
+              setScriptRunEnv(value);
+              scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
+                Message.success(t("update_success")!);
+              });
+            }}
+          />
+        ),
+      },
+      {
+        label: "运行时期",
+        value: (
+          <Select
+            value={scriptRunAt}
+            options={[
+              { label: "document-start", value: "document-start" },
+              { label: "document-body", value: "document-body" },
+              { label: "document-end", value: "document-end" },
+              { label: "document-idle", value: "document-idle" },
+              { label: "early-start", value: "early-start" },
+            ]}
+            onChange={(value) => {
+              scriptClient.updateMetadata(script.uuid, "run-at", value === "default" ? [] : [value]).then(() => {
+                if (value === "early-start") {
+                  scriptClient.updateMetadata(script.uuid, "early-start", [""]);
+                }
+                Message.success(t("update_success")!);
+              });
+            }}
+          />
+        ),
+      },
+    ];
+    return ret;
+  }, [script, scriptRunEnv, scriptRunAt, t]);
+
   useEffect(() => {
     if (script) {
+      const scriptDAO = new ScriptDAO();
       scriptDAO.get(script.uuid).then((v) => {
         if (!v) {
           return;
@@ -50,6 +103,8 @@ const ScriptSetting: React.FC<{
           metadata = getCombinedMeta(metadata, v.selfMetadata);
         }
         setScriptRunEnv(metadata["run-in"]?.[0] || "all");
+
+        setScriptRunAt(metadata["run-at"]?.[0] || "document-idle");
         setScriptTags(parseTags(metadata) || []);
       });
     }
@@ -96,7 +151,7 @@ const ScriptSetting: React.FC<{
                 style={{ maxWidth: 350 }}
                 onChange={(tags) => {
                   setScriptTags(tags);
-                  scriptClient.updateMetadata(script.uuid, "tag", tags).then(() => {
+                  scriptClient.updateMetadata(script!.uuid, "tag", tags).then(() => {
                     Message.success(t("update_success")!);
                   });
                 }}
@@ -111,28 +166,7 @@ const ScriptSetting: React.FC<{
       <Descriptions
         column={1}
         title={t("script_setting")}
-        data={[
-          {
-            label: t("script_run_env.title"),
-            value: (
-              <Select
-                value={scriptRunEnv}
-                options={[
-                  { label: t("script_run_env.default"), value: "default" },
-                  { label: t("script_run_env.all"), value: "all" },
-                  { label: t("script_run_env.normal-tabs"), value: "normal-tabs" },
-                  { label: t("script_run_env.incognito-tabs"), value: "incognito-tabs" },
-                ]}
-                onChange={(value) => {
-                  setScriptRunEnv(value);
-                  scriptClient.updateMetadata(script.uuid, "run-in", value === "default" ? [] : [value]).then(() => {
-                    Message.success(t("update_success")!);
-                  });
-                }}
-              />
-            ),
-          },
-        ]}
+        data={scriptSettingData}
         style={{ marginBottom: 20 }}
         labelStyle={{ paddingRight: 36 }}
       />
@@ -149,7 +183,7 @@ const ScriptSetting: React.FC<{
                 checked={checkUpdate}
                 onChange={(val) => {
                   setCheckUpdate(val);
-                  scriptClient.setCheckUpdateUrl(script.uuid, val, checkUpdateUrl).then(() => {
+                  scriptClient.setCheckUpdateUrl(script!.uuid, val, checkUpdateUrl).then(() => {
                     Message.success(t("update_success")!);
                   });
                 }}
@@ -165,7 +199,7 @@ const ScriptSetting: React.FC<{
                   setCheckUpdateUrl(e);
                 }}
                 onBlur={() => {
-                  scriptClient.setCheckUpdateUrl(script.uuid, checkUpdate, checkUpdateUrl).then(() => {
+                  scriptClient.setCheckUpdateUrl(script!.uuid, checkUpdate, checkUpdateUrl).then(() => {
                     Message.success(t("update_success")!);
                   });
                 }}
