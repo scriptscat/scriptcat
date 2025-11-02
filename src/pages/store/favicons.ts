@@ -278,10 +278,12 @@ const processScriptFavicon = async (script: Script) => {
           if (icon.icon) {
             try {
               const opfsRet = await loadFavicon({ uuid: script.uuid, url: icon.icon });
-              iconUrl = blobCaches.get(`${opfsRet.dirs.join("/")}/${opfsRet.filename}`) || "";
+              const cacheKey = `${opfsRet.dirs.join("/")}/${opfsRet.filename}`;
+              iconUrl = blobCaches.get(cacheKey) || "";
               if (!iconUrl) {
                 const file = await getFileFromOPFS(opfsRet);
                 iconUrl = URL.createObjectURL(file);
+                blobCaches.set(cacheKey, iconUrl);
               }
             } catch (_) {
               // ignored
