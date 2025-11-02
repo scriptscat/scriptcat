@@ -21,10 +21,8 @@ import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
-import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption } from "./script";
-import type { FaviconRecord } from "@App/app/repo/favicon";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -404,13 +402,5 @@ export class SystemClient extends Client {
 
   connectVSCode(params: Parameters<VSCodeConnect["connect"]>[0]): ReturnType<VSCodeConnect["connect"]> {
     return this.do("connectVSCode", params);
-  }
-
-  loadFavicon(params: Parameters<SystemService["loadFavicon"]>[0]): Promise<string> {
-    return this.doThrow("loadFavicon", params);
-  }
-
-  getScriptFavicon(uuid: string): Promise<FaviconRecord[]> {
-    return this.doThrow("getScriptFavicon", uuid);
   }
 }

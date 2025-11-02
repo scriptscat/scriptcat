@@ -260,3 +260,17 @@ export function scriptURLPatternResults(scriptRes: {
 
   return { scriptUrlPatterns, originalUrlPatterns };
 }
+
+export const getFaviconFolder = (uuid: string): Promise<FileSystemDirectoryHandle> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`, { create: true }))
+    .then((faviconsFolder) => faviconsFolder.getDirectoryHandle(`${uuid}`, { create: true }));
+};
+
+export const removeFaviconFolder = (uuid: string): Promise<void> => {
+  return navigator.storage
+    .getDirectory()
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`))
+    .then((faviconsFolder) => faviconsFolder.removeEntry(`${uuid}`, { recursive: true }));
+};

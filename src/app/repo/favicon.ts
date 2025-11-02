@@ -20,3 +20,8 @@ export class FaviconDAO extends Repo<Favicon> {
     return super._save(key, value);
   }
 }
+
+export type FaviconFile = {
+  dirs: string[];
+  filename: string;
+};
