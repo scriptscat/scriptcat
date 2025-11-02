@@ -21,6 +21,9 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "./listener_manager";
 import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
+import { base64ToUint8, concatUint8 } from "@App/pkg/utils/utils_datatype";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { dataEncode } from "@App/pkg/utils/xhr_data";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -29,6 +32,38 @@ export interface IGM_Base {
   valueUpdate(data: ValueUpdateDataEncoded): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
+
+export interface GMRequestHandle {
+  /** Abort the ongoing request */
+  abort: () => void;
+}
+
+type GMXHRResponseType = {
+  DONE: number;
+  HEADERS_RECEIVED: number;
+  LOADING: number;
+  OPENED: number;
+  UNSENT: number;
+  RESPONSE_TYPE_TEXT: string;
+  RESPONSE_TYPE_ARRAYBUFFER: string;
+  RESPONSE_TYPE_BLOB: string;
+  RESPONSE_TYPE_DOCUMENT: string;
+  RESPONSE_TYPE_JSON: string;
+  RESPONSE_TYPE_STREAM: string;
+  finalUrl: string;
+  readyState: 0 | 1 | 4 | 2 | 3;
+  status: number;
+  statusText: string;
+  responseHeaders: string;
+  responseType: "" | "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
+  readonly response: string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array<ArrayBufferLike>> | null;
+  readonly responseXML: Document | null;
+  readonly responseText: string;
+  toString: () => string;
+  error?: string;
+};
+
+type GMXHRResponseTypeWithError = GMXHRResponseType & Required<Pick<GMXHRResponseType, "error">>;
 
 const integrity = {}; // 仅防止非法实例化
 
@@ -46,6 +81,78 @@ const execEnvInit = (execEnv: GMApi) => {
     execEnv.regMenuCounter = 0;
   }
 };
+
+const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
+  // content_GMAPI 都應該在前台的內容腳本或真實頁面執行。如果沒有 typeof URL.createObjectURL 才使用信息傳遞交給後台
+  if (typeof URL.createObjectURL === "function") {
+    return URL.createObjectURL(blob);
+  } else {
+    return a.sendMessage("CAT_createBlobUrl", [blob]);
+  }
+};
+
+/** Convert a Blob/File to base64 data URL */
+const blobToDataURL = (blob: Blob): Promise<string> => {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.onabort = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+const convObjectToURL = async (object: string | URL | Blob | File | undefined | null) => {
+  let url = "";
+  if (typeof object === "string") {
+    url = object;
+  } else if (object instanceof URL) {
+    url = object.href;
+  } else if (object instanceof Blob) {
+    // 不使用 blob URL
+    // 1. service worker 不能生成 blob URL
+    // 2. blob URL 有效期管理麻煩
+
+    const blob = object;
+    url = await blobToDataURL(blob);
+  }
+  return url;
+};
+
+const urlToDocumentInContentPage = async (a: GMApi, url: string) => {
+  // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
+  const nodeId = await a.sendMessage("CAT_fetchDocument", [url]);
+  return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
+};
+
+// const urlToDocumentLocal = async (a: GMApi, url: string) => {
+//   if (typeof XMLHttpRequest === "undefined") return urlToDocumentInContentPage(a, url);
+//   return new Promise((resolve) => {
+//     const xhr = new XMLHttpRequest();
+//     xhr.responseType = "document";
+//     xhr.open("GET", url);
+//     xhr.onload = () => {
+//       const doc = xhr.response instanceof Document ? xhr.response : null;
+//       resolve(doc);
+//     };
+//     xhr.send();
+//   });
+// };
+
+// const strToDocument = async (a: GMApi, text: string, contentType: DOMParserSupportedType) => {
+//   if (typeof DOMParser === "function") {
+//     // 前台環境（CONTENT/MAIN）
+//     // str -> Document (CONTENT/MAIN)
+//     // Document物件是在API呼叫環境產生
+//     return new DOMParser().parseFromString(text, contentType);
+//   } else {
+//     // fallback: 以 urlToDocumentInContentPage 方式取得
+//     const blob = new Blob([text], { type: contentType });
+//     const blobURL = await toBlobURL(a, blob);
+//     const document = await urlToDocumentInContentPage(a, blobURL);
+//     return document;
+//   }
+// };
 
 // GM_Base 定义内部用变量和函数。均使用@protected
 // 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
@@ -457,7 +564,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public CAT_createBlobUrl(blob: Blob): Promise<string> {
-    return this.sendMessage("CAT_createBlobUrl", [blob]);
+    return Promise.resolve(toBlobURL(this, blob));
   }
 
   // 辅助GM_xml获取blob数据
@@ -468,8 +575,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
-    const nodeId = await this.sendMessage("CAT_fetchDocument", [url]);
-    return (<CustomEventMessage>this.message).getAndDelRelatedTarget(nodeId) as Document;
+    return urlToDocumentInContentPage(this, url);
   }
 
   static _GM_cookie(
@@ -757,7 +863,7 @@ export default class GMApi extends GM_Base {
       file: details.file,
     };
     if (action === "upload") {
-      const url = await this.CAT_createBlobUrl(details.data);
+      const url = await toBlobURL(this, details.data);
       sendDetails.data = url;
     }
     this.sendMessage("CAT_fileStorage", [action, sendDetails]).then(async (resp: { action: string; data: any }) => {
@@ -783,13 +889,24 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails) {
+  static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails, requirePromise: boolean) {
+    let reqDone = false;
     if (a.isInvalidContext()) {
       return {
+        retPromise: requirePromise ? Promise.reject("GM_xmlhttpRequest: Invalid Context") : null,
         abort: () => {},
       };
     }
-    const u = new URL(details.url, window.location.href);
+    let retPromiseResolve: (value: unknown) => void | undefined;
+    let retPromiseReject: (reason?: any) => void | undefined;
+    const retPromise = requirePromise
+      ? new Promise((resolve, reject) => {
+          retPromiseResolve = resolve;
+          retPromiseReject = reject;
+        })
+      : null;
+    const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
+    const dataPromise = dataEncode(details.data);
     const headers = details.headers;
     if (headers) {
       for (const key of Object.keys(headers)) {
@@ -803,7 +920,7 @@ export default class GMApi extends GM_Base {
     const param: GMSend.XHRDetails = {
       method: details.method,
       timeout: details.timeout,
-      url: u.href,
+      url: "",
       headers: details.headers,
       cookie: details.cookie,
       context: details.context,
@@ -821,170 +938,449 @@ export default class GMApi extends GM_Base {
     if (details.nocache) {
       param.headers["Cache-Control"] = "no-cache";
     }
-    let connect: MessageConnect;
+    let connect: MessageConnect | null;
+    const responseTypeOriginal = details.responseType?.toLocaleLowerCase() || "";
+    let doAbort: any = null;
     const handler = async () => {
-      // 处理数据
-      if (details.data instanceof FormData) {
-        // 处理FormData
-        param.dataType = "FormData";
-        const keys: { [key: string]: boolean } = {};
-        details.data.forEach((val, key) => {
-          keys[key] = true;
-        });
-        // 处理FormData中的数据
-        const data = (await Promise.all(
-          Object.keys(keys).flatMap((key) =>
-            (<FormData>details.data).getAll(key).map((val) =>
-              val instanceof File
-                ? a.CAT_createBlobUrl(val).then(
-                    (url) =>
-                      ({
-                        key,
-                        type: "file",
-                        val: url,
-                        filename: val.name,
-                      }) as GMSend.XHRFormData
-                  )
-                : ({
-                    key,
-                    type: "text",
-                    val,
-                  } as GMSend.XHRFormData)
-            )
-          )
-        )) as GMSend.XHRFormData[];
-        param.data = data;
-      } else if (details.data instanceof Blob) {
-        // 处理blob
-        param.dataType = "Blob";
-        param.data = await a.CAT_createBlobUrl(details.data);
-      } else {
-        param.data = details.data;
-      }
+      const [urlResolved, dataResolved] = await Promise.all([urlPromiseLike, dataPromise]);
+      const u = new URL(urlResolved, window.location.href);
+      param.url = u.href;
+      param.data = dataResolved;
 
       // 处理返回数据
       let readerStream: ReadableStream<Uint8Array> | undefined;
       let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
       // 如果返回类型是arraybuffer或者blob的情况下,需要将返回的数据转化为blob
       // 在background通过URL.createObjectURL转化为url,然后在content页读取url获取blob对象
-      const responseType = details.responseType?.toLocaleLowerCase();
-      const warpResponse = (old: (xhr: GMTypes.XHRResponse) => void) => {
-        if (responseType === "stream") {
-          readerStream = new ReadableStream<Uint8Array>({
-            start(ctrl) {
-              controller = ctrl;
-            },
-          });
-        }
-        return async (xhr: GMTypes.XHRResponse) => {
-          if (xhr.response) {
-            if (responseType === "document") {
-              xhr.response = await a.CAT_fetchDocument(<string>xhr.response);
-              xhr.responseXML = xhr.response;
-              xhr.responseType = "document";
-            } else {
-              const resp = await a.CAT_fetchBlob(<string>xhr.response);
-              if (responseType === "arraybuffer") {
-                xhr.response = await resp.arrayBuffer();
-              } else {
-                xhr.response = resp;
-              }
-            }
-          }
-          if (responseType === "stream") {
-            xhr.response = readerStream;
-          }
-          old(xhr);
-        };
-      };
-      if (
-        responseType === "arraybuffer" ||
-        responseType === "blob" ||
-        responseType === "document" ||
-        responseType === "stream"
-      ) {
-        if (details.onload) {
-          details.onload = warpResponse(details.onload);
-        }
-        if (details.onreadystatechange) {
-          details.onreadystatechange = warpResponse(details.onreadystatechange);
-        }
-        if (details.onloadend) {
-          details.onloadend = warpResponse(details.onloadend);
-        }
+      if (responseTypeOriginal === "stream") {
+        readerStream = new ReadableStream<Uint8Array>({
+          start(ctrl) {
+            controller = ctrl;
+          },
+        });
+      } else {
         // document类型读取blob,然后在content页转化为document对象
-        if (responseType === "document") {
-          param.responseType = "blob";
-        }
-        if (responseType === "stream") {
-          if (details.onloadstart) {
-            details.onloadstart = warpResponse(details.onloadstart);
-          }
+        switch (responseTypeOriginal) {
+          case "arraybuffer":
+          case "blob":
+            param.responseType = "arraybuffer";
+            break;
+          case "document":
+          case "json":
+          case "":
+          case "text":
+          default:
+            param.responseType = "text";
+            break;
         }
       }
+      const xhrType = param.responseType;
+      const responseType = responseTypeOriginal; // 回傳用
 
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
+        // 注意。在此 callback 裡，不應直接存取 param, 否則會影響 GC
         connect = con;
-        con.onMessage((data) => {
-          if (data.code === -1) {
-            // 处理错误
-            LoggerCore.logger().error("GM_xmlhttpRequest error", {
-              code: data.code,
-              message: data.message,
-            });
-            if (details.onerror) {
-              details.onerror({
+        const resultTexts = [] as string[];
+        const resultBuffers = [] as Uint8Array<ArrayBuffer>[];
+        let finalResultBuffers: Uint8Array<ArrayBuffer> | null = null;
+        const asyncTaskId = `${Date.now}:${Math.random()}`;
+
+        let errorOccur: string | null = null;
+        let response: unknown = null;
+        let responseText: string | undefined | false = "";
+        let responseXML: unknown = null;
+        let resultType = 0;
+        if (readerStream) {
+          response = readerStream;
+          responseText = undefined; // 兼容
+          responseXML = undefined; // 兼容
+        }
+        readerStream = undefined;
+
+        const makeXHRCallbackParam = (
+          res: {
+            //
+            finalUrl: string;
+            readyState: 0 | 4 | 2 | 3 | 1;
+            status: number;
+            statusText: string;
+            responseHeaders: string;
+            error?: string;
+            //
+            useFetch: boolean;
+            eventType: string;
+            ok: boolean;
+            contentType: string;
+          } & Record<string, any>
+        ) => {
+          let resError: Record<string, any> | null = null;
+          if (
+            (typeof res.error === "string" &&
+              (res.status === 0 || res.status >= 300 || res.status < 200) &&
+              !res.statusText &&
+              resultBuffers.length === 0 &&
+              resultTexts.length === 0) ||
+            res.error === "aborted"
+          ) {
+            resError = {
+              error: res.error as string,
+              readyState: res.readyState as 0 | 4 | 2 | 3 | 1,
+              // responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
+              response: null,
+              responseHeaders: res.responseHeaders as string,
+              responseText: "",
+              status: res.status as number,
+              statusText: "",
+            };
+          }
+          if (resError) {
+            return {
+              DONE: 4,
+              HEADERS_RECEIVED: 2,
+              LOADING: 3,
+              OPENED: 1,
+              UNSENT: 0,
+              RESPONSE_TYPE_TEXT: "text",
+              RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
+              RESPONSE_TYPE_BLOB: "blob",
+              RESPONSE_TYPE_DOCUMENT: "document",
+              RESPONSE_TYPE_JSON: "json",
+              RESPONSE_TYPE_STREAM: "stream",
+              toString: () => "[object Object]", // follow TM
+              ...resError,
+            } as GMXHRResponseType;
+          }
+          const param = {
+            DONE: 4,
+            HEADERS_RECEIVED: 2,
+            LOADING: 3,
+            OPENED: 1,
+            UNSENT: 0,
+            RESPONSE_TYPE_TEXT: "text",
+            RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
+            RESPONSE_TYPE_BLOB: "blob",
+            RESPONSE_TYPE_DOCUMENT: "document",
+            RESPONSE_TYPE_JSON: "json",
+            RESPONSE_TYPE_STREAM: "stream",
+            finalUrl: res.finalUrl as string,
+            readyState: res.readyState as 0 | 4 | 2 | 3 | 1,
+            status: res.status as number,
+            statusText: res.statusText as string,
+            responseHeaders: res.responseHeaders as string,
+            responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
+            get response() {
+              if (response === false) {
+                switch (responseTypeOriginal) {
+                  case "json": {
+                    const text = this.responseText;
+                    let o = undefined;
+                    try {
+                      o = JSON.parse(text);
+                    } catch {
+                      // ignored
+                    }
+                    response = o; // TM兼容 -> o : object | undefined
+                    break;
+                  }
+                  case "document": {
+                    response = this.responseXML;
+                    break;
+                  }
+                  case "arraybuffer": {
+                    finalResultBuffers ||= concatUint8(resultBuffers);
+                    const full = finalResultBuffers;
+                    response = full.buffer; // ArrayBuffer
+                    break;
+                  }
+                  case "blob": {
+                    finalResultBuffers ||= concatUint8(resultBuffers);
+                    const full = finalResultBuffers;
+                    const type = res.contentType || "application/octet-stream";
+                    response = new Blob([full], { type }); // Blob
+                    break;
+                  }
+                  default: {
+                    // text
+                    response = `${this.responseText}`;
+                    break;
+                  }
+                }
+              }
+              return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
+            },
+            get responseXML() {
+              if (responseXML === false) {
+                const text = this.responseText;
+                if (
+                  ["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"].includes(
+                    res.contentType
+                  )
+                ) {
+                  responseXML = new DOMParser().parseFromString(text, res.contentType as DOMParserSupportedType);
+                } else {
+                  responseXML = new DOMParser().parseFromString(text, "text/xml");
+                }
+              }
+              return responseXML as Document | null;
+            },
+            get responseText() {
+              if (responseTypeOriginal === "document") {
+                // console.log(resultType, resultBuffers.length, resultTexts.length);
+              }
+              if (responseText === false) {
+                if (resultType === 2) {
+                  finalResultBuffers ||= concatUint8(resultBuffers);
+                  const buf = finalResultBuffers.buffer as ArrayBuffer;
+                  const decoder = new TextDecoder("utf-8");
+                  const text = decoder.decode(buf);
+                  responseText = text;
+                } else {
+                  // resultType === 3
+                  responseText = `${resultTexts.join("")}`;
+                }
+              }
+              return responseText as string;
+            },
+            toString: () => "[object Object]", // follow TM
+          } as GMXHRResponseType;
+          if (res.error) {
+            param.error = res.error;
+          }
+          if (responseType === "json" && param.response === null) {
+            response = undefined; // TM不使用null，使用undefined
+          }
+          return param;
+        };
+        doAbort = (data: any) => {
+          if (!reqDone) {
+            errorOccur = "AbortError";
+            details.onabort?.(makeXHRCallbackParam(data));
+            reqDone = true;
+          }
+        };
+
+        con.onMessage((msgData) => {
+          stackAsyncTask(asyncTaskId, async () => {
+            const data = msgData.data as Record<string, any> & {
+              //
+              finalUrl: string;
+              readyState: 0 | 4 | 2 | 3 | 1;
+              status: number;
+              statusText: string;
+              responseHeaders: string;
+              //
+              useFetch: boolean;
+              eventType: string;
+              ok: boolean;
+              contentType: string;
+              error: undefined | string;
+            };
+            if (msgData.code === -1) {
+              // 处理错误
+              LoggerCore.logger().error("GM_xmlhttpRequest error", {
+                code: msgData.code,
+                message: msgData.message,
+              });
+              details.onerror?.({
                 readyState: 4,
-                error: data.message || "unknown",
+                error: msgData.message || "unknown",
               });
+              return;
             }
-            return;
-          }
-          // 处理返回
-          switch (data.action) {
-            case "onload":
-              details.onload?.(data.data);
-              break;
-            case "onloadend":
-              details.onloadend?.(data.data);
-              break;
-            case "onloadstart":
-              details.onloadstart?.(data.data);
-              break;
-            case "onprogress":
-              details.onprogress?.(data.data);
-              break;
-            case "onreadystatechange":
-              details.onreadystatechange && details.onreadystatechange(data.data);
-              break;
-            case "ontimeout":
-              details.ontimeout?.();
-              break;
-            case "onerror":
-              details.onerror?.(data.data);
-              break;
-            case "onabort":
-              details.onabort?.();
-              break;
-            case "onstream":
-              controller?.enqueue(new Uint8Array(data.data));
-              break;
-            default:
-              LoggerCore.logger().warn("GM_xmlhttpRequest resp is error", {
-                data,
-              });
-              break;
-          }
+            // 处理返回
+            switch (msgData.action) {
+              case "reset_chunk_arraybuffer":
+              case "reset_chunk_blob":
+              case "reset_chunk_buffer": {
+                resultBuffers.length = 0;
+                break;
+              }
+              case "reset_chunk_document":
+              case "reset_chunk_json":
+              case "reset_chunk_text": {
+                resultTexts.length = 0;
+                break;
+              }
+              case "append_chunk_stream": {
+                const d = msgData.data.chunk as string;
+                const u8 = base64ToUint8(d);
+                resultBuffers.push(u8);
+                controller?.enqueue(base64ToUint8(d));
+                resultType = 1;
+                break;
+              }
+              case "append_chunk_arraybuffer":
+              case "append_chunk_blob":
+              case "append_chunk_buffer": {
+                const d = msgData.data.chunk as string;
+                const u8 = base64ToUint8(d);
+                resultBuffers.push(u8);
+                resultType = 2;
+                break;
+              }
+              case "append_chunk_document":
+              case "append_chunk_json":
+              case "append_chunk_text": {
+                const d = msgData.data.chunk as string;
+                resultTexts.push(d);
+                resultType = 3;
+                break;
+              }
+              case "onload":
+                details.onload?.(makeXHRCallbackParam(data));
+                break;
+              case "onloadend": {
+                reqDone = true;
+                const xhrReponse = makeXHRCallbackParam(data);
+                details.onloadend?.(xhrReponse);
+                if (errorOccur === null) {
+                  retPromiseResolve?.(xhrReponse);
+                } else {
+                  retPromiseReject?.(errorOccur);
+                }
+                break;
+              }
+              case "onloadstart":
+                details.onloadstart?.(makeXHRCallbackParam(data));
+                break;
+              case "onprogress": {
+                if (details.onprogress) {
+                  if (!xhrType || xhrType === "text") {
+                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
+                    response = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                  }
+                  const res = {
+                    ...makeXHRCallbackParam(data),
+                    lengthComputable: data.lengthComputable as boolean,
+                    loaded: data.loaded as number,
+                    total: data.total as number,
+                    done: data.loaded,
+                    totalSize: data.total,
+                  };
+                  details.onprogress?.(res);
+                }
+                break;
+              }
+              case "onreadystatechange": {
+                if (data.readyState === 4 && data.ok) {
+                  if (resultType === 1) {
+                    // stream type
+                    controller = undefined; // GC用
+                  } else if (resultType === 2) {
+                    // buffer type
+                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
+                    response = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                    /*
+                    if (xhrType === "blob") {
+                      const full = concatUint8(resultBuffers);
+                      const type = data.data.contentType || "application/octet-stream";
+                      response = new Blob([full], { type }); // Blob
+                      if (responseTypeOriginal === "document") {
+                        const blobURL = await toBlobURL(a, response as Blob);
+                        const document = await urlToDocumentLocal(a, blobURL);
+                        response = document;
+                        responseXML = document;
+                      }
+                    } else if (xhrType === "arraybuffer") {
+                      const full = concatUint8(resultBuffers);
+                      response = full.buffer; // ArrayBuffer
+                    }
+                      */
+                  } else if (resultType === 3) {
+                    // string type
+
+                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
+                    response = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                    /*
+                    if (xhrType === "json") {
+                      const full = resultTexts.join("");
+                      try {
+                        response = JSON.parse(full);
+                      } catch {
+                        response = null;
+                      }
+                      responseText = full; // XHR exposes responseText even for JSON
+                    } else if (xhrType === "document") {
+                      // 不應該出現 document type
+                      console.error("ScriptCat: Invalid Calling in GM_xmlhttpRequest");
+                      responseText = "";
+                      response = null;
+                      responseXML = null;
+                      // const full = resultTexts.join("");
+                      // try {
+                      //   response = strToDocument(a, full, data.data.contentType as DOMParserSupportedType);
+                      // } catch {
+                      //   response = null;
+                      // }
+                      // if (response) {
+                      //   responseXML = response;
+                      // }
+                    } else {
+                      const full = resultTexts.join("");
+                      response = full;
+                      responseText = full;
+                    }
+                      */
+                  }
+                }
+                details.onreadystatechange?.(makeXHRCallbackParam(data));
+                break;
+              }
+              case "ontimeout":
+                if (!reqDone) {
+                  errorOccur = "TimeoutError";
+                  details.ontimeout?.(makeXHRCallbackParam(data));
+                  reqDone = true;
+                }
+                break;
+              case "onerror":
+                if (!reqDone) {
+                  data.error ||= "Unknown Error";
+                  errorOccur = data.error;
+                  details.onerror?.(makeXHRCallbackParam(data) as GMXHRResponseTypeWithError);
+                  reqDone = true;
+                }
+                break;
+              case "onabort":
+                doAbort(data);
+                break;
+              // case "onstream":
+              //   controller?.enqueue(new Uint8Array(data));
+              //   break;
+              default:
+                LoggerCore.logger().warn("GM_xmlhttpRequest resp is error", {
+                  data: msgData,
+                });
+                break;
+            }
+          });
         });
       });
     };
     // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
     handler();
     return {
+      retPromise,
       abort: () => {
         if (connect) {
           connect.disconnect();
+          connect = null;
+        }
+        if (doAbort && details.onabort && !reqDone) {
+          // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
+          // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
+          doAbort?.({
+            error: "aborted",
+            responseHeaders: "",
+            readyState: 0,
+            status: 0,
+            statusText: "",
+          }) as GMXHRResponseType;
+          reqDone = true;
         }
       },
     };
@@ -995,29 +1391,15 @@ export default class GMApi extends GM_Base {
     depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"],
   })
   public GM_xmlhttpRequest(details: GMTypes.XHRDetails) {
-    return _GM_xmlhttpRequest(this, details);
+    const { abort } = _GM_xmlhttpRequest(this, details, false);
+    return { abort };
   }
 
   @GMContext.API({ depend: ["CAT_fetchBlob", "CAT_createBlobUrl", "CAT_fetchDocument"] })
-  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> {
-    let abort: { abort: () => void };
-    const ret = new Promise<GMTypes.XHRResponse>((resolve, reject) => {
-      const oldOnload = details.onload;
-      details.onloadend = (xhr: GMTypes.XHRResponse) => {
-        oldOnload && oldOnload(xhr);
-        resolve(xhr);
-      };
-      const oldOnerror = details.onerror;
-      details.onerror = (error: any) => {
-        oldOnerror && oldOnerror(error);
-        reject(error);
-      };
-      abort = _GM_xmlhttpRequest(this, details);
-    });
-    //@ts-ignore
-    ret.abort = () => {
-      abort && abort.abort && abort.abort();
-    };
+  public ["GM.xmlHttpRequest"](details: GMTypes.XHRDetails): Promise<GMTypes.XHRResponse> & GMRequestHandle {
+    const { retPromise, abort } = _GM_xmlhttpRequest(this, details, true);
+    const ret = retPromise as Promise<GMTypes.XHRResponse> & GMRequestHandle;
+    ret.abort = abort;
     return ret;
   }
 

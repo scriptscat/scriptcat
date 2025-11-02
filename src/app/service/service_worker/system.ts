@@ -5,6 +5,7 @@ import { createObjectURL, VscodeConnectClient } from "../offscreen/client";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
 import { fetchIconByDomain } from "./fetch";
+import { swFetch } from "@App/pkg/utils/sw_fetch";
 
 // 一些系统服务
 export class SystemService {
@@ -28,7 +29,7 @@ export class SystemService {
       // 对url做一个缓存
       const cacheKey = `${CACHE_KEY_FAVICON}${url}`;
       return cacheInstance.getOrSet(cacheKey, async () => {
-        return fetch(url)
+        return swFetch(url)
           .then((response) => response.blob())
           .then((blob) => createObjectURL(this.msgSender, blob, true))
           .catch(() => {

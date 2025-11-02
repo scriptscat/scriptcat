@@ -2,6 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { IGetSender, Group } from "@Packages/message/server";
 import type { MessageConnect } from "@Packages/message/types";
+import { bgXhrInterface } from "../service_worker/xhr_interface";
 
 export default class GMApi {
   logger: Logger = LoggerCore.logger().with({ service: "gmApi" });
@@ -88,95 +89,9 @@ export default class GMApi {
   }
 
   async xmlHttpRequest(details: GMSend.XHRDetails, sender: IGetSender) {
-    if (details.responseType === "stream") {
-      // 只有fetch支持ReadableStream
-      throw new Error("Method not implemented.");
-    }
-    const xhr = new XMLHttpRequest();
     const con = sender.getConnect(); // con can be undefined
-    xhr.open(details.method || "GET", details.url, true, details.user || "", details.password || "");
-    // 添加header
-    if (details.headers) {
-      for (const key in details.headers) {
-        xhr.setRequestHeader(key, details.headers[key]);
-      }
-    }
-    //超时时间
-    if (details.timeout) {
-      xhr.timeout = details.timeout;
-    }
-    if (details.overrideMimeType) {
-      xhr.overrideMimeType(details.overrideMimeType);
-    }
-    //设置响应类型
-    if (details.responseType !== "json") {
-      xhr.responseType = details.responseType || "";
-    }
-
-    xhr.onload = () => {
-      this.dealXhrResponse(con, details, "onload", xhr);
-    };
-    xhr.onloadstart = () => {
-      this.dealXhrResponse(con, details, "onloadstart", xhr);
-    };
-    xhr.onloadend = () => {
-      this.dealXhrResponse(con, details, "onloadend", xhr);
-    };
-    xhr.onabort = () => {
-      this.dealXhrResponse(con, details, "onabort", xhr);
-    };
-    xhr.onerror = () => {
-      this.dealXhrResponse(con, details, "onerror", xhr);
-    };
-    xhr.onprogress = (event) => {
-      const respond: GMTypes.XHRProgress = {
-        done: xhr.DONE,
-        lengthComputable: event.lengthComputable,
-        loaded: event.loaded,
-        total: event.total,
-        totalSize: event.total,
-      };
-      this.dealXhrResponse(con, details, "onprogress", xhr, respond);
-    };
-    xhr.onreadystatechange = () => {
-      this.dealXhrResponse(con, details, "onreadystatechange", xhr);
-    };
-    xhr.ontimeout = () => {
-      con?.sendMessage({ action: "ontimeout", data: {} });
-    };
-    //处理数据
-    if (details.dataType === "FormData") {
-      const data = new FormData();
-      if (details.data && details.data instanceof Array) {
-        await Promise.all(
-          details.data.map((val: GMSend.XHRFormData) => {
-            if (val.type === "file") {
-              return fetch(val.val)
-                .then((res) => res.blob())
-                .then((blob) => {
-                  const file = new File([blob], val.filename!);
-                  data.append(val.key, file, val.filename);
-                });
-            } else {
-              data.append(val.key, val.val);
-            }
-          })
-        );
-        xhr.send(data);
-      }
-    } else if (details.dataType === "Blob") {
-      if (!details.data) {
-        throw new Error("Blob data is empty");
-      }
-      const resp = await (await fetch(<string>details.data)).blob();
-      xhr.send(resp);
-    } else {
-      xhr.send(<string>details.data);
-    }
-
-    con?.onDisconnect(() => {
-      xhr.abort();
-    });
+    if (!con) throw new Error("offscreen xmlHttpRequest: Connection is undefined");
+    bgXhrInterface(details, { finalUrl: "", responseHeaders: "" }, con);
   }
 
   textarea: HTMLTextAreaElement = document.createElement("textarea");

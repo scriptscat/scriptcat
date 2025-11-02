@@ -12,6 +12,8 @@ import { type TDeleteScript } from "../queue";
 import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { swFetch } from "@App/pkg/utils/sw_fetch";
+import { blobToUint8Array } from "@App/pkg/utils/utils_datatype";
 
 export class ResourceService {
   logger: Logger;
@@ -257,14 +259,14 @@ export class ResourceService {
 
   async loadByUrl(url: string, type: ResourceType): Promise<Resource> {
     const u = parseUrlSRI(url);
-    const resp = await fetch(u.url);
+    const resp = await swFetch(u.url);
     if (resp.status !== 200) {
       throw new Error(`resource response status not 200: ${resp.status}`);
     }
     const data = await resp.blob();
     const [hash, arrayBuffer, base64] = await Promise.all([
       this.calculateHash(data),
-      data.arrayBuffer(),
+      blobToUint8Array(data),
       blobToBase64(data),
     ]);
     const resource: Resource = {

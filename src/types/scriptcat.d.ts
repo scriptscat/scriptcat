@@ -472,10 +472,10 @@ declare namespace GMTypes {
     responseHeaders?: string;
     status?: number;
     statusText?: string;
-    response?: string | Blob | ArrayBuffer | Document | ReadableStream | null;
+    response?: string | Blob | ArrayBuffer | Document | ReadableStream<Uint8Array> | null;
     responseText?: string;
     responseXML?: Document | null;
-    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
+    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "";
   }
 
   interface XHRProgress extends XHRResponse {
@@ -492,7 +492,7 @@ declare namespace GMTypes {
 
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
-    url: string;
+    url: string | URL | File | Blob;
     headers?: { [key: string]: string };
     data?: string | FormData | Blob;
     cookie?: string;
@@ -513,8 +513,8 @@ declare namespace GMTypes {
     onloadend?: Listener<XHRResponse>;
     onprogress?: Listener<XHRProgress>;
     onreadystatechange?: Listener<XHRResponse>;
-    ontimeout?: () => void;
-    onabort?: () => void;
+    ontimeout?: Listener<XHRResponse>;
+    onabort?: Listener<XHRResponse>;
     onerror?: (err: string | (XHRResponse & { error: string })) => void;
   }
 

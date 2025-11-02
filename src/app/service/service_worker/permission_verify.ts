@@ -111,12 +111,18 @@ export default class PermissionVerify {
     this.permissionDAO.enableCache();
   }
 
+  noVerify<T>(_request: GMApiRequest<T>, _api: ApiValue, _sender: IGetSender) {
+    // 测试用
+    return false;
+  }
+
   // 验证是否有权限
   async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
     }
+    if (this.noVerify(request, api, sender)) return true;
     // 没有其它条件,从metadata.grant中判断
     const { grant } = request.script.metadata;
     if (!grant) {
@@ -133,11 +139,10 @@ export default class PermissionVerify {
         (link && link.includes(grantName))
       ) {
         // 需要用户确认
-        let result = true;
         if (confirm) {
-          result = await this.pushConfirmQueue(request, confirm, sender);
+          return await this.pushConfirmQueue(request, confirm, sender);
         }
-        return result;
+        return true;
       }
     }
     throw new Error("permission not requested");

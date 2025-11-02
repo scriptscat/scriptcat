@@ -11,6 +11,8 @@ import { fetchIconByDomain } from "./app/service/service_worker/fetch";
 import { msgResponse } from "./app/service/service_worker/utils";
 import type { RuntimeMessageSender } from "@Packages/message/types";
 import { cleanInvalidKeys } from "./app/repo/resource";
+// import * as OPFS from "./pkg/utils/opfs_impl";
+// import { assignOPFS, initOPFS } from "./pkg/utils/opfs";
 
 migrate();
 migrateChromeStorage();
@@ -64,6 +66,8 @@ async function setupOffscreenDocument() {
 
 function main() {
   cleanInvalidKeys();
+  // assignOPFS(OPFS);
+  // initOPFS();
   // 初始化管理器
   const message = new ExtensionMessage(true);
   // 初始化日志组件

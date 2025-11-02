@@ -4,6 +4,7 @@ type Port = chrome.runtime.Port & {
 };
 
 export default class Runtime {
+  id = "kfjdomqetnlhbgxasrwzypcviueotmlr";
   connectListener: Array<(port: chrome.runtime.Port) => void> = [];
 
   messageListener: Array<(message: any) => void> = [];

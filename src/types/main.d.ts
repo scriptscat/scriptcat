@@ -48,7 +48,7 @@ declare namespace GMSend {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string;
     headers?: { [key: string]: string };
-    data?: string | Array<XHRFormData>;
+    data?: string | Array<XHRFormData> | any;
     cookie?: string;
     /**
      *
@@ -60,9 +60,10 @@ declare namespace GMSend {
     binary?: boolean;
     timeout?: number;
     context?: CONTEXT_TYPE;
-    responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
+    responseType?: "" | "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
     overrideMimeType?: string;
     anonymous?: boolean;
+    mozAnon?: boolean;
     fetch?: boolean;
     user?: string;
     password?: string;
@@ -71,12 +72,22 @@ declare namespace GMSend {
     redirect?: "follow" | "error" | "manual";
   }
 
-  interface XHRFormData {
-    type?: "file" | "text";
+  interface XHRFormDataFile {
+    type: "file";
     key: string;
     val: string;
-    filename?: string;
+    mimeType: string;
+    filename: string;
+    lastModified: number;
   }
+
+  interface XHRFormDataText {
+    type: "text";
+    key: string;
+    val: string;
+  }
+
+  type XHRFormData = XHRFormDataFile | XHRFormDataText;
 }
 
 declare namespace globalThis {
