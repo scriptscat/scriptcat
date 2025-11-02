@@ -68,4 +68,10 @@ export default class WebRequest {
       // TODO
     },
   };
+
+  onErrorOccurred = {
+    addListener: () => {
+      // TODO
+    },
+  };
 }
