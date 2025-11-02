@@ -1,5 +1,4 @@
 import { base64ToUint8, uint8ToBase64 } from "./utils_datatype";
-// import { getOPFSTemp, setOPFSTemp } from "./opfs";
 
 export const typedArrayTypes = [
   Int8Array,

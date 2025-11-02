@@ -3,11 +3,8 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { OffscreenManager } from "./app/service/offscreen";
 import { ExtensionMessage } from "@Packages/message/extension_message";
-// import * as OPFS from "./pkg/utils/opfs_impl";
-// import { assignOPFS } from "./pkg/utils/opfs";
 
 function main() {
-  // assignOPFS(OPFS);
   // 初始化日志组件
   const extMsgSender: Message = new ExtensionMessage();
   const loggerCore = new LoggerCore({
