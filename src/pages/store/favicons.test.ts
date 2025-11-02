@@ -1,5 +1,5 @@
+import { extractFaviconsDomain } from "@App/pages/store/favicons";
 import { describe, it, expect } from "vitest";
-import { extractFaviconsDomain } from "./favicon";
 
 describe("extractFaviconsDomain", () => {
   it("应该正确提取各种URL模式的域名", () => {

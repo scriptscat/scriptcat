@@ -26,7 +26,7 @@ import {
   requestRunScript,
   requestStopScript,
 } from "@App/pages/store/features/script";
-import { loadScriptFavicons } from "@App/pages/store/utils";
+import { loadScriptFavicons } from "@App/pages/store/favicons";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useEffect, useMemo, useState } from "react";
 import { hashColor } from "../utils";
