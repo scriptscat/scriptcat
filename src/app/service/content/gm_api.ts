@@ -1490,6 +1490,7 @@ export default class GMApi extends GM_Base {
         // native
         const xhrParams = {
           url: url,
+          fetch: true, // 跟随TM使用 fetch; 使用 fetch 避免 1) 大量数据存放offscreen xhr 2) vivaldi offscreen client block
           responseType: "blob",
           onloadend: async (res) => {
             if (aborted) return;
