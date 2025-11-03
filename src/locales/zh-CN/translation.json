@@ -191,7 +191,6 @@
   "yes": "是",
   "no": "否",
   "confirm_delete_permission": "确认删除该授权？",
-  "script_setting": "脚本设置",
   "basic_info": "基本信息",
   "update_url": "更新URL",
   "permission_management": "授权管理",
@@ -489,10 +488,16 @@
   "enter_search_value": "请输入 {{search}} 进行搜索",
   "script_run_env": {
     "title": "运行环境",
-    "default": "默认",
     "all": "所有标签",
     "normal-tabs": "普通标签",
     "incognito-tabs": "隐身标签"
+  },
+  "script_run_at": {
+    "title": "运行时机"
+  },
+  "script_setting": {
+    "title": "脚本设置",
+    "default": "默认"
   },
   "editor_config": "编辑器配置",
   "editor_config_description": "你可以参考<Link href=\"https://code.visualstudio.com/docs/languages/jsconfig\">jsconfig.js</Link>中的compilerOptions进行配置",
