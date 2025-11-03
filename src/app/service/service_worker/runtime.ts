@@ -461,6 +461,7 @@ export class RuntimeService {
     } else {
       this.systemConfig.addListener("enable_script", async (enable) => {
         this.isLoadScripts = enable;
+        this.updateIcon(enable);
         await this.unregisterUserscripts();
         if (enable) {
           await this.registerUserscripts();
@@ -543,6 +544,9 @@ export class RuntimeService {
       this.isLoadScripts = isLoadScripts;
       this.blacklist = obtainBlackList(strBlacklist);
 
+      // 更新 logo
+      this.updateIcon(this.isLoadScripts);
+
       // 检查是否开启了开发者模式
       if (!this.isUserScriptsAvailable) {
         // 未开启加上警告引导
@@ -568,6 +572,36 @@ export class RuntimeService {
       // 初始化完成
       return true;
     })();
+  }
+
+  updateIcon(enableUserscript: boolean) {
+    if (enableUserscript) {
+      // 设置正常logo
+      chrome.action.setIcon(
+        {
+          path: { "32": chrome.runtime.getURL("assets/logo-32.png") },
+        },
+        () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
+          }
+        }
+      );
+    } else {
+      // 如果未启用脚本，设置灰色的logo
+      chrome.action.setIcon(
+        {
+          path: { "32": chrome.runtime.getURL("assets/logo-gray-32.png") },
+        },
+        () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
+          }
+        }
+      );
+    }
   }
 
   public loadBlacklist() {

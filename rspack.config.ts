@@ -136,6 +136,12 @@ export default defineConfig({
           from: `${assets}/logo${isDev || isBeta ? "-beta" : ""}.png`,
           to: `${dist}/ext/assets/logo.png`,
         },
+        {
+          from: `${assets}/logo${isDev || isBeta ? "-beta" : ""}-32.png`,
+          to: `${dist}/ext/assets/logo-32.png`,
+        },
+        { from: `${assets}/logo-gray.png`, to: `${dist}/ext/assets/logo-gray.png` },
+        { from: `${assets}/logo-gray-32.png`, to: `${dist}/ext/assets/logo-gray-32.png` },
         { from: `${assets}/logo`, to: `${dist}/ext/assets/logo` },
         {
           from: `${assets}/_locales`,
