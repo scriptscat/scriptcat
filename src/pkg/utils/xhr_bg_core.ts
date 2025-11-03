@@ -874,6 +874,11 @@ context a property which will be added to the response object
       }
     }
 
+    if (details.binary && typeof rawData === "string") {
+      // Send the data string as a blob. Compatibility with TM/VM/GM
+      rawData = new Blob([rawData], { type: "application/octet-stream" });
+    }
+
     // Send data (if any)
     baseXHR.send(rawData ?? null);
   };
