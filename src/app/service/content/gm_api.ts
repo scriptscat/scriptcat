@@ -1,4 +1,4 @@
-import type { Message, MessageConnect } from "@Packages/message/types";
+import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
   GMRegisterMenuCommandParam,
@@ -990,9 +990,11 @@ export default class GMApi extends GM_Base {
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
         // 注意。在此 callback 里，不应直接存取 param, 否则会影响 GC
         connect = con;
-        const resultTexts = [] as string[];
-        const resultBuffers = [] as Uint8Array<ArrayBuffer>[];
-        let finalResultBuffers: Uint8Array<ArrayBuffer> | null = null;
+        const resultTexts = [] as string[]; // 函数参考清掉后，变数会被GC
+        const resultBuffers = [] as Uint8Array<ArrayBuffer>[]; // 函数参考清掉后，变数会被GC
+        let finalResultBuffers: Uint8Array<ArrayBuffer> | null = null; // 函数参考清掉后，变数会被GC
+        let finalResultText: string | null = null; // 函数参考清掉后，变数会被GC
+        let isEmptyResult = true;
         const asyncTaskId = `${Date.now}:${Math.random()}`;
 
         let errorOccur: string | null = null;
@@ -1007,7 +1009,16 @@ export default class GMApi extends GM_Base {
         }
         readerStream = undefined;
 
-        const makeXHRCallbackParam = (
+        let refCleanup: (() => void) | null = () => {
+          // 清掉函数参考，避免各变数参考无法GC
+          makeXHRCallbackParam = null;
+          onMessageHandler = null;
+          doAbort = null;
+          refCleanup = null;
+          connect = null;
+        };
+
+        const makeXHRCallbackParam_ = (
           res: {
             //
             finalUrl: string;
@@ -1028,8 +1039,7 @@ export default class GMApi extends GM_Base {
             (typeof res.error === "string" &&
               (res.status === 0 || res.status >= 300 || res.status < 200) &&
               !res.statusText &&
-              resultBuffers.length === 0 &&
-              resultTexts.length === 0) ||
+              isEmptyResult) ||
             res.error === "aborted"
           ) {
             resError = {
@@ -1116,6 +1126,10 @@ export default class GMApi extends GM_Base {
                       break;
                     }
                   }
+                  if (reqDone) {
+                    resultTexts.length = 0;
+                    resultBuffers.length = 0;
+                  }
                 }
                 return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
               },
@@ -1147,7 +1161,12 @@ export default class GMApi extends GM_Base {
                     responseText = text;
                   } else {
                     // resultType === 3
-                    responseText = `${resultTexts.join("")}`;
+                    if (finalResultText === null) finalResultText = `${resultTexts.join("")}`;
+                    responseText = finalResultText;
+                  }
+                  if (reqDone) {
+                    resultTexts.length = 0;
+                    resultBuffers.length = 0;
                   }
                 }
                 return responseText as string;
@@ -1166,15 +1185,18 @@ export default class GMApi extends GM_Base {
           }
           return retParam;
         };
+        let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
         doAbort = (data: any) => {
           if (!reqDone) {
             errorOccur = "AbortError";
-            details.onabort?.(makeXHRCallbackParam(data));
+            details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
             reqDone = true;
+            refCleanup?.();
           }
+          doAbort = null;
         };
 
-        con.onMessage((msgData) => {
+        let onMessageHandler: ((data: TMessage<any>) => void) | null = (msgData: TMessage<any>) => {
           stackAsyncTask(asyncTaskId, async () => {
             const data = msgData.data as Record<string, any> & {
               //
@@ -1208,18 +1230,21 @@ export default class GMApi extends GM_Base {
               case "reset_chunk_blob":
               case "reset_chunk_buffer": {
                 resultBuffers.length = 0;
+                isEmptyResult = true;
                 break;
               }
               case "reset_chunk_document":
               case "reset_chunk_json":
               case "reset_chunk_text": {
                 resultTexts.length = 0;
+                isEmptyResult = true;
                 break;
               }
               case "append_chunk_stream": {
                 const d = msgData.data.chunk as string;
                 const u8 = base64ToUint8(d);
                 resultBuffers.push(u8);
+                isEmptyResult = false;
                 controller?.enqueue(base64ToUint8(d));
                 resultType = 1;
                 break;
@@ -1230,6 +1255,7 @@ export default class GMApi extends GM_Base {
                 const d = msgData.data.chunk as string;
                 const u8 = base64ToUint8(d);
                 resultBuffers.push(u8);
+                isEmptyResult = false;
                 resultType = 2;
                 break;
               }
@@ -1238,25 +1264,30 @@ export default class GMApi extends GM_Base {
               case "append_chunk_text": {
                 const d = msgData.data.chunk as string;
                 resultTexts.push(d);
+                isEmptyResult = false;
                 resultType = 3;
                 break;
               }
               case "onload":
-                details.onload?.(makeXHRCallbackParam(data));
+                details.onload?.(makeXHRCallbackParam?.(data) ?? {});
                 break;
               case "onloadend": {
                 reqDone = true;
-                const xhrReponse = makeXHRCallbackParam(data);
+                responseText = false;
+                finalResultBuffers = null;
+                finalResultText = null;
+                const xhrReponse = makeXHRCallbackParam?.(data) ?? {};
                 details.onloadend?.(xhrReponse);
                 if (errorOccur === null) {
                   retPromiseResolve?.(xhrReponse);
                 } else {
                   retPromiseReject?.(errorOccur);
                 }
+                refCleanup?.();
                 break;
               }
               case "onloadstart":
-                details.onloadstart?.(makeXHRCallbackParam(data));
+                details.onloadstart?.(makeXHRCallbackParam?.(data) ?? {});
                 break;
               case "onprogress": {
                 if (details.onprogress) {
@@ -1266,7 +1297,7 @@ export default class GMApi extends GM_Base {
                     responseXML = false; // 设为false 表示需要更新。在 get setter 中更新
                   }
                   const res = {
-                    ...makeXHRCallbackParam(data),
+                    ...(makeXHRCallbackParam?.(data) ?? {}),
                     lengthComputable: data.lengthComputable as boolean,
                     loaded: data.loaded as number,
                     total: data.total as number,
@@ -1341,26 +1372,28 @@ export default class GMApi extends GM_Base {
                       */
                   }
                 }
-                details.onreadystatechange?.(makeXHRCallbackParam(data));
+                details.onreadystatechange?.(makeXHRCallbackParam?.(data) ?? {});
                 break;
               }
               case "ontimeout":
                 if (!reqDone) {
                   errorOccur = "TimeoutError";
-                  details.ontimeout?.(makeXHRCallbackParam(data));
+                  details.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
                   reqDone = true;
+                  refCleanup?.();
                 }
                 break;
               case "onerror":
                 if (!reqDone) {
                   data.error ||= "Unknown Error";
                   errorOccur = data.error;
-                  details.onerror?.(makeXHRCallbackParam(data) as GMXHRResponseTypeWithError);
+                  details.onerror?.((makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError);
                   reqDone = true;
+                  refCleanup?.();
                 }
                 break;
               case "onabort":
-                doAbort(data);
+                doAbort?.(data);
                 break;
               // case "onstream":
               //   controller?.enqueue(new Uint8Array(data));
@@ -1372,7 +1405,9 @@ export default class GMApi extends GM_Base {
                 break;
             }
           });
-        });
+        };
+
+        connect?.onMessage((msgData) => onMessageHandler?.(msgData));
       });
     };
     // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
