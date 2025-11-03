@@ -122,7 +122,6 @@ export default class PermissionVerify {
     if (api.param.default) {
       return true;
     }
-    if (this.noVerify(request, api, sender)) return true;
     // 没有其它条件,从metadata.grant中判断
     const { grant } = request.script.metadata;
     if (!grant) {

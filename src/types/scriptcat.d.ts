@@ -168,7 +168,7 @@ declare function GM_openInTab(url: string): GMTypes.Tab | undefined;
 
 declare function GM_xmlhttpRequest(details: GMTypes.XHRDetails): GMTypes.AbortHandle<void>;
 
-declare function GM_download(details: GMTypes.DownloadDetails): GMTypes.AbortHandle<boolean>;
+declare function GM_download(details: GMTypes.DownloadDetails<string | Blob | File>): GMTypes.AbortHandle<boolean>;
 declare function GM_download(url: string, filename: string): GMTypes.AbortHandle<boolean>;
 
 declare function GM_getTab(callback: (obj: object) => void): void;
@@ -527,21 +527,26 @@ declare namespace GMTypes {
     details?: string;
   }
 
-  interface DownloadDetails {
-    method?: "GET" | "POST";
-    downloadMode?: "native" | "browser";
-    url: string;
+  interface DownloadDetails<URL> {
+    // TM/SC 标准参数
+    url: URL;
     name: string;
     headers?: { [key: string]: string };
     saveAs?: boolean;
+    conflictAction?: "uniquify" | "overwrite" | "prompt";
+
+    // SC 标准参数
+    method?: "GET" | "POST";
+    downloadMode?: "native" | "browser";
     timeout?: number;
     cookie?: string;
     anonymous?: boolean;
 
-    onerror?: Listener<DownloadError>;
-    ontimeout?: () => void;
+    // TM/SC 标准回调
     onload?: Listener<object>;
+    onerror?: Listener<DownloadError>;
     onprogress?: Listener<XHRProgress>;
+    ontimeout?: () => void;
   }
 
   interface NotificationThis extends NotificationDetails {

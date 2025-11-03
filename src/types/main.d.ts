@@ -70,6 +70,7 @@ declare namespace GMSend {
     nocache?: boolean;
     dataType?: "FormData" | "Blob";
     redirect?: "follow" | "error" | "manual";
+    byPassConnect?: boolean;
   }
 
   interface XHRFormDataFile {

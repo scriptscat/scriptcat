@@ -1,16 +1,14 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { ScriptDAO } from "@App/app/repo/scripts";
-import { SenderConnect, type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
+import { type IGetSender, type Group, GetSenderType } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Packages/message/types";
 import { connect, sendMessage } from "@Packages/message/client";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import { MockMessageConnect } from "@Packages/message/mock_message";
 import { type ValueService } from "@App/app/service/service_worker/value";
 import type { ConfirmParam } from "./permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
 import { cacheInstance } from "@App/app/cache";
-import EventEmitter from "eventemitter3";
 import { type RuntimeService } from "./runtime";
 import { getIcon, isFirefox, openInCurrentTab, cleanFileName, urlSanitize } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
@@ -269,16 +267,21 @@ export default class GMApi {
   // sendMessage from Content Script, etc
   async handlerRequest(data: MessageRequest, sender: IGetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
+    let byPass = false;
+    if (data.api === "GM_xmlhttpRequest" && data.params?.[0]?.byPassConnect === true) byPass = true;
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");
     }
     const req = await this.parseRequest(data);
-    try {
-      await this.permissionVerify.verify(req, api, sender);
-    } catch (e) {
-      this.logger.error("verify error", { api: data.api }, Logger.E(e));
-      throw e;
+    if (!byPass && this.permissionVerify.noVerify(req, api, sender)) byPass = true;
+    if (!byPass) {
+      try {
+        await this.permissionVerify.verify(req, api, sender);
+      } catch (e) {
+        this.logger.error("verify error", { api: data.api }, Logger.E(e));
+        throw e;
+      }
     }
     return api.api.call(this, req, sender);
   }
@@ -1329,7 +1332,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_download(request: GMApiRequest<[GMTypes.DownloadDetails]>, sender: IGetSender) {
+  async GM_download(request: GMApiRequest<[GMTypes.DownloadDetails<string>]>, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_download ERROR: sender is not MessageConnect");
     }
@@ -1345,133 +1348,61 @@ export default class GMApi {
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
-    const startDownload = (blobURL: string, respond: any) => {
-      if (!blobURL) {
-        !isConnDisconnected &&
-          msgConn.sendMessage({
-            action: "onerror",
-            data: respond,
-          });
-        throw new Error("GM_download ERROR: blobURL is not provided.");
-      }
-      chrome.downloads.download(
-        {
-          url: blobURL,
-          saveAs: params.saveAs,
-          filename: fileName,
-        },
-        (downloadId: number | undefined) => {
-          const lastError = chrome.runtime.lastError;
-          let ok = true;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
-            // 下载API出现问题但继续执行
-            ok = false;
-          }
-          if (downloadId === undefined) {
-            console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
-            ok = false;
-          }
-          if (!isConnDisconnected) {
-            if (ok) {
-              msgConn.sendMessage({
-                action: "onload",
-                data: respond,
-              });
-            } else {
-              msgConn.sendMessage({
-                action: "onerror",
-                data: respond,
-              });
-            }
-          }
-        }
-      );
-    };
-    if (params.url.startsWith("blob:") || params.downloadMode === "browser") {
-      startDownload(params.url, null);
-      return;
+    const blobURL = params.url;
+    const respond = null;
+    if (!blobURL) {
+      !isConnDisconnected &&
+        msgConn.sendMessage({
+          action: "onerror",
+          data: respond,
+        });
+      throw new Error("GM_download ERROR: blobURL is not provided.");
     }
-    // 使用xhr下载blob,再使用download api创建下载
-    const EE = new EventEmitter<string, any>();
-    const mockConnect = new MockMessageConnect(EE);
-    EE.addListener("message", (data: any) => {
-      const xhr = data.data;
-      const respond: any = {
-        finalUrl: xhr.url,
-        readyState: xhr.readyState,
-        status: xhr.status,
-        statusText: xhr.statusText,
-        responseHeaders: xhr.responseHeaders,
-      };
-      let msgToSend = null;
-      switch (data.action) {
-        case "onload": {
-          const response = xhr.response;
-          let url = "";
-          if (response instanceof Blob) {
-            url = URL.createObjectURL(response);
-          } else if (typeof response === "string") {
-            url = response;
-          }
-          startDownload(url, respond);
-          break;
-        }
-        case "onerror":
-          msgToSend = {
-            action: "onerror",
-            data: respond,
-          };
-          break;
-        case "onprogress":
-          respond.done = xhr.done;
-          respond.lengthComputable = xhr.lengthComputable;
-          respond.loaded = xhr.loaded;
-          respond.total = xhr.total;
-          respond.totalSize = xhr.total; // ??????
-          msgToSend = {
-            action: "onprogress",
-            data: respond,
-          };
-          break;
-        case "ontimeout":
-          msgToSend = {
-            action: "ontimeout",
-          };
-          break;
-        case "onloadend":
-          msgToSend = {
-            action: "onloadend",
-            data: respond,
-          };
-          break;
-      }
-      if (!isConnDisconnected && msgToSend) {
-        msgConn.sendMessage(msgToSend);
-      }
-    });
-    const ret = this.GM_xmlhttpRequest(
+    const downloadAPIOptions = {
+      url: blobURL,
+    } as chrome.downloads.DownloadOptions;
+    if (typeof fileName === "string" && fileName) {
+      downloadAPIOptions.filename = fileName;
+    }
+    if (typeof params.saveAs === "boolean") {
+      downloadAPIOptions.saveAs = params.saveAs;
+    }
+    if (typeof params.conflictAction === "string") {
+      downloadAPIOptions.conflictAction = params.conflictAction;
+    }
+    chrome.downloads.download(
       {
-        ...request,
-        params: [
-          // 处理参数问题
-          {
-            method: params.method || "GET",
-            url: params.url,
-            headers: params.headers,
-            timeout: params.timeout,
-            cookie: params.cookie,
-            anonymous: params.anonymous,
-            responseType: "blob",
-          } as GMSend.XHRDetails,
-        ],
+        url: blobURL,
+        saveAs: params.saveAs,
+        filename: fileName,
       },
-      new SenderConnect(mockConnect)
+      (downloadId: number | undefined) => {
+        const lastError = chrome.runtime.lastError;
+        let ok = true;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
+          // 下载API出现问题但继续执行
+          ok = false;
+        }
+        if (downloadId === undefined) {
+          console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
+          ok = false;
+        }
+        if (!isConnDisconnected) {
+          if (ok) {
+            msgConn.sendMessage({
+              action: "onload",
+              data: respond,
+            });
+          } else {
+            msgConn.sendMessage({
+              action: "onerror",
+              data: respond,
+            });
+          }
+        }
+      }
     );
-    msgConn.onDisconnect(() => {
-      // To be implemented
-    });
-    return ret;
   }
 
   @PermissionVerify.API()

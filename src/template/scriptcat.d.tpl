@@ -530,7 +530,7 @@ declare namespace GMTypes {
   interface DownloadDetails {
     method?: "GET" | "POST";
     downloadMode?: "native" | "browser";
-    url: string;
+    url: string | File | Blob;
     name: string;
     headers?: { [key: string]: string };
     saveAs?: boolean;

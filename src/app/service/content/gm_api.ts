@@ -83,7 +83,7 @@ const execEnvInit = (execEnv: GMApi) => {
 };
 
 const toBlobURL = (a: GMApi, blob: Blob): Promise<string> | string => {
-  // content_GMAPI 都應該在前台的內容腳本或真實頁面執行。如果沒有 typeof URL.createObjectURL 才使用信息傳遞交給後台
+  // content_GMAPI 都应该在前台的内容脚本或真实页面执行。如果没有 typeof URL.createObjectURL 才使用信息传递交给后台
   if (typeof URL.createObjectURL === "function") {
     return URL.createObjectURL(blob);
   } else {
@@ -111,7 +111,7 @@ const convObjectToURL = async (object: string | URL | Blob | File | undefined | 
   } else if (object instanceof Blob) {
     // 不使用 blob URL
     // 1. service worker 不能生成 blob URL
-    // 2. blob URL 有效期管理麻煩
+    // 2. blob URL 有效期管理麻烦
 
     const blob = object;
     url = await blobToDataURL(blob);
@@ -141,9 +141,9 @@ const urlToDocumentInContentPage = async (a: GMApi, url: string) => {
 
 // const strToDocument = async (a: GMApi, text: string, contentType: DOMParserSupportedType) => {
 //   if (typeof DOMParser === "function") {
-//     // 前台環境（CONTENT/MAIN）
+//     // 前台环境（CONTENT/MAIN）
 //     // str -> Document (CONTENT/MAIN)
-//     // Document物件是在API呼叫環境產生
+//     // Document物件是在API呼叫环境产生
 //     return new DOMParser().parseFromString(text, contentType);
 //   } else {
 //     // fallback: 以 urlToDocumentInContentPage 方式取得
@@ -680,7 +680,7 @@ export default class GMApi extends GM_Base {
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   menuIdCounter: number | undefined;
 
-  // 菜单注冊累计器 - 用於穩定同一Tab不同frame之選項的單獨項目不合併狀態
+  // 菜单注册累计器 - 用于稳定同一Tab不同frame之选项的单独项目不合并状态
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   regMenuCounter: number | undefined;
 
@@ -889,7 +889,12 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_xmlhttpRequest(a: GMApi, details: GMTypes.XHRDetails, requirePromise: boolean) {
+  static _GM_xmlhttpRequest(
+    a: GMApi,
+    details: GMTypes.XHRDetails,
+    requirePromise: boolean,
+    byPassConnect: boolean = false
+  ) {
     let reqDone = false;
     if (a.isInvalidContext()) {
       return {
@@ -931,6 +936,7 @@ export default class GMApi extends GM_Base {
       password: details.password,
       redirect: details.redirect,
       fetch: details.fetch,
+      byPassConnect: byPassConnect,
     };
     if (!param.headers) {
       param.headers = {};
@@ -975,11 +981,11 @@ export default class GMApi extends GM_Base {
         }
       }
       const xhrType = param.responseType;
-      const responseType = responseTypeOriginal; // 回傳用
+      const responseType = responseTypeOriginal; // 回传用
 
       // 发送信息
       a.connect("GM_xmlhttpRequest", [param]).then((con) => {
-        // 注意。在此 callback 裡，不應直接存取 param, 否則會影響 GC
+        // 注意。在此 callback 里，不应直接存取 param, 否则会影响 GC
         connect = con;
         const resultTexts = [] as string[];
         const resultBuffers = [] as Uint8Array<ArrayBuffer>[];
@@ -1247,9 +1253,9 @@ export default class GMApi extends GM_Base {
               case "onprogress": {
                 if (details.onprogress) {
                   if (!xhrType || xhrType === "text") {
-                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
-                    response = false; // 設為false 表示需要更新。在 get setter 中更新
-                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseText = false; // 设为false 表示需要更新。在 get setter 中更新
+                    response = false; // 设为false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 设为false 表示需要更新。在 get setter 中更新
                   }
                   const res = {
                     ...makeXHRCallbackParam(data),
@@ -1270,9 +1276,9 @@ export default class GMApi extends GM_Base {
                     controller = undefined; // GC用
                   } else if (resultType === 2) {
                     // buffer type
-                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
-                    response = false; // 設為false 表示需要更新。在 get setter 中更新
-                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseText = false; // 设为false 表示需要更新。在 get setter 中更新
+                    response = false; // 设为false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 设为false 表示需要更新。在 get setter 中更新
                     /*
                     if (xhrType === "blob") {
                       const full = concatUint8(resultBuffers);
@@ -1292,9 +1298,9 @@ export default class GMApi extends GM_Base {
                   } else if (resultType === 3) {
                     // string type
 
-                    responseText = false; // 設為false 表示需要更新。在 get setter 中更新
-                    response = false; // 設為false 表示需要更新。在 get setter 中更新
-                    responseXML = false; // 設為false 表示需要更新。在 get setter 中更新
+                    responseText = false; // 设为false 表示需要更新。在 get setter 中更新
+                    response = false; // 设为false 表示需要更新。在 get setter 中更新
+                    responseXML = false; // 设为false 表示需要更新。在 get setter 中更新
                     /*
                     if (xhrType === "json") {
                       const full = resultTexts.join("");
@@ -1305,7 +1311,7 @@ export default class GMApi extends GM_Base {
                       }
                       responseText = full; // XHR exposes responseText even for JSON
                     } else if (xhrType === "document") {
-                      // 不應該出現 document type
+                      // 不应该出现 document type
                       console.error("ScriptCat: Invalid Calling in GM_xmlhttpRequest");
                       responseText = "";
                       response = null;
@@ -1403,68 +1409,209 @@ export default class GMApi extends GM_Base {
     return ret;
   }
 
+  /**
+   *
+   * SC的 downloadMode 设置在API呼叫，TM 的 downloadMode 设置在扩展设定
+   * native, disabled, browser
+   * native: 后台xhr下载 -> 后台chrome.download API，disabled: 禁止下载，browser: 后台chrome.download API
+   *
+   */
   @GMContext.API({ alias: "GM.download" })
-  GM_download(url: GMTypes.DownloadDetails | string, filename?: string): GMTypes.AbortHandle<void> {
-    if (this.isInvalidContext()) {
+  static _GM_download(a: GMApi, details: GMTypes.DownloadDetails<string | Blob | File>, requirePromise: boolean) {
+    if (a.isInvalidContext()) {
       return {
+        retPromise: requirePromise ? Promise.reject("GM_download: Invalid Context") : null,
         abort: () => {},
       };
     }
-    let details: GMTypes.DownloadDetails;
-    if (typeof url === "string") {
-      details = {
-        name: filename || "",
-        url,
-      };
-    } else {
-      details = url;
-    }
+    let retPromiseResolve: (value: unknown) => void | undefined;
+    let retPromiseReject: (reason?: any) => void | undefined;
+    const retPromise = requirePromise
+      ? new Promise((resolve, reject) => {
+          retPromiseResolve = resolve;
+          retPromiseReject = reject;
+        })
+      : null;
+    const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
+    let aborted = false;
     let connect: MessageConnect;
-    this.connect("GM_download", [
-      {
-        method: details.method,
-        downloadMode: details.downloadMode || "native", // 默认使用xhr下载
-        url: details.url,
-        name: details.name,
-        headers: details.headers,
-        saveAs: details.saveAs,
-        timeout: details.timeout,
-        cookie: details.cookie,
-        anonymous: details.anonymous,
-      } as GMTypes.DownloadDetails,
-    ]).then((con) => {
-      connect = con;
-      connect.onMessage((data) => {
-        switch (data.action) {
-          case "onload":
-            details.onload && details.onload(data.data);
-            break;
-          case "onprogress":
-            details.onprogress && details.onprogress(<GMTypes.XHRProgress>data.data);
-            break;
-          case "ontimeout":
+    let nativeAbort: (() => any) | null = null;
+    const handle = async () => {
+      const url = await urlPromiseLike;
+      const downloadMode = details.downloadMode || "native"; // native = sc_default; browser = chrome api
+      details.url = url;
+      if (downloadMode === "browser" || url.startsWith("blob:")) {
+        const con = await a.connect("GM_download", [
+          {
+            method: details.method,
+            downloadMode: "browser", // 默认使用xhr下载
+            url: url as string,
+            name: details.name,
+            headers: details.headers,
+            saveAs: details.saveAs,
+            timeout: details.timeout,
+            cookie: details.cookie,
+            anonymous: details.anonymous,
+          } as GMTypes.DownloadDetails<string>,
+        ]);
+        if (aborted) return;
+        connect = con;
+        connect.onMessage((data) => {
+          switch (data.action) {
+            case "onload":
+              details.onload && details.onload(data.data);
+              retPromiseResolve?.(data.data);
+              break;
+            case "onprogress":
+              details.onprogress && details.onprogress(data.data);
+              retPromiseReject?.(new Error("Timeout ERROR"));
+              break;
+            case "ontimeout":
+              details.ontimeout && details.ontimeout();
+              retPromiseReject?.(new Error("Timeout ERROR"));
+              break;
+            case "onerror":
+              details.onerror &&
+                details.onerror({
+                  error: "unknown",
+                });
+              retPromiseReject?.(new Error("Unknown ERROR"));
+              break;
+            default:
+              LoggerCore.logger().warn("GM_download resp is error", {
+                data,
+              });
+              retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+              break;
+          }
+        });
+      } else {
+        // console.log("GM_download: Native Download Start");
+        // native
+        const xhrParams = {
+          url: url,
+          responseType: "blob",
+          onloadend: async (res) => {
+            if (aborted) return;
+            // console.log("GM_download: Native Download End");
+            if (res.response instanceof Blob) {
+              // console.log("GM_download: Chrome API Download Start");
+              const url = URL.createObjectURL(res.response); // 生命周期跟随当前 content/page 而非 offscreen
+              const con = await a.connect("GM_download", [
+                {
+                  method: details.method,
+                  downloadMode: "browser",
+                  url: url as string,
+                  name: details.name,
+                  headers: details.headers,
+                  saveAs: details.saveAs,
+                  timeout: details.timeout,
+                  cookie: details.cookie,
+                  anonymous: details.anonymous,
+                } as GMTypes.DownloadDetails<string>,
+              ]);
+              if (aborted) return;
+              connect = con;
+              connect.onMessage((data) => {
+                switch (data.action) {
+                  case "onload":
+                    // console.log("GM_download: Chrome API Download End");
+                    details.onload && details.onload(data.data);
+                    retPromiseResolve?.(data.data);
+                    setTimeout(() => {
+                      // 释放不需要的 URL
+                      URL.revokeObjectURL(url);
+                    }, 1);
+                    break;
+                  case "ontimeout":
+                    details.ontimeout && details.ontimeout();
+                    retPromiseReject?.(new Error("Timeout ERROR"));
+                    break;
+                  case "onerror":
+                    details.onerror &&
+                      details.onerror({
+                        error: "unknown",
+                      });
+                    retPromiseReject?.(new Error("Unknown ERROR"));
+                    break;
+                  default:
+                    LoggerCore.logger().warn("GM_download resp is error", {
+                      data,
+                    });
+                    retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+                    break;
+                }
+              });
+            }
+          },
+          onload: () => {
+            // details.onload && details.onload({});
+          },
+          onprogress: (e) => {
+            details.onprogress && details.onprogress(e);
+          },
+          ontimeout: () => {
             details.ontimeout && details.ontimeout();
-            break;
-          case "onerror":
+          },
+          onerror: () => {
             details.onerror &&
               details.onerror({
                 error: "unknown",
               });
-            break;
-          default:
-            LoggerCore.logger().warn("GM_download resp is error", {
-              data,
-            });
-            break;
+          },
+        } as GMTypes.XHRDetails;
+        if (typeof details.headers === "object") {
+          xhrParams.headers = details.headers;
         }
-      });
-    });
+        // -- 兼容SC参数 --
+        if (typeof details.method === "string") {
+          xhrParams.method = details.method || "GET";
+        }
+        if (typeof details.timeout === "number") {
+          xhrParams.timeout = details.timeout;
+        }
+        if (typeof details.cookie === "string") {
+          xhrParams.cookie = details.cookie;
+        }
+        if (typeof details.anonymous === "boolean") {
+          xhrParams.anonymous = details.anonymous;
+        }
+        // -- 兼容SC参数 --
+        const { retPromise, abort } = _GM_xmlhttpRequest(a, xhrParams, true, true);
+        retPromise?.catch(() => {
+          if (aborted) return;
+          retPromiseReject?.(new Error("Native Download ERROR"));
+        });
+        nativeAbort = abort;
+      }
+    };
+    handle().catch(console.error);
 
     return {
+      retPromise,
       abort: () => {
+        aborted = true;
         connect?.disconnect();
+        nativeAbort?.();
       },
     };
+  }
+
+  // 用于脚本跨域请求,需要@connect domain指定允许的域名
+  @GMContext.API()
+  public GM_download(arg1: GMTypes.DownloadDetails<string | Blob | File> | string, arg2?: string) {
+    const details = typeof arg1 === "string" ? { url: arg1, name: arg2 } : { ...arg1 };
+    const { abort } = _GM_download(this, details as GMTypes.DownloadDetails<string | Blob | File>, false);
+    return { abort };
+  }
+
+  @GMContext.API()
+  public ["GM.download"](arg1: GMTypes.DownloadDetails<string | Blob | File> | string, arg2?: string) {
+    const details = typeof arg1 === "string" ? { url: arg1, name: arg2 } : { ...arg1 };
+    const { retPromise, abort } = _GM_download(this, details as GMTypes.DownloadDetails<string | Blob | File>, true);
+    const ret = retPromise as Promise<GMTypes.XHRResponse> & GMRequestHandle;
+    ret.abort = abort;
+    return ret;
   }
 
   @GMContext.API({
@@ -1802,4 +1949,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest, _GM_download } = GMApi;
