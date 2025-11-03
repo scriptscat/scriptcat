@@ -1370,39 +1370,32 @@ export default class GMApi {
     if (typeof params.conflictAction === "string") {
       downloadAPIOptions.conflictAction = params.conflictAction;
     }
-    chrome.downloads.download(
-      {
-        url: blobURL,
-        saveAs: params.saveAs,
-        filename: fileName,
-      },
-      (downloadId: number | undefined) => {
-        const lastError = chrome.runtime.lastError;
-        let ok = true;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
-          // 下载API出现问题但继续执行
-          ok = false;
-        }
-        if (downloadId === undefined) {
-          console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
-          ok = false;
-        }
-        if (!isConnDisconnected) {
-          if (ok) {
-            msgConn.sendMessage({
-              action: "onload",
-              data: respond,
-            });
-          } else {
-            msgConn.sendMessage({
-              action: "onerror",
-              data: respond,
-            });
-          }
+    chrome.downloads.download(downloadAPIOptions, (downloadId: number | undefined) => {
+      const lastError = chrome.runtime.lastError;
+      let ok = true;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.downloads.download:", lastError);
+        // 下载API出现问题但继续执行
+        ok = false;
+      }
+      if (downloadId === undefined) {
+        console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
+        ok = false;
+      }
+      if (!isConnDisconnected) {
+        if (ok) {
+          msgConn.sendMessage({
+            action: "onload",
+            data: respond,
+          });
+        } else {
+          msgConn.sendMessage({
+            action: "onerror",
+            data: respond,
+          });
         }
       }
-    );
+    });
   }
 
   @PermissionVerify.API()
