@@ -26,7 +26,7 @@ import { type IMessageQueue } from "@Packages/message/message_queue";
 import { createScriptInfo, type ScriptInfo, type InstallSource } from "@App/pkg/utils/scriptInstall";
 import { type ResourceService } from "./resource";
 import { type ValueService } from "./value";
-import { compileScriptCode, isEarlyStartScript } from "../content/utils";
+import { compileScriptCode } from "../content/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import { localePath } from "@App/locales/locales";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -354,8 +354,7 @@ export class ScriptService {
           uuid: script.uuid,
           storageName: getStorageName(script),
           type: script.type,
-          isEarlyStart: isEarlyStartScript(script.metadata),
-        }));
+        })) as TDeleteScript[];
         this.mq.publish<TDeleteScript[]>("deleteScripts", data);
         return true;
       })
