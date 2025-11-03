@@ -535,18 +535,22 @@ declare namespace GMTypes {
     saveAs?: boolean;
     conflictAction?: "uniquify" | "overwrite" | "prompt";
 
-    // SC 标准参数
-    method?: "GET" | "POST";
-    downloadMode?: "native" | "browser";
-    timeout?: number;
-    cookie?: string;
-    anonymous?: boolean;
+    // 其他参数
+    timeout?: number; // SC/VM
+    anonymous?: boolean; // SC/VM
+    context?: ContextType; // SC/VM
+    user?: string; // SC/VM
+    password?: string; // SC/VM
+
+    method?: "GET" | "POST"; // SC
+    downloadMode?: "native" | "browser"; // SC
+    cookie?: string; // SC
 
     // TM/SC 标准回调
     onload?: Listener<object>;
     onerror?: Listener<DownloadError>;
     onprogress?: Listener<XHRProgress>;
-    ontimeout?: () => void;
+    ontimeout?: (arg1?: any) => void;
   }
 
   interface NotificationThis extends NotificationDetails {

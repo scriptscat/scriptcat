@@ -38,6 +38,8 @@ export interface GMRequestHandle {
   abort: () => void;
 }
 
+type ContextType = unknown;
+
 type GMXHRResponseType = {
   DONE: number;
   HEADERS_RECEIVED: number;
@@ -50,6 +52,7 @@ type GMXHRResponseType = {
   RESPONSE_TYPE_DOCUMENT: string;
   RESPONSE_TYPE_JSON: string;
   RESPONSE_TYPE_STREAM: string;
+  context?: ContextType;
   finalUrl: string;
   readyState: 0 | 1 | 4 | 2 | 3;
   status: number;
@@ -921,6 +924,7 @@ export default class GMApi extends GM_Base {
         }
       }
     }
+    const contentContext = details.context;
 
     const param: GMSend.XHRDetails = {
       method: details.method,
@@ -928,7 +932,6 @@ export default class GMApi extends GM_Base {
       url: "",
       headers: details.headers,
       cookie: details.cookie,
-      context: details.context,
       responseType: details.responseType,
       overrideMimeType: details.overrideMimeType,
       anonymous: details.anonymous,
@@ -1040,8 +1043,9 @@ export default class GMApi extends GM_Base {
               statusText: "",
             };
           }
+          let retParam;
           if (resError) {
-            return {
+            retParam = {
               DONE: 4,
               HEADERS_RECEIVED: 2,
               LOADING: 3,
@@ -1056,107 +1060,111 @@ export default class GMApi extends GM_Base {
               toString: () => "[object Object]", // follow TM
               ...resError,
             } as GMXHRResponseType;
-          }
-          const param = {
-            DONE: 4,
-            HEADERS_RECEIVED: 2,
-            LOADING: 3,
-            OPENED: 1,
-            UNSENT: 0,
-            RESPONSE_TYPE_TEXT: "text",
-            RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
-            RESPONSE_TYPE_BLOB: "blob",
-            RESPONSE_TYPE_DOCUMENT: "document",
-            RESPONSE_TYPE_JSON: "json",
-            RESPONSE_TYPE_STREAM: "stream",
-            finalUrl: res.finalUrl as string,
-            readyState: res.readyState as 0 | 4 | 2 | 3 | 1,
-            status: res.status as number,
-            statusText: res.statusText as string,
-            responseHeaders: res.responseHeaders as string,
-            responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
-            get response() {
-              if (response === false) {
-                switch (responseTypeOriginal) {
-                  case "json": {
-                    const text = this.responseText;
-                    let o = undefined;
-                    try {
-                      o = JSON.parse(text);
-                    } catch {
-                      // ignored
+          } else {
+            retParam = {
+              DONE: 4,
+              HEADERS_RECEIVED: 2,
+              LOADING: 3,
+              OPENED: 1,
+              UNSENT: 0,
+              RESPONSE_TYPE_TEXT: "text",
+              RESPONSE_TYPE_ARRAYBUFFER: "arraybuffer",
+              RESPONSE_TYPE_BLOB: "blob",
+              RESPONSE_TYPE_DOCUMENT: "document",
+              RESPONSE_TYPE_JSON: "json",
+              RESPONSE_TYPE_STREAM: "stream",
+              finalUrl: res.finalUrl as string,
+              readyState: res.readyState as 0 | 4 | 2 | 3 | 1,
+              status: res.status as number,
+              statusText: res.statusText as string,
+              responseHeaders: res.responseHeaders as string,
+              responseType: responseType as "text" | "arraybuffer" | "blob" | "json" | "document" | "stream" | "",
+              get response() {
+                if (response === false) {
+                  switch (responseTypeOriginal) {
+                    case "json": {
+                      const text = this.responseText;
+                      let o = undefined;
+                      try {
+                        o = JSON.parse(text);
+                      } catch {
+                        // ignored
+                      }
+                      response = o; // TM兼容 -> o : object | undefined
+                      break;
                     }
-                    response = o; // TM兼容 -> o : object | undefined
-                    break;
+                    case "document": {
+                      response = this.responseXML;
+                      break;
+                    }
+                    case "arraybuffer": {
+                      finalResultBuffers ||= concatUint8(resultBuffers);
+                      const full = finalResultBuffers;
+                      response = full.buffer; // ArrayBuffer
+                      break;
+                    }
+                    case "blob": {
+                      finalResultBuffers ||= concatUint8(resultBuffers);
+                      const full = finalResultBuffers;
+                      const type = res.contentType || "application/octet-stream";
+                      response = new Blob([full], { type }); // Blob
+                      break;
+                    }
+                    default: {
+                      // text
+                      response = `${this.responseText}`;
+                      break;
+                    }
                   }
-                  case "document": {
-                    response = this.responseXML;
-                    break;
+                }
+                return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
+              },
+              get responseXML() {
+                if (responseXML === false) {
+                  const text = this.responseText;
+                  if (
+                    ["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"].includes(
+                      res.contentType
+                    )
+                  ) {
+                    responseXML = new DOMParser().parseFromString(text, res.contentType as DOMParserSupportedType);
+                  } else {
+                    responseXML = new DOMParser().parseFromString(text, "text/xml");
                   }
-                  case "arraybuffer": {
+                }
+                return responseXML as Document | null;
+              },
+              get responseText() {
+                if (responseTypeOriginal === "document") {
+                  // console.log(resultType, resultBuffers.length, resultTexts.length);
+                }
+                if (responseText === false) {
+                  if (resultType === 2) {
                     finalResultBuffers ||= concatUint8(resultBuffers);
-                    const full = finalResultBuffers;
-                    response = full.buffer; // ArrayBuffer
-                    break;
-                  }
-                  case "blob": {
-                    finalResultBuffers ||= concatUint8(resultBuffers);
-                    const full = finalResultBuffers;
-                    const type = res.contentType || "application/octet-stream";
-                    response = new Blob([full], { type }); // Blob
-                    break;
-                  }
-                  default: {
-                    // text
-                    response = `${this.responseText}`;
-                    break;
+                    const buf = finalResultBuffers.buffer as ArrayBuffer;
+                    const decoder = new TextDecoder("utf-8");
+                    const text = decoder.decode(buf);
+                    responseText = text;
+                  } else {
+                    // resultType === 3
+                    responseText = `${resultTexts.join("")}`;
                   }
                 }
-              }
-              return response as string | ArrayBuffer | Blob | Document | ReadableStream<Uint8Array> | null;
-            },
-            get responseXML() {
-              if (responseXML === false) {
-                const text = this.responseText;
-                if (
-                  ["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"].includes(
-                    res.contentType
-                  )
-                ) {
-                  responseXML = new DOMParser().parseFromString(text, res.contentType as DOMParserSupportedType);
-                } else {
-                  responseXML = new DOMParser().parseFromString(text, "text/xml");
-                }
-              }
-              return responseXML as Document | null;
-            },
-            get responseText() {
-              if (responseTypeOriginal === "document") {
-                // console.log(resultType, resultBuffers.length, resultTexts.length);
-              }
-              if (responseText === false) {
-                if (resultType === 2) {
-                  finalResultBuffers ||= concatUint8(resultBuffers);
-                  const buf = finalResultBuffers.buffer as ArrayBuffer;
-                  const decoder = new TextDecoder("utf-8");
-                  const text = decoder.decode(buf);
-                  responseText = text;
-                } else {
-                  // resultType === 3
-                  responseText = `${resultTexts.join("")}`;
-                }
-              }
-              return responseText as string;
-            },
-            toString: () => "[object Object]", // follow TM
-          } as GMXHRResponseType;
-          if (res.error) {
-            param.error = res.error;
+                return responseText as string;
+              },
+              toString: () => "[object Object]", // follow TM
+            } as GMXHRResponseType;
+            if (res.error) {
+              retParam.error = res.error;
+            }
+            if (responseType === "json" && retParam.response === null) {
+              response = undefined; // TM不使用null，使用undefined
+            }
           }
-          if (responseType === "json" && param.response === null) {
-            response = undefined; // TM不使用null，使用undefined
+          if (typeof contentContext !== "undefined") {
+            retParam.context = contentContext;
           }
-          return param;
+          return retParam;
         };
         doAbort = (data: any) => {
           if (!reqDone) {
@@ -1436,11 +1444,35 @@ export default class GMApi extends GM_Base {
     let aborted = false;
     let connect: MessageConnect;
     let nativeAbort: (() => any) | null = null;
+    const contentContext = details.context;
+    const makeCallbackParam = <T extends Record<string, any>, K extends T & { data?: any; context?: ContextType }>(
+      o: T
+    ): K => {
+      const retParam = { ...o } as unknown as K;
+      if (o?.data) {
+        retParam.data = o.data;
+      }
+      if (typeof contentContext !== "undefined") {
+        retParam.context = contentContext;
+      }
+      return retParam as K;
+    };
     const handle = async () => {
       const url = await urlPromiseLike;
       const downloadMode = details.downloadMode || "native"; // native = sc_default; browser = chrome api
       details.url = url;
       if (downloadMode === "browser" || url.startsWith("blob:")) {
+        if (typeof details.user === "string" && details.user) {
+          // scheme://[user[:password]@]host[:port]/path[?query][#fragment]
+          try {
+            const u = new URL(details.url);
+            const userPart = `${encodeURIComponent(details.user)}`;
+            const passwordPart = details.password ? `:${encodeURIComponent(details.password)}` : "";
+            details.url = `${u.protocol}//${userPart}${passwordPart}@${u.host}${u.pathname}${u.search}${u.hash}`;
+          } catch {
+            // ignored
+          }
+        }
         const con = await a.connect("GM_download", [
           {
             method: details.method,
@@ -1459,22 +1491,19 @@ export default class GMApi extends GM_Base {
         connect.onMessage((data) => {
           switch (data.action) {
             case "onload":
-              details.onload && details.onload(data.data);
+              details.onload?.(makeCallbackParam({ ...data.data }));
               retPromiseResolve?.(data.data);
               break;
             case "onprogress":
-              details.onprogress && details.onprogress(data.data);
+              details.onprogress?.(makeCallbackParam({ ...data.data }));
               retPromiseReject?.(new Error("Timeout ERROR"));
               break;
             case "ontimeout":
-              details.ontimeout && details.ontimeout();
+              details.ontimeout?.(makeCallbackParam({}));
               retPromiseReject?.(new Error("Timeout ERROR"));
               break;
             case "onerror":
-              details.onerror &&
-                details.onerror({
-                  error: "unknown",
-                });
+              details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
               retPromiseReject?.(new Error("Unknown ERROR"));
               break;
             default:
@@ -1486,7 +1515,6 @@ export default class GMApi extends GM_Base {
           }
         });
       } else {
-        // console.log("GM_download: Native Download Start");
         // native
         const xhrParams = {
           url: url,
@@ -1494,9 +1522,7 @@ export default class GMApi extends GM_Base {
           responseType: "blob",
           onloadend: async (res) => {
             if (aborted) return;
-            // console.log("GM_download: Native Download End");
             if (res.response instanceof Blob) {
-              // console.log("GM_download: Chrome API Download Start");
               const url = URL.createObjectURL(res.response); // 生命周期跟随当前 content/page 而非 offscreen
               const con = await a.connect("GM_download", [
                 {
@@ -1516,8 +1542,7 @@ export default class GMApi extends GM_Base {
               connect.onMessage((data) => {
                 switch (data.action) {
                   case "onload":
-                    // console.log("GM_download: Chrome API Download End");
-                    details.onload && details.onload(data.data);
+                    details.onload?.(makeCallbackParam({ ...data.data }));
                     retPromiseResolve?.(data.data);
                     setTimeout(() => {
                       // 释放不需要的 URL
@@ -1525,14 +1550,11 @@ export default class GMApi extends GM_Base {
                     }, 1);
                     break;
                   case "ontimeout":
-                    details.ontimeout && details.ontimeout();
+                    details.ontimeout?.(makeCallbackParam({}));
                     retPromiseReject?.(new Error("Timeout ERROR"));
                     break;
                   case "onerror":
-                    details.onerror &&
-                      details.onerror({
-                        error: "unknown",
-                      });
+                    details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
                     retPromiseReject?.(new Error("Unknown ERROR"));
                     break;
                   default:
@@ -1546,25 +1568,22 @@ export default class GMApi extends GM_Base {
             }
           },
           onload: () => {
-            // details.onload && details.onload({});
+            // details.onload?.(makeCallbackParam({}))
           },
           onprogress: (e) => {
-            details.onprogress && details.onprogress(e);
+            details.onprogress?.(makeCallbackParam({ ...e }));
           },
           ontimeout: () => {
-            details.ontimeout && details.ontimeout();
+            details.ontimeout?.(makeCallbackParam({}));
           },
           onerror: () => {
-            details.onerror &&
-              details.onerror({
-                error: "unknown",
-              });
+            details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
           },
         } as GMTypes.XHRDetails;
         if (typeof details.headers === "object") {
           xhrParams.headers = details.headers;
         }
-        // -- 兼容SC参数 --
+        // -- 其他参数 --
         if (typeof details.method === "string") {
           xhrParams.method = details.method || "GET";
         }
@@ -1577,7 +1596,11 @@ export default class GMApi extends GM_Base {
         if (typeof details.anonymous === "boolean") {
           xhrParams.anonymous = details.anonymous;
         }
-        // -- 兼容SC参数 --
+        if (typeof details.user === "string" && details.user) {
+          xhrParams.user = details.user;
+          xhrParams.password = details.password || "";
+        }
+        // -- 其他参数 --
         const { retPromise, abort } = _GM_xmlhttpRequest(a, xhrParams, true, true);
         retPromise?.catch(() => {
           if (aborted) return;
