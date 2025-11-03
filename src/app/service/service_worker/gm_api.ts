@@ -1340,22 +1340,64 @@ export default class GMApi {
     if (!msgConn) {
       throw new Error("GM_download ERROR: msgConn is undefined");
     }
+    let reqCompleteWith = "";
+    let cDownloadId = 0;
     let isConnDisconnected = false;
-    msgConn.onDisconnect(() => {
-      isConnDisconnected = true;
-    });
     const params = request.params[0];
     // 替换掉windows下文件名的非法字符为 -
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     const blobURL = params.url;
     const respond = null;
+    const onChangedListener = (downloadDelta: chrome.downloads.DownloadDelta) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.downloads.onChanged:", lastError);
+        return;
+      }
+      if (!cDownloadId || downloadDelta.id !== cDownloadId) return;
+      if (downloadDelta.state?.current === "complete") {
+        if (!isConnDisconnected && !reqCompleteWith) {
+          reqCompleteWith = "ok";
+          msgConn.sendMessage({
+            action: "onload",
+            data: respond,
+          });
+        }
+        chrome.downloads.onChanged.removeListener(onChangedListener);
+      } else if (downloadDelta.state?.current === "interrupted") {
+        if (!isConnDisconnected && !reqCompleteWith) {
+          reqCompleteWith = "interrupted";
+          msgConn.sendMessage({
+            action: "onerror",
+            data: respond,
+          });
+        }
+        chrome.downloads.onChanged.removeListener(onChangedListener);
+      }
+    };
+    msgConn.onDisconnect(() => {
+      if (isConnDisconnected) return;
+      isConnDisconnected = true;
+      if (cDownloadId > 0 && !reqCompleteWith) {
+        reqCompleteWith = "disconnected";
+        chrome.downloads.cancel(cDownloadId, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);
+          }
+        });
+        chrome.downloads.onChanged.removeListener(onChangedListener);
+      }
+    });
     if (!blobURL) {
-      !isConnDisconnected &&
+      if (!isConnDisconnected && !reqCompleteWith) {
+        reqCompleteWith = "error:no_blob_url";
         msgConn.sendMessage({
           action: "onerror",
           data: respond,
         });
+      }
       throw new Error("GM_download ERROR: blobURL is not provided.");
     }
     const downloadAPIOptions = {
@@ -1370,6 +1412,7 @@ export default class GMApi {
     if (typeof params.conflictAction === "string") {
       downloadAPIOptions.conflictAction = params.conflictAction;
     }
+    chrome.downloads.onChanged.addListener(onChangedListener);
     chrome.downloads.download(downloadAPIOptions, (downloadId: number | undefined) => {
       const lastError = chrome.runtime.lastError;
       let ok = true;
@@ -1382,18 +1425,18 @@ export default class GMApi {
         console.error("GM_download ERROR: API Failure for chrome.downloads.download.");
         ok = false;
       }
-      if (!isConnDisconnected) {
-        if (ok) {
-          msgConn.sendMessage({
-            action: "onload",
-            data: respond,
-          });
-        } else {
+      if (ok) {
+        cDownloadId = downloadId as number;
+      }
+      if (!ok) {
+        if (!isConnDisconnected && !reqCompleteWith) {
+          reqCompleteWith = "error:download_api_error";
           msgConn.sendMessage({
             action: "onerror",
             data: respond,
           });
         }
+        chrome.downloads.onChanged.removeListener(onChangedListener);
       }
     });
   }
