@@ -6,8 +6,8 @@ import { ListenerManager } from "./listener_manager";
 // 定义监听函数类型
 type Handler = (key: string, n: number, s: string) => void;
 
-describe("ListenerManager（监听器管理器）", () => {
-  it("添加并执行单个监听器", () => {
+describe.concurrent("ListenerManager（监听器管理器）", () => {
+  it.concurrent("添加并执行单个监听器", () => {
     const lm = new ListenerManager<Handler>();
     const spy = vi.fn<Handler>();
 
@@ -19,7 +19,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(spy).toHaveBeenCalledWith("alpha", 123, "hi");
   });
 
-  it("为同一个 key 执行多个监听器，执行顺序应与添加顺序一致", () => {
+  it.concurrent("为同一个 key 执行多个监听器，执行顺序应与添加顺序一致", () => {
     const lm = new ListenerManager<Handler>();
     const spy1 = vi.fn<Handler>();
     const spy2 = vi.fn<Handler>();
@@ -35,7 +35,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(spy1.mock.invocationCallOrder[0]).toBeLessThan(spy2.mock.invocationCallOrder[0]);
   });
 
-  it("不会执行注册在其他 key 下的监听器", () => {
+  it.concurrent("不会执行注册在其他 key 下的监听器", () => {
     const lm = new ListenerManager<Handler>();
     const spyA = vi.fn<Handler>();
     const spyB = vi.fn<Handler>();
@@ -48,7 +48,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(spyB).not.toHaveBeenCalled();
   });
 
-  it("remove() 删除已存在的监听器 id 后返回 true，并防止后续被执行", () => {
+  it.concurrent("remove() 删除已存在的监听器 id 后返回 true，并防止后续被执行", () => {
     const lm = new ListenerManager<Handler>();
     const spyA = vi.fn<Handler>();
     const spyB = vi.fn<Handler>();
@@ -64,7 +64,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(spyB).toHaveBeenCalledTimes(1);
   });
 
-  it("remove() 可以接受字符串类型的 id 并通过数字转换删除", () => {
+  it.concurrent("remove() 可以接受字符串类型的 id 并通过数字转换删除", () => {
     const lm = new ListenerManager<Handler>();
     const spy = vi.fn<Handler>();
     const id = lm.add("key", spy);
@@ -76,7 +76,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("remove() 对无效或不存在的 id 返回 false", () => {
+  it.concurrent("remove() 对无效或不存在的 id 返回 false", () => {
     const lm = new ListenerManager<Handler>();
     expect(lm.remove(0)).toBe(false);
     expect(lm.remove(-1)).toBe(false);
@@ -84,12 +84,12 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(lm.remove("999")).toBe(false);
   });
 
-  it("对不存在监听器的 key 执行 execute() 不会抛出错误（无操作）", () => {
+  it.concurrent("对不存在监听器的 key 执行 execute() 不会抛出错误（无操作）", () => {
     const lm = new ListenerManager<Handler>();
     expect(() => lm.execute("missing", 42, "nope")).not.toThrow();
   });
 
-  it("id 在多次添加监听器时应递增", () => {
+  it.concurrent("id 在多次添加监听器时应递增", () => {
     const lm = new ListenerManager<Handler>();
     const id1 = lm.add("a", vi.fn<Handler>());
     const id2 = lm.add("a", vi.fn<Handler>());
@@ -99,7 +99,7 @@ describe("ListenerManager（监听器管理器）", () => {
     expect(id3).toBeGreaterThan(id2);
   });
 
-  it("当删除某个 key 下最后一个监听器后，再执行该 key 时不应触发任何监听", () => {
+  it.concurrent("当删除某个 key 下最后一个监听器后，再执行该 key 时不应触发任何监听", () => {
     const lm = new ListenerManager<Handler>();
     const spy = vi.fn<Handler>();
 

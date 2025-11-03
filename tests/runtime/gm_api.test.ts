@@ -3,7 +3,7 @@ import GMApi from "@App/app/service/content/gm_api";
 import { initTestGMApi } from "@Tests/utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const msg = initTestGMApi();
 
@@ -80,8 +80,8 @@ describe("GM xmlHttpRequest", () => {
     }
     return request.respond(200, {}, "test");
   };
-  global.XMLHttpRequest = mockXhr;
-  it("get", () => {
+  vi.stubGlobal("XMLHttpRequest", mockXhr);
+  it.concurrent("get", () => {
     return new Promise<void>((resolve) => {
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com",
@@ -96,7 +96,7 @@ describe("GM xmlHttpRequest", () => {
   });
 
   // xml原版是没有responseText的,但是tampermonkey有,恶心的兼容性
-  it("json", async () => {
+  it.concurrent("json", async () => {
     await new Promise<void>((resolve) => {
       gmApi.GM_xmlhttpRequest({
         url: "https://example.com/json",
@@ -124,7 +124,7 @@ describe("GM xmlHttpRequest", () => {
       });
     });
   });
-  it("header", async () => {
+  it.concurrent("header", async () => {
     await new Promise<void>((resolve) => {
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com/header",

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { calculateHashFromArrayBuffer } from "./crypto";
 
-describe("crypto utils", () => {
-  describe("calculateHashFromArrayBuffer", () => {
-    it("计算hash", () => {
+describe.concurrent("crypto utils", () => {
+  describe.concurrent("calculateHashFromArrayBuffer", () => {
+    it.concurrent("计算hash", () => {
       // 将字符串 "123456" 转换为 ArrayBuffer
       const str = "123456";
       const uint8Array = Uint8Array.from(str, (c) => c.charCodeAt(0));

@@ -3,7 +3,7 @@ import { parseMetadata } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
 
-describe("parseMetadata", () => {
+describe.concurrent("parseMetadata", () => {
   test("解析标准UserScript元数据", () => {
     const code = `
 // ==UserScript==
@@ -224,7 +224,7 @@ console.log('Hello World');
   });
 });
 
-describe("getMetadataStr", () => {
+describe.concurrent("getMetadataStr", () => {
   test("提取UserScript元数据字符串", () => {
     const code = `
 // ==UserScript==
@@ -259,7 +259,7 @@ console.log('Hello World');
   });
 });
 
-describe("getUserConfigStr", () => {
+describe.concurrent("getUserConfigStr", () => {
   test("提取UserConfig配置字符串", () => {
     const code = `
 /* ==UserConfig==
@@ -297,7 +297,7 @@ config:
   });
 });
 
-describe("parseUserConfig", () => {
+describe.concurrent("parseUserConfig", () => {
   test("解析单个YAML配置", () => {
     const code = `
 /* ==UserConfig==

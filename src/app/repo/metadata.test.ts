@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseTags } from "./metadata";
 import type { SCMetadata } from "./metadata";
 
-describe("parseTags", () => {
-  it("解析tags", () => {
+describe.concurrent("parseTags", () => {
+  it.concurrent("解析tags", () => {
     // 过滤空标签和去除重复
     const metadata: SCMetadata = {
       tag: [
