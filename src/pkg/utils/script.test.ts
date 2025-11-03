@@ -111,6 +111,165 @@ console.log('Hello World');
     expect(result?.author).toEqual([""]);
   });
 
+  it.concurrent("解析元数据(分行1)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+// @namespace    http://tampermonkey.net/
+
+// @match        https://example.org/*
+// @match        https://test.com/*
+
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+
+// @grant        GM_getValue
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行3)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+
+// @namespace    http://tampermonkey.net/
+
+// @match        https://example.org/*
+// @match        https://test.com/*
+
+
+// @match        https://demo.com/*
+// @version      1.0.0
+// @description  
+
+//
+
+// @author       
+// @match        https://example.com/*
+// @grant        GM_setValue
+
+// @grant        GM_getValue
+//
+
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
+  it.concurrent("解析元数据(分行4)", () => {
+    const code = `
+// ==UserScript==
+// @name       测试脚本
+
+
+// @namespace      http://tampermonkey.net/
+
+// @match          https://example.org/*
+// @match      https://test.com/*
+
+
+// @match          https://demo.com/*
+// @version     1.0.0
+// @description  
+
+//
+
+// @author       
+// @match         https://example.com/*
+// @grant       GM_setValue
+
+// @grant         GM_getValue
+//
+
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.grant).toEqual(["GM_setValue", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
   it.concurrent("缺少name字段应返回null", () => {
     const code = `
 // ==UserScript==
@@ -239,6 +398,92 @@ console.log('Hello World');
     expect(result).toBe(`// ==UserScript==
 // @name         测试脚本
 // @version      1.0.0
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行1)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @version      1.0.0
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+// @version      1.0.0
+
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行2)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+// @version      1.0.0
+
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+
+// @version      1.0.0
+
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行3)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+
+
+// @version      1.0.0
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name         测试脚本
+
+
+// @version      1.0.0
+//
+// ==/UserScript==`);
+  });
+
+  it.concurrent("提取UserScript元数据字符串 (分行4)", () => {
+    const code = `
+// ==UserScript==
+// @name           测试脚本
+
+
+// @version    1.0.0
+//
+// ==/UserScript==
+
+console.log('Hello World');
+`;
+
+    const result = getMetadataStr(code);
+    expect(result).toBe(`// ==UserScript==
+// @name           测试脚本
+
+
+// @version    1.0.0
+//
 // ==/UserScript==`);
   });
 
