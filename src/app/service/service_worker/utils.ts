@@ -170,7 +170,7 @@ export function compileInjectionCode(messageFlags: MessageFlags, scriptRes: Scri
   return scriptInjectCode;
 }
 
-// 构建userScript注册信息（忽略代碼部份）
+// 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
 
@@ -238,7 +238,7 @@ export function scriptURLPatternResults(scriptRes: {
     return null;
   }
 
-  // 黑名单排除 統一在腳本注冊時添加
+  // 黑名单排除 统一在脚本注册时添加
   const scriptUrlPatterns = extractUrlPatterns([
     ...(metaMatch || []).map((e) => `@match ${e}`),
     ...(metaInclude || []).map((e) => `@include ${e}`),
@@ -261,16 +261,15 @@ export function scriptURLPatternResults(scriptRes: {
   return { scriptUrlPatterns, originalUrlPatterns };
 }
 
-export const getFaviconFolder = (uuid: string): Promise<FileSystemDirectoryHandle> => {
+export const getFaviconRootFolder = (): Promise<FileSystemDirectoryHandle> => {
   return navigator.storage
     .getDirectory()
-    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`, { create: true }))
-    .then((faviconsFolder) => faviconsFolder.getDirectoryHandle(`${uuid}`, { create: true }));
+    .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`, { create: true }));
 };
 
-export const removeFaviconFolder = (uuid: string): Promise<void> => {
+export const removeFavicon = (filename: string): Promise<void> => {
   return navigator.storage
     .getDirectory()
     .then((opfsRoot) => opfsRoot.getDirectoryHandle(`cached_favicons`))
-    .then((faviconsFolder) => faviconsFolder.removeEntry(`${uuid}`, { recursive: true }));
+    .then((faviconsFolder) => faviconsFolder.removeEntry(`${filename}`, { recursive: true }));
 };
