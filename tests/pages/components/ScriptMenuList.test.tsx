@@ -24,7 +24,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 beforeEach(() => {
-  setupGlobalMocks();
+  setupGlobalMocks(); // Setup global window mocks
   vi.clearAllMocks();
 });
 

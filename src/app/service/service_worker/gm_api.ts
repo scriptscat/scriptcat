@@ -355,7 +355,6 @@ export default class GMApi {
       tabId: sender.getSender()?.tab?.id || -1,
     };
     await this.value.setValues(request.script.uuid, id, values, valueSender, false);
-    return true;
   }
 
   @PermissionVerify.API()
@@ -822,22 +821,17 @@ export default class GMApi {
 
   @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
   GM_registerMenuCommand(request: GMApiRequest<GMRegisterMenuCommandParam>, sender: IGetSender): any {
-    try {
-      const [key, name, options] = request.params;
-      // 触发菜单注册, 在popup中处理
-      this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
-        uuid: request.script.uuid,
-        key,
-        name,
-        options,
-        tabId: sender.getSender()?.tab?.id || -1,
-        frameId: sender.getSender()?.frameId,
-        documentId: sender.getSender()?.documentId,
-      });
-    } catch {
-      // ignored
-    }
-    return 1399;
+    const [key, name, options] = request.params;
+    // 触发菜单注册, 在popup中处理
+    this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
+      uuid: request.script.uuid,
+      key,
+      name,
+      options,
+      tabId: sender.getSender()?.tab?.id || -1,
+      frameId: sender.getSender()?.frameId,
+      documentId: sender.getSender()?.documentId,
+    });
   }
 
   @PermissionVerify.API({ alias: ["CAT_unregisterMenuInput"] })

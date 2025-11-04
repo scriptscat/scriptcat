@@ -103,7 +103,7 @@ vi.mock("@App/locales/locales", () => ({
 }));
 
 beforeEach(() => {
-  setupGlobalMocks(); // defines global chrome
+  setupGlobalMocks(); // Setup global window mocks
   vi.clearAllMocks();
 
   // Default tabs query behavior for tests

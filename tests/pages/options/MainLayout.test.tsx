@@ -109,7 +109,7 @@ vi.mock("@App/locales/locales", () => ({
 }));
 
 beforeEach(() => {
-  setupGlobalMocks();
+  setupGlobalMocks(); // Setup global window mocks
   vi.clearAllMocks();
 });
 
