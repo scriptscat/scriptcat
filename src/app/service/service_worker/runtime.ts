@@ -461,11 +461,11 @@ export class RuntimeService {
     } else {
       this.systemConfig.addListener("enable_script", async (enable) => {
         this.isLoadScripts = enable;
-        this.updateIcon();
         await this.unregisterUserscripts();
         if (enable) {
           await this.registerUserscripts();
         }
+        this.updateIcon();
       });
     }
 
