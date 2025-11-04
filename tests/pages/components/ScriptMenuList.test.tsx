@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { render, setupGlobalMocks } from "@Tests/test-utils";
 
@@ -23,12 +23,16 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-describe("ScriptMenuList Component Mock Test", () => {
-  beforeEach(() => {
-    setupGlobalMocks();
-    vi.clearAllMocks();
-  });
+beforeEach(() => {
+  setupGlobalMocks(); // Setup global window mocks
+  vi.clearAllMocks();
+});
 
+afterEach(() => {
+  vi.resetAllMocks();
+});
+
+describe("ScriptMenuList Component Mock Test", () => {
   it("should render script list", async () => {
     const mockScripts = [
       { id: "1", name: "Test Script 1", enabled: true },
