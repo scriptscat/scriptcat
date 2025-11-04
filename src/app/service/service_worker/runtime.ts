@@ -461,11 +461,11 @@ export class RuntimeService {
     } else {
       this.systemConfig.addListener("enable_script", async (enable) => {
         this.isLoadScripts = enable;
-        this.updateIcon(enable);
         await this.unregisterUserscripts();
         if (enable) {
           await this.registerUserscripts();
         }
+        this.updateIcon();
       });
     }
 
@@ -489,12 +489,14 @@ export class RuntimeService {
         await this.unregisterUserscripts();
         await this.registerUserscripts();
       }
+      this.updateIcon();
     };
 
     const onUserScriptAPIGrantRemoved = async () => {
       this.isUserScriptsAvailable = false;
       // 取消当前注册 （如有）
       await this.unregisterUserscripts();
+      this.updateIcon();
     };
 
     chrome.permissions.onAdded.addListener((permissions: chrome.permissions.Permissions) => {
@@ -545,7 +547,7 @@ export class RuntimeService {
       this.blacklist = obtainBlackList(strBlacklist);
 
       // 更新 logo
-      this.updateIcon(this.isLoadScripts);
+      this.updateIcon();
 
       // 检查是否开启了开发者模式
       if (!this.isUserScriptsAvailable) {
@@ -574,34 +576,22 @@ export class RuntimeService {
     })();
   }
 
-  updateIcon(enableUserscript: boolean) {
-    if (enableUserscript) {
-      // 设置正常logo
-      chrome.action.setIcon(
-        {
-          path: { "32": chrome.runtime.getURL("assets/logo-32.png") },
-        },
-        () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
-          }
+  updateIcon() {
+    const enableUserscript: boolean = this.isUserScriptsAvailable && this.isLoadScripts;
+    const iconUrl = enableUserscript
+      ? chrome.runtime.getURL("assets/logo-32.png") // 设置正常logo
+      : chrome.runtime.getURL("assets/logo-gray-32.png"); // 如果未启用脚本，设置灰色的logo
+    chrome.action.setIcon(
+      {
+        path: { "32": iconUrl },
+      },
+      () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
         }
-      );
-    } else {
-      // 如果未启用脚本，设置灰色的logo
-      chrome.action.setIcon(
-        {
-          path: { "32": chrome.runtime.getURL("assets/logo-gray-32.png") },
-        },
-        () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.action.setIcon:", lastError);
-          }
-        }
-      );
-    }
+      }
+    );
   }
 
   public loadBlacklist() {
