@@ -537,6 +537,7 @@
   "error_old_script_code_missing": "既存スクリプトのコードが見つかりません",
   "error_subscribe_name_required": "サブスクライブ名は必須です",
   "error_grant_conflict": "@grant に 'none' と GM API の両方が指定されています",
+  "error_metadata_line_duplicated": "メタデータ内に重複した宣言があります。",
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
