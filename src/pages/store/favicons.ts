@@ -276,8 +276,7 @@ const processScriptFavicon = async (script: Script) => {
         if (icon.icon) {
           try {
             const iconWebUrl = icon.icon;
-            let loadFaviconPromise;
-            loadFaviconPromise = loadFaviconPromises.get(iconWebUrl);
+            let loadFaviconPromise = loadFaviconPromises.get(iconWebUrl);
             if (!loadFaviconPromise) {
               // SW重启的话，再次 loadFavicon 时，直接返回 sessionBlobUrl
               loadFaviconPromise = loadFavicon(iconWebUrl);
