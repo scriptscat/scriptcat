@@ -287,10 +287,6 @@ function App() {
     return domain;
   };
 
-  const doCheckUpdateInPopupMenu = async () => {
-    const domain = getUrlDomain(currentUrl);
-    await requestOpenBatchUpdatePage(`autoclose=-1${domain ? `&site=${domain}` : ""}`);
-  };
   const handleMenuClick = async (key: string) => {
     switch (key) {
       case "newScript":
@@ -300,7 +296,7 @@ function App() {
         window.open("/src/options.html#/script/editor?target=initial", "_blank");
         break;
       case "checkUpdate":
-        await doCheckUpdateInPopupMenu(); // 在service_worker打开新tab及进行检查。
+        requestOpenBatchUpdatePage(getUrlDomain(currentUrl));
         break;
       case "report_issue": {
         const browserInfo = `${navigator.userAgent}`;

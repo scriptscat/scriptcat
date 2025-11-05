@@ -25,6 +25,9 @@ const { GridItem } = Grid;
 
 const { Text } = Typography;
 
+// pageExecute is to store subscribe function(s) globally
+const pageExecute: Record<string, any> = {};
+
 function App() {
   const { subscribeMessage } = useAppContext();
 
@@ -63,83 +66,81 @@ function App() {
     }, 1000);
   }, [mTimeClose]);
 
-  useEffect(() => {
-    const getBatchUpdateRecord = async (): Promise<TBatchUpdateRecordObject | null> => {
-      let resultText = "";
-      let r;
-      let i = 0;
-      while (true) {
-        r = await scriptClient.getBatchUpdateRecordLite(i++);
-        if (!r) break;
-        const chunk = r.chunk;
-        if (typeof chunk !== "string") break;
-        resultText += chunk;
-        if (r.ended) break;
-      }
-      return resultText ? JSON.parse(resultText) : null;
-    };
+  const getBatchUpdateRecord = async (): Promise<TBatchUpdateRecordObject | null> => {
+    let resultText = "";
+    let r;
+    let i = 0;
+    while (true) {
+      r = await scriptClient.getBatchUpdateRecordLite(i++);
+      if (!r) break;
+      const chunk = r.chunk;
+      if (typeof chunk !== "string") break;
+      resultText += chunk;
+      if (r.ended) break;
+    }
+    return resultText ? JSON.parse(resultText) : null;
+  };
 
-    const updateRecord = () => {
-      getBatchUpdateRecord().then((batchUpdateRecordObjectLite) => {
-        const list = batchUpdateRecordObjectLite?.list || [];
-        const site = [] as TBatchUpdateRecord[];
-        const other = [] as TBatchUpdateRecord[];
-        const ignored = [] as TBatchUpdateRecord[];
-        for (const entry of list) {
-          let mEntry = entry;
-          if (!entry.checkUpdate) {
-            site.push(entry);
-            continue;
-          }
-          const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
-          mEntry = {
-            ...entry,
-          };
+  const updateRecord = () => {
+    getBatchUpdateRecord().then((batchUpdateRecordObjectLite) => {
+      const list = batchUpdateRecordObjectLite?.list || [];
+      const site = [] as TBatchUpdateRecord[];
+      const other = [] as TBatchUpdateRecord[];
+      const ignored = [] as TBatchUpdateRecord[];
+      for (const entry of list) {
+        let mEntry = entry;
+        if (!entry.checkUpdate) {
+          site.push(entry);
+          continue;
+        }
+        const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
+        mEntry = {
+          ...entry,
+        };
 
-          if (isIgnored) {
-            ignored.push(mEntry);
+        if (isIgnored) {
+          ignored.push(mEntry);
+        } else {
+          if (!paramSite || mEntry.sites?.includes(paramSite)) {
+            site.push(mEntry);
           } else {
-            if (!paramSite || mEntry.sites?.includes(paramSite)) {
-              site.push(mEntry);
-            } else {
-              other.push(mEntry);
-            }
+            other.push(mEntry);
           }
         }
-        setRecords({ site, other, ignored });
-      });
-    };
+      }
+      setRecords({ site, other, ignored });
+    });
+  };
 
-    const pageApi = {
-      onScriptUpdateCheck(data: any) {
-        if (
-          mRecords === null &&
-          ((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === 0 &&
-          ((data.status ?? 0) & UpdateStatusCode.CHECKED_BEFORE) === UpdateStatusCode.CHECKED_BEFORE
-        ) {
-          setStatusText(
-            t("updatepage.status_last_check").replace("$0", data.checktime ? dayFormat(new Date(data.checktime)) : "")
-          );
-          updateRecord();
-          setCheckUpdateSpin(false);
-        } else if (((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
-          setStatusText(t("updatepage.status_checking_updates"));
-          setRecords(null);
-          setCheckUpdateSpin(true);
-        } else if (mRecords !== null && data.refreshRecord === true) {
-          updateRecord();
-        }
-      },
-    };
+  const onScriptUpdateCheck = (data: any) => {
+    if (
+      mRecords === null &&
+      ((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === 0 &&
+      ((data.status ?? 0) & UpdateStatusCode.CHECKED_BEFORE) === UpdateStatusCode.CHECKED_BEFORE
+    ) {
+      setStatusText(
+        t("updatepage.status_last_check").replace("$0", data.checktime ? dayFormat(new Date(data.checktime)) : "")
+      );
+      updateRecord();
+      setCheckUpdateSpin(false);
+    } else if (((data.status ?? 0) & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
+      setStatusText(t("updatepage.status_checking_updates"));
+      setRecords(null);
+      setCheckUpdateSpin(true);
+    } else if (mRecords !== null && data.refreshRecord === true) {
+      updateRecord();
+    }
+  };
 
-    return subscribeMessage("onScriptUpdateCheck", pageApi.onScriptUpdateCheck);
-  }, [mRecords, paramSite, subscribeMessage, t]);
+  // 每次render会重新定义 pageExecute 的 onScriptUpdateCheck
+  pageExecute.onScriptUpdateCheck = onScriptUpdateCheck;
 
+  // 只在第一次render执行
   const doInitial = () => {
     // faster than useEffect
     setInitial(true);
+    subscribeMessage("onScriptUpdateCheck", (msg) => pageExecute.onScriptUpdateCheck!(msg));
     scriptClient.fetchCheckUpdateStatus();
-    // updateRecord();
     scriptClient.sendUpdatePageOpened();
   };
 
