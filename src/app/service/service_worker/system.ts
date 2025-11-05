@@ -73,7 +73,7 @@ export class SystemService {
           }
         });
         // 删除opfs缓存
-        await Promise.all([...cleanupIcons].map((iconUrl) => removeFavicon(`icon_${uuidv5(iconUrl, uuidv5.URL)}.dat`)));
+        await Promise.all([...cleanupIcons].map((iconUrl) => removeFavicon(`icon_${uuidv5(iconUrl, uuidv5.URL)}.dat`).catch(() => {})));
       });
     });
 
