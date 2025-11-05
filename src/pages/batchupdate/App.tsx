@@ -26,7 +26,7 @@ const { GridItem } = Grid;
 const { Text } = Typography;
 
 // pageExecute is to store subscribe function(s) globally
-const pageExecute: Record<string, any> = {};
+const pageExecute: Record<string, (data: any) => void> = {};
 
 function App() {
   const { subscribeMessage } = useAppContext();
