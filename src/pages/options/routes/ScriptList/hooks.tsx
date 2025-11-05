@@ -46,7 +46,7 @@ import { useTranslation } from "react-i18next";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
-import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { cacheInstance } from "@App/app/cache";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -62,7 +62,7 @@ export function useScriptList() {
       if (!mounted) return;
       setScriptList(list);
       setLoadingList(false);
-      stackAsyncTask("faviconOPFSControl", async () => {
+      cacheInstance.tx("faviconOPFSControl", async () => {
         for await (const { chunkResults } of loadScriptFavicons(list)) {
           if (!mounted) return;
           setScriptList((list) => {

@@ -9,7 +9,6 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import type { FaviconDAO } from "@App/app/repo/favicon";
 import { v5 as uuidv5 } from "uuid";
 import { removeFavicon } from "./utils";
-import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 // 一些系统服务
 export class SystemService {
@@ -32,7 +31,7 @@ export class SystemService {
     this.mq.subscribe<TInstallScript>("installScript", (messages) => {
       if (messages.update) {
         // 删除旧的favicon缓存
-        stackAsyncTask("faviconOPFSControl", async () => {
+        cacheInstance.tx("faviconOPFSControl", async () => {
           const uuid = messages.script.uuid;
           await this.faviconDAO.delete(uuid);
         });
@@ -41,7 +40,7 @@ export class SystemService {
 
     // 监听脚本删除，清理favicon缓存
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", (message) => {
-      stackAsyncTask("faviconOPFSControl", async () => {
+      cacheInstance.tx("faviconOPFSControl", async () => {
         const faviconDAO = this.faviconDAO;
         const cleanupIcons = new Set<string>();
         // 需要删除的icon
