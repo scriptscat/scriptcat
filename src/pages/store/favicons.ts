@@ -247,7 +247,7 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
     await writable.write(blob);
     await writable.close();
   }
-  // 对象OPFS资料
+  // OPFS 文件信息
   const opfsRet = { dirs: ["cached_favicons"], filename: filename };
   const file = await getFileFromOPFS(opfsRet);
   const blobUrl = URL.createObjectURL(file);
