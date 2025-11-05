@@ -360,7 +360,7 @@ describe("GM xmlHttpRequest", () => {
   });
 
   // xml原版是没有responseText的,但是tampermonkey有,恶心的兼容性
-  it("json", async () => {
+  it.concurrent("json", async () => {
     await new Promise<void>((resolve) => {
       customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
@@ -390,7 +390,7 @@ describe("GM xmlHttpRequest", () => {
       });
     });
   });
-  it("header", async () => {
+  it.concurrent("header", async () => {
     await new Promise<void>((resolve) => {
       customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({

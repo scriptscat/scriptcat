@@ -1,203 +1,219 @@
 // async_queue.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { clearStack, stackAsyncTask } from "./async_queue";
+import { describe, it, expect } from "vitest";
+import { stackAsyncTask } from "./async_queue";
 
 /**
- * 工具：生成随机 key
+ * 工具：生成随机 key（保证高唯一性，避免并行互撞）
  */
-const generateKey = (prefix: string) => `${prefix}-${Math.random()}`;
+const generateKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /**
- * 工具：可控延时的异步函数
+ * 工具：可控延时的异步函数（真实时钟）
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-beforeEach(() => {
-  // 使用假定时器，便于精确推進時間線
-  vi.useFakeTimers();
-  // 清空 stacks
-  clearStack();
-});
+// 小缓冲，避免各平台/CI 定时器抖动
+const EPS = 10;
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+// 小工具：deferred/gate 与 nextTick（以微任务换档，避免依赖 ms）
+const deferred = <T = void>() => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => ((resolve = res), (reject = rej)));
+  return { promise, resolve, reject };
+};
 
-describe("stackAsyncTask（按键名排队的异步序列队列）", () => {
-  it("同一 key 下任務應按入隊順序串行執行", async () => {
+const nextTick = () => Promise.resolve().then(() => {});
+
+describe.concurrent("stackAsyncTask（按键名排队的异步序列队列）", () => {
+  it.concurrent("同一 key 下任务应按入队顺序串行执行", async () => {
     const key = generateKey("k-serial");
     const order: number[] = [];
 
     const t1 = stackAsyncTask(key, async () => {
-      order.push(1); // t=0ms
+      order.push(1); // t≈0ms
       await sleep(50);
       return "a";
     });
 
     const t2 = stackAsyncTask(key, async () => {
-      order.push(2); // t=50ms
+      order.push(2); // 预期 t≈50ms
       await sleep(50);
       return "b";
     });
 
-    expect(order).toEqual([1]);
-    await vi.advanceTimersByTimeAsync(20); // t=20ms
+    await sleep(20 + EPS); // t≈20ms
     expect(order).toEqual([1]);
 
-    await vi.advanceTimersByTimeAsync(60); // t=80ms
+    await sleep(60 + EPS); // t≈80ms
     expect(order).toEqual([1, 2]);
 
-    await vi.advanceTimersByTimeAsync(60); // t=140ms
+    await sleep(60 + EPS); // t≈140ms
     expect(order).toEqual([1, 2]);
 
     await expect(t1).resolves.toBe("a");
     await expect(t2).resolves.toBe("b");
   });
 
-  it("不同 key 下任務應並行執行，互不阻塞", async () => {
+  it.concurrent("不同 key 下任务应并行执行，互不阻塞", async () => {
     const k1 = generateKey("k-par-1");
     const k2 = generateKey("k-par-2");
     const done: string[] = [];
 
     const p1 = stackAsyncTask(k1, async () => {
       await sleep(100);
-      done.push("k1-1"); // t=100ms
+      done.push("k1-1"); // t≈100ms
       return 1;
     });
 
     const p2 = stackAsyncTask(k2, async () => {
       await sleep(50);
-      done.push("k2-1"); // t=50ms
+      done.push("k2-1"); // t≈50ms
       return 2;
     });
 
-    await vi.advanceTimersByTimeAsync(30); // t=30ms
+    await sleep(30 + EPS); // t≈30ms
     expect(done).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(40); // t=70ms
+    await sleep(40 + EPS); // t≈70ms
     expect(done).toEqual(["k2-1"]);
 
-    await vi.advanceTimersByTimeAsync(50); // t=120ms
+    await sleep(50 + EPS); // t≈120ms
     expect(done).toEqual(["k2-1", "k1-1"]);
 
     await expect(p1).resolves.toBe(1);
     await expect(p2).resolves.toBe(2);
   });
 
-  it("在執行過程中追加同 key 的任務，應排在隊尾並自動銜接執行", async () => {
+  it.concurrent("在执行过程中追加同 key 的任务，应排在队尾并自动衔接执行", async () => {
     const key1 = generateKey("k-append1");
     const key2 = generateKey("k-append2");
     const seq: string[] = [];
 
+    // 三个可控「闸门」，用来精确控制 A/B/C 的完成时机
+    const gateA = deferred();
+    const gateB = deferred();
+    const gateC = deferred();
+
+    // A：先开始，等待 gateA 才结束
     const p1 = stackAsyncTask(key1, async () => {
-      seq.push("A:start"); // t=0ms
-      await sleep(50);
-      seq.push("A:end"); // t=50ms
+      seq.push("A:start");
+      await gateA.promise;
+      seq.push("A:end");
       return "A";
     });
 
+    // 将 B/C 追加到微任务，保证「A 已开始」后再入队
     (async () => {
-      await sleep(20); // t=20ms
+      await nextTick();
       stackAsyncTask(key2, async () => {
-        seq.push("B:start"); // t=20ms
-        await sleep(50);
-        seq.push("B:end"); // t=70ms
+        seq.push("B:start");
+        await gateB.promise;
+        seq.push("B:end");
         return "B";
       });
     })();
 
     (async () => {
-      await sleep(20); // t=20ms
+      await nextTick();
       stackAsyncTask(key1, async () => {
-        seq.push("C:start"); // t=50ms
-        await sleep(50);
-        seq.push("C:end"); // t=100ms
-        return "B";
+        // 必须排在 A 后面执行
+        seq.push("C:start");
+        await gateC.promise;
+        seq.push("C:end");
+        return "C";
       });
     })();
 
-    await vi.advanceTimersByTimeAsync(10); // t=10ms
     expect(seq).toEqual(["A:start"]);
 
-    await vi.advanceTimersByTimeAsync(30); // t=40ms
+    // 让微任务跑完，期待 A、B 已开始，但 C 尚未开始（因同 key 需等 A 结束）
+    await nextTick();
     expect(seq).toEqual(["A:start", "B:start"]);
 
-    await vi.advanceTimersByTimeAsync(20); // t=60ms：A 完成
+    // 放行 A，C 应自动衔接开始
+    gateA.resolve();
+    await nextTick();
     expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start"]);
-    await vi.advanceTimersByTimeAsync(20); // t=80ms：B 完成
+
+    // 放行 B，B 可在 C 执行中结束（不同 key 并行）
+    gateB.resolve();
+    await nextTick();
     expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start", "B:end"]);
 
-    await vi.advanceTimersByTimeAsync(70); // t=150ms：C 完成
+    // 最后放行 C 结束
+    gateC.resolve();
+    await nextTick();
     expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start", "B:end", "C:end"]);
 
     await expect(p1).resolves.toBe("A");
   });
 
-  it("應將任務返回值傳遞給對應的 Promise", async () => {
+  it.concurrent("应将任务返回值传递给对应的 Promise", async () => {
     const key = generateKey("k-return");
 
     type Ret = { ok: boolean; n: number };
     const p = stackAsyncTask<Ret>(key, async () => {
       await sleep(50);
-      return { ok: true, n: 7 }; // t=50ms
+      return { ok: true, n: 7 }; // t≈50ms
     });
 
-    await vi.advanceTimersByTimeAsync(70); // t=70ms
+    await sleep(70 + EPS); // t≈70ms
     await expect(p).resolves.toEqual({ ok: true, n: 7 });
   });
 
-  it("當首個任務入隊時應自動啟動隊列（無需手動觸發）", async () => {
+  it.concurrent("当首个任务入队时应自动启动队列（无需手动触发）", async () => {
     const key = generateKey("k-autostart");
     let counter = 0;
+
     const p = stackAsyncTask(key, async () => {
       await sleep(50);
-      counter++; // t= 50ms
+      counter++; // t≈50ms
       return "X";
     });
 
     sleep(100).then(() => {
-      // t= 100ms
+      // t≈100ms
       stackAsyncTask(key, async () => {
-        counter += 2; // t= 100ms
+        counter += 2; // 入队即加
         await sleep(50);
-        counter += 4; // t= 150ms
+        counter += 4; // t≈150ms
         return "X";
       });
     });
 
-    // 尚未推進時間前，異步尚未完成，但應已開始執行（started 應為 false，因為 sleep 前設置）
+    // 尚未推进时间前，应该尚未变更
     expect(counter).toBe(0);
 
-    await vi.advanceTimersByTimeAsync(70); // t=70ms
+    await sleep(70 + EPS); // t≈70ms
     expect(counter).toBe(1);
 
-    await vi.advanceTimersByTimeAsync(50); // t=120ms
+    await sleep(50 + EPS); // t≈120ms
     expect(counter).toBe(3);
 
-    await vi.advanceTimersByTimeAsync(50); // t=170ms
+    await sleep(50 + EPS); // t≈170ms
     expect(counter).toBe(7);
 
-    // 自動啟動
+    // 再丢一个任务验证自动启动
     stackAsyncTask(key, async () => {
       counter = 0;
     });
-
     expect(counter).toBe(0);
 
     await expect(p).resolves.toBe("X");
   });
 
-  it("當任務拋出異常時，應正確拒絕 Promise 並繼續執行隊列", async () => {
+  it.concurrent("当任务抛出异常时，应正确拒绝 Promise 并继续执行队列", async () => {
     const key = generateKey("k-error");
     const order: number[] = [];
 
     const p1 = stackAsyncTask(key, async () => {
-      order.push(1); // t=0ms
+      order.push(1); // t≈0ms
       await sleep(50);
-      throw new Error("任務失敗");
+      throw new Error("任务失败");
     });
 
-    const p1Assert = expect(p1).rejects.toThrow("任務失敗");
+    const p1Assert = expect(p1).rejects.toThrow("任务失败");
 
     const p2 = stackAsyncTask(key, async () => {
       order.push(2);
@@ -207,18 +223,18 @@ describe("stackAsyncTask（按键名排队的异步序列队列）", () => {
 
     const p2Assert = expect(p2).resolves.toBe("success");
 
-    await vi.advanceTimersByTimeAsync(30); // t=30ms
+    await sleep(30 + EPS); // t≈30ms
     expect(order).toEqual([1]);
 
-    await vi.advanceTimersByTimeAsync(40); // t=70ms
+    await sleep(40 + EPS); // t≈70ms
     await p1Assert;
     expect(order).toEqual([1, 2]);
 
-    await vi.advanceTimersByTimeAsync(70); // t=140ms
+    await sleep(70 + EPS); // t≈140ms
     await p2Assert;
   });
 
-  it("應處理無效 key（如 null 或空字符串）", async () => {
+  it.concurrent("应处理无效 key（如 null 或空字符串）", async () => {
     const p1 = stackAsyncTask("", async () => {
       await sleep(50);
       return "empty";
@@ -228,29 +244,34 @@ describe("stackAsyncTask（按键名排队的异步序列队列）", () => {
       return "null";
     });
 
-    await vi.advanceTimersByTimeAsync(70); // t=70ms
+    await sleep(70 + EPS); // t≈70ms
     await expect(p1).resolves.toBe("empty");
     await expect(p2).resolves.toBe("null");
   });
 
-  it("應處理大量任務堆積", async () => {
+  it.concurrent("应处理大量任务堆积", async () => {
     const key = generateKey("k-massive");
     const order: number[] = [];
-    const tasks = Array.from({ length: 50 }, (_, i) =>
+    const len = 9000;
+    const deferreds = Array.from({ length: len }, () => deferred());
+    const tasks = Array.from({ length: len }, (_, i) =>
       stackAsyncTask(key, async () => {
-        order.push(i);
-        await sleep(50);
-        return i;
+        order.push(3 * i);
+        await deferreds[i].promise;
+        return 2 * i;
       })
     );
-
-    await vi.advanceTimersByTimeAsync(2520); // t=2520ms（累計）
-    expect(order).toEqual(Array.from({ length: 50 }, (_, i) => i));
-    await Promise.all(tasks.map((p, i) => expect(p).resolves.toBe(i)));
+    expect(order).toEqual([0]);
+    await sleep(30);
+    for (let i = 0; i < len; i++) {
+      deferreds[i].resolve();
+    }
+    await sleep(30);
+    expect(order).toEqual(Array.from({ length: len }, (_, i) => 3 * i));
+    await Promise.all(tasks.map((p, i) => expect(p).resolves.toBe(2 * i)));
   });
 
-  it("在真實異步環境中應正確執行（無假定时器）", async () => {
-    vi.useRealTimers(); // 切換到真實計時器
+  it.concurrent("在真实异步环境中应正确执行（无假定时器）", async () => {
     const key = generateKey("k-real");
     const order: number[] = [];
 

@@ -5,8 +5,13 @@ import { beforeAll, afterAll, vi } from "vitest";
 import { getMockNetworkResponse } from "./shared";
 import { setNetworkRequestCounter } from "@Packages/network-mock";
 
+vi.stubGlobal("chrome", chromeMock);
 chromeMock.init();
 initTestEnv();
+
+chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
+  return `chrome-extension://${chrome.runtime.id}${path}`;
+});
 
 const isPrimitive = (x: any) => x !== Object(x);
 
@@ -109,18 +114,11 @@ Object.assign(global, {
   },
 });
 
-//@ts-ignore
-global.sandboxTestValue = "sandboxTestValue";
-//@ts-ignore
-global.sandboxTestValue2 = "sandboxTestValue2";
+vi.stubGlobal("sandboxTestValue", "sandboxTestValue");
+vi.stubGlobal("sandboxTestValue2", "sandboxTestValue2");
 
-//@ts-ignore
-global.ttest1 = 1;
-//@ts-ignore
-global.ttest2 = 2;
-
-//@ts-ignore
-global.define = "特殊关键字不能穿透沙盒";
+vi.stubGlobal("ttest1", 1);
+vi.stubGlobal("ttest2", 2);
 
 // ---------------------------------------- Blob -------------------------------------------
 // Keep originals to restore later
@@ -549,3 +547,4 @@ afterAll(() => {
   vi.stubGlobal("Response", realResponse);
   vi.stubGlobal("Blob", RealBlob ?? undefined);
 });
+vi.stubGlobal("define", "特殊关键字不能穿透沙盒");

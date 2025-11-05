@@ -65,8 +65,8 @@ export default class Runtime {
     return port;
   }
 
-  getURL(path: string) {
-    return `${window.location.href}${path}`;
+  getURL(_path: string) {
+    // implemented with vitest
   }
 
   sendMessage(message: any, callback?: (response: any) => void) {

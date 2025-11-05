@@ -1083,7 +1083,7 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({ alias: ["CAT_registerMenuInput"] })
-  GM_registerMenuCommand(request: GMApiRequest<GMRegisterMenuCommandParam>, sender: IGetSender) {
+  GM_registerMenuCommand(request: GMApiRequest<GMRegisterMenuCommandParam>, sender: IGetSender): any {
     const [key, name, options] = request.params;
     // 触发菜单注册, 在popup中处理
     this.mq.emit<TScriptMenuRegister>("registerMenuCommand", {
