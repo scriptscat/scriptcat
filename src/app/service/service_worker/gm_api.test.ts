@@ -55,14 +55,15 @@ describe.concurrent("isConnectMatched", () => {
     () => {
       const req = new URL("https://example.com/path");
 
-    // 无 url
-    const senderNoUrl = makeSender();
-    expect(getConnectMatched(["self"], req, senderNoUrl)).toBe(ConnectMatch.NONE);
+      // 无 url
+      const senderNoUrl = makeSender();
+      expect(getConnectMatched(["self"], req, senderNoUrl)).toBe(ConnectMatch.NONE);
 
-    // 无效 URL（try/catch 会吞掉错误）
-    const senderBadUrl = makeSender("not a valid url");
-    expect(getConnectMatched(["self"], req, senderBadUrl)).toBe(ConnectMatch.NONE);
-  });
+      // 无效 URL（try/catch 会吞掉错误）
+      const senderBadUrl = makeSender("not a valid url");
+      expect(getConnectMatched(["self"], req, senderBadUrl)).toBe(ConnectMatch.NONE);
+    }
+  );
 
   it.concurrent('当 "self" 不符合但尾缀规则符合时仍应回传 true（走到后续条件）', () => {
     const req = new URL("https://api.example.com/data");

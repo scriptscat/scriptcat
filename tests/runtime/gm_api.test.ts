@@ -66,6 +66,8 @@ beforeAll(async () => {
             return request.respond(400, {}, "bad request");
           }
           return request.respond(200, {}, "unsafeHeader/cookie");
+        case "https://www.example.com/notexist":
+          return request.respond(404, {}, "404 not found");
       }
       if (request.method === "POST") {
         switch (request.url) {
@@ -401,6 +403,20 @@ describe("GM xmlHttpRequest", () => {
         },
         onload: (resp) => {
           expect(resp.responseText).toBe("header");
+          resolve();
+        },
+      });
+    });
+  });
+  it.concurrent("404", async () => {
+    await new Promise<void>((resolve) => {
+      customResponse.enabled = false;
+      gmApi.GM_xmlhttpRequest({
+        url: "https://www.example.com/notexist",
+        method: "GET",
+        onload: (resp) => {
+          expect(resp.status).toBe(404);
+          expect(resp.responseText).toBe("404 not found");
           resolve();
         },
       });
