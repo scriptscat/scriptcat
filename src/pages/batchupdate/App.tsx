@@ -88,13 +88,12 @@ function App() {
       const other = [] as TBatchUpdateRecord[];
       const ignored = [] as TBatchUpdateRecord[];
       for (const entry of list) {
-        let mEntry = entry;
         if (!entry.checkUpdate) {
           site.push(entry);
           continue;
         }
         const isIgnored = entry.script.ignoreVersion === entry.newMeta?.version?.[0];
-        mEntry = {
+        const mEntry = {
           ...entry,
         };
 
