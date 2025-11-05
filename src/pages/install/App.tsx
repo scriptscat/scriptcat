@@ -70,13 +70,22 @@ const formatBytes = (bytes: number, decimals: number = 2): string => {
 };
 
 const fetchScriptBody = async (url: string, { onProgress }: { [key: string]: any }) => {
+  let origin;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    throw new Error(`Invalid url: ${url}`);
+  }
   const response = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
+      Accept: "text/javascript,application/javascript,text/plain,application/octet-stream,application/force-download",
       // 参考：加权 Accept-Encoding 值说明
       // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding#weighted_accept-encoding_values
       "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1",
+      Origin: origin,
     },
+    referrer: origin + "/",
   });
 
   if (!response.ok) {
