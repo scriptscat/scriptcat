@@ -251,7 +251,7 @@ export const loadFavicon = async (iconUrl: string): Promise<string> => {
   const opfsRet = { dirs: ["cached_favicons"], filename: filename };
   const file = await getFileFromOPFS(opfsRet);
   const blobUrl = URL.createObjectURL(file);
-  cacheInstance.set(`${CACHE_KEY_FAVICON}${filename}`, blobUrl); // 不用等待。针对SW重启 - blobURL 的生命周期是依随页面
+  cacheInstance.set(`${CACHE_KEY_FAVICON}${filename}`, blobUrl); // 不用等待。针对SW重启 - blobURL 的生命周期依附于页面
   return blobUrl;
 };
 
