@@ -4,7 +4,7 @@
   "create_user_script": "Create User Script",
   "create_background_script": "Create Background Script",
   "create_scheduled_script": "Create Scheduled Script",
-  "import_by_local": "Local Imported",
+  "import_by_local": "Local Import",
   "import_local_failure": "Local Import Failed",
   "import_local_success": "Local Import Suceeded",
   "create_script": "Create Script",
