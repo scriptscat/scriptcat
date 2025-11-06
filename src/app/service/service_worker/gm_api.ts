@@ -64,6 +64,10 @@ type TXhrReqObject = {
   startTime: number;
 };
 
+const enum xhrExtraCode {
+  DOMAIN_NOT_INCLUDED = 0x30,
+}
+
 const xhrReqEntries = new Map<string, TXhrReqObject>();
 
 const setReqDone = (stdUrl: string, xhrReqEntry: TXhrReqObject) => {
@@ -818,7 +822,7 @@ export default class GMApi {
           return true;
         }
         if (!askUnlistedConnect && request.script.metadata.connect?.find((e) => !!e)) {
-          request.extraCode = 0x30;
+          request.extraCode = xhrExtraCode.DOMAIN_NOT_INCLUDED;
           return false;
         }
       }
@@ -909,7 +913,7 @@ export default class GMApi {
     if (!param1) {
       throw throwErrorFn("param is failed");
     }
-    if (request.extraCode === 0x30) {
+    if (request.extraCode === xhrExtraCode.DOMAIN_NOT_INCLUDED) {
       // 'Refused to connect to "https://nonexistent-domain-abcxyz.test/": This domain is not a part of the @connect list'
       // 'Refused to connect to "https://example.org/": URL is blacklisted'
       const msg = `Refused to connect to "${param1.url}": This domain is not a part of the @connect list`;
