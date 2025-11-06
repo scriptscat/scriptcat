@@ -2,294 +2,377 @@
 import { describe, it, expect } from "vitest";
 import { stackAsyncTask } from "./async_queue";
 
-/**
- * 工具：生成随机 key（保证高唯一性，避免并行互撞）
- */
+/* ==================== 工具函数 ==================== */
+
 const generateKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-/**
- * 工具：可控延时的异步函数（真实时钟）
- */
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-// 小缓冲，避免各平台/CI 定时器抖动
-const EPS = 10;
-
-// 小工具：deferred/gate 与 nextTick（以微任务换档，避免依赖 ms）
+/** 手动控制的 Promise（用于阻塞） */
 const deferred = <T = void>() => {
   let resolve!: (v: T | PromiseLike<T>) => void;
   let reject!: (e?: any) => void;
-  const promise = new Promise<T>((res, rej) => ((resolve = res), (reject = rej)));
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
   return { promise, resolve, reject };
 };
 
-const nextTick = () => Promise.resolve().then(() => {});
+const nextTick = () => Promise.resolve();
+/** 强制执行所有已入队微任务与 then 链 */
+const flush = async () => {
+  await nextTick();
+  await nextTick();
+  await nextTick();
+};
 
-describe.concurrent("stackAsyncTask（按键名排队的异步序列队列）", () => {
-  it.concurrent("同一 key 下任务应按入队顺序串行执行", async () => {
-    const key = generateKey("k-serial");
+/** 为 key 设置一个「永远阻塞」的任务，供手动放行 */
+const setupBlockingTask = (key: any) => {
+  const gate = deferred<void>();
+  stackAsyncTask(key, async () => {
+    await gate.promise; // 直到 gate.resolve()
+  });
+  return gate;
+};
+
+/* ==================== 测试套件 ==================== */
+
+describe.concurrent("stackAsyncTask 测试", () => {
+  /* ------------------- 1. 基础行为 ------------------- */
+  it.concurrent("【1】串行、并行、同步函数、相同函数独立性 + 返回值透传", async () => {
+    const k1 = generateKey("serial");
+    const kPar1 = generateKey("par1");
+    const kPar2 = generateKey("par2");
+    const kSync = generateKey("sync");
+    const kSameFn = generateKey("same-fn");
+
+    const g1 = setupBlockingTask(k1);
+    const gPar1 = setupBlockingTask(kPar1);
+    const gPar2 = setupBlockingTask(kPar2);
+    const gSync = setupBlockingTask(kSync);
+
     const order: number[] = [];
+    const done: string[] = [];
 
-    const t1 = stackAsyncTask(key, async () => {
-      order.push(1); // t≈0ms
-      await sleep(50);
+    // 串行（同 key）
+    const t1 = stackAsyncTask(k1, async () => {
+      order.push(1);
       return "a";
     });
-
-    const t2 = stackAsyncTask(key, async () => {
-      order.push(2); // 预期 t≈50ms
-      await sleep(50);
+    const t2 = stackAsyncTask(k1, async () => {
+      order.push(2);
       return "b";
     });
 
-    await sleep(20 + EPS); // t≈20ms
-    expect(order).toEqual([1]);
-
-    await sleep(60 + EPS); // t≈80ms
-    expect(order).toEqual([1, 2]);
-
-    await sleep(60 + EPS); // t≈140ms
-    expect(order).toEqual([1, 2]);
-
-    await expect(t1).resolves.toBe("a");
-    await expect(t2).resolves.toBe("b");
-  });
-
-  it.concurrent("不同 key 下任务应并行执行，互不阻塞", async () => {
-    const k1 = generateKey("k-par-1");
-    const k2 = generateKey("k-par-2");
-    const done: string[] = [];
-
-    const p1 = stackAsyncTask(k1, async () => {
-      await sleep(100);
-      done.push("k1-1"); // t≈100ms
+    // 并行（不同 key）
+    const p1 = stackAsyncTask(kPar1, async () => {
+      done.push("p1");
       return 1;
     });
-
-    const p2 = stackAsyncTask(k2, async () => {
-      await sleep(50);
-      done.push("k2-1"); // t≈50ms
+    const p2 = stackAsyncTask(kPar2, async () => {
+      done.push("p2");
       return 2;
     });
 
-    await sleep(30 + EPS); // t≈30ms
+    // 同步函数（同 key）
+    const s1 = stackAsyncTask(kSync, () => {
+      order.push(100);
+      return "x";
+    });
+    const s2 = stackAsyncTask(kSync, () => {
+      order.push(200);
+      return "y";
+    });
+
+    // 相同函数引用（同 key）
+    let counter = 0;
+    const task = async () => ++counter;
+    const f1 = stackAsyncTask(kSameFn, task);
+    const f2 = stackAsyncTask(kSameFn, task);
+
+    await flush();
+    expect(order).toEqual([]);
     expect(done).toEqual([]);
+    expect(counter).toBe(2); // f2 已执行（无 gate）
 
-    await sleep(40 + EPS); // t≈70ms
-    expect(done).toEqual(["k2-1"]);
+    // 放行串行
+    g1.resolve();
+    await flush();
+    expect(order).toEqual([1, 2]);
 
-    await sleep(50 + EPS); // t≈120ms
-    expect(done).toEqual(["k2-1", "k1-1"]);
+    // 放行并行（观察完成顺序）
+    gPar2.resolve();
+    await flush();
+    expect(done).toEqual(["p2"]);
+    gPar1.resolve();
+    await flush();
+    expect(done).toEqual(["p2", "p1"]);
 
+    // 放行同步
+    gSync.resolve();
+    await flush();
+    expect(order).toEqual([1, 2, 100, 200]);
+
+    // 结果验证
+    await expect(f1).resolves.toBe(1);
+    await expect(f2).resolves.toBe(2);
+    await expect(t1).resolves.toBe("a");
+    await expect(t2).resolves.toBe("b");
     await expect(p1).resolves.toBe(1);
     await expect(p2).resolves.toBe(2);
+    await expect(s1).resolves.toBe("x");
+    await expect(s2).resolves.toBe("y");
   });
 
-  it.concurrent("在执行过程中追加同 key 的任务，应排在队尾并自动衔接执行", async () => {
-    const key1 = generateKey("k-append1");
-    const key2 = generateKey("k-append2");
-    const seq: string[] = [];
+  /* ------------------- 2. 动态入队 + 内部入队 ------------------- */
+  it.concurrent("【2】动态入队、内部入队、自动接续、不死锁 + 返回值可 await", async () => {
+    const k1 = generateKey("dyn");
+    const kInner = generateKey("inner");
+    const gBlock = setupBlockingTask(k1);
+    const gInner = setupBlockingTask(kInner);
 
-    // 三个可控「闸门」，用来精确控制 A/B/C 的完成时机
-    const gateA = deferred();
-    const gateB = deferred();
-    const gateC = deferred();
+    const seq1: string[] = [];
+    const seq2: string[] = [];
+    let pB: Promise<any>;
 
-    // A：先开始，等待 gateA 才结束
-    const p1 = stackAsyncTask(key1, async () => {
-      seq.push("A:start");
-      await gateA.promise;
-      seq.push("A:end");
+    // 动态追加（同 key C、不同 key B）
+    const pA = stackAsyncTask(k1, async () => {
+      seq1.push("A:start");
+      await Promise.resolve().then(() => {
+        stackAsyncTask(k1, async () => {
+          seq1.push("C:start");
+          return "C";
+        });
+        stackAsyncTask(generateKey("other"), async () => {
+          seq1.push("B1");
+        });
+        flush().then(() => {
+          stackAsyncTask(generateKey("other"), async () => {
+            seq1.push("B2");
+          });
+        });
+      });
+      seq1.push("A:end");
       return "A";
     });
 
-    // 将 B/C 追加到微任务，保证「A 已开始」后再入队
-    (async () => {
-      await nextTick();
-      stackAsyncTask(key2, async () => {
-        seq.push("B:start");
-        await gateB.promise;
-        seq.push("B:end");
-        return "B";
+    await flush();
+    expect(seq1).toEqual([]);
+
+    gBlock.resolve();
+    await flush();
+    await flush();
+    expect(seq1).toEqual(["A:start", "B1", "A:end", "C:start", "B2"]);
+
+    // 内部入队（同 key）
+    stackAsyncTask(kInner, async () => {
+      seq2.push("X:start");
+      pB = stackAsyncTask(kInner, async () => {
+        seq2.push("Y:start");
+        return "Y";
       });
-    })();
+      seq2.push("X:end");
+    });
 
-    (async () => {
-      await nextTick();
-      stackAsyncTask(key1, async () => {
-        // 必须排在 A 后面执行
-        seq.push("C:start");
-        await gateC.promise;
-        seq.push("C:end");
-        return "C";
-      });
-    })();
+    await flush();
+    expect(seq2).toEqual([]);
 
-    expect(seq).toEqual(["A:start"]);
+    gInner.resolve();
+    await flush();
+    expect(seq2).toEqual(["X:start", "X:end", "Y:start"]);
 
-    // 让微任务跑完，期待 A、B 已开始，但 C 尚未开始（因同 key 需等 A 结束）
-    await nextTick();
-    expect(seq).toEqual(["A:start", "B:start"]);
-
-    // 放行 A，C 应自动衔接开始
-    gateA.resolve();
-    await nextTick();
-    expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start"]);
-
-    // 放行 B，B 可在 C 执行中结束（不同 key 并行）
-    gateB.resolve();
-    await nextTick();
-    expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start", "B:end"]);
-
-    // 最后放行 C 结束
-    gateC.resolve();
-    await nextTick();
-    expect(seq).toEqual(["A:start", "B:start", "A:end", "C:start", "B:end", "C:end"]);
-
-    await expect(p1).resolves.toBe("A");
+    await expect(pA).resolves.toBe("A");
+    await expect(pB!).resolves.toBe("Y");
   });
 
-  it.concurrent("应将任务返回值传递给对应的 Promise", async () => {
-    const key = generateKey("k-return");
+  /* ------------------- 3. 错误处理 ------------------- */
+  it.concurrent("【3】reject、throw、内部错误不中断 + 返回值 reject 正确", async () => {
+    const k = generateKey("err");
+    const g = setupBlockingTask(k);
 
-    type Ret = { ok: boolean; n: number };
-    const p = stackAsyncTask<Ret>(key, async () => {
-      await sleep(50);
-      return { ok: true, n: 7 }; // t≈50ms
+    const logs: string[] = [];
+    let pInner: Promise<any>;
+
+    const p1 = stackAsyncTask(k, async () => {
+      logs.push("E1");
+      await Promise.reject("reject");
     });
+    const p1Assert = expect(p1).rejects.toBe("reject");
 
-    await sleep(70 + EPS); // t≈70ms
-    await expect(p).resolves.toEqual({ ok: true, n: 7 });
-  });
-
-  it.concurrent("当首个任务入队时应自动启动队列（无需手动触发）", async () => {
-    const key = generateKey("k-autostart");
-    let counter = 0;
-
-    const p = stackAsyncTask(key, async () => {
-      await sleep(50);
-      counter++; // t≈50ms
-      return "X";
+    const p2 = stackAsyncTask(k, async () => {
+      logs.push("E2");
+      throw new Error("throw");
     });
+    const p2Assert = expect(p2).rejects.toThrow("throw");
 
-    sleep(100).then(() => {
-      // t≈100ms
-      stackAsyncTask(key, async () => {
-        counter += 2; // 入队即加
-        await sleep(50);
-        counter += 4; // t≈150ms
-        return "X";
+    const p3 = stackAsyncTask(k, async () => {
+      logs.push("E3:start");
+      pInner = stackAsyncTask(k, () => {
+        throw new Error("inner");
       });
+      logs.push("E3:throw");
+      throw new Error("outer");
     });
 
-    // 尚未推进时间前，应该尚未变更
-    expect(counter).toBe(0);
+    const p3Assert = expect(p3).rejects.toThrow("outer");
 
-    await sleep(70 + EPS); // t≈70ms
-    expect(counter).toBe(1);
-
-    await sleep(50 + EPS); // t≈120ms
-    expect(counter).toBe(3);
-
-    await sleep(50 + EPS); // t≈170ms
-    expect(counter).toBe(7);
-
-    // 再丢一个任务验证自动启动
-    stackAsyncTask(key, async () => {
-      counter = 0;
-    });
-    expect(counter).toBe(0);
-
-    await expect(p).resolves.toBe("X");
-  });
-
-  it.concurrent("当任务抛出异常时，应正确拒绝 Promise 并继续执行队列", async () => {
-    const key = generateKey("k-error");
-    const order: number[] = [];
-
-    const p1 = stackAsyncTask(key, async () => {
-      order.push(1); // t≈0ms
-      await sleep(50);
-      throw new Error("任务失败");
+    const p4 = stackAsyncTask(k, async () => {
+      logs.push("E4");
+      return "ok";
     });
 
-    const p1Assert = expect(p1).rejects.toThrow("任务失败");
+    await flush();
+    expect(logs).toEqual([]);
 
-    const p2 = stackAsyncTask(key, async () => {
-      order.push(2);
-      await sleep(50);
-      return "success";
-    });
+    g.resolve();
+    await flush();
+    await flush();
+    await flush();
+    const pInnerAssert = expect(pInner!).rejects.toThrow("inner");
+    expect(logs).toEqual(["E1", "E2", "E3:start", "E3:throw", "E4"]);
 
-    const p2Assert = expect(p2).resolves.toBe("success");
-
-    await sleep(30 + EPS); // t≈30ms
-    expect(order).toEqual([1]);
-
-    await sleep(40 + EPS); // t≈70ms
     await p1Assert;
-    expect(order).toEqual([1, 2]);
-
-    await sleep(70 + EPS); // t≈140ms
     await p2Assert;
+    await p3Assert;
+    await pInnerAssert;
+    await expect(p4).resolves.toBe("ok");
   });
 
-  it.concurrent("应处理无效 key（如 null 或空字符串）", async () => {
-    const p1 = stackAsyncTask("", async () => {
-      await sleep(50);
-      return "empty";
-    });
-    const p2 = stackAsyncTask(null as any, async () => {
-      await sleep(50);
-      return "null";
-    });
+  /* ------------------- 4. key 类型 + 裸 Promise ------------------- */
+  it.concurrent("【4】支援 ''、null、Symbol key + 直接返回 Promise", async () => {
+    const kStr = "";
+    const kNull = null as any;
+    const kSym = Symbol("sym");
+    const gStr = setupBlockingTask(kStr);
+    const gNull = setupBlockingTask(kNull);
+    const gSym = setupBlockingTask(kSym);
 
-    await sleep(70 + EPS); // t≈70ms
-    await expect(p1).resolves.toBe("empty");
-    await expect(p2).resolves.toBe("null");
+    // 裸 Promise 透传
+    const gate = deferred<string>();
+    const pRaw = stackAsyncTask(generateKey("raw"), () => gate.promise);
+    gate.resolve("raw");
+    await expect(pRaw).resolves.toBe("raw");
+
+    const order: string[] = [];
+    stackAsyncTask(kStr, () => order.push("str"));
+    stackAsyncTask(kNull, () => order.push("null"));
+    // @ts-expect-error Symbol key
+    stackAsyncTask(kSym, () => order.push("sym"));
+
+    await flush();
+    expect(order).toEqual([]);
+
+    gStr.resolve();
+    await flush();
+    expect(order).toEqual(["str"]);
+
+    gNull.resolve();
+    await flush();
+    expect(order).toEqual(["str", "null"]);
+
+    gSym.resolve();
+    await flush();
+    expect(order).toEqual(["str", "null", "sym"]);
   });
 
-  it.concurrent("应处理大量任务堆积", async () => {
-    const key = generateKey("k-massive");
+  /* ------------------- 5. 压力 + 递回 ------------------- */
+  it.concurrent("【5】大量任务、递回不死锁 + 返回值正确", async () => {
+    const kMass = generateKey("mass");
+    const kRecur = generateKey("recur");
+    const gMass = setupBlockingTask(kMass);
+
+    // 大量任务
+    const N = 3000;
+    const tasks = Array.from({ length: N }, (_, i) => stackAsyncTask(kMass, async () => i));
+
+    await flush();
+    gMass.resolve();
+    await Promise.all(tasks.map((p, i) => expect(p).resolves.toBe(i)));
+
+    // 递回
     const order: number[] = [];
-    const len = 9000;
-    const deferreds = Array.from({ length: len }, () => deferred());
-    const tasks = Array.from({ length: len }, (_, i) =>
-      stackAsyncTask(key, async () => {
-        order.push(3 * i);
-        await deferreds[i].promise;
-        return 2 * i;
+    const final = deferred<number>();
+    let count = 0;
+    const run = async (): Promise<number> => {
+      const id = ++count;
+      order.push(id);
+      if (id < 5) stackAsyncTask(kRecur, run);
+      else order.push(await final.promise);
+      return id;
+    };
+
+    const pRecur = stackAsyncTask(kRecur, run);
+    await flush();
+    expect(order).toEqual([1, 2, 3, 4, 5]);
+
+    final.resolve(99);
+    await flush();
+    await expect(pRecur).resolves.toBe(1);
+    expect(order).toEqual([1, 2, 3, 4, 5, 99]);
+  });
+
+  /* ------------------- 6. 综合嵌套链 + 竞争入队 ------------------- */
+  it.concurrent("【6】嵌套链（跨 key）、竞争入队、顺序正确 + 返回值链", async () => {
+    const k1 = generateKey("chain1");
+    const k2 = generateKey("chain2");
+    const g1 = setupBlockingTask(k1);
+    const g2 = setupBlockingTask(k2);
+
+    const logs: string[] = [];
+
+    // 嵌套链：A → B（跨 key）
+    const pRoot = stackAsyncTask(k1, async () => {
+      logs.push("A");
+      const pB = stackAsyncTask(k2, async () => {
+        logs.push("B");
+        return `B`;
+      });
+      const b = await pB;
+      return `A(${b})`;
+    });
+
+    await flush();
+    expect(logs).toEqual([]);
+
+    g1.resolve();
+    await flush();
+    expect(logs).toEqual(["A"]);
+
+    g2.resolve();
+    await flush();
+    expect(logs).toEqual(["A", "B"]);
+
+    await expect(pRoot).resolves.toBe("A(B)");
+
+    // 竞争入队（不同 key）
+    const order: number[] = [];
+    const promises = Array.from({ length: 5 }, (_, i) =>
+      stackAsyncTask(generateKey(`race-${i}`), () => {
+        order.push(i);
+        return i;
       })
     );
-    expect(order).toEqual([0]);
-    await sleep(30);
-    for (let i = 0; i < len; i++) {
-      deferreds[i].resolve();
-    }
-    await sleep(30);
-    expect(order).toEqual(Array.from({ length: len }, (_, i) => 3 * i));
-    await Promise.all(tasks.map((p, i) => expect(p).resolves.toBe(2 * i)));
+    const results = await Promise.all(promises);
+    expect(order).toEqual([0, 1, 2, 3, 4]);
+    expect(results).toEqual([0, 1, 2, 3, 4]);
   });
 
-  it.concurrent("在真实异步环境中应正确执行（无假定时器）", async () => {
-    const key = generateKey("k-real");
-    const order: number[] = [];
+  /* ------------------- 7. 跨 key 链接（正确 await 返回值） ------------------- */
+  it.concurrent("【7】跨 key 链接：内部任务返回值可被外层 await（不 await stackAsyncTask）", async () => {
+    const kOuter = generateKey("outer");
+    const kInner = generateKey("inner");
 
-    const p1 = stackAsyncTask(key, async () => {
-      order.push(1);
-      await sleep(50);
-      return "a";
+    const pOuter = stackAsyncTask(kOuter, async () => {
+      const pInner = stackAsyncTask(kInner, async () => {
+        return "inner-data";
+      });
+      const data = await pInner; // 正确：await 返回值
+      return `outer(${data})`;
     });
 
-    const p2 = stackAsyncTask(key, async () => {
-      order.push(2);
-      await sleep(50);
-      return "b";
-    });
+    setupBlockingTask(kOuter).resolve();
+    setupBlockingTask(kInner).resolve();
+    await flush();
 
-    await Promise.all([p1, p2]);
-    expect(order).toEqual([1, 2]);
-    expect(await p1).toBe("a");
-    expect(await p2).toBe("b");
+    await expect(pOuter).resolves.toBe("outer(inner-data)");
   });
 });
