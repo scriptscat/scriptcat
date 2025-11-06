@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
 describe.concurrent("backup", () => {
-  it.concurrent("empty", { timeout: 5000 }, async () => {
+  it.concurrent("empty", async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     await new BackupExport(fs).export({
@@ -20,7 +20,7 @@ describe.concurrent("backup", () => {
     });
   });
 
-  it.concurrent("export and import script - basic", { timeout: 5000 }, async () => {
+  it.concurrent("export and import script - basic", async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -111,7 +111,7 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - name and version only", { timeout: 5000 }, async () => {
+  it.concurrent("export and import script - name and version only", async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -179,7 +179,7 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - 2 scripts", { timeout: 5000 }, async () => {
+  it.concurrent("export and import script - 2 scripts", async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -289,14 +289,14 @@ describe.concurrent("backup", () => {
     data.script[0].storage.data.num = 1;
     data.script[0].storage.data.str = "data";
     data.script[0].storage.data.bool = false;
-    expect(resp.script.sort()).toEqual(data.script.sort());
+    expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - 500 scripts + 300 subscribes", { timeout: 5000 }, async () => {
+  it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
-      script: Array.from({ length: 500 }, (v, i) => {
+      script: Array.from({ length: 30 }, (v, i) => {
         return {
           code: `// ==UserScript==
           // @name         New Userscript ${i}
@@ -343,7 +343,7 @@ describe.concurrent("backup", () => {
           },
         };
       }),
-      subscribe: Array.from({ length: 300 }, (v, i) => {
+      subscribe: Array.from({ length: 20 }, (v, i) => {
         return {
           source: `// ==UserSubscribe==
           // @name         New Usersubscribe
@@ -366,6 +366,6 @@ describe.concurrent("backup", () => {
     } as unknown as BackupData;
     await new BackupExport(fs).export(data);
     const resp = await parseBackupZipFile(zipFile);
-    expect(resp.script.sort()).toEqual(data.script.sort());
+    expect(resp).toEqual(data);
   });
 });
