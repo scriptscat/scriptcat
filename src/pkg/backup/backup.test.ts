@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
 describe.concurrent("backup", () => {
-  it.concurrent("empty", async () => {
+  it.concurrent("empty", { timeout: 5000 }, async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     await new BackupExport(fs).export({
@@ -20,7 +20,7 @@ describe.concurrent("backup", () => {
     });
   });
 
-  it.concurrent("export and import script - basic", async () => {
+  it.concurrent("export and import script - basic", { timeout: 5000 }, async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -111,7 +111,7 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - name and version only", async () => {
+  it.concurrent("export and import script - name and version only", { timeout: 5000 }, async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -179,7 +179,7 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - 2 scripts", async () => {
+  it.concurrent("export and import script - 2 scripts", { timeout: 5000 }, async () => {
     const zipFile = new JSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -292,62 +292,60 @@ describe.concurrent("backup", () => {
     expect(resp.script.sort()).toEqual(data.script.sort());
   });
 
-  it.concurrent(
-    "export and import script - 500 scripts + 300 subscribes",
-    async () => {
-      const zipFile = new JSZip();
-      const fs = new ZipFileSystem(zipFile);
-      const data: BackupData = {
-        script: Array.from({ length: 500 }, (v, i) => {
-          return {
-            code: `// ==UserScript==
+  it.concurrent("export and import script - 500 scripts + 300 subscribes", { timeout: 5000 }, async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const data: BackupData = {
+      script: Array.from({ length: 500 }, (v, i) => {
+        return {
+          code: `// ==UserScript==
           // @name         New Userscript ${i}
           // @version      1
           // ==/UserScript==
           
           console.log('hello world')`,
-            options: {
-              options: {},
-              meta: {
-                name: `test_${i}`, // 不能重复
-                modified: 1,
-                file_url: "",
-              },
-              settings: {
-                enabled: true,
-                position: 1,
-              },
+          options: {
+            options: {},
+            meta: {
+              name: `test_${i}`, // 不能重复
+              modified: 1,
+              file_url: "",
             },
-            resources: [
-              {
-                meta: { name: "test1", mimetype: "text/plain" },
-                base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
-                source: "hello world",
-              },
-            ],
-            requires: [
-              {
-                meta: { name: "test2", mimetype: "text/plain" },
-                base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
-                source: "hello world",
-              },
-            ],
-            requiresCss: [
-              {
-                meta: { name: "test3", mimetype: "application/javascript" },
-                base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
-                source: "hello world",
-              },
-            ],
-            storage: {
-              ts: 1,
-              data: {},
+            settings: {
+              enabled: true,
+              position: 1,
             },
-          };
-        }),
-        subscribe: Array.from({ length: 300 }, (v, i) => {
-          return {
-            source: `// ==UserSubscribe==
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: 1,
+            data: {},
+          },
+        };
+      }),
+      subscribe: Array.from({ length: 300 }, (v, i) => {
+        return {
+          source: `// ==UserSubscribe==
           // @name         New Usersubscribe
           // @namespace    https://bbs.tampermonkey.net.cn/
           // @version      0.1.0
@@ -356,20 +354,18 @@ describe.concurrent("backup", () => {
           // ==/UserSubscribe==
           
           console.log('hello world')`,
-            options: {
-              meta: {
-                name: `test_${i}`, // 不能重复
-                modified: 1,
-                url: "",
-              },
+          options: {
+            meta: {
+              name: `test_${i}`, // 不能重复
+              modified: 1,
+              url: "",
             },
-          };
-        }),
-      } as unknown as BackupData;
-      await new BackupExport(fs).export(data);
-      const resp = await parseBackupZipFile(zipFile);
-      expect(resp.script.sort()).toEqual(data.script.sort());
-    },
-    { timeout: 5000 }
-  );
+          },
+        };
+      }),
+    } as unknown as BackupData;
+    await new BackupExport(fs).export(data);
+    const resp = await parseBackupZipFile(zipFile);
+    expect(resp.script.sort()).toEqual(data.script.sort());
+  });
 });
