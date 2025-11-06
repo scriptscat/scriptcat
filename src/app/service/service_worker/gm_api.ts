@@ -65,7 +65,9 @@ type TXhrReqObject = {
 };
 
 const enum xhrExtraCode {
+  INVALID_URL = 0x20,
   DOMAIN_NOT_INCLUDED = 0x30,
+  DOMAIN_IN_BLACKLIST = 0x40,
 }
 
 const xhrReqEntries = new Map<string, TXhrReqObject>();
@@ -120,6 +122,7 @@ type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
 // 为了支持外部依赖注入，方便测试和扩展
 interface IGMExternalDependencies {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void;
+  isBlacklistNetwork(url: URL): boolean;
 }
 
 /**
@@ -230,12 +233,22 @@ export class GMExternalDependencies implements IGMExternalDependencies {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void {
     this.runtimeService.emitEventToTab(to, req);
   }
+  isBlacklistNetwork(url: URL) {
+    const isBlackListed =
+      this.runtimeService.isUrlBlacklist(url.href) || // 黑名单中含有该网址 https://abc.com/page.html
+      this.runtimeService.isUrlBlacklist(`${url.protocol}//${url.hostname}`) || // 黑名单中含有该网域 https://abc.com
+      this.runtimeService.isUrlBlacklist(`${url.protocol}//${url.hostname}/`); // 黑名单中含有该网域 https://abc.com/
+    return isBlackListed;
+  }
 }
 
 export class MockGMExternalDependencies implements IGMExternalDependencies {
   emitEventToTab(to: ExtMessageSender, req: EmitEventRequest): void {
     // Mock implementation for testing
     console.log("Mock emitEventToTab called", { to, req });
+  }
+  isBlacklistNetwork(_url: URL) {
+    return false;
   }
 }
 
@@ -281,7 +294,7 @@ export default class GMApi {
     if (!byPass && this.permissionVerify.noVerify(req, api, sender)) byPass = true;
     if (!byPass) {
       try {
-        await this.permissionVerify.verify(req, api, sender);
+        await this.permissionVerify.verify(req, api, sender, this);
       } catch (e) {
         this.logger.error("verify error", { api: data.api }, Logger.E(e));
         throw e;
@@ -809,9 +822,19 @@ export default class GMApi {
   // }
 
   @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender) => {
+    confirm: async (request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender, GMApiInstance: GMApi) => {
       const config = <GMSend.XHRDetails>request.params[0];
-      const url = new URL(config.url);
+      let url;
+      try {
+        url = new URL(config.url);
+      } catch {
+        request.extraCode = xhrExtraCode.INVALID_URL;
+        return false;
+      }
+      if (GMApiInstance.gmExternalDependencies.isBlacklistNetwork(url)) {
+        request.extraCode = xhrExtraCode.DOMAIN_IN_BLACKLIST;
+        return false;
+      }
       const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
       if (connectMatched === 1) {
         if (!askConnectStar) {
@@ -913,10 +936,19 @@ export default class GMApi {
     if (!param1) {
       throw throwErrorFn("param is failed");
     }
+
+    if (request.extraCode === xhrExtraCode.INVALID_URL) {
+      const msg = `Refused to connect to "${param1.url}": The url is invalid`;
+      throw throwErrorFn(msg);
+    }
     if (request.extraCode === xhrExtraCode.DOMAIN_NOT_INCLUDED) {
       // 'Refused to connect to "https://nonexistent-domain-abcxyz.test/": This domain is not a part of the @connect list'
-      // 'Refused to connect to "https://example.org/": URL is blacklisted'
       const msg = `Refused to connect to "${param1.url}": This domain is not a part of the @connect list`;
+      throw throwErrorFn(msg);
+    }
+    if (request.extraCode === xhrExtraCode.DOMAIN_IN_BLACKLIST) {
+      // 'Refused to connect to "https://example.org/": URL is blacklisted'
+      const msg = `Refused to connect to "${param1.url}": URL is blacklisted`;
       throw throwErrorFn(msg);
     }
     try {
