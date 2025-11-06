@@ -292,60 +292,62 @@ describe.concurrent("backup", () => {
     expect(resp.script.sort()).toEqual(data.script.sort());
   });
 
-  it.concurrent("export and import script - 500 scripts + 300 subscribes", async () => {
-    const zipFile = new JSZip();
-    const fs = new ZipFileSystem(zipFile);
-    const data: BackupData = {
-      script: Array.from({ length: 500 }, (v, i) => {
-        return {
-          code: `// ==UserScript==
+  it.concurrent(
+    "export and import script - 500 scripts + 300 subscribes",
+    async () => {
+      const zipFile = new JSZip();
+      const fs = new ZipFileSystem(zipFile);
+      const data: BackupData = {
+        script: Array.from({ length: 500 }, (v, i) => {
+          return {
+            code: `// ==UserScript==
           // @name         New Userscript ${i}
           // @version      1
           // ==/UserScript==
           
           console.log('hello world')`,
-          options: {
-            options: {},
-            meta: {
-              name: `test_${i}`, // 不能重复
-              modified: 1,
-              file_url: "",
+            options: {
+              options: {},
+              meta: {
+                name: `test_${i}`, // 不能重复
+                modified: 1,
+                file_url: "",
+              },
+              settings: {
+                enabled: true,
+                position: 1,
+              },
             },
-            settings: {
-              enabled: true,
-              position: 1,
+            resources: [
+              {
+                meta: { name: "test1", mimetype: "text/plain" },
+                base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+                source: "hello world",
+              },
+            ],
+            requires: [
+              {
+                meta: { name: "test2", mimetype: "text/plain" },
+                base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+                source: "hello world",
+              },
+            ],
+            requiresCss: [
+              {
+                meta: { name: "test3", mimetype: "application/javascript" },
+                base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+                source: "hello world",
+              },
+            ],
+            storage: {
+              ts: 1,
+              data: {},
             },
-          },
-          resources: [
-            {
-              meta: { name: "test1", mimetype: "text/plain" },
-              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
-              source: "hello world",
-            },
-          ],
-          requires: [
-            {
-              meta: { name: "test2", mimetype: "text/plain" },
-              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
-              source: "hello world",
-            },
-          ],
-          requiresCss: [
-            {
-              meta: { name: "test3", mimetype: "application/javascript" },
-              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
-              source: "hello world",
-            },
-          ],
-          storage: {
-            ts: 1,
-            data: {},
-          },
-        };
-      }),
-      subscribe: Array.from({ length: 300 }, (v, i) => {
-        return {
-          source: `// ==UserSubscribe==
+          };
+        }),
+        subscribe: Array.from({ length: 300 }, (v, i) => {
+          return {
+            source: `// ==UserSubscribe==
           // @name         New Usersubscribe
           // @namespace    https://bbs.tampermonkey.net.cn/
           // @version      0.1.0
@@ -354,18 +356,20 @@ describe.concurrent("backup", () => {
           // ==/UserSubscribe==
           
           console.log('hello world')`,
-          options: {
-            meta: {
-              name: `test_${i}`, // 不能重复
-              modified: 1,
-              url: "",
+            options: {
+              meta: {
+                name: `test_${i}`, // 不能重复
+                modified: 1,
+                url: "",
+              },
             },
-          },
-        };
-      }),
-    } as unknown as BackupData;
-    await new BackupExport(fs).export(data);
-    const resp = await parseBackupZipFile(zipFile);
-    expect(resp.script.sort()).toEqual(data.script.sort());
-  });
+          };
+        }),
+      } as unknown as BackupData;
+      await new BackupExport(fs).export(data);
+      const resp = await parseBackupZipFile(zipFile);
+      expect(resp.script.sort()).toEqual(data.script.sort());
+    },
+    { timeout: 5000 }
+  );
 });
