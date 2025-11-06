@@ -996,6 +996,7 @@ export default class GMApi extends GM_Base {
         let finalResultText: string | null = null; // 函数参考清掉后，变数会被GC
         let isEmptyResult = true;
         const asyncTaskId = `${Date.now}:${Math.random()}`;
+        let lastStateAndCode = "";
 
         let errorOccur: string | null = null;
         let response: unknown = null;
@@ -1309,7 +1310,11 @@ export default class GMApi extends GM_Base {
                 break;
               }
               case "onreadystatechange": {
-                if (data.readyState === 4 && data.ok) {
+                // 避免xhr的readystatechange多次触发问题。见 https://github.com/violentmonkey/violentmonkey/issues/1862
+                const curStateAndCode = `${data.readyState}:${data.status}`;
+                if (curStateAndCode === lastStateAndCode) return;
+                lastStateAndCode = curStateAndCode;
+                if (data.readyState === 4) {
                   if (resultType === 1) {
                     // stream type
                     controller = undefined; // GC用
