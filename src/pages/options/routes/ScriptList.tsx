@@ -65,6 +65,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import IoC from "@App/app/ioc";
 import RuntimeController from "@App/runtime/content/runtime";
@@ -660,6 +661,8 @@ function ScriptList() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        accessibility={{ container: document.body }}
         onDragEnd={(event: DragEndEvent) => {
           const { active, over } = event;
           if (!over) {

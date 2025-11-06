@@ -19,6 +19,7 @@ import {
 import { type InstallSource } from "@App/app/service/script/manager";
 import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
+// eslint-disable-next-line camelcase
 import { t as i18n_t } from "@App/locales/locales";
 
 // 从脚本代码抽出Metadata
@@ -121,7 +122,7 @@ export async function prepareScriptByCode(
   code: string,
   url: string,
   uuid?: string,
-  override: boolean = false,
+  override?: boolean,
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
