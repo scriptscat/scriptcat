@@ -6,11 +6,13 @@ import { afterAll, beforeAll, describe, expect, it, vi, vitest } from "vitest";
 import { addTestPermission, initTestGMApi } from "@Tests/utils";
 import { setMockNetworkResponse } from "@Tests/shared";
 
-const customResponse = {
-  enabled: false,
-  responseHeaders: {},
-  responseContent: null,
-} as Record<any, any>;
+const customXhrResponseMap = new Map<
+  string,
+  {
+    responseHeaders: Record<string, any>;
+    responseContent: any;
+  }
+>();
 
 const realXMLHttpRequest = global.XMLHttpRequest;
 
@@ -34,11 +36,11 @@ const script: Script = {
 };
 
 beforeAll(async () => {
-  customResponse.enabled = false;
   await new ScriptDAO().save(script);
   const { mockXhr } = mockNetwork({
     onSend: async (request) => {
-      if (customResponse.enabled) {
+      const customResponse = customXhrResponseMap.get(request.url);
+      if (customResponse) {
         return request.respond(200, customResponse.responseHeaders, customResponse.responseContent);
       }
       switch (request.url) {
@@ -93,10 +95,9 @@ beforeAll(async () => {
 
 afterAll(() => {
   vi.stubGlobal("XMLHttpRequest", realXMLHttpRequest);
-  customResponse.enabled = false;
 });
 
-describe("测试GMApi环境 - XHR", async () => {
+describe.concurrent("测试GMApi环境 - XHR", async () => {
   const msg = initTestGMApi();
   const script: Script = {
     uuid: randomUUID(),
@@ -122,14 +123,16 @@ describe("测试GMApi环境 - XHR", async () => {
   const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
     uuid: script.uuid,
   });
-  it("test GM xhr - plain text", async () => {
-    customResponse.enabled = true;
-    customResponse.responseHeaders = {};
-    customResponse.responseContent = "example";
+  it.concurrent("test GM xhr - plain text", async () => {
+    const testUrl = "https://mock-xmlhttprequest-plain.test/";
+    customXhrResponseMap.set(testUrl, {
+      responseHeaders: {},
+      responseContent: "example",
+    });
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
-        url: "https://mock-xmlhttprequest.test/",
+        url: testUrl,
         onload: (res) => {
           resolve(true);
           onload(res.responseText);
@@ -142,17 +145,17 @@ describe("测试GMApi环境 - XHR", async () => {
     expect(onload).toBeCalled();
     expect(onload.mock.calls[0][0]).toBe("example");
   });
-  it("test GM xhr - plain text [fetch]", async () => {
-    console.log(100, "测试GMApi环境 - XHR > test GM xhr - plain text [fetch]");
-    setMockNetworkResponse("https://mock-xmlhttprequest.test/", {
-      data: "Response for GET https://mock-xmlhttprequest.test/",
+  it.concurrent("test GM xhr - plain text [fetch]", async () => {
+    const testUrl = "https://mock-xmlhttprequest-plain-fetch.test/";
+    setMockNetworkResponse(testUrl, {
+      data: "Response for GET https://mock-xmlhttprequest-plain-fetch.test/",
       contentType: "text/plain",
     });
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
         fetch: true,
-        url: "https://mock-xmlhttprequest.test/",
+        url: testUrl,
         onload: (res) => {
           resolve(true);
           onload(res.responseText);
@@ -163,10 +166,9 @@ describe("测试GMApi环境 - XHR", async () => {
       });
     });
     expect(onload).toBeCalled();
-    expect(onload.mock.calls[0][0]).toBe("Response for GET https://mock-xmlhttprequest.test/");
+    expect(onload.mock.calls[0][0]).toBe("Response for GET https://mock-xmlhttprequest-plain-fetch.test/");
   });
-  it("test GM xhr - blob", async () => {
-    console.log(100, "test GM xhr - blob");
+  it.concurrent("test GM xhr - blob", async () => {
     // Define a simple HTML page as a string
     const htmlContent = `
   <!DOCTYPE html>
@@ -183,18 +185,20 @@ describe("测试GMApi环境 - XHR", async () => {
 
     // Create a Blob object from the HTML string
     const blob = new Blob([htmlContent], { type: "text/html" });
-    customResponse.enabled = true;
-    customResponse.responseHeaders = {};
-    customResponse.responseContent = blob;
+
+    const testUrl = "https://mock-xmlhttprequest-blob.test/";
+    customXhrResponseMap.set(testUrl, {
+      responseHeaders: {},
+      responseContent: blob,
+    });
     // const fn1 = vitest.fn();
     // const fn2 = vitest.fn();
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
-        url: "https://mock-xmlhttprequest.test/",
+        url: testUrl,
         responseType: "blob",
         onload: (res) => {
-          customResponse.responseContent = "";
           onload(res);
           // if (!(res.response instanceof Blob)) {
           //   resolve(false);
@@ -207,18 +211,18 @@ describe("测试GMApi环境 - XHR", async () => {
           // });
         },
         onloadend: () => {
-          customResponse.responseContent = "";
           resolve(false);
         },
       });
     });
+    customXhrResponseMap.delete(testUrl);
     expect(onload).toBeCalled();
     // expect(fn1).toBeCalled();
     // expect(fn1.mock.calls[0][0]).toBe(htmlContent);
     // expect(fn2.mock.calls[0][0]).not.toBe(blob);
   });
 
-  it("test GM xhr - blob [fetch]", async () => {
+  it.concurrent("test GM xhr - blob [fetch]", async () => {
     // Define a simple HTML page as a string
     const htmlContent = `
 <!DOCTYPE html>
@@ -269,46 +273,44 @@ describe("测试GMApi环境 - XHR", async () => {
     expect(fn2.mock.calls[0][0]).not.toBe(blob);
   });
 
-  it("test GM xhr - json", async () => {
+  it.concurrent("test GM xhr - json", async () => {
     // Create a Blob object from the HTML string
     const jsonObj = { code: 100, result: { a: 3, b: [2, 4], c: ["1", "2", "4"], d: { e: [1, 3], f: "4" } } };
     const jsonObjStr = JSON.stringify(jsonObj);
-    customResponse.enabled = true;
-    customResponse.responseHeaders = { "Content-Type": "application/json" };
-    customResponse.responseContent = jsonObjStr;
+
+    const testUrl = "https://mock-xmlhttprequest-json.test/";
+    customXhrResponseMap.set(testUrl, {
+      responseHeaders: { "Content-Type": "application/json" },
+      responseContent: jsonObjStr,
+    });
     const fn1 = vitest.fn();
     const fn2 = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
-        url: "https://mock-xmlhttprequest.test/",
+        url: testUrl,
         responseType: "json",
         onload: (res) => {
-          customResponse.enabled = true;
-          customResponse.responseHeaders = {};
-          customResponse.responseContent = "";
           resolve(true);
           fn1(res.responseText);
           fn2(res.response);
         },
         onloadend: () => {
-          customResponse.enabled = true;
-          customResponse.responseHeaders = {};
-          customResponse.responseContent = "";
           resolve(false);
         },
       });
     });
+    customXhrResponseMap.delete(testUrl);
     expect(fn1).toBeCalled();
     expect(fn1.mock.calls[0][0]).toBe(jsonObjStr);
     expect(fn2.mock.calls[0][0]).toStrictEqual(jsonObj);
   });
 
-  it("test GM xhr - json [fetch]", async () => {
+  it.concurrent("test GM xhr - json [fetch]", async () => {
     // Create a Blob object from the HTML string
     const jsonObj = { code: 100, result: { a: 3, b: [2, 4], c: ["1", "2", "4"], d: { e: [1, 3], f: "4" } } };
     const jsonObjStr = JSON.stringify(jsonObj);
-
-    setMockNetworkResponse("https://mock-xmlhttprequest.test/", {
+    const testUrl = "https://mock-xmlhttprequest-json-fetch.test/";
+    setMockNetworkResponse(testUrl, {
       data: jsonObjStr,
       contentType: "application/json",
     });
@@ -317,38 +319,32 @@ describe("测试GMApi环境 - XHR", async () => {
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({
         fetch: true,
-        url: "https://mock-xmlhttprequest.test/",
+        url: testUrl,
         responseType: "json",
         onload: (res) => {
-          customResponse.enabled = true;
-          customResponse.responseHeaders = {};
-          customResponse.responseContent = "";
           resolve(true);
           fn1(res.responseText);
           fn2(res.response);
         },
         onloadend: () => {
-          customResponse.enabled = true;
-          customResponse.responseHeaders = {};
-          customResponse.responseContent = "";
           resolve(false);
         },
       });
     });
+    customXhrResponseMap.delete(testUrl);
     expect(fn1).toBeCalled();
     expect(fn1.mock.calls[0][0]).toBe(jsonObjStr);
     expect(fn2.mock.calls[0][0]).toStrictEqual(jsonObj);
   });
 });
 
-describe("GM xmlHttpRequest", () => {
+describe.concurrent("GM xmlHttpRequest", () => {
   const msg = initTestGMApi();
   const gmApi = new GMApi("serviceWorker", msg, <ScriptRunResource>{
     uuid: script.uuid,
   });
-  it("get", () => {
+  it.concurrent("get", () => {
     return new Promise<void>((resolve) => {
-      customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com",
         onreadystatechange: (resp) => {
@@ -364,7 +360,6 @@ describe("GM xmlHttpRequest", () => {
   // xml原版是没有responseText的,但是tampermonkey有,恶心的兼容性
   it.concurrent("json", async () => {
     await new Promise<void>((resolve) => {
-      customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
         url: "https://example.com/json",
         method: "GET",
@@ -379,7 +374,6 @@ describe("GM xmlHttpRequest", () => {
     });
     // bad json
     await new Promise<void>((resolve) => {
-      customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com/",
         method: "GET",
@@ -394,7 +388,6 @@ describe("GM xmlHttpRequest", () => {
   });
   it.concurrent("header", async () => {
     await new Promise<void>((resolve) => {
-      customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com/header",
         method: "GET",
@@ -410,7 +403,6 @@ describe("GM xmlHttpRequest", () => {
   });
   it.concurrent("404", async () => {
     await new Promise<void>((resolve) => {
-      customResponse.enabled = false;
       gmApi.GM_xmlhttpRequest({
         url: "https://www.example.com/notexist",
         method: "GET",
