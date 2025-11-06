@@ -352,7 +352,7 @@ function ScriptList() {
             <Tooltip
               content={
                 <p style={{ margin: 0 }}>
-                  {t("subscription_link")}:{" "}
+                  {t("source_subscribe_link")}:{" "}
                   {decodeURIComponent(item.subscribeUrl)}
                 </p>
               }
@@ -365,30 +365,32 @@ function ScriptList() {
                   cursor: "pointer",
                 }}
               >
-                {t("subscription_installation")}
+                {t("source_subscribe_link")}
               </Tag>
             </Tooltip>
           );
         }
         if (!item.origin) {
           return (
-            <Tag
-              icon={<IconEdit />}
-              color="purple"
-              bordered
-              style={{
-                cursor: "pointer",
-              }}
-            >
-              {t("manually_created")}
-            </Tag>
+            <Tooltip content={<p style={{ margin: 0, padding: 0 }}>{`${t("by_manual_creation")}`}</p>}>
+              <Tag
+                icon={<IconEdit />}
+                color="purple"
+                bordered
+                style={{
+                  cursor: "pointer",
+                }}
+              >
+                {t("source_local_script")}
+              </Tag>
+            </Tooltip>
           );
         }
         return (
           <Tooltip
             content={
               <p style={{ margin: 0, padding: 0 }}>
-                {t("script_link")}: {decodeURIComponent(item.origin)}
+                {t("source_script_link")}: {decodeURIComponent(item.origin)}
               </p>
             }
           >
@@ -400,7 +402,7 @@ function ScriptList() {
                 cursor: "pointer",
               }}
             >
-              {t("user_installation")}
+              {t("source_script_link")}
             </Tag>
           </Tooltip>
         );

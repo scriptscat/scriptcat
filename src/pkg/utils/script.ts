@@ -19,6 +19,7 @@ import {
 import { type InstallSource } from "@App/app/service/script/manager";
 import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
+import { t as i18n_t } from "@App/locales/locales";
 
 // 从脚本代码抽出Metadata
 export function parseMetadata(code: string): SCMetadata | null {
@@ -120,21 +121,25 @@ export async function prepareScriptByCode(
   code: string,
   url: string,
   uuid?: string,
-  override?: boolean
+  override: boolean = false,
+  dao?: ScriptDAO,
+  options?: {
+    byEditor?: boolean; // 是否通过编辑器导入
+  }
 ): Promise<{ script: Script; oldScript?: Script }> {
-  const dao = new ScriptDAO();
+  dao = dao ?? new ScriptDAO();
   const metadata = parseMetadata(code);
-  if (metadata == null) {
-    throw new Error("MetaData信息错误");
+  if (!metadata) {
+    throw new Error(i18n_t("error_metadata_invalid"));
   }
   if (metadata.name === undefined) {
-    throw new Error("脚本名不能为空");
+    throw new Error(i18n_t("error_script_name_required"));
   }
   if (metadata.version === undefined) {
-    throw new Error("脚本@version版本不能为空");
+    throw new Error(i18n_t("error_script_version_required"));
   }
   if (metadata.namespace === undefined) {
-    throw new Error("脚本@namespace命名空间不能为空");
+    throw new Error(i18n_t("error_script_namespace_required"));
   }
   let type = SCRIPT_TYPE_NORMAL;
   if (metadata.crontab !== undefined) {
@@ -142,12 +147,11 @@ export async function prepareScriptByCode(
     try {
       nextTime(metadata.crontab[0]);
     } catch (e) {
-      throw new Error(`错误的定时表达式,请检查: ${metadata.crontab[0]}`);
+      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;
   }
-  let urlSplit: string[];
   let domain = "";
   let checkUpdateUrl = "";
   let downloadUrl = url;
@@ -157,14 +161,13 @@ export async function prepareScriptByCode(
   } else {
     checkUpdateUrl = url.replace("user.js", "meta.js");
   }
-  if (url.includes("/")) {
-    urlSplit = url.split("/");
-    if (urlSplit[2]) {
-      [, domain] = urlSplit;
-    }
+  if (origin.startsWith("http://") || origin.startsWith("https://")) {
+    const u = new URL(origin);
+    domain = u.hostname;
   }
   const newUUID = uuid || uuidv4();
   const config: UserConfig | undefined = parseUserConfig(code);
+  const now = Date.now();
   const script: Script = {
     id: 0,
     uuid: newUUID,
@@ -183,9 +186,9 @@ export async function prepareScriptByCode(
     type,
     status: SCRIPT_STATUS_DISABLE,
     runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-    createtime: Date.now(),
-    updatetime: Date.now(),
-    checktime: Date.now(),
+    createtime: now,
+    updatetime: now,
+    checktime: now,
   };
   let old: Script | undefined;
   if (uuid) {
@@ -199,7 +202,15 @@ export async function prepareScriptByCode(
       (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
       (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
-      throw new Error("脚本类型不匹配,普通脚本与后台脚本不能互相转变");
+      throw new Error(i18n_t("error_script_type_mismatch"));
+    }
+    if (
+      options?.byEditor &&
+      script.metadata?.grant?.includes("none") &&
+      script.metadata?.grant?.some((s: string) => s.startsWith("GM")) &&
+      !(old.metadata?.grant?.includes("none") && old.metadata?.grant?.some((s: string) => s.startsWith("GM")))
+    ) {
+      throw new Error(i18n_t("error_grant_conflict"));
     }
     const {
       id,
@@ -228,7 +239,7 @@ export async function prepareScriptByCode(
     if (script.type === SCRIPT_TYPE_NORMAL) {
       script.status = SCRIPT_STATUS_ENABLE;
     }
-    script.checktime = Date.now();
+    script.checktime = now;
   }
   return { script, oldScript: old };
 }
@@ -241,11 +252,12 @@ export async function prepareSubscribeByCode(
   const dao = new SubscribeDAO();
   const metadata = parseMetadata(code);
   if (!metadata) {
-    throw new Error("MetaData信息错误");
+    throw new Error(i18n_t("error_metadata_invalid"));
   }
   if (metadata.name === undefined) {
-    throw new Error("订阅名不能为空");
+    throw new Error(i18n_t("error_subscribe_name_required"));
   }
+  const now = Date.now();
   const subscribe: Subscribe = {
     id: 0,
     url,
@@ -255,9 +267,9 @@ export async function prepareSubscribeByCode(
     scripts: {},
     metadata,
     status: SUBSCRIBE_STATUS_ENABLE,
-    createtime: Date.now(),
-    updatetime: Date.now(),
-    checktime: Date.now(),
+    createtime: now,
+    updatetime: now,
+    checktime: now,
   };
   const old = await dao.findByUrl(url);
   if (old) {
