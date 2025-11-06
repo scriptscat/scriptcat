@@ -537,6 +537,7 @@
   "error_old_script_code_missing": "旧的脚本代码不存在",
   "error_subscribe_name_required": "订阅名不能为空",
   "error_grant_conflict": "@grant 同时声明了 none 和 GM API",
+  "error_metadata_line_duplicated": "Metadata 中有重复的声明。",
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
