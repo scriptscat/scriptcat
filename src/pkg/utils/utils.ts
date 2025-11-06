@@ -317,3 +317,8 @@ export function getUserConfigStr(code: string): string | null {
   }
   return `/* ${code.substring(start, end + 15)} */`;
 }
+
+export function cleanFileName(name: string): string {
+  // eslint-disable-next-line no-control-regex, no-useless-escape
+  return name.replace(/[\x00-\x1F\\\/:*?"<>|]+/g, "-").trim();
+}
