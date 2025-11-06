@@ -63,6 +63,7 @@ export function useScriptList() {
       setScriptList(list);
       setLoadingList(false);
       cacheInstance.tx("faviconOPFSControl", async () => {
+        if (!mounted) return;
         for await (const { chunkResults } of loadScriptFavicons(list)) {
           if (!mounted) return;
           setScriptList((list) => {
