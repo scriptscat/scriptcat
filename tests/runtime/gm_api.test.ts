@@ -142,6 +142,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
         },
       });
     });
+    customXhrResponseMap.delete(testUrl);
     expect(onload).toBeCalled();
     expect(onload.mock.calls[0][0]).toBe("example");
   });
@@ -331,7 +332,6 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
         },
       });
     });
-    customXhrResponseMap.delete(testUrl);
     expect(fn1).toBeCalled();
     expect(fn1.mock.calls[0][0]).toBe(jsonObjStr);
     expect(fn2.mock.calls[0][0]).toStrictEqual(jsonObj);
