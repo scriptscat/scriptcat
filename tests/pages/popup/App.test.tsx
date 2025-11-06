@@ -1,76 +1,59 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { render, setupGlobalMocks } from "@Tests/test-utils";
 import App from "@App/pages/popup/App";
 import { ExtVersion } from "@App/app/const";
 
-// Mock i18next
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-// Create mock objects first
-const mockPopupClient = {
-  getCurrentTab: vi.fn().mockResolvedValue({
-    id: 1,
-    url: "https://example.com",
-    title: "Test Page",
-  }),
-  getPopupData: vi.fn().mockResolvedValue({
-    scriptList: [
-      {
-        id: "1",
-        name: "Test Script 1",
-        enable: true,
-        menus: [],
-        runNum: 0,
-        updatetime: Date.now(),
-      },
-    ],
-    backScriptList: [
-      {
-        id: "2",
-        name: "Background Script 1",
-        enable: true,
-        menus: [],
-        runNum: 0,
-        updatetime: Date.now(),
-      },
-    ],
-    isBlacklist: false,
-  }),
-};
+// Use vi.hoisted to avoid hoisting pitfalls
+const hoisted = vi.hoisted(() => {
+  const mockPopupClient = {
+    getCurrentTab: vi.fn().mockResolvedValue({ id: 1, url: "https://example.com", title: "Test Page" }),
+    getPopupData: vi.fn().mockResolvedValue({
+      scriptList: [{ id: "1", name: "Test Script 1", enable: true, menus: [], runNum: 0, updatetime: Date.now() }],
+      backScriptList: [
+        { id: "2", name: "Background Script 1", enable: true, menus: [], runNum: 0, updatetime: Date.now() },
+      ],
+      isBlacklist: false,
+    }),
+    menuClick: vi.fn(),
+  };
 
-const mockScriptClient = {
-  run: vi.fn(),
-  stop: vi.fn(),
-  enableScript: vi.fn(),
-  disableScript: vi.fn(),
-  deleteScript: vi.fn(),
-};
+  const mockScriptClient = {
+    run: vi.fn(),
+    stop: vi.fn(),
+    enableScript: vi.fn(),
+    disableScript: vi.fn(),
+    deleteScript: vi.fn(),
+  };
 
-const mockSystemConfig = {
-  getEnableScript: vi.fn().mockResolvedValue(true),
-  setEnableScript: vi.fn(),
-  getCheckUpdate: vi.fn().mockResolvedValue({
-    version: "1.0.0-beta.1",
-    notice: "",
-    isRead: false,
-  }),
-  setCheckUpdate: vi.fn(),
-};
+  const mockSystemConfig = {
+    getEnableScript: () => Promise.resolve(true),
+    setEnableScript: vi.fn(),
+    getCheckUpdate: () => Promise.resolve({ version: "1.0.0-beta.1", notice: "", isRead: false }),
+    setCheckUpdate: vi.fn(),
+    getMenuExpandNum: () => Promise.resolve(5),
+  };
 
-// Mock the store features
-vi.mock("../store/features/script", () => ({
-  popupClient: mockPopupClient,
-  scriptClient: mockScriptClient,
+  const mockMessageQueue = {
+    subscribe: () => () => {},
+  };
+
+  return { mockPopupClient, mockScriptClient, mockSystemConfig, mockMessageQueue };
+});
+
+// IMPORTANT: mock the exact paths used by App
+vi.mock("@App/pages/store/features/script", () => ({
+  popupClient: hoisted.mockPopupClient,
+  scriptClient: hoisted.mockScriptClient,
 }));
 
-// Mock systemConfig
-vi.mock("../store/global", () => ({
-  systemConfig: mockSystemConfig,
+vi.mock("@App/pages/store/global", () => ({
+  systemConfig: hoisted.mockSystemConfig,
+  messageQueue: hoisted.mockMessageQueue,
   message: {
     info: vi.fn(),
     success: vi.fn(),
@@ -79,10 +62,14 @@ vi.mock("../store/global", () => ({
   },
 }));
 
-// Mock utils
 vi.mock("@App/pkg/utils/utils", () => ({
   checkUserScriptsAvailable: vi.fn(() => true),
   getBrowserType: vi.fn(() => "chrome"),
+  getCurrentTab: vi.fn().mockResolvedValue({
+    id: 1,
+    url: "https://example.com",
+    title: "Example",
+  }),
   BrowserType: {
     Chrome: "chrome",
     Firefox: "firefox",
@@ -90,50 +77,48 @@ vi.mock("@App/pkg/utils/utils", () => ({
   },
 }));
 
-// Mock localePath
 vi.mock("@App/locales/locales", () => ({
   localePath: "",
   initLocales: vi.fn(),
   changeLanguage: vi.fn(),
-  i18nName: vi.fn((script) => script.name),
-  i18nDescription: vi.fn((script) => script.metadata?.description || ""),
-  matchLanguage: vi.fn(),
+  i18nName: vi.fn((script: any) => script.name),
+  i18nDescription: vi.fn((script: any) => script.metadata?.description || ""),
+  matchLanguage: () => Promise.resolve(undefined),
   isChineseUser: vi.fn(() => true),
-  t: vi.fn((key) => key),
+  t: vi.fn((key: string) => key),
   default: {
     changeLanguage: vi.fn(),
-    t: vi.fn((key) => key),
+    t: vi.fn((key: string) => key),
+    store: {
+      data: {},
+    },
+  },
+  i18n: {
+    changeLanguage: vi.fn(),
+    t: vi.fn((key: string) => key),
+    store: {
+      data: {},
+    },
   },
 }));
 
-describe("Popup App Component", () => {
-  beforeEach(() => {
-    // Setup global mocks
-    setupGlobalMocks();
+beforeEach(() => {
+  setupGlobalMocks(); // Setup global window mocks
+  vi.clearAllMocks();
 
-    // Reset all mocks
-    vi.clearAllMocks();
-
-    // Setup default mock responses for Chrome tabs API
-    vi.spyOn(chrome.tabs, "query").mockImplementation((query, callback) => {
-      const mockTabs = [
-        {
-          id: 1,
-          url: "https://example.com",
-          title: "Example",
-          active: true,
-        },
-      ] as chrome.tabs.Tab[];
-      if (callback) {
-        callback(mockTabs);
-      }
-      return Promise.resolve(mockTabs);
-    });
-
-    // Setup chrome runtime mock
-    (chrome.runtime as any).lastError = undefined;
+  // Default tabs query behavior for tests
+  vi.spyOn(chrome.tabs, "query").mockImplementation((_query: any, callback?: (tabs: chrome.tabs.Tab[]) => void) => {
+    const mockTabs = [{ id: 1, url: "https://example.com", title: "Example", active: true }] as chrome.tabs.Tab[];
+    callback?.(mockTabs);
+    return Promise.resolve(mockTabs);
   });
+});
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("Popup App Component", () => {
   it("should render popup app successfully", async () => {
     render(<App />);
 

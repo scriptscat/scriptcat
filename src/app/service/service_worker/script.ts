@@ -59,6 +59,8 @@ export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
 >;
 
+export type TOpenBatchUpdatePageOption = { q: string; dontCheckNow: boolean };
+
 export class ScriptService {
   logger: Logger;
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
@@ -768,7 +770,8 @@ export class ScriptService {
     }
   }
 
-  async openBatchUpdatePage(q: string, dontCheckNow: boolean) {
+  async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
+    const { q, dontCheckNow } = opts;
     const p = q ? `?${q}` : "";
     await openInCurrentTab(`/src/batchupdate.html${p}`);
     if (!dontCheckNow) {
@@ -1309,7 +1312,7 @@ export class ScriptService {
     this.group.on("sendUpdatePageOpened", this.sendUpdatePageOpened.bind(this));
     this.group.on("batchUpdateListAction", this.batchUpdateListAction.bind(this));
     this.group.on("openUpdatePageByUUID", this.openUpdatePageByUUID.bind(this));
-    this.group.on("openBatchUpdatePage", (q: string) => this.openBatchUpdatePage(q, false));
+    this.group.on("openBatchUpdatePage", this.openBatchUpdatePage.bind(this));
     this.group.on("checkScriptUpdate", this.checkScriptUpdate.bind(this));
 
     // 定时检查更新, 首次执行为5分钟后，然后每30分钟检查一次

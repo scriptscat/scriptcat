@@ -1,4 +1,4 @@
-import { describe, expect, it, vitest } from "vitest";
+import { describe, expect, it, vitest, vi } from "vitest";
 import { initTestGMApi } from "./utils";
 import { randomUUID } from "crypto";
 import { newMockXhr } from "mock-xmlhttprequest";
@@ -34,8 +34,8 @@ describe("测试GMApi环境", async () => {
   mockXhr.onSend = async (request) => {
     return request.respond(200, {}, "example");
   };
-  global.XMLHttpRequest = mockXhr;
-  it("test GM xhr", async () => {
+  vi.stubGlobal("XMLHttpRequest", mockXhr);
+  it.concurrent("test GM xhr", async () => {
     const onload = vitest.fn();
     await new Promise((resolve) => {
       gmApi.GM_xmlhttpRequest({

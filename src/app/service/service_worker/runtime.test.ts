@@ -19,7 +19,7 @@ import { obtainBlackList } from "@App/pkg/utils/utils";
 
 initTestEnv();
 
-describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () => {
+describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () => {
   let runtime: RuntimeService;
   let mockSystemConfig: {
     getBlacklist: MockedFunction<() => string>;
@@ -109,8 +109,8 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     );
   });
 
-  describe("脚本匹配基础功能", () => {
-    it("应该匹配没有自定义metadata的脚本", async () => {
+  describe.concurrent("脚本匹配基础功能", () => {
+    it.concurrent("应该匹配没有自定义metadata的脚本", async () => {
       // Arrange
       const script = createMockScript({
         metadata: {
@@ -135,7 +135,7 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
       expect(matchInfo!.effective).toBe(true);
     });
 
-    it("应该正确处理被自定义规则排除的脚本", async () => {
+    it.concurrent("应该正确处理被自定义规则排除的脚本", async () => {
       // Arrange
       const script = createMockScript({
         metadata: {
@@ -173,8 +173,8 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     });
   });
 
-  describe("脚本匹配边界情况", () => {
-    it("应该正确处理多个匹配规则的脚本", async () => {
+  describe.concurrent("脚本匹配边界情况", () => {
+    it.concurrent("应该正确处理多个匹配规则的脚本", async () => {
       // Arrange
       const script = createMockScript({
         metadata: {
@@ -212,7 +212,7 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
       expect(result4.has(script.uuid)).toBe(false);
     });
 
-    it("应该正确处理include和exclude规则的优先级", async () => {
+    it.concurrent("应该正确处理include和exclude规则的优先级", async () => {
       // Arrange
       const script = createMockScript({
         metadata: {
@@ -252,8 +252,8 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     });
   });
 
-  describe("错误处理", () => {
-    // it("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
+  describe.concurrent("错误处理", () => {
+    // it.concurrent("应该正确处理buildScriptRunResource抛出异常的情况", async () => {
     //   // Arrange
     //   const script = createMockScript();
     //   mockScriptService.buildScriptRunResource.mockImplementation(() => {
@@ -264,7 +264,7 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     //   await expect(runtime.applyScriptMatchInfo(script)).rejects.toThrow("Build script run resource failed");
     // });
 
-    it("应该正确处理空metadata的脚本", async () => {
+    it.concurrent("应该正确处理空metadata的脚本", async () => {
       // Arrange
       const script = createMockScript({
         metadata: {},
@@ -283,8 +283,8 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     });
   });
 
-  describe("includeDisabled 选项", () => {
-    it("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
+  describe.concurrent("includeDisabled 选项", () => {
+    it.concurrent("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange
       // 启用脚本
       const enabledScript = createMockScript({
@@ -338,8 +338,8 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
     });
   });
 
-  describe("黑名單測試", async () => {
-    it("黑名單測試 A", async () => {
+  describe.concurrent("黑名單測試", async () => {
+    it.concurrent("黑名單測試 A", async () => {
       // Arrange
       const blacklistString = "*://www.blacklisted.com/*";
       mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
@@ -361,7 +361,7 @@ describe("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹配", () =>
       expect(blacklistResult).toBe(true);
     });
 
-    it("黑名單測試 B", async () => {
+    it.concurrent("黑名單測試 B", async () => {
       // Arrange
       const blacklistString = "*://www.blacklisted.com/*\nhttps://*.google.com/*";
       mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);

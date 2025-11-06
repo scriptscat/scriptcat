@@ -4,6 +4,7 @@ type Port = chrome.runtime.Port & {
 };
 
 export default class Runtime {
+  id = "kfjdomqetnlhbgxasrwzypcviueotmlr";
   connectListener: Array<(port: chrome.runtime.Port) => void> = [];
 
   messageListener: Array<(message: any) => void> = [];
@@ -64,8 +65,8 @@ export default class Runtime {
     return port;
   }
 
-  getURL(path: string) {
-    return `${window.location.href}${path}`;
+  getURL(_path: string) {
+    // implemented with vitest
   }
 
   sendMessage(message: any, callback?: (response: any) => void) {

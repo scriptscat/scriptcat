@@ -22,7 +22,7 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { ScriptService, TCheckScriptUpdateOption } from "./script";
+import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -201,8 +201,8 @@ export class ScriptClient extends Client {
     return this.do<void>("openUpdatePageByUUID", uuid);
   }
 
-  async openBatchUpdatePage(q: string) {
-    return this.do<boolean>("openBatchUpdatePage", q);
+  async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
+    return this.do<boolean>("openBatchUpdatePage", opts);
   }
 
   async checkScriptUpdate(opts: TCheckScriptUpdateOption) {

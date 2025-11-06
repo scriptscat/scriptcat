@@ -234,7 +234,10 @@ export default class ServiceWorkerManager {
             // 只针对该网域的有效脚本发现「有更新」进行弹出
             // 如该网域没有任何有效脚本则忽略
             const domain = newDomain;
-            const anyOpened = await script.openBatchUpdatePage(domain ? `site=${domain}` : "", true);
+            const anyOpened = await script.openBatchUpdatePage({
+              q: domain ? `site=${domain}` : "",
+              dontCheckNow: true,
+            });
             if (anyOpened) {
               pendingOpen = 0;
             }
