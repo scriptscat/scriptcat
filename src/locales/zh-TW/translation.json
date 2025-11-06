@@ -498,6 +498,7 @@
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
   "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
+  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。",
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",

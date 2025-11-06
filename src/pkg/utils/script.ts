@@ -198,20 +198,27 @@ export async function prepareScriptByCode(
   if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
   }
+  const hasGrantConflict = (metadata: SCMetadata | undefined | null) =>
+    metadata?.grant?.includes("none") && metadata?.grant?.some((s: string) => s.startsWith("GM"));
+  const hasDuplicatedMetaline = (metadata: SCMetadata | undefined | null) => {
+    if (metadata) {
+      for (const list of Object.values(metadata)) {
+        if (list && new Set(list).size !== list.length) return true;
+      }
+    }
+  };
+  if (options?.byEditor && hasGrantConflict(script.metadata) && (!old || !hasGrantConflict(old.metadata))) {
+    throw new Error(i18n_t("error_grant_conflict"));
+  }
+  if (options?.byEditor && hasDuplicatedMetaline(script.metadata) && (!old || !hasDuplicatedMetaline(old.metadata))) {
+    throw new Error(i18n_t("error_metadata_line_duplicated"));
+  }
   if (old) {
     if (
       (old.type === SCRIPT_TYPE_NORMAL && script.type !== SCRIPT_TYPE_NORMAL) ||
       (script.type === SCRIPT_TYPE_NORMAL && old.type !== SCRIPT_TYPE_NORMAL)
     ) {
       throw new Error(i18n_t("error_script_type_mismatch"));
-    }
-    if (
-      options?.byEditor &&
-      script.metadata?.grant?.includes("none") &&
-      script.metadata?.grant?.some((s: string) => s.startsWith("GM")) &&
-      !(old.metadata?.grant?.includes("none") && old.metadata?.grant?.some((s: string) => s.startsWith("GM")))
-    ) {
-      throw new Error(i18n_t("error_grant_conflict"));
     }
     const {
       id,

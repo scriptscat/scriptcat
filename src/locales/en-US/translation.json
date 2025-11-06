@@ -498,6 +498,7 @@
   "error_old_script_code_missing": "Previous script code not found",
   "error_subscribe_name_required": "Subscription name is required",
   "error_grant_conflict": "@grant declares both 'none' and GM API",
+  "error_metadata_line_duplicated": "There are duplicate declarations in the metadata.",
   "notification": {
     "script_sync_delete": "Script Sync Delete",
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",

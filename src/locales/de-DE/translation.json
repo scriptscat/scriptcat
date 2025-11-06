@@ -497,6 +497,7 @@
   "error_old_script_code_missing": "Alter Skriptcode nicht gefunden",
   "error_subscribe_name_required": "Abonnementname ist erforderlich",
   "error_grant_conflict": "@grant deklariert sowohl 'none' als auch GM API",
+  "error_metadata_line_duplicated": "In den Metadaten befinden sich doppelte Deklarationen.",
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",

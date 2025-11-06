@@ -490,6 +490,7 @@
   "error_old_script_code_missing": "Không tìm thấy mã script cũ",
   "error_subscribe_name_required": "Tên đăng ký là bắt buộc",
   "error_grant_conflict": "@grant khai báo đồng thời 'none' và GM API",
+  "error_metadata_line_duplicated": "Có các khai báo trùng lặp trong metadata.",
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
