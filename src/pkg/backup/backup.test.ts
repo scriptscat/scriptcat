@@ -1,26 +1,28 @@
 import JSZip from "jszip";
 import BackupExport from "./export";
-import BackupImport from "./import";
+import { parseBackupZipFile } from "./utils";
 import type { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
-describe("backup", () => {
-  const zipFile = new JSZip();
-  const fs = new ZipFileSystem(zipFile);
-  it("empty", async () => {
+describe.concurrent("backup", () => {
+  it.concurrent("empty", async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
     await new BackupExport(fs).export({
       script: [],
       subscribe: [],
     });
-    const resp = await new BackupImport(fs).parse();
+    const resp = await parseBackupZipFile(zipFile);
     expect(resp).toEqual({
       script: [],
       subscribe: [],
     });
   });
 
-  it("export and import script", async () => {
+  it.concurrent("export and import script - basic", async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
         {
@@ -102,10 +104,268 @@ describe("backup", () => {
     expect(data.script[0].storage.data.num).toEqual("n1");
     expect(data.script[0].storage.data.str).toEqual("sdata");
     expect(data.script[0].storage.data.bool).toEqual("bfalse");
-    const resp = await new BackupImport(fs).parse();
+    const resp = await parseBackupZipFile(zipFile);
     data.script[0].storage.data.num = 1;
     data.script[0].storage.data.str = "data";
     data.script[0].storage.data.bool = false;
+    expect(resp).toEqual(data);
+  });
+
+  it.concurrent("export and import script - name and version only", async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const data: BackupData = {
+      script: [
+        {
+          code: `// ==UserScript==
+          // @name         New Userscript
+          // @version      1
+          // ==/UserScript==
+          
+          console.log('hello world')`,
+          options: {
+            options: {},
+            meta: {
+              name: "test",
+              modified: 1,
+              file_url: "",
+            },
+            settings: {
+              enabled: true,
+              position: 1,
+            },
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: 1,
+            data: {
+              num: 1,
+              str: "data",
+              bool: false,
+            },
+          },
+        },
+      ],
+      subscribe: [],
+    } as unknown as BackupData;
+    await new BackupExport(fs).export(data);
+    expect(data.script[0].storage.data.num).toEqual("n1");
+    expect(data.script[0].storage.data.str).toEqual("sdata");
+    expect(data.script[0].storage.data.bool).toEqual("bfalse");
+    const resp = await parseBackupZipFile(zipFile);
+    data.script[0].storage.data.num = 1;
+    data.script[0].storage.data.str = "data";
+    data.script[0].storage.data.bool = false;
+    expect(resp).toEqual(data);
+  });
+
+  it.concurrent("export and import script - 2 scripts", async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const data: BackupData = {
+      script: [
+        {
+          code: `// ==UserScript==
+          // @name         New Userscript 1
+          // @version      1
+          // ==/UserScript==
+          
+          console.log('hello world')`,
+          options: {
+            options: {},
+            meta: {
+              name: "test01", // 不能重复
+              modified: 1,
+              file_url: "",
+            },
+            settings: {
+              enabled: true,
+              position: 1,
+            },
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: 1,
+            data: {
+              num: 1,
+              str: "data",
+              bool: false,
+            },
+          },
+        },
+        {
+          code: `// ==UserScript==
+          // @name         New Userscript 2
+          // @version      1
+          // ==/UserScript==
+          
+          console.log('hello world')`,
+          options: {
+            options: {},
+            meta: {
+              name: "test02", // 不能重复
+              modified: 1,
+              file_url: "",
+            },
+            settings: {
+              enabled: true,
+              position: 1,
+            },
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: 1,
+            data: {},
+          },
+        },
+      ],
+      subscribe: [],
+    } as unknown as BackupData;
+    await new BackupExport(fs).export(data);
+    expect(data.script[0].storage.data.num).toEqual("n1");
+    expect(data.script[0].storage.data.str).toEqual("sdata");
+    expect(data.script[0].storage.data.bool).toEqual("bfalse");
+    const resp = await parseBackupZipFile(zipFile);
+    data.script[0].storage.data.num = 1;
+    data.script[0].storage.data.str = "data";
+    data.script[0].storage.data.bool = false;
+    expect(resp).toEqual(data);
+  });
+
+  it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
+    const zipFile = new JSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const data: BackupData = {
+      script: Array.from({ length: 30 }, (v, i) => {
+        return {
+          code: `// ==UserScript==
+          // @name         New Userscript ${i}
+          // @version      1
+          // ==/UserScript==
+          
+          console.log('hello world')`,
+          options: {
+            options: {},
+            meta: {
+              name: `test_${i}`, // 不能重复
+              modified: 1,
+              file_url: "",
+            },
+            settings: {
+              enabled: true,
+              position: 1,
+            },
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: 1,
+            data: {},
+          },
+        };
+      }),
+      subscribe: Array.from({ length: 20 }, (v, i) => {
+        return {
+          source: `// ==UserSubscribe==
+          // @name         New Usersubscribe
+          // @namespace    https://bbs.tampermonkey.net.cn/
+          // @version      0.1.0
+          // @description  try to take over the world!
+          // @author       You
+          // ==/UserSubscribe==
+          
+          console.log('hello world')`,
+          options: {
+            meta: {
+              name: `test_${i}`, // 不能重复
+              modified: 1,
+              url: "",
+            },
+          },
+        };
+      }),
+    } as unknown as BackupData;
+    await new BackupExport(fs).export(data);
+    const resp = await parseBackupZipFile(zipFile);
     expect(resp).toEqual(data);
   });
 });

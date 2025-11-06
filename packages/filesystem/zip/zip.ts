@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
 import type { File, FileReader, FileWriter } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import { ZipFileReader, ZipFileWriter } from "./rw";
@@ -9,8 +9,8 @@ export default class ZipFileSystem implements FileSystem {
   basePath: string;
 
   // zip为空时，创建一个空的zip
-  constructor(zip?: JSZip, basePath?: string) {
-    this.zip = zip || new JSZip();
+  constructor(zip: JSZip, basePath?: string) {
+    this.zip = zip;
     this.basePath = basePath || "";
   }
 
@@ -45,16 +45,17 @@ export default class ZipFileSystem implements FileSystem {
 
   async list(): Promise<File[]> {
     const files: File[] = [];
-    Object.keys(this.zip.files).forEach((key) => {
+    for (const [filename, details] of Object.entries(this.zip.files)) {
+      const time = details.date.getTime();
       files.push({
-        name: key,
-        path: key,
+        name: filename,
+        path: filename,
         size: 0,
         digest: "",
-        createtime: this.zip.files[key].date.getTime(),
-        updatetime: this.zip.files[key].date.getTime(),
+        createtime: time,
+        updatetime: time,
       });
-    });
+    }
     return files;
   }
 
