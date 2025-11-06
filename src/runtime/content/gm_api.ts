@@ -776,7 +776,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   GM_setClipboard(
     data: string,
-    info?: string | { type?: string; minetype?: string }
+    info?: string | { type?: string; mimetype?: string }
   ) {
     return this.sendMessage("GM_setClipboard", [data, info]);
   }

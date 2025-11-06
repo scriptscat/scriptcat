@@ -168,7 +168,7 @@ declare function GM_updateNotification(
 
 declare function GM_setClipboard(
   data: string,
-  info?: string | { type?: string; minetype?: string }
+  info?: string | { type?: string; mimetype?: string }
 ): void;
 
 declare function GM_addElement(tag: string, attribubutes: any);
