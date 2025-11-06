@@ -1555,30 +1555,6 @@ export default class GMApi {
       }
     );
 
-    // chrome.declarativeNetRequest.updateSessionRules({
-    //   removeRuleIds: [9001],
-    //   addRules: [
-    //     {
-    //       id: 9001,
-    //       action: {
-    //         type: "modifyHeaders",
-    //         requestHeaders: [
-    //           {
-    //             header: "X-SC-Request-Marker",
-    //             operation: "remove",
-    //           },
-    //         ],
-    //       },
-    //       priority: 1,
-    //       condition: {
-    //         resourceTypes: ["xmlhttprequest"],
-    //         // 不要指定 requestMethods。 这个DNR是对所有后台发出的xhr请求, 即使它是 HEAD，DELETE，也要捕捉
-    //         tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
-    //       },
-    //     },
-    //   ],
-    // });
-
     chrome.webRequest.onBeforeRedirect.addListener(
       (details) => {
         const lastError = chrome.runtime.lastError;
