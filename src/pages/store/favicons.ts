@@ -3,11 +3,11 @@ import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_FAVICON } from "@App/app/cache_key";
 import { FaviconDAO, type FaviconFile, type FaviconRecord } from "@App/app/repo/favicon";
 import { v5 as uuidv5 } from "uuid";
-import { getFaviconFolder } from "@App/app/service/service_worker/utils";
+import { getFaviconRootFolder } from "@App/app/service/service_worker/utils";
 
 let scriptDAO: ScriptDAO | null = null;
 let faviconDAO: FaviconDAO | null = null;
-const blobCaches = new Map<string, string>();
+const loadFaviconPromises = new Map<string, any>(); // 关联 iconUrl 和 blobUrl
 
 /**
  * 从URL模式中提取域名
@@ -220,37 +220,39 @@ export const getScriptFavicon = async (uuid: string): Promise<FaviconRecord[]> =
   return faviconRecords;
 };
 
-// 加载favicon并缓存到OPFS
-export const loadFavicon = ({ uuid, url }: { uuid: string; url: string }): Promise<FaviconFile> => {
-  // 根据url缓存，防止重复下载
-  return cacheInstance.tx(`favicon-url:${url}`, async (val: FaviconFile | undefined, tx) => {
-    if (val) {
-      return val;
-    }
-    const directoryHandle = await getFaviconFolder(uuid);
-    // 使用url的uuid作为文件名
-    const filename = uuidv5(url, uuidv5.URL);
-    // 检查文件是否存在
-    let fileHandle: FileSystemFileHandle | undefined;
-    try {
-      fileHandle = await directoryHandle.getFileHandle(filename);
-    } catch {
-      // 文件不存在，继续往下走
-    }
-    if (!fileHandle) {
-      // 文件不存在，下载并保存
-      const newFileHandle = await directoryHandle.getFileHandle(filename, { create: true });
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const writable = await newFileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-    }
-    // 返回对象OPFS資料
-    const ret = { dirs: ["cached_favicons", uuid], filename: filename };
-    tx.set(ret);
-    return ret;
-  });
+// 加载favicon并缓存到OPFS (blobUrl结果在SW活跃时保持在loadFaviconPromises)
+export const loadFavicon = async (iconUrl: string): Promise<string> => {
+  const directoryHandle = await getFaviconRootFolder();
+  // 使用url的uuid作为文件名
+  const filename = `icon_${uuidv5(iconUrl, uuidv5.URL)}.dat`;
+  try {
+    const sessionBlobUrl = await cacheInstance.get<string>(`${CACHE_KEY_FAVICON}${filename}`);
+    if (sessionBlobUrl) return sessionBlobUrl;
+  } catch {
+    // 即使报错也不影响
+  }
+  // 检查文件是否存在
+  let fileHandle: FileSystemFileHandle | undefined;
+  try {
+    fileHandle = await directoryHandle.getFileHandle(filename);
+  } catch {
+    // 文件不存在，继续往下走
+  }
+  if (!fileHandle) {
+    // 文件不存在，下载并保存
+    const newFileHandle = await directoryHandle.getFileHandle(filename, { create: true });
+    const response = await fetch(iconUrl);
+    const blob = await response.blob();
+    const writable = await newFileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  }
+  // OPFS 文件信息
+  const opfsRet = { dirs: ["cached_favicons"], filename: filename };
+  const file = await getFileFromOPFS(opfsRet);
+  const blobUrl = URL.createObjectURL(file);
+  cacheInstance.set(`${CACHE_KEY_FAVICON}${filename}`, blobUrl); // 不用等待。针对SW重启 - blobURL 的生命周期依附于页面
+  return blobUrl;
 };
 
 const getFileFromOPFS = async (opfsRet: FaviconFile): Promise<File> => {
@@ -265,39 +267,39 @@ const getFileFromOPFS = async (opfsRet: FaviconFile): Promise<File> => {
 
 // 处理单个脚本的favicon
 const processScriptFavicon = async (script: Script) => {
-  const cacheKey = `${CACHE_KEY_FAVICON}${script.uuid}`;
+  const favFnAsync = async () => {
+    const icons = await getScriptFavicon(script.uuid); // 恒久。不会因SW重启而失效
+    if (icons.length === 0) return [];
+    const newIcons = await Promise.all(
+      icons.map(async (icon) => {
+        let iconUrl = "";
+        if (icon.icon) {
+          try {
+            const iconWebUrl = icon.icon;
+            let loadFaviconPromise = loadFaviconPromises.get(iconWebUrl);
+            if (!loadFaviconPromise) {
+              // SW重启的话，再次 loadFavicon 时，直接返回 sessionBlobUrl
+              loadFaviconPromise = loadFavicon(iconWebUrl);
+              loadFaviconPromises.set(iconWebUrl, loadFaviconPromise);
+            }
+            const blobUrl = await loadFaviconPromise;
+            iconUrl = blobUrl;
+          } catch (_) {
+            // ignored
+          }
+        }
+        return {
+          match: icon.match,
+          website: icon.website,
+          icon: iconUrl,
+        };
+      })
+    );
+    return newIcons;
+  };
   return {
     uuid: script.uuid,
-    fav: await cacheInstance.getOrSet(cacheKey, async () => {
-      const icons = await getScriptFavicon(script.uuid);
-      if (icons.length === 0) return [];
-
-      const newIcons = await Promise.all(
-        icons.map(async (icon) => {
-          let iconUrl = "";
-          if (icon.icon) {
-            try {
-              const opfsRet = await loadFavicon({ uuid: script.uuid, url: icon.icon });
-              const cacheKey = `${opfsRet.dirs.join("/")}/${opfsRet.filename}`;
-              iconUrl = blobCaches.get(cacheKey) || "";
-              if (!iconUrl) {
-                const file = await getFileFromOPFS(opfsRet);
-                iconUrl = URL.createObjectURL(file);
-                blobCaches.set(cacheKey, iconUrl);
-              }
-            } catch (_) {
-              // ignored
-            }
-          }
-          return {
-            match: icon.match,
-            website: icon.website,
-            icon: iconUrl,
-          };
-        })
-      );
-      return newIcons;
-    }),
+    fav: await favFnAsync(),
   };
 };
 

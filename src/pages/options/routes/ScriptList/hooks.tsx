@@ -46,6 +46,7 @@ import { useTranslation } from "react-i18next";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
 import { Message } from "@arco-design/web-react";
+import { cacheInstance } from "@App/app/cache";
 
 export function useScriptList() {
   const { t } = useTranslation();
@@ -61,24 +62,27 @@ export function useScriptList() {
       if (!mounted) return;
       setScriptList(list);
       setLoadingList(false);
-      for await (const { chunkResults } of loadScriptFavicons(list)) {
+      cacheInstance.tx("faviconOPFSControl", async () => {
         if (!mounted) return;
-        setScriptList((list) => {
-          const scriptMap = new Map<string, ScriptLoading>();
-          for (const s of list) {
-            scriptMap.set(s.uuid, s);
-          }
-          const altered = new Set();
-          for (const item of chunkResults) {
-            const script = scriptMap.get(item.uuid);
-            if (script) {
-              altered.add(item.uuid);
-              script.favorite = item.fav;
+        for await (const { chunkResults } of loadScriptFavicons(list)) {
+          if (!mounted) return;
+          setScriptList((list) => {
+            const scriptMap = new Map<string, ScriptLoading>();
+            for (const s of list) {
+              scriptMap.set(s.uuid, s);
             }
-          }
-          return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
-        });
-      }
+            const altered = new Set();
+            for (const item of chunkResults) {
+              const script = scriptMap.get(item.uuid);
+              if (script) {
+                altered.add(item.uuid);
+                script.favorite = item.fav;
+              }
+            }
+            return list.map((entry) => (altered.has(entry.uuid) ? { ...entry } : entry));
+          });
+        }
+      });
     });
     return () => {
       mounted = false;
