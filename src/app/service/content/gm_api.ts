@@ -103,6 +103,12 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   public setInvalidContext!: () => void;
 
+  @GMContext.protected()
+  public readFreshes: Set<{ updatetime: number; resolveFn: any }> | undefined;
+
+  @GMContext.protected()
+  valueDaoUpdatetime: number | undefined;
+
   // 单次回调使用
   @GMContext.protected()
   public async sendMessage(api: string, params: any[]) {
@@ -143,9 +149,9 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   public valueUpdate(data: ValueUpdateDataEncoded) {
-    if (!this.scriptRes || !this.valueChangeListener) return;
+    if (!this.scriptRes) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
+    const { id, uuid, entries, storageName, sender, valueUpdated, updatetime } = data;
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
@@ -167,8 +173,20 @@ class GM_Base implements IGM_Base {
           } else {
             valueStore[key] = value;
           }
-          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+          this.valueChangeListener?.execute(key, oldValue, value, remote, sender.tabId);
         }
+      }
+      if (updatetime) {
+        const readFreshes = this.readFreshes;
+        if (readFreshes) {
+          for (const entry of readFreshes) {
+            if (updatetime >= entry.updatetime) {
+              readFreshes.delete(entry);
+              entry.resolveFn();
+            }
+          }
+        }
+        this.valueDaoUpdatetime = updatetime;
       }
     }
   }
@@ -224,6 +242,29 @@ export default class GMApi extends GM_Base {
     );
   }
 
+  static async waitForFreshValueState(a: GMApi): Promise<void> {
+    // 读取前没有任何 valueUpdate 的话，valueDaoUpdatetime 为 undefined
+    // valueDaoUpdatetime 需透过 valueUpdate 提供
+    if (!a.valueDaoUpdatetime) {
+      const keyName = `__forceUpdateTimeRefresh::${Math.random()}__`;
+      // 删一个不存在的 key 触发 valueDaoUpdatetime 设置
+      await new Promise((resolve) => {
+        _GM_setValue(a, resolve, keyName, undefined);
+      });
+    }
+    const updatetime = await a.sendMessage("GM_waitForFreshValueState", [true]);
+    if (updatetime && a.valueDaoUpdatetime && a.valueDaoUpdatetime < updatetime) {
+      // 未同步至最新状态，先等待
+      return new Promise((resolve) => {
+        a.readFreshes ||= new Set();
+        a.readFreshes.add({
+          updatetime: updatetime,
+          resolveFn: resolve,
+        });
+      });
+    }
+  }
+
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
@@ -242,9 +283,8 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public ["GM.getValue"](key: string, defaultValue?: any): Promise<any> {
     // 兼容GM.getValue
-    return new Promise((resolve) => {
-      const ret = _GM_getValue(this, key, defaultValue);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return _GM_getValue(this, key, defaultValue);
     });
   }
 
@@ -339,10 +379,10 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public ["GM.listValues"](): Promise<string[]> {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
-    return new Promise((resolve) => {
-      if (!this.scriptRes) return resolve([]);
+    return waitForFreshValueState(this).then(() => {
+      if (!this.scriptRes) return [];
       const keys = Object.keys(this.scriptRes.value);
-      resolve(keys);
+      return keys;
     });
   }
 
@@ -386,9 +426,8 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_getValues"] })
   public ["GM.getValues"](keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
     if (!this.scriptRes) return new Promise<TGMKeyValue>(() => {});
-    return new Promise((resolve) => {
-      const ret = this.GM_getValues(keysOrDefaults);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return this.GM_getValues(keysOrDefaults);
     });
   }
 
@@ -574,7 +613,7 @@ export default class GMApi extends GM_Base {
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   menuIdCounter: number | undefined;
 
-  // 菜单注冊累计器 - 用於穩定同一Tab不同frame之選項的單獨項目不合併狀態
+  // 菜单注册累计器 - 用于稳定同一Tab不同frame之选项的单独项目不合并状态
   // 每个 contentEnvKey（执行环境）初始化时会重设；不持久化、只保证当前环境内递增唯一。
   regMenuCounter: number | undefined;
 
@@ -1420,4 +1459,4 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;
+const { waitForFreshValueState, _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_xmlhttpRequest } = GMApi;

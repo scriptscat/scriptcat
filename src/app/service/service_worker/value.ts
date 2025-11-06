@@ -72,10 +72,11 @@ export class ValueService {
     let oldValue;
     // 使用事务来保证数据一致性
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+    let updatetime = 0;
     const valueUpdated = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      const now = Date.now();
       if (!valueModel) {
-        const now = Date.now();
         valueModel = {
           uuid: script.uuid,
           storageName: storageName,
@@ -88,6 +89,7 @@ export class ValueService {
         // 值没有发生变化, 不进行操作
         oldValue = dataModel[key];
         if (oldValue === value) {
+          updatetime = valueModel.updatetime;
           return false;
         }
         dataModel = { ...dataModel }; // 每次储存使用新参考
@@ -96,9 +98,11 @@ export class ValueService {
         } else {
           dataModel[key] = value;
         }
+        valueModel.updatetime = now;
         valueModel.data = dataModel; // 每次储存使用新参考
       }
       await this.valueDAO.save(storageName, valueModel);
+      updatetime = valueModel.updatetime;
       return true;
     });
     this.pushValueToTab({
@@ -108,9 +112,28 @@ export class ValueService {
       storageName,
       sender,
       valueUpdated,
+      updatetime,
     } as ValueUpdateDataEncoded);
     // valueUpdate 消息用于 early script 的处理
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
+  }
+
+  async waitForFreshValueState(uuid: string, _sender: ValueUpdateSender) {
+    // 查询出脚本
+    const script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    // 查询老的值
+    const storageName = getStorageName(script);
+    // 使用事务来保证数据一致性
+    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+    const ret = await stackAsyncTask<Value | undefined>(cacheKey, async () => {
+      const valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      // await this.valueDAO.save(storageName, valueModel);
+      return valueModel;
+    });
+    return ret?.updatetime || 0;
   }
 
   // 推送值到tab
@@ -165,10 +188,11 @@ export class ValueService {
     let oldValueRecord: { [key: string]: any } = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const entries = [] as [string, any, any][];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    let updatetime = 0;
+    await stackAsyncTask<void>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      const now = Date.now();
       if (!valueModel) {
-        const now = Date.now();
         valueModel = {
           uuid: script.uuid,
           storageName: storageName,
@@ -203,11 +227,16 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
+        if (!changed) {
+          updatetime = valueModel.updatetime;
+          return;
+        }
+        valueModel.updatetime = now;
         valueModel.data = dataModel; // 每次储存使用新参考
       }
       await this.valueDAO.save(storageName, valueModel);
-      return true;
+      updatetime = valueModel.updatetime;
+      return;
     });
     // 推送到所有加载了本脚本的tab中
     const valueUpdated = entries.length > 0;
@@ -218,6 +247,7 @@ export class ValueService {
       storageName,
       sender,
       valueUpdated,
+      updatetime,
     } as ValueUpdateDataEncoded);
     // valueUpdate 消息用于 early script 的处理
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });

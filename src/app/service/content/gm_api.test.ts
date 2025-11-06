@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import ExecScript from "./exec_script";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "./types";
@@ -107,6 +107,40 @@ describe.concurrent("window.*", () => {
 });
 
 describe.concurrent("GM Api", () => {
+  const valueDaoUpdatetimeFix = (
+    mockSendMessage: Mock<(...args: any[]) => any>,
+    exec: ExecScript,
+    script: ScriptLoadInfo
+  ) => {
+    const forceUpdateTimeRefreshIdx = mockSendMessage.mock.calls.findIndex((entry) => {
+      const p1 = entry?.[0]?.data?.params[1];
+      return typeof p1 === "string" && p1?.match(/__forceUpdateTimeRefresh::0\.\d+__/);
+    });
+    if (forceUpdateTimeRefreshIdx >= 0) {
+      const actualCall = mockSendMessage.mock.calls[forceUpdateTimeRefreshIdx][0];
+      expect(mockSendMessage).toHaveBeenNthCalledWith(
+        forceUpdateTimeRefreshIdx + 1,
+        expect.objectContaining({
+          action: "content/runtime/gmApi",
+          data: {
+            api: "GM_setValue",
+            params: [expect.stringMatching(/^.+::\d+$/), expect.stringMatching(/__forceUpdateTimeRefresh::0\.\d+__/)],
+            runFlag: expect.any(String),
+            uuid: undefined,
+          },
+        })
+      );
+      exec.valueUpdate({
+        id: actualCall.data.params[0],
+        entries: encodeMessage([[actualCall.data.params[1], undefined, undefined]]),
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+        valueUpdated: false,
+        updatetime: Date.now(),
+      });
+    }
+  };
   it.concurrent("GM_getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
@@ -123,10 +157,15 @@ describe.concurrent("GM Api", () => {
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
     script.code = `return GM.getValue("test").then(v=>v+"!");`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    valueDaoUpdatetimeFix(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret).toEqual("ok!");
   });
 
@@ -163,10 +202,15 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    valueDaoUpdatetimeFix(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret).toEqual("test1-test2-test3");
   });
 
@@ -179,10 +223,15 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    valueDaoUpdatetimeFix(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
   });
 
@@ -212,10 +261,15 @@ describe.concurrent("GM Api", () => {
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
-    // @ts-ignore
-    const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, "content", mockMessage, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    valueDaoUpdatetimeFix(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
@@ -493,7 +547,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -519,7 +573,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -570,7 +624,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -596,7 +650,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValue",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             "b",
           ],
@@ -641,7 +695,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the object payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -667,7 +721,7 @@ describe.concurrent("GM_value", () => {
           api: "GM_setValues",
           params: [
             // event id
-            expect.stringMatching(/^.+::\d$/),
+            expect.stringMatching(/^.+::\d+$/),
             // the string payload
             expect.objectContaining({
               k: expect.stringMatching(/^##[\d.]+##$/),
@@ -715,6 +769,7 @@ describe.concurrent("GM_value", () => {
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     const ret = await retPromise;
     expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
@@ -750,6 +805,7 @@ describe.concurrent("GM_value", () => {
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
@@ -785,6 +841,7 @@ describe.concurrent("GM_value", () => {
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
 
     const ret = await retPromise;

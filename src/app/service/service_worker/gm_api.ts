@@ -331,6 +331,21 @@ export default class GMApi {
     return true;
   }
 
+  @PermissionVerify.API({
+    default: true,
+  })
+  async GM_waitForFreshValueState(request: GMApiRequest<[boolean]>, sender: IGetSender) {
+    const param = request.params;
+    if (param.length !== 1) {
+      throw new Error("there must be one parameter");
+    }
+    const ret = await this.value.waitForFreshValueState(request.script.uuid, {
+      runFlag: request.runFlag,
+      tabId: sender.getSender()?.tab?.id || -1,
+    });
+    return ret;
+  }
+
   @PermissionVerify.API({ link: ["GM_deleteValue"] })
   async GM_setValue(request: GMApiRequest<[string, string, any?]>, sender: IGetSender) {
     if (!request.params || request.params.length < 2) {
