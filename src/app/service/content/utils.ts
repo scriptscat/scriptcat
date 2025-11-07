@@ -41,15 +41,15 @@ export function compileScriptCode(scriptRes: ScriptRunResource, scriptCode?: str
 
 export function compileScriptCodeByResource(resource: CompileScriptCodeResource): string {
   const sourceURL = `//# sourceURL=${chrome.runtime.getURL(`/${encodeURI(resource.name)}.user.js`)}`;
-  const requireCode = resource.require.map((r) => r.content).join("\n");
-  const preCode = [requireCode].join("\n"); // 不需要 async 封装
+  const requireCode = resource.require.map((r) => r.content).join("\n;");
+  const preCode = requireCode; // 不需要 async 封装
   const code = [resource.code, sourceURL].join("\n"); // 需要 async 封装, 可top-level await
   // context 和 name 以unnamed arguments方式导入。避免代码能直接以变量名存取
   // this = context: globalThis
   // arguments = [named: Object, scriptName: string]
-  // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用於全域拦截context
+  // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在UserScripts API中，由於执行不是在物件导向裡呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
   return `try {
   with(arguments[0]||this.$){
 ${preCode}
