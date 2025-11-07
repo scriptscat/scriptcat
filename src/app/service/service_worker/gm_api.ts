@@ -1610,10 +1610,10 @@ export default class GMApi {
     );
     const reqOpt: OnBeforeSendHeadersOptions[] = ["requestHeaders"];
     const respOpt: OnHeadersReceivedOptions[] = ["responseHeaders"];
-    // if (!isFirefox()) {
-    reqOpt.push("extraHeaders");
-    respOpt.push("extraHeaders");
-    // }
+    if (!isFirefox()) {
+      reqOpt.push("extraHeaders");
+      respOpt.push("extraHeaders");
+    }
 
     chrome.webRequest.onErrorOccurred.addListener(
       (details) => {
