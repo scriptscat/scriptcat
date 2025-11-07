@@ -49,14 +49,14 @@ describe.concurrent("extractSchemesOfGlobs", () => {
     expect(extractSchemesOfGlobs(["https://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["http://www.google.com/a?b*c*"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["https://*google.com/*"])).toEqual(["*://*/*"]);
-    // 預設包含 *://*/*
+    // 预设包含 *://*/*
     expect(extractSchemesOfGlobs(["file:///mydrive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
     expect(extractSchemesOfGlobs(["file:///my?ive/t*.html"])).toEqual(["*://*/*", "file:///*"]);
     // 其他scheme
     expect(extractSchemesOfGlobs(["my-protocol://hello/world/t_?*.html"])).toEqual(["*://*/*", "my-protocol://*/*"]);
     expect(extractSchemesOfGlobs(["tcp://hello/world/t_?*.html"])).toEqual(["*://*/*", "tcp://*/*"]);
     expect(extractSchemesOfGlobs(["ab://hello/world/t_?*.html"])).toEqual(["*://*/*", "ab://*/*"]);
-    // 無視無效scheme
+    // 无视无效scheme
     expect(extractSchemesOfGlobs(["myl*://hello/world/t_?*.html"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["my?l//hello/world/t_?*.html"])).toEqual(["*://*/*"]);
     expect(extractSchemesOfGlobs(["*m?yl//hello/world/t_?*.html"])).toEqual(["*://*/*"]);
@@ -80,7 +80,7 @@ describe.concurrent("extractSchemesOfGlobs", () => {
     expect(extractSchemesOfGlobs(["my-place://mydrive/*", "www.abc.com/*"]).sort()).toEqual(
       ["my-place://*/*", "*://*/*"].sort()
     );
-    // 3個不重覆 (file:///)
+    // 3个不重复 (file:///)
     expect(
       extractSchemesOfGlobs(["https://www.abc.com/*", "file:///mydrive/*", "http://www.def.com/*"]).sort()
     ).toEqual(["file:///*", "*://*/*"].sort());
@@ -98,7 +98,7 @@ describe.concurrent("extractSchemesOfGlobs", () => {
       ]).sort()
     ).toEqual(["file:///*", "*://*/*"].sort());
 
-    // 3個不重覆 (my-path://)
+    // 3个不重复 (my-path://)
     expect(
       extractSchemesOfGlobs(["https://www.abc.com/*", "my-path://mydrive/*", "http://www.def.com/*"]).sort()
     ).toEqual(["my-path://*/*", "*://*/*"].sort());
@@ -265,7 +265,7 @@ describe.concurrent("getApiMatchesAndGlobs-1 （基础测试）", () => {
     expect(includeGlobs).toEqual([]);
   });
   it.concurrent("match2", () => {
-    // 由於 *hello* ，故要 match 全部页面
+    // 由于 *hello* ，故要 match 全部页面
     const scriptUrlPatterns = extractUrlPatterns(["@include *hello*"]);
     const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptUrlPatterns);
 
@@ -274,7 +274,7 @@ describe.concurrent("getApiMatchesAndGlobs-1 （基础测试）", () => {
   });
 
   it.concurrent("match3", () => {
-    // 由於 *hello* ，故要 match 全部页面
+    // 由于 *hello* ，故要 match 全部页面
     const scriptUrlPatterns = extractUrlPatterns([
       "@match http://google.com/*",
       "@match https://google.com/*",
@@ -287,7 +287,7 @@ describe.concurrent("getApiMatchesAndGlobs-1 （基础测试）", () => {
   });
 
   it.concurrent("match4", () => {
-    // 由於 *hello* ，故要 match 全部页面
+    // 由于 *hello* ，故要 match 全部页面
     // @match 有 file:/// ，故追加 file:///* 至match
     const scriptUrlPatterns = extractUrlPatterns([
       "@match http://google.com/*",
@@ -425,7 +425,7 @@ describe.concurrent("getApiMatchesAndGlobs-2 （实际例子测试）", () => {
 });
 
 describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
-  it.concurrent("标準match格式", () => {
+  it.concurrent("标准match格式", () => {
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -559,7 +559,7 @@ describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
 
   it.concurrent("[B2] regex转换成*://*/* (match only)", () => {
     // /live\\.bilibili\\.com/ 可匹配 123live.bilibili.com, www.live.bilibili.com, myhome.com/live.bilibili.com
-    // 相对於 (1) ，regex为较简单，glob部份不需转换
+    // 相对于 (1) ，regex为较简单，glob部份不需转换
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.bilibili.com/video/*",
       "// @include         *://www.bilibili.com/list/*",
@@ -790,7 +790,7 @@ describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
   });
 
   it.concurrent("[F1] 混合 regex/glob pattern & file scheme 测试解析正确性", () => {
-    // 由於regex pattern 而fallback至全部页面
+    // 由于regex pattern 而fallback至全部页面
     // 含有 file:///，追加 "file:///*"
     const scriptUrlPatterns = extractUrlPatterns([
       "// @include         *://www.google.com/video/*",
