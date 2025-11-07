@@ -1059,38 +1059,78 @@ export default class GMApi {
             },
             msgConn
           );
-          return;
+        } else if (typeof XMLHttpRequest === "function") {
+          // No offscreen in Firefox, but Firefox background script itself provides XMLHttpRequest.
+          // Firefox 中没有 offscreen，但 Firefox 的"后台脚本"本身提供了 XMLHttpRequest。
+          bgXhrInterface(
+            param1,
+            {
+              get finalUrl() {
+                return resultParam.finalUrl;
+              },
+              get responseHeaders() {
+                return resultParam.responseHeaders;
+              },
+              get status() {
+                return resultParam.statusCode;
+              },
+              loadendCleanUp() {
+                loadendCleanUp();
+              },
+              async fixMsg(
+                msg: TMessageCommAction<{
+                  finalUrl: any;
+                  responseHeaders: any;
+                  readyState: 0 | 1 | 2 | 3 | 4;
+                  status: number;
+                  statusText: string;
+                  useFetch: boolean;
+                  eventType: string;
+                  ok: boolean;
+                  contentType: string;
+                  error: string | undefined;
+                }>
+              ) {
+                // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
+                if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
+                  resultParamStatusCode = msg.data.status;
+                }
+              },
+            },
+            msgConn
+          );
+        } else {
+          // 再发送到offscreen, 处理请求
+          const offscreenCon = await connect(this.msgSender, "offscreen/gmApi/xmlHttpRequest", param1);
+          offscreenCon.onMessage((msg) => {
+            // 发送到content
+            let data = msg.data;
+            // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
+            if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
+              resultParamStatusCode = msg.data.status;
+            }
+            data = {
+              ...data,
+              finalUrl: resultParam.finalUrl, // 替换finalUrl
+              responseHeaders: resultParam.responseHeaders || data.responseHeaders || "", // 替换msg.data.responseHeaders
+              status: resultParam.statusCode || data.statusCode || data.status,
+            };
+            msg = {
+              action: msg.action,
+              data: data,
+            } as TMessageCommAction;
+            if (msg.action === "onloadend") {
+              loadendCleanUp();
+            }
+            if (!isConnDisconnected) {
+              msgConn.sendMessage(msg);
+            }
+          });
+          msgConn.onDisconnect(() => {
+            // 关闭连接
+            offscreenCon.disconnect();
+          });
         }
-        // 再发送到offscreen, 处理请求
-        const offscreenCon = await connect(this.msgSender, "offscreen/gmApi/xmlHttpRequest", param1);
-        offscreenCon.onMessage((msg) => {
-          // 发送到content
-          let data = msg.data;
-          // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
-          if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
-            resultParamStatusCode = msg.data.status;
-          }
-          data = {
-            ...data,
-            finalUrl: resultParam.finalUrl, // 替换finalUrl
-            responseHeaders: resultParam.responseHeaders || data.responseHeaders || "", // 替换msg.data.responseHeaders
-            status: resultParam.statusCode || data.statusCode || data.status,
-          };
-          msg = {
-            action: msg.action,
-            data: data,
-          } as TMessageCommAction;
-          if (msg.action === "onloadend") {
-            loadendCleanUp();
-          }
-          if (!isConnDisconnected) {
-            msgConn.sendMessage(msg);
-          }
-        });
-        msgConn.onDisconnect(() => {
-          // 关闭连接
-          offscreenCon.disconnect();
-        });
       };
 
       // stackAsyncTask 是为了 chrome.webRequest.onBeforeRequest 能捕捉当前 XHR 的 id
