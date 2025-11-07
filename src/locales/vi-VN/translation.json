@@ -441,9 +441,9 @@
   "custom_eslint_rules_config": "Cấu hình quy tắc eslint tùy chỉnh (định dạng json)",
   "light": "Sáng",
   "dark": "Tối",
-  "individual_edit": "Chỉnh sửa riêng lẻ",
+  "individual_edit": "Chỉnh sửa cá nhân",
   "batch_edit": "Chỉnh sửa hàng loạt",
-  "script_code": "Mã script",
+  "script_code": "Mã kịch bản",
   "enter_search_value": "Nhập {{search}} để tìm kiếm",
   "script_run_env": {
     "title": "Môi trường chạy",

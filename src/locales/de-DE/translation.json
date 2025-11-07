@@ -448,8 +448,8 @@
   "custom_eslint_rules_config": "Benutzerdefinierte ESLint-Regelkonfiguration (JSON-Format)",
   "light": "Heller Modus",
   "dark": "Dunkler Modus",
-  "individual_edit": "Einzeln bearbeiten",
-  "batch_edit": "Bulk edit",
+  "individual_edit": "Einzelbearbeitung",
+  "batch_edit": "Stapelbearbeitung",
   "script_code": "Skriptcode",
   "enter_search_value": "Bitte geben Sie {{search}} für die Suche ein",
   "script_run_env": {

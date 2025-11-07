@@ -449,9 +449,9 @@
   "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）",
   "light": "淺色模式",
   "dark": "暗色模式",
-  "individual_edit": "单独编辑",
+  "individual_edit": "單獨編輯",
   "batch_edit": "批量編輯",
-  "script_code": "脚本代码",
+  "script_code": "腳本代碼",
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "script_run_env": {
     "title": "運作環境",
@@ -498,7 +498,7 @@
   "error_old_script_code_missing": "舊的腳本程式碼不存在",
   "error_subscribe_name_required": "訂閱名稱不可為空",
   "error_grant_conflict": "@grant 同時宣告了 none 與 GM API",
-  "error_metadata_line_duplicated": "Metadata 裡有重覆的聲明。",
+  "error_metadata_line_duplicated": "Metadata 裡有重複的聲明。",
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
