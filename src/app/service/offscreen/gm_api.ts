@@ -2,6 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { IGetSender, Group } from "@Packages/message/server";
 import type { MessageConnect } from "@Packages/message/types";
+import { mightPrepareSetClipboard, setClipboard } from "../service_worker/clipboard";
 
 export default class GMApi {
   logger: Logger = LoggerCore.logger().with({ service: "gmApi" });
@@ -179,32 +180,12 @@ export default class GMApi {
     });
   }
 
-  textarea: HTMLTextAreaElement = document.createElement("textarea");
-
-  clipboardData: { type?: string; data: string } | undefined;
-
-  async setClipboard({ data, type }: { data: string; type: string }) {
-    this.clipboardData = {
-      type,
-      data,
-    };
-    this.textarea.focus();
-    document.execCommand("copy", false, <any>null);
+  async setClipboard({ data, mimetype }: { data: string; mimetype: string }) {
+    setClipboard(data, mimetype);
   }
 
   init() {
-    this.textarea.style.display = "none";
-    document.documentElement.appendChild(this.textarea);
-    document.addEventListener("copy", (e: ClipboardEvent) => {
-      if (!this.clipboardData || !e.clipboardData) {
-        return;
-      }
-      e.preventDefault();
-      const { type, data } = this.clipboardData;
-      e.clipboardData.setData(type || "text/plain", data);
-      this.clipboardData = undefined;
-    });
-
+    mightPrepareSetClipboard();
     this.group.on("xmlHttpRequest", this.xmlHttpRequest.bind(this));
     this.group.on("setClipboard", this.setClipboard.bind(this));
   }
