@@ -266,6 +266,26 @@ export function getBrowserType() {
   return o;
 }
 
+export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
+  params: T,
+  fallbackFn?: (params: T) => string | Promise<string>
+): Promise<string> | string => {
+  if (typeof URL?.createObjectURL !== "function") {
+    // 在service worker中，透过 offscreen 取得 blob URL
+    if (!fallbackFn) throw new Error("URL.createObjectURL is not supported");
+    return fallbackFn(params);
+  } else {
+    const url = URL.createObjectURL(params.blob);
+    if (!params.persistence) {
+      // 如果不是持久化的，则在1分钟后释放
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    }
+    return url;
+  }
+};
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();

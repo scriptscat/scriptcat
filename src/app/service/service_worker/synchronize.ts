@@ -18,7 +18,7 @@ import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
 import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
 import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
-import { errorMsg, InfoNotification } from "@App/pkg/utils/utils";
+import { errorMsg, InfoNotification, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { type ScriptService } from "./script";
@@ -240,11 +240,11 @@ export class SynchronizeService {
 
   // 请求导出文件
   async requestExport(uuids?: string[]) {
-    const zip = new JSZip();
-    const fs = new ZipFileSystem(zip);
+    const jszip = new JSZip();
+    const fs = new ZipFileSystem(jszip);
     await this.backup(fs, uuids);
     // 生成文件,并下载
-    const files = await zip.generateAsync({
+    const zipOutput = await jszip.generateAsync({
       type: "blob",
       compression: "DEFLATE",
       compressionOptions: {
@@ -252,7 +252,9 @@ export class SynchronizeService {
       },
       comment: "Created by Scriptcat",
     });
-    const url = await createObjectURL(this.msgSender, files);
+    const url = await makeBlobURL({ blob: zipOutput, persistence: false }, (params) =>
+      createObjectURL(this.msgSender, params)
+    );
     chrome.downloads.download({
       url,
       saveAs: true,
@@ -264,8 +266,8 @@ export class SynchronizeService {
   // 备份到云端
   async backupToCloud({ type, params }: { type: FileSystemType; params: any }) {
     // 首先生成zip文件
-    const zip = new JSZip();
-    const fs = new ZipFileSystem(zip);
+    const jszip = new JSZip();
+    const fs = new ZipFileSystem(jszip);
     await this.backup(fs);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
@@ -276,7 +278,7 @@ export class SynchronizeService {
       // 云端文件系统写入文件
       const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
-        await zip.generateAsync({
+        await jszip.generateAsync({
           type: "blob",
           compression: "DEFLATE",
           compressionOptions: {
