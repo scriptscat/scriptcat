@@ -1,5 +1,5 @@
 let textareaDOM: HTMLTextAreaElement | undefined;
-let customClipboardData: any;
+let customClipboardData: { mimetype: string; data: string } | undefined;
 
 // 抽出成独立处理。日后有需要可以改成 chrome API
 export const setClipboard = (data: string, mimetype: string) => {
