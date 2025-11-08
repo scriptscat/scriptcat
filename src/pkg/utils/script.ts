@@ -148,7 +148,9 @@ export async function prepareScriptByCode(
     try {
       nextTime(metadata.crontab[0]);
     } catch (e) {
-      throw new Error(i18n_t("error_cron_invalid", { expr: metadata.crontab[0] }));
+      throw new Error(
+        i18n_t("error_cron_invalid", { expr: metadata.crontab[0] })
+      );
     }
   } else if (metadata.background !== undefined) {
     type = SCRIPT_TYPE_BACKGROUND;
@@ -198,19 +200,29 @@ export async function prepareScriptByCode(
   if (!old && (!uuid || override)) {
     old = await dao.findByNameAndNamespace(script.name, script.namespace);
   }
-  const hasGrantConflict = (metadata: SCMetadata | undefined | null) =>
-    metadata?.grant?.includes("none") && metadata?.grant?.some((s: string) => s.startsWith("GM"));
-  const hasDuplicatedMetaline = (metadata: SCMetadata | undefined | null) => {
-    if (metadata) {
-      for (const list of Object.values(metadata)) {
+  const hasGrantConflict = (meta: SCMetadata | undefined | null) =>
+    meta?.grant?.includes("none") &&
+    meta?.grant?.some((s: string) => s.startsWith("GM"));
+  const hasDuplicatedMetaline = (meta: SCMetadata | undefined | null) => {
+    if (meta) {
+      for (const list of Object.values(meta)) {
         if (list && new Set(list).size !== list.length) return true;
       }
     }
+    return false;
   };
-  if (options?.byEditor && hasGrantConflict(script.metadata) && (!old || !hasGrantConflict(old.metadata))) {
+  if (
+    options?.byEditor &&
+    hasGrantConflict(script.metadata) &&
+    (!old || !hasGrantConflict(old.metadata))
+  ) {
     throw new Error(i18n_t("error_grant_conflict"));
   }
-  if (options?.byEditor && hasDuplicatedMetaline(script.metadata) && (!old || !hasDuplicatedMetaline(old.metadata))) {
+  if (
+    options?.byEditor &&
+    hasDuplicatedMetaline(script.metadata) &&
+    (!old || !hasDuplicatedMetaline(old.metadata))
+  ) {
     throw new Error(i18n_t("error_metadata_line_duplicated"));
   }
   if (old) {
