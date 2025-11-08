@@ -180,8 +180,8 @@ export default class GMApi {
     });
   }
 
-  async setClipboard({ data, type }: { data: string; type: string }) {
-    setClipboard(data, type);
+  async setClipboard({ data, mimetype }: { data: string; mimetype: string }) {
+    setClipboard(data, mimetype);
   }
 
   init() {

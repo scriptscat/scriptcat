@@ -2,12 +2,12 @@ let textareaDOM: HTMLTextAreaElement | undefined;
 let customClipboardData: any;
 
 // 抽出成独立处理。日后有需要可以改成 chrome API
-export const setClipboard = (data: string, type: GMTypes.GMClipboardInfo) => {
+export const setClipboard = (data: string, mimetype: string) => {
   if (!textareaDOM) {
     throw new Error("mightPrepareSetClipboard shall be called first.");
   }
   customClipboardData = {
-    type,
+    mimetype,
     data,
   };
   textareaDOM!.focus();

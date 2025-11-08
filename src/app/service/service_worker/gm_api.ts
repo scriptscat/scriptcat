@@ -1169,15 +1169,14 @@ export default class GMApi {
   }
 
   @PermissionVerify.API()
-  async GM_setClipboard(request: GMApiRequest<[string, GMTypes.GMClipboardInfo?]>, _sender: IGetSender) {
-    const [data, type] = request.params;
-    const clipboardType = type || "text/plain";
+  async GM_setClipboard(request: GMApiRequest<[string, string]>, _sender: IGetSender) {
+    const [data, mimetype] = request.params;
     if (typeof document === "object") {
       // FF background script
       mightPrepareSetClipboard();
-      setClipboard(data, clipboardType);
+      setClipboard(data, mimetype);
     } else {
-      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, mimetype });
     }
   }
 
