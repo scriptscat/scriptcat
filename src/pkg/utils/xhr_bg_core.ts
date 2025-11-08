@@ -1,5 +1,3 @@
-// console.log('streaming ' + (GM_xmlhttpRequest.RESPONSE_TYPE_STREAM === 'stream' ? 'supported' : 'not supported');
-
 import { dataDecode } from "./xhr_data";
 
 /**
@@ -21,8 +19,8 @@ import { dataDecode } from "./xhr_data";
  * | `data` | `string \| Blob \| File \| Object \| Array \| FormData \| URLSearchParams` | Data to send with POST/PUT requests. |
  * | `redirect` | `"follow" \| "error" \| "manual"` | How redirects are handled. |
  * | `cookie` | `string` | Additional cookie to include with the request. |
- * | `cookiePartition` | `object` | (v5.2+) Cookie partition key. |
- * | `topLevelSite` | `string` | Top frame site for partitioned cookies. |
+ * | `cookiePartition` | `object` | (TM5.2+) Cookie partition key. |
+ * | `cookiePartition.topLevelSite` | `string` | (TM5.2+) Top frame site for partitioned cookies. |
  * | `binary` | `boolean` | Sends data in binary mode. |
  * | `nocache` | `boolean` | Prevents caching of the resource. |
  * | `revalidate` | `boolean` | Forces cache revalidation. |
@@ -324,7 +322,7 @@ export class FetchXHR {
     }
 
     try {
-      const opts = {
+      const opts: RequestInit = {
         method: this.method,
         headers: this.headers,
         body: this.body,
@@ -629,22 +627,6 @@ export class FetchXHR {
  * @param settings Control
  */
 export const bgXhrRequestFn = async <T = any>(details: XmlhttpRequestFnDetails<T>, settings: any) => {
-  /*
-
-
-
-cookie a cookie to be patched into the sent cookie set
-cookiePartition v5.2+ object?, containing the partition key to be used for sent and received partitioned cookies
-topLevelSite string?, representing the top frame site for partitioned cookies
-
-  binary send the data string in binary mode
-nocache don't cache the resource
-revalidate revalidate maybe cached content
-
-
-context a property which will be added to the response object
-
-*/
   details.data = dataDecode(details.data as any);
   if (details.data === undefined) delete details.data;
 
@@ -659,7 +641,8 @@ context a property which will be added to the response object
   let xhrResponseType: "arraybuffer" | "text" | "" = "";
 
   const useFetch = isFetch || !!redirect || anonymous || isBufferStream;
-  // console.log("useFetch", isFetch, !!redirect, anonymous, isBufferStream);
+
+  const isNoCache = !!details.nocache;
 
   const prepareXHR = async () => {
     let rawData = (details.data = await details.data);
@@ -668,13 +651,19 @@ context a property which will be added to the response object
 
     const baseXHR = useFetch
       ? new FetchXHR({
-          extraOptsFn: (opts: Record<any, any>) => {
+          extraOptsFn: (opts: RequestInit) => {
             if (redirect) {
               opts.redirect = redirect;
             }
             if (anonymous) {
               opts.credentials = "omit"; // ensures no cookies or auth headers are sent
               // opts.referrerPolicy = "no-referrer"; // https://javascript.info/fetch-api
+            }
+            // details for nocache and revalidate shall refer to the following issue:
+            // https://github.com/Tampermonkey/tampermonkey/issues/962
+            if (isNoCache) {
+              // 除了传统的 "Cache-Control", 在浏览器fetch API层面也做一做处理
+              opts.cache = "no-store";
             }
           },
           isBufferStream,
@@ -803,6 +792,8 @@ context a property which will be added to the response object
       }
     }
 
+    // details for nocache and revalidate shall refer to the following issue:
+    // https://github.com/Tampermonkey/tampermonkey/issues/962
     if (details.nocache) {
       // Never cache anything (always fetch new)
       //

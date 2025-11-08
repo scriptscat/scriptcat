@@ -713,114 +713,6 @@ export default class GMApi {
     return true;
   }
 
-  // dealFetch(
-  //   config: GMSend.XHRDetails,
-  //   response: Response,
-  //   readyState: 0 | 1 | 2 | 3 | 4,
-  //   resultParam?: RequestResultParams
-  // ) {
-  //   let respHeader = "";
-  //   response.headers.forEach((value, key) => {
-  //     respHeader += `${key}: ${value}\n`;
-  //   });
-  //   const respond: GMTypes.XHRResponse = {
-  //     finalUrl: response.url || config.url,
-  //     readyState,
-  //     status: response.status,
-  //     statusText: response.statusText,
-  //     responseHeaders: respHeader,
-  //     responseType: config.responseType,
-  //   };
-  //   if (resultParam) {
-  //     respond.status = respond.status || resultParam.statusCode;
-  //     respond.responseHeaders = resultParam.responseHeaders || respond.responseHeaders;
-  //   }
-  //   return respond;
-  // }
-
-  // CAT_fetch(config: GMSend.XHRDetails, con: IGetSender, resultParam: RequestResultParams) {
-  //   const { url } = config;
-  //   const msgConn = con.getConnect();
-  //   if (!msgConn) {
-  //     throw new Error("CAT_fetch ERROR: msgConn is undefinded");
-  //   }
-  //   return fetch(url, {
-  //     method: config.method || "GET",
-  //     body: <any>config.data,
-  //     headers: config.headers,
-  //     redirect: config.redirect,
-  //     signal: config.timeout ? AbortSignal.timeout(config.timeout) : undefined,
-  //   }).then((resp) => {
-  //     let send = this.dealFetch(config, resp, 1);
-  //     switch (resp.type) {
-  //       case "opaqueredirect":
-  //         // 处理manual重定向
-  //         msgConn.sendMessage({
-  //           action: "onloadstart",
-  //           data: send,
-  //         });
-  //         send = this.dealFetch(config, resp, 2, resultParam);
-  //         msgConn.sendMessage({
-  //           action: "onreadystatechange",
-  //           data: send,
-  //         });
-  //         send.readyState = 4;
-  //         msgConn.sendMessage({
-  //           action: "onreadystatechange",
-  //           data: send,
-  //         });
-  //         msgConn.sendMessage({
-  //           action: "onload",
-  //           data: send,
-  //         });
-  //         msgConn.sendMessage({
-  //           action: "onloadend",
-  //           data: send,
-  //         });
-  //         return;
-  //     }
-  //     const reader = resp.body?.getReader();
-  //     if (!reader) {
-  //       throw new Error("read is not found");
-  //     }
-  //     const readData = ({ done, value }: { done: boolean; value?: Uint8Array }) => {
-  //       if (done) {
-  //         const data = this.dealFetch(config, resp, 4, resultParam);
-  //         data.responseHeaders = resultParam.responseHeaders || data.responseHeaders;
-  //         msgConn.sendMessage({
-  //           action: "onreadystatechange",
-  //           data: data,
-  //         });
-  //         msgConn.sendMessage({
-  //           action: "onload",
-  //           data: data,
-  //         });
-  //         msgConn.sendMessage({
-  //           action: "onloadend",
-  //           data: data,
-  //         });
-  //       } else {
-  //         msgConn.sendMessage({
-  //           action: "onstream",
-  //           data: Array.from(value!),
-  //         });
-  //         reader.read().then(readData);
-  //       }
-  //     };
-  //     reader.read().then(readData);
-  //     send.responseHeaders = resultParam.responseHeaders || send.responseHeaders;
-  //     msgConn.sendMessage({
-  //       action: "onloadstart",
-  //       data: send,
-  //     });
-  //     send.readyState = 2;
-  //     msgConn.sendMessage({
-  //       action: "onreadystatechange",
-  //       data: send,
-  //     });
-  //   });
-  // }
-
   @PermissionVerify.API({
     confirm: async (request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender, GMApiInstance: GMApi) => {
       const config = <GMSend.XHRDetails>request.params[0];
@@ -952,11 +844,19 @@ export default class GMApi {
       throw throwErrorFn(msg);
     }
     try {
-      // 先处理unsafe hearder
+      /*
+        There are TM-specific parameters:
+          - cookie a cookie to be patched into the sent cookie set
+          - cookiePartition object?, containing the partition key to be used for sent and received partitioned cookies
+                topLevelSite string?, representing the top frame site for partitioned cookies
+        The ScriptCat implementation for cookie, cookiePartition, cookiePartition.topLevelSite are limited.
+      */
 
       // 处理cookiePartition
       // 详见 https://github.com/scriptscat/scriptcat/issues/392
       // https://github.com/scriptscat/scriptcat/commit/3774aa3acebeadb6b08162625a9af29a9599fa96
+      // cookiePartition shall refers to the following issue:
+      // https://github.com/Tampermonkey/tampermonkey/issues/2419
       if (!param1.cookiePartition || typeof param1.cookiePartition !== "object") {
         param1.cookiePartition = {};
       }
@@ -965,7 +865,7 @@ export default class GMApi {
         param1.cookiePartition.topLevelSite = undefined;
       }
 
-      // 添加请求header
+      // 添加请求header, 处理unsafe hearder
       await this.buildDNRRule(markerID, param1, sender);
       // let finalUrl = "";
       // 等待response
@@ -997,8 +897,6 @@ export default class GMApi {
       const f = async () => {
         if (useFetch) {
           // 只有fetch支持ReadableStream、redirect这些，直接使用fetch
-          // return this.CAT_fetch(param1, sender, resultParam);
-
           bgXhrInterface(
             param1,
             {
