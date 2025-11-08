@@ -5,6 +5,7 @@ import { newMockXhr } from "mock-xmlhttprequest";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import GMApi from "@App/app/service/content/gm_api";
+import { toCamelCase } from "@App/pkg/utils/utils";
 
 describe("测试GMApi环境", async () => {
   const msg = initTestGMApi();
@@ -49,5 +50,25 @@ describe("测试GMApi环境", async () => {
     });
     expect(onload).toBeCalled();
     expect(onload.mock.calls[0][0]).toBe("example");
+  });
+});
+
+describe("测试工具函数", () => {
+  describe("toCamelCase", () => {
+    it("应当将蛇形命名转换为驼峰命名", () => {
+      expect(toCamelCase("cloud_sync")).toBe("CloudSync");
+      expect(toCamelCase("cat_file_storage")).toBe("CatFileStorage");
+      expect(toCamelCase("enable_eslint")).toBe("EnableEslint");
+      expect(toCamelCase("eslint_config")).toBe("EslintConfig");
+    });
+
+    it("应当正确处理单词配置键", () => {
+      expect(toCamelCase("language")).toBe("Language");
+    });
+
+    it("应当正确处理多下划线配置键", () => {
+      expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
+      expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
+    });
   });
 });
