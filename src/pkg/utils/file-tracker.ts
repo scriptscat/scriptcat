@@ -18,7 +18,7 @@ const callback = async (records: FileSystemChangeRecord[], observer: FileSystemO
         if (!isSame) continue;
         // 调用安装
         const file = await root.getFile();
-        // 避免重覆更新
+        // 避免重复更新
         if (ftInfo.lastModified === file.lastModified) continue;
         ftInfo.lastModified = file.lastModified;
         const code = await file.text();

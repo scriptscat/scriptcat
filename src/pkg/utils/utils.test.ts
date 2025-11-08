@@ -1,29 +1,34 @@
-import { describe, expect, it } from "vitest";
-import { checkSilenceUpdate, cleanFileName, stringMatching } from "./utils";
+import { describe, expect, it, beforeAll } from "vitest";
+import { checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
 
 describe.concurrent("nextTime", () => {
   const date = new Date(1737275107000);
-  it.concurrent("每分钟表达式", () => {
+  // 让程序先执行一下，避免超时问题
+  beforeAll(() => {
+    nextTime("* * * * *");
+    dayjs(date);
+  });
+  it.sequential("每分钟表达式", () => {
     expect(nextTime("* * * * *", date)).toEqual(dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm:00"));
   });
-  it.concurrent("每分钟一次表达式", () => {
+  it.sequential("每分钟一次表达式", () => {
     expect(nextTime("once * * * *", date)).toEqual(
       dayjs(date).add(1, "minute").format("YYYY-MM-DD HH:mm 每分钟运行一次")
     );
   });
-  it.concurrent("每小时一次表达式", () => {
+  it.sequential("每小时一次表达式", () => {
     expect(nextTime("* once * * *", date)).toEqual(dayjs(date).add(1, "hour").format("YYYY-MM-DD HH 每小时运行一次"));
   });
-  it.concurrent("每天一次表达式", () => {
+  it.sequential("每天一次表达式", () => {
     expect(nextTime("* * once * *", date)).toEqual(dayjs(date).add(1, "day").format("YYYY-MM-DD 每天运行一次"));
   });
-  it.concurrent("每月一次表达式", () => {
+  it.sequential("每月一次表达式", () => {
     expect(nextTime("* * * once *", date)).toEqual(dayjs(date).add(1, "month").format("YYYY-MM 每月运行一次"));
   });
-  it.concurrent("每星期一次表达式", () => {
+  it.sequential("每星期一次表达式", () => {
     expect(nextTime("* * * * once", date)).toEqual(dayjs(date).add(1, "week").format("YYYY-MM-DD 每星期运行一次"));
   });
 });
@@ -324,5 +329,23 @@ describe.concurrent("stringMatching", () => {
       expect(stringMatching("file.txt", "file.*")).toBe(true);
       expect(stringMatching("user@domain.com", "user@*")).toBe(true);
     });
+  });
+});
+
+describe.concurrent("toCamelCase", () => {
+  it.concurrent("应当将蛇形命名转换为驼峰命名", () => {
+    expect(toCamelCase("cloud_sync")).toBe("CloudSync");
+    expect(toCamelCase("cat_file_storage")).toBe("CatFileStorage");
+    expect(toCamelCase("enable_eslint")).toBe("EnableEslint");
+    expect(toCamelCase("eslint_config")).toBe("EslintConfig");
+  });
+
+  it.concurrent("应当正确处理单词配置键", () => {
+    expect(toCamelCase("language")).toBe("Language");
+  });
+
+  it.concurrent("应当正确处理多下划线配置键", () => {
+    expect(toCamelCase("editor_type_definition")).toBe("EditorTypeDefinition");
+    expect(toCamelCase("script_list_column_width")).toBe("ScriptListColumnWidth");
   });
 });

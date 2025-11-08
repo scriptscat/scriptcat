@@ -482,9 +482,9 @@
   "custom_eslint_rules_config": "自訂 ESLint 規則設定（JSON 格式）",
   "light": "淺色模式",
   "dark": "暗色模式",
-  "individual_edit": "单独编辑",
+  "individual_edit": "單獨編輯",
   "batch_edit": "批量編輯",
-  "script_code": "脚本代码",
+  "script_code": "腳本代碼",
   "enter_search_value": "請輸入 {{search}} 進行搜尋",
   "script_run_env": {
     "title": "運作環境",

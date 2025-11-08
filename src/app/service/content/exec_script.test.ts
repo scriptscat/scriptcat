@@ -387,10 +387,16 @@ describe("沙盒环境测试", async () => {
   });
   // https://github.com/xcanwin/KeepChatGPT 环境隔离得不够干净导致的
   it.concurrent("[兼容问题] Uncaught TypeError: Illegal invocation #189", () => {
-    return new Promise((resolve) => {
-      console.log(_this.setTimeoutForTest.prototype);
-      _this.setTimeoutForTest(resolve, 100);
+    // setTimeout 和 setTimeoutForTest 都測試吧
+    const promise1 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeoutForTest(resolve, 1);
     });
+    const promise2 = new Promise((resolve) => {
+      console.log(_this.setTimeout.prototype);
+      _this.setTimeout(resolve, 1);
+    });
+    expect(Promise.all([promise1, promise2]).then(() => "ok")).resolves.toBe("ok");
   });
   // AC-baidu-重定向优化百度搜狗谷歌必应搜索_favicon_双列
   it.concurrent("[兼容问题] TypeError: Object.freeze is not a function #116", () => {
@@ -448,10 +454,11 @@ describe("沙盒环境测试", async () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     script.code = `const str = "12345";
 const reg = /(123)/;
-str.match(reg);`;
+return [str.match(reg), RegExp.$1];`;
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    await exec.exec();
-    expect(RegExp.$1).toEqual("123");
+    const ret = await exec.exec();
+    expect(ret?.[0][1]).toEqual("123");
+    expect(ret?.[1]).toEqual("123");
   });
   it.concurrent("沙盒之间不应该共享变量", async () => {
     const script = Object.assign({}, scriptRes2) as ScriptLoadInfo;

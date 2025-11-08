@@ -119,7 +119,7 @@ function App() {
         });
 
         // 刷新 timestamp, 使 10s~15s 后不会被立即清掉
-        // 每五分鐘刷新一次db记录的timestamp，使开啟中的安装页面的fileHandle不会被刷掉
+        // 每五分钟刷新一次db记录的timestamp，使开启中的安装页面的fileHandle不会被刷掉
         intervalExecution(`${cIdKey}liveFileHandle`, () => saveHandle(fid, fileHandle), 5 * 60 * 1000, true);
 
         const code = await file.text();
@@ -164,10 +164,10 @@ function App() {
       Message.error(t("script_info_load_failed") + " " + e.message);
     } finally {
       // fileHandle 保留处理方式（暂定）：
-      // fileHandle 会保留一段足够时间，避免用户重新刷画面，重啟瀏览器等操作后，安装页变得空白一片。
+      // fileHandle 会保留一段足够时间，避免用户重新刷画面，重启浏览器等操作后，安装页变得空白一片。
       // 处理会在所有Tab都载入后（不包含睡眠Tab）进行，因此延迟 10s~15s 让处理有足够时间。
-      // 安装页面关掉后15分鐘为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
-      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免瀏览器重啟时大量Tabs同时执行DB清除
+      // 安装页面关掉后15分钟为不保留状态，会在安装画面再次打开时（其他脚本安装），进行清除。
+      const delay = Math.floor(5000 * Math.random()) + 10000; // 使用乱数时间避免浏览器重启时大量Tabs同时执行DB清除
       timeoutExecution(`${cIdKey}cleanupFileHandle`, cleanupOldHandles, delay);
     }
   };
@@ -454,7 +454,7 @@ function App() {
     }
     // 去除React特性
     const [handle] = [localFileHandle];
-    unmountFileTrack(handle); // 避免重覆追踪
+    unmountFileTrack(handle); // 避免重复追踪
     const uuid = scriptInfo?.uuid;
     const fileName = handle?.name;
     if (!uuid || !fileName) {
