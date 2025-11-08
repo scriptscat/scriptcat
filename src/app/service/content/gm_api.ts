@@ -1335,7 +1335,7 @@ export default class GMApi extends GM_Base {
     if (this.isInvalidContext()) return;
     // 物件参数意义不明。日后再检视特殊处理
     // 未支持 TM4.19+ application/octet-stream
-    // 參考： https://github.com/Tampermonkey/tampermonkey/issues/1250
+    // 参考： https://github.com/Tampermonkey/tampermonkey/issues/1250
     let mimetype: string | undefined;
     if (typeof info === "object" && info?.mimetype) {
       mimetype = info.mimetype;
