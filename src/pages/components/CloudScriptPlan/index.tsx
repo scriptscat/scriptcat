@@ -4,6 +4,7 @@ import { ExportDAO } from "@App/app/repo/export";
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptCodeDAO } from "@App/app/repo/scripts";
 import { localePath } from "@App/locales/locales";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 import { Button, Checkbox, Form, Input, Message, Modal, Select } from "@arco-design/web-react";
 import { IconQuestionCircleFill } from "@arco-design/web-react/icon";
 import type { ExportParams } from "@Packages/cloudscript/cloudscript";
@@ -129,7 +130,7 @@ const CloudScriptPlan: React.FC<{
           }
           cloudScript.exportCloud(script, code.code, values, cookies);
           // 生成文件,并下载
-          const files = await jszip.generateAsync({
+          const zipOutput = await jszip.generateAsync({
             type: "blob",
             compression: "DEFLATE",
             compressionOptions: {
@@ -137,10 +138,7 @@ const CloudScriptPlan: React.FC<{
             },
             comment: "Created by Scriptcat",
           });
-          const url = URL.createObjectURL(files);
-          setTimeout(() => {
-            URL.revokeObjectURL(url);
-          }, 30 * 1000);
+          const url = makeBlobURL({ blob: zipOutput, persistence: false }) as string;
           chrome.downloads.download({
             url,
             saveAs: true,

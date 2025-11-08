@@ -7,6 +7,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { ScriptExecutor } from "./script_executor";
 import { isInjectIntoContent } from "./utils";
 import { RuntimeClient } from "../service_worker/client";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 // content页的处理
 export default class ContentRuntime {
@@ -49,10 +50,7 @@ export default class ContentRuntime {
         switch (data.api) {
           case "CAT_createBlobUrl": {
             const file = data.params[0] as File;
-            const url = URL.createObjectURL(file);
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-            }, 60 * 1000);
+            const url = makeBlobURL({ blob: file, persistence: false }) as string;
             return url;
           }
           case "CAT_fetchBlob": {

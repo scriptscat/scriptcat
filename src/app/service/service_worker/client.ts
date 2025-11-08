@@ -23,6 +23,7 @@ import { type VSCodeConnect } from "../offscreen/vscode-connect";
 import type { GMInfoEnv } from "../content/types";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -349,10 +350,7 @@ export class SynchronizeClient extends Client {
 
   async openImportWindow(filename: string, file: File | Blob) {
     // 打开导入窗口，用cache实现数据交互
-    const url = URL.createObjectURL(file);
-    // setTimeout(() => {
-    //   URL.revokeObjectURL(url);
-    // }, 60 * 1000);
+    const url = makeBlobURL({ blob: file, persistence: true }) as string;
     const uuid = uuidv4();
     const cacheKey = `${CACHE_KEY_IMPORT_FILE}${uuid}`;
     await cacheInstance.set(cacheKey, {
