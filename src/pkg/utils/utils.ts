@@ -268,7 +268,7 @@ export function getBrowserType() {
 
 export const makeBlobURL = <T extends { blob: Blob; persistence: boolean }>(
   params: T,
-  fallbackFn?: (params: T) => any
+  fallbackFn?: (params: T) => string | Promise<string>
 ): Promise<string> | string => {
   if (typeof URL?.createObjectURL !== "function") {
     // 在service worker中，透过 offscreen 取得 blob URL
