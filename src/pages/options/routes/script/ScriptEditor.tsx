@@ -205,7 +205,7 @@ function ScriptEditor() {
   ): Promise<Script> => {
     // 解析code生成新的script并更新
     return new Promise((resolve) => {
-      prepareScriptByCode(e.getValue(), script.origin || "", script.uuid)
+      prepareScriptByCode(e.getValue(), script.origin || "", script.uuid, false, scriptDAO, { byEditor: true })
         .then((prepareScript) => {
           const newScript = prepareScript.script;
           scriptCtrl.upsert(newScript).then(

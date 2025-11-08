@@ -5,6 +5,8 @@
 // @description  try to take over the world!
 // @author       You
 // @match        {{match}}
+// @grant        none
+// @noframes
 // ==/UserScript==
 
 (function() {

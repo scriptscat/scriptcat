@@ -8,7 +8,7 @@ import { Script, ScriptDAO } from "@App/app/repo/scripts";
 import ValueManager from "@App/app/service/value/manager";
 import CacheKey from "@App/pkg/utils/cache_key";
 import { v4 as uuidv4 } from "uuid";
-import { base64ToBlob, getCurrentTab, isFirefox } from "@App/pkg/utils/utils";
+import { base64ToBlob, getCurrentTab, isFirefox, cleanFileName } from "@App/pkg/utils/utils";
 import Hook from "@App/app/service/hook";
 import IoC from "@App/app/ioc";
 import { SystemConfig } from "@App/pkg/config/config";
@@ -558,13 +558,15 @@ export default class GMApi {
   @PermissionVerify.API()
   GM_download(request: Request, channel: Channel) {
     const config = <GMTypes.DownloadDetails>request.params[0];
+    // 替换掉windows下文件名的非法字符为 -
+    const fileName = cleanFileName(config.name);
     // blob本地文件直接下载
     if (config.url.startsWith("blob:")) {
       chrome.downloads.download(
         {
           url: config.url,
           saveAs: config.saveAs,
-          filename: config.name,
+          filename: fileName,
         },
         () => {
           channel.send({ event: "onload" });
@@ -601,7 +603,7 @@ export default class GMApi {
       chrome.downloads.download({
         url,
         saveAs: config.saveAs,
-        filename: config.name,
+        filename: fileName,
       });
     };
     xhr.onerror = () => {
