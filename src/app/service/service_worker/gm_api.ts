@@ -33,6 +33,7 @@ import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import { createObjectURL } from "../offscreen/client";
+import { mightPrepareSetClipboard, setClipboard } from "./clipboard";
 
 // GMApi,处理脚本的GM API调用请求
 
@@ -1171,7 +1172,13 @@ export default class GMApi {
   async GM_setClipboard(request: GMApiRequest<[string, GMTypes.GMClipboardInfo?]>, _sender: IGetSender) {
     const [data, type] = request.params;
     const clipboardType = type || "text/plain";
-    await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+    if (typeof document === "object") {
+      // FF background script
+      mightPrepareSetClipboard();
+      setClipboard(data, clipboardType);
+    } else {
+      await sendMessage(this.msgSender, "offscreen/gmApi/setClipboard", { data, type: clipboardType });
+    }
   }
 
   @PermissionVerify.API()
