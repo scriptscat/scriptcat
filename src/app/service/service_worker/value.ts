@@ -15,6 +15,8 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { encodeMessage } from "@App/pkg/utils/message_value";
 import { isEarlyStartScript } from "../content/utils";
 
+let lastUpdateTime = 0;
+
 type ValueUpdateTaskInfo = {
   uuid: string;
   id: string;
@@ -156,7 +158,12 @@ export class ValueService {
       const entries = [] as [string, any, any][];
       const { uuid, values, removeNotProvided } = task;
       let oldValueRecord: { [key: string]: any } = {};
-      const now = Date.now();
+      let now = Date.now();
+      // 保证严格递增
+      if (lastUpdateTime >= now) {
+        now = lastUpdateTime + 0.0009765625; // 2^-10
+      }
+      lastUpdateTime = now;
       let newData;
       if (!valueModel) {
         const dataModel: { [key: string]: any } = {};
