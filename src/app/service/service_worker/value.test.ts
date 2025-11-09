@@ -399,88 +399,7 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
   });
 
-  it("应该正确处理并发访问的缓存键(1)", async () => {
-    // 这个测试验证 stackAsyncTask 的使用，确保相同 storageName 的操作不会冲突
-    const mockScript = createMockScript();
-    const mockSender = createMockValueSender();
-    const key1 = "key1";
-    const key2 = "key2";
-    const value1 = "value1";
-    const value2 = "value2";
-
-    // 配置mock返回值
-    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
-    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
-    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
-    expect(mockScriptDAO.get).toHaveBeenCalledTimes(0);
-    expect(mockValueDAO.save).toHaveBeenCalledTimes(0);
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(0);
-
-    // 并发执行两个setValue操作
-    await Promise.all([
-      valueService.setValues(mockScript.uuid, "testId-4041", { [key1]: value1 }, mockSender, false),
-      valueService.setValues(mockScript.uuid, "testId-4042", { [key2]: value2 }, mockSender, false),
-    ]);
-    await flush();
-
-    // 验证两个操作都被调用
-    expect(mockScriptDAO.get).toHaveBeenCalledTimes(2);
-    expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
-    expect(valueService.pushValueToTab).toHaveBeenCalledTimes(2);
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
-      1,
-      getStorageName(mockScript),
-      expect.objectContaining({
-        [mockScript.uuid]: [
-          expect.objectContaining({
-            entries: expect.objectContaining({
-              m: Array(1).fill(expect.anything()),
-            }),
-            id: "testId-4041",
-            sender: expect.objectContaining({
-              runFlag: expect.any(String),
-              tabId: expect.any(Number),
-            }),
-            storageName: getStorageName(mockScript),
-            uuid: mockScript.uuid,
-          }),
-        ],
-      })
-    );
-    expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(
-      2,
-      getStorageName(mockScript),
-      expect.objectContaining({
-        [mockScript.uuid]: [
-          expect.objectContaining({
-            entries: expect.objectContaining({
-              m: Array(1).fill(expect.anything()),
-            }),
-            id: "testId-4042",
-            sender: expect.objectContaining({
-              runFlag: expect.any(String),
-              tabId: expect.any(Number),
-            }),
-            storageName: getStorageName(mockScript),
-            uuid: mockScript.uuid,
-          }),
-        ],
-      })
-    );
-    expect(mockMessageQueue.emit).toHaveBeenCalledTimes(2);
-    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(
-      1,
-      "valueUpdate",
-      expectedValueUpdateEventEmit(mockScript, true)
-    );
-    expect(mockMessageQueue.emit).toHaveBeenNthCalledWith(
-      2,
-      "valueUpdate",
-      expectedValueUpdateEventEmit(mockScript, true)
-    );
-  });
-
-  it("应该正确处理并发访问的缓存键(2)", async () => {
+  it("应该正确处理并发访问的缓存键", async () => {
     // 这个测试验证 stackAsyncTask 的使用，确保相同 storageName 的操作不会冲突
     const mockScript = createMockScript();
     const mockSender = createMockValueSender();
@@ -513,6 +432,7 @@ describe("ValueService - setValue 方法测试", () => {
 
     // 验证两个操作都被调用
     expect(mockScriptDAO.get).toHaveBeenCalledTimes(2);
+    expect(mockValueDAO.get).toHaveBeenCalledTimes(1);
     expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueToTab).toHaveBeenNthCalledWith(

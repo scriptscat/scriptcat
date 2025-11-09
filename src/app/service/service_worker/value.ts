@@ -141,12 +141,12 @@ export class ValueService {
   }
 
   async setValuesByStorageName(storageName: string) {
-    let valueModel: Value | undefined = await this.valueDAO.get(storageName);
-    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const taskListRef = valueUpdateTasks.get(cacheKey);
+    const taskListRef = valueUpdateTasks.get(storageName);
     if (!taskListRef?.length) return;
+    let valueModel: Value | undefined = await this.valueDAO.get(storageName);
     const taskList = taskListRef.slice(0);
     taskListRef.length = 0;
+    valueUpdateTasks.delete(storageName);
     // ------ 读取 & 更新 ------
     let updatetime = 0;
     const listRetToTab: Record<string, ValueUpdateDataEncoded[]> = {};
@@ -264,28 +264,33 @@ export class ValueService {
     values: { [key: string]: any },
     sender: ValueUpdateSender,
     removeNotProvided: boolean
-  ) {
-    const script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    const storageName = getStorageName(script);
-    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    let taskList = valueUpdateTasks.get(cacheKey);
-    if (!taskList) {
-      valueUpdateTasks.set(cacheKey, (taskList = []));
-    }
-    taskList.push({
-      uuid,
-      id,
-      values,
-      sender,
-      removeNotProvided,
-      status: script.status,
-      isEarlyStart: isEarlyStartScript(script.metadata),
+  ): Promise<void> {
+    // stackAsyncTask 确保 setValues的 taskList阵列新增次序正确
+    let storageName: string;
+    let cacheKey: string;
+    await stackAsyncTask<void>("valueChangeOnSequence", async () => {
+      const script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
+      }
+      storageName = getStorageName(script);
+      cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+      let taskList = valueUpdateTasks.get(storageName);
+      if (!taskList) {
+        valueUpdateTasks.set(storageName, (taskList = []));
+      }
+      taskList.push({
+        uuid,
+        id,
+        values,
+        sender,
+        removeNotProvided,
+        status: script.status,
+        isEarlyStart: isEarlyStartScript(script.metadata),
+      });
     });
-
-    await stackAsyncTask<void>(cacheKey, () => this.setValuesByStorageName(storageName));
+    // valueDAO 次序依 storageName
+    await stackAsyncTask<void>(cacheKey!, () => this.setValuesByStorageName(storageName!));
   }
 
   setScriptValue({ uuid, key, value }: { uuid: string; key: string; value: any }, _sender: IGetSender) {
