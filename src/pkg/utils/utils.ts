@@ -23,6 +23,16 @@ export const aNow = () => {
   return now;
 };
 
+export const deferred = <T = void>() => {
+  let resolve!: (v: T | PromiseLike<T>) => void;
+  let reject!: (e?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
 export function isFirefox() {
   //@ts-ignore
   return typeof mozInnerScreenX !== "undefined";

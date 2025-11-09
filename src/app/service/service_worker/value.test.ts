@@ -13,24 +13,13 @@ import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { MessageQueue } from "@Packages/message/message_queue";
 import type { ValueUpdateSender } from "../content/types";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { deferred, getStorageName } from "@App/pkg/utils/utils";
 import { type TScriptValueUpdate } from "../queue";
 import { isEarlyStartScript } from "../content/utils";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 initTestEnv();
-
-/** 手动控制的 Promise（用于阻塞） */
-const deferred = <T = void>() => {
-  let resolve!: (v: T | PromiseLike<T>) => void;
-  let reject!: (e?: any) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-};
 
 const nextTick = () => Promise.resolve();
 const flush = async () => {

@@ -9,7 +9,7 @@ import type {
   TScriptMenuItemID,
   TScriptMenuItemKey,
 } from "../service_worker/types";
-import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
+import { base64ToBlob, deferred, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -21,6 +21,7 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "./listener_manager";
 import { decodeMessage, encodeMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 // 内部函数呼叫定义
 export interface IGM_Base {
@@ -47,6 +48,20 @@ const execEnvInit = (execEnv: GMApi) => {
   }
 };
 
+const emitToListener = (
+  a: GM_Base,
+  key: string,
+  oldValue: any,
+  value: any,
+  remote: boolean,
+  tabId: number | undefined
+) => {
+  stackAsyncTask("valueUpdateEventListenerEmit", () => {
+    // 不等待結果
+    a.valueChangeListener?.execute(key, oldValue, value, remote, tabId);
+  });
+};
+
 // GM_Base 定义内部用变量和函数。均使用@protected
 // 暂不考虑 Object.getOwnPropertyNames(GM_Base.prototype) 和 ts-morph 脚本生成
 class GM_Base implements IGM_Base {
@@ -66,7 +81,7 @@ class GM_Base implements IGM_Base {
 
   // Extension Context 无效时释放 valueChangeListener
   @GMContext.protected()
-  protected valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
+  public valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
 
   // Extension Context 无效时释放 EE
   @GMContext.protected()
@@ -153,6 +168,9 @@ class GM_Base implements IGM_Base {
     const scriptRes = this.scriptRes;
     let lastUpdateTime = 0;
     if (uuid == scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+      const hold = deferred();
+      // 避免立即 emit
+      stackAsyncTask("valueUpdateEventListenerEmit", () => hold.promise);
       for (const data of list) {
         const { id, entries, sender, updatetime } = data;
         const valueStore = scriptRes.value;
@@ -176,7 +194,9 @@ class GM_Base implements IGM_Base {
             } else {
               valueStore[key] = value;
             }
-            this.valueChangeListener?.execute(key, oldValue, value, remote, sender.tabId);
+            if (this.valueChangeListener) {
+              emitToListener(this, key, oldValue, value, remote, sender.tabId);
+            }
           }
         }
         if (updatetime) {
@@ -195,6 +215,7 @@ class GM_Base implements IGM_Base {
         }
         this.valueDaoUpdatetime = lastUpdateTime;
       }
+      hold.resolve(); // 放行 emit
     }
   }
 
@@ -449,7 +470,7 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  @GMContext.API()
+  @GMContext.API({ depend: ["GM_setValues"] })
   public GM_deleteValues(keys: string[]) {
     if (!this.scriptRes) return;
     if (!Array.isArray(keys)) {
@@ -464,7 +485,7 @@ export default class GMApi extends GM_Base {
   }
 
   // Asynchronous wrapper for GM.deleteValues
-  @GMContext.API({ depend: ["GM_deleteValues"] })
+  @GMContext.API({ depend: ["GM_setValues"] })
   public ["GM.deleteValues"](keys: string[]): Promise<void> {
     if (!this.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
