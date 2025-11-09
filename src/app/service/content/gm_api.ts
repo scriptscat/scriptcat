@@ -26,7 +26,7 @@ import { type TGMKeyValue } from "@App/app/repo/value";
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueUpdate(storageName: string, uuid: string, data: ValueUpdateDataEncoded[]): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -148,45 +148,52 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateDataEncoded) {
+  public valueUpdate(storageName: string, uuid: string, list: ValueUpdateDataEncoded[]) {
     if (!this.scriptRes) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated, updatetime } = data;
-    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
-      const valueStore = scriptRes.value;
-      const remote = sender.runFlag !== this.runFlag;
-      if (!remote && id) {
-        const fn = valueChangePromiseMap.get(id);
-        if (fn) {
-          valueChangePromiseMap.delete(id);
-          fn();
-        }
-      }
-      if (valueUpdated) {
-        const valueChanges = decodeMessage(entries);
-        for (const [key, value, oldValue] of valueChanges) {
-          // 触发,并更新值
-          if (value === undefined) {
-            if (valueStore[key] !== undefined) {
-              delete valueStore[key];
-            }
-          } else {
-            valueStore[key] = value;
+    let lastUpdateTime = 0;
+    if (uuid == scriptRes.uuid || storageName === getStorageName(scriptRes)) {
+      for (const data of list) {
+        const { id, entries, sender, updatetime } = data;
+        const valueStore = scriptRes.value;
+        const remote = sender.runFlag !== this.runFlag;
+        if (!remote && id) {
+          const fn = valueChangePromiseMap.get(id);
+          if (fn) {
+            valueChangePromiseMap.delete(id);
+            fn();
           }
-          this.valueChangeListener?.execute(key, oldValue, value, remote, sender.tabId);
+        }
+        const isUpdated = entries.k.length > 0;
+        if (isUpdated) {
+          const valueChanges = decodeMessage(entries);
+          for (const [key, value, oldValue] of valueChanges) {
+            // 触发,并更新值
+            if (value === undefined) {
+              if (valueStore[key] !== undefined) {
+                delete valueStore[key];
+              }
+            } else {
+              valueStore[key] = value;
+            }
+            this.valueChangeListener?.execute(key, oldValue, value, remote, sender.tabId);
+          }
+        }
+        if (updatetime) {
+          lastUpdateTime = updatetime;
         }
       }
-      if (updatetime) {
+      if (lastUpdateTime) {
         const readFreshes = this.readFreshes;
         if (readFreshes) {
           for (const entry of readFreshes) {
-            if (updatetime >= entry.updatetime) {
+            if (lastUpdateTime >= entry.updatetime) {
               readFreshes.delete(entry);
               entry.resolveFn();
             }
           }
         }
-        this.valueDaoUpdatetime = updatetime;
+        this.valueDaoUpdatetime = lastUpdateTime;
       }
     }
   }

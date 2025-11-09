@@ -6,6 +6,7 @@ import { compileScript, compileScriptCode } from "./utils";
 import type { Message } from "@Packages/message/types";
 import { encodeMessage } from "@App/pkg/utils/message_value";
 import { v4 as uuidv4 } from "uuid";
+import { getStorageName } from "@App/pkg/utils/utils";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -130,15 +131,16 @@ describe.concurrent("GM Api", () => {
           },
         })
       );
-      exec.valueUpdate({
-        id: actualCall.data.params[0],
-        entries: encodeMessage([[actualCall.data.params[1], undefined, undefined]]),
-        uuid: script.uuid,
-        storageName: script.uuid,
-        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-        valueUpdated: false,
-        updatetime: Date.now(),
-      });
+      exec.valueUpdate(getStorageName(script), script.uuid, [
+        {
+          id: actualCall.data.params[0],
+          entries: encodeMessage([[actualCall.data.params[1], undefined, undefined]]),
+          uuid: script.uuid,
+          storageName: getStorageName(script),
+          sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+          updatetime: Date.now(),
+        },
+      ]);
     }
   };
   it.concurrent("GM_getValue", async () => {
@@ -194,7 +196,7 @@ describe.concurrent("GM Api", () => {
     const exec = new ExecScript(script, undefined, undefined, nilFn, envInfo);
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM.listValues", async () => {
@@ -232,7 +234,7 @@ describe.concurrent("GM Api", () => {
     const retPromise = exec.exec();
     valueDaoUpdatetimeFix(mockSendMessage, exec, script);
     const ret = await retPromise;
-    expect(ret).toEqual("test5-test2-test3-test1"); // TM也沒有sort
+    expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
   it.concurrent("GM_getValues", async () => {
@@ -762,15 +764,16 @@ describe.concurrent("GM_value", () => {
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-1",
-      entries: encodeMessage([["param1", 123, undefined]]),
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-      updatetime: Date.now(),
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-1",
+        entries: encodeMessage([["param1", 123, undefined]]),
+        uuid: script.uuid,
+        storageName: getStorageName(script),
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
     const ret = await retPromise;
     expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
   });
@@ -798,15 +801,16 @@ describe.concurrent("GM_value", () => {
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-2",
-      entries: encodeMessage([["param2", 456, undefined]]),
-      uuid: script.uuid,
-      storageName: "testStorage",
-      sender: { runFlag: "user", tabId: -2 },
-      valueUpdated: true,
-      updatetime: Date.now(),
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-2",
+        entries: encodeMessage([["param2", 456, undefined]]),
+        uuid: script.uuid,
+        storageName: "testStorage",
+        sender: { runFlag: "user", tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
@@ -834,15 +838,16 @@ describe.concurrent("GM_value", () => {
     expect(id).toBeTypeOf("string");
     expect(id.length).greaterThan(0);
     // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: encodeMessage([["a", 123, undefined]]),
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-      updatetime: Date.now(),
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: id,
+        entries: encodeMessage([["a", 123, undefined]]),
+        uuid: script.uuid,
+        storageName: getStorageName(script),
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+        updatetime: Date.now(),
+      },
+    ]);
 
     const ret = await retPromise;
     expect(ret).toEqual(123);

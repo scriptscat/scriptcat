@@ -352,10 +352,11 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [id, key, value] = request.params as [string, string, any];
-    await this.value.setValue(request.script.uuid, id, key, value, {
+    const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
-    });
+    };
+    await this.value.setValues(request.script.uuid, id, { [key]: value }, valueSender, false);
   }
 
   @PermissionVerify.API({ link: ["GM_deleteValues"] })
