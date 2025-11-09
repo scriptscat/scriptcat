@@ -5,7 +5,7 @@ import { type Value, ValueDAO } from "@App/app/repo/value";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { aNow, getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateDataEncoded, ValueUpdateSendData, ValueUpdateSender } from "../content/types";
 import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
@@ -14,8 +14,6 @@ import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { encodeMessage } from "@App/pkg/utils/message_value";
 import { isEarlyStartScript } from "../content/utils";
-
-let lastUpdateTime = 0;
 
 type ValueUpdateTaskInfo = {
   uuid: string;
@@ -143,6 +141,7 @@ export class ValueService {
   }
 
   async setValuesByStorageName(storageName: string) {
+    let valueModel: Value | undefined = await this.valueDAO.get(storageName);
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const taskListRef = valueUpdateTasks.get(cacheKey);
     if (!taskListRef?.length) return;
@@ -151,19 +150,13 @@ export class ValueService {
     // ------ 读取 & 更新 ------
     let updatetime = 0;
     const listRetToTab: Record<string, ValueUpdateDataEncoded[]> = {};
-    let valueModel: Value | undefined = await this.valueDAO.get(storageName);
     let valueModelUpdated = false;
     let hasValueUpdated = false;
     for (const task of taskList) {
       const entries = [] as [string, any, any][];
       const { uuid, values, removeNotProvided } = task;
       let oldValueRecord: { [key: string]: any } = {};
-      let now = Date.now();
-      // 保证严格递增
-      if (lastUpdateTime >= now) {
-        now = lastUpdateTime + 0.0009765625; // 2^-10
-      }
-      lastUpdateTime = now;
+      const now = aNow(); // 保证严格递增
       let newData;
       if (!valueModel) {
         const dataModel: { [key: string]: any } = {};
