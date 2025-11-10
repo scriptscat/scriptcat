@@ -12,7 +12,7 @@ import { isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
@@ -114,6 +114,10 @@ export class SynchronizeService {
     if (!code) {
       throw new Error(`Script ${script.uuid} code not found`);
     }
+    const storage: ValueStorage = {
+      data: {},
+      ts: Date.now(),
+    };
     const ret = {
       code: code.code,
       options: {
@@ -126,20 +130,18 @@ export class SynchronizeService {
           name: script.name,
           uuid: script.uuid,
           sc_uuid: script.uuid,
-          modified: script.updatetime,
-          file_url: script.downloadUrl,
+          modified: script.updatetime!,
+          file_url: script.downloadUrl!,
           subscribe_url: script.subscribeUrl,
         },
       },
       // storage,
-      requires: [],
-      requiresCss: [],
-      resources: [],
-    } as unknown as ScriptBackupData;
-    const storage: ValueStorage = {
-      data: {},
-      ts: Date.now(),
-    };
+      requires: [] as ResourceBackup[],
+      requiresCss: [] as ResourceBackup[],
+      resources: [] as ResourceBackup[],
+      storage,
+      lastModificationDate: script.updatetime || script.createtime || undefined,
+    } satisfies ScriptBackupData;
     const values = await this.value.getScriptValue(script);
     for (const key of Object.keys(values)) {
       storage.data[key] = values[key];
@@ -240,7 +242,7 @@ export class SynchronizeService {
 
   // 请求导出文件
   async requestExport(uuids?: string[]) {
-    const zip = new JSZip();
+    const zip = createJSZip();
     const fs = new ZipFileSystem(zip);
     await this.backup(fs, uuids);
     // 生成文件,并下载
@@ -264,7 +266,7 @@ export class SynchronizeService {
   // 备份到云端
   async backupToCloud({ type, params }: { type: FileSystemType; params: any }) {
     // 首先生成zip文件
-    const zip = new JSZip();
+    const zip = createJSZip();
     const fs = new ZipFileSystem(zip);
     await this.backup(fs);
     this.logger.info("backup to cloud");
@@ -589,7 +591,7 @@ export class SynchronizeService {
       );
       script.origin = script.origin || metaObj.origin;
       this.script.installScript({
-        script,
+        details: script,
         code,
         upsertBy: "sync",
       });

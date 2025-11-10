@@ -246,7 +246,7 @@ function ScriptEditor() {
         }
         if (script.ignoreVersion) script.ignoreVersion = "";
         return scriptClient
-          .install(script, code)
+          .install({ details: script, code })
           .then((update): Script => {
             if (!update) {
               Message.success(t("create_success_note"));
