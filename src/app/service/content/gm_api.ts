@@ -9,6 +9,7 @@ import type {
   TScriptMenuItemID,
   TScriptMenuItemKey,
 } from "../service_worker/types";
+import type { Deferred } from "@App/pkg/utils/utils";
 import { base64ToBlob, deferred, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
@@ -37,7 +38,19 @@ let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
-const valueChangePromiseMap = new Map<string, any>();
+type PromiseResolve = ((...args: any[]) => any) | null | undefined;
+
+const valueChangePromiseMap = new Map<string, PromiseResolve>();
+
+const generateValChangeId = () => {
+  if (valChangeCounterId > 1e8) {
+    // 防止 valChangeCounterId 过大导致无法正常工作
+    valChangeCounterId = 0;
+    valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+  }
+  const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+  return id;
+};
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -54,10 +67,11 @@ const emitToListener = (
   oldValue: any,
   value: any,
   remote: boolean,
-  tabId: number | undefined
+  tabId: number | undefined // 注： tabId 的提供不在标准 GM API 的定义
 ) => {
+  // 在 valueUpdate 完成后才放行。避免卡住 valueUpdate 线程
   stackAsyncTask("valueUpdateEventListenerEmit", () => {
-    // 不等待結果
+    // 不等待结果
     a.valueChangeListener?.execute(key, oldValue, value, remote, tabId);
   });
 };
@@ -119,7 +133,7 @@ class GM_Base implements IGM_Base {
   public setInvalidContext!: () => void;
 
   @GMContext.protected()
-  public readFreshes: Set<{ updatetime: number; resolveFn: any }> | undefined;
+  public readFreshes: Map<number, Deferred<number>> | undefined;
 
   @GMContext.protected()
   valueDaoUpdatetime: number | undefined;
@@ -206,10 +220,10 @@ class GM_Base implements IGM_Base {
       if (lastUpdateTime) {
         const readFreshes = this.readFreshes;
         if (readFreshes) {
-          for (const entry of readFreshes) {
-            if (lastUpdateTime >= entry.updatetime) {
-              readFreshes.delete(entry);
-              entry.resolveFn();
+          for (const [t, d] of readFreshes.entries()) {
+            if (lastUpdateTime >= t) {
+              readFreshes.delete(t);
+              d.resolve(lastUpdateTime);
             }
           }
         }
@@ -272,25 +286,33 @@ export default class GMApi extends GM_Base {
 
   static async waitForFreshValueState(a: GMApi): Promise<void> {
     // 读取前没有任何 valueUpdate 的话，valueDaoUpdatetime 为 undefined
-    // valueDaoUpdatetime 需透过 valueUpdate 提供
+    // valueDaoUpdatetime 需透过 valueUpdate 提供 (不要从其他途径影响页面缓存values)
+    if (!a.scriptRes) return;
+    let id = "";
+    let d: Deferred<any> | null = null;
     if (!a.valueDaoUpdatetime) {
-      const keyName = `__forceUpdateTimeRefresh::${Math.random()}__`;
-      // 删一个不存在的 key 触发 valueDaoUpdatetime 设置
-      await new Promise((resolve) => {
-        _GM_setValue(a, resolve, keyName, undefined);
-      });
+      // 没有 setValues 直接 listValues / getValues 的话， valueDaoUpdatetime 为 undefined
+      // 要向 service_worker 发出请求，更新 页面缓存values，并触发 valueDaoUpdatetime 设置。
+      id = generateValChangeId();
+      d = deferred();
+      valueChangePromiseMap.set(id, d.resolve); // 在 valueUpdate 里放行 Promise
     }
-    const updatetime = await a.sendMessage("GM_waitForFreshValueState", [true]);
+    const updatetimePromise = a.sendMessage("internalApiWaitForFreshValueState", [id]);
+    // 这里返回的 updatetime 是现时最新的 updatetime
+    const updatetime = (await Promise.all([updatetimePromise, d?.promise]))[0];
     if (updatetime && a.valueDaoUpdatetime && a.valueDaoUpdatetime < updatetime) {
       // 未同步至最新状态，先等待
-      return new Promise((resolve) => {
-        a.readFreshes ||= new Set();
-        a.readFreshes.add({
-          updatetime: updatetime,
-          resolveFn: resolve,
-        });
-      });
+      // 由于 internalApiWaitForFreshValueState 返回的 updatetime 较新
+      // 期待 pushToTab -> valueUpdate 的触发
+      // 只要有 >=updatetime 的 valueUpdate, 就可以放行
+      const readFreshes = (a.readFreshes ||= new Map<number, Deferred<number>>());
+      let d = readFreshes.get(updatetime);
+      if (!d) {
+        readFreshes.set(updatetime, (d = deferred()));
+      }
+      await d.promise;
     }
+    // valueDaoUpdatetime 最新，表示现在 缓存values 也是最新。可进行 listValues, getValues 等操作
   }
 
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
@@ -316,16 +338,11 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
+  static _GM_setValue(a: GMApi, promiseResolve: PromiseResolve, key: string, value: any) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap.set(id, promise);
+    const id = generateValChangeId();
+    if (promiseResolve) {
+      valueChangePromiseMap.set(id, promiseResolve);
     }
     // 对object的value进行一次转化
     if (value && typeof value === "object") {
@@ -341,16 +358,11 @@ export default class GMApi extends GM_Base {
     return id;
   }
 
-  static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
+  static _GM_setValues(a: GMApi, promiseResolve: PromiseResolve, values: TGMKeyValue) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap.set(id, promise);
+    const id = generateValChangeId();
+    if (promiseResolve) {
+      valueChangePromiseMap.set(id, promiseResolve);
     }
     const valueStore = a.scriptRes.value;
     for (const [key, value] of Object.entries(values)) {

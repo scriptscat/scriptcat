@@ -114,8 +114,7 @@ describe.concurrent("GM Api", () => {
     script: ScriptLoadInfo
   ) => {
     const forceUpdateTimeRefreshIdx = mockSendMessage.mock.calls.findIndex((entry) => {
-      const p1 = entry?.[0]?.data?.params[1];
-      return typeof p1 === "string" && p1?.match(/__forceUpdateTimeRefresh::0\.\d+__/);
+      return entry?.[0]?.data?.api === "internalApiWaitForFreshValueState";
     });
     if (forceUpdateTimeRefreshIdx >= 0) {
       const actualCall = mockSendMessage.mock.calls[forceUpdateTimeRefreshIdx][0];
@@ -124,8 +123,8 @@ describe.concurrent("GM Api", () => {
         expect.objectContaining({
           action: "content/runtime/gmApi",
           data: {
-            api: "GM_setValue",
-            params: [expect.stringMatching(/^.+::\d+$/), expect.stringMatching(/__forceUpdateTimeRefresh::0\.\d+__/)],
+            api: "internalApiWaitForFreshValueState",
+            params: [expect.stringMatching(/^.+::\d+$/)],
             runFlag: expect.any(String),
             uuid: undefined,
           },
@@ -134,7 +133,7 @@ describe.concurrent("GM Api", () => {
       exec.valueUpdate(getStorageName(script), script.uuid, [
         {
           id: actualCall.data.params[0],
-          entries: encodeMessage([[actualCall.data.params[1], undefined, undefined]]),
+          entries: encodeMessage([["TEST_NON_EXIST_REMOVAL", undefined, undefined]]),
           uuid: script.uuid,
           storageName: getStorageName(script),
           sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },

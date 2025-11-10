@@ -23,7 +23,13 @@ export const aNow = () => {
   return now;
 };
 
-export const deferred = <T = void>() => {
+export type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (v: T | PromiseLike<T>) => void;
+  reject: (e?: any) => void;
+};
+
+export const deferred = <T = void>(): Deferred<T> => {
   let resolve!: (v: T | PromiseLike<T>) => void;
   let reject!: (e?: any) => void;
   const promise = new Promise<T>((res, rej) => {

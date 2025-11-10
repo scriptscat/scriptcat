@@ -75,7 +75,10 @@ export class ValueService {
     return newValues;
   }
 
-  async waitForFreshValueState(uuid: string, _sender: ValueUpdateSender): Promise<number> {
+  async waitForFreshValueState(uuid: string, id: string, valueSender: ValueUpdateSender): Promise<number> {
+    if (id) {
+      await this.setValues(uuid, id, {}, valueSender, false);
+    }
     // 查询出脚本
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
