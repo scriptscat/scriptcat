@@ -6,13 +6,14 @@ import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateSender } from "../content/types";
+import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
 import type { TScriptValueUpdate } from "../queue";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
-import { encodeMessage } from "@App/pkg/utils/message_value";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
 
 export class ValueService {
   logger: Logger;
@@ -103,12 +104,12 @@ export class ValueService {
     });
     this.pushValueToTab({
       id,
-      entries: encodeMessage([[key, value, oldValue]]),
+      entries: [[key, encodeRValue(value), encodeRValue(oldValue)]],
       uuid,
       storageName,
       sender,
       valueUpdated,
-    } as ValueUpdateDataEncoded);
+    } satisfies ValueUpdateDataEncoded);
     // valueUpdate 消息用于 early script 的处理
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
   }
@@ -153,7 +154,7 @@ export class ValueService {
   async setValues(
     uuid: string,
     id: string,
-    values: { [key: string]: any },
+    keyValuePairs: TKeyValuePair[],
     sender: ValueUpdateSender,
     removeNotProvided: boolean
   ) {
@@ -164,15 +165,25 @@ export class ValueService {
     const storageName = getStorageName(script);
     let oldValueRecord: { [key: string]: any } = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as [string, any, any][];
+    const entries = [] as ValueUpdateDataREntry[];
     const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      const now = Date.now();
       if (!valueModel) {
-        const now = Date.now();
+        const dataModel: { [key: string]: any } = {};
+        for (const [key, rTyped1] of keyValuePairs) {
+          const value = decodeRValue(rTyped1);
+          if (value !== undefined) {
+            dataModel[key] = value;
+            entries.push([key, rTyped1, R_UNDEFINED]);
+          }
+        }
+        // 即使是空 dataModel 也进行更新
+        // 由于没entries, valueUpdated 是 false, 但 valueDAO 会有一个空的 valueModel 记录 updatetime
         valueModel = {
-          uuid: script.uuid,
+          uuid: uuid,
           storageName: storageName,
-          data: values,
+          data: dataModel,
           createtime: now,
           updatetime: now,
         };
@@ -180,26 +191,30 @@ export class ValueService {
         let changed = false;
         let dataModel = (oldValueRecord = valueModel.data);
         dataModel = { ...dataModel }; // 每次储存使用新参考
-        for (const [key, value] of Object.entries(values)) {
+        const containedKeys = new Set<string>();
+        for (const [key, rTyped1] of keyValuePairs) {
+          containedKeys.add(key);
+          const value = decodeRValue(rTyped1);
           const oldValue = dataModel[key];
           if (oldValue === value) continue;
           changed = true;
-          if (values[key] === undefined) {
+          if (value === undefined) {
             delete dataModel[key];
           } else {
             dataModel[key] = value;
           }
-          entries.push([key, value, oldValue]);
+          const rTyped2 = encodeRValue(oldValue);
+          entries.push([key, rTyped1, rTyped2]);
         }
         if (removeNotProvided) {
           // 处理oldValue有但是没有在data.values中的情况
           for (const key of Object.keys(oldValueRecord)) {
-            if (!(key in values)) {
+            if (!containedKeys.has(key)) {
               changed = true;
               const oldValue = oldValueRecord[key];
               delete dataModel[key]; // 这里使用delete是因为保存不需要这个字段了
-              values[key] = undefined; // 而这里使用undefined是为了在推送时能够正确处理
-              entries.push([key, undefined, oldValue]);
+              const rTyped2 = encodeRValue(oldValue);
+              entries.push([key, R_UNDEFINED, rTyped2]);
             }
           }
         }
@@ -213,7 +228,7 @@ export class ValueService {
     const valueUpdated = entries.length > 0;
     this.pushValueToTab({
       id,
-      entries: encodeMessage(entries),
+      entries: entries,
       uuid,
       storageName,
       sender,
@@ -231,12 +246,12 @@ export class ValueService {
     return this.setValue(uuid, "", key, value, valueSender);
   }
 
-  setScriptValues({ uuid, values }: { uuid: string; values: { [key: string]: any } }, _sender: IGetSender) {
+  setScriptValues({ uuid, keyValuePairs }: { uuid: string; keyValuePairs: TKeyValuePair[] }, _sender: IGetSender) {
     const valueSender = {
       runFlag: "user",
       tabId: -2,
     };
-    return this.setValues(uuid, "", values, valueSender, true);
+    return this.setValues(uuid, "", keyValuePairs, valueSender, true);
   }
 
   init(runtime: RuntimeService, popup: PopupService) {

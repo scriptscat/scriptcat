@@ -63,7 +63,11 @@ const UserConfigPanel: React.FC<{
               if (saveValues[key][valueKey] === undefined) {
                 continue;
               }
-              valueClient.setScriptValue(script.uuid, `${key}.${valueKey}`, saveValues[key][valueKey]);
+              valueClient.setScriptValue({
+                uuid: script.uuid,
+                key: `${key}.${valueKey}`,
+                value: saveValues[key][valueKey],
+              });
             }
           }
           Message.success(t("save_success")!); // 替换为键值对应的英文文本
