@@ -189,6 +189,7 @@ function App() {
         (async () => {
           // 导入数据
           const { data } = item.storage;
+          const ts = item.storage.ts || 0;
           const entries = Object.entries(data);
           if (entries.length === 0) return;
           await sleep(((Math.random() * 600) | 0) + 200);
@@ -197,7 +198,7 @@ function App() {
           for (const [key, value] of entries) {
             keyValuePairs.push([key, encodeRValue(value)]);
           }
-          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: Date.now() });
+          await valueClient.setScriptValues({ uuid: uuid, keyValuePairs, isReplace: false, ts: ts });
         })(),
       ]);
       setInstallNum((prev) => [prev[0] + 1, prev[1]]);

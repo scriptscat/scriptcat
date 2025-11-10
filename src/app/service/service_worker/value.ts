@@ -39,7 +39,7 @@ export class ValueService {
     this.valueDAO.enableCache();
   }
 
-  async getScriptValue(script: Script) {
+  async getScriptValueDetails(script: Script) {
     let data: { [key: string]: any } = {};
     const ret = await this.valueDAO.get(getStorageName(script));
     if (ret) {
@@ -68,7 +68,11 @@ export class ValueService {
         }
       }
     }
-    return newValues;
+    return [newValues, ret] as const;
+  }
+
+  getScriptValue(script: Script): Promise<Record<string, any>> {
+    return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
   // 推送值到tab
@@ -116,10 +120,12 @@ export class ValueService {
       runFlag: "user",
       tabId: -2,
     };
+    // 查询出脚本
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
+    // 查询老的值
     const storageName = getStorageName(script);
     let oldValueRecord: { [key: string]: any } = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
@@ -127,7 +133,7 @@ export class ValueService {
     const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
-        const now = Date.now();
+        const now = ts || Date.now();
         const dataModel: { [key: string]: any } = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);

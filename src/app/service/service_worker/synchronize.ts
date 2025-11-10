@@ -115,13 +115,13 @@ export class SynchronizeService {
       throw new Error(`Script ${script.uuid} code not found`);
     }
     const lastModificationDate = script.updatetime || script.createtime || undefined;
-    const values = await this.value.getScriptValue(script);
+    const [values, valueRet] = await this.value.getScriptValueDetails(script);
     const requires = await this.resource.getResourceByType(script, "require", false);
     const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
     const resources = await this.resource.getResourceByType(script, "resource", false);
     const storage: ValueStorage = {
       data: { ...values },
-      ts: lastModificationDate || Date.now(),
+      ts: valueRet?.updatetime || lastModificationDate || Date.now(),
     };
     const ret = {
       code: code.code,

@@ -5,6 +5,7 @@ import type { BackupData } from "./struct";
 import { describe, expect, it } from "vitest";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
+const ts0 = Date.now() - 5000;
 describe.concurrent("backup", () => {
   it.concurrent("empty", async () => {
     const zipFile = createJSZip();
@@ -70,7 +71,7 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 1,
             data: {
               num: 1,
               str: "data",
@@ -159,7 +160,7 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 2,
             data: {
               num: 1,
               str: "data",
@@ -228,7 +229,7 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 3,
             data: {
               num: 1,
               str: "data",
@@ -278,7 +279,7 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 4,
             data: {},
           },
           lastModificationDate: expect.any(Number),
@@ -343,7 +344,7 @@ describe.concurrent("backup", () => {
             },
           ],
           storage: {
-            ts: 1,
+            ts: ts0 + 5,
             data: {},
           },
           lastModificationDate: expect.any(Number),
