@@ -114,9 +114,14 @@ export class SynchronizeService {
     if (!code) {
       throw new Error(`Script ${script.uuid} code not found`);
     }
+    const lastModificationDate = script.updatetime || script.createtime || undefined;
+    const values = await this.value.getScriptValue(script);
+    const requires = await this.resource.getResourceByType(script, "require", false);
+    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
+    const resources = await this.resource.getResourceByType(script, "resource", false);
     const storage: ValueStorage = {
-      data: {},
-      ts: Date.now(),
+      data: { ...values },
+      ts: lastModificationDate || Date.now(),
     };
     const ret = {
       code: code.code,
@@ -136,26 +141,13 @@ export class SynchronizeService {
         },
       },
       // storage,
-      requires: [] as ResourceBackup[],
-      requiresCss: [] as ResourceBackup[],
-      resources: [] as ResourceBackup[],
+      requires: this.resourceToBackdata(requires),
+      requiresCss: this.resourceToBackdata(requiresCss),
+      resources: this.resourceToBackdata(resources),
       storage,
-      lastModificationDate: script.updatetime || script.createtime || undefined,
+      lastModificationDate,
     } satisfies ScriptBackupData;
-    const values = await this.value.getScriptValue(script);
-    for (const key of Object.keys(values)) {
-      storage.data[key] = values[key];
-    }
 
-    const requires = await this.resource.getResourceByType(script, "require", false);
-    const requiresCss = await this.resource.getResourceByType(script, "require-css", false);
-    const resources = await this.resource.getResourceByType(script, "resource", false);
-
-    ret.requires = this.resourceToBackdata(requires);
-    ret.requiresCss = this.resourceToBackdata(requiresCss);
-    ret.resources = this.resourceToBackdata(resources);
-
-    ret.storage = storage;
     return ret;
   }
 

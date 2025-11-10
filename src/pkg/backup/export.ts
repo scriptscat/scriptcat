@@ -37,7 +37,7 @@ export default class BackupExport {
     // 写入脚本storage.json
     // 不想兼容tm的导出规则了,直接写入storage.json
     const storage = { ...script.storage };
-    const { data } = storage;
+    const data = storage.data;
     for (const key of Object.keys(data)) {
       data[key] = toStorageValueStr(data[key]);
     }
