@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import { createJSZip } from "@App/pkg/utils/jszip-x";
 import BackupExport from "./export";
 import { parseBackupZipFile } from "./utils";
 import type { BackupData } from "./struct";
@@ -7,7 +7,7 @@ import ZipFileSystem from "@Packages/filesystem/zip/zip";
 
 describe.concurrent("backup", () => {
   it.concurrent("empty", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     await new BackupExport(fs).export({
       script: [],
@@ -21,7 +21,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - basic", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -112,7 +112,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - name and version only", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -180,7 +180,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - 2 scripts", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: [
@@ -293,7 +293,7 @@ describe.concurrent("backup", () => {
   });
 
   it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
-    const zipFile = new JSZip();
+    const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
       script: Array.from({ length: 30 }, (v, i) => {

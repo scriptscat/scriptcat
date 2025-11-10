@@ -3,6 +3,7 @@ import { base64ToBlob } from "../utils/utils";
 import { toStorageValueStr } from "../utils/utils";
 import type { BackupData, ResourceBackup, ScriptBackupData, SubscribeBackupData } from "./struct";
 import { md5OfText } from "../utils/crypto";
+import type { FileCreateOptions } from "@Packages/filesystem/filesystem";
 
 export default class BackupExport {
   fs: FileSystem;
@@ -42,24 +43,26 @@ export default class BackupExport {
     }
     const wrtieStorage = JSON.stringify(storage);
 
+    const fileOpts = { modifiedDate: script.lastModificationDate } as FileCreateOptions;
     return [
       // 写脚本文件
-      this.fs.create(`${filename}.user.js`).then((fileWriter) => fileWriter.write(writeCode)),
+      this.fs.create(`${filename}.user.js`, fileOpts).then((fileWriter) => fileWriter.write(writeCode)),
       // 写入脚本options.json
-      this.fs.create(`${filename}.options.json`).then((fileWriter) => fileWriter.write(writeOptions)),
+      this.fs.create(`${filename}.options.json`, fileOpts).then((fileWriter) => fileWriter.write(writeOptions)),
       // 写入脚本storage.json
-      this.fs.create(`${filename}.storage.json`).then((fileWriter) => fileWriter.write(wrtieStorage)),
+      this.fs.create(`${filename}.storage.json`, fileOpts).then((fileWriter) => fileWriter.write(wrtieStorage)),
       // 写入脚本资源文件
-      ...this.writeResource(filename, script.resources, "resources"),
-      ...this.writeResource(filename, script.requires, "requires"),
-      ...this.writeResource(filename, script.requiresCss, "requires.css"),
+      ...this.writeResource(filename, script.resources, "resources", fileOpts),
+      ...this.writeResource(filename, script.requires, "requires", fileOpts),
+      ...this.writeResource(filename, script.requiresCss, "requires.css", fileOpts),
     ];
   }
 
   writeResource(
     filename: string,
     resources: ResourceBackup[],
-    type: "resources" | "requires" | "requires.css"
+    type: "resources" | "requires" | "requires.css",
+    fileOpts: FileCreateOptions
   ): Promise<void>[] {
     return resources.flatMap((item) => {
       // md5是tm的导出规则
@@ -68,10 +71,10 @@ export default class BackupExport {
       const writeMeta = JSON.stringify(item.meta);
       return [
         this.fs
-          .create(`${filename}.user.js-${md5}-${item.meta.name}`)
+          .create(`${filename}.user.js-${md5}-${item.meta.name}`, fileOpts)
           .then((fileWriter) => fileWriter.write(writeSource)),
         this.fs
-          .create(`${filename}.user.js-${md5}-${item.meta.name}.${type}.json`)
+          .create(`${filename}.user.js-${md5}-${item.meta.name}.${type}.json`, fileOpts)
           .then((fileWriter) => fileWriter.write(writeMeta)),
       ];
     });
