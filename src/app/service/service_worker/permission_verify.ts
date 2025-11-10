@@ -112,7 +112,7 @@ export default class PermissionVerify {
   }
 
   // 验证是否有权限
-  async verify<T>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender): Promise<boolean> {
+  async verify<T extends Array<any>>(request: GMApiRequest<T>, api: ApiValue, sender: IGetSender): Promise<boolean> {
     const { alias, link, confirm } = api.param;
     if (api.param.default) {
       return true;
@@ -121,6 +121,18 @@ export default class PermissionVerify {
     const { grant } = request.script.metadata;
     if (!grant) {
       throw new Error("grant is undefined");
+    }
+    // GM.deleteValue("__forceUpdateTimeRefresh::XXXXX__");
+    // params: [id, key]
+    if (
+      request.api === "GM_setValue" &&
+      request.params?.[2] === undefined &&
+      `${request.params?.[1]}`.length > 28 &&
+      `${request.params?.[1]}`.startsWith("__forceUpdateTimeRefresh::") &&
+      typeof api.api === "function"
+    ) {
+      // waitForFreshValueState 专用
+      return true;
     }
     for (let i = 0; i < grant.length; i += 1) {
       const grantName = grant[i];
