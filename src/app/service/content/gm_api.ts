@@ -136,6 +136,9 @@ class GM_Base implements IGM_Base {
   public readFreshes: Map<number, Deferred<number>> | undefined;
 
   @GMContext.protected()
+  public extValueStoreCopy: Record<string, any> | undefined; // 使每个tab的valueChange次序保持一致
+
+  @GMContext.protected()
   valueDaoUpdatetime: number | undefined;
 
   // 单次回调使用
@@ -185,9 +188,11 @@ class GM_Base implements IGM_Base {
       const hold = deferred();
       // 避免立即 emit
       stackAsyncTask("valueUpdateEventListenerEmit", () => hold.promise);
+      // ----- 更新 valueStore (同步) -----
+      scriptRes.value = this.extValueStoreCopy || scriptRes.value;
+      const valueStore = scriptRes.value;
       for (const data of list) {
         const { id, entries, sender, updatetime } = data;
-        const valueStore = scriptRes.value;
         const remote = sender.runFlag !== this.runFlag;
         if (!remote && id) {
           const fn = valueChangePromiseMap.get(id);
@@ -217,6 +222,8 @@ class GM_Base implements IGM_Base {
           lastUpdateTime = updatetime;
         }
       }
+      this.extValueStoreCopy = { ...valueStore };
+      // ----- 更新 valueStore (同步) -----
       if (lastUpdateTime) {
         const readFreshes = this.readFreshes;
         if (readFreshes) {
@@ -348,11 +355,15 @@ export default class GMApi extends GM_Base {
     if (value && typeof value === "object") {
       value = JSON.parse(JSON.stringify(value));
     }
+    const valueStore = a.scriptRes.value;
+    if (!a.extValueStoreCopy) {
+      a.extValueStoreCopy = { ...valueStore };
+    }
     if (value === undefined) {
-      delete a.scriptRes.value[key];
+      delete valueStore[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
-      a.scriptRes.value[key] = value;
+      valueStore[key] = value;
       a.sendMessage("GM_setValue", [id, key, value]);
     }
     return id;
@@ -365,6 +376,9 @@ export default class GMApi extends GM_Base {
       valueChangePromiseMap.set(id, promiseResolve);
     }
     const valueStore = a.scriptRes.value;
+    if (!a.extValueStoreCopy) {
+      a.extValueStoreCopy = { ...valueStore };
+    }
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       // 对object的value进行一次转化
