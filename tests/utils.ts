@@ -20,25 +20,6 @@ export function initTestEnv() {
   // @ts-ignore
   global.initTest = true;
 
-  // const OldBlob = Blob;
-  // // @ts-ignore
-  // global.Blob = function Blob(data, options) {
-  //   const blob = new OldBlob(data, options);
-  //   blob.text = () => Promise.resolve(data[0]);
-  //   blob.arrayBuffer = () => {
-  //     return new Promise<ArrayBuffer>((resolve) => {
-  //       const str = data[0];
-  //       const buf = new ArrayBuffer(str.length * 2); // 每个字符占用2个字节
-  //       const bufView = new Uint16Array(buf);
-  //       for (let i = 0, strLen = str.length; i < strLen; i += 1) {
-  //         bufView[i] = str.charCodeAt(i);
-  //       }
-  //       resolve(buf);
-  //     });
-  //   };
-  //   return blob;
-  // };
-
   const logger = new LoggerCore({
     level: "trace",
     consoleLevel: "trace",
