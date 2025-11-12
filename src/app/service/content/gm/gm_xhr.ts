@@ -83,7 +83,7 @@ export function GM_xmlhttpRequest(
   a: GMApi,
   details: GMTypes.XHRDetails,
   requirePromise: boolean,
-  byPassConnect: boolean = false
+  isDownload: boolean = false
 ) {
   let reqDone = false;
   if (a.isInvalidContext()) {
@@ -126,7 +126,6 @@ export function GM_xmlhttpRequest(
     password: details.password,
     redirect: details.redirect,
     fetch: details.fetch,
-    byPassConnect: byPassConnect,
   };
   if (!param.headers) {
     param.headers = {};
@@ -174,7 +173,7 @@ export function GM_xmlhttpRequest(
     const responseType = responseTypeOriginal; // 回传用
 
     // 发送信息
-    a.connect("GM_xmlhttpRequest", [param]).then((con) => {
+    a.connect(isDownload ? "GM_download" : "GM_xmlhttpRequest", [param]).then((con) => {
       // 注意。在此 callback 里，不应直接存取 param, 否则会影响 GC
       connect = con;
       const resultTexts = [] as string[]; // 函数参考清掉后，变数会被GC

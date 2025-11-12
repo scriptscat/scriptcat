@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import Queue from "@App/pkg/utils/queue";
 import { type TDeleteScript } from "../queue";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
-import type GMApi from "./gm_api";
+import type GMApi from "./gm_api/gm_api";
 
 export interface ConfirmParam {
   // 权限名
@@ -114,11 +114,6 @@ export default class PermissionVerify {
     private mq: IMessageQueue
   ) {
     this.permissionDAO.enableCache();
-  }
-
-  noVerify<T>(_request: GMApiRequest<T>, _api: ApiValue, _sender: IGetSender) {
-    // 测试用
-    return false;
   }
 
   // 验证是否有权限

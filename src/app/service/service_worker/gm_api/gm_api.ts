@@ -284,21 +284,16 @@ export default class GMApi {
   // sendMessage from Content Script, etc
   async handlerRequest(data: MessageRequest, sender: IGetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
-    let byPass = false;
-    if (data.api === "GM_xmlhttpRequest" && data.params?.[0]?.byPassConnect === true) byPass = true;
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");
     }
     const req = await this.parseRequest(data);
-    if (!byPass && this.permissionVerify.noVerify(req, api, sender)) byPass = true;
-    if (!byPass) {
-      try {
-        await this.permissionVerify.verify(req, api, sender, this);
-      } catch (e) {
-        this.logger.error("verify error", { api: data.api }, Logger.E(e));
-        throw e;
-      }
+    try {
+      await this.permissionVerify.verify(req, api, sender, this);
+    } catch (e) {
+      this.logger.error("verify error", { api: data.api }, Logger.E(e));
+      throw e;
     }
     return api.api.call(this, req, sender);
   }
