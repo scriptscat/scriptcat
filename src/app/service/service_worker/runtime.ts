@@ -5,7 +5,7 @@ import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
-import GMApi, { GMExternalDependencies } from "./gm_api";
+import GMApi, { GMExternalDependencies } from "./gm_api/gm_api";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptValueUpdate, TSortedScript } from "../queue";
 import { type ScriptService } from "./script";
 import { runScript, stopScript } from "../offscreen/client";

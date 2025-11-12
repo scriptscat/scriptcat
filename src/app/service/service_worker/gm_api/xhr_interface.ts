@@ -1,6 +1,6 @@
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
-import { chunkUint8, uint8ToBase64 } from "@App/pkg/utils/utils_datatype";
-import { bgXhrRequestFn } from "@App/pkg/utils/xhr_bg_core";
+import { chunkUint8, uint8ToBase64 } from "@App/pkg/utils/datatype";
+import { bgXhrRequestFn } from "@App/pkg/utils/xhr/xhr_bg_core";
 import { type MessageConnect, type TMessageCommAction } from "@Packages/message/types";
 
 /**

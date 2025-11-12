@@ -13,7 +13,7 @@ import { calculateHashFromArrayBuffer } from "@App/pkg/utils/crypto";
 import { isBase64, parseUrlSRI } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { swFetch } from "@App/pkg/utils/sw_fetch";
-import { blobToUint8Array } from "@App/pkg/utils/utils_datatype";
+import { blobToUint8Array } from "@App/pkg/utils/datatype";
 
 export class ResourceService {
   logger: Logger;

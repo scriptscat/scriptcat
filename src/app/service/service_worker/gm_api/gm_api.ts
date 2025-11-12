@@ -6,10 +6,10 @@ import type { ExtMessageSender, MessageSend, TMessageCommAction } from "@Package
 import { connect, sendMessage } from "@Packages/message/client";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { type ValueService } from "@App/app/service/service_worker/value";
-import type { ConfirmParam } from "./permission_verify";
-import PermissionVerify, { PermissionVerifyApiGet } from "./permission_verify";
+import type { ConfirmParam } from "../permission_verify";
+import PermissionVerify, { PermissionVerifyApiGet } from "../permission_verify";
 import { cacheInstance } from "@App/app/cache";
-import { type RuntimeService } from "./runtime";
+import { type RuntimeService } from "../runtime";
 import { getIcon, isFirefox, openInCurrentTab, cleanFileName, urlSanitize } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
@@ -24,15 +24,15 @@ import type {
   MessageRequest,
   NotificationMessageOption,
   GMApiRequest,
-} from "./types";
-import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
-import { BrowserNoSupport, notificationsUpdate } from "./utils";
+} from "../types";
+import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
+import { BrowserNoSupport, notificationsUpdate } from "../utils";
 import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
-import { createObjectURL } from "../offscreen/client";
-import { bgXhrInterface } from "./xhr_interface";
+import { createObjectURL } from "../../offscreen/client";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { bgXhrInterface } from "./xhr_interface";
 
 const askUnlistedConnect = false;
 const askConnectStar = true;

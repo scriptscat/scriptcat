@@ -1,4 +1,4 @@
-import { base64ToUint8, uint8ToBase64 } from "./utils_datatype";
+import { base64ToUint8, uint8ToBase64 } from "../datatype";
 
 export const typedArrayTypes = [
   Int8Array,
