@@ -1,5 +1,5 @@
 import { type Script, ScriptDAO, type ScriptRunResource } from "@App/app/repo/scripts";
-import GMApi from "@App/app/service/content/gm_api";
+import GMApi from "@App/app/service/content/gm_api/gm_api";
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it, vi, vitest } from "vitest";
 import { addTestPermission, initTestGMApi } from "@Tests/utils";
