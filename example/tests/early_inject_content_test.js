@@ -63,21 +63,21 @@
   // ============ 早期脚本环境检查 ============
   console.log("\n%c--- 早期脚本环境检查 ---", "color: orange; font-weight: bold;");
 
-  test("检查 document.head 不存在", () => {
+  await test("检查 document.head 不存在", () => {
     console.log("document.head 存在:", !!document.head);
     console.log("document.head 值:", document.head);
     // 早期脚本运行时 document.head 应该不存在
     assertTrue(document.head === null || document.head === undefined, "早期脚本运行时 document.head 应该不存在");
   });
 
-  test("检查 document.body 不存在", () => {
+  await test("检查 document.body 不存在", () => {
     console.log("document.body 存在:", !!document.body);
     console.log("document.body 值:", document.body);
     // 早期脚本运行时 document.body 应该不存在
     assertTrue(document.body === null || document.body === undefined, "早期脚本运行时 document.body 应该不存在");
   });
 
-  test("检查可用的DOM节点应该是HTML元素", () => {
+  await test("检查可用的DOM节点应该是HTML元素", () => {
     const firstElement = document.querySelector("*");
     console.log("querySelector('*') 找到的第一个元素:", firstElement?.tagName);
     assertTrue(firstElement !== null, "应该能找到第一个DOM节点");
@@ -94,7 +94,7 @@
   // ============ CSP绕过测试 ============
   console.log("\n%c--- CSP绕过测试 ---", "color: orange; font-weight: bold;");
 
-  test("CSP绕过 - 内联脚本", () => {
+  await test("CSP绕过 - 内联脚本", () => {
     const script = document.createElement("script");
     script.textContent = 'console.log("Content环境绕过CSP测试");';
     // 早期脚本运行时 document.head 和 document.body 不存在
@@ -110,7 +110,7 @@
   // ============ GM_addElement/GM_addStyle 测试 ============
   console.log("\n%c--- DOM操作 API 测试 ---", "color: orange; font-weight: bold;");
 
-  test("GM_addElement", () => {
+  await test("GM_addElement", () => {
     const element = GM_addElement("div", {
       textContent: "GM_addElement测试元素",
       style: "display:none;",
@@ -122,7 +122,7 @@
     console.log("返回元素:", element);
   });
 
-  test("GM_addStyle", () => {
+  await test("GM_addStyle", () => {
     const styleElement = GM_addStyle(`
             .gm-style-test {
                 color: #10b981 !important;
@@ -136,7 +136,7 @@
   // ============ GM_log 测试 ============
   console.log("\n%c--- GM_log 测试 ---", "color: orange; font-weight: bold;");
 
-  test("GM_log", () => {
+  await test("GM_log", () => {
     GM_log("测试日志输出", { type: "test", value: 123 });
     // GM_log本身不返回值,只要不抛出异常就算成功
     assertTrue(true, "GM_log应该能正常输出");
@@ -145,7 +145,7 @@
   // ============ GM_info 测试 ============
   console.log("\n%c--- GM_info 测试 ---", "color: orange; font-weight: bold;");
 
-  test("GM_info", () => {
+  await test("GM_info", () => {
     assertTrue(typeof GM_info === "object", "GM_info应该是对象");
     assertTrue(!!GM_info.script, "GM_info.script应该存在");
     assertTrue(!!GM_info.script.name, "GM_info.script.name应该存在");
@@ -161,13 +161,13 @@
     assert("content环境测试值", value, "应该正确保存和读取字符串");
   });
 
-  test("GM_setValue - 数字", () => {
+  await test("GM_setValue - 数字", () => {
     GM_setValue("test_number", 12345);
     const value = GM_getValue("test_number");
     assert(12345, value, "应该正确保存和读取数字");
   });
 
-  test("GM_setValue - 对象", () => {
+  await test("GM_setValue - 对象", () => {
     const obj = { name: "ScriptCat", type: "content" };
     GM_setValue("test_object", obj);
     const value = GM_getValue("test_object", {});
@@ -175,19 +175,19 @@
     assert("content", value.type, "对象的type属性应该正确");
   });
 
-  test("GM_getValue - 默认值", () => {
+  await test("GM_getValue - 默认值", () => {
     const value = GM_getValue("non_existent_key", "默认值");
     assert("默认值", value, "不存在的键应该返回默认值");
   });
 
-  test("GM_listValues", () => {
+  await test("GM_listValues", () => {
     const keys = GM_listValues();
     assertTrue(Array.isArray(keys), "GM_listValues应该返回数组");
     assertTrue(keys.length >= 3, "应该至少有3个存储键");
     console.log("存储的键:", keys);
   });
 
-  test("GM_deleteValue", () => {
+  await test("GM_deleteValue", () => {
     GM_setValue("test_delete", "to_be_deleted");
     assert("to_be_deleted", GM_getValue("test_delete"), "值应该存在");
     GM_deleteValue("test_delete");
