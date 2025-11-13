@@ -1785,6 +1785,20 @@ export default class GMApi {
         }
       }
     );
+    // 异常处理
+    // 如果SC完全没有任何网络请求，会让 nwReqExecutes 被卡死
+    // 可能性很低。只是以防万一
+    setInterval(() => {
+      if (nwReqExecutes.size) {
+        for (const nwReqExecute of nwReqExecutes) {
+          if (Date.now() - nwReqExecute.initiatedAfter > 4800) {
+            // 已经过时。放行吧
+            nwReqExecute.resolve();
+            nwReqExecutes.delete(nwReqExecute);
+          }
+        }
+      }
+    }, 5000);
   }
 
   start() {
