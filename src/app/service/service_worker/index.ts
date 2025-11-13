@@ -18,7 +18,6 @@ import { localePath, t } from "@App/locales/locales";
 import { getCurrentTab, InfoNotification } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
-import { swFetch } from "@App/pkg/utils/sw_fetch";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -266,7 +265,7 @@ export default class ServiceWorkerManager {
   }
 
   checkUpdate() {
-    swFetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
+    fetch(`${ExtServer}api/v1/system/version?version=${ExtVersion}`)
       .then((resp) => resp.json())
       .then((resp: { data: { notice: string; version: string } }) => {
         systemConfig

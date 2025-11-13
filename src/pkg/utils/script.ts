@@ -15,7 +15,6 @@ import { SUBSCRIBE_STATUS_ENABLE, SubscribeDAO } from "@App/app/repo/subscribe";
 import { nextTime } from "./cron";
 import { parseUserConfig } from "./yaml";
 import { t as i18n_t } from "@App/locales/locales";
-import { swFetch } from "./sw_fetch";
 
 // 从脚本代码抽出Metadata
 export function parseMetadata(code: string): SCMetadata | null {
@@ -60,7 +59,7 @@ export function parseMetadata(code: string): SCMetadata | null {
 
 // 从网址取得脚本代码
 export async function fetchScriptBody(url: string): Promise<string> {
-  const resp = await swFetch(url, {
+  const resp = await fetch(url, {
     headers: {
       "Cache-Control": "no-cache",
     },
