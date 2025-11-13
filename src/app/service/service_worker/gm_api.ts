@@ -30,8 +30,7 @@ import type {
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../queue";
 import { BrowserNoSupport, notificationsUpdate } from "./utils";
 import i18n from "@App/locales/locales";
-import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
-import { type TGMKeyValue } from "@App/app/repo/value";
+import { type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { createObjectURL } from "../offscreen/client";
 
 // GMApi,处理脚本的GM API调用请求
@@ -344,17 +343,16 @@ export default class GMApi {
   }
 
   @PermissionVerify.API({ link: ["GM_deleteValues"] })
-  async GM_setValues(request: GMApiRequest<[string, TEncodedMessage<TGMKeyValue>]>, sender: IGetSender) {
+  async GM_setValues(request: GMApiRequest<[string, TKeyValuePair[]]>, sender: IGetSender) {
     if (!request.params || request.params.length !== 2) {
       throw new Error("param is failed");
     }
-    const [id, valuesNew] = request.params;
-    const values = decodeMessage(valuesNew);
+    const [id, keyValuePairs] = request.params;
     const valueSender = {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
     };
-    await this.value.setValues(request.script.uuid, id, values, valueSender, false);
+    await this.value.setValues(request.script.uuid, id, keyValuePairs, valueSender, false);
   }
 
   @PermissionVerify.API()

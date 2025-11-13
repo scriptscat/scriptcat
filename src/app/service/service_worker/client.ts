@@ -24,6 +24,7 @@ import type { GMInfoEnv } from "../content/types";
 import { type SystemService } from "./system";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { ScriptService, TCheckScriptUpdateOption, TOpenBatchUpdatePageOption } from "./script";
+import { type TKeyValuePair } from "@App/pkg/utils/message_value";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -234,12 +235,12 @@ export class ValueClient extends Client {
     return this.doThrow("getScriptValue", script);
   }
 
-  setScriptValue(uuid: string, key: string, value: any) {
-    return this.do("setScriptValue", { uuid, key, value });
+  setScriptValue(params: { uuid: string; key: string; value: any }) {
+    return this.do("setScriptValue", params);
   }
 
-  setScriptValues(uuid: string, values: { [key: string]: any }) {
-    return this.do("setScriptValues", { uuid, values });
+  setScriptValues(params: { uuid: string; keyValuePairs: TKeyValuePair[] }) {
+    return this.do("setScriptValues", params);
   }
 }
 
