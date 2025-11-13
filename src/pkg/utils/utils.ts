@@ -371,9 +371,9 @@ export const stringMatching = (main: string, sub: string): boolean => {
 };
 
 export const urlSanitize = (url: string) => {
-  const u = new URL(url); // 利用 URL 處理 URL Encoding 問題。
+  const u = new URL(url); // 利用 URL 处理 URL Encoding 问题。
   // 例如 'https://日月.baidu.com/你好' => 'https://xn--wgv4y.baidu.com/%E4%BD%A0%E5%A5%BD'
-  // 為方便控制，只需要考慮 orign 和 pathname 的匹對
+  // 为方便控制，只需要考虑 orign 和 pathname 的匹对
   // https://user:passwd@httpbun.com/basic-auth/user/passwd -> https://httpbun.com/basic-auth/user/passwd
   return `URL::${u.origin}${u.pathname}`;
 };

@@ -1048,9 +1048,10 @@ export default class GMApi {
         }
         // 网络请求发出后。
         await sleep(1); // next marco event
-        await ret; // 至少 onBeforeRequest 有被触发一次
+        await ret; // onBeforeRequest 触发至少一次
         await sleep(1); // next marco event
         nwReqIdCollects.delete(stdUrl);
+        // 尝试在 onBeforeRequest 階段关联 reqId，避免 onBeforeSendHeaders 时关联失败的可能性
         if (collection.length === 1 && collection[0].length > 0) {
           const reqId = collection[0];
           // 如 onBeforeSendHeaders 已执行并关联了 reqId, 则不处理
