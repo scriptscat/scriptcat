@@ -1053,7 +1053,10 @@ export default class GMApi {
         nwReqIdCollects.delete(stdUrl);
         if (collection.length === 1 && collection[0].length > 0) {
           const reqId = collection[0];
-          scXhrRequests.set(reqId, markerID);
+          // 如 onBeforeSendHeaders 已执行并关联了 reqId, 则不处理
+          if (!scXhrRequests.has(reqId)) {
+            scXhrRequests.set(reqId, markerID);
+          }
         }
         collection.length = 0;
       });
