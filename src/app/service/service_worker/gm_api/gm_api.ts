@@ -1023,13 +1023,13 @@ export default class GMApi {
         // 网络请求发出前。
         try {
           await f();
+          // 网络请求发出后。
+          await sleep(1); // next marco event (收集一下网络请求的 onBeforeRequest 触发)
+          await ret; // onBeforeRequest 触发至少一次 （通常在 sleep(1) 期间已触发）
+          await sleep(1); // next marco event (在至少一次触发后，等一下避免其他相同网址的网络要求并发)
         } catch (e: any) {
-          console.warn(e);
+          console.error(e);
         }
-        // 网络请求发出后。
-        await sleep(1); // next marco event (收集一下网络请求的 onBeforeRequest 触发)
-        await ret; // onBeforeRequest 触发至少一次 （通常在 sleep(1) 期间已触发）
-        await sleep(1); // next marco event (在至少一次触发后，等一下避免其他相同网址的网络要求并发)
         // 收集结束。检查收集结果。
         nwReqIdCollects.delete(stdUrl);
         // 尝试在 onBeforeRequest 阶段关联 reqId，避免 onBeforeSendHeaders 时关联失败的可能性
