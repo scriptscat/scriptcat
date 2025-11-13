@@ -10,7 +10,7 @@ import type { ConfirmParam } from "../permission_verify";
 import PermissionVerify, { PermissionVerifyApiGet } from "../permission_verify";
 import { cacheInstance } from "@App/app/cache";
 import { type RuntimeService } from "../runtime";
-import { getIcon, isFirefox, openInCurrentTab, cleanFileName, urlSanitize, sleep } from "@App/pkg/utils/utils";
+import { getIcon, isFirefox, openInCurrentTab, cleanFileName } from "@App/pkg/utils/utils";
 import { type SystemConfig } from "@App/pkg/config/config";
 import i18next, { i18nName } from "@App/locales/locales";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -31,15 +31,11 @@ import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import { createObjectURL } from "../../offscreen/client";
-import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { bgXhrInterface } from "./xhr_interface";
 
 const askUnlistedConnect = false;
 const askConnectStar = true;
 
-let lastNwReqTriggerTime = 0;
-const nwReqExecutes = new Set<{ initiatedAfter: number; resolve: () => void }>();
-const nwReqIdCollects = new Map<string, { initiatedAfter: number; list: string[] }>();
 const scXhrRequests = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 requestId
 const redirectedUrls = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 redirectUrl
 const nwErrorResults = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 network error
@@ -865,7 +861,6 @@ export default class GMApi {
         headerModifierMap.delete(markerID);
       };
       const requestUrl = param1.url;
-      const stdUrl = urlSanitize(requestUrl); // 确保 url 能执行 urlSanitize 且不会报错
 
       const f = async () => {
         if (useFetch) {
@@ -1004,46 +999,12 @@ export default class GMApi {
         }
       };
 
-      // stackAsyncTask 确保 nwReqIdCollects{"stdUrl"} 单一执行
-      await stackAsyncTask(`nwReqIdCollects::${stdUrl}`, async () => {
-        // 收集网络请求
-        const collection = [] as string[];
-        // 配合 lastNwReqTriggerTime，设置一个时间值条件避免取得本次网络要求发出前的其他Req
-        let initiatedAfter = Date.now() - 2500;
-        if (lastNwReqTriggerTime > initiatedAfter) initiatedAfter = lastNwReqTriggerTime;
-        nwReqIdCollects.set(stdUrl, {
-          initiatedAfter, // filter req >= initiatedAfter. 避免检测出Req发出前的其他Req
-          list: collection,
-        });
-        // 不理会URL，只判断网络请求是否已发出至少一次
-        const ret = new Promise<void>((resolve) => {
-          nwReqExecutes.add({
-            initiatedAfter,
-            resolve,
-          });
-        });
-        // 网络请求发出前。
-        try {
-          await f();
-          // 网络请求发出后。
-          await sleep(1); // next marco event (收集一下网络请求的 onBeforeRequest 触发)
-          await ret; // onBeforeRequest 触发至少一次 （通常在 sleep(1) 期间已触发）
-          await sleep(1); // next marco event (在至少一次触发后，等一下避免其他相同网址的网络要求并发)
-        } catch (e: any) {
-          console.error(e);
-        }
-        // 收集结束。检查收集结果。
-        nwReqIdCollects.delete(stdUrl);
-        // 尝试在 onBeforeRequest 阶段关联 reqId，避免 onBeforeSendHeaders 时关联失败的可能性
-        if (collection.length === 1 && collection[0].length > 0) {
-          const reqId = collection[0];
-          // 如 onBeforeSendHeaders 已执行并关联了 reqId, 则不处理
-          if (!scXhrRequests.has(reqId)) {
-            scXhrRequests.set(reqId, markerID);
-          }
-        }
-        collection.length = 0;
-      });
+      // 网络请求发出前。
+      try {
+        await f();
+      } catch (e: any) {
+        console.error(e);
+      }
     } catch (e: any) {
       throw throwErrorFn(`GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`);
     }
@@ -1491,53 +1452,6 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
-    chrome.webRequest.onBeforeRequest.addListener(
-      (details) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeRequest:", lastError);
-          // webRequest API 出错不进行后续处理
-          return undefined;
-        }
-        const timeStamp = details.timeStamp;
-        if (timeStamp > lastNwReqTriggerTime) lastNwReqTriggerTime = timeStamp;
-        if (nwReqExecutes.size) {
-          for (const nwReqExecute of nwReqExecutes) {
-            if (timeStamp >= nwReqExecute.initiatedAfter) {
-              nwReqExecute.resolve();
-              nwReqExecutes.delete(nwReqExecute);
-            }
-          }
-        }
-        if (nwReqIdCollects.size) {
-          if (
-            details.tabId === -1 &&
-            details.requestId &&
-            details.url &&
-            (details.initiator ? `${details.initiator}/`.includes(`/${chrome.runtime.id}/`) : true) &&
-            !scXhrRequests.has(details.requestId)
-          ) {
-            try {
-              const stdUrl = urlSanitize(details.url);
-              const collection = nwReqIdCollects.get(stdUrl);
-              if (collection) {
-                if (timeStamp >= collection.initiatedAfter) {
-                  collection.list.push(details.requestId);
-                }
-              }
-            } catch (e) {
-              console.warn(e);
-            }
-          }
-        }
-      },
-      {
-        urls: ["<all_urls>"],
-        types: ["xmlhttprequest"],
-        tabId: chrome.tabs.TAB_ID_NONE, // 只限于后台 service_worker / offscreen
-      }
-    );
-
     chrome.webRequest.onBeforeRedirect.addListener(
       (details) => {
         const lastError = chrome.runtime.lastError;
@@ -1787,20 +1701,6 @@ export default class GMApi {
         }
       }
     );
-    // 异常处理
-    // 如果SC完全没有任何网络请求，会让 nwReqExecutes 被卡死
-    // 可能性很低。只是以防万一
-    setInterval(() => {
-      if (nwReqExecutes.size) {
-        for (const nwReqExecute of nwReqExecutes) {
-          if (Date.now() - nwReqExecute.initiatedAfter > 4800) {
-            // 已经过时。放行吧
-            nwReqExecute.resolve();
-            nwReqExecutes.delete(nwReqExecute);
-          }
-        }
-      }
-    }, 5000);
   }
 
   start() {
