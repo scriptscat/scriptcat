@@ -64,8 +64,8 @@ export default class ExecScript {
     this.sandboxContext?.emitEvent(event, eventId, data);
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    this.sandboxContext?.valueUpdate(data);
+  valueUpdate(storageName: string, uuid: string, data: ValueUpdateDataEncoded[]) {
+    this.sandboxContext?.valueUpdate(storageName, uuid, data);
   }
 
   execContext: any;

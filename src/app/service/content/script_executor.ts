@@ -2,7 +2,7 @@ import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, PreScriptFunc, ValueUpdateSendData } from "./types";
 import { addStyle, definePropertyListener } from "./utils";
 
 export type ExecScriptEntry = {
@@ -33,11 +33,13 @@ export class ScriptExecutor {
     }
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    const { uuid, storageName } = data;
-    for (const val of this.execMap.values()) {
-      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        val.valueUpdate(data);
+  valueUpdate(sendData: ValueUpdateSendData) {
+    const { data, storageName } = sendData;
+    for (const [uuid, list] of Object.entries(data)) {
+      for (const val of this.execMap.values()) {
+        if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
+          val.valueUpdate(storageName, uuid, list);
+        }
       }
     }
   }

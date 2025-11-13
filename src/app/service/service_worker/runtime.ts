@@ -437,15 +437,22 @@ export class RuntimeService {
     });
 
     // 监听脚本值变更
-    this.mq.subscribe<TScriptValueUpdate>("valueUpdate", async ({ script, valueUpdated }: TScriptValueUpdate) => {
-      if (valueUpdated) {
-        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
-          // 如果是预加载脚本，需要更新脚本代码重新注册
-          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
-          await this.updateResourceOnScriptChange(script);
+    this.mq.subscribe<TScriptValueUpdate>(
+      "valueUpdate",
+      async ({ uuid, valueUpdated, status, isEarlyStart }: TScriptValueUpdate) => {
+        if (valueUpdated) {
+          if (status === SCRIPT_STATUS_ENABLE && isEarlyStart) {
+            // 如果是预加载脚本，需要更新脚本代码重新注册
+            // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
+            const script = await this.scriptDAO.get(uuid);
+            // 因為從 scriptDAO 取了最新的。所以再確認一下吧。
+            if (script && script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+              await this.updateResourceOnScriptChange(script);
+            }
+          }
         }
       }
-    });
+    );
 
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
