@@ -1659,7 +1659,7 @@ export default class GMApi {
             if (markerID) scXhrRequests.set(reqId, markerID);
           }
           const markerID = scXhrRequests.get(reqId);
-          if (!markerID) return;
+          if (!markerID) return undefined;
           redirectedUrls.set(markerID, details.url);
         }
         return undefined;
