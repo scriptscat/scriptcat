@@ -60,6 +60,25 @@ const headerModifierMap = new Map<
   }
 >();
 
+let generatedUniqueMarkerIDs = "";
+let generatedUniqueMarkerIDWhen = "";
+// 用来生成绝不重复的 MarkerID
+const generateUniqueMarkerID = () => {
+  const u1 = Math.floor(Date.now()).toString(36);
+  let u2 = `_${Math.floor(Math.random() * 2514670967279938 + 1045564536402193).toString(36)}`;
+  if (u1 !== generatedUniqueMarkerIDWhen) {
+    generatedUniqueMarkerIDWhen = u1;
+    generatedUniqueMarkerIDs = u2;
+  } else {
+    // 实际上 u2 的重复可能性非常低
+    while (generatedUniqueMarkerIDs.indexOf(u2) >= 0) {
+      u2 = `_${Math.floor(Math.random() * 2514670967279938 + 1045564536402193).toString(36)}`;
+    }
+    generatedUniqueMarkerIDs += u2;
+  }
+  return `MARKER::${u1}${u2}`;
+};
+
 const enum xhrExtraCode {
   INVALID_URL = 0x20,
   DOMAIN_NOT_INCLUDED = 0x30,
@@ -729,9 +748,7 @@ export default class GMApi {
 
     // 关联自己生成的请求id与chrome.webRequest的请求id
     // 随机生成(同步)，不需要 chrome.storage 存取
-    const u1 = Math.floor(Date.now()).toString(36);
-    const u2 = Math.floor(Math.random() * 2514670967279938 + 1045564536402193).toString(36);
-    const markerID = `MARKER::${u1}_${u2}`;
+    const markerID = generateUniqueMarkerID();
 
     const isRedirectError = request.params?.[0]?.redirect === "error";
 
