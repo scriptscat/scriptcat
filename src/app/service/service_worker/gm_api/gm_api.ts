@@ -66,43 +66,6 @@ const enum xhrExtraCode {
   DOMAIN_IN_BLACKLIST = 0x40,
 }
 
-// const xhrReqEntries = new Map<string, TXhrReqObject>();
-
-// const setReqDone = (stdUrl: string, xhrReqEntry: TXhrReqObject) => {
-//   xhrReqEntry.reqUrl = "";
-//   xhrReqEntry.markerId = "";
-//   xhrReqEntry.startTime = 0;
-//   xhrReqEntry.resolve?.();
-//   xhrReqEntry.resolve = null;
-//   xhrReqEntries.delete(stdUrl);
-// };
-
-// const setReqId = (reqId: string, url: string, timeStamp: number) => {
-//   const stdUrl = urlSanitize(url);
-//   const xhrReqEntry = xhrReqEntries.get(stdUrl);
-//   if (xhrReqEntry) {
-//     const { reqUrl, markerId } = xhrReqEntry;
-//     if (reqUrl !== url && `URL::${urlSanitize(reqUrl)}` !== `URL::${stdUrl}`) {
-//       // 通常不会发生
-//       console.error("xhrReqEntry URL mistached", reqUrl, url);
-//       setReqDone(stdUrl, xhrReqEntry);
-//     } else if (!xhrReqEntry.startTime || !(timeStamp > xhrReqEntry.startTime)) {
-//       // 通常不会发生
-//       console.error("xhrReqEntry timeStamp issue 1", xhrReqEntry.startTime, timeStamp);
-//       setReqDone(stdUrl, xhrReqEntry);
-//     } else if (timeStamp - xhrReqEntry.startTime > 400) {
-//       // 通常不会发生
-//       console.error("xhrReqEntry timeStamp issue 2", xhrReqEntry.startTime, timeStamp);
-//       setReqDone(stdUrl, xhrReqEntry);
-//     } else {
-//       // console.log("xhrReqEntry", xhrReqEntry.startTime, timeStamp); // 相隔 2 ~ 9 ms
-//       scXhrRequests.set(markerId, reqId); // 同时存放 (markerID -> reqId)
-//       scXhrRequests.set(reqId, markerId); // 同时存放 (reqId -> markerID)
-//       setReqDone(stdUrl, xhrReqEntry);
-//     }
-//   }
-// };
-
 // GMApi,处理脚本的GM API调用请求
 
 type RequestResultParams = {
