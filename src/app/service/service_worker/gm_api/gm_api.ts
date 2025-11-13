@@ -1512,7 +1512,8 @@ export default class GMApi {
           // webRequest API 出错不进行后续处理
           return undefined;
         }
-        const timeStamp = (lastNwReqTriggerTime = details.timeStamp);
+        const timeStamp = details.timeStamp;
+        if (timeStamp > lastNwReqTriggerTime) lastNwReqTriggerTime = timeStamp;
         if (nwReqExecutes.size) {
           for (const nwReqExecute of nwReqExecutes) {
             if (timeStamp >= nwReqExecute.initiatedAfter) {
