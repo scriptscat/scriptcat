@@ -1027,11 +1027,12 @@ export default class GMApi {
           console.warn(e);
         }
         // 网络请求发出后。
-        await sleep(1); // next marco event
-        await ret; // onBeforeRequest 触发至少一次
-        await sleep(1); // next marco event
+        await sleep(1); // next marco event (收集一下网络请求的 onBeforeRequest 触发)
+        await ret; // onBeforeRequest 触发至少一次 （通常在 sleep(1) 期间已触发）
+        await sleep(1); // next marco event (在至少一次触发后，等一下避免其他相同网址的网络要求并发)
+        // 收集结束。检查收集结果。
         nwReqIdCollects.delete(stdUrl);
-        // 尝试在 onBeforeRequest 階段关联 reqId，避免 onBeforeSendHeaders 时关联失败的可能性
+        // 尝试在 onBeforeRequest 阶段关联 reqId，避免 onBeforeSendHeaders 时关联失败的可能性
         if (collection.length === 1 && collection[0].length > 0) {
           const reqId = collection[0];
           // 如 onBeforeSendHeaders 已执行并关联了 reqId, 则不处理
