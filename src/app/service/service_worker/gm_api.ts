@@ -331,7 +331,7 @@ export default class GMApi {
     return true;
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValue"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValue(request: GMApiRequest<[string, string, any?]>, sender: IGetSender) {
     if (!request.params || request.params.length < 2) {
       throw new Error("param is failed");
@@ -343,7 +343,7 @@ export default class GMApi {
     });
   }
 
-  @PermissionVerify.API({ link: ["GM_deleteValues"] })
+  @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValues(request: GMApiRequest<[string, TEncodedMessage<TGMKeyValue>]>, sender: IGetSender) {
     if (!request.params || request.params.length !== 2) {
       throw new Error("param is failed");
