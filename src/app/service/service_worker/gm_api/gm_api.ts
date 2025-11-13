@@ -1008,7 +1008,9 @@ export default class GMApi {
       await stackAsyncTask(`nwReqIdCollects::${stdUrl}`, async () => {
         // 收集网络请求
         const collection = [] as string[];
-        const initiatedAfter = lastNwReqTriggerTime;
+        // 配合 lastNwReqTriggerTime，设置一个时间值条件避免取得本次网络要求发出前的其他Req
+        let initiatedAfter = Date.now() - 2500;
+        if (lastNwReqTriggerTime > initiatedAfter) initiatedAfter = lastNwReqTriggerTime;
         nwReqIdCollects.set(stdUrl, {
           initiatedAfter, // filter req >= initiatedAfter. 避免检测出Req发出前的其他Req
           list: collection,
