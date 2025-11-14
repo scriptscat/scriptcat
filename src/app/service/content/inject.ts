@@ -8,14 +8,12 @@ import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 
 export class InjectRuntime {
   constructor(
-    private server: Server,
-    private msg: Message,
-    private scriptExecutor: ScriptExecutor
+    private readonly server: Server,
+    private readonly msg: Message,
+    private readonly scriptExecutor: ScriptExecutor
   ) {}
 
-  init(envInfo: GMInfoEnv) {
-    this.scriptExecutor.init(envInfo);
-
+  init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本
       this.scriptExecutor.emitEvent(data);
@@ -23,13 +21,19 @@ export class InjectRuntime {
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
       this.scriptExecutor.valueUpdate(data);
     });
-
-    // 注入允许外部调用
-    this.externalMessage();
   }
 
-  start(scripts: ScriptLoadInfo[]) {
-    this.scriptExecutor.start(scripts);
+  setEnvInfo(envInfo: GMInfoEnv) {
+    this.scriptExecutor.setEnvInfo(envInfo);
+  }
+
+  startScripts(scripts: ScriptLoadInfo[]) {
+    this.scriptExecutor.startScripts(scripts);
+  }
+
+  onInjectPageLoaded() {
+    // 注入允许外部调用
+    this.externalMessage();
   }
 
   externalMessage() {

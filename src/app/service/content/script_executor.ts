@@ -21,7 +21,7 @@ export class ScriptExecutor {
 
   constructor(private msg: Message) {}
 
-  init(envInfo: GMInfoEnv) {
+  setEnvInfo(envInfo: GMInfoEnv) {
     this.envInfo = envInfo;
   }
 
@@ -42,7 +42,7 @@ export class ScriptExecutor {
     }
   }
 
-  start(scripts: ScriptLoadInfo[]) {
+  startScripts(scripts: ScriptLoadInfo[]) {
     const loadExec = (script: ScriptLoadInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
@@ -76,16 +76,16 @@ export class ScriptExecutor {
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
     window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
       if (event instanceof CustomEvent) {
-        if (typeof event.detail.scriptFlag === "string") {
+        const scriptFlag = event.detail?.scriptFlag;
+        if (typeof scriptFlag === "string") {
           event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-          const scriptFlag = event.detail.scriptFlag;
           this.execEarlyScript(scriptFlag);
         }
       }
     });
     // 通知 环境 加载完成
     // 适用于此「通知环境加载完成」代码执行前的脚本加载
-    const ev = new CustomEvent(eventNamePrefix + messageFlags.envLoadComplete);
+    const ev = new CustomEvent(`${eventNamePrefix}${messageFlags.envLoadComplete}`);
     window.dispatchEvent(ev);
   }
 

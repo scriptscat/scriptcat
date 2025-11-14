@@ -12,21 +12,23 @@ import type { Message } from "@Packages/message/types";
 
 const msg: Message = new CustomEventMessage(MessageFlags, false);
 
+const server = new Server("inject", msg);
+const scriptExecutor = new ScriptExecutor(msg);
+const runtime = new InjectRuntime(server, msg, scriptExecutor);
+runtime.init();
+// 检查early-start的脚本
+scriptExecutor.checkEarlyStartScript("inject", MessageFlags);
+
 // 加载logger组件
 const logger = new LoggerCore({
   writer: new MessageWriter(msg),
   labels: { env: "inject", href: window.location.href },
 });
 
-const server = new Server("inject", msg);
-const scriptExecutor = new ScriptExecutor(msg);
-const runtime = new InjectRuntime(server, msg, scriptExecutor);
-// 检查early-start的脚本
-scriptExecutor.checkEarlyStartScript("inject", MessageFlags);
-
 server.on("pageLoad", (data: { scripts: ScriptLoadInfo[]; envInfo: GMInfoEnv }) => {
   logger.logger().debug("inject start");
   // 监听事件
-  runtime.init(data.envInfo);
-  runtime.start(data.scripts);
+  runtime.setEnvInfo(data.envInfo);
+  runtime.startScripts(data.scripts);
+  runtime.onInjectPageLoaded();
 });
