@@ -418,7 +418,8 @@ export class BgGMXhr {
       }
 
       // --- Handle request body ---
-      if (
+      // 标准 xhr request 的 body 类型： https://developer.mozilla.org/en/docs/Web/API/XMLHttpRequest/send
+      const isStandardRequestBody =
         rawData instanceof URLSearchParams ||
         typeof rawData === "string" ||
         typeof rawData === "number" ||
@@ -428,14 +429,17 @@ export class BgGMXhr {
         rawData instanceof Blob ||
         rawData instanceof FormData ||
         rawData instanceof ArrayBuffer ||
-        rawData instanceof Uint8Array
-      ) {
-        //
-      } else if (rawData && typeof rawData === "object" && !(rawData instanceof ArrayBuffer)) {
+        rawData instanceof Uint8Array;
+      // 其他标准以外的物件类型则尝试 JSON 转换
+      if (!isStandardRequestBody && typeof rawData === "object") {
         if ((baseXHR.getResponseHeader("Content-Type") || "application/json") !== "application/json") {
           // JSON body
-          rawData = JSON.stringify(rawData);
-          baseXHR.setRequestHeader("Content-Type", "application/json");
+          try {
+            rawData = JSON.stringify(rawData);
+            baseXHR.setRequestHeader("Content-Type", "application/json");
+          } catch {
+            rawData = undefined;
+          }
         } else {
           rawData = undefined;
         }
