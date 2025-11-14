@@ -31,30 +31,21 @@ import i18n from "@App/locales/locales";
 import { decodeMessage, type TEncodedMessage } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import { createObjectURL } from "../../offscreen/client";
-import { bgXhrInterface } from "./xhr_interface";
+import type { GMXhrStrategy } from "./gm_xhr";
+import {
+  GMXhrFetchStrategy,
+  GMXhrXhrStrategy,
+  nwErrorResultPromises,
+  nwErrorResults,
+  redirectedUrls,
+  scXhrRequests,
+  SWRequestResultParams,
+} from "./gm_xhr";
+import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
+import { BgGMXhr } from "./bg_gm_xhr";
 
 const askUnlistedConnect = false;
 const askConnectStar = true;
-
-const scXhrRequests = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 requestId
-const redirectedUrls = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 redirectUrl
-const nwErrorResults = new Map<string, string>(); // 关联SC后台发出的 xhr/fetch 的 network error
-const nwErrorResultPromises = new Map<string, any>();
-// net::ERR_NAME_NOT_RESOLVED, net::ERR_CONNECTION_REFUSED, net::ERR_ABORTED, net::ERR_FAILED
-
-// 接收 xhr/fetch 的 responseHeaders
-const headersReceivedMap = new Map<
-  string,
-  { responseHeaders: chrome.webRequest.HttpHeader[] | undefined | null; statusCode: number | null }
->();
-// 特殊方式处理：以 DNR Rule per request 方式处理 header 修改 (e.g. cookie, unsafeHeader)
-const headerModifierMap = new Map<
-  string,
-  {
-    rule: chrome.declarativeNetRequest.Rule;
-    redirectNotManual: boolean;
-  }
->();
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -80,14 +71,6 @@ const enum xhrExtraCode {
   DOMAIN_NOT_INCLUDED = 0x30,
   DOMAIN_IN_BLACKLIST = 0x40,
 }
-
-// GMApi,处理脚本的GM API调用请求
-
-type RequestResultParams = {
-  statusCode: number;
-  responseHeaders: string;
-  finalUrl: string;
-};
 
 type OnBeforeSendHeadersOptions = `${chrome.webRequest.OnBeforeSendHeadersOptions}`;
 type OnHeadersReceivedOptions = `${chrome.webRequest.OnHeadersReceivedOptions}`;
@@ -746,37 +729,7 @@ export default class GMApi {
     // 随机生成(同步)，不需要 chrome.storage 存取
     const markerID = generateUniqueMarkerID();
 
-    const isRedirectError = request.params?.[0]?.redirect === "error";
-
-    let resultParamStatusCode = 0;
-    let resultParamResponseHeader = "";
-    let resultParamFinalUrl = "";
-    const resultParam: RequestResultParams = {
-      get statusCode() {
-        const responsed = headersReceivedMap.get(markerID);
-        if (responsed && typeof responsed.statusCode === "number") {
-          resultParamStatusCode = responsed.statusCode;
-          responsed.statusCode = null; // 设为 null 避免重复处理
-        }
-        return resultParamStatusCode;
-      },
-      get responseHeaders() {
-        const responsed = headersReceivedMap.get(markerID);
-        if (responsed && responsed.responseHeaders) {
-          let s = "";
-          for (const h of responsed.responseHeaders) {
-            s += `${h.name}: ${h.value}\n`;
-          }
-          resultParamResponseHeader = s;
-          responsed.responseHeaders = null; // 设为 null 避免重复处理
-        }
-        return resultParamResponseHeader;
-      },
-      get finalUrl() {
-        resultParamFinalUrl = redirectedUrls.get(markerID) || "";
-        return resultParamFinalUrl;
-      },
-    };
+    const resultParam = new SWRequestResultParams(markerID);
 
     const throwErrorFn = (error: string) => {
       if (!isConnDisconnected) {
@@ -793,23 +746,23 @@ export default class GMApi {
       return new Error(`${error}`);
     };
 
-    const param1 = request.params[0];
-    if (!param1) {
+    const details = request.params[0];
+    if (!details) {
       throw throwErrorFn("param is failed");
     }
 
     if (request.extraCode === xhrExtraCode.INVALID_URL) {
-      const msg = `Refused to connect to "${param1.url}": The url is invalid`;
+      const msg = `Refused to connect to "${details.url}": The url is invalid`;
       throw throwErrorFn(msg);
     }
     if (request.extraCode === xhrExtraCode.DOMAIN_NOT_INCLUDED) {
       // 'Refused to connect to "https://nonexistent-domain-abcxyz.test/": This domain is not a part of the @connect list'
-      const msg = `Refused to connect to "${param1.url}": This domain is not a part of the @connect list`;
+      const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
       throw throwErrorFn(msg);
     }
     if (request.extraCode === xhrExtraCode.DOMAIN_IN_BLACKLIST) {
       // 'Refused to connect to "https://example.org/": URL is blacklisted'
-      const msg = `Refused to connect to "${param1.url}": URL is blacklisted`;
+      const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
       throw throwErrorFn(msg);
     }
     try {
@@ -826,28 +779,28 @@ export default class GMApi {
       // https://github.com/scriptscat/scriptcat/commit/3774aa3acebeadb6b08162625a9af29a9599fa96
       // cookiePartition shall refers to the following issue:
       // https://github.com/Tampermonkey/tampermonkey/issues/2419
-      if (!param1.cookiePartition || typeof param1.cookiePartition !== "object") {
-        param1.cookiePartition = {};
+      if (!details.cookiePartition || typeof details.cookiePartition !== "object") {
+        details.cookiePartition = {};
       }
-      if (typeof param1.cookiePartition.topLevelSite !== "string") {
+      if (typeof details.cookiePartition.topLevelSite !== "string") {
         // string | undefined
-        param1.cookiePartition.topLevelSite = undefined;
+        details.cookiePartition.topLevelSite = undefined;
       }
 
       // 添加请求header, 处理unsafe hearder
-      await this.buildDNRRule(markerID, param1, sender);
+      await this.buildDNRRule(markerID, details, sender);
       // let finalUrl = "";
       // 等待response
 
       let useFetch;
       {
-        const anonymous = param1.anonymous ?? param1.mozAnon ?? false;
+        const anonymous = details.anonymous ?? details.mozAnon ?? false;
 
-        const redirect = param1.redirect;
+        const redirect = details.redirect;
 
-        const isFetch = param1.fetch ?? false;
+        const isFetch = details.fetch ?? false;
 
-        const isBufferStream = param1.responseType === "stream";
+        const isBufferStream = details.responseType === "stream";
 
         useFetch = isFetch || !!redirect || anonymous || isBufferStream;
       }
@@ -860,150 +813,49 @@ export default class GMApi {
         headersReceivedMap.delete(markerID);
         headerModifierMap.delete(markerID);
       };
-      const requestUrl = param1.url;
-
-      const f = async () => {
-        if (useFetch) {
-          // 只有fetch支持ReadableStream、redirect这些，直接使用fetch
-          bgXhrInterface(
-            param1,
-            {
-              get finalUrl() {
-                return resultParam.finalUrl;
-              },
-              get responseHeaders() {
-                return resultParam.responseHeaders;
-              },
-              get status() {
-                return resultParam.statusCode;
-              },
-              loadendCleanUp() {
-                loadendCleanUp();
-              },
-              async fixMsg(
-                msg: TMessageCommAction<{
-                  finalUrl: any;
-                  responseHeaders: any;
-                  readyState: 0 | 1 | 2 | 3 | 4;
-                  status: number;
-                  statusText: string;
-                  useFetch: boolean;
-                  eventType: string;
-                  ok: boolean;
-                  contentType: string;
-                  error: string | undefined;
-                }>
-              ) {
-                // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
-                if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
-                  resultParamStatusCode = msg.data.status;
-                }
-                if (msg.data?.status === 301) {
-                  // 兼容TM - redirect: manual 显示原网址
-                  redirectedUrls.delete(markerID);
-                  resultParamFinalUrl = requestUrl;
-                  msg.data.finalUrl = requestUrl;
-                } else if (msg.action === "onerror" && isRedirectError && msg.data) {
-                  let nwErr = nwErrorResults.get(markerID);
-                  if (!nwErr) {
-                    // 等 Network Error 捕捉
-                    await Promise.race([
-                      new Promise((resolve) => {
-                        nwErrorResultPromises.set(markerID, resolve);
-                      }),
-                      new Promise((r) => setTimeout(r, 800)),
-                    ]);
-                    nwErr = nwErrorResults.get(markerID);
-                  }
-                  if (nwErr) {
-                    msg.data.status = 408;
-                    msg.data.statusText = "";
-                    msg.data.responseHeaders = "";
-                  }
-                }
-              },
-            },
-            msgConn
-          );
-        } else if (typeof XMLHttpRequest === "function") {
-          // No offscreen in Firefox, but Firefox background script itself provides XMLHttpRequest.
-          // Firefox 中没有 offscreen，但 Firefox 的"后台脚本"本身提供了 XMLHttpRequest。
-          bgXhrInterface(
-            param1,
-            {
-              get finalUrl() {
-                return resultParam.finalUrl;
-              },
-              get responseHeaders() {
-                return resultParam.responseHeaders;
-              },
-              get status() {
-                return resultParam.statusCode;
-              },
-              loadendCleanUp() {
-                loadendCleanUp();
-              },
-              async fixMsg(
-                msg: TMessageCommAction<{
-                  finalUrl: any;
-                  responseHeaders: any;
-                  readyState: 0 | 1 | 2 | 3 | 4;
-                  status: number;
-                  statusText: string;
-                  useFetch: boolean;
-                  eventType: string;
-                  ok: boolean;
-                  contentType: string;
-                  error: string | undefined;
-                }>
-              ) {
-                // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
-                if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
-                  resultParamStatusCode = msg.data.status;
-                }
-              },
-            },
-            msgConn
-          );
-        } else {
-          // 再发送到offscreen, 处理请求
-          const offscreenCon = await connect(this.msgSender, "offscreen/gmApi/xmlHttpRequest", param1);
-          offscreenCon.onMessage((msg) => {
-            // 发送到content
-            let data = msg.data;
-            // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
-            if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
-              resultParamStatusCode = msg.data.status;
-            }
-            data = {
-              ...data,
-              finalUrl: resultParam.finalUrl, // 替换finalUrl
-              responseHeaders: resultParam.responseHeaders || data.responseHeaders || "", // 替换msg.data.responseHeaders
-              status: resultParam.statusCode || data.statusCode || data.status,
-            };
-            msg = {
-              action: msg.action,
-              data: data,
-            } as TMessageCommAction;
-            if (msg.action === "onloadend") {
-              loadendCleanUp();
-            }
-            if (!isConnDisconnected) {
-              msgConn.sendMessage(msg);
-            }
-          });
-          msgConn.onDisconnect(() => {
-            // 关闭连接
-            offscreenCon.disconnect();
-          });
-        }
-      };
-
-      // 网络请求发出前。
-      try {
-        await f();
-      } catch (e: any) {
-        console.error(e);
+      let strategy: GMXhrStrategy | undefined = undefined;
+      if (useFetch) {
+        strategy = new GMXhrFetchStrategy(details, resultParam);
+      } else if (typeof XMLHttpRequest === "function") {
+        // No offscreen in Firefox, but Firefox background script itself provides XMLHttpRequest.
+        // Firefox 中没有 offscreen，但 Firefox 的"后台脚本"本身提供了 XMLHttpRequest。
+        strategy = new GMXhrXhrStrategy(resultParam);
+      }
+      if (strategy) {
+        const bgGmXhr = new BgGMXhr(details, resultParam, msgConn, strategy);
+        bgGmXhr.onLoaded(loadendCleanUp);
+        bgGmXhr.do();
+      } else {
+        // 再发送到offscreen, 处理请求
+        const offscreenCon = await connect(this.msgSender, "offscreen/gmApi/xmlHttpRequest", details);
+        offscreenCon.onMessage((msg) => {
+          // 发送到content
+          let data = msg.data;
+          // 修正 statusCode 在 接收responseHeader 后会变化的问题 (例如 401 -> 200)
+          if (msg.data?.status && resultParam.statusCode > 0 && resultParam.statusCode !== msg.data?.status) {
+            resultParam.resultParamStatusCode = msg.data.status;
+          }
+          data = {
+            ...data,
+            finalUrl: resultParam.finalUrl, // 替换finalUrl
+            responseHeaders: resultParam.responseHeaders || data.responseHeaders || "", // 替换msg.data.responseHeaders
+            status: resultParam.statusCode || data.statusCode || data.status,
+          };
+          msg = {
+            action: msg.action,
+            data: data,
+          } as TMessageCommAction;
+          if (msg.action === "onloadend") {
+            loadendCleanUp();
+          }
+          if (!isConnDisconnected) {
+            msgConn.sendMessage(msg);
+          }
+        });
+        msgConn.onDisconnect(() => {
+          // 关闭连接
+          offscreenCon.disconnect();
+        });
       }
     } catch (e: any) {
       throw throwErrorFn(`GM_xmlhttpRequest ERROR: ${e?.message || e || "Unknown Error"}`);

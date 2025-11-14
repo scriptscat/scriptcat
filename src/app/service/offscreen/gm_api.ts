@@ -1,5 +1,5 @@
 import type { IGetSender, Group } from "@Packages/message/server";
-import { bgXhrInterface } from "../service_worker/gm_api/xhr_interface";
+import { BgGMXhr } from "../service_worker/gm_api/bg_gm_xhr";
 
 export default class GMApi {
   constructor(private group: Group) {}
@@ -7,7 +7,8 @@ export default class GMApi {
   async xmlHttpRequest(details: GMSend.XHRDetails, sender: IGetSender) {
     const con = sender.getConnect(); // con can be undefined
     if (!con) throw new Error("offscreen xmlHttpRequest: Connection is undefined");
-    bgXhrInterface(details, { finalUrl: "", responseHeaders: "" }, con);
+    const bgGmXhr = new BgGMXhr(details, { statusCode: 0, finalUrl: "", responseHeaders: "" }, con);
+    bgGmXhr.do();
   }
 
   textarea: HTMLTextAreaElement = document.createElement("textarea");
