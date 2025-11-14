@@ -1,8 +1,31 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
+import { aNow, checkSilenceUpdate, cleanFileName, stringMatching, toCamelCase } from "./utils";
 import { ltever, versionCompare } from "@App/pkg/utils/semver";
 import { nextTime } from "./cron";
 import dayjs from "dayjs";
+
+describe.concurrent("aNow", () => {
+  it.sequential("aNow is Strictly Increasing", () => {
+    const p1 = [aNow(), aNow(), aNow(), aNow(), aNow(), aNow()];
+    expect(p1[0]).lessThan(p1[1]);
+    expect(p1[1]).lessThan(p1[2]);
+    expect(p1[2]).lessThan(p1[3]);
+    expect(p1[3]).lessThan(p1[4]);
+    expect(p1[4]).lessThan(p1[5]);
+    const p2 = [...p1].sort();
+    expect(p1).toEqual(p2);
+  });
+  it.sequential("t1 > t2 (busy) and t3 = t4 (idle)", async () => {
+    const _p1 = [aNow(), aNow(), aNow(), aNow(), aNow(), aNow()];
+    const t1 = aNow();
+    const t2 = Date.now();
+    expect(t1).greaterThan(t2);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const t3 = aNow();
+    const t4 = Date.now();
+    expect(t3).toEqual(t4);
+  });
+});
 
 describe.concurrent("nextTime", () => {
   const date = new Date(1737275107000);
