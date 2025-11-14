@@ -148,8 +148,8 @@ export class ValueService {
           uuid: uuid,
           storageName: storageName,
           data: dataModel,
-          createtime: ts || Math.min(ts!, now),
-          updatetime: ts || Math.min(ts!, now),
+          createtime: ts ? Math.min(ts, now) : now,
+          updatetime: ts ? Math.min(ts, now) : now,
         };
       } else {
         let changed = false;

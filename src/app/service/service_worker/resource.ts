@@ -314,8 +314,8 @@ export class ResourceService {
         base64,
         link: {},
         type,
-        createtime: ts || Math.min(ts, now),
-        updatetime: ts || Math.min(ts, now),
+        createtime: ts ? Math.min(ts, now) : now,
+        updatetime: ts ? Math.min(ts, now) : now,
       };
     } else {
       res.updatetime = now;
