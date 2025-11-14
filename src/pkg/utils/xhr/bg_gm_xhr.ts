@@ -1,7 +1,6 @@
 import type { GMXhrStrategy } from "@App/app/service/service_worker/gm_api/gm_xhr";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { chunkUint8, uint8ToBase64 } from "@App/pkg/utils/datatype";
-import { bgXhrRequestFn } from "@App/pkg/utils/xhr/xhr_bg_core";
 import type { MessageConnect, TMessageCommAction } from "@Packages/message/types";
 import { dataDecode } from "./xhr_data";
 
@@ -110,105 +109,6 @@ export type RequestResultParams = {
  * - The `synchronous` flag in `details` is **not supported**.
  * - You must declare appropriate `@connect` permissions in your userscript header.
  */
-
-/**
- * Represents the response object returned to GM_xmlhttpRequest callbacks.
- */
-export interface GMResponse<T = any> {
-  /** The final URL after redirects */
-  finalUrl: string;
-  /** Current ready state */
-  readyState: number;
-  /** HTTP status code */
-  status: number;
-  /** HTTP status text */
-  statusText: string;
-  /** Raw response headers */
-  responseHeaders: string;
-  /** Parsed response data (depends on responseType) */
-  response: T;
-  /** Response as XML document (if applicable) */
-  responseXML?: Document;
-  /** Response as plain text */
-  responseText: string;
-  /** Context object passed from the request */
-  context?: any;
-}
-
-type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
-
-/**
- * Represents the request details passed to GM_xmlhttpRequest.
- */
-export interface XmlhttpRequestFnDetails<T = any> {
-  /** HTTP method (GET, POST, PUT, DELETE, etc.) */
-  method?: string;
-  /** Target url string */
-  url: string;
-  /** Optional headers to include */
-  headers?: Record<string, string>;
-  /** Data to send with the request */
-  data?: GMXHRDataType;
-  /** Redirect handling mode */
-  redirect?: "follow" | "error" | "manual";
-  /** Additional cookie to include */
-  cookie?: string;
-  /** Partition key for partitioned cookies (v5.2+) */
-  cookiePartition?: Record<string, any>;
-  /** Top-level site for partitioned cookies */
-  topLevelSite?: string;
-  /** Send data as binary */
-  binary?: boolean;
-  /** Disable caching: don’t cache or store the resource at all */
-  nocache?: boolean;
-  /** Force revalidation of cached content: may cache, but must revalidate before using cached content */
-  revalidate?: boolean;
-  /** Timeout in milliseconds */
-  timeout?: number;
-  /** Custom value passed to response.context */
-  context?: any;
-  /** Type of response expected */
-  responseType?: "arraybuffer" | "blob" | "json" | "stream" | "" | "text" | "document"; // document for VM2.12.0+
-  /** Override MIME type */
-  overrideMimeType?: string;
-  /** Send request without cookies (Greasemonkey) */
-  mozAnon?: boolean;
-  /** Send request without cookies */
-  anonymous?: boolean;
-  /** Use fetch() instead of XMLHttpRequest */
-  fetch?: boolean;
-  /** Username for authentication */
-  user?: string;
-  /** Password for authentication */
-  password?: string;
-  /** [NOT SUPPORTED] upload (Greasemonkey) */
-  upload?: never;
-  /** [NOT SUPPORTED] synchronous (Greasemonkey) */
-  synchronous?: never;
-
-  /** Called if the request is aborted */
-  onabort?: (response: GMResponse<T>) => void;
-  /** Called on network error */
-  onerror?: (response: GMResponse<T>) => void;
-  /** Called when loading starts */
-  onloadstart?: (response: GMResponse<T>) => void;
-  /** Called on download progress */
-  onprogress?: (response: GMResponse<T>) => void;
-  /** Called when readyState changes */
-  onreadystatechange?: (response: GMResponse<T>) => void;
-  /** Called on request timeout */
-  ontimeout?: (response: GMResponse<T>) => void;
-  /** Called on successful request completion */
-  onload?: (response: GMResponse<T>) => void;
-}
-
-/**
- * The return value of GM_xmlhttpRequest — includes an abort() function.
- */
-export interface GMRequestHandle {
-  /** Abort the ongoing request */
-  abort: () => void;
-}
 
 type ResponseType = "" | "text" | "json" | "blob" | "arraybuffer" | "document";
 
@@ -762,8 +662,6 @@ export class BgGMXhr {
     const prepareXHR = async () => {
       let rawData = (details.data = await details.data);
 
-      // console.log("rawData", rawData);
-
       const baseXHR = useFetch
         ? new FetchXHR({
             extraOptsFn: (opts: RequestInit) => {
@@ -931,30 +829,6 @@ export class BgGMXhr {
         //
         baseXHR.setRequestHeader("Cache-Control", "max-age=0, must-revalidate");
       }
-
-      // // --- Handle request body ---
-      // if (
-      //   rawData instanceof URLSearchParams ||
-      //   typeof rawData === "string" ||
-      //   rawData instanceof Blob ||
-      //   rawData instanceof FormData
-      // ) {
-      //   requestInit.body = rawData as BodyInit;
-      // } else if (rawData && typeof rawData === "object" && !(rawData instanceof ArrayBuffer)) {
-      //   // JSON body
-      //   requestInit.body = JSON.stringify(rawData);
-      //   if (!headers.has("Content-Type")) {
-      //     headers.set("Content-Type", "application/json");
-      //   }
-      // }
-
-      // // --- Handle cookies (if any) ---
-      // if (cookie) {
-      //   requestInit.headers ||= {};
-      //   // if (!headers.has("Cookie")) {
-      //   headers.set("Cookie", cookie);
-      //   // }
-      // }
 
       // --- Handle request body ---
       if (

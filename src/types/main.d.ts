@@ -63,6 +63,7 @@ declare namespace GMSend {
     responseType?: "" | "text" | "arraybuffer" | "blob" | "json" | "document" | "stream";
     overrideMimeType?: string;
     anonymous?: boolean;
+    /** Send request without cookies (Greasemonkey) */
     mozAnon?: boolean;
     fetch?: boolean;
     user?: string;

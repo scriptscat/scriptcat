@@ -490,11 +490,13 @@ declare namespace GMTypes {
   type Listener<OBJ> = (event: OBJ) => unknown;
   type ContextType = unknown;
 
+  type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string | URL | File | Blob;
     headers?: { [key: string]: string };
-    data?: string | FormData | Blob;
+    data?: GMXHRDataType;
     cookie?: string;
     binary?: boolean;
     timeout?: number;
@@ -502,13 +504,17 @@ declare namespace GMTypes {
     responseType?: "text" | "arraybuffer" | "blob" | "json" | "document" | "stream"; // stream 在当前版本是一个较为简陋的实现
     overrideMimeType?: string;
     anonymous?: boolean;
+    mozAnon?: boolean; // 发送请求时不携带cookie (兼容Greasemonkey)
     fetch?: boolean;
     user?: string;
     password?: string;
     nocache?: boolean;
-    /** Force revalidation of cached content: may cache, but must revalidate before using cached content */
-    revalidate?: boolean;
+    revalidate?: boolean; // 强制重新验证缓存内容：允许缓存，但必须在使用缓存内容之前重新验证
     redirect?: "follow" | "error" | "manual"; // 为了与tm保持一致, 在v0.17.0后废弃maxRedirects, 使用redirect替代, 会强制使用fetch模式
+    cookiePartition?: Record<string, any> & {
+      topLevelSite?: string; // 表示分区 cookie 的顶部帧站点
+    }; // 包含用于发送和接收的分区 cookie 的分区键 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+    context?: any; // 自定义值，传递给响应的 response.context 属性
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;
