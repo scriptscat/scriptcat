@@ -466,9 +466,16 @@ declare namespace GMTypes {
 
   type SWOpenTabOptions = OpenTabOptions & Required<Pick<OpenTabOptions, "active">>;
 
+  type ReadyState =
+    | 0 // UNSENT
+    | 1 // OPENED
+    | 2 // HEADERS_RECEIVED
+    | 3 // LOADING
+    | 4; // DONE
+
   interface XHRResponse {
     finalUrl?: string;
-    readyState?: 0 | 1 | 2 | 3 | 4;
+    readyState?: ReadyState;
     responseHeaders?: string;
     status?: number;
     statusText?: string;
