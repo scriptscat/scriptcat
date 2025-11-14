@@ -117,9 +117,9 @@ const CloudScriptPlan: React.FC<{
         const values = await parseExportValue(script, params.exportValue);
         const cookies = await parseExportCookie(params.exportCookie);
         if (cloudScriptType === "local") {
-          const jszip = createJSZip();
+          const zipFile = createJSZip();
           const cloudScript = CloudScriptFactory.create("local", {
-            zip: jszip,
+            zip: zipFile,
             ...params,
           });
           const code = await new ScriptCodeDAO().findByUUID(script.uuid);
@@ -129,7 +129,7 @@ const CloudScriptPlan: React.FC<{
           }
           cloudScript.exportCloud(script, code.code, values, cookies);
           // 生成文件,并下载
-          const files = await jszip.generateAsync({
+          const files = await zipFile.generateAsync({
             type: "blob",
             compression: "DEFLATE",
             compressionOptions: {

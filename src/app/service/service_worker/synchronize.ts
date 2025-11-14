@@ -234,11 +234,11 @@ export class SynchronizeService {
 
   // 请求导出文件
   async requestExport(uuids?: string[]) {
-    const zip = createJSZip();
-    const fs = new ZipFileSystem(zip);
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
     await this.backup(fs, uuids);
     // 生成文件,并下载
-    const files = await zip.generateAsync({
+    const files = await zipFile.generateAsync({
       type: "blob",
       compression: "DEFLATE",
       compressionOptions: {
@@ -258,8 +258,8 @@ export class SynchronizeService {
   // 备份到云端
   async backupToCloud({ type, params }: { type: FileSystemType; params: any }) {
     // 首先生成zip文件
-    const zip = createJSZip();
-    const fs = new ZipFileSystem(zip);
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
     await this.backup(fs);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
@@ -270,7 +270,7 @@ export class SynchronizeService {
       // 云端文件系统写入文件
       const file = await cloudFs.create(`scriptcat-backup-${dayFormat(new Date(), "YYYY-MM-DDTHH-mm-ss")}.zip`);
       await file.write(
-        await zip.generateAsync({
+        await zipFile.generateAsync({
           type: "blob",
           compression: "DEFLATE",
           compressionOptions: {
