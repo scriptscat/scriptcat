@@ -133,7 +133,7 @@ export class ValueService {
     const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
-        const now = ts || Date.now();
+        const now = Date.now();
         const dataModel: { [key: string]: any } = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);

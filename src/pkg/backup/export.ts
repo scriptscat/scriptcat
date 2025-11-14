@@ -44,13 +44,14 @@ export default class BackupExport {
     const wrtieStorage = JSON.stringify(storage);
 
     const fileOpts = { modifiedDate: script.lastModificationDate } as FileCreateOptions;
+    const fileOptsStorage = { modifiedDate: storage.ts || script.lastModificationDate } as FileCreateOptions;
     return [
       // 写脚本文件
       this.fs.create(`${filename}.user.js`, fileOpts).then((fileWriter) => fileWriter.write(writeCode)),
       // 写入脚本options.json
       this.fs.create(`${filename}.options.json`, fileOpts).then((fileWriter) => fileWriter.write(writeOptions)),
       // 写入脚本storage.json
-      this.fs.create(`${filename}.storage.json`, fileOpts).then((fileWriter) => fileWriter.write(wrtieStorage)),
+      this.fs.create(`${filename}.storage.json`, fileOptsStorage).then((fileWriter) => fileWriter.write(wrtieStorage)),
       // 写入脚本资源文件
       ...this.writeResource(filename, script.resources, "resources", fileOpts),
       ...this.writeResource(filename, script.requires, "requires", fileOpts),

@@ -298,8 +298,6 @@ export class ScriptService {
     if (updatetime) {
       script.updatetime = updatetime;
     }
-    console.log(12388, createtime, updatetime);
-    console.log(new Error().stack);
     return this.scriptDAO
       .save(script)
       .then(async () => {
