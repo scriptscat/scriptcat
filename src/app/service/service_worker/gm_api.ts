@@ -352,7 +352,7 @@ export default class GMApi {
       runFlag: request.runFlag,
       tabId: sender.getSender()?.tab?.id || -1,
     };
-    await this.value.setValues(request.script.uuid, id, keyValuePairs, valueSender, false);
+    await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
 
   @PermissionVerify.API()

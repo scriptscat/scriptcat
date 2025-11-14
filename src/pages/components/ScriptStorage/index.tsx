@@ -35,7 +35,7 @@ const ScriptStorage: React.FC<{
 
   // 保存单个键值
   const saveData = (key: string, value: any) => {
-    valueClient.setScriptValue({ uuid: script!.uuid, key, value });
+    valueClient.setScriptValue({ uuid: script!.uuid, key, value, ts: Date.now() });
     const newRawData = { ...rawData, [key]: value };
     if (value === undefined) {
       delete newRawData[key];
@@ -49,7 +49,7 @@ const ScriptStorage: React.FC<{
     for (const [key, value] of Object.entries(newRawValue)) {
       keyValuePairs.push([key, encodeRValue(value)]);
     }
-    valueClient.setScriptValues({ uuid: script!.uuid, keyValuePairs });
+    valueClient.setScriptValues({ uuid: script!.uuid, keyValuePairs, isReplace: true, ts: Date.now() });
     updateRawData(newRawValue);
   };
 

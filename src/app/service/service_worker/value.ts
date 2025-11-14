@@ -15,6 +15,15 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
 
+export type TSetValuesParams = {
+  uuid: string;
+  id?: string;
+  keyValuePairs: TKeyValuePair[];
+  isReplace: boolean;
+  ts?: number;
+  valueSender?: ValueUpdateSender;
+};
+
 export class ValueService {
   logger: Logger;
   scriptDAO: ScriptDAO = new ScriptDAO();
@@ -151,13 +160,14 @@ export class ValueService {
   }
 
   // 批量设置
-  async setValues(
-    uuid: string,
-    id: string,
-    keyValuePairs: TKeyValuePair[],
-    sender: ValueUpdateSender,
-    removeNotProvided: boolean
-  ) {
+  async setValues(params: TSetValuesParams) {
+    const { uuid, keyValuePairs, isReplace } = params;
+    const id = params.id || "";
+    const ts = params.ts || 0;
+    const valueSender = params.valueSender || {
+      runFlag: "user",
+      tabId: -2,
+    };
     const script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
@@ -168,8 +178,8 @@ export class ValueService {
     const entries = [] as ValueUpdateDataREntry[];
     const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
-      const now = Date.now();
       if (!valueModel) {
+        const now = Date.now();
         const dataModel: { [key: string]: any } = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
@@ -184,8 +194,8 @@ export class ValueService {
           uuid: uuid,
           storageName: storageName,
           data: dataModel,
-          createtime: now,
-          updatetime: now,
+          createtime: ts || Math.min(ts!, now),
+          updatetime: ts || Math.min(ts!, now),
         };
       } else {
         let changed = false;
@@ -206,7 +216,7 @@ export class ValueService {
           const rTyped2 = encodeRValue(oldValue);
           entries.push([key, rTyped1, rTyped2]);
         }
-        if (removeNotProvided) {
+        if (isReplace) {
           // 处理oldValue有但是没有在data.values中的情况
           for (const key of Object.keys(oldValueRecord)) {
             if (!containedKeys.has(key)) {
@@ -231,34 +241,21 @@ export class ValueService {
       entries: entries,
       uuid,
       storageName,
-      sender,
+      sender: valueSender,
       valueUpdated,
     } as ValueUpdateDataEncoded);
     // valueUpdate 消息用于 early script 的处理
     this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
   }
 
-  setScriptValue({ uuid, key, value }: { uuid: string; key: string; value: any }, _sender: IGetSender) {
-    const valueSender = {
-      runFlag: "user",
-      tabId: -2,
-    };
-    return this.setValue(uuid, "", key, value, valueSender);
-  }
-
-  setScriptValues({ uuid, keyValuePairs }: { uuid: string; keyValuePairs: TKeyValuePair[] }, _sender: IGetSender) {
-    const valueSender = {
-      runFlag: "user",
-      tabId: -2,
-    };
-    return this.setValues(uuid, "", keyValuePairs, valueSender, true);
+  setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
+    return this.setValues(params);
   }
 
   init(runtime: RuntimeService, popup: PopupService) {
     this.popup = popup;
     this.runtime = runtime;
     this.group.on("getScriptValue", this.getScriptValue.bind(this));
-    this.group.on("setScriptValue", this.setScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));
 
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {

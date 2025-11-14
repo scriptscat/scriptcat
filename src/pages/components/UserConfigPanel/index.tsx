@@ -18,6 +18,8 @@ import {
 import TabPane from "@arco-design/web-react/es/Tabs/tab-pane";
 import { ValueClient } from "@App/app/service/service_worker/client";
 import { message } from "@App/pages/store/global";
+import type { TKeyValuePair } from "@App/pkg/utils/message_value";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 const FormItem = Form.Item;
 
@@ -58,18 +60,22 @@ const UserConfigPanel: React.FC<{
           const saveValues = formRefs.current[tab].getFieldsValue();
           // 更新value
           const valueClient = new ValueClient(message);
+          const uuid = script.uuid;
+          const keyValuePairs = [] as TKeyValuePair[];
           for (const key of Object.keys(saveValues)) {
             for (const valueKey of Object.keys(saveValues[key])) {
               if (saveValues[key][valueKey] === undefined) {
                 continue;
               }
-              valueClient.setScriptValue({
-                uuid: script.uuid,
-                key: `${key}.${valueKey}`,
-                value: saveValues[key][valueKey],
-              });
+              keyValuePairs.push([`${key}.${valueKey}`, encodeRValue(saveValues[key][valueKey])]);
             }
           }
+          valueClient.setScriptValues({
+            uuid: uuid,
+            keyValuePairs: keyValuePairs,
+            isReplace: false,
+            ts: Date.now(),
+          });
           Message.success(t("save_success")!); // 替换为键值对应的英文文本
           setVisible(false);
         }
