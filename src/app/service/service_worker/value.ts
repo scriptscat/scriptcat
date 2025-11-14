@@ -71,58 +71,6 @@ export class ValueService {
     return newValues;
   }
 
-  async setValue(uuid: string, id: string, key: string, value: any, sender: ValueUpdateSender) {
-    // 查询出脚本
-    const script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    // 查询老的值
-    const storageName = getStorageName(script);
-    let oldValue;
-    // 使用事务来保证数据一致性
-    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const valueUpdated = await stackAsyncTask<boolean>(cacheKey, async () => {
-      let valueModel: Value | undefined = await this.valueDAO.get(storageName);
-      if (!valueModel) {
-        const now = Date.now();
-        valueModel = {
-          uuid: script.uuid,
-          storageName: storageName,
-          data: { [key]: value },
-          createtime: now,
-          updatetime: now,
-        };
-      } else {
-        let dataModel = valueModel.data;
-        // 值没有发生变化, 不进行操作
-        oldValue = dataModel[key];
-        if (oldValue === value) {
-          return false;
-        }
-        dataModel = { ...dataModel }; // 每次储存使用新参考
-        if (value === undefined) {
-          delete dataModel[key];
-        } else {
-          dataModel[key] = value;
-        }
-        valueModel.data = dataModel; // 每次储存使用新参考
-      }
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
-    });
-    this.pushValueToTab({
-      id,
-      entries: [[key, encodeRValue(value), encodeRValue(oldValue)]],
-      uuid,
-      storageName,
-      sender,
-      valueUpdated,
-    } satisfies ValueUpdateDataEncoded);
-    // valueUpdate 消息用于 early script 的处理
-    this.mq.emit<TScriptValueUpdate>("valueUpdate", { script, valueUpdated });
-  }
-
   // 推送值到tab
   async pushValueToTab<T extends ValueUpdateDataEncoded>(sendData: T) {
     const { storageName } = sendData;
