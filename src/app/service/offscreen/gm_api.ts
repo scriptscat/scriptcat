@@ -1,5 +1,5 @@
+import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 import type { IGetSender, Group } from "@Packages/message/server";
-import { BgGMXhr } from "../service_worker/gm_api/bg_gm_xhr";
 
 export default class GMApi {
   constructor(private group: Group) {}

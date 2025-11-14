@@ -68,6 +68,8 @@ declare namespace GMSend {
     user?: string;
     password?: string;
     nocache?: boolean;
+    /** Force revalidation of cached content: may cache, but must revalidate before using cached content */
+    revalidate?: boolean;
     dataType?: "FormData" | "Blob";
     redirect?: "follow" | "error" | "manual";
     byPassConnect?: boolean;

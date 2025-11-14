@@ -42,7 +42,7 @@ import {
   SWRequestResultParams,
 } from "./gm_xhr";
 import { headerModifierMap, headersReceivedMap } from "./gm_xhr";
-import { BgGMXhr } from "./bg_gm_xhr";
+import { BgGMXhr } from "@App/pkg/utils/xhr/bg_gm_xhr";
 
 const askUnlistedConnect = false;
 const askConnectStar = true;
