@@ -172,7 +172,7 @@ function App() {
       const scriptDetails = item.script!.script!;
       const createtime = item.lastModificationDate;
       const updatetime = item.lastModificationDate;
-      await scriptClient.install({ details: scriptDetails, code: item.code, createtime, updatetime });
+      await scriptClient.install({ script: scriptDetails, code: item.code, createtime, updatetime });
       await Promise.all([
         (async () => {
           // 导入资源

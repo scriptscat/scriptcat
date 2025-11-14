@@ -53,7 +53,7 @@ export class ScriptClient extends Client {
   }
 
   install(params: {
-    details: Script;
+    script: Script;
     code: string;
     upsertBy?: InstallSource;
     createtime?: number;

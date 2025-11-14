@@ -234,7 +234,7 @@ export class ScriptService {
     const { script } = await prepareScriptByCode(code, url, uuid);
     script.subscribeUrl = subscribeUrl;
     await this.installScript({
-      details: script,
+      script,
       code,
       upsertBy: source,
     });
@@ -246,7 +246,7 @@ export class ScriptService {
     const { code, upsertBy, uuid } = param;
     const { script } = await prepareScriptByCode(code, "", uuid, true);
     await this.installScript({
-      details: script,
+      script,
       code,
       upsertBy,
     });
@@ -267,14 +267,14 @@ export class ScriptService {
 
   // 安装脚本 / 更新腳本
   async installScript(param: {
-    details: Script;
+    script: Script;
     code: string;
     upsertBy?: InstallSource;
     createtime?: number;
     updatetime?: number;
   }) {
     param.upsertBy = param.upsertBy || "user";
-    const { details: script, upsertBy, createtime, updatetime } = param;
+    const { script, upsertBy, createtime, updatetime } = param;
     // 删 storage cache
     const compiledResourceUpdatePromise = this.compiledResourceDAO.delete(script.uuid);
     const logger = this.logger.with({
@@ -732,7 +732,7 @@ export class ScriptService {
         if (checkSilenceUpdate(oldScript!.metadata, script.metadata)) {
           logger?.info("silence update script");
           await this.installScript({
-            details: script,
+            script,
             code,
             upsertBy,
           });
@@ -915,7 +915,7 @@ export class ScriptService {
       const { script } = await prepareScriptByCode(code, url, uuid);
       console.log("slienceUpdate", script.name);
       await this.installScript({
-        details: script,
+        script,
         code,
         upsertBy: "system",
       });

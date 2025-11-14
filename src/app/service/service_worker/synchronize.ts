@@ -583,7 +583,7 @@ export class SynchronizeService {
       );
       script.origin = script.origin || metaObj.origin;
       this.script.installScript({
-        details: script,
+        script,
         code,
         upsertBy: "sync",
       });
