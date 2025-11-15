@@ -74,13 +74,11 @@ export class ScriptExecutor {
     const eventNamePrefix = env === "content" ? messageFlags.contentFlag : messageFlags.injectFlag;
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
-    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (event) => {
-      if (event instanceof CustomEvent) {
-        const scriptFlag = event.detail?.scriptFlag;
-        if (typeof scriptFlag === "string") {
-          event.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-          this.execEarlyScript(scriptFlag);
-        }
+    window.addEventListener(`${eventNamePrefix}${messageFlags.scriptLoadComplete}`, (ev) => {
+      const scriptFlag = (ev as CustomEvent).detail?.scriptFlag;
+      if (typeof scriptFlag === "string") {
+        ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
+        this.execEarlyScript(scriptFlag);
       }
     });
     // 通知 环境 加载完成

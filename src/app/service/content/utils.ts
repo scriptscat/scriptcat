@@ -112,12 +112,12 @@ export function compilePreInjectScript(
 };
 (() => {
   const f = () => {
-    const event = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
+    const ev = new CustomEvent('${eventNamePrefix}${messageFlags.scriptLoadComplete}', 
     { cancelable: true, detail: { scriptFlag: '${script.flag}' } });
-    return window.dispatchEvent(event);
+    return window.dispatchEvent(ev);
   };
-  const noCheckEarlyStartScript = f();
-  if (noCheckEarlyStartScript) {
+  const noCbHooked = f();
+  if (noCbHooked) {
     window.addEventListener('${eventNamePrefix}${messageFlags.envLoadComplete}', f, { once: true });
   }
 })();
