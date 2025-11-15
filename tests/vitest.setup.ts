@@ -17,6 +17,52 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation((path: string) => {
 
 const isPrimitive = (x: any) => x !== Object(x);
 
+// Window.prototype[Symbol.toStringTag] = "Window"
+Object.defineProperty(Object.getPrototypeOf(global), Symbol.toStringTag, {
+  value: "Window",
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+// 先改变 global[Symbol.toStringTag] 定义
+Object.defineProperty(global, Symbol.toStringTag, {
+  value: undefined,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+// 删除 global 表面的 property，使用 Window.prototype[Symbol.toStringTag]
+//@ts-expect-error
+if (!global[Symbol.toStringTag]) delete global[Symbol.toStringTag];
+
+const gblAddEventListener = Object.getPrototypeOf(global).addEventListener || global.addEventListener;
+const gblRemoveEventListener = Object.getPrototypeOf(global).removeEventListener || global.removeEventListener;
+class EventTargetE {
+  addEventListener(a: any, b: any, ...args: any[]) {
+    return gblAddEventListener.call(this, a, b, ...args);
+  }
+  removeEventListener(a: any, ...args: any[]) {
+    return gblRemoveEventListener.call(this, a, ...args);
+  }
+}
+//@ts-ignore
+delete global.addEventListener;
+//@ts-ignore
+delete global.removeEventListener;
+
+//@ts-ignore
+delete Object.getPrototypeOf(global).addEventListener;
+//@ts-ignore
+delete Object.getPrototypeOf(global).removeEventListener;
+
+//@ts-ignore
+delete Object.getPrototypeOf(Object.getPrototypeOf(global)).addEventListener;
+//@ts-ignore
+delete Object.getPrototypeOf(Object.getPrototypeOf(global)).removeEventListener;
+
+Object.getPrototypeOf(global).addEventListener = EventTargetE.prototype.addEventListener;
+Object.getPrototypeOf(global).removeEventListener = EventTargetE.prototype.removeEventListener;
+
 if (!("onanimationstart" in global)) {
   // Define or mock the global handler
   let val: any = null;

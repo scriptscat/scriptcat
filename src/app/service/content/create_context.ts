@@ -145,12 +145,14 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
 
     // 替换 function 的 this 为 实际的 global window
     // 例：父类的 addEventListener
+    // 被封装的属性，shouldFnBind 会传回 false。即略过封装层，向父类寻找原生属性
     if (shouldFnBind(value)) {
       const boundValue = value.bind(global);
       overridedDescs[key] = {
         ...desc,
         value: boundValue,
       };
+      descsCache.add(key); // 必须：子类属性覆盖父类属性
     }
   } else {
     if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
@@ -166,6 +168,7 @@ getAllPropertyDescriptors(global, ([key, desc]) => {
           get: desc?.get?.bind(global),
           set: desc?.set?.bind(global),
         };
+        descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
     }
   }
@@ -176,12 +179,42 @@ descsCache.clear(); // 内存释放
 // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
 //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
 // sharedInitCopy: ScriptCat脚本共通使用
-const sharedInitCopy = Object.create(null, {
-  ...initOwnDescs,
-  ...overridedDescs,
-  // Symbol.toStringTag设置为 Window
-  [Symbol.toStringTag]: { value: "Window", writable: false, enumerable: false, configurable: true },
+
+const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
+
+class PseudoWindow {}
+const PseudoWindowPrototype = PseudoWindow.prototype;
+Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
+  //@ts-ignore
+  value: global[Symbol.toStringTag],
+  writable: false,
+  enumerable: false,
+  configurable: true,
 });
+Object.defineProperty(PseudoWindowPrototype, "constructor", {
+  value: global.constructor,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+Object.defineProperty(PseudoWindowPrototype, "__proto__", {
+  //@ts-ignore
+  value: global.__proto__,
+  writable: false,
+  enumerable: false,
+  configurable: true,
+});
+
+const sharedInitCopy = USE_PSEUDO_WINDOW
+  ? Object.create(null, {
+      ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
+      ...initOwnDescs,
+      ...overridedDescs,
+    })
+  : Object.create(Object.getPrototypeOf(global), {
+      ...initOwnDescs,
+      ...overridedDescs,
+    });
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
